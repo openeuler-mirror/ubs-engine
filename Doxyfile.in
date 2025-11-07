@@ -1,0 +1,34 @@
+# Doxyfile.in（关键配置示例）
+PROJECT_NAME            = @PROJECT_NAME@
+PROJECT_NUMBER          = @PROJECT_VERSION@
+INPUT                   = @DOXYGEN_INPUT_DIR@
+FILE_PATTERNS           = *.cpp *.h *.c
+OUTPUT_DIRECTORY        = @DOXYGEN_OUTPUT_DIR@
+OUTPUT_LANGUAGE         = Chinese
+RECURSIVE               = YES
+GENERATE_HTML           = YES
+GENERATE_LATEX          = NO
+HAVE_DOT                = YES  # 启用Graphviz绘图
+DOT_NUM_THREADS         = 0 # 使用系统核数
+NUM_PROC_THREADS        = 0
+CREATE_SUBDIRS          = YES
+FULL_SIDEBAR            = YES
+FULL_PATH_NAMES         = YES
+STRIP_FROM_PATH         = ./
+LOOKUP_CACHE_SIZE       = 1 # 2^(16+LOOKUP_CACHE_SIZE)
+TIMESTAMP               = YES
+
+# 显示命名空间
+HIDE_SCOPE_NAMES        = NO
+
+# 允许程序文档中显示本文档化的函数相互调用关系
+REFERENCED_BY_RELATION  = YES
+REFERENCES_RELATION     = YES
+REFERENCES_LINK_SOURCE  = YES
+
+# 在程序文档中允许以图例形式显示函数调用关系
+CALL_GRAPH              = YES
+CALLER_GRAPH            = YES
+EXTRACT_ALL             = YES
+EXTRACT_PRIVATE         = YES
+INTERACTIVE_SVG         = YES

@@ -1,0 +1,3 @@
+add_subdirectory(mem_scheduler)
+add_subdirectory(mem_controller)
+add_subdirectory(algorithm)

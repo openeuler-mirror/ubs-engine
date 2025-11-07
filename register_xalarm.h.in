@@ -1,0 +1,75 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * Description: inspection message alarm program
+ * Author: Lan Sheng
+ * Create: 2023-10-23
+ */
+
+#ifndef REGISTER_XALARM_H
+#define REGISTER_XALARM_H
+
+constexpr int ALARM_INFO_MAX_PARAS_LEN = 8192;
+constexpr int ALARM_REBOOT_EVENT = 1003;
+constexpr int ALARM_REBOOT_ACK_EVENT = 1004;
+constexpr int ALARM_OOM_EVENT = 1005;
+constexpr int ALARM_OOM_ACK_EVENT = 1006;
+constexpr int ALARM_PANIC_EVENT = 1007;
+constexpr int ALARM_PANIC_ACK_EVENT = 1008;
+constexpr int ALARM_KERNEL_REBOOT_EVENT = 1009;
+constexpr int ALARM_KERNEL_REBOOT_ACK_EVENT = 1010;
+constexpr int MAX_NUM_OF_ALARM_ID = 128;
+
+const std::string NODE0_EID = "1.2.3.4";
+const std::string NODE1_EID = "1.2.3.5";
+const std::string NODE2_EID = "1.2.3.6";
+const std::string NODE3_EID = "1.2.3.7";
+const std::string NODE0_EID2 = "1.2.4.4";
+const std::string NODE1_EID2 = "1.2.4.5";
+const std::string NODE2_EID2 = "1.2.4.6";
+const std::string NODE3_EID2 = "1.2.4.7";
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct alarm_info {
+    unsigned short usAlarmId;
+    unsigned char ucAlarmLevel;
+    unsigned char ucAlarmType;
+    struct timeval AlarmTime;
+    char pucParas[ALARM_INFO_MAX_PARAS_LEN];
+};
+
+struct alarm_subscription_info {
+    int id_list[MAX_NUM_OF_ALARM_ID];
+    unsigned int len;
+};
+
+struct alarm_msg {
+    unsigned short usAlarmId;
+    struct timeval AlarmTime;
+    char pucParas[ALARM_INFO_MAX_PARAS_LEN];
+};
+
+struct alarm_register {
+    int register_fd;
+    char alarm_enable_bitmap[MAX_NUM_OF_ALARM_ID];
+};
+
+int xalarm_report_event(unsigned short usAlarmId, char *pucParas);
+int xalarm_register_event(struct alarm_register **register_info, struct alarm_subscription_info id_filter);
+int xalarm_get_event(struct alarm_msg *msg, struct alarm_register *register_info);
+void xalarm_unregister_event(struct alarm_register *register_info);
+#ifdef __cplusplus
+}
+#endif
+
+#endif

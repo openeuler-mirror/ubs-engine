@@ -1,0 +1,5 @@
+file(GLOB SOURCES "*.cpp" "*.h")
+add_library(ubse_election_message STATIC ${SOURCES})
+target_include_directories(ubse_election_message PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ubse_election_message PUBLIC ${SRC_DIR}/election)
+target_link_libraries(ubse_election_message PUBLIC ubse_message ubse_utils ubse_election ubse_serial ubse_timer)

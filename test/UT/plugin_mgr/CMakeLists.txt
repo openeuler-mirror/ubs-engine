@@ -1,0 +1,2 @@
+add_ut(ubse_plugin)
+target_link_libraries(${CMAKE_PROJECT_NAME}_ubse_plugin_ut PRIVATE ubse_context ubse_config)
