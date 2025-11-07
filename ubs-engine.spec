@@ -16,9 +16,10 @@ Prefix: /usr
 BuildRequires: cmake make gcc-c++ gcc
 BuildRequires: glibc-devel libstdc++-devel
 BuildRequires: systemd-devel
-BuildRequires: audit-devel libboundscheck ubs-hcom-devel libxml2-devel
+BuildRequires: libboundscheck ubs-hcom-devel libxml2-devel
 BuildRequires: numactl-libs
-BuildRequires: bash bc coreutils findutils gawk grep kmod lsof libcap sed sudo util-linux vim util-linux-user cpio tar unzip mlocate ninja-build ccache java-11-openjdk python3-pre-commit libffi-devel zlib-devel clang-devel
+BuildRequires: bash bc coreutils findutils gawk grep kmod lsof libcap sed sudo util-linux util-linux-user cpio tar unzip mlocate ninja-build ccache libffi-devel zlib-devel clang-devel
+BuildRequires: python3-pre-commit
 Requires: bash glibc libgcc libstdc++ obmm libboundscheck libxml2 ubs-hcom
 
 %define _rpmdir %_topdir/RPMS

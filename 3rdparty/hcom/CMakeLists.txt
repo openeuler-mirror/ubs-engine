@@ -1,5 +1,5 @@
 # -----------------------------
-# 检查 HCOM 是否已通过 RPM 安装到系统
+# 尝试查找系统已安装的 HCOM (RPM 模式)
 # -----------------------------
 find_path(HCOM_INCLUDE_DIR
         NAMES hcom/hcom.h
@@ -8,37 +8,47 @@ find_path(HCOM_INCLUDE_DIR
 )
 
 find_library(HCOM_SHARED_LIBRARY
-        NAMES libhcom.so hcom
+        NAMES hcom libhcom.so
         PATHS /usr/lib64 /usr/lib
         NO_DEFAULT_PATH
 )
 
-# -----------------------------
-# 验证是否找到
-# -----------------------------
-if(NOT HCOM_INCLUDE_DIR OR NOT HCOM_SHARED_LIBRARY)
-    message(FATAL_ERROR
-            "HCOM not found! Please install the HCOM RPM package:\n"
-            "  rpm -ivh ubs-hcom-devel-2.0.0-1.oe2403sp1.aarch64.rpm\n"
-            "Expected:\n"
-            "  Header: /usr/include/hcom/hcom.h\n"
-            "  Shared: /usr/lib64/libhcom.so"
-    )
+if(HCOM_INCLUDE_DIR AND HCOM_SHARED_LIBRARY)
+    message(STATUS "Found system-installed HCOM: headers=${HCOM_INCLUDE_DIR}, lib=${HCOM_SHARED_LIBRARY}")
+    set(USE_SYSTEM_HCOM ON)
+else()
+    message(STATUS "HCOM not found in system. Building from source...")
+    set(USE_SYSTEM_HCOM OFF)
 endif()
 
-message(STATUS "Found HCOM headers: ${HCOM_INCLUDE_DIR}")
-message(STATUS "Found HCOM shared: ${HCOM_SHARED_LIBRARY}")
+# -----------------------------
+# 如果系统没有，从源码构建 HCOM
+# -----------------------------
+if(NOT USE_SYSTEM_HCOM)
+    include(FetchContent)
+
+    # 假设 ubs-comm 仓库包含 hcom 的实现
+    FetchContent_Declare(
+            ubs_comm
+            GIT_REPOSITORY https://gitee.com/openeuler/ubs-comm.git
+            GIT_TAG        master
+    )
+
+    FetchContent_MakeAvailable(ubs_comm)
+endif()
 
 # -----------------------------
-# 定义 INTERFACE 库
+# 定义统一的 hcom 接口供上层使用
 # -----------------------------
-
-# === hcom (头文件接口) ===
-add_library(hcom INTERFACE)
-target_include_directories(hcom SYSTEM INTERFACE
-        ${HCOM_INCLUDE_DIR}/hcom
-)
-
-# === hcom_shared (共享库接口) ===
-add_library(hcom_shared INTERFACE)
-target_link_libraries(hcom_shared INTERFACE hcom ${HCOM_SHARED_LIBRARY})
+if(USE_SYSTEM_HCOM)
+    # 系统模式：创建 INTERFACE 库
+    add_library(hcom INTERFACE)
+    target_include_directories(hcom SYSTEM INTERFACE ${HCOM_INCLUDE_DIR})
+    target_link_libraries(hcom INTERFACE ${HCOM_SHARED_LIBRARY})
+else()
+    # 源码模式：假设 ubs-comm 导出了 `hcom` 目标
+    # 如果没有，需要在这里手动创建 alias 或 INTERFACE
+    if(NOT TARGET hcom)
+        message(FATAL_ERROR "ubs-comm source must provide a 'hcom' target!")
+    endif()
+endif()
