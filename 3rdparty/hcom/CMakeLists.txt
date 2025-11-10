@@ -34,6 +34,10 @@ if(NOT USE_SYSTEM_HCOM)
             GIT_TAG        master
     )
 
+    set(HCOM_BUILD_TYPE "release" CACHE STRING "")
+    set(HCOM_BUILD_UB ON CACHE BOOL "")
+    set(HCOM_BUILD_HTRACER ON CACHE BOOL "")
+
     FetchContent_MakeAvailable(ubs_comm)
 endif()
 
@@ -43,7 +47,7 @@ endif()
 if(USE_SYSTEM_HCOM)
     # 系统模式：创建 INTERFACE 库
     add_library(hcom INTERFACE)
-    target_include_directories(hcom SYSTEM INTERFACE ${HCOM_INCLUDE_DIR})
+    target_include_directories(hcom SYSTEM INTERFACE ${HCOM_INCLUDE_DIR}/hcom)
     target_link_libraries(hcom INTERFACE ${HCOM_SHARED_LIBRARY})
 else()
     # 源码模式：假设 ubs-comm 导出了 `hcom` 目标
@@ -51,4 +55,5 @@ else()
     if(NOT TARGET hcom)
         message(FATAL_ERROR "ubs-comm source must provide a 'hcom' target!")
     endif()
+    target_include_directories(hcom INTERFACE ${ubs_comm_SOURCE_DIR}/src ${ubs_comm_SOURCE_DIR}/src/service_v2/api)
 endif()
