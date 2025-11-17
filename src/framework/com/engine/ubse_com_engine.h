@@ -192,7 +192,7 @@ protected:
     /* *
      * @brief 注册tls认证处理函数
      */
-    void RegisterTLSCallbacks(TlsOptions &tlsOptions);
+    void RegisterTLSCallbacks(UBSHcomTlsOptions &tlsOptions);
 
     /* *
      * @brief 新连接建立消息处理函数
