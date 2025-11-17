@@ -9,7 +9,7 @@ list(FILTER ALL_SOURCES EXCLUDE REGEX "/sample/")
 
 add_library(ubse_sdk SHARED ${ALL_SOURCES})
 target_include_directories(ubse_sdk PRIVATE ${CMAKE_CURRENT_LIST_DIR} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
-target_link_libraries(ubse_sdk PRIVATE ubse_ipc_client libboundscheck)
+target_link_libraries(ubse_sdk PRIVATE ubse_ipc_client boundscheck)
 
 
 # 设置版本和 soname
@@ -22,7 +22,7 @@ set_target_properties(ubse_sdk PROPERTIES
 # 静态库
 add_library(ubse_sdk_static STATIC ${ALL_SOURCES})
 target_include_directories(ubse_sdk_static PRIVATE ${CMAKE_CURRENT_LIST_DIR} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
-target_link_libraries(ubse_sdk_static PRIVATE ubse_ipc_client libboundscheck)
+target_link_libraries(ubse_sdk_static PRIVATE ubse_ipc_client boundscheck)
 # 设置版本和 soname
 set_target_properties(ubse_sdk_static PROPERTIES
         OUTPUT_NAME "ubse-client"              # 输出文件名为 libubse-client.a

@@ -11,7 +11,7 @@ target_link_libraries(rack_cli_ut PUBLIC
         ubse_cli_framework
         ubse_serial
         cert_api_static
-        libboundscheck
+        boundscheck
 )
 target_include_directories(rack_cli_ut PUBLIC ${CMAKE_SOURCE_DIR}/src/cli)
 add_ut(rack_cli_ut)

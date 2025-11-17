@@ -15,7 +15,7 @@ target_compile_options(${UT_BINARY} PRIVATE -fno-access-control ${DEBUG_FLAGS} -
 target_link_libraries(${UT_BINARY} PUBLIC
         GTest::gmock_main
         mockcpp
-        libboundscheck
+        boundscheck
         rack_cli_ut
         ubse_serial
         ubse_event

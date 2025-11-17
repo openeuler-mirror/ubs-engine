@@ -10,4 +10,4 @@ target_include_directories(rm_mem_algo_static PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/common
         ${CMAKE_CURRENT_LIST_DIR}/strategy
 )
-target_link_libraries(rm_mem_algo_static PUBLIC libboundscheck ubse_utils)
+target_link_libraries(rm_mem_algo_static PUBLIC boundscheck ubse_utils)

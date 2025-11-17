@@ -14,7 +14,7 @@ target_link_libraries(ubsectl PRIVATE
         cert_api_static
         ubse_ipc_client
         ubse_serial
-        libboundscheck
+        boundscheck
 )
 target_compile_options(ubsectl PRIVATE
         # C 和 C++ 编译选项

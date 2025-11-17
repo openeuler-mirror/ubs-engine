@@ -30,18 +30,3 @@ endif()
 
 message(STATUS "Found libboundscheck headers: ${LIBBOUNDCHECK_INCLUDE_DIR}")
 message(STATUS "Found libboundscheck shared: ${LIBBOUNDCHECK_SHARED_LIBRARY}")
-
-# -----------------------------
-# 定义 INTERFACE 库
-# -----------------------------
-
-# === libboundscheck (头文件 + 库) ===
-add_library(libboundscheck INTERFACE)
-
-# 添加头文件路径
-target_include_directories(libboundscheck SYSTEM INTERFACE
-        ${LIBBOUNDCHECK_INCLUDE_DIR}
-)
-
-# 链接共享库
-target_link_libraries(libboundscheck INTERFACE ${LIBBOUNDCHECK_SHARED_LIBRARY})
