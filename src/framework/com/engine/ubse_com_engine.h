@@ -104,7 +104,7 @@ private:
 
 class UbseComEngine {
 public:
-    UbseComEngine(UbseComEngineInfo engineInfo, HcomService *hcomNetService, UbseComLinkStateNotify linkStateNotify,
+    UbseComEngine(UbseComEngineInfo engineInfo, UBSHcomService *hcomNetService, UbseComLinkStateNotify linkStateNotify,
                   UbseComLinkManager linkManager);
 
     /* *
@@ -122,7 +122,7 @@ public:
      */
     UbseResult RegUbseComMsgHandler(const UbseComMsgHandler &handle);
 
-    UbseResult DoConnect(UbseComChannelConnectInfo &info, ConnectOptions options, HcomChannelPtr& channelPtr);
+    UbseResult DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options, UBSHcomChannelPtr& channelPtr);
 
     /* *
      * @brief 创建一个信息通道
@@ -169,7 +169,7 @@ public:
      */
     void RemoveChannel(std::string remoteNodeId, UbseChannelType type);
 
-    void DestroyChannel(const HcomChannelPtr &ch);
+    void DestroyChannel(const UBSHcomChannelPtr &ch);
 
     /* *
      * @brief 启动引擎
@@ -201,39 +201,39 @@ protected:
      * @param[in] payload: 远端标识
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult NewChannel(const std::string &ipPort, const HcomChannelPtr &ch, const std::string &payload);
+    UbseResult NewChannel(const std::string &ipPort, const UBSHcomChannelPtr &ch, const std::string &payload);
 
     /* *
      * @brief 通道断开消息处理函数
      * @param[in] ch: 通道指针
      */
-    void BrokenChannel(const HcomChannelPtr &ch);
+    void BrokenChannel(const UBSHcomChannelPtr &ch);
 
     /* *
      * @brief 通信消息处理函数
      * @param[in] context: 消息上下文
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult ReceivedRequest(HcomServiceContext &context);
+    UbseResult ReceivedRequest(UBSHcomServiceContext &context);
 
     /* *
      * @brief 通信消息发送完成处理函数
      * @param[in] context: 消息上下文
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult SendRequest(const HcomServiceContext &context);
+    UbseResult SendRequest(const UBSHcomServiceContext &context);
 
     /* *
      * @brief 单边消息发送完成处理函数
      * @param[in] context: 消息上下文
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult OneSideDoneRequest(const HcomServiceContext &context);
+    UbseResult OneSideDoneRequest(const UBSHcomServiceContext &context);
 
     /* *
      * @brief 添加引擎监听信息
      */
-    void AddListenOptions(HcomServiceNewChannelHandler newChannelHandler);
+    void AddListenOptions(UBSHcomServiceNewChannelHandler newChannelHandler);
 
     bool AddConnectingNode(const std::string &remoteNodeId, UbseChannelType channelType);
 
@@ -245,7 +245,7 @@ protected:
 
 protected:
     UbseComEngineInfo engineInfo;           // 引擎信息
-    HcomService *hcomNetService = nullptr;  // hcom service实例
+    UBSHcomService *hcomNetService = nullptr;  // hcom service实例
     UbseComLinkStateNotify linkStateNotify; // 通道状态变更回调函数
     std::atomic<bool> deleted{false};       // 引擎是否销毁
     UbseComLinkManager linkManager;         // 连接通道管理器
@@ -373,9 +373,9 @@ public:
 };
 
 bool CertCallback(const std::string &name, std::string &value);
-bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len, TLSEraseKeypass &erase);
+bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len, UBSHcomTLSEraseKeypass &erase);
 bool CACallback(const std::string &name, std::string &caPath, std::string &crlPath,
-    PeerCertVerifyType &peerCertVerifyType, TLSCertVerifyCallback &cb);
+    UBSHcomPeerCertVerifyType &peerCertVerifyType, UBSHcomTLSCertVerifyCallback &cb);
 void KeyPassErase(void *pass, int len);
 } // namespace ubse::com
 #endif // UBSE_COM_ENGINE_H

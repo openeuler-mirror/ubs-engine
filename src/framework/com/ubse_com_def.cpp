@@ -201,12 +201,12 @@ void UbseComEngineInfo::SetQueryEidByNodeIdCb(QueryEidByNodeIdCb queryEidByNodeI
     UbseComEngineInfo::queryEidByNodeIdCb = queryEidByNodeIdCb;
 }
 
-const NetCipherSuite &UbseComEngineInfo::GetCipherSuite() const
+const UBSHcomNetCipherSuite &UbseComEngineInfo::GetCipherSuite() const
 {
     return cipherSuite;
 }
 
-void UbseComEngineInfo::SetCipherSuite(const NetCipherSuite &suite)
+void UbseComEngineInfo::SetCipherSuite(const UBSHcomNetCipherSuite &suite)
 {
     cipherSuite = suite;
 }
@@ -281,12 +281,12 @@ void UbseComChannelInfo::SetIsServer(bool isServerSide)
     UbseComChannelInfo::isServer = isServerSide;
 }
 
-const HcomChannelPtr &UbseComChannelInfo::GetChannel() const
+const UBSHcomChannelPtr &UbseComChannelInfo::GetChannel() const
 {
     return channel;
 }
 
-void UbseComChannelInfo::SetChannel(const HcomChannelPtr &ch)
+void UbseComChannelInfo::SetChannel(const UBSHcomChannelPtr &ch)
 {
     UbseComChannelInfo::channel = ch;
 }
@@ -646,24 +646,24 @@ std::pair<std::string, UbseChannelType> SplitPayload(const std::string &payload)
     return std::make_pair(payloadPair[0], StringToChannelType(payloadPair[1]));
 }
 
-UbseComMessage *GetMessageFromNetServiceContext(HcomServiceContext &context)
+UbseComMessage *GetMessageFromNetServiceContext(UBSHcomServiceContext &context)
 {
     return static_cast<UbseComMessage *>(context.MessageData());
 }
 
-bool CheckMessageBodyLen(HcomServiceContext &context, UbseComMessage &msg)
+bool CheckMessageBodyLen(UBSHcomServiceContext &context, UbseComMessage &msg)
 {
     return context.MessageDataLen() == (sizeof(UbseComMessage) + msg.GetMessageBodyLen());
 }
 
-uint64_t GetChannelIdFromNetServiceContext(HcomServiceContext &context)
+uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext &context)
 {
     return context.Channel()->GetId();
 }
 
-void GetUdsInfoFromNetServiceContext(HcomServiceContext &context, UbseUdsIdInfo &udsIdInfo)
+void GetUdsInfoFromNetServiceContext(UBSHcomServiceContext &context, UbseUdsIdInfo &udsIdInfo)
 {
-    NetUdsIdInfo uds;
+    UBSHcomNetUdsIdInfo uds;
     auto ret = context.Channel()->GetRemoteUdsIdInfo(uds);
     if (UBSE_RESULT_OK(ret)) {
         UBSE_LOG_DEBUG << "Uds info is " << uds.pid << "," << uds.uid << "," << uds.gid;

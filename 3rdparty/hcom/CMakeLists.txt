@@ -30,8 +30,8 @@ if(NOT USE_SYSTEM_HCOM)
     # 假设 ubs-comm 仓库包含 hcom 的实现
     FetchContent_Declare(
             ubs_comm
-            GIT_REPOSITORY https://gitee.com/openeuler/ubs-comm.git
-            GIT_TAG        master
+            GIT_REPOSITORY https://gitee.com/yanzhihan/ubs-comm.git
+            GIT_TAG        cmake1109
     )
 
     set(HCOM_BUILD_TYPE "release" CACHE STRING "")

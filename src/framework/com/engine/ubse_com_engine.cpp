@@ -156,7 +156,7 @@ void UbseComLinkManager::RemoveChannelByChannelIdForBroken(uint64_t id)
         LogChannelInfo();
         return;
     }
-    HcomChannelPtr chPtr = iter->second.GetChannel();
+    UBSHcomChannelPtr chPtr = iter->second.GetChannel();
     auto remoteId = iter->second.GetConnectInfo().GetRemoteNodeId();
     auto chType = iter->second.GetChannelType();
     auto engineName = iter->second.GetEngineName();
@@ -177,7 +177,7 @@ void UbseComLinkManager::RemoveChannelByChannelId(uint64_t id, UbseComEngine *en
         LogChannelInfo();
         return;
     }
-    HcomChannelPtr chPtr = iter->second.GetChannel();
+    UBSHcomChannelPtr chPtr = iter->second.GetChannel();
     auto remoteId = iter->second.GetConnectInfo().GetRemoteNodeId();
     auto chType = iter->second.GetChannelType();
     auto engineName = iter->second.GetEngineName();
@@ -191,7 +191,7 @@ void UbseComLinkManager::RemoveChannelByChannelId(uint64_t id, UbseComEngine *en
         LogChannelInfo();
         return;
     }
-    std::thread t([chPtr, id, engine]() { engine->DestroyChannel(const_cast<HcomChannelPtr &>(chPtr)); });
+    std::thread t([chPtr, id, engine]() { engine->DestroyChannel(const_cast<UBSHcomChannelPtr &>(chPtr)); });
     t.detach();
     UBSE_LOG_INFO << "Remove channel by user, channel_id=" << id;
     LogChannelInfo();
@@ -221,7 +221,7 @@ void UbseComLinkManager::RemoveAllChannel(UbseComEngine *engine)
 std::map<std::string, UbseComEngine *> UbseComEngineManager::G_ENGINE_MAP;
 std::mutex UbseComEngineManager::G_MUTEX;
 
-UbseComEngine::UbseComEngine(UbseComEngineInfo engineInfo, HcomService *hcomNetService,
+UbseComEngine::UbseComEngine(UbseComEngineInfo engineInfo, UBSHcomService *hcomNetService,
                              UbseComLinkStateNotify linkStateNotify, UbseComLinkManager linkManager)
     : engineInfo(std::move(engineInfo)),
       hcomNetService(hcomNetService),
@@ -267,7 +267,7 @@ const std::string DEFAULT_DEVICE_IP_MASK = "127.0.0.1/24";
 const uint16_t DEFAULT_WORKER_GROUP = 8;
 constexpr int WORKER_THREAD_PRIORITY = -20;
 
-static void AssignServiceOptions(const UbseComEngineInfo &engineInfo, ServiceOptions &options)
+static void AssignServiceOptions(const UbseComEngineInfo &engineInfo, UBSHcomServiceOptions &options)
 {
     if (engineInfo.GetProtocol() == UbseProtocol::TCP) {
         options.maxSendRecvDataSize = TCP_SEND_RECEIVE_SIZE;
@@ -275,14 +275,14 @@ static void AssignServiceOptions(const UbseComEngineInfo &engineInfo, ServiceOpt
         options.maxSendRecvDataSize = SEND_RECEIVE_SIZE;
     }
     options.workerGroupThreadCount = DEFAULT_WORKER_GROUP;
-    options.workerGroupMode = static_cast<WorkerMode>(engineInfo.GetWorkerMode());
+    options.workerGroupMode = static_cast<UBSHcomWorkerMode>(engineInfo.GetWorkerMode());
     options.workerThreadPriority = WORKER_THREAD_PRIORITY;
 }
 
-void SetChannelTimeout(const UbseChannelType chType, HcomChannelPtr channelPtr, int16_t timeout,
+void SetChannelTimeout(const UbseChannelType chType, UBSHcomChannelPtr channelPtr, int16_t timeout,
                        int16_t heartBeatTimeout)
 {
-    TwoSideThreshold th;
+    UBSHcomTwoSideThreshold th;
     th.splitThreshold = SEND_RECEIVE_SIZE;
     channelPtr->SetTwoSideThreshold(th);
     if (chType == UbseChannelType::HEARTBEAT) {
@@ -292,7 +292,7 @@ void SetChannelTimeout(const UbseChannelType chType, HcomChannelPtr channelPtr, 
     }
 }
 
-UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, ConnectOptions options, HcomChannelPtr &channelPtr)
+UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options, UBSHcomChannelPtr &channelPtr)
 {
     if (engineInfo.GetProtocol() == UbseProtocol::TCP) {
         return hcomNetService->Connect("tcp://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
@@ -312,7 +312,7 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo &info, UbseCha
     }
     UBSE_LOG_INFO << "Create channel remote is " << info.GetRemoteNodeId() << " start"
                   << ", type=" << ChannelTypeToString(chType);
-    ConnectOptions options{};
+    UBSHcomConnectOptions options{};
     options.linkCount = info.GetLinkNum();
     auto engineName = engineInfo.GetName();
     if (hcomNetService == nullptr) {
@@ -330,7 +330,7 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo &info, UbseCha
         return UBSE_OK;
     }
     rwLock.UnLock();
-    HcomChannelPtr channelPtr;
+    UBSHcomChannelPtr channelPtr;
     options.payload = ChannelTypeToPayload(info.GetCurNodeId(), chType);
     auto ret = DoConnect(info, options, channelPtr);
     if (UBSE_RESULT_FAIL(ret)) {
@@ -378,7 +378,7 @@ UbseComMsgHandler *UbseComEngine::GetMessageHandler(uint16_t moduleCode, uint16_
     return hdl;
 }
 
-void UbseComEngine::DestroyChannel(const HcomChannelPtr &ch)
+void UbseComEngine::DestroyChannel(const UBSHcomChannelPtr &ch)
 {
     if (hcomNetService == nullptr) {
         return;
@@ -418,7 +418,7 @@ void UbseComEngine::Stop()
     auto engineName = engineInfo.GetName();
     if (hcomNetService != nullptr) {
         deleted.store(true);
-        auto ret = HcomService::Destroy(engineName);
+        auto ret = UBSHcomService::Destroy(engineName);
         hcomNetService = nullptr;
     }
 }
@@ -440,10 +440,10 @@ void UbseComEngine::InitEngineOptions()
         ipMasks.push_back(DEFAULT_DEVICE_IP_MASK);
     }
     hcomNetService->SetDeviceIpMask(ipMasks);
-    TlsOptions tlsOptions;
+    UBSHcomTlsOptions tlsOptions;
     RegisterTLSCallbacks(tlsOptions);
     hcomNetService->SetTlsOptions(tlsOptions);
-    HeartBeatOptions hbOption;
+    UBSHcomHeartBeatOptions hbOption;
     hbOption.heartBeatIdleSec = engineInfo.GetHcomHbTimeOut();
     hcomNetService->SetHeartBeatOptions(hbOption);
     hcomNetService->SetMaxConnectionCount(NO_500);
@@ -454,7 +454,7 @@ void UbseComEngine::RegisterEngineHandlers()
     bool isOobSvr = engineInfo.GetEngineType() != UbseEngineType::CLIENT;
     bool isUbc = engineInfo.GetProtocol() == UbseProtocol::UBC;
     if (isOobSvr || isUbc) {
-        HcomServiceNewChannelHandler newChannelHandler = [this](const std::string &addr, const HcomChannelPtr &ch,
+        UBSHcomServiceNewChannelHandler newChannelHandler = [this](const std::string &addr, const UBSHcomChannelPtr &ch,
                                                                 const std::string &payload) -> UbseResult {
             if (UBSE_UNLIKELY(ch == nullptr)) {
                 return UBSE_COM_ERROR_CHANNEL_NULL;
@@ -463,19 +463,19 @@ void UbseComEngine::RegisterEngineHandlers()
         };
         AddListenOptions(newChannelHandler);
     }
-    HcomServiceChannelBrokenHandler channelBrokenHandler = [this](const HcomChannelPtr &ch) {
+    UBSHcomServiceChannelBrokenHandler channelBrokenHandler = [this](const UBSHcomChannelPtr &ch) {
         BrokenChannel(ch);
     };
-    hcomNetService->RegisterChannelBrokenHandler(channelBrokenHandler, HcomChannelBrokenPolicy::BROKEN_ALL);
-    HcomServiceRecvHandler receivedHandler = [this](HcomServiceContext &context) -> UbseResult {
+    hcomNetService->RegisterChannelBrokenHandler(channelBrokenHandler, UBSHcomChannelBrokenPolicy::BROKEN_ALL);
+    UBSHcomServiceRecvHandler receivedHandler = [this](UBSHcomServiceContext &context) -> UbseResult {
         return ReceivedRequest(context);
     };
     hcomNetService->RegisterRecvHandler(receivedHandler);
-    HcomServiceSendHandler serviceSentHandler = [this](const HcomServiceContext &context) -> UbseResult {
+    UBSHcomServiceSendHandler serviceSentHandler = [this](const UBSHcomServiceContext &context) -> UbseResult {
         return SendRequest(context);
     };
     hcomNetService->RegisterSendHandler(serviceSentHandler);
-    HcomServiceOneSideDoneHandler oneSideDoneRequest = [this](const HcomServiceContext &context) -> UbseResult {
+    UBSHcomServiceOneSideDoneHandler oneSideDoneRequest = [this](const UBSHcomServiceContext &context) -> UbseResult {
         return OneSideDoneRequest(context);
     };
     hcomNetService->RegisterOneSideHandler(oneSideDoneRequest);
@@ -501,7 +501,7 @@ bool UbseComEngine::SplitIp(const std::string ipPortStr, std::string &ip)
     return true;
 }
 
-void UbseComEngine::RegisterTLSCallbacks(TlsOptions &tlsOptions)
+void UbseComEngine::RegisterTLSCallbacks(UBSHcomTlsOptions &tlsOptions)
 {
     bool enableTlsValue = true;
     auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
@@ -530,7 +530,7 @@ bool CertCallback(const std::string &name, std::string &value)
     return true;
 }
 
-bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len, TLSEraseKeypass &erase)
+bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len, UBSHcomTLSEraseKeypass &erase)
 {
     UBSE_LOG_INFO << "Start to load private key";
     std::string keyPassPath = PASSWORD_FILENAME;
@@ -570,7 +570,7 @@ bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyP
 }
 
 bool CACallback(const std::string &name, std::string &caPath, std::string &crlPath,
-                PeerCertVerifyType &peerCertVerifyType, TLSCertVerifyCallback &cb)
+                UBSHcomPeerCertVerifyType &peerCertVerifyType, UBSHcomTLSCertVerifyCallback &cb)
 {
     UBSE_LOG_INFO << "Start to load ca cert";
     caPath = TRUST_CERT_FILENAME;
@@ -635,7 +635,7 @@ UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo &chInfo)
     return UBSE_OK;
 }
 
-UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const HcomChannelPtr &ch, const std::string &payload)
+UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomChannelPtr &ch, const std::string &payload)
 {
     const auto &engineName = engineInfo.GetName();
     UBSE_LOG_INFO << "Engine " << engineName << " get new channel";
@@ -683,7 +683,7 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const HcomChanne
     return UBSE_OK;
 }
 
-void UbseComEngine::BrokenChannel(const HcomChannelPtr &ch)
+void UbseComEngine::BrokenChannel(const UBSHcomChannelPtr &ch)
 {
     const auto &engineName = engineInfo.GetName();
     UBSE_LOG_INFO << "Engine=" << engineName << " channel broken";
@@ -717,7 +717,7 @@ void NoHandlerReply(UbseComMessageCtx &message)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
 }
 
-UbseResult UbseComEngine::ReceivedRequest(HcomServiceContext &context)
+UbseResult UbseComEngine::ReceivedRequest(UBSHcomServiceContext &context)
 {
     auto engineName = engineInfo.GetName();
     auto msg = GetMessageFromNetServiceContext(context);
@@ -776,21 +776,21 @@ UbseResult UbseComEngine::GetChannelById(uint64_t channelId, UbseComChannelInfo 
     return ret;
 }
 
-UbseResult UbseComEngine::SendRequest(const HcomServiceContext &context)
+UbseResult UbseComEngine::SendRequest(const UBSHcomServiceContext &context)
 {
     int32_t ret = context.Result();
     UBSE_LOG_INFO << "Send request finish, result is " << ret;
     return UBSE_OK;
 }
 
-UbseResult UbseComEngine::OneSideDoneRequest(const HcomServiceContext &context)
+UbseResult UbseComEngine::OneSideDoneRequest(const UBSHcomServiceContext &context)
 {
     int32_t ret = context.Result();
     UBSE_LOG_INFO << "One side done finish, result is " << ret;
     return UBSE_OK;
 }
 
-void UbseComEngine::AddListenOptions(HcomServiceNewChannelHandler newChannelHandler)
+void UbseComEngine::AddListenOptions(UBSHcomServiceNewChannelHandler newChannelHandler)
 {
     if (engineInfo.GetProtocol() == UbseProtocol::TCP) {
         hcomNetService->Bind(
@@ -832,10 +832,10 @@ UbseResult UbseComEngineManager::CreateEngine(const UbseComEngineInfo &engineInf
     }
 
     NetLogger::Instance()->SetExternalLogFunction(engineInfo.GetLogFunc());
-    ServiceOptions options{};
+    UBSHcomServiceOptions options{};
     UbseProtocol hcomProtocol = engineInfo.GetProtocol();
     AssignServiceOptions(engineInfo, options);
-    auto service = HcomService::Create(static_cast<HcomServiceProtocol>(hcomProtocol), engineName, options);
+    auto service = UBSHcomService::Create(static_cast<UBSHcomServiceProtocol>(hcomProtocol), engineName, options);
     if (UBSE_UNLIKELY(service == nullptr)) {
         UBSE_LOG_ERROR << "Create engine " << engineName << " service instance failed";
         return UBSE_COM_ERROR_ENGINE_CREATE_FAIL;
@@ -844,14 +844,14 @@ UbseResult UbseComEngineManager::CreateEngine(const UbseComEngineInfo &engineInf
     auto engine = new (std::nothrow) UbseComEngine(engineInfo, service, notify, linkManager);
     if (engine == nullptr) {
         UBSE_LOG_ERROR << "New engine " << engineName << " failed";
-        HcomService::Destroy(engineName);
+        UBSHcomService::Destroy(engineName);
         return UBSE_COM_ERROR_ENGINE_CREATE_FAIL;
     }
     engine->RegisterQueryCb(engineInfo.GetQueryEidByNodeIdCb());
     auto ret = engine->Start();
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Engine " << engineName << " start failed, " << FormatRetCode(ret);
-        HcomService::Destroy(engineName);
+        UBSHcomService::Destroy(engineName);
         SafeDelete(engine);
         return ret;
     }
@@ -957,8 +957,8 @@ UbseResult CreateUbChannel(bool isUds, const std::string &engineName, const std:
 
 UbseResult CreateCallBack(const UbseComCallback &usrCb, Callback *&done)
 {
-    done = HcomNewCallback(
-        [usrCb](HcomServiceContext &context) {
+    done = UBSHcomNewCallback(
+        [usrCb](UBSHcomServiceContext &context) {
             if (context.Result() != 0) {
                 UBSE_LOG_ERROR << "callback return failed," << FormatRetCode(context.Result());
             }
@@ -978,7 +978,7 @@ UbseResult CreateCallBack(const UbseComCallback &usrCb, Callback *&done)
     return UBSE_OK;
 }
 
-UbseResult GetChannel(const std::string &engineName, UbseComMessageCtx &message, HcomChannelPtr &channel)
+UbseResult GetChannel(const std::string &engineName, UbseComMessageCtx &message, UBSHcomChannelPtr &channel)
 {
     auto *transMsg = static_cast<UbseComMessage *>(static_cast<void *>(message.GetMessage()));
     if (transMsg == nullptr) {
@@ -1075,7 +1075,7 @@ UbseResult CheckReplyResult(UbseComDataDesc &retData)
 UbseResult UbseCommunication::UbseComMsgSend(const std::string &engineName, UbseComMessageCtx &message,
                                              UbseComDataDesc &retData)
 {
-    HcomChannelPtr channel;
+    UBSHcomChannelPtr channel;
     uint32_t sendLen;
     UbseResult channelRes = GetChannel(engineName, message, channel);
     if (channelRes != UBSE_OK) {
@@ -1086,8 +1086,8 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string &engineName, Ubse
         return getLenRes;
     }
     UbseComDataDesc sendData = {message.GetMessage(), sendLen};
-    Request reqMsg{(sendData.data), sendData.len, 0};
-    Response rspMsg;
+    UBSHcomRequest reqMsg{(sendData.data), sendData.len, 0};
+    UBSHcomResponse rspMsg;
     auto ret = channel->Call(reqMsg, rspMsg, nullptr);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Channel syncCallRaw failed, ret," << FormatRetCode(ret);
@@ -1104,7 +1104,7 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string &engineName, Ubse
 UbseResult UbseCommunication::UbseComMsgAsyncSend(const std::string &engineName, UbseComMessageCtx &message,
                                                   const UbseComCallback &usrCb)
 {
-    HcomChannelPtr channel;
+    UBSHcomChannelPtr channel;
     uint32_t sendLen;
     UbseResult ret = GetChannel(engineName, message, channel);
     if (ret != UBSE_OK) {
@@ -1115,8 +1115,8 @@ UbseResult UbseCommunication::UbseComMsgAsyncSend(const std::string &engineName,
         return getLenRes;
     }
     UbseComDataDesc sendData = {message.GetMessage(), sendLen};
-    Request reqMsg{(sendData.data), sendData.len, 0};
-    Response rspMsg;
+    UBSHcomRequest reqMsg{(sendData.data), sendData.len, 0};
+    UBSHcomResponse rspMsg;
     Callback *done = nullptr;
     ret = CreateCallBack(usrCb, done);
     if (ret != UBSE_OK) {
@@ -1148,18 +1148,18 @@ void UbseCommunication::UbseComMsgReply(UbseComMessageCtx &message, const UbseCo
         UBSE_LOG_ERROR << "Reply fail, channel info is abnormal, channel id: " << message.GetChannelId();
         return;
     }
-    const HcomChannelPtr &channel = channelInfo.GetChannel();
+    const UBSHcomChannelPtr &channel = channelInfo.GetChannel();
     if (channel == nullptr) {
         UBSE_LOG_ERROR << "Channel is nullptr, nodeId: " << nodeId;
         usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_CHANNEL_NULL);
         return;
     }
-    Request reqMsg{(data.data), data.len, 0};
+    UBSHcomRequest reqMsg{(data.data), data.len, 0};
     Callback *done = nullptr;
     if (CreateCallBack(usrCb, done) != UBSE_OK) {
         return;
     }
-    ReplyContext replyContext(message.GetRspCtx(), 0);
+    UBSHcomReplyContext replyContext(message.GetRspCtx(), 0);
     res = channel->Reply(replyContext, reqMsg, done);
     if (UBSE_RESULT_FAIL(res)) {
         UBSE_LOG_ERROR << "Channel reply failed, res: " << FormatRetCode(res) << " nodeId: " << nodeId;

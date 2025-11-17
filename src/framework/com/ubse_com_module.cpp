@@ -39,7 +39,7 @@ constexpr uint16_t NODE_UP_STATE = 1;
 
 class UbseComSdkEvent {
 public:
-    static void UbseComSdkEventPub(NetUdsIdInfo &idInfo, UbseLinkState &state);
+    static void UbseComSdkEventPub(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state);
 
     static bool IsProcessActive(int pid);
 
@@ -429,7 +429,7 @@ void UbseComModule::AddClientLinkNotifyFunc(const LinkNotifyFunction &func)
     rpcClient->AddLinkNotifyFunc(func);
 }
 
-void UbseComSdkEvent::UbseComSdkEventPub(NetUdsIdInfo &idInfo, UbseLinkState &state)
+void UbseComSdkEvent::UbseComSdkEventPub(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state)
 {
     std::lock_guard<std::mutex> lock(mtx);
     if (state == UbseLinkState::LINK_UP) {

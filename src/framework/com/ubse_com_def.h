@@ -166,9 +166,9 @@ public:
 
     void SetQueryEidByNodeIdCb(QueryEidByNodeIdCb queryEidByNodeIdCb);
 
-    const NetCipherSuite &GetCipherSuite() const;
+    const UBSHcomNetCipherSuite &GetCipherSuite() const;
 
-    void SetCipherSuite(const NetCipherSuite &suite);
+    void SetCipherSuite(const UBSHcomNetCipherSuite &suite);
 
     int16_t GetTimeOut() const;
 
@@ -197,7 +197,7 @@ private:
     ShouldDoReconnectCb shouldDoReconnectCb = nullptr;
     QueryEidByNodeIdCb queryEidByNodeIdCb = nullptr;
     uint32_t sendReceiveSegCount = DEFAULT_SEND_RECEIVE_SEG_COUNT; // tls认证协议，默认使用HITLS
-    NetCipherSuite cipherSuite = AES_GCM_128;                      // 加密套算法
+    UBSHcomNetCipherSuite cipherSuite = AES_GCM_128;                      // 加密套算法
     int16_t timeout = 60;                                          // 默认超时时间 60s
     int16_t heartBeatTimeout = 1;                                  // 默认心跳超时时间 1s
     uint16_t hcomHbTimeout = DEFAULT_HCOM_HB_TIMEOUT;
@@ -252,7 +252,7 @@ class UbseComChannelInfo {
 public:
     UbseComChannelInfo() = default;
 
-    UbseComChannelInfo(bool isServer, UbseChannelType channelType, std::string engineName, HcomChannelPtr channel,
+    UbseComChannelInfo(bool isServer, UbseChannelType channelType, std::string engineName, UBSHcomChannelPtr channel,
                        UbseComChannelConnectInfo connectInfo)
         : isServer(isServer),
           channelType(channelType),
@@ -269,9 +269,9 @@ public:
 
     void SetIsServer(bool isServerSide);
 
-    const HcomChannelPtr &GetChannel() const;
+    const UBSHcomChannelPtr &GetChannel() const;
 
-    void SetChannel(const HcomChannelPtr &channel);
+    void SetChannel(const UBSHcomChannelPtr &channel);
 
     const UbseComChannelConnectInfo &GetConnectInfo() const;
 
@@ -291,7 +291,7 @@ private:
     bool isServer{true};                                  // 是否是server端
     UbseChannelType channelType{UbseChannelType::NORMAL}; // 通道类型
     std::string engineName;                               // 引擎名
-    HcomChannelPtr channel = nullptr;                     // channel指针
+    UBSHcomChannelPtr channel = nullptr;                     // channel指针
     UbseComChannelConnectInfo connectInfo;                // 连接信息
 };
 
@@ -302,7 +302,7 @@ private:
  * 参数四：连接状态
  */
 using UbseComLinkStateNotify =
-    std::function<void(const UbseComEngineInfo &, const std::string &, const HcomChannelPtr &ch, UbseLinkState)>;
+    std::function<void(const UbseComEngineInfo &, const std::string &, const UBSHcomChannelPtr &ch, UbseLinkState)>;
 using UbseComMessagePtr = uint8_t *;
 
 class UbseComMessageHead {
@@ -461,13 +461,13 @@ UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const ui
 
 UbseResult TransResponse(const UbseBaseMessagePtr &respMsg, UbseComDataDesc &retData, bool withCopy = false);
 
-UbseComMessage *GetMessageFromNetServiceContext(HcomServiceContext &context);
+UbseComMessage *GetMessageFromNetServiceContext(UBSHcomServiceContext &context);
 
-void GetUdsInfoFromNetServiceContext(HcomServiceContext &context, UbseUdsIdInfo &udsIdInfo);
+void GetUdsInfoFromNetServiceContext(UBSHcomServiceContext &context, UbseUdsIdInfo &udsIdInfo);
 
-bool CheckMessageBodyLen(HcomServiceContext &context, UbseComMessage &msg);
+bool CheckMessageBodyLen(UBSHcomServiceContext &context, UbseComMessage &msg);
 
-uint64_t GetChannelIdFromNetServiceContext(HcomServiceContext &context);
+uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext &context);
 
 UbseChannelType StringToChannelType(const std::string &type);
 

@@ -321,13 +321,13 @@ using LinkNotifyFunctionMap = std::map<std::string, std::vector<LinkNotifyFuncti
 
 using HandlerExecutor = std::function<void(const std::function<void()> &task, const executorType &type)>;
 using LinkEventHandler = std::function<void(const std::vector<UbseLinkInfo> &linkInfoList)>;
-using SdkLinkDownEventHandler = std::function<void(NetUdsIdInfo &idInfo, UbseLinkState &state)>;
+using SdkLinkDownEventHandler = std::function<void(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state)>;
 
 void DefaultHandlerExecutor(const std::function<void()> &task, const executorType &type);
 
 void DefaultLinkEventHandler(const std::vector<UbseLinkInfo> &linkInfoList);
 
-void DefaultSdkLinkDownEventHandler(NetUdsIdInfo &idInfo, UbseLinkState &state);
+void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state);
 
 class UbseComBase : public Referable {
 public:
@@ -507,9 +507,9 @@ public:
 
 protected:
     static void CheckSdkEventAndNotify(const std::string &engineName, const std::string &curNodeId,
-                                       const HcomChannelPtr &ch, UbseLinkState state);
+                                       const UBSHcomChannelPtr &ch, UbseLinkState state);
 
-    static void LinkNotify(const UbseComEngineInfo &info, const std::string &curNodeId, const HcomChannelPtr &ch,
+    static void LinkNotify(const UbseComEngineInfo &info, const std::string &curNodeId, const UBSHcomChannelPtr &ch,
                            UbseLinkState state);
 
 protected:
@@ -520,7 +520,7 @@ private:
     static std::vector<UbseLinkInfo> GetLinkInfoFromMap(const std::string &engineName);
 
     static std::vector<UbseLinkInfo> QueryLinkInfo(const std::string &engineName, const std::string &changeNodeId,
-                                                   const HcomChannelPtr &ch);
+                                                   const UBSHcomChannelPtr &ch);
 
     static int16_t timeout;
     static int16_t heartBeatTimeout;

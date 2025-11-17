@@ -129,7 +129,7 @@ void Log(int level, const char *str)
     UbseLogOutput(gModuleName, static_cast<UbseLogLevel>(level), str);
 }
 
-std::string GetChannelType(const HcomChannelPtr &ch)
+std::string GetChannelType(const UBSHcomChannelPtr &ch)
 {
     if (ch == nullptr) {
         return "NoChannel";
@@ -159,7 +159,7 @@ std::vector<UbseLinkInfo> UbseComBase::GetLinkInfoFromMap(const std::string &eng
 }
 
 std::vector<UbseLinkInfo> UbseComBase::QueryLinkInfo(const std::string &engineName, const std::string &changeNodeId,
-                                                     const HcomChannelPtr &ch)
+                                                     const UBSHcomChannelPtr &ch)
 {
     std::vector<UbseLinkInfo> info;
     auto iter = g_linkStateMap.find(engineName);
@@ -189,12 +189,12 @@ void UbseComBase::TlsOn()
 }
 
 void UbseComBase::CheckSdkEventAndNotify(const std::string &engineName, const std::string &curNodeId,
-                                         const HcomChannelPtr &ch, UbseLinkState state)
+                                         const UBSHcomChannelPtr &ch, UbseLinkState state)
 {
     if (curNodeId.compare(0, FAKE_CUR_NODE_ID.length(), FAKE_CUR_NODE_ID) != 0) {
         return;
     }
-    NetUdsIdInfo idInfo;
+    UBSHcomNetUdsIdInfo idInfo;
     ch->GetRemoteUdsIdInfo(idInfo);
     gSdkLinkDownEventHandler(idInfo, state);
     if (state == UbseLinkState::LINK_DOWN) {
@@ -202,7 +202,7 @@ void UbseComBase::CheckSdkEventAndNotify(const std::string &engineName, const st
     }
 }
 
-void UbseComBase::LinkNotify(const UbseComEngineInfo &info, const std::string &curNodeId, const HcomChannelPtr &ch,
+void UbseComBase::LinkNotify(const UbseComEngineInfo &info, const std::string &curNodeId, const UBSHcomChannelPtr &ch,
                              UbseLinkState state)
 {
     WriteLocker<ReadWriteLock> lock(&g_lock);
@@ -389,7 +389,7 @@ void DefaultHandlerExecutor(const std::function<void()> &task, const executorTyp
 
 void DefaultLinkEventHandler(const std::vector<UbseLinkInfo> &linkInfoList) {}
 
-void DefaultSdkLinkDownEventHandler(NetUdsIdInfo &idInfo, UbseLinkState &state) {}
+void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state) {}
 
 void UbseComBase::SetTimeOut(int16_t time, int16_t hbTime)
 {
