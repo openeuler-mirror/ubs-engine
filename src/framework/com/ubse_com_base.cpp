@@ -16,7 +16,7 @@
 #include <fstream>
 #include <regex>
 
-#include <bits/chrono.h>    // for duration_cast, duration, high_resol...
+#include <chrono>    // for duration_cast, duration, high_resol...
 #include <lock/ubse_lock.h> // for ReadWriteLock, WriteLocker, ReadLocker
 #include <securec.h>        // for memcpy_s, EOK
 #include <algorithm>        // for max
