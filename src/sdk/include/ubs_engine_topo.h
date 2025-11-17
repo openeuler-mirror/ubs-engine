@@ -14,7 +14,7 @@
 #define UBS_ENGINE_TOPO_H
 
 #include <stdint.h>
-#include <limits.h>
+#include <bits/local_lim.h>
 
 #include "ubs_error.h"
 
