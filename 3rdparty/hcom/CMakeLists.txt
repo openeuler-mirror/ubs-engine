@@ -30,8 +30,8 @@ if(NOT USE_SYSTEM_HCOM)
     # 假设 ubs-comm 仓库包含 hcom 的实现
     FetchContent_Declare(
             ubs_comm
-            GIT_REPOSITORY https://gitee.com/yanzhihan/ubs-comm.git
-            GIT_TAG        cmake1109
+            GIT_REPOSITORY https://gitee.com/openeuler/ubs-comm.git
+            GIT_TAG        master
     )
 
     set(HCOM_BUILD_TYPE "release" CACHE STRING "")
@@ -55,5 +55,4 @@ else()
     if(NOT TARGET hcom)
         message(FATAL_ERROR "ubs-comm source must provide a 'hcom' target!")
     endif()
-    target_include_directories(hcom INTERFACE ${ubs_comm_SOURCE_DIR}/src/hcom ${ubs_comm_SOURCE_DIR}/src/hcom/service_v2/api)
 endif()

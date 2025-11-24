@@ -16,10 +16,10 @@ Prefix: /usr
 BuildRequires: cmake make gcc-c++ gcc
 BuildRequires: glibc-devel libstdc++-devel
 BuildRequires: systemd-devel
-BuildRequires: libboundscheck ubs-hcom-devel libxml2-devel
+BuildRequires: libboundscheck ubs-comm-devel libxml2-devel
 BuildRequires: numactl-libs
 BuildRequires: bash bc coreutils findutils gawk grep kmod lsof libcap sed sudo util-linux util-linux-user cpio tar unzip mlocate ninja-build libffi-devel zlib-devel clang-devel
-Requires: glibc libgcc libstdc++ obmm libboundscheck libxml2 ubs-hcom
+Requires: glibc libgcc libstdc++ obmm libboundscheck libxml2 ubs-comm
 
 %define _rpmdir %_topdir/RPMS
 %define _srcrpmdir %_topdir/SRPMS
