@@ -52,12 +52,13 @@ void RmMemObjRestore::ConstructSingleFdImportObj(
     }
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
     std::vector<UbseMemImportResult> importResults{};
+    UbseMemImportStatus status{};
     for (int i = 0; i < fdImportLocalObmmMetaDatas.size(); i++) {
         exportObmmInfo.push_back(
             {fdImportLocalObmmMetaDatas[i].customMeta.exportMemid, fdImportLocalObmmMetaDatas[i].obmmMemExportInfo});
         importResults.push_back({fdImportLocalObmmMetaDatas[i].localMemId, -1});
+        status.decoderResult.push_back(fdImportLocalObmmMetaDatas[i].customMeta.decoderResult);
     }
-    UbseMemImportStatus status{};
     status.errCode = UBSE_OK;
     status.importResults = importResults;
 
@@ -232,12 +233,13 @@ void RmMemObjRestore::ConstructSingleNumaImportObj(
     }
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
     std::vector<UbseMemImportResult> importResults{};
+    UbseMemImportStatus status{};
     for (int i = 0; i < importLocalObmmMetaDatas.size(); i++) {
         exportObmmInfo.push_back(
             {importLocalObmmMetaDatas[i].customMeta.exportMemid, importLocalObmmMetaDatas[i].obmmMemExportInfo});
         importResults.push_back({importLocalObmmMetaDatas[i].localMemId, -1});
+        status.decoderResult.push_back(importLocalObmmMetaDatas[i].customMeta.decoderResult);
     }
-    UbseMemImportStatus status{};
     status.errCode = UBSE_OK;
     status.importResults = importResults;
 

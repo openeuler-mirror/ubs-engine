@@ -155,6 +155,11 @@ UbseResult UbseMemNumaDelete(const UbseIpcMessage &buffer, const UbseRequestCont
 UbseResult UbseMemNumaBorrowRespHandler(const ubse::mem::obj::UbseMemOperationResp &resp);
 UbseResult UbseMemNumaReturnRespHandler(const ubse::mem::obj::UbseMemOperationResp &resp);
 uint32_t GetNdeoMemDebtInfoMap(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap);
+
+uint32_t ImportToAddDecoderEntry(UbseMemImportStatus &status, uint8_t importType, uint32_t socketId,
+                                const std::vector<UbseMemObmmInfo> &exportObmmInfo, bool isShare);
+
+void UnimportToDelDecoderEntry(UbseMemImportStatus &status, uint32_t socketId);                                
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MEM_CONTROLLER_API_H

@@ -20,7 +20,7 @@ add_library(mem_controller STATIC
         ubse_mem_api.cpp
 )
 target_link_libraries(mem_controller PUBLIC ubse_controller_rpc ubse_controller_message PRIVATE ubse_log ubse_utils ubse_com ubse_config ubse_context ubse_timer mem_scheduler mmi
-        ubse_election api_server ubse_http ubse_serial)
+        ubse_election api_server ubse_http ubse_serial ubse_mem_decoder_utils)
 target_include_directories(mem_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../res_plugins/mti

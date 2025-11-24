@@ -295,6 +295,11 @@ void UbseMemImportStatusSerialization(UbseSerialization &out, const UbseMemImpor
     for (auto &importResult : ubseMemImportStatus.importResults) {
         UbseMemImportResultSerialization(out, importResult);
     }
+
+    out << (right_v<size_t>(ubseMemImportStatus.decoderResult.size()));
+    for(auto &decoderResult : ubseMemImportStatus.decoderResult) {
+        out << decoderResult.marId << decoderResult.hpa << decoderResult.handle;
+    }
     out << enum_v(ubseMemImportStatus.expectState) << enum_v(ubseMemImportStatus.state);
     return;
 }
@@ -316,6 +321,17 @@ UbseResult UbseMemImportStatusDeserialization(UbseDeSerialization &in, UbseMemIm
         if (UbseMemImportResultDeserialization(in, ubseMemImportStatus.importResults[i]) != UBSE_OK) {
             return UBSE_ERROR;
         }
+    }
+
+    in >> size;
+    ubseMemImportStatus.decoderResult.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        if (!in.Check()) {
+            UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowExportObj during deserialization";
+            return UBSE_ERROR;
+        }
+        in >> ubseMemImportStatus.decoderResult[i].marId >> ubseMemImportStatus.decoderResult[i].hpa >>
+            ubseMemImportStatus.decoderResult[i].handle;
     }
     in >> enum_v(ubseMemImportStatus.expectState) >> enum_v(ubseMemImportStatus.state);
     return UBSE_OK;

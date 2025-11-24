@@ -36,7 +36,7 @@ uint32_t MemInstanceInner::MemNumaImportExecutor(UbseMemNumaBorrowImportObj &imp
     }
     ObmmOpParam obmmOpParam{UbseBorrowType::NUMA_BORROW, importObj.req.udsInfo.uid, importObj.req.udsInfo.gid,
                             customMeta};
-    auto memids = RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, &numa);
+    auto memids = RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, importObj.status, &numa);
     UBSE_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
                 << RmCommonUtils::GetInstance().MemToStr(memids) << " remoteNuma=" << numa;
     if (memids.empty()) {
@@ -111,7 +111,7 @@ uint32_t MemInstanceInner::MemFdImportExecutor(UbseMemFdBorrowImportObj &importO
     }
     ObmmOpParam obmmOpParam{UbseBorrowType::FD_BORROW, importObj.req.owner.uid, importObj.req.owner.gid, customMeta,
                             importObj.req.owner.mode};
-    auto memids = RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, nullptr);
+    auto memids = RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, importObj.status, nullptr);
     UBSE_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
                 << RmCommonUtils::GetInstance().MemToStr(memids);
     if (memids.empty()) {

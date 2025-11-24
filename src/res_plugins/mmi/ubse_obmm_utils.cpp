@@ -29,10 +29,10 @@ using namespace ubse::config;
 using namespace ubse::nodeController;
 using namespace ubse::mem::strategy;
 
-void RmObmmUtils::CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc &src, obmm_mem_desc *des)
+void RmObmmUtils::CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc &src, obmm_mem_desc *des, uint64_t hpa)
 {
     if (des != nullptr) {
-        des->addr = src.addr;
+        des->addr = hpa;
         des->length = src.length;
         des->tokenid = src.tokenid;
         des->scna = src.scna;
@@ -152,13 +152,20 @@ obmm_mem_desc *RmObmmUtils::ConstructImportMemDesc(const UbseMemLocalObmmCustomM
     ConstructUbMemPrivData(ubMemPrivData, marId);
     uint32_t priLen = sizeof(ubMemPrivData) + sizeof(customMeta);
     auto obmmMemDesc = static_cast<obmm_mem_desc *>(malloc(sizeof(obmm_mem_desc) + priLen));
+    if (obmmMemDesc != nullptr) {
+        auto ret = memset_s(obmmMemDesc, sizeof(obmm_mem_desc) + priLen, 0, sizeof(obmm_mem_desc) + priLen);
+        if (ret != EOK) {
+            RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
+            return nullptr;
+        }
+    }
     if (obmmMemDesc == nullptr) {
         UBSE_LOG_ERROR << "Malloc return null.";
         return obmmMemDesc;
     }
     UBSE_LOG_INFO << "desc.seid: " << desc.seid;
     UBSE_LOG_INFO << "desc.deid: " << desc.deid;
-    CopyObmmMemDescValue(desc, obmmMemDesc);
+    CopyObmmMemDescValue(desc, obmmMemDesc, customMeta.decoderResult.hpa);
     if (!RmCommonUtils::GetInstance().IsValidUint16(priLen)) {
         UBSE_LOG_ERROR << "PriLen is invalid, value = " << priLen;
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);

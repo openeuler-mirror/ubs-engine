@@ -26,7 +26,7 @@ using namespace ubse::common::def;
 
 class RmObmmUtils {
 public:
-    static void CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc &src, obmm_mem_desc *des);
+    static void CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc &src, obmm_mem_desc *des, uint64_t hpa);
     static void CopyObmmMemDescValue(const obmm_mem_desc *src, ubse_mem_obmm_mem_desc &des);
     static bool ParsePreOnlineEidStr(const std::string &eid, uint32_t &value);
     static void ConstructUbMemPrivData(UbMemPrivData &ubPrivData, uint16_t marId);

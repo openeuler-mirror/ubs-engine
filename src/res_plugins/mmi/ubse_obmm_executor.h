@@ -55,7 +55,7 @@ public:
     std::vector<mem_id> ObmmExport(size_t size[MAX_NUMA_NODES], ObmmOpParam &opParam,
                                    std::vector<ubse_mem_obmm_mem_desc> &desc);
     UbseResult ObmmUnExport(const std::vector<mem_id> &id);
-    std::vector<mem_id> ObmmImport(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam, int *numa);
+    std::vector<mem_id> ObmmImport(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam, UbseMemImportStatus &status, int *numa);
     UbseResult ObmmUnImport(const std::vector<mem_id> &id);
 
     UbseResult DlOpenLib(const std::string &obmmPath);

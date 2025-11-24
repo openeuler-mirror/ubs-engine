@@ -275,10 +275,10 @@ mem_id RmObmmExecutor::ObmmDevChangeUidGid(uint64_t memId, bool importMem, const
 }
 
 std::vector<mem_id> RmObmmExecutor::ObmmImport(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                               int *numa)
+                                               UbseMemImportStatus &status, int *numa)
 {
-    if (desc.empty()) {
-        UBSE_LOG_ERROR << "The mem desc is empty.";
+    if (desc.empty() || desc.size() != status.decoderResult.size()) {
+        UBSE_LOG_ERROR << "The mem desc is invalid.";
         return {};
     }
     std::vector<mem_id> result;
@@ -286,6 +286,7 @@ std::vector<mem_id> RmObmmExecutor::ObmmImport(const std::vector<UbseMemObmmInfo
     for (int i = 0; i < desc.size(); i++) {
         opParam.customMeta.memidCount = desc.size();
         opParam.customMeta.exportMemid = desc[i].memId;
+        opParam.customMeta.decoderResult = status.decoderResult[i];
         auto importMemid = ObmmImport(desc[i].desc, opParam, numa);
         if (importMemid == 0) {
             ObmmUnImport(result);

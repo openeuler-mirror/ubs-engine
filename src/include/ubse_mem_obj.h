@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "src/include/ubse_mem_mami_def.h"
 #include "ubse_mem_obmm_def.h"
 
 namespace ubse::mem::obj {
@@ -197,6 +198,7 @@ struct UbseMemImportStatus {
     uint32_t errCode; // 导入执行过程中的所有可能错误信息
     uint32_t scna{};
     std::vector<UbseMemImportResult> importResults{};
+    std::vector<mami::UbseMamiMemImportResult> decoderResult{};
     UbseMemState expectState = UBSE_MEM_STATE_SUCCEEDED;
     UbseMemState state = UBSE_MEM_STATE_INIT;
     friend std::ostream &operator<<(std::ostream &os, const UbseMemImportStatus &obj)

@@ -21,6 +21,7 @@
 #include "ubse_error.h"
 #include "ubse_logger_inner.h"
 #include "ubse_mem_obmm_def.h"
+#include "ubse_mem_mami_def.h"
 
 namespace ubse::mmi {
 
@@ -69,6 +70,7 @@ struct UbseMemLocalObmmCustomMeta {
     int32_t importSocket{};
     int32_t exportSocket{};
     uint64_t numaSizes[UBSE_MEM_MAX_EXPORT_NUMA_SIZE]{};
+    ubse::mem::mami::UbseMamiMemImportResult decoderResult{};
 } __attribute__((packed));
 
 struct UbseMemLocalObmmMetaData {

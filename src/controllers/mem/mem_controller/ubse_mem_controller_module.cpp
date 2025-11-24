@@ -9,6 +9,8 @@
 #include "rpc/UbseMemDebInfoQueryHandler.h"
 #include "ubse_conf.h"
 #include "ubse_context.h"
+#include "src/res_plugins/mti/lcne/ubse_lcne_decoder_specification.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::config;
@@ -38,9 +40,33 @@ UbseResult UbseMemControllerModule::Initialize()
 
 void UbseMemControllerModule::UnInitialize() {}
 
+void SetDecoderSpecification() 
+{
+    UBSE_LOG_DEBUG << "SetDecoderSpecification begin";
+    mami::UbseMamiMemDecoderSetInfo decoderSetInfo{};
+    mami::UbseMamiMemDecoderInfo decoder0{0, 0, 0, 0};
+    mami::UbseMamiMemDecoderInfo decoder1{1, 512, 0, 0};
+    decoderSetInfo.decoder.push_back(decoder0);
+    decoderSetInfo.decoder.push_back(decoder1);
+    decoderSetInfo.decoderNum = 2;
+    decoderSetInfo.marId = 0;
+    std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> outSocketInfo;
+    auto res = decoder::utils::MemDecoderUtils::GetCurNodeSocketInfo(outSocketInfo);
+    if(res != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetCurNodeSocketInfo failed, used default decoderSpecification";
+        return;
+    }
+    for (auto [socketId, valPair] : outSocketInfo) {
+        decoderSetInfo.ubpuId = valPair.first;
+        decoderSetInfo.iouId = valPair.second;
+        lcne::UbseLcneDecoderSpecification::GetInstance().SetDecoderSpecification(decoderSetInfo);
+    }
+}
+
 UbseResult UbseMemControllerModule::Start()
 {
     ubse::mem::controller::Init();
+    SetDecoderSpecification();
     if (auto ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to reg mem schedule handler.";
         return ret;
