@@ -18,10 +18,10 @@
 #include <utility>
 #include "ubse_base_message.h"
 #include "ubse_common_def.h"
-#include "hcom.h"
-#include "hcom_service.h"
-#include "hcom_service_context.h"
-#include "hcom_service_def.h"
+#include "hcom/hcom.h"
+#include "hcom/hcom_service.h"
+#include "hcom/hcom_service_context.h"
+#include "hcom/hcom_service_def.h"
 #include "securec.h"
 
 namespace ubse::com {

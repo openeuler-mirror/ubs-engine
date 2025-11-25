@@ -13,7 +13,7 @@
 #ifndef UBS_ENGINE_TEST_UBSE_COM_MOCK_H
 #define UBS_ENGINE_TEST_UBSE_COM_MOCK_H
 
-#include "hcom_service.h"
+#include "hcom/hcom_service.h"
 
 class TestChannel : public HcomChannel {
 public:

@@ -18,7 +18,7 @@
 #include <fstream>
 
 #include "crc/ubse_crc.h"
-#include "hcom_service_context.h"
+#include "hcom/hcom_service_context.h"
 #include "ubse_com_def.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
