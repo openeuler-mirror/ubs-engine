@@ -1,0 +1,23 @@
+[Unit]
+Description=software controller bus service
+After=network.target
+
+[Service]
+Type=simple
+User=ubse
+MemoryMax=1G
+CPUQuota=200%
+Group=ubse
+RestartSec=5s
+Environment=HCOM_CONNECTION_RETRY_TIMES=1
+Environment=HCOM_CONNECTION_SEND_TIMEOUT_SEC=1
+Environment=HCOM_CONNECTION_RECV_TIMEOUT_SEC=5
+Environment=HCOM_SET_LOG_LEVEL=3
+Environment=HCOM_OPENSSL_PATH=/usr/lib64
+ExecStartPre=/bin/sh -c 'lsof -t -i :1901 | xargs -r -I {} sh -c "if pgrep -f \"ipmitool\" | grep -q {}; then kill -9 {}; fi"'
+ExecStart=/usr/bin/ubse
+Restart=on-failure
+CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN
+AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN
+[Install]
+WantedBy=multi-user.target
