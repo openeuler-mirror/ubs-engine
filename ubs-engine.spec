@@ -5,10 +5,12 @@
 # -*- rpm-spec -*-
 Summary:        RPM package
 Name:           ubs-engine
+ExclusiveArch:  aarch64
 Version:        1.0.0
 Release:        1
 License:        Mulan PSL v2
-Source0:        %{name}.tar.gz
+URL:            https://gitee.com/openeuler/ubs-engine
+Source0:        %{name}-%{version}.tar.gz
 Group:          System Environment/Base
 Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
@@ -18,8 +20,8 @@ BuildRequires: glibc-devel libstdc++-devel
 BuildRequires: systemd-devel
 BuildRequires: libboundscheck ubs-comm-devel libxml2-devel
 BuildRequires: numactl-libs
-BuildRequires: bash bc coreutils findutils gawk grep kmod lsof libcap sed sudo util-linux util-linux-user cpio tar unzip mlocate ninja-build libffi-devel zlib-devel clang-devel
-Requires: glibc libgcc libstdc++ obmm libboundscheck libxml2 ubs-comm
+BuildRequires: bash bc coreutils sudo util-linux-user ninja-build
+Requires: glibc libgcc libstdc++ libboundscheck libxml2 ubs-comm-lib
 
 %define _rpmdir %_topdir/RPMS
 %define _srcrpmdir %_topdir/SRPMS
@@ -61,8 +63,8 @@ Header files and static libraries for developing applications that use the UBSE 
 This package is required for compiling programs that link against UBSE.
 
 
-%define project_dir %{name}
-%define cmake_build_dir cmake-build-release
+%define project_dir %{name}-%{version}
+%define cmake_build_dir cmake-build-relwithdebinfo
 
 %define log_dir /var/log/ubse
 %define data_dir /var/lib/ubse
@@ -139,8 +141,7 @@ This package is required for compiling programs that link against UBSE.
 
 %build
 cd %{_builddir}/%{project_dir}/
-bash build.sh 3rdparty
-bash build.sh
+bash build.sh -T RelWithDebInfo
 
 %install
 #install main package
