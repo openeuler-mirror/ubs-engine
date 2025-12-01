@@ -1,6 +1,6 @@
 # 贡献指南（Contributing to UBS Engine）
 
-感谢您对 **UBS Engine（Unified Bus Service Engine）** 项目的关注与贡献！  
+感谢您对 **UBS Engine（UB Service Core Engine）** 项目的关注与贡献！  
 本项目是面向内存等硬件资源的系统级调度引擎，属于 openEuler 社区 **UB 计算系统** 的核心控制平面组件。我们欢迎社区开发者通过提交 Issue、修复 Bug、新增功能或改进文档等方式参与共建。
 
 为确保代码质量与社区协作效率，请在贡献前仔细阅读本指南。
@@ -36,7 +36,7 @@
 ## 🛠️ 2. 开发环境与构建验证
 
 ### 推荐环境
-- **操作系统**：openEuler 22.03 LTS SP3 或更高版本（ARM64 架构优先）
+- **操作系统**：openEuler 24.03 LTS SP3 或更高版本
 - **编译器**：GCC ≥ 9.3 或 Clang ≥ 12
 - **构建工具**：CMake ≥ 3.18, Ninja（可选）
 

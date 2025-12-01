@@ -1,16 +1,15 @@
-<p style="text-align: unset; margin-top: 0px; font-family: SimSun; font-size: 16px;"><br /></p>
+## 介绍
+UBS Engine API 是基于 **C++语言** 开发的 **ubs_engine 管理接口**，能够实现资源调度与管理，执行关键运维操作。
 
-<p style="margin-top: 0px; font-family: SimSun; font-size: 16px;">UBS Engine API 是基于 <b>C++语言</b> 开发的 <b>ubs_engine 管理接口</b>，能够实现资源调度与管理，执行关键运维操作。</p>
-
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">本篇内容旨在帮助开发者快速掌握 ubs_engine API 的核心功能、适用场景及开发技巧，提供可直接运行的示例代码，并规避常见问题。</p>
+本篇内容旨在帮助开发者快速掌握 ubs_engine API 的核心功能、适用场景及开发技巧，提供可直接运行的示例代码，并规避常见问题。
 
 ## 1. 前置条件
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">使用 API 前需完成 ubs_engine 的环境准备与安装启动，步骤如下：</p>
+使用 API 前需完成 ubs_engine 的环境准备与安装启动，步骤如下：
 
 ### 1.1 业务运行环境安装
 
-<p style="margin-top: 0px; font-family: SimSun; font-size: 16px;">ubs_engine 运行的硬件要求、操作系统和软件要求详见<a href="xxx">环境安装</a>。</p>
+ubs_engine 运行的硬件要求、操作系统和软件要求详见[部署说明](../build_install/部署说明.md)。
 
 ### 1.2 ubs_engine 业务部署与启动
 
@@ -77,19 +76,21 @@ sudo -u ubse ubsectl display cluster
 ---------------------------------------------------------------------
 ```
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">若集群内不同节点的查询主备结果一致，则 <b>ubs_engine 业务启动已完成</b>。</p>
+若集群内不同节点的查询主备结果一致，则 **ubs_engine 业务启动已完成**
 
-> <p style="margin-top: 0px; font-family: SimSun; font-size: 16px;">若集群内不同节点的查询主备结果不一致，则可参考 4.3 节中的情况说明进行检查。</p>
+> 若集群内不同节点的查询主备结果不一致，则可参考 4.3 节中的情况说明进行检查
 
-## <span style="font-size: 18pt;font-weight: 600">2. 使用 ubs_engine API 实现：以 numa 借用为例</span>
+## 2. 使用 ubs_engine API 实现：以 numa 借用为例
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">numa 形态的远端内存借用为 ubs_engine 服务的常见场景，通过创建、查询、删除操作实现对内存资源的调度与管理。</p>
+numa 形态的远端内存借用为 ubs_engine 服务的常见场景，通过创建、查询、删除操作实现对内存资源的调度与管理。
 
-> <p style="margin-top: 0px; font-family: SimSun; font-size: 16px;">numa（non-uniform memory access，非统一内存访问）是一种计算机内存架构设计，主要用于多处理器（多核）系统。其核心特点是：内存的访问时间取决于处理器（CPU）与内存之间的物理位置关系。具体来说，处理器访问本地内存（即同一NUMA节点内的内存）的速度更快，而访问其他节点的远程内存时延迟更高、带宽更低。</p>
+> numa（non-uniform memory access，非统一内存访问）是一种计算机内存架构设计，主要用于多处理器（多核）系统。其核心特点是：内存的访问时间取决
+> 于处理器（CPU）与内存之间的物理位置关系。具体来说，处理器访问本地内存（即同一NUMA节点内的内存）的速度更快，而访问其他节点的远程内存时延迟更高、
+> 带宽更低。
 
-### <span style="font-size: 15pt;font-weight: 600">2.1 使用动态库 libubse 实现 numa 借用创建、查询、归还</span>
+### 2.1 使用动态库 libubse 实现 numa 借用创建、查询、归还
 
-1. 基于 libubse 实现 numa 借用创建、查询、归还 ,  将下面的<code>example.c</code>代码放在<code>src/sdk/sample/</code>目录下。
+1. 基于 libubse 实现 numa 借用创建、查询、归还 ,  将下面的`example.c`代码放在`src/sdk/sample/`目录下。
 
 ```c
 #include <stdio.h>
@@ -241,12 +242,9 @@ void ubse_mem_numa_delete_example()
 Memory resource delete successfully!
 ```
 
+## 3. 使用 ubs_engine API 实现：以借用账本查询为例
 
-<p style="text-align: start; font-family: Harmony-Regular; font-size: 12pt;"><br /></p>
-
-## <span style="font-size: 18pt;font-weight: 600"><b>3. 使用 ubs_engine API 实现：以借用账本查询为例</b></span>
-
-### <span style="font-size: 15pt;font-weight: 600"><b>3.1 使用命令行工具 ubsectl 实现借用账本查询</b></span>
+### 3.1 使用命令行工具 ubsectl 实现借用账本查询
 
 ```shell
 ubsectl display memory -t borrow_detail
@@ -267,47 +265,40 @@ numa_Func_demo_123  numa   controller(1) 256           node01(2)    256         
 
 ```
 
-## <span style="font-size: 18pt;font-weight: 600">4 注意事项</span>
+## 4. 注意事项
 
-1. <b>权限要求</b>：
+1. **权限要求**：
 
-    * 用户权限：<code>ubsectl</code> 命令仅支持安装时自动创建的 ubse 用户以及加入 ubse 组的自定义用户，不支持 root 用户直接调用。
+- 用户权限：`ubsectl` 命令仅支持安装时自动创建的 ubse 用户以及加入 ubse 组的自定义用户，不支持 root 用户直接调用。
 
-    * 使用 root 用户：若需使用 root 用户执行<code>ubsectl</code>命令，应使用以下格式：
+- 使用 root 用户：若需使用 root 用户执行`ubsectl`命令，应使用以下格式：
 
 ```bash
 sudo -u ubse ubsectl [-h | --help] COMMAND TYPE [-h | --help][OPTIONS]
 ```
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;"><br /></p>
+2. **构建第二节中示例并执行**：
 
-2. <b>构建第二节中示例并执行</b>：
-
-    * 修改<code>src/sdk/sample/CMakeList.txt</code>，添加下列内容。
+修改`src/sdk/sample/CMakeList.txt`，添加下列内容。
 
 ```plaintext
 add_executable(example EXCLUDE_FROM_ALL example.c)
 target_link_libraries(example PRIVATE ubse_sdk)
 ```
 
-* 构建<code>example.c</code>，生成 example 二进制文件，在<code>cmake-build-release/bin</code>目录下。
+构建`example.c`，生成 example 二进制文件，在`cmake-build-release/bin`目录下。
 
 ```shell
 bash build.sh example
 ```
 
-* 使用 root 用户：若需使用 root 用户执行，需修改 example 文件权限为 777.
+使用 root 用户：若需使用 root 用户执行，需修改 example 文件权限为 777.
 
 ```shell
 chmod 777 cmake-build-release/bin/example
 ```
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;"><br /></p>
+3. **启动异常分析**
 
-3. <b>启动异常分析</b>
-
-    * <b>节点查询报错</b>：如果查询节点报错内容为<code>ERROR: Failed to obtain cluster information</code>，则表示当前节点尚未完成启动过程或启动异常。可以通过查询业务进程状态，若进程存在说明节点仍在启动中，请稍作等待再重试。
-
-    * <b>节点查询主备信息不全</b>：如果查询节点的主节点是自己，而备节点状态为空，则表示当前节点尚未成功加入集群。建议首先检查节点间的通信是否正常。
-
-<p style="text-align: unset; margin-top: 0px; font-family: SimSun; font-size: 16px;"><br /></p>
+- **节点查询报错**：如果查询节点报错内容为`ERROR: Failed to obtain cluster information`，则表示当前节点尚未完成启动过程或启动异常。可以通过查询业务进程状态，若进程存在说明节点仍在启动中，请稍作等待再重试。
+- **节点查询主备信息不全**：如果查询节点的主节点是自己，而备节点状态为空，则表示当前节点尚未成功加入集群。建议首先检查节点间的通信是否正常。
