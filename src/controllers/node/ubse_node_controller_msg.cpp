@@ -19,9 +19,13 @@ void RegNodeControllerHandler()
     const ubse::com::UbseComEndpoint reportTopologyEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_REPORT_TOPOLOGY)};
+    const ubse::com::UbseComEndpoint getDevConnect = {
+        static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
+        static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_GET_DEV_CONNECT)};
     UbseRegRpcService(collectEndpoint, CollectNodeInfoHandler);
     UbseRegRpcService(allNodeEndpoint, GetAllNodeInfoFromRemoteHandler);
     UbseRegRpcService(reportTopologyEndpoint, ReportTopologyHandler);
+    UbseRegRpcService(getDevConnect, UbseGetDirectConnectInfoFromRemoteHandler);
 }
 
 UbseResult ReportTopologyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
@@ -44,8 +48,7 @@ UbseResult ReportTopologyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp
                 }};
         return UBSE_ERROR_NULLPTR;
     }
-    std::string eventId = "UbseClusterTopologyChangeEvent";
-    UbsePubEvent(eventId, info.nodeId);
+    UbseNodeController::GetInstance().UpdateDevDirConnectInfo(); // 更新链接
     resp = {nullptr, 0, [size](uint8_t *p) noexcept {
                 SafeDeleteArray(p, size);
             }};
@@ -84,6 +87,25 @@ UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBu
         resp = {nullptr, 0, [size](uint8_t *p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
+        return UBSE_ERROR_NULLPTR;
+    }
+    resp = {buffer, size, [size](uint8_t *p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
+    return ret;
+}
+
+UbseResult UbseGetDirectConnectInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+{
+    UBSE_LOG_INFO << "UbseGetDirectConnectInfoFromRemoteHandler init";
+    auto devDirConnectInfoRemote = UbseNodeController::GetInstance().UbseGetDirectConnectInfo();
+    uint8_t *buffer;
+    size_t size = 0;
+    auto ret = SerializeDevDirConnectInfo(devDirConnectInfoRemote, buffer, size);
+    if (ret != UBSE_OK) {
+        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+                    SafeDeleteArray(p, size);
+            }};
         return UBSE_ERROR_NULLPTR;
     }
     resp = {buffer, size, [size](uint8_t *p) noexcept {
@@ -215,6 +237,44 @@ UbseResult GetAllNodeInfoFromRemote(const std::string &nodeId, std::vector<UbseN
                       [&infos, &getRet, nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
                           GetAllNodeInfoFromRemoteRespHandler(nodeId, respData, resCode, infos, getRet);
                       });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    return getRet;
+}
+
+UbseResult UbseGetDirectConnectInfoFromRemote(const std::string &nodeId,
+    std::unordered_map<std::string, PhysicalLink> &devDirConnectInfoRemote)
+{
+    const ubse::com::UbseComEndpoint endpoint{
+        .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
+        .serviceId = static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_GET_DEV_CONNECT),
+        .address = nodeId,
+    };
+    UbseResult getRet = UBSE_OK;
+
+    uint8_t *buffer = new uint8_t[1]; // com不允许空请求
+    size_t size = 1;
+    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept { SafeDeleteArray(p, size); } };
+    auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+        [&devDirConnectInfoRemote, &getRet, nodeId](void *ctx, const UbseByteBuffer &respData,
+        uint32_t resCode) -> void {
+            if (resCode != UBSE_OK) {
+                UBSE_LOG_ERROR << "get all node info failed, " << FormatRetCode(resCode);
+                getRet = resCode;
+                return;
+            }
+            if (respData.data == nullptr || respData.len == 0) {
+                UBSE_LOG_ERROR << "get all node resp null";
+                getRet = UBSE_ERROR_NULLPTR;
+                return;
+            }
+            getRet = DeSerializeDevDirConnectInfo(devDirConnectInfoRemote, respData.data, respData.len);
+            if (getRet != UBSE_OK) {
+                UBSE_LOG_ERROR << "get devDirConnectInfo deserialize failed, " << FormatRetCode(getRet);
+            }
+        });
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
         return ret;

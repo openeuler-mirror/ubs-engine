@@ -3,7 +3,7 @@
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
+ * http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -19,6 +19,7 @@
 #include "lock/ubse_lock.h"
 
 #include "ubse_api_server_module.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_obj.h"
 #include "ubse_mem_resource.h"
 #include "ubse_node_controller.h"
@@ -156,10 +157,14 @@ UbseResult UbseMemNumaBorrowRespHandler(const ubse::mem::obj::UbseMemOperationRe
 UbseResult UbseMemNumaReturnRespHandler(const ubse::mem::obj::UbseMemOperationResp &resp);
 uint32_t GetNdeoMemDebtInfoMap(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap);
 
-uint32_t ImportToAddDecoderEntry(UbseMemImportStatus &status, uint8_t importType, uint32_t socketId,
-                                const std::vector<UbseMemObmmInfo> &exportObmmInfo, bool isShare);
+UbseResult GetCurNodeDebtInfoMap(NodeMemDebtInfo &memDebtInfo);
 
-void UnimportToDelDecoderEntry(UbseMemImportStatus &status, uint32_t socketId);                                
+UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
+                                   const std::vector<UbseMemObmmInfo> &exportObmmInfo,
+                                   const decoder::utils::ImportDecoderParam &importDecoderParam,
+                                   UbseMemImportStatus &status);
+
+void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair, UbseMemImportStatus &status);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MEM_CONTROLLER_API_H
