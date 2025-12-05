@@ -22,6 +22,12 @@ namespace ubse::mem::mami {
 #define UB_MEMORY_PREIMPORT_MEMORY_STATIC 1  // 静态预引入
 #define UB_MEMORY_PREIMPORT_MEMORY_DYNAMIC 2 // 动态预引入
 
+#define UB_MEMORY_HANDLE_DEFAULT_USED_NODE 0 // 默认内存池中已使用节点对应的handle, 即普通内存借入及从动态预引入内存段的内存借入、以及指定HPA内存借入对应的handle
+#define UB_MEMORY_HANDLE_DYNAMIC_NODE 1 // 动态预引入对应的handle
+#define UB_MEMORY_HANDLE_STATIC_USED_NODE 2 // 静态预引入中已使用节点对应的handle, 即从静态预引入内存段的内存借入对应的handle
+#define UB_MEMORY_HANDLE_STATIC_MEM_POOL 3 // 静态预引入对应的handle
+#define UB_MEMORY_HANDLE_ALL_TYPE 4 // 含以上四种类型的全部handle
+
 /* 路由表查询，是查单路径表还是多路径表。配置为1表示走单路径。读命令固定走多路径 */
 #define UB_MEMORY_IMPORT_SINGLE_PATH (uint32_t)0x1
 

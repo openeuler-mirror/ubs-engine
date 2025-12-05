@@ -15,6 +15,7 @@
 
 #include "ubse_context.h" // for context
 #include "ubse_error.h"
+#include "ubse_timer.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::context;
@@ -28,6 +29,9 @@ public:
     UbseResult Start() override;
 
     void Stop() override;
+
+private:
+    ubse::timer::UbseTimer handleCheckTimer{}; // handle对账定时器
 };
 
 } // namespace ubse::mem::controller

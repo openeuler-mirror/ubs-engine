@@ -38,15 +38,14 @@
 #include "ubse_mem_api_convert.h"
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_msg.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_rpc.h"
 #include "ubse_mem_rpc_to_controller.h"
-#include "ubse_memory_interface.h"
 #include "ubse_mgr_configuration.h"
 #include "ubse_mmi_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_topology.h"
 #include "ubse_thread_pool_module.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/res_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
 #include "src/res_plugins/mti/lcne/ubse_lcne_decoder_handle.h"
 
@@ -950,27 +949,59 @@ uint32_t UbseMemFdBorrowExportObjCallback(const UbseMemFdBorrowExportObj &export
     return FdExportMasterCallback(exportNodeId, copy, importNodeId, name);
 }
 
+void SetDecoderParam(decoder::utils::ImportDecoderParam &importParam)
+{
+    importParam.importType = UB_MEMORY_IMPORT_MEMORY;
+    importParam.decoderIdx = 0;
+    importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
+}
+
 uint32_t FdImportRunningCallback(UbseMemFdBorrowImportObj &importObj, const std::string &name,
                                  const std::string &masterNodeId, const std::string &requestNodeId)
 {
-    UBSE_LOG_DEBUG << "Fd import running agent callback, name is " << name;
     auto mmiModule = UbseContext::GetInstance().GetModule<UbseMmiModule>();
     if (mmiModule == nullptr) {
-        UBSE_LOG_ERROR << "mmi module is nullptr.";
+        UBSE_LOG_ERROR << "mmi module is nullptr, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
         return SendFdImportObj(masterNodeId, importObj, false);
     }
 
-    // 配置decoder表
-    auto res = ImportToAddDecoderEntry(importObj.status, 0, importObj.algoResult.attachSocketId,
-                                        importObj.exportObmmInfo, false);
-    if(res != UBSE_OK) {
+    std::pair<uint32_t, uint32_t> chipDiePair{};
+    std::pair<uint32_t, uint32_t> remoteChipDiePair{};
+    auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(importObj.algoResult.attachSocketId, chipDiePair);
+    res |= decoder::utils::MemDecoderUtils::GetChipAndDieId(importObj.algoResult.exportNumaInfos[0].socketId,
+        remoteChipDiePair);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetChipAndDieId by socketId failed, " << FormatRetCode(res);
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
         return SendFdImportObj(masterNodeId, importObj, false);
     }
+
+    decoder::utils::ImportDecoderParam importParam{};
+    SetDecoderParam(importParam);
+    res = decoder::utils::MemDecoderUtils::SetMarIdParam(chipDiePair.first, remoteChipDiePair.first, importParam);
+    if(res != UBSE_OK) {
+        UBSE_LOG_ERROR << "SetMarIdParam by socketId failed, " << FormatRetCode(res);
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
+        return SendFdImportObj(masterNodeId, importObj, false);
+    }
+
+    res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
+    if(res != UBSE_OK) {
+        UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, " << FormatRetCode(res);
+        UnimportToDelDecoderEntry(chipDiePair, importObj.status);
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
+        return SendFdImportObj(masterNodeId, importObj, false);
+    }
+
     if (auto ret = mmiModule->UbseMemFdImportExecutor(importObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to import, name is " << name << ", requestNodeId is " << requestNodeId;
-        UnimportToDelDecoderEntry(importObj.status, importObj.algoResult.attachSocketId);
+        UBSE_LOG_ERROR << "Failed to import, name is " << name << ", requestNodeId is " << requestNodeId << ", " <<
+            FormatRetCode(ret);
+        UnimportToDelDecoderEntry(chipDiePair, importObj.status);
         importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
         return SendFdImportObj(masterNodeId, importObj, false);
@@ -1010,14 +1041,27 @@ uint32_t FdImportDestroyingAgentCallback(UbseMemFdBorrowImportObj &importObj, co
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
         return SendFdImportObj(masterNodeId, importObj, false);
     }
+
+    std::pair<uint32_t, uint32_t> chipDiePair{};
+    auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(importObj.algoResult.attachSocketId, chipDiePair);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetChipAndDieId by socketId failed";
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        FdImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        return SendFdImportObj(masterNodeId, importObj, false);
+    }
+
     if (auto ret = mmiModule->UbseMemFdUnImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to unimport, name is " << name;
         importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
         return SendFdImportObj(masterNodeId, importObj, false);
     }
-    // 归还成功 删除decoder表
-    UnimportToDelDecoderEntry(importObj.status, importObj.algoResult.attachSocketId);
+
+    UnimportToDelDecoderEntry(chipDiePair, importObj.status);
+    if (!importObj.status.decoderResult.empty()) {
+        UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed";
+    }
     FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
     return SendFdImportObj(masterNodeId, importObj, false);
 }
@@ -1344,15 +1388,40 @@ uint32_t NumaImportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemNumaB
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
         return SendNumaImportObj(masterNodeId, importObj, false);
     }
-    
-    auto res = ImportToAddDecoderEntry(importObj.status, 0, importObj.algoResult.attachSocketId,
-                                        importObj.exportObmmInfo, false);
+
+    decoder::utils::ImportDecoderParam importParam{};
+    SetDecoderParam(importParam);
+    std::pair<uint32_t, uint32_t> chipDiePair{};
+    std::pair<uint32_t, uint32_t> remoteChipDiePair{};
+    auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(importObj.algoResult.attachSocketId, chipDiePair);
+    res |= decoder::utils::MemDecoderUtils::GetChipAndDieId(importObj.algoResult.exportNumaInfos[0].socketId,
+        remoteChipDiePair);
     if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetChipAndDieId by socketId failed";
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
+        return SendNumaImportObj(masterNodeId, importObj, false);
+    }
+
+    res = decoder::utils::MemDecoderUtils::SetMarIdParam(chipDiePair.first, remoteChipDiePair.first, importParam);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "SetMarIdParam failed";
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
+        return SendNumaImportObj(masterNodeId, importObj, false);
+    }
+
+    res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed";
+        UnimportToDelDecoderEntry(chipDiePair, importObj.status);
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
         return SendNumaImportObj(masterNodeId, importObj, false);
     }
     if (auto ret = mmiModule->UbseMemNumaImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to import, name is " << name << ", requestNodeId is " << requestNodeId;
-        UnimportToDelDecoderEntry(importObj.status, importObj.algoResult.attachSocketId);
+        UnimportToDelDecoderEntry(chipDiePair, importObj.status);
         importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
         return SendNumaImportObj(masterNodeId, importObj, false);
@@ -1393,6 +1462,16 @@ uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemNu
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
         return SendNumaImportObj(masterNodeId, importObj, false);
     }
+
+    std::pair<uint32_t, uint32_t> chipDiePair{};
+    auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(importObj.algoResult.attachSocketId, chipDiePair);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetChipAndDieId by socketId failed";
+        importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
+        NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        return SendNumaImportObj(masterNodeId, importObj, false);
+    }
+
     if (auto ret = mmiModule->UbseMemNumaUnImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to unimport, name is " << name;
         importObj.errorCode = UBS_ENGINE_ERR_INTERNAL;
@@ -1400,8 +1479,10 @@ uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemNu
         return SendNumaImportObj(masterNodeId, importObj, false);
     }
     UBSE_LOG_DEBUG << "Success to unimport, name is " << name;
-    //删除decoder表
-    UnimportToDelDecoderEntry(importObj.status, importObj.algoResult.attachSocketId);
+    UnimportToDelDecoderEntry(chipDiePair, importObj.status);
+    if (!importObj.status.decoderResult.empty()) {
+        UBSE_LOG_ERROR << "UnimportToDelDecoderEntry falied";
+    }
     NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYED);
     return SendNumaImportObj(masterNodeId, importObj, false);
 }
@@ -2157,15 +2238,11 @@ UbseResult UbseMemNumaReturnRespHandler(const UbseMemOperationResp &resp)
     *(uint32_t *)ptr = htonl(resp.errorCode);
     ptr += sizeof(uint32_t);
     message.length = size;
-    auto freeFunc = [](void *p) {
-        delete[] static_cast<uint8_t *>(p);
-        p = nullptr;
-    };
     auto ret = apiServer->SendResponse(resp.errorCode, requestId, message);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to send response, error code is " << resp.errorCode << "requestId is " << requestId;
     }
-    freeFunc(message.buffer);
+    SafeDeleteArray(message.buffer);
     return ret;
 }
 
@@ -2208,78 +2285,66 @@ UbseResult GetNdeoMemDebtInfoMap(const std::string &nodeId, NodeMemDebtInfoMap &
     return UBSE_OK;
 }
 
-void SetDecoderFlag(uint32_t &flag, bool isShare)
+UbseResult GetCurNodeDebtInfoMap(NodeMemDebtInfo &memDebtInfo)
 {
-    if (isShare) {
-        flag |= UB_MEMORY_IMPORT_SHARE_TYPE;
+    mapLock.LockRead();
+    auto nodeId = nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
+    UBSE_LOG_INFO << "currentNodeId is " << nodeId;
+    if (nodeId.empty()) {
+        mapLock.UnLock();
+        return UBSE_ERROR;
     }
-    flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
-    UBSE_LOG_DEBUG << "flag value is " << flag;
+    memDebtInfo = nodeMemDebtInfoMap[nodeId];
+    mapLock.UnLock();
+    return UBSE_OK;
 }
 
-uint32_t ImportToAddDecoderEntry(UbseMemImportStatus &status, uint8_t importType, uint32_t socketId,
-                                const std::vector<UbseMemObmmInfo> &exportObmmInfo, bool isShare)
+UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
+                                   const std::vector<UbseMemObmmInfo> &exportObmmInfo,
+                                   const decoder::utils::ImportDecoderParam &importDecoderParam,
+                                   UbseMemImportStatus &status)
 {
-    UBSE_LOG_DEBUG << "ImportToAddDecoderEntry Begin";
     auto blockSize = strategy::MemMgrConfiguration::GetInstance().GetUnitSize();
     status.decoderResult.clear();
-    bool flag = true;
-    std::pair<std::string, std::string> chipDiePair{};
-    auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(socketId, chipDiePair);
-    if (res != UBSE_OK) {
-        return res;
-    }
-
-    for (auto exportInfo : exportObmmInfo) {
+    for (const auto &exportInfo : exportObmmInfo) {
         mami::UbseMamiMemImportInfo mamiImportInfo{};
-        mamiImportInfo.ubpuId = stoi(chipDiePair.first);
-        mamiImportInfo.iouId = stoi(chipDiePair.second);
-        mamiImportInfo.marId = exportInfo.desc.marId;
-        mamiImportInfo.importType = importType;
-        mamiImportInfo.decoderId = 0;
+        mamiImportInfo.ubpuId = chipDiePair.first;
+        mamiImportInfo.iouId = chipDiePair.second;
+        mamiImportInfo.marId = importDecoderParam.portSet;
+        mamiImportInfo.importType = importDecoderParam.importType;
+        mamiImportInfo.decoderId = importDecoderParam.decoderIdx;
         mamiImportInfo.lb = 0;
-        mamiImportInfo.size = exportInfo.desc.tokenid;
-        mamiImportInfo.handle = 0;
-        mamiImportInfo.tokenId = exportInfo.desc.length;
+        mamiImportInfo.size = exportInfo.desc.length;
+        mamiImportInfo.handle = importDecoderParam.handle;
+        mamiImportInfo.tokenId = exportInfo.desc.tokenid;
         mamiImportInfo.dstCNA = exportInfo.desc.dcna;
         mamiImportInfo.uba = exportInfo.desc.addr;
-        SetDecoderFlag(mamiImportInfo.flag, isShare);
+        mamiImportInfo.flag = importDecoderParam.flag;
         lcne::UbseMamiMemImportResult importResult{};
-        res = lcne::UbseLcneDecoderEntry::GetInstance().AddDecoderEntry(mamiImportInfo, importResult);
+        auto res = lcne::UbseLcneDecoderEntry::GetInstance().AddDecoderEntry(mamiImportInfo, importResult);
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed";
-            flag = false;
-            break;
+            return res;
         }
         status.decoderResult.emplace_back(importResult);
     }
 
-    if (!flag) {
-        UnimportToDelDecoderEntry(status, socketId);
-        return UBSE_ERROR;
-    }
     return UBSE_OK;
 }
 
-void UnimportToDelDecoderEntry(UbseMemImportStatus &status, uint32_t socketId)
+void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair, UbseMemImportStatus &status)
 {
-    UBSE_LOG_DEBUG << "UnimportToDelDecoderEntry Begin";
-    std::pair<std::string, std::string> chipDiePair{};
-    auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(socketId, chipDiePair);
-    if (res != UBSE_OK) {
-        return;
-    }
+    std::vector<mami::UbseMamiMemImportResult> failedDecoderResult{};
     for (const auto &decoderVal : status.decoderResult) {
-        mami::UbseMamiMemWithdraw mamiDelInfo{static_cast<uint32_t>(std::stoi(chipDiePair.first)),
-                                            static_cast<uint32_t>(std::stoi(chipDiePair.second)), decoderVal.marId, 0,
-                                            decoderVal.handle};
-        UBSE_LOG_DEBUG << "ubpuId is " << static_cast<uint32_t>(std::stoi(chipDiePair.first)) << "iouId is "
-                        << static_cast<uint32_t>(std::stoi(chipDiePair.second));
+        mami::UbseMamiMemWithdraw mamiDelInfo{chipDiePair.first, chipDiePair.second,
+                                              decoderVal.marId, 0, decoderVal.handle};
         auto res = lcne::UbseLcneDecoderEntry::GetInstance().DeleteDecoderEntry(mamiDelInfo);
         if(res != UBSE_OK) {
-            continue;
-        }                                            
+            UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed, handle is " << decoderVal.handle << " hpa is " <<
+                decoderVal.hpa << " marId is " << decoderVal.marId;
+            failedDecoderResult.push_back(decoderVal);
+        }
     }
-    status.decoderResult.clear();
+    status.decoderResult = failedDecoderResult;
 }
 } // namespace ubse::mem::controller

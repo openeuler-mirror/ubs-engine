@@ -96,14 +96,15 @@ UbseResult ParseRspXml(const std::string &responseStr, std::vector<UbseMamiMemHa
         UBSE_LOG_DEBUG << "[MTI_MEM] handle is " << handleValue.handle;
         handleValue.size = std::stol(ubseXml->Child("size")->Text());
         UBSE_LOG_DEBUG << "[MTI_MEM] size is " << handleValue.size;
-        handleValue.entryStartIdx = std::stoi(ubseXml->Child("entryStartIdx")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] entryStartIdx is " << handleValue.entryStartIdx;
-        handleValue.entryEndIdx = std::stoi(ubseXml->Child("entryEndIdx")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] entryEndIdx is " << handleValue.entryEndIdx;
-        handleValue.blockStartIdx = std::stoi(ubseXml->Child("blockStartIdx")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] blockStartIdx is " << handleValue.blockStartIdx;
-        handleValue.blockEndIdx = std::stoi(ubseXml->Child("blockEndIdx")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] blockEndIdx is " << handleValue.blockEndIdx;
+        try {
+            handleValue.entryStartIdx = std::stoi(ubseXml->Child("entry-start-idx")->Text());
+            handleValue.entryEndIdx = std::stoi(ubseXml->Child("entry-end-idx")->Text());
+            handleValue.blockStartIdx = std::stoi(ubseXml->Child("block-start-idx")->Text());
+            handleValue.blockEndIdx = std::stoi(ubseXml->Child("block-end-idx")->Text());
+        } catch (const std::exception& e) {
+            UBSE_LOG_ERROR << "[MTI_MEM] Unexpected exception: " << e.what();
+            return UBSE_ERROR;
+        }
         handleValue.type = std::stoi(ubseXml->Child("type")->Text());
         UBSE_LOG_DEBUG << "[MTI_MEM] type is " << handleValue.type;
         handleValues.emplace_back(handleValue);

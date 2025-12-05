@@ -107,12 +107,16 @@ UbseResult ParseRspXml(const std::string &responseStr, UbseMamiMemImportResult *
     }
 
     if (importResult != nullptr) {
-        importResult->hpa = std::stol(ubseXml->Child("hpa")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] hpa is " << importResult->hpa;
-        importResult->handle = std::stol(ubseXml->Child("handle")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] handle is " << importResult->handle;
+        try {
+            importResult->hpa = std::stol(ubseXml->Child("hpa")->Text());
+            UBSE_LOG_DEBUG << "[MTI_MEM] hpa is " << importResult->hpa;
+            importResult->handle = std::stol(ubseXml->Child("handle")->Text());
+            UBSE_LOG_DEBUG << "[MTI_MEM] handle is " << importResult->handle;
+        } catch (const std::exception& e) {
+            UBSE_LOG_ERROR << "[MTI_MEM] Unexpected exception: " << e.what();
+            return UBSE_ERROR;
+        }
     }
-
     return UBSE_OK;
 }
 

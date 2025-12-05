@@ -45,6 +45,15 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 UbseResult GetAllNodeInfoFromRemote(const std::string &nodeId, std::vector<UbseNodeInfo> &infos);
 
 /**
+ * 同步消息，agent节点向主节点请求全量链路信息
+ * @param nodeId [in] 主节点id
+ * @param devDirConnectInfoRemote [out] 响应
+ * @return
+ */
+UbseResult UbseGetDirectConnectInfoFromRemote(const std::string &nodeId,
+    std::unordered_map<std::string, PhysicalLink> &devDirConnectInfoRemote);
+
+/**
  * agent侧处理master节点周期采集节点拓扑 handler
  * @param req [in] 请求入参
  * @param resp [out] 响应
@@ -59,6 +68,14 @@ UbseResult CollectNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &res
  * @return
  */
 UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+/**
+ * master侧处理agent查询全量链路信息 handler
+ * @param req [in] 请求入参
+ * @param resp [out] 响应
+ * @return
+ */
+UbseResult UbseGetDirectConnectInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 UbseResult ReportTopologyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 } // namespace ubse::nodeController

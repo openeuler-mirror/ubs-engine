@@ -121,6 +121,7 @@ void UbseNodeControllerModule::StartExec()
         UbseNodeController::GetInstance().UpdateNodeInfo(localInfo.nodeId, localInfo);
         return UBSE_OK;
     });
+    UbseNodeController::GetInstance().UpdateDevDirConnectInfo(); // 更新链接
     std::string ubseTopologyChangeEvent = "UbseTopologyChangeEvent";
     UbseSubEvent(ubseTopologyChangeEvent, CollectWhenLcneChange);
 }
@@ -198,6 +199,7 @@ void UbseNodeControllerModule::ClusterCollectNodeTopology()
             continue;
         }
         UbseNodeController::GetInstance().UpdateNodeInfo(node.nodeId, info);
+        UbseNodeController::GetInstance().UpdateDevDirConnectInfo(); // 更新链接
     }
 }
 
@@ -404,6 +406,7 @@ UbseResult UbseNodeControllerModule::CollectWhenLcneChange(std::string &, std::s
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     if (module->IsLeader()) {
+        UbseNodeController::GetInstance().UpdateDevDirConnectInfo(); // 更新链接
         // 发布事件
         std::string pubId = "UbseClusterTopologyChangeEvent";
         UbsePubEvent(pubId, info.nodeId);
