@@ -63,7 +63,7 @@ Header files and static libraries for developing applications that use the UBSE 
 This package is required for compiling programs that link against UBSE.
 
 
-%define project_dir %{name}-%{version}
+%define project_dir %{name}
 %define cmake_build_dir cmake-build-relwithdebinfo
 
 %define log_dir /var/log/ubse
