@@ -34,19 +34,19 @@ TEST_F(TestUbseLcneTopologyClient, ParseXmlData)
     <data>
       <nodes>
         <node>
-          <slot-id>1</slot-id>
-          <chip-id>1</chip-id>
-          <die-id>1</die-id>
-          <chip-type>CPU</chip-type>
+          <slot>1</slot>
+          <ubpu>1</ubpu>
+          <iou>1</iou>
+          <ubpu-type>CPU</ubpu-type>
           <physical-ports>
             <physical-port>
               <physical-port-id>1</physical-port-id>
               <interface-name>400GPU1/1/1</interface-name>
               <physical-port-role>ubse-in</physical-port-role>
               <physical-port-status>up</physical-port-status>
-              <remote-slot-id>1</remote-slot-id>
-              <remote-chip-id>1</remote-chip-id>
-              <remote-die-id>1</remote-die-id>
+              <remote-slot>1</remote-slot>
+              <remote-ubpu>1</remote-ubpu>
+              <remote-iou>1</remote-iou>
               <remote-physical-port-id>1</remote-physical-port-id>
             </physical-port>
             <physical-port>
@@ -54,9 +54,9 @@ TEST_F(TestUbseLcneTopologyClient, ParseXmlData)
               <interface-name>400GPU2/2/2</interface-name>
               <physical-port-role>ubse-in</physical-port-role>
               <physical-port-status>up</physical-port-status>
-              <remote-slot-id>2</remote-slot-id>
-              <remote-chip-id>2</remote-chip-id>
-              <remote-die-id>2</remote-die-id>
+              <remote-slot>2</remote-slot>
+              <remote-ubpu>2</remote-ubpu>
+              <remote-iou>2</remote-iou>
               <remote-physical-port-id>2</remote-physical-port-id>
             </physical-port>
           </physical-ports>
@@ -102,10 +102,10 @@ TEST_F(TestUbseLcneTopologyClient, ParseXmlData_ParsePortsFailed)
     <data>
       <nodes>
         <node>
-          <slot-id>1</slot-id>
-          <chip-id>1</chip-id>
-          <die-id>1</die-id>
-          <chip-type>CPU</chip-type>
+          <slot>1</slot>
+          <ubpu>1</ubpu>
+          <iou>1</iou>
+          <ubpu-type>CPU</ubpu-type>
         </node>
       </nodes>
     </data>

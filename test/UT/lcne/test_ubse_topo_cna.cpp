@@ -42,9 +42,9 @@ TEST_F(TestUbseTopoCna, ParseXmlData)
     std::string responseXml = R"(<data xmlns="urn:huawei:yang:huawei-lingqu-topology">
   <addresses>
     <address>
-      <slot-id>1</slot-id>
-      <chip-id>1</chip-id>
-      <die-id>1</die-id>
+      <slot>1</slot>
+      <ubpu>1</ubpu>
+      <iou>1</iou>
       <bus-primary-cna>0x0401</bus-primary-cna>
       <node-cna>0x000401</node-cna>
       <node-ip>-</node-ip>
@@ -66,9 +66,9 @@ TEST_F(TestUbseTopoCna, ParseXmlData)
       </physical-ports>
     </address>
     <address>
-      <slot-id>1</slot-id>
-      <chip-id>2</chip-id>
-      <die-id>1</die-id>
+      <slot>1</slot>
+      <ubpu>2</ubpu>
+      <iou>1</iou>
       <bus-primary-cna>0x0402</bus-primary-cna>
       <node-cna>0x000402</node-cna>
       <node-ip>-</node-ip>
@@ -133,9 +133,9 @@ TEST_F(TestUbseTopoCna, ParseXmlData_ParseFailed2)
     std::string responseXml = R"(<data>
 <addresses>
     <address>
-      <slot-id>1</slot-id>
-      <chip-id>1</chip-id>
-      <die-id>1</die-id>
+      <slot>1</slot>
+      <ubpu>1</ubpu>
+      <iou>1</iou>
       <bus-primary-cna>0x0401</bus-primary-cna>
       <node-cna>0x000401</node-cna>
       <node-ip>-</node-ip>

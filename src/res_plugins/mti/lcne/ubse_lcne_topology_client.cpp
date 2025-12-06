@@ -76,10 +76,10 @@ uint32_t UbseLcneTopologyClient::ParseData(std::string &resBody, std::vector<Lcn
     size_t index = 0;
     while (ubseXml->Next("node", index) != nullptr) {
         LcneNodeInfo lcneNodeInfo{};
-        lcneNodeInfo.slotId = ubseXml->Child("slot-id")->Text();
-        lcneNodeInfo.chipId = ubseXml->Child("chip-id")->Text();
-        lcneNodeInfo.cardId = ubseXml->Child("die-id")->Text();
-        lcneNodeInfo.type = ubseXml->Child("chip-type")->Text();
+        lcneNodeInfo.slotId = ubseXml->Child("slot")->Text();
+        lcneNodeInfo.chipId = ubseXml->Child("ubpu")->Text();
+        lcneNodeInfo.cardId = ubseXml->Child("iou")->Text();
+        lcneNodeInfo.type = ubseXml->Child("ubpu-type")->Text();
         ubseXml = ubseXml->Next("physical-ports");
         if (ubseXml == nullptr) {
             UBSE_LOG_ERROR << "[MTI] topology xml parse ports failed.";
@@ -93,9 +93,9 @@ uint32_t UbseLcneTopologyClient::ParseData(std::string &resBody, std::vector<Lcn
             lcnePortInfo.ifName = ubseXml->Child("interface-name")->Text();
             lcnePortInfo.portRole = ubseXml->Child("physical-port-role")->Text();
             lcnePortInfo.portStatus = ubseXml->Child("physical-port-status")->Text();
-            lcnePortInfo.remoteSlotId = ubseXml->Child("remote-slot-id")->Text();
-            lcnePortInfo.remoteChipId = ubseXml->Child("remote-chip-id")->Text();
-            lcnePortInfo.remoteCardId = ubseXml->Child("remote-die-id")->Text();
+            lcnePortInfo.remoteSlotId = ubseXml->Child("remote-slot")->Text();
+            lcnePortInfo.remoteChipId = ubseXml->Child("remote-ubpu")->Text();
+            lcnePortInfo.remoteCardId = ubseXml->Child("remote-iou")->Text();
             lcnePortInfo.remotePortId = ubseXml->Child("remote-physical-port-id")->Text();
             lcneNodeInfo.ports.emplace_back(lcnePortInfo);
             ubseXml->Previous();

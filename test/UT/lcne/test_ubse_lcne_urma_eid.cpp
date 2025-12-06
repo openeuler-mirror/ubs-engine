@@ -42,8 +42,8 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData)
      <static-urma-eids>
        <static-urma-eid>
          <slot-id>1</slot-id>
-         <chip-id>0</chip-id>
-         <die-id>1</die-id>
+         <ubpu-id>0</ubpu-id>
+         <iou-id>1</iou-id>
          <fe-id>1</fe-id>
          <urma-eid-infos>
            <urma-eid-info>
@@ -58,8 +58,8 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData)
        </static-urma-eid>
        <static-urma-eid>
          <slot-id>1</slot-id>
-         <chip-id>0</chip-id>
-         <die-id>1</die-id>
+         <ubpu-id>0</ubpu-id>
+         <iou-id>1</iou-id>
          <fe-id>2</fe-id>
          <urma-eid-infos>
            <urma-eid-info>
@@ -74,8 +74,8 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData)
        </static-urma-eid>
        <static-urma-eid>
          <slot-id>2</slot-id>
-         <chip-id>1</chip-id>
-         <die-id>1</die-id>
+         <ubpu-id>1</ubpu-id>
+         <iou-id>1</iou-id>
          <fe-id>2</fe-id>
          <urma-eid-infos>
            <urma-eid-info>
@@ -90,8 +90,8 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData)
        </static-urma-eid>
        <static-urma-eid>
          <slot-id>3</slot-id>
-         <chip-id>1</chip-id>
-         <die-id>1</die-id>
+         <ubpu-id>1</ubpu-id>
+         <iou-id>1</iou-id>
          <fe-id>3</fe-id>
          <urma-eid-infos>
            <urma-eid-info>
@@ -145,8 +145,8 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData_ParseFailed2)
      <static-urma-eids>
        <static-urma-eid>
          <slot-id>1</slot-id>
-         <chip-id>0</chip-id>
-         <die-id>1</die-id>
+         <ubpu-id>0</ubpu-id>
+         <iou-id>1</iou-id>
          <fe-id>1</fe-id>
        </static-urma-eid>
      </static-urma-eids>
