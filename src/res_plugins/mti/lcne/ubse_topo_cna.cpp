@@ -116,9 +116,9 @@ UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string &resBody, std::vector<LcneNo
     size_t index = 0;
     while (ubseXml->Next("address", index) != nullptr) {
         LcneNodeCnaInfo lcneNodeCnaInfo{};
-        lcneNodeCnaInfo.slotId = ubseXml->Child("slot-id")->Text();
-        lcneNodeCnaInfo.chipId = ubseXml->Child("chip-id")->Text();
-        lcneNodeCnaInfo.cardId = ubseXml->Child("die-id")->Text();
+        lcneNodeCnaInfo.slotId = ubseXml->Child("slot")->Text();
+        lcneNodeCnaInfo.chipId = ubseXml->Child("ubpu")->Text();
+        lcneNodeCnaInfo.cardId = ubseXml->Child("iou")->Text();
         lcneNodeCnaInfo.busNodeCna = ubseXml->Child("bus-primary-cna")->Text();
         ubseXml = ubseXml->Next("physical-ports");
         if (ubseXml == nullptr) {

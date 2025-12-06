@@ -68,7 +68,7 @@ void ParseIODieInfo(const std::shared_ptr<UbseXml> &ubseXml, UbseLcneIODieInfo &
     ubseLcneIODieInfo.guid = ubseXml->Child("guid")->Text();
     ubseLcneIODieInfo.upi = ubseXml->Child("upi")->Text();
     ubseLcneIODieInfo.primaryCna = ubseXml->Child("primary-cna")->Text();
-    ubseLcneIODieInfo.chipType = StringToDevTypeVBus(ubseXml->Child("chip-type")->Text());
+    ubseLcneIODieInfo.chipType = StringToDevType(ubseXml->Child("ubpu-type")->Text());
     ubseLcneIODieInfo.chipStatus = DevStatus::normal;
 }
 
@@ -100,15 +100,15 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string &r
         return UBSE_ERROR;
     }
 
-    ubseXml = ubseXml->Next("die-infos");
+    ubseXml = ubseXml->Next("iou-infos");
     if (ubseXml == nullptr) {
-        UBSE_LOG_ERROR << "[MTI] Xml parse die infos failed," << FormatRetCode(UBSE_ERROR);
+        UBSE_LOG_ERROR << "[MTI] Xml parse iou infos failed," << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
 
     int index = 0;
-    while (ubseXml->Next("die-info", index++) != nullptr) {
-        DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("chip-id")->Text());
+    while (ubseXml->Next("iou-info", index++) != nullptr) {
+        DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
         UbseLcneIODieInfo ubseLcneIODieInfo{};
         ParseIODieInfo(ubseXml, ubseLcneIODieInfo);
         ubseLcneIODieInfoMap[devName] = ubseLcneIODieInfo;

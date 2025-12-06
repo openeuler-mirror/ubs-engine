@@ -36,19 +36,19 @@ void TestUbseLcneNodeInfo ::TearDown()
 TEST_F(TestUbseLcneNodeInfo, ParseIODieInfoQueryAllResponseSuccess)
 {
     std::string responseXml = R"(<vbussw-service xmlns="urn:huawei:yang:huawei-vbussw-service">
-  <die-infos>
-    <die-info>
+  <iou-infos>
+    <iou-info>
       <slot-id>1</slot-id>
-      <chip-id>1</chip-id>
+      <ubpu-id>1</ubpu-id>
       <die-id>1</die-id>
       <bus-controller-eid>0x00000</bus-controller-eid>
       <guid>01-0101-0-1-0101-0101-010101-0101010101</guid>
       <upi>0x0003</upi>
       <primary-cna>0x0085a7</primary-cna>
-      <chip-type>CPU</chip-type>
+      <ubpu-type>CPU</ubpu-type>
       <die-status>normal</die-status>
-    </die-info>
-  </die-infos>
+    </iou-info>
+  </iou-infos>
 </vbussw-service>)";
     UbseLcneIODieInfoMap ubseLcneIODieInfoMap;
     UbseResult ret =

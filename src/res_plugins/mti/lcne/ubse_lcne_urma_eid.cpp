@@ -157,7 +157,7 @@ UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string &responseS
     }
     int staticUrmaEidsIndex = 0;
     while (ubseXml->Next("static-urma-eid", staticUrmaEidsIndex) != nullptr) {
-        DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("chip-id")->Text());
+        DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
         if (socketInfoMap.find(devName) != socketInfoMap.end()) {
             ubseXml->Previous();
             staticUrmaEidsIndex++;

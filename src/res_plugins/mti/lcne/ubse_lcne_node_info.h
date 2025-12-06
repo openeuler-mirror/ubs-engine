@@ -47,7 +47,7 @@ private:
     std::string host;
     int port;
 
-    const std::string QUERY_ALL_URI = "/restconf/data/huawei-vbussw-service:vbussw-service/die-infos";
+    const std::string QUERY_ALL_URI = "/restconf/data/huawei-vbussw-service:vbussw-service/iou-infos";
 };
 }
 

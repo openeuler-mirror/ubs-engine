@@ -139,6 +139,7 @@ enum class DevType {
     SSU = 0,
     DPU = 1,
     CPU = 2,
+    NPU = 3,
     ALL
 };
 

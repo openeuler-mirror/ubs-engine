@@ -327,22 +327,11 @@ DevType StringToDevType(const std::string &str)
     if (str == "DPU") {
         return DevType::DPU;
     }
-    if (str == "CPU-LINK") {
+    if (str == "CPU-LINK" || str == "CPU") {
         return DevType::CPU;
     }
-    return DevType::CPU;
-}
-
-DevType StringToDevTypeVBus(const std::string &str)
-{
-    if (str == "SSU") {
-        return DevType::SSU;
-    }
-    if (str == "DPU") {
-        return DevType::DPU;
-    }
-    if (str == "CPU") {
-        return DevType::CPU;
+    if (str == "NPU") {
+        return DevType::NPU;
     }
     return DevType::ALL;
 }
