@@ -24,8 +24,6 @@ UBSE_DEFINE_THIS_MODULE("ubse", UBSE_LCNE_MID);
 using namespace ubse::log;
 using namespace ubse::utils;
 
-const int HEX_BASE = 16;
-
 UbseResult BuildReqStr(const UbseMamiMemHandleQueryInfo &queryInfo, std::string &xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
@@ -74,13 +72,6 @@ UbseResult ParseRspXml(const std::string &responseStr, std::vector<UbseMamiMemHa
         return UBSE_ERROR;
     }
 
-    const auto result = ubseXml->Child("result")->Text();
-    if (result != "success") {
-        UBSE_LOG_ERROR << "[MTI_MEM] Add decoder failed, the result of response is " << result << ", " <<
-            FormatRetCode(UBSE_ERROR);
-        return UBSE_ERROR;
-    }
-
     ubseXml = ubseXml->Next("ub-memory-handles");
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse handles failed, " << FormatRetCode(UBSE_ERROR);
@@ -90,13 +81,12 @@ UbseResult ParseRspXml(const std::string &responseStr, std::vector<UbseMamiMemHa
     size_t index = 0;
     while (ubseXml->Next("ub-memory-handle", index++) != nullptr) {
         UbseMamiMemHandleValue handleValue{};
-        handleValue.hpa = std::stol(ubseXml->Child("hpa")->Text(), nullptr, HEX_BASE);
-        UBSE_LOG_DEBUG << "[MTI_MEM] hpa is " << handleValue.hpa;
-        handleValue.handle = std::stol(ubseXml->Child("handle")->Text(), nullptr, HEX_BASE);
-        UBSE_LOG_DEBUG << "[MTI_MEM] handle is " << handleValue.handle;
-        handleValue.size = std::stol(ubseXml->Child("size")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] size is " << handleValue.size;
         try {
+            handleValue.hpa = std::stol(ubseXml->Child("hpa")->Text());
+            UBSE_LOG_DEBUG << "[MTI_MEM] hpa is " << handleValue.hpa;
+            handleValue.handle = std::stol(ubseXml->Child("handle")->Text());
+            UBSE_LOG_DEBUG << "[MTI_MEM] handle is " << handleValue.handle;
+            handleValue.size = std::stol(ubseXml->Child("size")->Text());
             handleValue.entryStartIdx = std::stoi(ubseXml->Child("entry-start-idx")->Text());
             handleValue.entryEndIdx = std::stoi(ubseXml->Child("entry-end-idx")->Text());
             handleValue.blockStartIdx = std::stoi(ubseXml->Child("block-start-idx")->Text());
@@ -112,6 +102,10 @@ UbseResult ParseRspXml(const std::string &responseStr, std::vector<UbseMamiMemHa
             UBSE_LOG_ERROR << "[MTI_MEM] Find previous xml pointer failed, " << FormatRetCode(UBSE_ERROR);
             return UBSE_ERROR;
         }
+    }
+
+    if (index == 0) {
+        UBSE_LOG_INFO << "[MTI_MEM] handles is empty. ";
     }
     return UBSE_OK;
 }
