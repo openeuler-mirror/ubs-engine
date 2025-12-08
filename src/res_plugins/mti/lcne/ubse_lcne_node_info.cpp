@@ -3,7 +3,7 @@
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
+ * http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -12,11 +12,9 @@
 
 #include "ubse_lcne_node_info.h"
 #include <cstdint>                // for uint32_t, uint8_t
-#include <httplib.h>
 #include "ubse_http_module.h"     // for UbseHttpModule
 #include "securec.h"              // for memcpy_s, EOK
 #include "src/res_plugins/mti/ubse_lcne_topology.h"
-#include "ubse_context.h"         // for UbseContext
 #include "ubse_error.h"           // for UBSE_ERROR, UBSE_OK, UBSE_ERROR_NOMEM
 #include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_logger_inner.h"    // for RM_LOG_ERROR
