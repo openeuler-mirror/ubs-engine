@@ -87,16 +87,16 @@ UbseResult ParseRspXml(const std::string &responseStr, std::vector<UbseMamiMemHa
             handleValue.handle = std::stol(ubseXml->Child("handle")->Text());
             UBSE_LOG_DEBUG << "[MTI_MEM] handle is " << handleValue.handle;
             handleValue.size = std::stol(ubseXml->Child("size")->Text());
-            handleValue.entryStartIdx = std::stoi(ubseXml->Child("entry-start-idx")->Text());
-            handleValue.entryEndIdx = std::stoi(ubseXml->Child("entry-end-idx")->Text());
-            handleValue.blockStartIdx = std::stoi(ubseXml->Child("block-start-idx")->Text());
-            handleValue.blockEndIdx = std::stoi(ubseXml->Child("block-end-idx")->Text());
+            handleValue.entryStartIdx = std::stoi(ubseXml->Child("entry-start-index")->Text());
+            handleValue.entryEndIdx = std::stoi(ubseXml->Child("entry-end-index")->Text());
+            handleValue.blockStartIdx = std::stoi(ubseXml->Child("block-start-index")->Text());
+            handleValue.blockEndIdx = std::stoi(ubseXml->Child("block-end-index")->Text());
+            handleValue.type = std::stoi(ubseXml->Child("type")->Text());
+            UBSE_LOG_DEBUG << "[MTI_MEM] type is " << handleValue.type;
         } catch (const std::exception& e) {
             UBSE_LOG_ERROR << "[MTI_MEM] Unexpected exception: " << e.what();
             return UBSE_ERROR;
         }
-        handleValue.type = std::stoi(ubseXml->Child("type")->Text());
-        UBSE_LOG_DEBUG << "[MTI_MEM] type is " << handleValue.type;
         handleValues.emplace_back(handleValue);
         if (ubseXml->Previous() != UbseXmlError::OK) {
             UBSE_LOG_ERROR << "[MTI_MEM] Find previous xml pointer failed, " << FormatRetCode(UBSE_ERROR);
