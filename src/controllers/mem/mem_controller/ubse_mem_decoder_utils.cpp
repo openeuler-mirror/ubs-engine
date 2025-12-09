@@ -27,11 +27,11 @@ std::unordered_map<uint32_t, uint32_t> MemDecoderUtils::portToPortSet{
     {1, 0},
     {2, 0},
     {3, 0},
-    {4, 3},
-    {5, 3},
-    {6, 3},
-    {7, 3},
-    {8, 4}
+    {4, 1},
+    {5, 1},
+    {6, 1},
+    {7, 1},
+    {8, 2}
 };
 
 UbseResult MemDecoderUtils::GetChipAndDieId(const uint32_t socketId, std::pair<uint32_t, uint32_t> &chipDiePair)
@@ -73,7 +73,7 @@ UbseResult GetAllHandlesFromAllDecoderId(UbseMamiMemHandleQueryInfo &queryInfo,
                             .decoderId = queryInfo.decoderId};
         auto ret = UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, tempHandleValues);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MTI_MEM] get handles of decoderId=, " << decoderId << " failed, "
+            UBSE_LOG_ERROR << "[MTI_MEM] get handles of decoderId=" << decoderId << ", failed, "
                             << FormatRetCode(ret);
             return ret;
         }
@@ -84,12 +84,12 @@ UbseResult GetAllHandlesFromAllDecoderId(UbseMamiMemHandleQueryInfo &queryInfo,
 
 UbseResult GetAllHandlesFromAllMarId(UbseMamiMemHandleQueryInfo &queryInfo, DecoderLocTohandleValueMap &handleValues)
 {
-    std::vector<uint32_t> marIdSet{0, 3, 4}; // 0、3、4 是1650芯片的portSet
+    std::vector<uint32_t> marIdSet{0, 1, 2}; // 0、1、2 是1650芯片的portSet
     for (const auto &marId : marIdSet) {
         queryInfo.marId = marId;
         auto ret = GetAllHandlesFromAllDecoderId(queryInfo, handleValues);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MTI_MEM] get handles of marid=, " << marId << " failed, "
+            UBSE_LOG_ERROR << "[MTI_MEM] get handles of marid=" << marId << ", failed, "
                             << FormatRetCode(ret);
             return ret;
         }
@@ -114,7 +114,7 @@ UbseResult MemDecoderUtils::GetAllHandles(DecoderLocTohandleValueMap &handleValu
         queryInfo.iouId = valPair.second;
         auto ret = GetAllHandlesFromAllMarId(queryInfo, handleValues);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MTI_MEM] get handles of socketId=, " << valPair.first << " failed, "
+            UBSE_LOG_ERROR << "[MTI_MEM] get handles of socketId=" << valPair.first << ", failed, "
                             << FormatRetCode(UBSE_ERROR);
             return ret;
         }
