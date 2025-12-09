@@ -101,7 +101,7 @@ UbseResult ParseRspXml(const std::string &responseStr, UbseMamiMemImportResult *
 
     const auto result = ubseXml->Child("result")->Text();
     if (result != "success") {
-        UBSE_LOG_ERROR << "[MTI_MEM] Add decoder failed, the result of response is " << result << ", " <<
+        UBSE_LOG_ERROR << "[MTI_MEM] Http response failed, the result of response is " << result << ", " <<
             FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
@@ -129,7 +129,7 @@ UbseResult UbseLcneDecoderEntry::SendRequest(const std::string &body, UbseHttpRe
     req.headers.emplace("Accept", "application/yang-data+xml");
     req.headers.emplace("Content-Type", "application/yang-data+xml");
     req.body = body;
-    UBSE_LOG_DEBUG << "[MTI_MEM] require body is " << req.body;
+    UBSE_LOG_DEBUG << "[MTI_MEM] request body is " << req.body;
 
     auto res = UbseHttpModule::HttpSend(host, port, req, rsp);
     if (res != UBSE_OK) {
@@ -173,6 +173,7 @@ UbseResult UbseLcneDecoderEntry::AddDecoderEntry(const UbseMamiMemImportInfo &im
         return res;
     }
 
+    importResult.marId = importInfo.marId;
     return UBSE_OK;
 }
 
