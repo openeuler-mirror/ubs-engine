@@ -29,7 +29,7 @@ void UbseNodeList(std::vector<def::UbseNode> &nodeList)
         int count = 0;
         for (const auto &pair : nodeInfo.cpuInfos) {
             if (count < UBS_TOPO_SOCKET_NUM) { // socketId有2个
-                ubNode.socketId[count] = pair.first.socketId;
+                ubNode.socketId[count] = pair.second.socketId;
                 ++count;
             } else {
                 break;
@@ -47,7 +47,7 @@ void UbseNodeGet(def::UbseNode &node)
     int count = 0;
     for (const auto &pair : nodeInfo.cpuInfos) {
         if (count < UBS_TOPO_SOCKET_NUM) {
-            node.socketId[count] = pair.first.socketId;
+            node.socketId[count] = pair.second.socketId;
             ++count;
         } else {
             break;
@@ -55,48 +55,35 @@ void UbseNodeGet(def::UbseNode &node)
     }
 }
 
-UbseResult UbseSplitNodeSocketId(const std::string &nodeSocketId, uint32_t &slotId, uint32_t &socketId)
+void SocketIdMapping(uint32_t &slotId, uint32_t &socketId, uint32_t &chipId,
+                     std::unordered_map<std::string, UbseNodeInfo> &allNodes)
 {
-    size_t hyphen_pos = nodeSocketId.find('-');
-    if (hyphen_pos == std::string::npos) {
-        return UBSE_ERROR;
+    auto it = allNodes.find(std::to_string(slotId));
+    if (it != allNodes.end()) {
+        auto itCpuInfo = it->second.cpuInfos.find({std::to_string(slotId), chipId});
+        if (itCpuInfo != it->second.cpuInfos.end()) {
+            socketId = itCpuInfo->second.socketId;
+        } else {
+            socketId = UINT32_MAX;
+        }
+    } else {
+        socketId = UINT32_MAX;
     }
-    std::string ubse_node_id = nodeSocketId.substr(0, hyphen_pos);
-    std::string ubse_socket_id = nodeSocketId.substr(hyphen_pos + 1);
-    if (ubse_node_id.empty() || ubse_socket_id.empty()) {
-        return UBSE_ERROR_NULL_INFO;
-    }
-    slotId = std::stoul(ubse_node_id);
-    socketId = std::stoul(ubse_socket_id);
-    return UBSE_OK;
 }
 
 void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink> &linkList)
 {
     linkList.clear();
-    std::unordered_map<std::string, std::vector<MemNodeData>> ubse_node_topology;
-    uint32_t ret = UbseMemGetTopologyInfo(ubse_node_topology);
-    if (ret != UBSE_OK) {
-        return;
-    }
-    for (auto &nodeTopo : ubse_node_topology) {
-        std::string nodeSocketId = nodeTopo.first;
-        if (std::count(nodeSocketId.begin(), nodeSocketId.end(), '-') > 1) {
-            continue;
-        }
-        uint32_t slotId = 0, socketId = 0;
-        ret = UbseSplitNodeSocketId(nodeSocketId, slotId, socketId);
-        if (ret != UBSE_OK) {
-            continue;
-        }
-        for (auto &ubseNode : nodeTopo.second) {
-            def::UbseCpuLink ubLink{};
-            ubLink.slotId = slotId;
-            ubLink.socketId = socketId;
-            ubLink.peerSlotId = std::stoul(ubseNode.nodeId);
-            ubLink.peerSocketId = std::stoul(ubseNode.socket.socketId);
-            linkList.push_back(ubLink);
-        }
+    std::map<std::string, PhysicalLink> devDirConnectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+    std::unordered_map<std::string, UbseNodeInfo> allNodes = UbseNodeController::GetInstance().GetAllNodes();
+
+    for (const auto &[_, physicalLink] : devDirConnectInfo) {
+        def::UbseCpuLink ubLink{};
+        ubLink.slotId = physicalLink.slotId;
+        SocketIdMapping(ubLink.slotId, ubLink.socketId, physicalLink.chipId, allNodes);
+        ubLink.peerSlotId = physicalLink.peerSlotId;
+        SocketIdMapping(ubLink.peerSlotId, ubLink.peerSocketId, physicalLink.peerChipId, allNodes);
+        linkList.push_back(ubLink);
     }
 }
 } // namespace ubse::nodeController

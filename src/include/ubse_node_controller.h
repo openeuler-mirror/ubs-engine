@@ -14,7 +14,9 @@
 #define UBSE_NODE_CONTROLLER_H
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <mutex>
+#include <set>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -36,7 +38,7 @@ public:
     std::string portRole;  // 表示框内/框外
     PortStatus portStatus; // 端口状态
     std::string urmaEid;   // urma Eid
-    uint32_t portCna;   // 本端端口cna
+    uint32_t portCna;      // 本端端口cna
     // 对端信息
     std::string remoteSlotId; // LCNE提供的对端槽位号
     std::string remoteChipId; // LCNE提供的对端chipID
@@ -98,19 +100,19 @@ struct UbseNumaLocation {
 
 struct UbseCpuLocation {
     std::string nodeId; // 节点ID
-    uint32_t socketId;  // socketId（lcne的chipid）
+    uint32_t chipId;    // lcne的chipid
 
     struct Hash {
         std::size_t operator()(const UbseCpuLocation &loc) const
         {
-            return std::hash<std::string>{}(loc.nodeId) ^ (std::hash<uint32_t>{}(loc.socketId) << 1);
+            return std::hash<std::string>{}(loc.nodeId) ^ (std::hash<uint32_t>{}(loc.chipId) << 1);
         }
     };
 
     struct Equal {
         bool operator()(const UbseCpuLocation &lhs, const UbseCpuLocation &rhs) const
         {
-            return lhs.nodeId == rhs.nodeId && lhs.socketId == rhs.socketId;
+            return lhs.nodeId == rhs.nodeId && lhs.chipId == rhs.chipId;
         }
     };
 };
@@ -127,16 +129,17 @@ struct UbseNumaInfo {
 };
 
 enum class UbseNodeClusterState {
-    UBSE_NODE_INIT,                 // 初始化
-    UBSE_NODE_SMOOTHING,            // 对账中
-    UBSE_NODE_WORKING,              // 节点正常
-    UBSE_NODE_UNKNOWN,              // 心跳丢失，状态未知
-    UBSE_NODE_FAULT                 // 节点故障（panic，重启）
+    UBSE_NODE_INIT,      // 初始化
+    UBSE_NODE_SMOOTHING, // 对账中
+    UBSE_NODE_WORKING,   // 节点正常
+    UBSE_NODE_UNKNOWN,   // 心跳丢失，状态未知
+    UBSE_NODE_FAULT,     // 节点故障（panic，重启）
+    UBSE_NODE_PER_BMC    //BMC预下电
 };
 
 enum class UbseNodeLocalState {
-    UBSE_NODE_RESTORE,              // 对账中
-    UBSE_NODE_READY,                // 节点正常
+    UBSE_NODE_RESTORE, // 对账中
+    UBSE_NODE_READY,   // 节点正常
 };
 
 struct UbseNodeInfo {
@@ -147,7 +150,7 @@ struct UbseNodeInfo {
     std::string comIp;              // 基于TCP通信时的通信ip
     std::vector<UbseIpAddr> ipList; // ip列表
     std::unordered_map<UbseNumaLocation, UbseNumaInfo, UbseNumaLocation::Hash, UbseNumaLocation::Equal>
-        numaInfos;                  // numa信息
+        numaInfos; // numa信息
     std::unordered_map<UbseCpuLocation, UbseCpuInfo, UbseCpuLocation::Hash, UbseCpuLocation::Equal>
         cpuInfos;                      // cpu信息（key为lcne的chipid）
     UbseNodeLocalState localState;     // 当前节点状态
@@ -162,16 +165,16 @@ struct UbseNodeInfo {
 enum class LinkStatus {
     init,
     available, // 可用
-    conflict, // 冲突,即两节点上报信息不一样，一节点上报有链路，一节点上报没有，或一节点暂未上报信息
-    outdated, // 过时，即UBSE_NODE_UNKNOWN状态的信息
+    conflict,  // 冲突,即两节点上报信息不一样，一节点上报有链路，一节点上报没有，或一节点暂未上报信息
+    outdated,  // 过时，即UBSE_NODE_UNKNOWN状态的信息
 };
 
 struct PhysicalLink {
     uint32_t slotId;       // 节点id
-    uint32_t chipId;     // chip id
+    uint32_t chipId;       // chip id
     uint32_t portId;       // 端口id
     uint32_t peerSlotId;   // 对端节点id
-    uint32_t peerChipId; // 对端chip id
+    uint32_t peerChipId;   // 对端chip id
     uint32_t peerPortId;   // 对端端口id
     LinkStatus linkStatus; // 这条链路的状态
 };
@@ -189,15 +192,15 @@ uint32_t SerializeUbseNode(UbseNodeInfo info, uint8_t *&buffer, size_t &size);
 
 uint32_t SerializeUbseNodeList(std::vector<UbseNodeInfo> infos, uint8_t *&buffer, size_t &size);
 
-uint32_t SerializeDevDirConnectInfo(std::unordered_map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *&buffer,
-    size_t &size);
+uint32_t SerializeDevDirConnectInfo(std::map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *&buffer,
+                                    size_t &size);
 
 uint32_t DeSerializeUbseNode(UbseNodeInfo &info, uint8_t *buffer, size_t size);
 
 uint32_t DeSerializeUbseNodeList(std::vector<UbseNodeInfo> &infos, uint8_t *buffer, size_t size);
 
-uint32_t DeSerializeDevDirConnectInfo(std::unordered_map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *buffer,
-    size_t size);
+uint32_t DeSerializeDevDirConnectInfo(std::map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *buffer,
+                                      size_t size);
 
 using UbseLocalStateNotifyHandler = std::function<uint32_t(const UbseNodeInfo &node)>;
 using UbseClusterStateNotifyHandler = std::function<uint32_t(const UbseNodeInfo &node)>;
@@ -248,12 +251,12 @@ public:
     void CleanAfterMasterSwitchRole();
 
     // 到主节点获取全量直连信息
-    std::unordered_map<std::string, PhysicalLink> UbseGetDirectConnectInfo();
+    std::map<std::string, PhysicalLink> UbseGetDirConnectInfo();
     // 更新链路状态信息,使用时注意锁
     void UpdateDevDirConnectInfo();
     void UpdateConnect(PhysicalLink &physicalLink, std::string &linkId);
     void PrintDevDirConnectInfo();
-    void CreateAndUpdateTopoInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
+    void CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
 
 private:
     std::shared_mutex rwMutex;
@@ -263,7 +266,7 @@ private:
     std::string currentNodeId;
     // 链接对
     std::shared_mutex devDirMutex;
-    std::unordered_map<std::string, PhysicalLink> devDirConnectInfo;
+    std::map<std::string, PhysicalLink> devDirConnectInfo;
 };
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_CONTROLLER_H

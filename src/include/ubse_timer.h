@@ -10,27 +10,22 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_MEM_CONTROLLER_MODULE_H
-#define UBSE_MEM_CONTROLLER_MODULE_H
+#ifndef UBS_ENGINE_UBSE_TIMER_CONTROLLER_H
+#define UBS_ENGINE_UBSE_TIMER_CONTROLLER_H
 
-#include "ubse_context.h" // for context
-#include "ubse_error.h"
-#include "ubse_timer.h"
+#include <cstdint>
+#include <functional>
+#include <string>
 
-namespace ubse::mem::controller {
-using namespace ubse::context;
+using UbseTimerHandler = std::function<uint32_t()>;
 
-class UbseMemControllerModule : public UbseModule {
-public:
-    UbseResult Initialize() override;
+namespace ubse::timer {
 
-    void UnInitialize() override;
+uint32_t UbseTimerHandlerRegisterUbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler,
+                                                          uint32_t interval);
 
-    UbseResult Start() override;
+void UbseTimerHandlerUnregister(const std::string &name);
 
-    void Stop() override;
-};
+} // namespace ubse::timer
 
-} // namespace ubse::mem::controller
-
-#endif // UBSE_MEM_CONTROLLER_MODULE_H
+#endif // UBS_ENGINE_UBSE_TIMER_CONTROLLER_H
