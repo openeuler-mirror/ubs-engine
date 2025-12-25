@@ -3,14 +3,14 @@
  */
 
 #include "ubse_node_controller.h"
-
+#includ  <netinet/in.h>
 #include <queue>
 #include <regex>
+#include <set>
 #include "securec.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_lcne_module.h"
-#include "ubse_node_controller_msg.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_topology_interface.h"
@@ -19,6 +19,7 @@
 #include "ubse_net_util.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_node_topology.h"
+#include "ubse_node_controller_agent.h"
 
 namespace ubse::nodeController {
 using namespace ubse::context;
@@ -233,20 +234,16 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
 uint32_t UbseNodeController::UpdateNodeInfo(const std::string &nodeId, UbseNodeInfo info)
 {
     UbseResult ret = UBSE_OK;
-    UBSE_LOG_INFO << "nodeId=" << nodeId << " update node info";
     rwMutex.lock();
     if (nodeInfos.find(nodeId) == nodeInfos.end()) {
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " first add, update node info";
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " first add, update node info, current nodeId=" << GetCurrentNodeId();
         info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
         nodeInfos[nodeId] = info;
         // 使用numaInfos更新拓扑数据中的本端信息
         UbseSocketIdChange(nodeId);
         rwMutex.unlock();
         if (nodeId == currentNodeId) {
-            UBSE_LOG_INFO << "local node state change, handler size=" << localNotifyHandlers.size();
             ExecLocalStateHandler(info, localNotifyHandlers);
-        } else {
-            UBSE_LOG_WARN << "master update agent nodeId=" << nodeId << ", skip notify local state";
         }
         ret = ExecClusterStateHandler(info, clusterNotifyHandlers);
         if (ret != UBSE_OK) {
@@ -255,23 +252,15 @@ uint32_t UbseNodeController::UpdateNodeInfo(const std::string &nodeId, UbseNodeI
             UBSE_LOG_INFO << "nodeId=" << nodeId << " first add notify cluster state success";
         }
         return ret;
-    } else {
-        nodeInfos[nodeId].slotId = info.slotId;
-        auto cpyRet = strcpy_s(nodeInfos[nodeId].bondingEid, sizeof(nodeInfos[nodeId].bondingEid), info.bondingEid);
-        if (cpyRet != EOK) {
-            UBSE_LOG_ERROR << "nodeId " << info.nodeId << " cpy eid failed, ErrorCode=" << cpyRet;
-            return cpyRet;
-        }
-        nodeInfos[nodeId].hostName = info.hostName;
-        nodeInfos[nodeId].ipList = info.ipList;
-        nodeInfos[nodeId].numaInfos = info.numaInfos;
-        nodeInfos[nodeId].cpuInfos = info.cpuInfos;
-        // 使用numaInfos更新拓扑数据中的本端信息
-        UbseSocketIdChange(nodeId);
-        rwMutex.unlock();
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " update success";
-        return UBSE_OK;
     }
+    auto &existing = nodeInfos[nodeId];
+    info.clusterState = existing.clusterState;
+    info.localState = existing.localState;
+    existing = std::move(info);
+    // 使用numaInfos更新拓扑数据中的本端信息
+    UbseSocketIdChange(nodeId);
+    rwMutex.unlock();
+    return UBSE_OK;
 }
 
 void UbseNodeController::UbseSocketIdChange(const std::string &nodeId)
@@ -285,7 +274,9 @@ void UbseNodeController::UbseSocketIdChange(const std::string &nodeId)
     }
     // 2. 排序全量chipID
     for (auto &cpu : nodeInfos[nodeId].cpuInfos) {
-        lcneChipIdSet.insert(stoi(cpu.second.chipId));
+        uint32_t chipId{0};
+        ubse::utils::ConvertStrToUint32(cpu.second.chipId, chipId);
+        lcneChipIdSet.insert(chipId);
     }
     // 3. 构建映射关系
     if (lcneChipIdSet.size() != osSocketIdSet.size()) {
@@ -312,7 +303,9 @@ void UbseNodeController::UbseSocketIdChange(const std::string &nodeId)
     oss << "\n";
     // 4. 进行更新,暂不改动key,若两边数据的cpu数量不符，此处只能保证数组不越界
     for (auto &cpu : nodeInfos[nodeId].cpuInfos) {
-        auto it = socketIdMap.find(stoi(cpu.second.chipId));
+        uint32_t chipId{0};
+        ubse::utils::ConvertStrToUint32(cpu.second.chipId, chipId);
+        auto it = socketIdMap.find(chipId);
         if (it != socketIdMap.end()) {
             cpu.second.socketId = it->second;
         }
@@ -321,7 +314,7 @@ void UbseNodeController::UbseSocketIdChange(const std::string &nodeId)
                   [&oss](const std::pair<UbseCpuLocation, UbseCpuInfo> &cpuInfo) {
                       oss << "After Mapping ,the socketId is: " << cpuInfo.second.socketId << "\n";
                   });
-    UBSE_LOG_INFO << oss.str();
+    UBSE_LOG_DEBUG << oss.str();
 }
 
 std::string CreateLinkIdAndPhysicalLink(const LinkInfo &linkInfo, PhysicalLink &physicalLink)
@@ -390,12 +383,12 @@ void UbseNodeController::UpdateDevDirConnectInfo()
     devDirConnectInfo.clear();
     for (auto &nodeInfo : localNodeInfos) {
         for (auto &topoInfo : nodeInfo.second.cpuInfos) {
-            CreateAndUpdateTopoInfo(topoInfo);
+            CreateAndUpdateInfo(topoInfo);
         }
     }
 }
 
-void UbseNodeController::CreateAndUpdateTopoInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo)
+void UbseNodeController::CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo)
 {
     std::string slotId = topoInfo.first.nodeId;
     std::string chipId = topoInfo.second.chipId;
@@ -410,7 +403,7 @@ void UbseNodeController::CreateAndUpdateTopoInfo(std::pair<const UbseCpuLocation
         std::string remotePortId = portInfo.second.remotePortId;
         // 生成linkid 和 要填入的数据
         LinkInfo linkInfo{slotId, chipId, portId, remoteSlotId, remoteChipId, remotePortId};
-        PhysicalLink physicalLink;
+        PhysicalLink physicalLink{};
         std::string linkId = CreateLinkIdAndPhysicalLink(linkInfo, physicalLink);
         // 更新具体信息
         if (linkId == "ERROR-LINK") { // 异常数据，跳过
@@ -440,25 +433,73 @@ bool CanUpdateNodeClusterState(UbseNodeClusterState curState, UbseNodeClusterSta
 {
     switch (curState) {
         case UbseNodeClusterState::UBSE_NODE_INIT:
-            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING;
-        case UbseNodeClusterState::UBSE_NODE_SMOOTHING:
-            return updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
-        case UbseNodeClusterState::UBSE_NODE_WORKING:
             return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
                    updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
                    updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
+        case UbseNodeClusterState::UBSE_NODE_SMOOTHING:
+            return updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
+        case UbseNodeClusterState::UBSE_NODE_WORKING:
+            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
         case UbseNodeClusterState::UBSE_NODE_UNKNOWN:
             return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
                    updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
         case UbseNodeClusterState::UBSE_NODE_FAULT:
-            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING;
+            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
+            case UbseNodeClusterState::UBSE_NODE_PRE_BMC:
+            return updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING;
         default: {
             UBSE_LOG_ERROR << "unknown current state: " << static_cast<uint32_t>(curState);
             return false;
         }
     }
+}
+
+uint32_t GenerateFaultUbseNode(const std::string &nodeId, UbseNodeInfo &faultNodeInfo)
+{
+    faultNodeInfo.nodeId = nodeId;
+    auto ret = ConvertStrToUint32(faultNodeInfo.nodeId, faultNodeInfo.slotId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "generate fault nodeId=" << nodeId << ", convert slot id failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UBSE_LOG_INFO << "generate fault nodeId="<<nodeId<<", slotId="<<faultNodeInfo.slotId;
+    faultNodeInfo.clusterState = UbseNodeClusterState::UBSE_NODE_FAULT;
+    ret = CollectCpuInfo(faultNodeInfo, nodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "generate fault nodeId=" << nodeId << ", cpu info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "generate fault nodeId=" << nodeId << ", lcne module null.";
+        return {};
+    }
+    std::vector<MtiNodeInfo> ubseNodeInfos{};
+    ret = module->UbseGetAllNodeInfos(ubseNodeInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "generate fault nodeId=" << nodeId << ", get all nodes failed, " << FormatRetCode(ret);
+        return {};
+    }
+    for (auto &node : ubseNodeInfos) {
+        if (nodeId != node.nodeId) {
+            continue;
+        }
+        auto cpyRet = strcpy_s(faultNodeInfo.bondingEid, sizeof(faultNodeInfo.bondingEid), node.eid.c_str());
+        if (cpyRet != EOK) {
+            UBSE_LOG_ERROR << "generate fault nodeId=" << nodeId << ", copy eid failed, " << FormatRetCode(ret);
+        }
+        break;
+    }
+    return UBSE_OK;
 }
 
 uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string &nodeId, UbseNodeClusterState state)
@@ -474,7 +515,7 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string &nodeI
             return UBSE_ERROR_NULLPTR;
         }
         UbseNodeInfo faultNodeInfo{};
-        faultNodeInfo.clusterState = state;
+        (void)GenerateFaultUbseNode(nodeId, faultNodeInfo);
         nodeInfos[nodeId] = faultNodeInfo;
         rwMutex.unlock();
         UBSE_LOG_WARN << "nodeId=" << nodeId << " cluster node info not collect, set default item.";
@@ -495,11 +536,11 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string &nodeI
     rwMutex.lock_shared();
     if (nodeInfos.find(nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "nodeId=" << nodeId << " not exists.";
-        rwMutex.unlock();
+        rwMutex.unlock_shared();
         return UBSE_OK;
     }
     auto nodeInfoCopy = nodeInfos[nodeId];
-    rwMutex.unlock();
+    rwMutex.unlock_shared();
     ret = ExecClusterStateHandler(nodeInfoCopy, clusterNotifyHandlers);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << nodeId << " update state=" << static_cast<uint32_t>(state)
@@ -530,7 +571,7 @@ void UbseNodeController::CleanAfterMasterSwitchRole()
     }
 }
 
-std::unordered_map<std::string, PhysicalLink> UbseNodeController::UbseGetDirectConnectInfo()
+std::map<std::string, PhysicalLink> UbseNodeController::UbseGetDirConnectInfo()
 {
     auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
     if (module == nullptr) {
@@ -549,13 +590,28 @@ std::unordered_map<std::string, PhysicalLink> UbseNodeController::UbseGetDirectC
         UBSE_LOG_ERROR << "get master node failed, " << FormatRetCode(ret);
         return {};
     }
-    std::unordered_map<std::string, PhysicalLink> devDirConnectInfoRemote;
-    ret = UbseGetDirectConnectInfoFromRemote(masterNode.id, devDirConnectInfoRemote);
+    std::map<std::string, PhysicalLink> devDirConnectInfoRemote;
+    ret = UbseGetDirConnectInfoFromRemote(masterNode.id, devDirConnectInfoRemote);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "get devDirConnectInfo form master=" << masterNode.id << " failed, " << FormatRetCode(ret);
         return {};
     }
     return devDirConnectInfoRemote;
+}
+
+std::set<uint32_t> UbseNodeController::UbseGetAllDeployedNode()
+{
+    std::map<std::string, PhysicalLink> connectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+    std::set<uint32_t> deployedNode;
+    for (auto &connect : connectInfo) {
+        deployedNode.insert(connect.second.slotId);
+        deployedNode.insert(connect.second.peerSlotId);
+    }
+    std::ostringstream oss;
+    std::for_each(deployedNode.begin(), deployedNode.end(),
+                  [&oss](const uint32_t &slotId) { oss << std::to_string(slotId) << ","; });
+    UBSE_LOG_INFO << "[node_controller] UbseGetAllDeployedNode slotId are:" << oss.str();
+    return deployedNode;
 }
 
 UbseResult GetUbseIpAddrVecOffset(const std::vector<UbseIpAddr> &ipList, UbseSerialization &outStream)
@@ -616,7 +672,7 @@ UbseResult GetUbseCpuInfoOffset(
     outStream << (right_v<size_t>(cpuInfos.size()));
     for (auto cpu : cpuInfos) {
         UbseSerialization item;
-        item << cpu.first.nodeId << cpu.first.socketId << cpu.second.slotId << cpu.second.socketId
+        item << cpu.first.nodeId << cpu.first.chipId << cpu.second.slotId << cpu.second.socketId
              << cpu.second.primaryEid << cpu.second.chipId << cpu.second.cardId << cpu.second.eid << cpu.second.guid
              << cpu.second.busNodeCna;
         item << (right_v<size_t>(cpu.second.portInfos.size()));
@@ -691,7 +747,7 @@ uint32_t SerializeUbseNodeList(std::vector<UbseNodeInfo> infos, uint8_t *&buffer
     return UBSE_OK;
 }
 
-uint32_t SerializeDevDirConnectInfo(std::unordered_map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *&buffer,
+uint32_t SerializeDevDirConnectInfo(std::map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *&buffer,
                                     size_t &size)
 {
     UbseResult ret = UBSE_OK;
@@ -713,31 +769,52 @@ uint32_t SerializeDevDirConnectInfo(std::unordered_map<std::string, PhysicalLink
     return UBSE_OK;
 }
 
-UbseResult SetUbseIpAddr(UbseDeSerialization &inStream, UbseIpAddr &add)
+// 通用IP数据验证和复制函数
+template<typename IpAddrType>
+UbseResult ValidateAndCopyIpData(const std::vector<uint8_t>& srcData,
+                                 IpAddrType& destAddr,
+                                 size_t expectedSize,
+                                 const char* ipTypeName)
 {
-    std::vector<uint8_t> ipv6Vec{};
-    std::vector<uint8_t> ipv4Vec{};
-    inStream >> enum_v(add.type);
-    if (!inStream.Check()) {
-        UBSE_LOG_ERROR << "Ubse deserialize ubse ip addr failed.";
+    if (srcData.size() != expectedSize) {
+        UBSE_LOG_ERROR << ipTypeName << " address size mismatch. Expected: "
+                       << expectedSize << ", Got: " << srcData.size();
         return UBSE_ERROR;
     }
-
-    // 遍历Vec进行赋值
-    if (add.type == UbseIpType::UBSE_IP_V4) {
-        inStream >> ipv4Vec;
-        for (size_t i = 0; i < IPV4_LENGTH; i++) {
-            add.ipv4.addr[i] = ipv4Vec[i];
-        }
-    } else {
-        inStream >> ipv6Vec;
-        for (size_t i = 0; i < IPV6_LENGTH; i++) {
-            add.ipv6.addr[i] = ipv6Vec[i];
-        }
-    }
+    std::copy(srcData.begin(), srcData.end(), destAddr.addr);
     return UBSE_OK;
 }
 
+UbseResult SetUbseIpAddr()
+{
+    std::vector<uint8_t> ipData{};
+    // 读取IP类型
+    inStream >> enum_v(addr.type);
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserialize IP type.";
+        return UBSE_ERROR;
+    }
+ 
+    // 读取IP数据
+    inStream >> ipData;
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserialize IP address data.";
+        return UBSE_ERROR;
+    }
+ 
+    // 根据类型验证和复制数据
+    switch (addr.type) {
+        case UbseIpType::UBSE_IP_V4:
+            return ValidateAndCopyIpData(ipData, addr.ipv4, IPV4_LENGTH, "IPv4");
+ 
+        case UbseIpType::UBSE_IP_V6:
+            return ValidateAndCopyIpData(ipData, addr.ipv6, IPV6_LENGTH, "IPv6");
+ 
+        default:
+            UBSE_LOG_ERROR << "Unsupported IP type: " << static_cast<int>(addr.type);
+            return UBSE_ERROR;
+    }
+}
 UbseResult ParseIpList(UbseDeSerialization &inStream, UbseNodeInfo &info)
 {
     // 数组类型simpo先获取元素个数
@@ -792,7 +869,7 @@ uint32_t ParseCpuInfo(UbseDeSerialization &inStream, UbseNodeInfo &nodeInfo)
         UbseDeSerialization item;
         inStream >> item;
         UbseCpuLocation location{};
-        item >> location.nodeId >> location.socketId;
+        item >> location.nodeId >> location.chipId;
         UbseCpuInfo info{};
         item >> info.slotId;
         item >> info.socketId; // key里面为lcne的chipid，值里面有socketid也有lcne的chipid
@@ -887,7 +964,7 @@ uint32_t DeSerializeUbseNodeList(std::vector<UbseNodeInfo> &infos, uint8_t *buff
     return UBSE_OK;
 }
 
-uint32_t DeSerializeDevDirConnectInfo(std::unordered_map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *buffer,
+uint32_t DeSerializeDevDirConnectInfo(std::map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *buffer,
                                       size_t size)
 {
     UbseDeSerialization inStream(buffer, size);
@@ -1075,15 +1152,25 @@ void UbseSocketIdChange(std::unordered_map<std::string, TelemetryNodeData> &node
             lcneSocketIdVec.emplace_back(socketName);
         }
         // socketid保证为uint32的string
-        std::sort(lcneSocketIdVec.begin(), lcneSocketIdVec.end(),
-                  [](std::string &a, std::string &b) { return std::stoul(a) < std::stoul(b); });
+        std::sort(lcneSocketIdVec.begin(), lcneSocketIdVec.end(), [](const std::string &a, const std::string &b) {
+            try {
+                return std::stoul(a) < std::stoul(b);
+            } catch (...) {
+                return std::tuple(a.length(), a) < std::tuple(b.length(), b);
+            }
+        });
         // 3.该节点OS socketId数据排序
         auto &osSocketIdVec = it->second.sockets;
         for (auto &os : osSocketIdVec) {
             UBSE_LOG_DEBUG << "Begin osSocketIdVec socketId is " << os.socketId;
         }
-        std::sort(osSocketIdVec.begin(), osSocketIdVec.end(),
-                  [](SocketData &a, SocketData &b) { return std::stoul(a.socketId) < std::stoul(b.socketId); });
+        std::sort(osSocketIdVec.begin(), osSocketIdVec.end(), [](const SocketData &a, const SocketData &b) -> bool {
+            try {
+                return std::stoul(a.socketId) < std::stoul(b.socketId);
+            } catch (...) {
+                return std::tuple(a.socketId.length(), a.socketId) < std::tuple(b.socketId.length(), b.socketId);
+            }
+        });
         for (auto &os : osSocketIdVec) {
             UBSE_LOG_DEBUG << "End osSocketIdVec socketId is " << os.socketId;
         }
@@ -1126,7 +1213,7 @@ UbseResult UbseGetElectionMap(std::unordered_map<std::string, ElectionNodeInfo> 
         UBSE_LOG_DEBUG << "UbseGetElectionMap standby.id is " << standby.id;
     }
     for (auto &ag : agent) {
-        if (ag.id != "") {
+        if (!ag.id.empty()) {
             nodeRoleMap[ag.id] = {true, ELECTION_ROLE_AGENT};
             UBSE_LOG_DEBUG << "UbseGetElectionMap ag.id is " << ag.id;
         }
@@ -1145,21 +1232,21 @@ void FillTelemetryNodeData(const std::string &nodeId, const UbseNodeInfo &nodeIn
     // 处理 NUMA 信息
     for (const auto &[loc, numaInfo] : nodeInfo.numaInfos) {
         uint32_t sockId = numaInfo.socketId;
-        SocketData &socket = socketMap[sockId];
-        socket.socketId = std::to_string(sockId); // 确保 socketId 被设置
+        SocketData &sock = socketMap[sockId];
+        sock.socketId = std::to_string(sockId); // 确保 socketId 被设置
 
         NumaData numaData;
         numaData.numaId = std::to_string(numaInfo.location.numaId);
 
-        if (std::find(socket.numas.begin(), socket.numas.end(), numaData) == socket.numas.end()) {
-            socket.numas.push_back(numaData);
+        if (std::find(sock.numas.begin(), sock.numas.end(), numaData) == sock.numas.end()) {
+            sock.numas.push_back(numaData);
         }
 
         for (auto cpuId : numaInfo.bindCore) {
             CpuData cpuData;
             cpuData.CpuId = std::to_string(cpuId);
-            if (std::find(socket.cpus.begin(), socket.cpus.end(), cpuData) == socket.cpus.end()) {
-                socket.cpus.push_back(cpuData);
+            if (std::find(sock.cpus.begin(), sock.cpus.end(), cpuData) == sock.cpus.end()) {
+                sock.cpus.push_back(cpuData);
             }
         }
     }
@@ -1643,5 +1730,10 @@ uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemN
         }
     }
     return ret;
+}
+
+uint32_t UbseNodeGetLinkUpNodes(std::vector<UbseRoleInfo> &roleInfos)
+{
+    return UbseGetAllNodeInfos
 }
 } // namespace ubse::nodeController
