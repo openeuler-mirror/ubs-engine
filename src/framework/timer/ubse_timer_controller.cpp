@@ -36,7 +36,7 @@ UbseResult UbseTimerController::Start(int interval, std::function<UbseResult()> 
         return UBSE_ERROR;
     }
     {
-        std::unique_lock<std::mutex> lock(timeMutex);
+        std::unique_lock<std::mutex> lock(timerMutex);
         if (running) {
             UBSE_LOG_WARN << "[TIMER] Timer already started";
             return UBSE_OK;
@@ -49,7 +49,7 @@ UbseResult UbseTimerController::Start(int interval, std::function<UbseResult()> 
         taskName = timeTaskName;
         callback = std::move(timerCallback);
 
-        auto taskExecutorModule = UbseContext::GetInstance().GetModule<task_excutor::UbseTaskExecutorModule>();
+        auto taskExecutorModule = UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
         if (taskExecutorModule) {
             running = false;
             return UBSE_ERROR_MODULE_LOAD_FAILED;
@@ -68,14 +68,14 @@ UbseResult UbseTimerController::Start(int interval, std::function<UbseResult()> 
 void UbseTimerController::Stop()
 {
     {
-        std::unique_lock<std::mutex> lock(timeMutex);
+        std::unique_lock<std::mutex> lock(timerMutex);
         if (!running) {
             return;
         }
         running = false;
     }
     cv.notify_all();
-    auto taskExecutorModule = UbseContext::GetInstance().GetModule<task_excutor::UbseTaskExecutorModule>();
+    auto taskExecutorModule = UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
     if (taskExecutorModule) {
         UBSE_LOG_WARN << "[TIMER] Timer already started";
         return;
@@ -88,14 +88,14 @@ void UbseTimerController::Stop()
 
 void UbseTimerController::run()
 {
-    std::unique_lock<std::mutex> lock(timeMutex);
+    std::unique_lock<std::mutex> lock(timerMutex);
     auto next_time = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(interval_ms);
     while (running) {
         bool waked = cv.wait_until(lock, next_time, [this] { return !running; });
         if (!running) {
             break;
         }
-        auto taskExecutorModule = UbseContext::GetInstance().GetModule<task_excutor::UbseTaskExecutorModule>();
+        auto taskExecutorModule = UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
         if (taskExecutorModule) {
             UBSE_LOG_ERROR << "[TIMER] Get task executor MODULE failed";
             break;

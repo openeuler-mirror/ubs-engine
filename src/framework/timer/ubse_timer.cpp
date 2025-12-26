@@ -24,6 +24,8 @@ using namespace ubse::log;
 using namespace ubse::context;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_UTILS_MID)
+static const std::string TIMER_NAME = "UbseTimer";
+static const uint32_t UBSE_INTERVAL = 1;
 
 static const uint32_t UBSE_REGISTER_MIN_INTERVAL = 1;
 static const uint32_t UBSE_REGISTER_MAX_INTERVAL = 3600;

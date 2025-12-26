@@ -46,7 +46,7 @@ private:
     bool running;
     std::mutex timerMutex;
     std::condition_variable cv;
-    std::string timeName;
+    std::string taskName;
 };
 } // namespace ubse::timer
 
