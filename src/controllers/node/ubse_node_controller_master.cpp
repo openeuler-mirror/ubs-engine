@@ -39,15 +39,15 @@ constexpr int UBSE_RPC_TIMEOUT_MS = 60000; // 5秒超时
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 constexpr uint8_t UBSE_ERROR_BUFFER_SIZE = 4;
 
-std::string lcne_change_report_event = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
+std::string g_lcneChangeReportEvent = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 namespace ubse::nodeController {
 using namespace ubse::context;
 using namespace ubse::election;
 using namespace ubse::log;
 using namespace ubse::event;
 using namespace ubse::timer;
+UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 
 // Master端消息处理注册
 UbseResult RegMasterMsgHandler()
@@ -290,7 +290,7 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
 
     // 创建临时变量给UbsePubEvent
     std::string eventMessageCopy = nodeInfo.eventMessage;
-    auto ret = UbsePubEvent(lcne_change_report_event, eventMessageCopy);
+    auto ret = UbsePubEvent(g_lcneChangeReportEvent, eventMessageCopy);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbsePubEvent failed";
         return ret;

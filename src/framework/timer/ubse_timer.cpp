@@ -32,14 +32,14 @@ static const uint32_t UBSE_REGISTER_MAX_INTERVAL = 3600;
 static const uint32_t ONE_SECOND_TO_MILLI_SECONDS = 1000;
 
 std::unordered_map<std::string, std::pair<uint32_t, UbseTimerHandler>> handlers;
-std::atomic<uint64_t> count{0};
+std::atomic<uint64_t> g_count{0};
 std::shared_mutex mtx;
-UbseTimerController ubseTimer{};
-std::atomic<bool> isTimeRunning{false};
+UbseTimerController g_ubseTimer{};
+std::atomic<bool> g_isTimeRunning{false};
 
 uint32_t ExecTimerHandler()
 {
-    uint64_t currentCount = count.fetch_add(1, std::memory_order_relaxed) + 1;
+    uint64_t currentCount = g_count.fetch_add(1, std::memory_order_relaxed) + 1;
     std::unordered_map<std::string, std::pair<uint32_t, UbseTimerHandler>> filtered;
     mtx.lock_shared();
     for (const auto &[key, val] : handlers) {
@@ -78,8 +78,8 @@ uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler hand
     std::unique_lock<std::shared_mutex> lock(mtx);
     handlers[name] = std::make_pair(interval, handler);
     bool expected = false;
-    if (isTimeRunning.compare_exchange_strong(expected, true)) {
-        ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
+    if (g_isTimeRunning.compare_exchange_strong(expected, true)) {
+        g_ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
         UBSE_LOG_INFO << "[TIMER] time started";
     }
     return UBSE_OK;
@@ -92,12 +92,12 @@ void UbseTimerHandlerUnregister(const std::string &name)
         handlers.erase(it);
     }
     if (handlers.empty()) {
-        isTimeRunning.store(false, std::memory_order_release);
+        g_isTimeRunning.store(false, std::memory_order_release);
     }
     mtx.unlock();
-    if (!isTimeRunning.load(std::memory_order_acquire)) {
+    if (!g_isTimeRunning.load(std::memory_order_acquire)) {
         UBSE_LOG_INFO << "handlers empty, stopping timer";
-        ubseTimer.Stop();
+        g_ubseTimer.Stop();
         UBSE_LOG_INFO << "[TIMER] timer stopped";
     }
 }

@@ -31,9 +31,8 @@ constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001; // 超时错误码
 
 const std::string UBSE_NODE_AGENT_REPORT_TIMER = "UbseNodeReport";
 
-std::string ubse_topology_change_event = UBSE_EVENT_TOPOLOGY_CHANGE;
+std::string g_ubseTopologyChangeEvent = UBSE_EVENT_TOPOLOGY_CHANGE;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 namespace ubse::nodeController {
 using namespace ubse::context;
 using namespace ubse::election;
@@ -42,6 +41,7 @@ using namespace ubse::event;
 using namespace ubse::timer;
 using namespace ubse::common::def;
 using namespace ubse::com;
+UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 
 // Agent端消息处理注册
 UbseResult RegAgentMsgHandler()
@@ -163,7 +163,7 @@ UbseResult UbseNodeControllerAgent::Start()
             UBSE_NODE_AGENT_REPORT_TIMER, [this]() -> UbseResult { return UbseNodeInfoReportTimerHandler(); },
             UBSE_NODE_REPORT_INTERVAL);
         // 注册LCNE变更回调
-        UbseSubEvent(ubse_topology_change_event, UbseNodeInfoLcneNotifyHandler);
+        UbseSubEvent(g_ubseTopologyChangeEvent, UbseNodeInfoLcneNotifyHandler);
     });
     return UBSE_OK;
 }
@@ -196,7 +196,7 @@ void UbseNodeControllerAgent::Stop()
     // 停止 内存&拓扑上报定时器
     UbseTimerHandlerUnregister(UBSE_NODE_AGENT_REPORT_TIMER);
     // 解除注册 LCNE 变更回调
-    UbseUnSubEvent(ubse_topology_change_event, UbseNodeInfoLcneNotifyHandler);
+    UbseUnSubEvent(g_ubseTopologyChangeEvent, UbseNodeInfoLcneNotifyHandler);
     UBSE_LOG_INFO << "ubse node agent stopped.";
 }
 

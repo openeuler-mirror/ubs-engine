@@ -26,7 +26,7 @@ class UbseTimerController {
 public:
     UbseTimerController() noexcept : running(false) {}
 
-    UbseResult Start(int interval_ms, std::function<UbseResult()> timerCallback, std::string timeTaskName);
+    UbseResult Start(int intervalMs, std::function<UbseResult()> timerCallback, std::string timeTaskName);
 
     // 停止定时器
     void Stop();
@@ -40,7 +40,7 @@ private:
     void Run();
 
 private:
-    int interval_ms;
+    int intervalMs;
     std::function<UbseResult()> callback;
     std::thread worker;
     bool running;

@@ -45,7 +45,7 @@ UbseResult UbseTimerController::Start(int interval, std::function<UbseResult()> 
             running = false;
             return UBSE_ERROR;
         }
-        interval_ms = interval;
+        intervalMs = interval;
         taskName = timeTaskName;
         callback = std::move(timerCallback);
 
@@ -61,7 +61,7 @@ UbseResult UbseTimerController::Start(int interval, std::function<UbseResult()> 
             return ret;
         }
     }
-    worker = std::move(std::thread(&UbseTimerController::run, this));
+    worker = std::move(std::thread(&UbseTimerController::Run, this));
     return UBSE_OK;
 }
 
@@ -89,7 +89,7 @@ void UbseTimerController::Stop()
 void UbseTimerController::Run()
 {
     std::unique_lock<std::mutex> lock(timerMutex);
-    auto next_time = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(interval_ms);
+    auto next_time = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(intervalMs);
     while (running) {
         bool waked = cv.wait_until(lock, next_time, [this] { return !running; });
         if (!running) {
@@ -106,7 +106,7 @@ void UbseTimerController::Run()
             break;
         }
         taskExecutor->Execute([this]() { this->callback(); });
-        next_time += std::chrono::milliseconds(interval_ms);
+        next_time += std::chrono::milliseconds(intervalMs);
     }
 }
 } // namespace ubse::timer
