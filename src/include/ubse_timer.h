@@ -21,8 +21,7 @@ using UbseTimerHandler = std::function<uint32_t()>;
 
 namespace ubse::timer {
 
-uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler,
-                                                          uint32_t interval);
+uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler, uint32_t interval);
 
 void UbseTimerHandlerUnregister(const std::string &name);
 

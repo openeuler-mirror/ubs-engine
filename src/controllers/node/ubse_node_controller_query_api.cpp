@@ -55,7 +55,7 @@ void UbseNodeGet(def::UbseNode &node)
     }
 }
 
-void SocketIdMapping(uint32_t &slotId, uint32_t &socketId,const uint32_t &chipId,
+void SocketIdMapping(uint32_t &slotId, uint32_t &socketId, const uint32_t &chipId,
                      std::unordered_map<std::string, UbseNodeInfo> &allNodes)
 {
     auto it = allNodes.find(std::to_string(slotId));

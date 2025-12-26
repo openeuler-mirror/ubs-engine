@@ -12,34 +12,34 @@
 
 #include "ubse_node_controller_master.h"
 
+#include <unistd.h>
 #include <condition_variable>
 #include <mutex>
-#include <unistd.h>
 
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
-#include "ubse_node_topology.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_node_topology.h"
 #include "ubse_timer.h"
 
 const uint32_t HA_SEQUENCE_ID = 101;
 
-const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_INTERVAL = 400;  // 节点上线，主动采集失败重试周期，单位毫秒
-const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_TIMES = 5;  // 节点上线，主动采集失败重试次数
-const uint32_t UBSE_NODE_LEDGER_INTERVAL = 300;  // 中心侧主动向各节点对账周期；单位秒
-const uint32_t UBSE_REPORT_LOG_INTERVAL = 60; // 中心侧收到各节点上报日志打印周期，单位秒
+const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_INTERVAL = 400; // 节点上线，主动采集失败重试周期，单位毫秒
+const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_TIMES = 5;      // 节点上线，主动采集失败重试次数
+const uint32_t UBSE_NODE_LEDGER_INTERVAL = 300;            // 中心侧主动向各节点对账周期；单位秒
+const uint32_t UBSE_REPORT_LOG_INTERVAL = 60;              // 中心侧收到各节点上报日志打印周期，单位秒
 const std::string UBSE_NODE_MASTER_LEDGER_TIMER = "UbseNodeLedger";
 const std::string UBSE_NODE_MASTER_ONLINE = "UbseMasterOnLine";
 const std::string UBSE_NODE_NODE_UP = "UbseNodeUp";
 const std::string UBSE_NODE_NODE_DOWN = "UbseNodeDown";
-constexpr int UBSE_RPC_TIMEOUT_MS = 60000;  // 5秒超时
+constexpr int UBSE_RPC_TIMEOUT_MS = 60000; // 5秒超时
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 constexpr uint8_t UBSE_ERROR_BUFFER_SIZE = 4;
 
-std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
+std::string lcne_change_report_event = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 namespace ubse::nodeController {
@@ -103,8 +103,7 @@ UbseResult UbseNodeControllerMaster::Initialize()
 
     // 主上线；若当前为主节点，启动周期对账；否则清理资源
     UbseElectionHandlerBuilder Builder;
-    Builder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) {
-        return UbseMasterOnlineHandler(nodeId); });
+    Builder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseMasterOnlineHandler(nodeId); });
     Builder.SetPriority(UbseElectionHandlerPriority::HIGH);
     Builder.SetSequenceId(HA_SEQUENCE_ID);
     Builder.SetType(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION);
@@ -113,8 +112,7 @@ UbseResult UbseNodeControllerMaster::Initialize()
 
     // 节点上线，主节点主动触发一次采集；然后启动对账
     UbseElectionHandlerBuilder NodeUpBuilder;
-    NodeUpBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) {
-        return UbseNodeUpHandler(nodeId); });
+    NodeUpBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseNodeUpHandler(nodeId); });
     NodeUpBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
     NodeUpBuilder.SetSequenceId(HA_SEQUENCE_ID);
     NodeUpBuilder.SetType(UbseElectionEventType::NODE_UP);
@@ -133,7 +131,7 @@ UbseResult UbseNodeControllerMaster::Initialize()
     return UBSE_OK;
 }
 
-UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& nodeId)
+UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &nodeId)
 {
     if (nodeId != UbseNodeController::GetInstance().GetCurrentNodeId()) {
         UBSE_LOG_INFO << "master online, current nodeId=" << UbseNodeController::GetInstance().GetCurrentNodeId()
@@ -167,10 +165,10 @@ UbseResult UbseNodeControllerMaster::Start()
     return UBSE_OK;
 }
 
-void PrintAllLinkNodes(const std::vector<UbseRoleInfo>& roleInfos)
+void PrintAllLinkNodes(const std::vector<UbseRoleInfo> &roleInfos)
 {
     std::stringstream oss;
-    for (auto& node : roleInfos) {
+    for (auto &node : roleInfos) {
         oss << node.nodeId << ", ";
     }
     UBSE_LOG_INFO << "cluster link up nodes=" << oss.str();
@@ -186,13 +184,13 @@ void UbseNodeControllerMaster::UbseNodeLedgerTimerHandler()
         return;
     }
     PrintAllLinkNodes(roleInfos);
-    for (auto& node : roleInfos) {
+    for (auto &node : roleInfos) {
         std::string nodeId = node.nodeId;
         taskExecutor_->Execute([this, nodeId]() -> void { UbseNodeCycleLedger(nodeId); });
     }
 }
 
-void UbseNodeControllerMaster::UbseNodeCycleLedger(const std::string& nodeId)
+void UbseNodeControllerMaster::UbseNodeCycleLedger(const std::string &nodeId)
 {
     UbseNodeControllerLockMgr::WriteLock(nodeId);
     UBSE_LOG_INFO << "nodeId=" << nodeId << " start to collect ledger.";
@@ -217,7 +215,7 @@ void UbseNodeControllerMaster::UbseNodeCycleLedger(const std::string& nodeId)
     UbseNodeControllerLockMgr::WriteUnLock(nodeId);
 }
 
-void UbseNodeControllerMaster::UbseNodeLedger(const std::string& nodeId)
+void UbseNodeControllerMaster::UbseNodeLedger(const std::string &nodeId)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " start to collect reconciliation";
     (void)UbseNodeController::GetInstance().UpdateNodeInfoClusterState(nodeId,
@@ -259,7 +257,7 @@ void UbseNodeControllerMaster::ReportAggregation()
     }
 }
 
-UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo& nodeInfo)
+UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo &nodeInfo)
 {
     if (nodeInfo.nodeId.empty()) {
         return SER_INVALID_PARAM;
@@ -277,10 +275,9 @@ UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo& n
     return UBSE_OK;
 }
 
-UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNodeInfo& nodeInfo)
+UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNodeInfo &nodeInfo)
 {
-    UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId
-                  << ", lcne topology change, msg=" << nodeInfo.eventMessage;
+    UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId << ", lcne topology change, msg=" << nodeInfo.eventMessage;
 
     if (nodeInfo.nodeId.empty()) {
         return SER_INVALID_PARAM;
@@ -293,7 +290,7 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
 
     // 创建临时变量给UbsePubEvent
     std::string eventMessageCopy = nodeInfo.eventMessage;
-    auto ret = UbsePubEvent(LCNE_CHANGE_REPORT_EVENT, eventMessageCopy);
+    auto ret = UbsePubEvent(lcne_change_report_event, eventMessageCopy);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbsePubEvent failed";
         return ret;
@@ -302,7 +299,7 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
     return UBSE_OK;
 }
 
-UbseResult UbseNodeControllerMaster::UbseNodeUpHandler(const std::string& nodeId)
+UbseResult UbseNodeControllerMaster::UbseNodeUpHandler(const std::string &nodeId)
 {
     taskExecutor_->Execute([this, nodeId]() -> void {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " node up, start to collect topology.";
@@ -323,7 +320,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeUpHandler(const std::string& nodeId
     return UBSE_OK;
 }
 
-void UbseNodeControllerMaster::UbseNodeUpLedger(const std::string& nodeId)
+void UbseNodeControllerMaster::UbseNodeUpLedger(const std::string &nodeId)
 {
     UbseNodeControllerLockMgr::WriteLock(nodeId);
     UBSE_LOG_INFO << "nodeId=" << nodeId << " node up, start to collect ledger.";
@@ -347,7 +344,7 @@ void UbseNodeControllerMaster::UbseNodeUpLedger(const std::string& nodeId)
     UbseNodeControllerLockMgr::WriteUnLock(nodeId);
 }
 
-UbseResult UbseNodeControllerMaster::UbseNodeDownHandler(const std::string& nodeId)
+UbseResult UbseNodeControllerMaster::UbseNodeDownHandler(const std::string &nodeId)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " down, set state to unknown";
     return UbseNodeController::GetInstance().UpdateNodeInfoClusterState(nodeId,
@@ -382,7 +379,7 @@ void UbseNodeControllerMaster::UnInitialize()
     UbseElectionHandlerBuilder Builder;
     Builder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseMasterOnlineHandler(nodeId); });
     Builder.SetPriority(UbseElectionHandlerPriority::HIGH);
-    Builder.SetSequenceId(HA_SEQUENCE_ID);  // 需要确保在节点建链后触发，节点建链优先级100
+    Builder.SetSequenceId(HA_SEQUENCE_ID); // 需要确保在节点建链后触发，节点建链优先级100
     Builder.SetType(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION);
     Builder.SetName(UBSE_NODE_MASTER_ONLINE);
     UbseElectionChangeAttachHandler(Builder.Build());
@@ -390,7 +387,7 @@ void UbseNodeControllerMaster::UnInitialize()
     UbseElectionHandlerBuilder NodeUpBuilder;
     NodeUpBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseNodeUpHandler(nodeId); });
     NodeUpBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
-    NodeUpBuilder.SetSequenceId(HA_SEQUENCE_ID);  // 需要确保在节点建链后触发，节点建链优先级100
+    NodeUpBuilder.SetSequenceId(HA_SEQUENCE_ID); // 需要确保在节点建链后触发，节点建链优先级100
     NodeUpBuilder.SetType(UbseElectionEventType::NODE_UP);
     NodeUpBuilder.SetName(UBSE_NODE_NODE_UP);
     UbseElectionChangeAttachHandler(NodeUpBuilder.Build());
@@ -399,7 +396,7 @@ void UbseNodeControllerMaster::UnInitialize()
     NodeDownBuilder.SetHandler(
         [this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseNodeDownHandler(nodeId); });
     NodeDownBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
-    NodeDownBuilder.SetSequenceId(HA_SEQUENCE_ID);  // 需要确保在节点建链后触发，节点建链优先级100
+    NodeDownBuilder.SetSequenceId(HA_SEQUENCE_ID); // 需要确保在节点建链后触发，节点建链优先级100
     NodeDownBuilder.SetType(UbseElectionEventType::NODE_DOWN);
     NodeDownBuilder.SetName(UBSE_NODE_NODE_DOWN);
     UbseElectionChangeDeAttachHandler(NodeDownBuilder.Build());
@@ -407,22 +404,24 @@ void UbseNodeControllerMaster::UnInitialize()
 
 // 添加辅助函数
 // 创建错误响应
-static UbseResult CreateErrorResponse(UbseResult errorCode, UbseByteBuffer& resp)
+static UbseResult CreateErrorResponse(UbseResult errorCode, UbseByteBuffer &resp)
 {
-    uint8_t* errorBuffer = new (std::nothrow) uint8_t[UBSE_ERROR_BUFFER_SIZE];
+    uint8_t *errorBuffer = new (std::nothrow) uint8_t[UBSE_ERROR_BUFFER_SIZE];
     if (errorBuffer != nullptr) {
-        *reinterpret_cast<uint32_t*>(errorBuffer) = static_cast<uint32_t>(errorCode);
-        resp = {errorBuffer, UBSE_ERROR_BUFFER_SIZE, [](uint8_t* p) noexcept { delete[] p; }};
+        *reinterpret_cast<uint32_t *>(errorBuffer) = static_cast<uint32_t>(errorCode);
+        resp = {errorBuffer, UBSE_ERROR_BUFFER_SIZE, [](uint8_t *p) noexcept {
+                    delete[] p;
+                }};
         return errorCode;
     } else {
-        resp = {nullptr, 0, nullptr};  // 内存分配失败，只能返回空
+        resp = {nullptr, 0, nullptr}; // 内存分配失败，只能返回空
         return UBSE_ERROR_NULLPTR;
     }
 }
 
 // 处理节点信息请求的通用函数
-static UbseResult ProcessNodeRequest(const UbseByteBuffer& req, UbseByteBuffer& resp,
-                                     const std::function<UbseResult(UbseNodeInfo&)>& handler)
+static UbseResult ProcessNodeRequest(const UbseByteBuffer &req, UbseByteBuffer &resp,
+                                     const std::function<UbseResult(UbseNodeInfo &)> &handler)
 {
     // 参数验证
     if (req.data == nullptr && req.len > 0) {
@@ -446,7 +445,7 @@ static UbseResult ProcessNodeRequest(const UbseByteBuffer& req, UbseByteBuffer& 
     }
 
     // 创建成功响应（空节点信息）
-    uint8_t* responseBuffer = nullptr;
+    uint8_t *responseBuffer = nullptr;
     size_t responseSize = 0;
     ret = SerializeUbseNode(UbseNodeInfo{}, responseBuffer, responseSize);
     if (ret != UBSE_OK) {
@@ -456,15 +455,15 @@ static UbseResult ProcessNodeRequest(const UbseByteBuffer& req, UbseByteBuffer& 
         return CreateErrorResponse(ret, resp);
     }
 
-    resp = {responseBuffer, responseSize, [responseSize](uint8_t* p) noexcept {
-        SafeDeleteArray(p, responseSize);
-    }};
+    resp = {responseBuffer, responseSize, [responseSize](uint8_t *p) noexcept {
+                SafeDeleteArray(p, responseSize);
+            }};
     return UBSE_OK;
 }
 
 // 处理需要序列化响应的节点信息请求
-static UbseResult ProcessNodeRequestWithResponse(const UbseByteBuffer& req, UbseByteBuffer& resp,
-                                                 const std::function<UbseResult(UbseNodeInfo&)>& handler)
+static UbseResult ProcessNodeRequestWithResponse(const UbseByteBuffer &req, UbseByteBuffer &resp,
+                                                 const std::function<UbseResult(UbseNodeInfo &)> &handler)
 {
     // 参数验证
     if (req.data == nullptr && req.len > 0) {
@@ -488,7 +487,7 @@ static UbseResult ProcessNodeRequestWithResponse(const UbseByteBuffer& req, Ubse
     }
 
     // 创建序列化响应
-    uint8_t* responseBuffer = nullptr;
+    uint8_t *responseBuffer = nullptr;
     size_t responseSize = 0;
     ret = SerializeUbseNode(info, responseBuffer, responseSize);
     if (ret != UBSE_OK) {
@@ -498,32 +497,32 @@ static UbseResult ProcessNodeRequestWithResponse(const UbseByteBuffer& req, Ubse
         return CreateErrorResponse(ret, resp);
     }
 
-    resp = {responseBuffer, responseSize, [responseSize](uint8_t* p) noexcept {
-        SafeDeleteArray(p, responseSize);
-    }};
+    resp = {responseBuffer, responseSize, [responseSize](uint8_t *p) noexcept {
+                SafeDeleteArray(p, responseSize);
+            }};
     return UBSE_OK;
 }
 
 // 处理LCNE变化上报
-UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOG_DEBUG << "LcneChangeNodeInfoHandler received request";
-    return ProcessNodeRequest(req, resp, [](UbseNodeInfo& info) -> UbseResult {
+    return ProcessNodeRequest(req, resp, [](UbseNodeInfo &info) -> UbseResult {
         UBSE_LOG_INFO << "Processing LCNE change for node: " << info.nodeId;
         return UbseNodeControllerMaster::GetInstance().UbseLcneTopologyChangeHandler(info);
     });
 }
 
 // 处理节点信息上报
-UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
-    return ProcessNodeRequestWithResponse(req, resp, [](UbseNodeInfo& info) -> UbseResult {
+    return ProcessNodeRequestWithResponse(req, resp, [](UbseNodeInfo &info) -> UbseResult {
         return UbseNodeControllerMaster::GetInstance().UbseNodeReportHandler(info);
     });
 }
 
 // 处理agent查询全量节点列表
-UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     std::vector<UbseNodeInfo> infos{};
@@ -531,7 +530,7 @@ UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBu
         infos.push_back(iter.second);
     }
 
-    uint8_t* buffer = nullptr;
+    uint8_t *buffer = nullptr;
     size_t size = 0;
     auto ret = SerializeUbseNodeList(infos, buffer, size);
     if (ret != UBSE_OK) {
@@ -542,20 +541,20 @@ UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBu
         return CreateErrorResponse(ret, resp);
     }
 
-    resp = {buffer, size, [size](uint8_t* p) noexcept {
-        SafeDeleteArray(p, size);
-    }};
+    resp = {buffer, size, [size](uint8_t *p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
     return ret;
 }
 
 // 处理agent查询全量链路信息
-UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOG_INFO << "UbseGetDirConnectInfoFromRemoteHandler init";
 
     auto devDirConnectInfoRemote = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
 
-    uint8_t* buffer = nullptr;
+    uint8_t *buffer = nullptr;
     size_t size = 0;
     auto ret = SerializeDevDirConnectInfo(devDirConnectInfoRemote, buffer, size);
     if (ret != UBSE_OK) {
@@ -566,14 +565,14 @@ UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer& req, Ubs
         return CreateErrorResponse(ret, resp);
     }
 
-    resp = {buffer, size, [size](uint8_t* p) noexcept {
-        SafeDeleteArray(p, size);
-    }};
+    resp = {buffer, size, [size](uint8_t *p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
     return ret;
 }
 
-void CollectRemoteNodeInfoRespHandler(const std::string& nodeId, const UbseByteBuffer& respData, uint32_t resCode,
-                                      UbseNodeInfo& info, UbseResult& collectRet)
+void CollectRemoteNodeInfoRespHandler(const std::string &nodeId, const UbseByteBuffer &respData, uint32_t resCode,
+                                      UbseNodeInfo &info, UbseResult &collectRet)
 {
     if (resCode != UBSE_OK) {
         UBSE_LOG_ERROR << "collect nodeId=" << nodeId << " node info failed, " << FormatRetCode(resCode);
@@ -592,7 +591,7 @@ void CollectRemoteNodeInfoRespHandler(const std::string& nodeId, const UbseByteB
 }
 
 // 从远程节点采集节点信息
-UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
+UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
 {
     const ubse::com::UbseComEndpoint endpoint{
         .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
@@ -610,7 +609,7 @@ UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
 
     auto syncData = std::make_shared<SyncData>();
 
-    uint8_t* buffer = nullptr;
+    uint8_t *buffer = nullptr;
     size_t size = 0;
     auto ret = SerializeUbseNode(UbseNodeInfo{}, buffer, size);
     if (ret != UBSE_OK) {
@@ -621,19 +620,19 @@ UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
         return ret;
     }
 
-    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t* p) noexcept {
-        SafeDeleteArray(p, size);
-    }};
+    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
+                                 SafeDeleteArray(p, size);
+                             }};
 
-    ret = UbseRpcSend(endpoint, reqBuffer, nullptr, [&info, syncData, nodeId] (void* ctx,
-                                                const UbseByteBuffer& respData, uint32_t resCode) -> void {
-        CollectRemoteNodeInfoRespHandler(nodeId, respData, resCode, info, syncData->collectRet);
-        {
-            std::lock_guard<std::mutex> lock(syncData->mtx);
-            syncData->callbackCalled = true;
-        }
-        syncData->cv.notify_one();
-    });
+    ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+                      [&info, syncData, nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
+                          CollectRemoteNodeInfoRespHandler(nodeId, respData, resCode, info, syncData->collectRet);
+                          {
+                              std::lock_guard<std::mutex> lock(syncData->mtx);
+                              syncData->callbackCalled = true;
+                          }
+                          syncData->cv.notify_one();
+                      });
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send collect nodeId=" << nodeId << " msg failed, " << FormatRetCode(ret);
@@ -644,14 +643,12 @@ UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info)
     {
         std::unique_lock<std::mutex> lock(syncData->mtx);
         auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
-        if (!syncData->cv.wait_for(lock, timeout,
-                                   [syncData] { return syncData->callbackCalled; })) {
-            UBSE_LOG_ERROR << "collect nodeId=" << nodeId << " timeout after "
-                           << UBSE_RPC_TIMEOUT_MS << "ms";
+        if (!syncData->cv.wait_for(lock, timeout, [syncData] { return syncData->callbackCalled; })) {
+            UBSE_LOG_ERROR << "collect nodeId=" << nodeId << " timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
             return UBSE_ERROR_TIMEOUT;
         }
     }
 
     return syncData->collectRet;
 }
-}  // namespace ubse::nodeController
+} // namespace ubse::nodeController

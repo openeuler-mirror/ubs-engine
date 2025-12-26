@@ -37,7 +37,7 @@ public:
     }
 
 private:
-    void run();
+    void Run();
 
 private:
     int interval_ms;
@@ -50,4 +50,4 @@ private:
 };
 } // namespace ubse::timer
 
-#endif //UBSE_TIMER_H
+#endif // UBSE_TIMER_H

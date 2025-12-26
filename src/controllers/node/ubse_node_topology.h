@@ -64,7 +64,8 @@ struct TelemetrySocketData {
 struct MemNodeData : public TelemetrySocketData {
     bool isRegisterRm = false; // 该节点是否有可连接的RM,非OS固定为false
     MemNodeData() = default;
-    MemNodeData(TelemetrySocketData &&telemetryNodeData) : TelemetrySocketData(std::move(telemetryNodeData)) {};
+    explicit MemNodeData(TelemetrySocketData &&telemetryNodeData)
+        : TelemetrySocketData(std::move(telemetryNodeData)) {};
 
     bool operator==(const MemNodeData &memNodeData) const
     {

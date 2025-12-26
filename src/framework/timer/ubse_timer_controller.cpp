@@ -86,7 +86,7 @@ void UbseTimerController::Stop()
     }
 }
 
-void UbseTimerController::run()
+void UbseTimerController::Run()
 {
     std::unique_lock<std::mutex> lock(timerMutex);
     auto next_time = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(interval_ms);

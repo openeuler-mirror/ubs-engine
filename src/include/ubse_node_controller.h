@@ -134,7 +134,7 @@ enum class UbseNodeClusterState {
     UBSE_NODE_WORKING,   // 节点正常
     UBSE_NODE_UNKNOWN,   // 心跳丢失，状态未知
     UBSE_NODE_FAULT,     // 节点故障（panic，重启）
-    UBSE_NODE_PRE_BMC    //BMC预下电
+    UBSE_NODE_PRE_BMC    // BMC预下电
 };
 
 enum class UbseNodeLocalState {
