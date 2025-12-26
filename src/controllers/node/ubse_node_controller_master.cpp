@@ -619,20 +619,20 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
         }
         return ret;
     }
-
-    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-                                 SafeDeleteArray(p, size);
-                             }};
-
+    UbseByteBuffer reqBuffer{
+        buffer, size, [size](uint8_t *p) noexcept {
+            SafeDeleteArray(p, size);
+        }
+    };
     ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                      [&info, syncData, nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
-                          CollectRemoteNodeInfoRespHandler(nodeId, respData, resCode, info, syncData->collectRet);
-                          {
-                              std::lock_guard<std::mutex> lock(syncData->mtx);
-                              syncData->callbackCalled = true;
-                          }
-                          syncData->cv.notify_one();
-                      });
+        [&info, syncData, nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
+            CollectRemoteNodeInfoRespHandler(nodeId, respData, resCode, info, syncData->collectRet);
+            {
+                std::lock_guard<std::mutex> lock(syncData->mtx);
+                syncData->callbackCalled = true;
+            }
+            syncData->cv.notify_one();
+        });
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send collect nodeId=" << nodeId << " msg failed, " << FormatRetCode(ret);
