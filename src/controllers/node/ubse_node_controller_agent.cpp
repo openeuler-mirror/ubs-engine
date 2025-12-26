@@ -424,7 +424,7 @@ UbseResult GetAllNodeInfoFromRemote(const std::string &nodeId, std::vector<UbseN
 
     // 只有成功时，用UbseByteBuffer管理buffer
     UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-                                 SafeDeleteArray(p, size);
+                                SafeDeleteArray(p, size);
                              }};
 
     ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
@@ -499,7 +499,7 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string &nodeId,
     }
     size_t size = 1;
     UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-                                 SafeDeleteArray(p, size);
+                                SafeDeleteArray(p, size);
                              }};
 
     auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
