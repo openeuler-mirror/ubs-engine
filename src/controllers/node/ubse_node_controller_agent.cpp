@@ -212,9 +212,9 @@ static UbseResult SafeSerializeUbseNode(const UbseNodeInfo &info, UbseByteBuffer
         return ret;
     }
 
-    buffer = {data, size, [size](uint8_t *p) noexcept {
-                  SafeDeleteArray(p, size);
-              }};
+buffer = {data, size, [size](uint8_t *p) noexcept {
+SafeDeleteArray(p, size);
+}};
     return UBSE_OK;
 }
 
@@ -245,19 +245,19 @@ UbseResult UbseNodeReportNodeInfo(const std::string &nodeId, const UbseNodeInfo 
     }
 
     ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                      [syncData, nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
-                          if (resCode != UBSE_OK) {
-                              UBSE_LOG_ERROR << "report node to nodeId=" << nodeId << " failed, "
-                                             << FormatRetCode(resCode);
-                              syncData->reportRet = resCode;
-                          }
+[syncData, nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
+if (resCode != UBSE_OK) {
+UBSE_LOG_ERROR << "report node to nodeId=" << nodeId << " failed, "
+<< FormatRetCode(resCode);
+syncData->reportRet = resCode;
+}
 
-                          {
-                              std::lock_guard<std::mutex> lock(syncData->mtx);
-                              syncData->callbackCalled = true;
-                          }
-                          syncData->cv.notify_one();
-                      });
+{
+std::lock_guard<std::mutex> lock(syncData->mtx);
+syncData->callbackCalled = true;
+}
+syncData->cv.notify_one();
+});
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send report nodeId=" << nodeId << " msg failed, " << FormatRetCode(ret);
@@ -422,26 +422,26 @@ UbseResult GetAllNodeInfoFromRemote(const std::string &nodeId, std::vector<UbseN
         return ret;
     }
 
-    // 只有成功时，用UbseByteBuffer管理buffer
-    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-                                 SafeDeleteArray(p, size);
-                             }};
+// 只有成功时，用UbseByteBuffer管理buffer
+UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
+SafeDeleteArray(p, size);
+}};
 
-    ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                      [&infos, &getRet, &callbackCalled, &mtx, &cv, nodeId](void *ctx, const UbseByteBuffer &respData,
-                                                                            uint32_t resCode) -> void {
-                          GetAllNodeInfoFromRemoteRespHandler(nodeId, respData, resCode, infos, getRet);
-                          {
-                              std::lock_guard<std::mutex> lock(mtx);
-                              callbackCalled = true;
-                          }
-                          cv.notify_one();
-                      });
+ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+[&infos, &getRet, &callbackCalled, &mtx, &cv, nodeId](void *ctx, const UbseByteBuffer &respData,
+                                                uint32_t resCode) -> void {
+GetAllNodeInfoFromRemoteRespHandler(nodeId, respData, resCode, infos, getRet);
+{
+  std::lock_guard<std::mutex> lock(mtx);
+  callbackCalled = true;
+}
+cv.notify_one();
+});
 
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
-        return ret;
-    }
+if (ret != UBSE_OK) {
+UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
+return ret;
+}
 
     {
         std::unique_lock<std::mutex> lock(mtx);
@@ -498,27 +498,27 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string &nodeId,
         return UBSE_ERROR_NULLPTR;
     }
     size_t size = 1;
-    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-                                 SafeDeleteArray(p, size);
-                             }};
+UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
+SafeDeleteArray(p, size);
+}};
 
-    auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
-                           [&devDirConnectInfoRemote, &getRet, &callbackCalled, &mtx, &cv,
-                            nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
-                               HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote,
-                                                               getRet, callbackCalled, mtx, cv);
-                           });
+auto ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+[&devDirConnectInfoRemote, &getRet, &callbackCalled, &mtx, &cv,
+nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
+   HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote,
+                                   getRet, callbackCalled, mtx, cv);
+});
 
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
-        return ret;
-    }
+if (ret != UBSE_OK) {
+UBSE_LOG_ERROR << "send get all node msg failed, " << FormatRetCode(ret);
+return ret;
+}
 
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&callbackCalled] { return callbackCalled; });
-    }
+{
+std::unique_lock<std::mutex> lock(mtx);
+cv.wait(lock, [&callbackCalled] { return callbackCalled; });
+}
 
-    return getRet;
+return getRet;
 }
 } // namespace ubse::nodeController

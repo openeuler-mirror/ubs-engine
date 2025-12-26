@@ -620,9 +620,9 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
         return ret;
     }
 
-    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-                                 SafeDeleteArray(p, size);
-                             }};
+UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
+ SafeDeleteArray(p, size);
+}};
 
     ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
                       [&info, syncData, nodeId](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
@@ -631,7 +631,7 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
                               std::lock_guard<std::mutex> lock(syncData->mtx);
                               syncData->callbackCalled = true;
                           }
-                          syncData->cv.notify_one();
+syncData->cv.notify_one();
                       });
 
     if (ret != UBSE_OK) {
