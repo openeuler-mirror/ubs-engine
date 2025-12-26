@@ -17,7 +17,7 @@
 #include <functional>
 #include <mutex>
 #include <thread>
-#include "ubse_common_def.h
+#include "ubse_common_def.h"
 
 namespace ubse::timer {
 using namespace ubse::common::def;

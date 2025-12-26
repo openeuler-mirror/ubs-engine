@@ -21,7 +21,7 @@
 
 namespace ubse::timer {
 using namespace ubse::log;
-using namespace std::context;
+using namespace ubse::context;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_UTILS_MID)
 
@@ -46,7 +46,7 @@ uint32_t ExecTimerHandler()
         }
     }
     mtx.unlock_shared();
-    uint32_t result = UBSE_OK;
+    uint32_t ret = UBSE_OK;
     for (const auto &handlerItem : filtered) {
         try {
             if (ret = handlerItem.second.second(); ret != UBSE_OK) {
