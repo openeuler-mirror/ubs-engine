@@ -3,7 +3,7 @@
  */
 
 #include "ubse_node_controller.h"
-#includ  <netinet/in.h>
+#include  <netinet/in.h>
 #include <queue>
 #include <regex>
 #include <set>
@@ -785,7 +785,7 @@ UbseResult ValidateAndCopyIpData(const std::vector<uint8_t>& srcData,
     return UBSE_OK;
 }
 
-UbseResult SetUbseIpAddr()
+UbseResult SetUbseIpAddr(UbseDeSerialization &inStream, UbseIpAddr &addr)
 {
     std::vector<uint8_t> ipData{};
     // 读取IP类型
@@ -1734,6 +1734,6 @@ uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemN
 
 uint32_t UbseNodeGetLinkUpNodes(std::vector<UbseRoleInfo> &roleInfos)
 {
-    return UbseGetAllNodeInfos
+    return UbseGetAllNodeInfos(roleInfos);
 }
 } // namespace ubse::nodeController

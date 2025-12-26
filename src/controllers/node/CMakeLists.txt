@@ -6,6 +6,8 @@ add_library(ubse_node_controller STATIC
         ubse_node_api.cpp
         ubse_node_controller_query_api.cpp
         ubse_node_api_convert.cpp
+        ubse_node_controller_master.cpp
+        ubse_node_controller_agent.cpp
 )
 target_include_directories(ubse_node_controller PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${SRC_DIR}/res_plugins/mti ${SRC_DIR}/sdk/include)
 target_link_libraries(ubse_node_controller PRIVATE ubse_com ubse_mti ubse_utils ubse_election ubse_context ubse_timer ubse_serial ubse_ras

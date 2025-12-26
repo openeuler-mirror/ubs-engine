@@ -134,7 +134,7 @@ enum class UbseNodeClusterState {
     UBSE_NODE_WORKING,   // 节点正常
     UBSE_NODE_UNKNOWN,   // 心跳丢失，状态未知
     UBSE_NODE_FAULT,     // 节点故障（panic，重启）
-    UBSE_NODE_PER_BMC    //BMC预下电
+    UBSE_NODE_PRE_BMC    //BMC预下电
 };
 
 enum class UbseNodeLocalState {
@@ -252,6 +252,7 @@ public:
 
     // 到主节点获取全量直连信息
     std::map<std::string, PhysicalLink> UbseGetDirConnectInfo();
+    std::set<uint32_t> UbseGetAllDeployedNode();
     // 更新链路状态信息,使用时注意锁
     void UpdateDevDirConnectInfo();
     void UpdateConnect(PhysicalLink &physicalLink, std::string &linkId);

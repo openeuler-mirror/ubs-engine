@@ -96,12 +96,12 @@ void UbseTimerController::run()
             break;
         }
         auto taskExecutorModule = UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
-        if (taskExecutorModule) {
+        if (taskExecutorModule == nullptr) {
             UBSE_LOG_ERROR << "[TIMER] Get task executor MODULE failed";
             break;
         }
         auto taskExecutor = taskExecutorModule->Get(taskName);
-        if (taskExecutor) {
+        if (taskExecutor == nullptr) {
             UBSE_LOG_ERROR << "[TIMER] Get task executor failed";
             break;
         }
