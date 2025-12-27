@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "ubs_engine.h"
+#include "ubs_engine_urma.h"
 #include "ubs_error.h"
 
 #ifdef __cplusplus
@@ -77,6 +78,11 @@ ubs_error_t ubse_node_cpu_topo_list_unpack(const uint8_t *buffer, uint32_t len, 
 
 ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t *buffer, uint32_t len, ubs_mem_numastat_t **numa_mem_list,
                                            uint32_t *numa_mem_cnt);
+
+ubs_error_t ubse_urma_dev_get_unpack(const uint8_t *buffer, uint32_t len, urma_device_t **urma_devices,
+                                     uint32_t *urma_cnt);
+
+ubs_error_t ubse_urma_dev_alloc_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_dev_path_t *dev_info);
 #ifdef __cplusplus
 }
 #endif

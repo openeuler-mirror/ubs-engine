@@ -594,3 +594,87 @@ ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t *buffer, uint32_t len, 
     }
     return UBS_SUCCESS;
 }
+typedef struct {
+    const uint8_t *ptr;
+    uint32_t remaining;
+} unpack_ctx_t;
+
+static ubs_error_t unpack_uint32(unpack_ctx_t *ctx, uint32_t *value)
+{
+    if (ctx->remaining < sizeof(uint32_t)) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    *value = *(const uint32_t *)(ctx->ptr);
+    ctx->ptr += sizeof(uint32_t);
+    ctx->remaining -= sizeof(uint32_t);
+    return UBS_SUCCESS;
+}
+
+static ubs_error_t unpack_string(unpack_ctx_t *ctx, char *dest, uint32_t max_len)
+{
+    uint32_t str_len = 0;
+    ubs_error_t ret = unpack_uint32(ctx, &str_len);
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+
+    if ((str_len + 1) > max_len || str_len > ctx->remaining) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+
+    errno_t err = memcpy_s(dest, str_len, ctx->ptr, str_len);
+    if (err != EOK) {
+        return ubse_map_sys_error(err);
+    }
+    dest[str_len] = '\0';
+    ctx->ptr += str_len;
+    ctx->remaining -= str_len;
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_urma_dev_unpack(unpack_ctx_t *ctx, urma_device_t *urma_dev)
+{
+    unpack_string(ctx, urma_dev->name, UBS_URMA_NAME_MAX);
+    unpack_uint32(ctx, &urma_dev->healthy);
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_urma_dev_get_unpack(const uint8_t *buffer, uint32_t len, urma_device_t **urma_devices,
+                                     uint32_t *urma_cnt)
+{
+    if (len < sizeof(uint32_t)) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    unpack_ctx_t ctx = {.ptr = buffer, .remaining = len};
+    unpack_uint32(&ctx, urma_cnt);
+    if (*urma_cnt == 0) {
+        *urma_cnt = NULL;
+        return UBS_SUCCESS;
+    }
+
+    *urma_devices = (urma_device_t *)calloc(*urma_cnt, sizeof(urma_device_t));
+    if (*urma_devices == NULL) {
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    for (uint32_t i = 0; i < *urma_cnt; i++) {
+        ubs_error_t ret = ubse_urma_dev_unpack(&ctx, &(*urma_devices)[i]);
+        if (ret != UBS_SUCCESS) {
+            free(*urma_devices);
+            *urma_devices = NULL;
+            return ret;
+        }
+    }
+
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_urma_dev_alloc_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_dev_path_t *dev_info)
+{
+    unpack_ctx_t ctx;
+    ctx.ptr = buffer;
+    ctx.remaining = len;
+    unpack_string(&ctx, dev_info->bonding_path, UBSE_MAX_URMA_PATH_LENGTH);
+    unpack_string(&ctx, dev_info->vfe0_path, UBSE_MAX_URMA_PATH_LENGTH);
+    unpack_string(&ctx, dev_info->vfe1_path, UBSE_MAX_URMA_PATH_LENGTH);
+    unpack_string(&ctx, dev_info->bonding_eid, UBSE_MAX_URMA_PATH_LENGTH);
+}
