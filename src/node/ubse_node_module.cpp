@@ -121,11 +121,6 @@ UbseResult UbseNodeModule::Initialize()
 
 UbseResult UbseNodeModule::Start()
 {
-    auto ret = UbseNodeApi::Register();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Registration of TopoInfoQuery IPC-API failed," << FormatRetCode(ret);
-        return ret;
-    }
     return UBSE_OK;
 }
 

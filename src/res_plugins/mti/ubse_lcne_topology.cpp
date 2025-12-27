@@ -16,13 +16,13 @@
 #include <shared_mutex>
 #include <thread>
 
-#include "ubse_event_module.h"
-#include "ubse_http_module.h"
 #include "lcne/ubse_lcne_sub_topo_change_info.h"
 #include "lcne/ubse_lcne_topology_client.h"
 #include "lcne/ubse_topo_cna.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_event_module.h"
+#include "ubse_http_module.h"
 #include "ubse_logger_inner.h"
 #include "ubse_topology_interface.h"
 
@@ -71,7 +71,7 @@ UbseResult UbseLcneTopology::PubUbseTopoChangeEvent(std::string &eventMessage) c
         UBSE_LOG_WARN << "Can not get event module";
         return UBSE_ERROR;
     }
-    auto ret = eventPtr->UbsePubEvent(ubseTopologyChangeId, eventMessage);
+    auto ret = eventPtr->UbsePubEvent(UBSE_EVENT_TOPOLOGY_CHANGE, eventMessage);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "pub event UbseTopologyChangeEvent is failed";
         return UBSE_ERROR;
@@ -205,7 +205,7 @@ void UbseLcneTopology::AddPortCnaInfo(const LcneNodeCnaInfo &lcneCnaInfo, const 
             itPort->second.portCna = cnaPortInfo.portCnaUint32;
         } else {
             UBSE_LOG_INFO << "[MTI] Cna devName" << localDevName.devName << " and itPort " << physicalPort.devPortName
-                        << " does not exist in ubseTopologyInfo.";
+                          << " does not exist in ubseTopologyInfo.";
         }
     }
 }
