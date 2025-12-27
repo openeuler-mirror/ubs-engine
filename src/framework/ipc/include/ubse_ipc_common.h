@@ -37,7 +37,8 @@ typedef enum {
 
 typedef enum {
     UBSE_MEM = 0x0001,
-    UBSE_NODE = 0x0002
+    UBSE_NODE = 0x0002,
+    UBSE_URMA = 0x0006
 } ubse_ipc_module_code_t;
 
 typedef enum {
@@ -64,6 +65,18 @@ typedef enum {
     UBSE_CLUSTER_INFO = 0x0005,
     UBSE_NODE_GET = 0x0006,
 } ubse_ipc_node_op_code_t;
+
+typedef enum {
+    UBSE_URMA_QOS_SET = 0x0001,
+    UBSE_URMA_QOS_GET = 0x0002,
+    UBSE_URMA_QOS_RESET = 0x0003,
+    UBSE_URMA_CLI_QOS_GET = 0x0004,
+    UBSE_URMA_DEV_GET = 0x0005,
+    UBSE_URMA_DEV_ALLOC = 0x0006,
+    UBSE_URMA_DEV_FREE = 0x0007,
+    UBSE_URMA_CLI_DEV_GET = 0x0008,
+    UBSE_URMA_BUTT
+} ubse_ipc_urma_op_code_t;
 
 #ifdef __cplusplus
 }

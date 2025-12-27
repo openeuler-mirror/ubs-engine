@@ -25,7 +25,7 @@
 #include <utility>              // for move
 #include <vector>               // for vector
 
-#include "engine/ubse_com_engine.h" // for UbseCommunication
+#include "ubse_com_engine.h"        // for UbseCommunication
 #include "ubse_base_message.h"      // for UbseBaseMessage, UbseBaseMessag...
 #include "ubse_com_def.h"           // for UbseComMessageCtx, UbseComMessage
 #include "ubse_common_def.h"        // for UbseResult, UBSE_AGENT_IPC_SERV...
@@ -54,6 +54,7 @@ enum class UbseModuleCode {
     DATA_SYNC = 14,
     STORAGE = 15,
     UBSE_OBJ = 17,
+    UBSE_URMA = 200,
     UBSE_JOB = 801,
     UBSE_MEM_CONTROLLER = 802,
     UBSE_MEM = 901,
@@ -76,7 +77,14 @@ enum class UbseModuleCode {
     UBSE_MEM_BORROW_RESULT_NOTIFY = 926,
     RAS = 119
 };
-
+enum class UbseUrmaRpcOpCode {
+    URMA_RPC_QUERY = 0,
+    URMA_RPC_QOS_QUERY = 1,
+    URMA_RPC_URMA_INFO_REPORT = 2,
+    URMA_RPC_URMA_INFO_NOTIFY = 3,
+    URMA_RPC_URMA_INFO_QUERY = 4,
+    URMA_RPC_BUTT
+};
 enum class UbseOpCode {
     NUMA_METRIC = 0,
     VM_METRIC = 1,

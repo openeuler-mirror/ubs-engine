@@ -11,6 +11,6 @@ add_library(ubse_com STATIC
 )
 
 target_include_directories(ubse_com PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR})
-
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/engine)
 target_link_libraries(ubse_com PUBLIC hcom PRIVATE ubse_context ubse_config ubse_mti ubse_http UbseLog ubse_utils)
