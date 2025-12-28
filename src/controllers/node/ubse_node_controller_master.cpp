@@ -656,10 +656,10 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
     return syncData->collectRet;
 }
 
-void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string &action)
+void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string action)
 {
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-    for (auto & node : nodeInfos) {
+    for (auto &node : nodeInfos) {
         const ubse::com::UbseComEndpoint endpoint{
             .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
             .serviceId = static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_NODE_CHANGE),

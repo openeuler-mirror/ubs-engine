@@ -607,7 +607,7 @@ UbseResult SetUrmaUvs(bool isBeforeElection = false)
     return ret;
 }
 
-UbseResult PubNodeUrmaChange(std::string &nodeId, std::string &action)
+UbseResult PubNodeUrmaChange(std::string &nodeId, std::string action)
 {
     if (action != UBSE_EVENT_NODE_TOPO_LINK_CHANGE && action != UBSE_EVENT_NODE_JOIN) {
         UBSE_LOG_ERROR << "PubEvent " << action << " is not supported.";

@@ -117,7 +117,7 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 UbseResult SetUrmaUvs(bool isBeforeElection);
 
 
-UbseResult PubNodeUrmaChange(std::string &nodeId, std::string &action);
+UbseResult PubNodeUrmaChange(std::string &nodeId, std::string action);
 
 UbseResult nodeChangeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 } // namespace ubse::nodeController
