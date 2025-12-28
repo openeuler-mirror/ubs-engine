@@ -45,8 +45,8 @@ public:
     }
 
     UbseResult UbseUrmaBandWidthSet(const std::string urmaName, uint32_t minBandWidth, uint32_t maxBandWidth);
-    UbseResult UbseUrmaBandWidthQuery(const std::string urmaName, uint32_t &minBandWidth, uint32_t &maxBandWidth);
-    UbseResult UbseUrmaBandWidthDisable(const std::string urmaName);
+    UbseResult UbseUrmaBandWidthGet(const std::string urmaName, uint32_t &minBandWidth, uint32_t &maxBandWidth);
+    UbseResult UbseUrmaBandWidthReset(const std::string urmaName);
     void UbseUrmaBandWidthUpdate(const std::string urmaName);
 private:
 };

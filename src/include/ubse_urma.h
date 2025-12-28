@@ -44,19 +44,12 @@ enum class FeType {
     BUTT_TYPE               // 参考业界定义枚举类型最大值用BUTT表示
 };
 
-enum class FeState {
-    ACTIVED = 0,     // 激活
-    INACTIVED = 1,   // 未知
-    BUTT             // 未参考业界定义枚举类型最大值用BUTT表示
-};
-
 struct UbseFeInfo {
-    uint32_t slotId;
-    uint32_t ubpuId;
-    uint32_t iouId;
-    uint32_t entityId;
+    std::string slotId;
+    std::string ubpuId;
+    std::string iouId;
+    std::string entityId;
     FeType fetype;
-    FeState state;
     std::map<uint32_t, std::string> primaryEid;
     std::map<uint32_t, std::string> portEidInfos; // 将根据planning-urma-eid确认每个Fe的urma-eid-info的个数
 };

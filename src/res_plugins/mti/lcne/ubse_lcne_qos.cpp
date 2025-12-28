@@ -159,10 +159,8 @@ UbseResult UbseLcneQos::DeleteVfeQos(UbseFeInfo ubseFeInfo)
     UbseHttpRequest req;
     UbseHttpResponse rsp;
 
-    std::string profileApply = "/tqos-entity-profile-apply=" + std::to_string(ubseFeInfo.slotId) + "." +
-                               std::to_string(ubseFeInfo.ubpuId) + "." + std::to_string(ubseFeInfo.iouId) + "." +
-                               std::to_string(ubseFeInfo.entityId);
-
+    std::string profileApply = "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," +
+                               ubseFeInfo.ubpuId + "," + ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.method = "DELET";
     req.path = LCNE_QOS_URI + profileApply;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
@@ -188,9 +186,8 @@ UbseResult UbseLcneQos::QueryVfeQos(UbseFeInfo ubseFeInfo, std::string &proflieN
     UbseHttpResponse rsp;
 
     req.method = "GET";
-    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + std::to_string(ubseFeInfo.slotId) + "." +
-               std::to_string(ubseFeInfo.ubpuId) + "." + std::to_string(ubseFeInfo.iouId) + "." +
-               std::to_string(ubseFeInfo.entityId);
+    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," +
+               ubseFeInfo.ubpuId + "," + ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
     req.headers.emplace("Content-Type", LCNE_QOS_CONTENT_TYPE);
 
@@ -273,13 +270,13 @@ UbseResult UbseLcneQos::BuildQoSXml(UbseFeInfo ubseFeInfo, std::string profileNa
     ubseXml->AddNode("tqos-entity-profile-apply");
     ubseXml->Attr("xmlns", LCNE_QOS_XML);
     ubseXml->AddNode("slot-id");
-    ubseXml->Child("slot-id")->Text(std::to_string(ubseFeInfo.slotId));
+    ubseXml->Child("slot-id")->Text(ubseFeInfo.slotId);
     ubseXml->AddNode("ubpu-id");
-    ubseXml->Child("ubpu-id")->Text(std::to_string(ubseFeInfo.ubpuId));
+    ubseXml->Child("ubpu-id")->Text(ubseFeInfo.ubpuId);
     ubseXml->AddNode("iou-id");
-    ubseXml->Child("iou-id")->Text(std::to_string(ubseFeInfo.iouId));
+    ubseXml->Child("iou-id")->Text(ubseFeInfo.iouId);
     ubseXml->AddNode("entity-id");
-    ubseXml->Child("entity-id")->Text(std::to_string(ubseFeInfo.entityId));
+    ubseXml->Child("entity-id")->Text(ubseFeInfo.entityId);
     ubseXml->AddNode("profile-name");
     ubseXml->Child("profile-name")->Text(profileName);
     ubseXml->Printer(xmlStr);
@@ -307,12 +304,24 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseQosProfile
         UBSE_LOG_ERROR << "[MTI] Xml parse cir failed.";
         return UBSE_ERROR;
     }
-    ubseQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    try {
+        ubseQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    } catch (const std::invalid_argument &e) {
+        return UBSE_ERROR;
+    } catch (const std::out_of_range &e) {
+        return UBSE_ERROR;
+    }
     if (ubseXml->Child("pir") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse pir failed.";
         return UBSE_ERROR;
     }
-    ubseQosProfile.maxBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    try {
+        ubseQosProfile.maxBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    } catch (const std::invalid_argument &e) {
+        return UBSE_ERROR;
+    } catch (const std::out_of_range &e) {
+        return UBSE_ERROR;
+    }    
     return UBSE_OK;
 }
 
