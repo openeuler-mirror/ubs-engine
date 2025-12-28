@@ -20,9 +20,11 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
+#include "ubse_event_module.h"
 #include "ubse_logger.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_node_topology.h"
+#include "ubse_serial_util.h"
 #include "ubse_timer.h"
 
 const uint32_t HA_SEQUENCE_ID = 101;
@@ -39,14 +41,14 @@ constexpr int UBSE_RPC_TIMEOUT_MS = 60000; // 5秒超时
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 constexpr uint8_t UBSE_ERROR_BUFFER_SIZE = 4;
 
-std::string g_lcneChangeReportEvent = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
-
 namespace ubse::nodeController {
 using namespace ubse::context;
 using namespace ubse::election;
 using namespace ubse::log;
 using namespace ubse::event;
 using namespace ubse::timer;
+using namespace ubse::serial;
+
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 
 // Master端消息处理注册
@@ -290,11 +292,12 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
 
     // 创建临时变量给UbsePubEvent
     std::string eventMessageCopy = nodeInfo.eventMessage;
-    auto ret = UbsePubEvent(g_lcneChangeReportEvent, eventMessageCopy);
+    auto ret = UbsePubEvent(UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE, eventMessageCopy);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbsePubEvent failed";
         return ret;
     }
+    UbseMasterNotifyAllAgentsAction(nodeInfoCopy.nodeId, UBSE_EVENT_NODE_TOPO_LINK_CHANGE);
 
     return UBSE_OK;
 }
@@ -315,6 +318,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeUpHandler(const std::string &nodeId
             UBSE_LOG_WARN << "nodeId=" << nodeId << " collect topology failed, will retry, " << FormatRetCode(ret);
             std::this_thread::sleep_for(std::chrono::milliseconds(UBSE_COLLECT_TOPOLOGY_RETRY_INTERVAL));
         }
+        UbseMasterNotifyAllAgentsAction(nodeId, UBSE_EVENT_NODE_JOIN);
         UbseNodeUpLedger(nodeId);
     });
     return UBSE_OK;
@@ -382,7 +386,7 @@ void UbseNodeControllerMaster::UnInitialize()
     Builder.SetSequenceId(HA_SEQUENCE_ID); // 需要确保在节点建链后触发，节点建链优先级100
     Builder.SetType(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION);
     Builder.SetName(UBSE_NODE_MASTER_ONLINE);
-    UbseElectionChangeAttachHandler(Builder.Build());
+    UbseElectionChangeDeAttachHandler(Builder.Build());
     // 解注册节点上线回调
     UbseElectionHandlerBuilder NodeUpBuilder;
     NodeUpBuilder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseNodeUpHandler(nodeId); });
@@ -390,7 +394,7 @@ void UbseNodeControllerMaster::UnInitialize()
     NodeUpBuilder.SetSequenceId(HA_SEQUENCE_ID); // 需要确保在节点建链后触发，节点建链优先级100
     NodeUpBuilder.SetType(UbseElectionEventType::NODE_UP);
     NodeUpBuilder.SetName(UBSE_NODE_NODE_UP);
-    UbseElectionChangeAttachHandler(NodeUpBuilder.Build());
+    UbseElectionChangeDeAttachHandler(NodeUpBuilder.Build());
     // 解注册节点下线回调
     UbseElectionHandlerBuilder NodeDownBuilder;
     NodeDownBuilder.SetHandler(
@@ -650,5 +654,41 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
     }
 
     return syncData->collectRet;
+}
+
+void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string &action)
+{
+    auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
+    for (auto & node : nodeInfos) {
+        const ubse::com::UbseComEndpoint endpoint{
+            .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
+            .serviceId = static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_NODE_CHANGE),
+            .address = node.first,
+        };
+
+        UbseSerialization outStream;
+        outStream << nodeId << action;
+        if (!outStream.Check()) {
+            UBSE_LOG_ERROR << "Failed to serialize node ID: " << nodeId;
+            continue;
+        }
+        size_t size = outStream.GetLength();
+        uint8_t* buffer = outStream.GetBuffer(true);
+        UbseByteBuffer reqBuffer{
+            buffer, size, [size](uint8_t *p) noexcept {
+                SafeDeleteArray(p, size);
+            }
+        };
+
+        auto dummyHandler = [](void* ctx, const UbseByteBuffer& buf, uint32_t ret) {
+            UBSE_LOG_DEBUG << "Received node join ack";
+        };
+
+        auto ret = UbseRpcAsyncSend(endpoint, reqBuffer, nullptr, dummyHandler);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to notify node " << node.first << ", error: " << ret;
+            continue;
+        }
+    }
 }
 } // namespace ubse::nodeController
