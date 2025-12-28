@@ -89,7 +89,7 @@ void UbseUrmaUvsModule::Cleanup()
 }
 
 UbseResult UbseUrmaUvsModule::SetUvsInfo(uint32_t &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
-                                      const std::vector<UbseUrmaInfo> &bondingInfo)
+                                         const std::vector<UbseUrmaInfo> &bondingInfo)
 {
     std::vector<UbcoreTopoNode> nodes;
     auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
