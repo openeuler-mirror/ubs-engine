@@ -109,6 +109,17 @@ UbseResult LcneChangeReportNodeInfo(const std::string &nodeId, const UbseNodeInf
  */
 UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 
+/**
+ * Agent下发本节点urma topo
+ * @param isBeforeElection 是否在选举完成前下发，默认为false
+ * @return UbseResult 下发结果
+ */
+UbseResult SetUrmaUvs(bool isBeforeElection);
+
+
+UbseResult PubNodeUrmaChange(std::string &nodeId, std::string &action);
+
+UbseResult nodeChangeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 } // namespace ubse::nodeController
 
 #endif // UBS_ENGINE_UBSE_NODE_CONTROLLER_AGENT_H
