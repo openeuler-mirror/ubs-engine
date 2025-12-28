@@ -28,7 +28,7 @@ UBSE_DEFINE_THIS_MODULE("ubse_urma", UBSE_URMA_UVS_MID)
 
 UbseResult UbseUrmaUvsModule::Initialize()
 {
-    cleanup();
+    Cleanup();
     handle = dlopen("/usr/lib64/libtpsa.so", RTLD_LAZY);
     if (handle == nullptr) {
         UBSE_LOG_ERROR << "dlopen libtpsa.so failed";
@@ -65,7 +65,7 @@ UbseResult UbseUrmaUvsModule::Initialize()
 
 void UbseUrmaUvsModule::UnInitialize()
 {
-    cleanup();
+    Cleanup();
 }
 
 
@@ -76,7 +76,7 @@ UbseResult UbseUrmaUvsModule::Start()
 
 void UbseUrmaUvsModule::Stop() {}
 
-void UbseUrmaUvsModule::cleanup()
+void UbseUrmaUvsModule::Cleanup()
 {
     if (handle != nullptr) {
         dlclose(handle);
@@ -199,8 +199,8 @@ UbseResult GetSlotIds(const std::vector<UbseUrmaInfo> &bondingInfo, std::set<uin
 }
 
 UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
-                                           const std::vector<UbseUrmaInfo> &bondingInfo,
-                                           std::vector<UbcoreTopoNode> &nodes)
+                                              const std::vector<UbseUrmaInfo> &bondingInfo,
+                                              std::vector<UbcoreTopoNode> &nodes)
 {
     nodes.clear();
     std::set<uint32_t> slotIds;
@@ -234,7 +234,7 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
 }
 
 void UbseUrmaUvsModule::InitialTopoNodes(const std::set<uint32_t> slotIds,
-                                      std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
+                                         std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
 {
     nodeMap.clear();
     for (auto &id : slotIds) {
@@ -254,7 +254,7 @@ void UbseUrmaUvsModule::InitialTopoNodes(const std::set<uint32_t> slotIds,
 }
 
 UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkInfo,
-                                    std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
+                                       std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
 {
     if (allLinkInfo.size() == 0) {
         UBSE_LOG_INFO << "No link info found";
@@ -317,7 +317,7 @@ UbseResult UbseUrmaUvsModule::FillFeInfo(std::vector<UbseFeInfo> &fes, UbcoreTop
 }
 
 UbseResult UbseUrmaUvsModule::FillBondingInfo(const std::vector<UbseUrmaInfo> &bondingInfo,
-                                           std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
+                                              std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
 {
     if (bondingInfo.empty()) {
         UBSE_LOG_ERROR << "No bonding info found";

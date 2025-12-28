@@ -54,9 +54,9 @@ struct UbcoreTopoAggrDev {
 };
 
 struct UbcoreTopoLink {
-    uint32_t peer_node;  //node id
-    uint32_t peer_iodie; //iodie idx
-    uint32_t peer_port;  //poet idx, UINT32_MAX=无连接
+    uint32_t peer_node;  // node id
+    uint32_t peer_iodie; // iodie idx
+    uint32_t peer_port;  // poet idx, UINT32_MAX=无连接
 };
 
 struct UbcoreTopoNode {
@@ -105,7 +105,7 @@ private:
 
     UbseResult FillFeUrmaEid(UbseUrmaInfo &urmainfo, UbcoreTopoFe &fe);
 
-    void cleanup();
+    void Cleanup();
     void *handle = nullptr; // 共享库句柄
     UvsSetTopoInfo uvsSetTopoInfo = nullptr;
     UvsGetDeviceNameByUrmaEid uvsGetDeviceNameByUrmaEid = nullptr;
