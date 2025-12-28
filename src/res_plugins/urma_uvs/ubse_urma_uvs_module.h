@@ -106,6 +106,7 @@ private:
     UbseResult FillFeUrmaEid(UbseUrmaInfo &urmainfo, UbcoreTopoFe &fe);
 
     void Cleanup();
+
     void *handle = nullptr; // 共享库句柄
     UvsSetTopoInfo uvsSetTopoInfo = nullptr;
     UvsGetDeviceNameByUrmaEid uvsGetDeviceNameByUrmaEid = nullptr;
