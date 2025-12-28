@@ -41,8 +41,8 @@ public:
     UbseResult GetCurNodeIouList(std::vector<UbseLcneIouInfo> &iouList);
 
 private:
-    std::map<std::string, UbseUrmaInfo> comUrmaInfos; //key=nodeid
+    std::map<std::string, UbseUrmaInfo> comUrmaInfos; // key=nodeid
 };
 
 } // namespace ubse::nodeController
-#endif //UBSE_NODE_COM_URMA_COLLECTOR_H
+#endif // UBSE_NODE_COM_URMA_COLLECTOR_H
