@@ -80,10 +80,10 @@ UbseResult UbseUrmaQosMessageHandler::Handle(const UbseBaseMessagePtr &req, cons
     /* 如果是本节点的消息就查询，如果是主节点就转发，其他情况丢弃 */
     if (std::to_string(urmaQosReq.nodeId) == currentNodeInfo.nodeId) {
         UrmaQosRpcRsp urmaQosRpcRsp;
-        uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthQuery(
+        uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthGet(
             urmaQosReq.urmaName, urmaQosRpcRsp.minBandWidth, urmaQosRpcRsp.maxBandWidth);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthQuery failed," << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthGet failed," << FormatRetCode(ret);
             return UBSE_ERROR_SRCH;
         }
         response->SetUbseUrmaQosRsp(urmaQosRpcRsp);

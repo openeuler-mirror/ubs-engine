@@ -71,11 +71,11 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
     return ret;
 }
 
-UbseResult UrmaController::UbseUrmaBandWidthQuery(const std::string urmaName, uint32_t &minBandWidth,
-                                                  uint32_t &maxBandWidth)
+UbseResult UrmaController::UbseUrmaBandWidthGet(const std::string urmaName, uint32_t &minBandWidth,
+                                                uint32_t &maxBandWidth)
 {
     UbseQosProfile ubseQosProfile;
-    UBSE_LOG_INFO << "UbseUrmaBandWidthQuery Start," << urmaName;
+    UBSE_LOG_INFO << "UbseUrmaBandWidthGet Start," << urmaName;
     const std::string profileName = "Profile_" + urmaName;
     uint32_t ret = UbseLcneQos::GetInstance().QureyQosProfile(profileName, ubseQosProfile);
     if (ret != UBSE_OK) {
@@ -87,9 +87,9 @@ UbseResult UrmaController::UbseUrmaBandWidthQuery(const std::string urmaName, ui
     return ret;
 }
 
-UbseResult UrmaController::UbseUrmaBandWidthDisable(const std::string urmaName)
+UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
 {
-    UBSE_LOG_INFO << "UbseUrmaBandWidthDisable Start," << urmaName;
+    UBSE_LOG_INFO << "UbseUrmaBandWidthReset Start," << urmaName;
     /* 从urma名获取urma信息，如果找不到返回错误码UBS_ENGINE_ERR_NOT_EXIST */
     UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
@@ -99,7 +99,7 @@ UbseResult UrmaController::UbseUrmaBandWidthDisable(const std::string urmaName)
     }
     /* 判断是否独享类型，不是返回不支持 */
     if (urmaInfo.urmaDevType != UrmaDevType::UNIQUE) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed, urmaDevType ="
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthReset failed, urmaDevType ="
                        << (uint32_t)urmaInfo.urmaDevType;
         return UBSE_ERROR_SRCH;
     }
