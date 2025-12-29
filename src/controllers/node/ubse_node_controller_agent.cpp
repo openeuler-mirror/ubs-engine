@@ -19,10 +19,13 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
+#include "ubse_event_module.h"
 #include "ubse_logger.h"
+#include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_master.h"
 #include "ubse_timer.h"
+#include "ubse_serial_util.h"
 
 const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;  // 节点侧采集失败重试周期，单位/s
 const uint32_t UBSE_NODE_REPORT_INTERVAL = 2;         // 节点侧主动向中心侧上报节点内存，拓扑周期；单位秒
@@ -41,6 +44,8 @@ using namespace ubse::event;
 using namespace ubse::timer;
 using namespace ubse::common::def;
 using namespace ubse::com;
+using namespace ubse::serial;
+
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 
 // Agent端消息处理注册
@@ -49,9 +54,18 @@ UbseResult RegAgentMsgHandler()
     const ubse::com::UbseComEndpoint collectEndpoint = {static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
                                                         static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_COLLECT)};
 
+    const ubse::com::UbseComEndpoint nodeChangeEndpoint = {static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
+                                                     static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_NODE_CHANGE)};
+
     auto ret = UbseRegRpcService(collectEndpoint, CollectNodeInfoHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register collect endpoint failed";
+        return ret;
+    }
+
+    ret = UbseRegRpcService(nodeChangeEndpoint, nodeChangeHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register join endpoint failed";
         return ret;
     }
 
@@ -63,8 +77,14 @@ UbseResult UbseNodeControllerAgent::Initialize()
 {
     UBSE_LOG_INFO << "UbseNodeControllerAgent init";
 
+    auto ret = SetUrmaUvs(true);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SetUrmaUvs failed: " << FormatRetCode(ret);
+        return ret;
+    }
+
     // 注册消息处理器
-    auto ret = RegAgentMsgHandler();
+    ret = RegAgentMsgHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register agent message handler failed, " << FormatRetCode(ret);
         return ret;
@@ -374,6 +394,38 @@ UbseResult CollectNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     return ret;
 }
 
+UbseResult nodeChangeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+{
+    UBSE_LOG_DEBUG << "Receive node change req from master";
+
+    uint8_t *buffer = nullptr;
+    size_t size = 0;
+    resp = {buffer, size, [size](uint8_t *p) noexcept {
+        SafeDeleteArray(p, size);
+    }};
+
+    UbseDeSerialization inStream(req.data, req.len);
+    std::string node;
+    std::string action;
+    inStream >> node >> action;
+
+    if (!inStream.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserialize node join response";
+        return CreateErrorResponse(UBSE_ERROR, resp);
+    }
+    auto ret = SetUrmaUvs(false);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SetUrmaUvs failed: " << FormatRetCode(ret);
+        return CreateErrorResponse(ret, resp);
+    }
+
+    if (action == UBSE_EVENT_NODE_TOPO_LINK_CHANGE || action == UBSE_EVENT_NODE_JOIN) {
+        ret = PubNodeUrmaChange(node, action);
+    }
+
+    return ret;
+}
+
 // GetAllNodeInfoFromRemote的辅助函数
 static void GetAllNodeInfoFromRemoteRespHandler(const std::string &nodeId, const UbseByteBuffer &respData,
                                                 uint32_t resCode, std::vector<UbseNodeInfo> &infos, UbseResult &getRet)
@@ -523,4 +575,57 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string &nodeId,
 
     return getRet;
 }
+
+UbseResult SetUrmaUvs(bool isBeforeElection = false)
+{
+    std::vector<PhysicalLink> links;
+    if (isBeforeElection) {
+        auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(links);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "get cur node topo failed";
+            return ret;
+        }
+        ret = UbseNodeComUrmaCollector::GetInstance().FillComUrmaInfo();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "fill com urma info failed";
+            return ret;
+        }
+    } else {
+        std::map<std::string, PhysicalLink> connectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+        if (connectInfo.empty()) {
+            UBSE_LOG_ERROR << "get cur node topo failed";
+            return UBSE_ERROR;
+        }
+        for (const auto &entry : connectInfo) {
+            links.push_back(entry.second);
+        }
+    }
+    auto ret = UbseNodeComUrmaCollector::GetInstance().SetComUrma(links);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "set to urma uvs failed, ret=" << FormatRetCode(ret);
+    }
+    return ret;
+}
+
+UbseResult PubNodeUrmaChange(std::string &nodeId, std::string action)
+{
+    if (action != UBSE_EVENT_NODE_TOPO_LINK_CHANGE && action != UBSE_EVENT_NODE_JOIN) {
+        UBSE_LOG_ERROR << "PubEvent " << action << " is not supported.";
+        return UBSE_ERROR;
+    }
+    auto eventModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::event::UbseEventModule>();
+    if (eventModule == nullptr) {
+        UBSE_LOG_ERROR << "Get eventModule failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    auto ret = eventModule->UbsePubEvent(action, nodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to PubEvent" << action << ", nodeId = " << nodeId << ","
+                       << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
 } // namespace ubse::nodeController

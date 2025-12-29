@@ -71,6 +71,8 @@ private:
 
     void UbseNodeCleanAfterSwitchStandby();
 
+    void UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string action);
+
     /**
      * 节点上报汇聚，每隔1min，打印一次节点上报记录
      */
