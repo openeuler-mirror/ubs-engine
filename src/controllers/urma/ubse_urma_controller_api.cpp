@@ -24,13 +24,13 @@
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
-using namespace ubse::ipc;
 using namespace ubse::context;
 using namespace ::api::server;
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace ubse::election;
 using namespace ubse::com;
+using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
@@ -42,8 +42,9 @@ UbseResult UbseUrmaControllerApi::Register()
         return UBSE_ERROR_NULLPTR;
     }
     auto ret = ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_SET, UbseUrmaBandWidthSet);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_GET, UbseUrmaBandWidthQuery);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_RESET, UbseUrmaBandWidthDisable);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_GET, UbseUrmaBandWidthGet);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_RESET, UbseUrmaBandWidthReset);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, UbseUrmaBandWidthCliQuery);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of Urma Controller-API failed," << FormatRetCode(ret);
         return ret;
@@ -82,42 +83,58 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage &req, 
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthQuery(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     uint8_t *buffer = req.buffer;
     if (buffer == nullptr) {
-        UBSE_LOG_ERROR << "UbseUrmaBandWidthQuery request info is null.";
+        UBSE_LOG_ERROR << "UbseUrmaBandWidthGet request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    uint32_t nodeId = ntohl(*(uint32_t *)buffer);
-    buffer += sizeof(nodeId);
     std::string name = std::string(reinterpret_cast<const char *>(buffer));
-    /* 如果不是本节点或者0xFFFFFFFF就是查询其他节点需要调用rpc查询 */
-    UbseRoleInfo currentNodeInfo{};
-    UbseGetCurrentNodeInfo(currentNodeInfo);
-    if (nodeId != UINT32_MAX && std::to_string(nodeId) != currentNodeInfo.nodeId) {
-        return UbseUrmaBandWidthQueryNeighber(nodeId, name, context);
-    }
     UrmaQosRpcRsp urmaQosRsp;
     uint32_t ret =
-        UrmaController::GetInstance().UbseUrmaBandWidthQuery(name, urmaQosRsp.minBandWidth, urmaQosRsp.maxBandWidth);
+        UrmaController::GetInstance().UbseUrmaBandWidthGet(name, urmaQosRsp.minBandWidth, urmaQosRsp.maxBandWidth);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthQuery failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthGet failed," << FormatRetCode(ret);
         return UBSE_ERROR_SRCH;
     }
     return UbseUrmaSendQosRsp(context.requestId, urmaQosRsp);
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthDisable(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliQuery(const UbseIpcMessage &req, const UbseRequestContext &context)
+{
+    uint32_t nodeId;
+    std::string name;
+    UbseDeSerialization reqSerial(req.buffer, req.length);
+    reqSerial >> nodeId >> name;
+    if (!reqSerial.Check()) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    UbseRoleInfo currentNodeInfo{};
+    UbseGetCurrentNodeInfo(currentNodeInfo);
+    if (std::to_string(nodeId) != currentNodeInfo.nodeId) {
+        return UbseUrmaBandWidthGetNeighber(nodeId, name, context);
+    }
+    UrmaQosRpcRsp urmaQosRsp;
+    uint32_t ret =
+        UrmaController::GetInstance().UbseUrmaBandWidthGet(name, urmaQosRsp.minBandWidth, urmaQosRsp.maxBandWidth);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthGet failed," << FormatRetCode(ret);
+        return UBSE_ERROR_SRCH;
+    }
+    return UbseUrmaSendCliQosRsp(context.requestId, urmaQosRsp);
+}
+
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     if (req.buffer == nullptr) {
-        UBSE_LOG_ERROR << "UbseUrmaBandWidthDisable request info is null.";
+        UBSE_LOG_ERROR << "UbseUrmaBandWidthReset request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
     std::string name = std::string(reinterpret_cast<const char *>(req.buffer));
-    uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthDisable(name);
+    uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthReset(name);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthReset failed," << FormatRetCode(ret);
         return UBSE_ERROR_SRCH;
     }
 
@@ -129,14 +146,14 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthDisable(const UbseIpcMessage &r
     UbseIpcMessage response = {nullptr, 0};
     ret = apiServerModule->SendResponse(IPC_SUCCESS, context.requestId, response);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " UbseUrmaBandWidthDisable response send failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << " UbseUrmaBandWidthReset response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthQueryNeighber(const uint32_t nodeId, const std::string name,
-                                                               const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGetNeighber(const uint32_t nodeId, const std::string name,
+                                                             const UbseRequestContext &context)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -170,7 +187,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthQueryNeighber(const uint32_t no
     }
     UrmaQosRpcRsp rsp = ubseResponsePtr->GetUbseUrmaQosRsp();
 
-    return UbseUrmaSendQosRsp(context.requestId, rsp);
+    return UbseUrmaSendCliQosRsp(context.requestId, rsp);
 }
 
 uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint32_t requestId, UrmaQosRpcRsp urmaQosRsp)
@@ -187,6 +204,27 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint32_t requestId, Urm
     *(uint32_t *)buffer = htonl(urmaQosRsp.minBandWidth);
     buffer += sizeof(urmaQosRsp.minBandWidth);
     *(uint32_t *)buffer = htonl(urmaQosRsp.maxBandWidth);
+    uint32_t ret = apiServerModule->SendResponse(IPC_SUCCESS, requestId, response);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << " UbseUrmaSendQosRsp response send failed," << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseUrmaControllerApi::UbseUrmaSendCliQosRsp(const uint32_t requestId, UrmaQosRpcRsp urmaQosRsp)
+{
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "Get api server module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseSerialization rspSerial;
+    rspSerial << urmaQosRsp.minBandWidth << urmaQosRsp.maxBandWidth;
+    if (!rspSerial.Check()) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    UbseIpcMessage response = {rspSerial.GetBuffer(), static_cast<uint32_t>(rspSerial.GetLength())};
     uint32_t ret = apiServerModule->SendResponse(IPC_SUCCESS, requestId, response);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << " UbseUrmaSendQosRsp response send failed," << FormatRetCode(ret);

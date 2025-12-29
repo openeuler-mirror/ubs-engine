@@ -28,11 +28,13 @@ public:
 
 private:
     static uint32_t UbseUrmaBandWidthSet(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseUrmaBandWidthQuery(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseUrmaBandWidthDisable(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseUrmaBandWidthQueryNeighber(const uint32_t nodeId, const std::string name,
+    static uint32_t UbseUrmaBandWidthGet(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t UbseUrmaBandWidthCliQuery(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t UbseUrmaBandWidthReset(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t UbseUrmaBandWidthGetNeighber(const uint32_t nodeId, const std::string name,
                                                    const UbseRequestContext &context);
     static uint32_t UbseUrmaSendQosRsp(const uint32_t requestId, UrmaQosRpcRsp urmaQosRsp);
+    static uint32_t UbseUrmaSendCliQosRsp(const uint32_t requestId, UrmaQosRpcRsp urmaQosRsp);
 };
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_API_H

@@ -182,6 +182,11 @@ struct UbseLcneBusInstanceInfo {
     std::string localNodeId;             // 当前节点的nodeid（slotid）
 };
 
+struct UbseLcneIouInfo {
+    std::string slotId;
+    std::string ubpuId;
+    std::string iouId;
+};
 /**
  * @brief 获取LCNE提供的本节点信息
  * @param [out] ubseNodeInfo: 当前节点信息

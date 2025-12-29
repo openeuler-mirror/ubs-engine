@@ -115,8 +115,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
         /* 继续查询Qos带宽 */
-        UbseSerialization ubse_req_serial(NO_64);
+        UbseSerialization ubse_req_serial;
         ubse_req_serial << nodeId << uramName;
+        if (!ubse_req_serial.Check()) {
+            return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
+        }
         u bse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(),
                                            static_cast<uint32_t>(ubse_req_serial.GetLength())};
         ubse_api_buffer_t response_buffer = {NULL, 0};
@@ -155,8 +158,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     } catch (const std::exception &e) {
         return UbseCliStringPromptReply(URMA_EMPTY_ERROR);
     }
-    UbseSerialization ubse_req_serial(NO_8);
+    UbseSerialization ubse_req_serial;
     ubse_req_serial << nodeId << urmaType;
+    if (!ubse_req_serial.Check()) {
+        return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
+    }
     ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
@@ -184,8 +190,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     if (params.find(URMA_NODE_OPT) == params.end()) {
         return UbseCliStringPromptReply(URMA_EMPTY_ERROR);
     }
-    uint32_t nodeId = std::stoul(params.at(URMA_NODE_OPT)); // 0xFFFFFFFF代表本节点
+    uint32_t nodeId = std::stoul(params.at(URMA_NODE_OPT));
     ubse_req_serial << nodeId << urmaType;
+    if (!ubse_req_serial.Check()) {
+        return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
+    }
     ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
