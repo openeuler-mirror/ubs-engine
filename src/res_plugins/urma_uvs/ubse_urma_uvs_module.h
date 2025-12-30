@@ -19,6 +19,7 @@
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
 #include "ubse_urma.h"
+#include "ubse_urma_uvs.h"
 
 namespace ubse::urma {
 using namespace ubse::common::def;
@@ -78,6 +79,9 @@ public:
 
     UbseResult SetUvsInfo(uint32_t &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
                           const std::vector<UbseUrmaInfo> &bondingInfo);
+
+    UbseResult SetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
+                              const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
 
     UbseResult GetNameByUrmaEid(const std::string &urmaEid, std::string &urmaEidName);
 

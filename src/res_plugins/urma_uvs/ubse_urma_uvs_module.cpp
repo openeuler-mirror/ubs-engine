@@ -17,10 +17,12 @@
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_logger_inner.h"
+#include "ubse_str_util.h"
 
 namespace ubse::urma {
 using namespace ubse::log;
 using namespace ubse::common::def;
+using namespace ubse::utils;
 
 DYNAMIC_CREATE(UbseUrmaUvsModule);
 
@@ -89,24 +91,14 @@ void UbseUrmaUvsModule::Cleanup()
 }
 
 UbseResult UbseUrmaUvsModule::SetUvsInfo(uint32_t &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
-                                         const std::vector<UbseUrmaInfo> &bondingInfo)
+                          const std::vector<UbseUrmaInfo> &bondingInfo)
 {
-    std::vector<UbcoreTopoNode> nodes;
-    auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "FillNodeComInfo failed";
-        return ret;
-    }
-    for (auto &node : nodes) {
-        if (node.id == current_slot_id) {
-            node.is_current = true;
-        }
-    }
-    ret = uvsSetTopoInfo(nodes.data(), nodes.size());
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
-        return ret;
-    }
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
+                                         const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
+{
     return UBSE_OK;
 }
 
