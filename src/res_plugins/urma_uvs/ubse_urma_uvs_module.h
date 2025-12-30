@@ -19,6 +19,7 @@
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
 #include "ubse_urma.h"
+#include "ubse_urma_uvs.h"
 
 namespace ubse::urma {
 using namespace ubse::common::def;
@@ -79,6 +80,9 @@ public:
     UbseResult SetUvsInfo(uint32_t &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
                           const std::vector<UbseUrmaInfo> &bondingInfo);
 
+    UbseResult SetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
+                              const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
+
     UbseResult GetNameByUrmaEid(const std::string &urmaEid, std::string &urmaEidName);
 
     UbseResult GetStateByUrmaEid(const std::string &urmaEid, bool isactivate);
@@ -93,7 +97,7 @@ private:
 
     UbseResult ParseColonHexString(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
 
-    void InitialTopoNodes(const std::set<uint32_t> slotIds, std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap);
+    void InitialTopoNodes(const std::set<uint32_t> slotIds, std::unordered_map<uint32_t, UbcoreTopoNode> &mp);
 
     UbseResult FillTopo(const std::vector<PhysicalLink> &allLinkInfo,
                         std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap);

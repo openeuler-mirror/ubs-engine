@@ -16,6 +16,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_topology_interface.h"
 #include "ubse_urma.h"
+#include "ubse_urma_uvs.h"
 
 namespace ubse::nodeController {
 using namespace ubse::common::def;
