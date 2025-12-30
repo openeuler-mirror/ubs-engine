@@ -189,12 +189,31 @@ struct UbseLcneBusInstanceInfo {
     std::string localNodeId; // 当前节点的nodeid（slotid）
 };
 
+enum class UbseLcneFeType {
+    PHYSICAL_TYPE = 0, // pfe0, 物理类型FE用于集群通信
+    VIRTUAL_TYPE = 1,  // vfe1, 虚拟类型VFE
+    BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示
+};
+
+struct UbseLcneEidGroup {
+    std::string primaryEid;
+    std::map<std::string, std::string> portEids;
+};
+
+struct UbseLcneFeInfo {
+    std::string slotId;
+    std::string ubpuId;
+    std::string iouId;
+    std::string entityId;
+    UbseLcneFeType fetype;
+    std::vector<UbseLcneEidGroup> eidGroups;
+};
+
 struct UbseQosProfile {
     std::string proflieName;
     uint32_t maxBandWidth;
     uint32_t minBandWidth;
 };
-
 /**
  * @brief 获取LCNE提供的本节点信息
  * @param [out] ubseNodeInfo: 当前节点信息

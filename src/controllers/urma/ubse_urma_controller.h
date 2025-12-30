@@ -16,7 +16,7 @@
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_error.h"
-#include "ubse_urma.h"
+#include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;

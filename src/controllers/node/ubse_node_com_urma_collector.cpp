@@ -71,44 +71,7 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
 
 UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLinkInfo)
 {
-    auto urmaUvsModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
-    if (urmaUvsModule == nullptr) {
-        UBSE_LOG_ERROR << "Get urma_uvs module failed. ";
-        return UBSE_ERROR;
-    }
-    uint32_t curNodeId;
-    UbseNodeInfo ubseNodeInfo = UbseNodeController::GetInstance().GetCurNode();
-    if (ubseNodeInfo.nodeId.empty() || ConvertStrToUint32(ubseNodeInfo.nodeId, curNodeId) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Current node id is empty.";
-        return UBSE_ERROR;
-    }
-
-    std::vector<UbseUrmaInfo> hostUrmaInfos;
-    auto ret = GetAllComUrma(hostUrmaInfos);
-    if (ret != UBSE_OK || hostUrmaInfos.empty()) {
-        UBSE_LOG_ERROR << "Get all com urma info failed.";
-        return ret;
-    }
-
-    ret = urmaUvsModule->SetUvsInfo(curNodeId, allLinkInfo, hostUrmaInfos);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Set urma_uvs failed.";
-        return ret;
-    }
-
-    if (comUrmaInfos[ubseNodeInfo.nodeId].name.empty()) {
-        ret = urmaUvsModule->ActivateBondingDevice(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Activate urmaDevEid=" << comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid << " failed.";
-        }
-        comUrmaInfos[ubseNodeInfo.nodeId].state = (ret == UBSE_OK) ? UrmaDevState::ACTIVED : UrmaDevState::INACTIVED;
-        ret = urmaUvsModule->GetNameByUrmaEid(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid,
-                                              comUrmaInfos[ubseNodeInfo.nodeId].name);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Get name by urmaDevEid=" << comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid << " failed.";
-        }
-    }
-    return ret;
+    return UBSE_OK;
 }
 
 UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaInfo> &hostUrmaInfos)

@@ -16,18 +16,16 @@
 #include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_logger_inner.h"    // for RM_LOG_ERROR
 #include "ubse_pointer_process.h" // for SafeDeleteArray
-#include "ubse_urma.h"
-#include "ubse_xml.h" // for UbseXml, UbseXmlError // for UbseByteBuffer
+#include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_LCNE_MID);
 using namespace common::def;
 using namespace ubse::http;
 using namespace ubse::mti;
-using namespace ubse::urma;
 using namespace ubse::log;
 
-UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseFeInfo> &allFeInfos)
+UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     /* 第一步先下发消息查询消息获取所有Vfe列表 */
     UbseHttpRequest req;
@@ -57,7 +55,7 @@ UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseFe
     /* 然后再下发消息更新vfe中的emid数据 */
     return UpdateVfeEid(iouInfo, allFeInfos);
 }
-UbseResult UbseLcneVfeEid::UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseFeInfo> &allFeInfos)
+UbseResult UbseLcneVfeEid::UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -81,7 +79,8 @@ UbseResult UbseLcneVfeEid::UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<Ubs
     }
     return ParseGetFeEidResponse(rsp.body, allFeInfos);
 }
-UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr, std::vector<UbseFeInfo> &allFeInfos)
+UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr,
+                                                  std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -119,12 +118,12 @@ UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr
             std::string ueIdlist = ubseXml->Text();
             std::vector<std::string> ueId = ueIdlistSplit(ueIdlist, " ");
             for (const auto &i : ueId) {
-                UbseFeInfo ubseFeInfo;
+                UbseLcneFeInfo ubseFeInfo;
                 ubseFeInfo.slotId = slotId;
                 ubseFeInfo.ubpuId = ubpuId;
                 ubseFeInfo.iouId = iouId;
                 ubseFeInfo.entityId = i;
-                ubseFeInfo.fetype = FeType::VIRTUAL_TYPE;
+                ubseFeInfo.fetype = UbseLcneFeType::VIRTUAL_TYPE;
                 allFeInfos.emplace_back(ubseFeInfo);
             }
             ubseXml->Previous();
@@ -149,7 +148,8 @@ std::vector<std::string> UbseLcneVfeEid::ueIdlistSplit(const std::string &str, c
     return tokens;
 }
 
-UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseFeInfo> &allFeInfos)
+UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
+                                                 std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -184,7 +184,7 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
     uint32_t i = 0;
     while (ubseXml->Next("urma-communication-entity-id", i) != nullptr) {
         std::string entityId = ubseXml->Child("entity-id")->Text();
-        UbseFeInfo *ubseFeInfo = FindVfeInVector(slotId, ubpuId, iouId, entityId, allFeInfos);
+        UbseLcneFeInfo *ubseFeInfo = FindVfeInVector(slotId, ubpuId, iouId, entityId, allFeInfos);
         if (ubseFeInfo != nullptr) {
             std::shared_ptr<UbseXml> ubseEidXml = ubseXml->Next("urma-communication-infos");
             uint32_t res = ParseFeEidXml(ubseEidXml, *ubseFeInfo);
@@ -199,7 +199,7 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
     return UBSE_OK;
 }
 
-UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseFeInfo &FeInfo)
+UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseLcneFeInfo &feInfo)
 {
     uint32_t i = 0;
     while (ubseEidXml->Next("urma-communication-info", i) != nullptr) {
@@ -209,6 +209,7 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
             continue;
         }
         std::string eid = ubseEidXml->Text();
+        UbseLcneEidGroup eidGroup;
         ubseEidXml->Previous();
         if (ubseEidXml->Next("port-group-id") != nullptr) {
             uint32_t portId;
@@ -219,7 +220,7 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
             } catch (const std::out_of_range &e) {
                 return UBSE_ERROR;
             }
-            FeInfo.primaryEid.insert({portId, eid});
+            eidGroup.primaryEid = eid;
             ubseEidXml->Previous();
         } else if (ubseEidXml->Next("interface-name") != nullptr) {
             std::string interfaceName = ubseEidXml->Text();
@@ -228,7 +229,7 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
             if (ret != UBSE_OK) {
                 return ret;
             }
-            FeInfo.portEidInfos.insert({portId, eid});
+            eidGroup.portEids.insert({std::to_string(portId), eid});
             ubseEidXml->Previous();
         } else {
             return UBSE_ERROR;
@@ -239,8 +240,8 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
     return UBSE_OK;
 }
 
-UbseFeInfo *UbseLcneVfeEid::FindVfeInVector(std::string slotId, std::string ubpuId, std::string iouId,
-                                            std::string entityId, std::vector<UbseFeInfo> &allFeInfos)
+UbseLcneFeInfo *UbseLcneVfeEid::FindVfeInVector(std::string slotId, std::string ubpuId, std::string iouId,
+                                                std::string entityId, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     for (auto &fe : allFeInfos) {
         if ((fe.slotId == slotId) && (fe.ubpuId == ubpuId) && (fe.iouId == iouId) && (fe.entityId == entityId)) {

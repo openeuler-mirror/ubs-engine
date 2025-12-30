@@ -17,14 +17,12 @@
 #include "ubse_http_common.h" // for UbseHttpMethod, UbseHttpResponse (ptr o...
 #include "ubse_lcne_def.h"    // for LcneServer
 #include "ubse_topology_interface.h"
-#include "ubse_urma.h"
 #include "ubse_xml.h"
 
 namespace ubse::lcne {
 using namespace common::def;
 using namespace ubse::http;
 using namespace ubse::mti;
-using namespace ubse::urma;
 using namespace ubse::utils;
 
 class UbseLcneVfeEid {
@@ -35,17 +33,17 @@ public:
         return instance;
     }
     // 发送请求
-    UbseResult GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseFeInfo> &allFeInfos);
+    UbseResult GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos);
 
 private:
     UbseLcneVfeEid(std::string host, int port) : host(std::move(host)), port(port) {}
-    UbseResult UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseFeInfo> &allFeInfos);
-    UbseResult ParseGetFeListResponse(const std::string &responseStr, std::vector<UbseFeInfo> &allFeInfos);
-    UbseResult ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseFeInfo> &allFeInfos);
-    UbseResult ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseFeInfo &FeInfo);
+    UbseResult UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos);
+    UbseResult ParseGetFeListResponse(const std::string &responseStr, std::vector<UbseLcneFeInfo> &allFeInfos);
+    UbseResult ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseLcneFeInfo> &allFeInfos);
+    UbseResult ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseLcneFeInfo &feInfo);
     std::vector<std::string> ueIdlistSplit(const std::string &str, const std::string &delimiter);
-    UbseFeInfo *FindVfeInVector(std::string slotId, std::string ubpuId, std::string iouId, std::string entityId,
-                                std::vector<UbseFeInfo> &allFeInfos);
+    UbseLcneFeInfo *FindVfeInVector(std::string slotId, std::string ubpuId, std::string iouId, std::string entityId,
+                                std::vector<UbseLcneFeInfo> &allFeInfos);
     UbseResult GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId);
     std::string host;
     int port;

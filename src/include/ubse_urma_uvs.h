@@ -10,19 +10,29 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_urma_controller_manager.h"
-#include "ubse_election.h"
+#ifndef UBSE_UVS_INTERFACE_H
+#define UBSE_UVS_INTERFACE_H
+#include <stdint.h>
+#include <map>
+#include <string> // for string, basic_string
+#include <vector>
 
-namespace ubse::urmaController {
-using namespace ubse::election;
+namespace ubse::urma {
+struct UbseUrmaUvsFe {
+    std::string ubpuId;
+    std::string primaryEid;
+    std::map<std::string, std::string> portEid;
+};
 
-UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfo(const std::string urmaName, UbseUrmaInfo &urmaInfo)
-{
-    /* 获取本节点信息 */
-    UbseRoleInfo currentNodeInfo{};
-    UbseGetCurrentNodeInfo(currentNodeInfo);
+struct UbseUrmaUvsAggrDev {
+    std::string urmaDevEid;
+    std::vector<UbseUrmaUvsFe> feList;
+};
 
-    return UBSE_ERROR;
+struct UbseUrmaUvsNodeInfo {
+    std::string nodeId;
+    std::vector<UbseUrmaUvsAggrDev> devList;
+};
 }
 
-} // namespace ubse::urmaController
+#endif // UBSE_UVS_INTERFACE_H

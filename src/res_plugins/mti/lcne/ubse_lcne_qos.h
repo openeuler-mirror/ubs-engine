@@ -19,11 +19,9 @@
 #include "ubse_common_def.h"  // for UbseResult
 #include "ubse_http_common.h" // for UbseHttpMethod, UbseHttpResponse (ptr o...
 #include "ubse_lcne_def.h"    // for LcneServer
-#include "ubse_urma.h"
 #include "ubse_topology_interface.h"
 
 namespace ubse::lcne {
-using namespace ubse::urma;
 using namespace common::def;
 using namespace ubse::http;
 using namespace ubse::mti;
@@ -43,16 +41,16 @@ public:
     /* 查询Qos Profile模板信息 */
     UbseResult QureyQosProfile(std::string proflieName, UbseQosProfile &ubseQosProfile);
     /* 应用Qos Profile到vfe上 */
-    UbseResult ApplyVfeQos(UbseFeInfo ubseFeInfo, std::string proflieName);
+    UbseResult ApplyVfeQos(UbseLcneFeInfo ubseFeInfo, std::string proflieName);
     /* 删除vfe上的Qos Profile */
-    UbseResult DeleteVfeQos(UbseFeInfo ubseFeInfo);
+    UbseResult DeleteVfeQos(UbseLcneFeInfo ubseFeInfo);
     /* 查询vfe上的Qos Profile */
-    UbseResult QueryVfeQos(UbseFeInfo ubseFeInfo, std::string &proflieName);
+    UbseResult QueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &proflieName);
 
 private:
     UbseLcneQos(std::string host, int port) : host(std::move(host)), port(port) {}
     UbseResult BuildQoSProfileXml(UbseQosProfile ubseQosProfile, std::string &xmlStr);
-    UbseResult BuildQoSXml(UbseFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr);
+    UbseResult BuildQoSXml(UbseLcneFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr);
     UbseResult ParseQosProfileResponse(std::string body, UbseQosProfile &ubseQosProfile);
     UbseResult ParseVfeQosResponse(std::string body, std::string &proflieName);
     std::string host;
