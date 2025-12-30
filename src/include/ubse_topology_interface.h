@@ -116,9 +116,16 @@ struct UbseLcnePortInfo {
 };
 
 struct UbseLcneSocketInfo {
+    std::string entityId;
     std::string primaryEid;                              // port-group-id 字段对应的 urma-eid
     std::map<std::string, UbseLcnePortInfo> portEidList; // 此处为由于框内通信端口的eid（feid最小的部分）
     // key为port-id
+};
+
+struct UbseLcneIouInfo {
+    std::string slotId;
+    std::string ubpuId;                              // port-group-id 字段对应的 urma-eid
+    std::string iouId;
 };
 
 struct IODieInfo {
@@ -179,14 +186,9 @@ struct UbseLcneOSInfo {
 // 查询节点物理上bus instance信息
 struct UbseLcneBusInstanceInfo {
     std::string hostBusinstanceEid;
-    std::string localNodeId;             // 当前节点的nodeid（slotid）
+    std::string localNodeId; // 当前节点的nodeid（slotid）
 };
 
-struct UbseLcneIouInfo {
-    std::string slotId;
-    std::string ubpuId;
-    std::string iouId;
-};
 /**
  * @brief 获取LCNE提供的本节点信息
  * @param [out] ubseNodeInfo: 当前节点信息

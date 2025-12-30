@@ -203,32 +203,35 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
 {
     uint32_t i = 0;
     while (ubseEidXml->Next("urma-communication-info", i) != nullptr) {
-        if (ubseEidXml->Next("urma-eid") != nullptr) {
-            std::string eid = ubseEidXml->Text();
-            ubseEidXml->Previous();
-            if (ubseEidXml->Next("port-group-id") != nullptr) {
-                uint32_t portId;
-                try {
-                    portId = std::stoul(ubseEidXml->Text());
-                } catch (const std::invalid_argument &e) {
-                    return UBSE_ERROR;
-                } catch (const std::out_of_range &e) {
-                    return UBSE_ERROR;
-                }
-                FeInfo.primaryEid.insert({portId, eid});
-                ubseEidXml->Previous();
-            } else if (ubseEidXml->Next("interface-name") != nullptr) {
-                std::string interfaceName = ubseEidXml->Text();
-                uint32_t portId;
-                auto ret = GetPortIdFromInterfaceName(interfaceName, portId);
-                if (ret != UBSE_OK) {
-                    return ret;
-                }
-                FeInfo.portEidInfos.insert({portId, eid});
-                ubseEidXml->Previous();
-            } else {
+        if (ubseEidXml->Next("urma-eid") == nullptr) {
+            i++;
+            ubseEidXml->Previous();            
+            continue;
+        }
+        std::string eid = ubseEidXml->Text();
+        ubseEidXml->Previous();
+        if (ubseEidXml->Next("port-group-id") != nullptr) {
+            uint32_t portId;
+            try {
+                portId = std::stoul(ubseEidXml->Text());
+            } catch (const std::invalid_argument &e) {
+                return UBSE_ERROR;
+            } catch (const std::out_of_range &e) {
                 return UBSE_ERROR;
             }
+            FeInfo.primaryEid.insert({portId, eid});
+            ubseEidXml->Previous();
+        } else if (ubseEidXml->Next("interface-name") != nullptr) {
+            std::string interfaceName = ubseEidXml->Text();
+            uint32_t portId;
+            auto ret = GetPortIdFromInterfaceName(interfaceName, portId);
+            if (ret != UBSE_OK) {
+                return ret;
+            }
+            FeInfo.portEidInfos.insert({portId, eid});
+            ubseEidXml->Previous();
+        } else {
+            return UBSE_ERROR;
         }
         i++;
         ubseEidXml->Previous();

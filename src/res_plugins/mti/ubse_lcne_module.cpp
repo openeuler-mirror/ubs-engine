@@ -110,12 +110,6 @@ UbseResult UbseLcneModule::Initialize()
         UBSE_LOG_ERROR << "[MTI] Failed to generate bonding eid.";
         return UBSE_ERROR;
     }
-    // 下发通信信息
-    ret = SetUvsComInfo();
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "[MTI] Failed to set topology information to urma.";
-        return UBSE_ERROR;
-    }
 
     return UBSE_OK;
 }

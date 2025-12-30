@@ -159,8 +159,8 @@ UbseResult UbseLcneQos::DeleteVfeQos(UbseFeInfo ubseFeInfo)
     UbseHttpRequest req;
     UbseHttpResponse rsp;
 
-    std::string profileApply = "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," +
-                               ubseFeInfo.ubpuId + "," + ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
+    std::string profileApply = "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+                               ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.method = "DELET";
     req.path = LCNE_QOS_URI + profileApply;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
@@ -186,8 +186,8 @@ UbseResult UbseLcneQos::QueryVfeQos(UbseFeInfo ubseFeInfo, std::string &proflieN
     UbseHttpResponse rsp;
 
     req.method = "GET";
-    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," +
-               ubseFeInfo.ubpuId + "," + ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
+    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+               ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
     req.headers.emplace("Content-Type", LCNE_QOS_CONTENT_TYPE);
 
@@ -321,7 +321,7 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseQosProfile
         return UBSE_ERROR;
     } catch (const std::out_of_range &e) {
         return UBSE_ERROR;
-    }    
+    }
     return UBSE_OK;
 }
 
