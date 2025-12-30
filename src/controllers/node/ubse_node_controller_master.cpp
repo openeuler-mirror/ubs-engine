@@ -658,6 +658,7 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
 
 void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string action)
 {
+    UBSE_LOG_INFO << "master notify action " << action << " to all nodes";
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     for (auto &node : nodeInfos) {
         const ubse::com::UbseComEndpoint endpoint{
@@ -669,7 +670,7 @@ void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string
         UbseSerialization outStream;
         outStream << nodeId << action;
         if (!outStream.Check()) {
-            UBSE_LOG_ERROR << "Failed to serialize node ID: " << nodeId;
+            UBSE_LOG_ERROR << "Failed to serialize node ID: " << nodeId << " and action: " << action;
             continue;
         }
         size_t size = outStream.GetLength();
@@ -681,12 +682,13 @@ void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string
         };
 
         auto dummyHandler = [](void* ctx, const UbseByteBuffer& buf, uint32_t ret) {
-            UBSE_LOG_DEBUG << "Received node join ack";
+            UBSE_LOG_DEBUG << "Received ack for notification";
         };
 
+        UBSE_LOG_INFO << "master notify action " << action << " to node " << node.first;
         auto ret = UbseRpcAsyncSend(endpoint, reqBuffer, nullptr, dummyHandler);
         if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to notify node " << node.first << ", error: " << ret;
+            UBSE_LOG_WARN << "Failed to notify node " << node.first << ", error: " << FormatRetCode(ret);
             continue;
         }
     }

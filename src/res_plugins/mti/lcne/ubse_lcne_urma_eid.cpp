@@ -158,7 +158,8 @@ UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string &responseS
     int staticUrmaEidsIndex = 0;
     while (ubseXml->Next("static-urma-eid", staticUrmaEidsIndex) != nullptr) {
         DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
-        if (socketInfoMap.find(devName) != socketInfoMap.end()) {
+        std::string entityId = ubseXml->Child("entity-id")->Text();
+        if (socketInfoMap.find(devName) != socketInfoMap.end() || ubseXml->Child("label")->Text() != "host-urma-entity") {
             ubseXml->Previous();
             staticUrmaEidsIndex++;
             continue;
@@ -168,6 +169,7 @@ UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string &responseS
             return UBSE_ERROR;
         }
         UbseLcneSocketInfo socketInfo{};
+        socketInfo.entityId = entityId;
         int urmaEidInfoIndex = 0;
         while (ubseXml->Next("urma-eid-info", urmaEidInfoIndex) != nullptr) {
             if (ubseXml->Next("physical-port") != nullptr) {

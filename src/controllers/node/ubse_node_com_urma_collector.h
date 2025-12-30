@@ -15,7 +15,6 @@
 #include "ubse_common_def.h"
 #include "ubse_node_controller.h"
 #include "ubse_topology_interface.h"
-#include "ubse_urma.h"
 #include "ubse_urma_uvs.h"
 
 namespace ubse::nodeController {
@@ -31,18 +30,19 @@ public:
         return instance;
     };
 
-    UbseResult GetAllComUrma(std::vector<UbseUrmaInfo> &hostUrmaInfos);
+    UbseResult GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo> &hostUrmaInfos);
 
     UbseResult FillComUrmaInfo();
 
-    UbseResult SetComUrma(std::vector<PhysicalLink> &allLinkInfo);
+    UbseResult SetComUrma(std::vector<PhysicalLink> &allLinkInfo, bool isBeforeElection);
 
     UbseResult GetCurNodeTopo(std::vector<PhysicalLink> &allLinkInfo);
 
     UbseResult GetCurNodeIouList(std::vector<UbseLcneIouInfo> &iouList);
 
 private:
-    std::map<std::string, UbseUrmaInfo> comUrmaInfos; // key=nodeid
+    std::map<std::string, UbseUrmaUvsAggrDev> comUrmaInfos;
+    std::map<std::string, bool> comUrmaIsActive;
 };
 
 } // namespace ubse::nodeController
