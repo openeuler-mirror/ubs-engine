@@ -21,12 +21,6 @@ UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfo(const std::string urma
     /* 获取本节点信息 */
     UbseRoleInfo currentNodeInfo{};
     UbseGetCurrentNodeInfo(currentNodeInfo);
-    for (auto i : urmaList) {
-        if ((urmaName == i.name) && (currentNodeInfo.nodeId == std::to_string(i.nodeId))) {
-            urmaInfo = i;
-            return UBSE_OK;
-        }
-    }
 
     return UBSE_ERROR;
 }

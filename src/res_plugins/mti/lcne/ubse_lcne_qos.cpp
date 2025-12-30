@@ -20,7 +20,6 @@ namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_LCNE_MID);
 using namespace ubse::log;
 using namespace ubse::utils;
-using namespace ubse::urma;
 
 const std::string LCNE_QOS_MODE = "dwrr";
 const std::string LCNE_QOS_URI = "/restconf/data/huawei-vbussw-service:"
@@ -124,7 +123,7 @@ UbseResult UbseLcneQos::QureyQosProfile(std::string proflieName, UbseQosProfile 
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::ApplyVfeQos(UbseFeInfo ubseFeInfo, std::string proflieName)
+UbseResult UbseLcneQos::ApplyVfeQos(UbseLcneFeInfo ubseFeInfo, std::string proflieName)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -154,13 +153,13 @@ UbseResult UbseLcneQos::ApplyVfeQos(UbseFeInfo ubseFeInfo, std::string proflieNa
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::DeleteVfeQos(UbseFeInfo ubseFeInfo)
+UbseResult UbseLcneQos::DeleteVfeQos(UbseLcneFeInfo ubseFeInfo)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
 
-    std::string profileApply = "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," +
-                               ubseFeInfo.ubpuId + "," + ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
+    std::string profileApply = "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+                               ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.method = "DELET";
     req.path = LCNE_QOS_URI + profileApply;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
@@ -180,14 +179,14 @@ UbseResult UbseLcneQos::DeleteVfeQos(UbseFeInfo ubseFeInfo)
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::QueryVfeQos(UbseFeInfo ubseFeInfo, std::string &proflieName)
+UbseResult UbseLcneQos::QueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &proflieName)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
 
     req.method = "GET";
-    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," +
-               ubseFeInfo.ubpuId + "," + ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
+    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+               ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
     req.headers.emplace("Content-Type", LCNE_QOS_CONTENT_TYPE);
 
@@ -260,7 +259,7 @@ UbseResult UbseLcneQos::BuildQoSProfileXml(UbseQosProfile ubseQosProfile, std::s
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::BuildQoSXml(UbseFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr)
+UbseResult UbseLcneQos::BuildQoSXml(UbseLcneFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -304,12 +303,24 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseQosProfile
         UBSE_LOG_ERROR << "[MTI] Xml parse cir failed.";
         return UBSE_ERROR;
     }
-    ubseQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    try {
+        ubseQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    } catch (const std::invalid_argument &e) {
+        return UBSE_ERROR;
+    } catch (const std::out_of_range &e) {
+        return UBSE_ERROR;
+    }
     if (ubseXml->Child("pir") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse pir failed.";
         return UBSE_ERROR;
     }
-    ubseQosProfile.maxBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    try {
+        ubseQosProfile.maxBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+    } catch (const std::invalid_argument &e) {
+        return UBSE_ERROR;
+    } catch (const std::out_of_range &e) {
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 
