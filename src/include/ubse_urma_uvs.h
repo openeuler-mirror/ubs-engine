@@ -35,4 +35,4 @@ struct UbseUrmaUvsNodeInfo {
 };
 }
 
-#endif //UBSE_UVS_INTERFACE_H
+#endif // UBSE_UVS_INTERFACE_H
