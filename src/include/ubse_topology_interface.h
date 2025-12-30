@@ -209,6 +209,11 @@ struct UbseLcneFeInfo {
     std::vector<UbseLcneEidGroup> eidGroups;
 };
 
+struct UbseQosProfile {
+    std::string proflieName;
+    uint32_t maxBandWidth;
+    uint32_t minBandWidth;
+};
 /**
  * @brief 获取LCNE提供的本节点信息
  * @param [out] ubseNodeInfo: 当前节点信息

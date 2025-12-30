@@ -17,7 +17,7 @@
 #include "ubse_com.h"
 #include "ubse_com_base.h"
 #include "ubse_error.h"
-#include "ubse_urma.h"
+#include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
 using namespace ubse::com;

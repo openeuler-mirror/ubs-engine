@@ -16,8 +16,9 @@
 #include "ubse_context.h"
 #include "ubse_logger_inner.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_urma.h"
 #include "ubse_urma_controller_manager.h"
+#include "ubse_urma_def.h"
+#include "ubse_topology_interface.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -26,6 +27,7 @@ using namespace ubse::lcne;
 using namespace ubse::com;
 using namespace ubse::urma;
 using namespace ubse::task_executor;
+using namespace ubse::mti;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
@@ -49,7 +51,7 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
     }
 
     /* 创建profile */
-    UbseQosProfile ubseQosProfile;
+    ubse::mti::UbseQosProfile ubseQosProfile;
     const std::string profileName = "Profile_" + urmaName;
     ubseQosProfile.proflieName = profileName;
     ubseQosProfile.minBandWidth = minBandWidth;
@@ -61,8 +63,9 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
     }
 
     /* 对Fe下发Qos带宽 */
-    for (auto i : urmaInfo.feInfoLists) {
-        ret = UbseLcneQos::GetInstance().ApplyVfeQos(i, profileName);
+    for (auto i : urmaInfo.eidGroups) {
+        UbseLcneFeInfo lcneFeInfo;
+        ret = UbseLcneQos::GetInstance().ApplyVfeQos(lcneFeInfo, profileName);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "UbseLcneQos::ApplyVfeQos failed";
             return UBSE_ERROR_SRCH;
@@ -74,7 +77,7 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
 UbseResult UrmaController::UbseUrmaBandWidthGet(const std::string urmaName, uint32_t &minBandWidth,
                                                 uint32_t &maxBandWidth)
 {
-    UbseQosProfile ubseQosProfile;
+    ubse::mti::UbseQosProfile ubseQosProfile;
     UBSE_LOG_INFO << "UbseUrmaBandWidthGet Start," << urmaName;
     const std::string profileName = "Profile_" + urmaName;
     uint32_t ret = UbseLcneQos::GetInstance().QureyQosProfile(profileName, ubseQosProfile);
@@ -103,9 +106,9 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
                        << (uint32_t)urmaInfo.urmaDevType;
         return UBSE_ERROR_SRCH;
     }
-    for (auto i : urmaInfo.feInfoLists) {
-        UbseFeInfo ubseFeInfo;
-        ret = UbseLcneQos::GetInstance().DeleteVfeQos(i);
+    for (auto i : urmaInfo.eidGroups) {
+        UbseLcneFeInfo lcneFeInfo;
+        ret = UbseLcneQos::GetInstance().DeleteVfeQos(lcneFeInfo);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "UbseLcneQos::DeleteVfeQos failed.";
             return UBSE_ERROR_SRCH;
@@ -133,7 +136,7 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
         }
     }
     /* 先查询是否存在对应的Qos配置，没有则返回成功 */
-    UbseQosProfile ubseQosProfile;
+    ubse::mti::UbseQosProfile ubseQosProfile;
     const std::string profileName = "Profile_" + urmaName;
     ret = UbseLcneQos::GetInstance().QureyQosProfile(profileName, ubseQosProfile);
     if (ret != UBSE_OK) {
@@ -142,9 +145,10 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
     }
     /* 接下来遍历该urma下的Fe是否都生效了该proflie配置 */
     bool isNeedUpdate = false;
-    for (auto i : urmaInfo.feInfoLists) {
+    for (auto i : urmaInfo.eidGroups) {
         std::string vfeProfileName;
-        ret = UbseLcneQos::GetInstance().QueryVfeQos(i, vfeProfileName);
+        UbseLcneFeInfo lcneFeInfo;
+        ret = UbseLcneQos::GetInstance().QueryVfeQos(lcneFeInfo, vfeProfileName);
         if ((ret != UBSE_OK) || (vfeProfileName != profileName)) {
             isNeedUpdate = true;
             break;
@@ -154,8 +158,9 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
         return;
     }
     /* 先删除VFE上面所有的生效Qos，然后再删除profile */
-    for (auto i : urmaInfo.feInfoLists) {
-        UbseLcneQos::GetInstance().DeleteVfeQos(i);
+    for (auto i : urmaInfo.eidGroups) {
+        UbseLcneFeInfo lcneFeInfo;
+        UbseLcneQos::GetInstance().DeleteVfeQos(lcneFeInfo);
     }
     UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
     return;

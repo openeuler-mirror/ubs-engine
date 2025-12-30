@@ -13,7 +13,6 @@
 #include "ubse_cli_urma_cmd_reg.h"
 #include <netinet/in.h>
 #include <securec.h>
-#include "ubse_urma.h"
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
