@@ -50,12 +50,9 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
         socketComEid.first.SplitDevName(nodeId, socketId);
 
         UbseFeInfo fe{};
-        if (ConvertStrToUint32(nodeId, fe.slotId) != UBSE_OK && ConvertStrToUint32(socketId, fe.ubpuId) != UBSE_OK &&
-            ConvertStrToUint32(socketComEid.second.entityId, fe.entityId) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to convert nodeId=" << nodeId << ", socketId=" << socketId
-                           << ", entityId=" << socketComEid.second.entityId;
-            return UBSE_ERROR;
-        }
+        fe.slotId = nodeId;
+        fe.ubpuId = socketId;
+        fe.entityId = socketComEid.second.entityId;
         fe.iouId = 1;
         fe.fetype = FeType::PHYSICAL_TYPE;
         fe.primaryEid[0] = socketComEid.second.primaryEid;
