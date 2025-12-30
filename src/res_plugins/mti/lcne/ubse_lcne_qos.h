@@ -20,11 +20,13 @@
 #include "ubse_http_common.h" // for UbseHttpMethod, UbseHttpResponse (ptr o...
 #include "ubse_lcne_def.h"    // for LcneServer
 #include "ubse_urma.h"
+#include "ubse_topology_interface.h"
 
 namespace ubse::lcne {
 using namespace ubse::urma;
 using namespace common::def;
 using namespace ubse::http;
+using namespace ubse::mti;
 
 class UbseLcneQos {
 public:

@@ -205,7 +205,7 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
     while (ubseEidXml->Next("urma-communication-info", i) != nullptr) {
         if (ubseEidXml->Next("urma-eid") == nullptr) {
             i++;
-            ubseEidXml->Previous();            
+            ubseEidXml->Previous();
             continue;
         }
         std::string eid = ubseEidXml->Text();

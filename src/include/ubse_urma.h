@@ -19,11 +19,6 @@
 #include <vector>
 
 namespace ubse::urma {
-struct UbseQosProfile {
-    std::string proflieName;
-    uint32_t maxBandWidth;
-    uint32_t minBandWidth;
-};
 
 enum class UrmaDevType {
     UNIQUE = 0,
