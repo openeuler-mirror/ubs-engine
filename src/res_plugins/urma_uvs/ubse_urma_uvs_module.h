@@ -97,7 +97,8 @@ private:
 
     UbseResult ParseColonHexString(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
 
-    void InitialTopoNodes(const std::set<std::string> slotIds, std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
+    void InitialTopoNodes(const std::set<std::string> slotIds, 
+                          std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 
     UbseResult FillTopo(const std::vector<PhysicalLink> &allLinkInfo,
                         std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);

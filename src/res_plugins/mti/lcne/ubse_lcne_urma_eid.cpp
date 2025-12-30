@@ -159,7 +159,7 @@ UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string &responseS
     while (ubseXml->Next("static-urma-eid", staticUrmaEidsIndex) != nullptr) {
         DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
         std::string entityId = ubseXml->Child("entity-id")->Text();
-        if (socketInfoMap.find(devName) != socketInfoMap.end() || ubseXml->Child("label")->Text() != "host-urma-entity") {
+        if (ubseXml->Child("label")->Text() != "host-urma-entity") {
             ubseXml->Previous();
             staticUrmaEidsIndex++;
             continue;
