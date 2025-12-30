@@ -184,17 +184,6 @@ UbseResult GetSlotIds(const std::vector<UbseUrmaInfo> &bondingInfo, std::set<uin
     if (bondingInfo.empty()) {
         return UBSE_ERROR;
     }
-    for (auto &info : bondingInfo) {
-        if (info.feInfoLists.size() > 0) {
-            slotIds.insert(info.feInfoLists[0].slotId);
-        }
-    }
-    std::ostringstream oss;
-    oss << "Found " << slotIds.size() << " slots, includes: ";
-    for (auto &id : slotIds) {
-        oss << id << " ";
-    }
-    UBSE_LOG_DEBUG << oss.str();
     return UBSE_OK;
 }
 
@@ -286,33 +275,6 @@ UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkI
 
 UbseResult UbseUrmaUvsModule::FillFeInfo(std::vector<UbseFeInfo> &fes, UbcoreTopoAggrDev &aggr_dev)
 {
-    auto fe_num = fes.size();
-    if (fe_num == 0) {
-        UBSE_LOG_ERROR << "No fe info found";
-        return UBSE_ERROR;
-    }
-    if (fe_num > IODIE_NUM) {
-        UBSE_LOG_ERROR << "Too many fe in one aggr_device";
-        return UBSE_ERROR;
-    }
-    for (size_t i = 0; i < fe_num; i++) {
-        aggr_dev.fe[i].socket_id = fes[i].ubpuId;
-        for (auto &primaryEid : fes[i].primaryEid) {
-            auto ret = ParseColonHexString(primaryEid.second, aggr_dev.fe[i].primary_eid);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to parse urmaEid=" << primaryEid.second;
-                return ret;
-            }
-            break;
-        }
-        for (auto &port : fes[i].portEidInfos) {
-            auto ret = ParseColonHexString(port.second, aggr_dev.fe[i].port_eid[port.first]);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to parse urmaEid=" << fes[i].primaryEid[1];
-                return ret;
-            }
-        }
-    }
     return UBSE_OK;
 }
 
@@ -325,16 +287,6 @@ UbseResult UbseUrmaUvsModule::FillBondingInfo(const std::vector<UbseUrmaInfo> &b
     }
 
     std::unordered_map<uint32_t, std::vector<UbseUrmaInfo>> nodebondingInfos;
-    for (auto &info : bondingInfo) {
-        if (info.feInfoLists.empty()) {
-            return UBSE_ERROR;
-        }
-        uint32_t slotId = info.feInfoLists[0].slotId;
-        if (nodeMap.find(slotId) == nodeMap.end()) {
-            return UBSE_ERROR;
-        }
-        nodebondingInfos[slotId].push_back(info);
-    }
 
     for (auto &info : nodebondingInfos) {
         uint32_t bondingDevSize = info.second.size();
