@@ -33,6 +33,6 @@ public:
     void Stop() override;
 };
 
-} // namespace ubse::urmaControllerModule
+} // namespace ubse::urmaController
 
 #endif // UBSE_URMA_CONTROLLER_MODULE_H

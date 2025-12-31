@@ -11,14 +11,19 @@
  */
 
 #include "ubse_urma_controller.h"
+#include "lcne/ubse_lcne_vfe_eid.h"
 #include "src/res_plugins/mti/lcne/ubse_lcne_qos.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_logger_inner.h"
+#include "ubse_node_com_urma_collector.h"
+#include "ubse_node_controller.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_topology_interface.h"
 #include "ubse_urma_controller_manager.h"
+#include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_def.h"
+#include "ubse_urma_uvs_module.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -28,6 +33,7 @@ using namespace ubse::com;
 using namespace ubse::urma;
 using namespace ubse::task_executor;
 using namespace ubse::mti;
+using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
@@ -182,6 +188,76 @@ UbseResult UrmaController::UbseTopoLinkChangeHandler(std::string &eventId, const
     return UBSE_OK;
 }
 
+void UrmaController::DoTopoLinkChange()
+{
+    // 计算所有port是否都中断
+    auto curNode = UbseNodeController::GetInstance().GetCurNode();
+    std::vector<PhysicalLink> allLinkInfo;
+    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node topology, ret=" << ret;
+        return;
+    }
+    bool isAllPortDown = std::all_of(allLinkInfo.begin(), allLinkInfo.end(), [&curNode](const auto &linkInfo) {
+        return linkInfo.slotId != curNode.slotId && linkInfo.peerSlotId != curNode.slotId;
+    });
+    if (isAllPortDown) {
+        // 将该节点的所有urmaInfo状态改成Inactive
+        UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
+    }
+    // 下发所有节点拓扑及所有urmaInfo
+    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+    UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
+    auto uvsModule = ubse::context::UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
+    if (auto ret = uvsModule->SetUvsInfo(curNode.nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
+    }
+}
+
+void UrmaController::DoNodeJoin()
+{
+    // 计算所有port是否都中断
+    auto curNode = UbseNodeController::GetInstance().GetCurNode();
+    std::vector<PhysicalLink> allLinkInfo;
+    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node topology, ret=" << ret;
+        return;
+    }
+    bool isAllPortDown = std::all_of(allLinkInfo.begin(), allLinkInfo.end(), [&curNode](const auto &linkInfo) {
+        return linkInfo.slotId != curNode.slotId && linkInfo.peerSlotId != curNode.slotId;
+    });
+    // 向mti查询本节点所有vfe对应静态urma eid
+    std::vector<UbseLcneIouInfo> iouList;
+    std::vector<UbseLcneFeInfo> allFeInfos;
+    if (UbseNodeComUrmaCollector::GetInstance().GetCurNodeIouList(iouList) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node IOU list";
+        return;
+    }
+    for (auto &iou : iouList) {
+        std::vector<UbseLcneFeInfo> tmpFeInfos;
+        if (UbseLcneVfeEid::GetInstance().GetVfeEid(iou, tmpFeInfos) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
+            return;
+        }
+        allFeInfos.insert(allFeInfos.end(), tmpFeInfos.begin(), tmpFeInfos.end());
+    }
+
+    if (UbseUrmaControllerManager::GetInstance().ConstructNewUrmaInfo(curNode.nodeId, allFeInfos) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to insert new bounding info";
+        return;
+    }
+    if (isAllPortDown) {
+        // 将该节点的所有urmaInfo状态改成Inactive
+        UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
+    }
+    // 向master节点上报本节点nodeInfo
+    if (auto ret = ReportUrmaNodeInfoToMaster(curNode.nodeId,
+                                              UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId));
+        ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to report urma node info to master, " << FormatRetCode(ret);
+        return;
+    }
+}
+
 UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage)
 {
     // 这里要切一个线程,避免耗时操作阻塞事件回调
@@ -199,13 +275,15 @@ UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::
     return UBSE_OK;
 }
 
-void UrmaController::DoTopoLinkChange() {}
-
-void UrmaController::DoNodeJoin() {}
-
 std::vector<ubse::nodeController::PhysicalLink> UrmaController::GetDirConnectInfo()
 {
-    return std::vector<ubse::nodeController::PhysicalLink>();
+    std::vector<ubse::nodeController::PhysicalLink> allLinkInfo;
+    auto allLink = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+    allLinkInfo.reserve(allLink.size());
+    for (const auto &link : allLink) {
+        allLinkInfo.emplace_back(std::move(link.second));
+    }
+    return allLinkInfo;
 }
 
 } // namespace ubse::urmaController

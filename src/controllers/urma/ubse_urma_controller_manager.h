@@ -70,6 +70,7 @@ public:
     void UbseUrmaBandwidthInit(const std::string &nodeId, const std::function<void(const std::string)> &initFunc);
 
     static std::string GetVfeInfoKey(const ubse::urma::def::UbseFeInfo &info);
+    static std::shared_ptr<ubse::urma::def::UbseFeInfo> GetUrmaVfeFromEidGroup(ubse::urma::def::EidGroup &eidGroup);
 
 private:
     void CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &urmaId, const std::string &devEid,
