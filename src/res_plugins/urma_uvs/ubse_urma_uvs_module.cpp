@@ -99,6 +99,22 @@ UbseResult UbseUrmaUvsModule::SetUvsInfo(uint32_t &current_slot_id, const std::v
 UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
                                          const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
 {
+    std::vector<UbcoreTopoNode> nodes;
+    auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FillNodeComInfo failed";
+        return ret;
+    }
+    for (auto &node : nodes) {
+        if (std::to_string(node.id) == current_slot_id) {
+            node.is_current = true;
+        }
+    }
+    ret = uvsSetTopoInfo(nodes.data(), nodes.size());
+    if (UBSE_RESULT_FAIL(ret)) {
+        UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
+        return ret;
+    }
     return UBSE_OK;
 }
 
@@ -171,29 +187,38 @@ UbseResult UbseUrmaUvsModule::DeactivateBondingDevice(const std::string &urmaEid
     return UBSE_OK;
 }
 
-UbseResult GetSlotIds(const std::vector<UbseUrmaInfo> &bondingInfo, std::set<uint32_t> slotIds)
+UbseResult GetSlotIds(const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::set<std::string> slotIds)
 {
     if (bondingInfo.empty()) {
         return UBSE_ERROR;
     }
+    for (auto &info : bondingInfo) {
+        slotIds.insert(info.nodeId);
+    }
+    std::ostringstream oss;
+    oss << "Found " << slotIds.size() << " slots, includes: ";
+    for (auto &id : slotIds) {
+        oss << id << " ";
+    }
+    UBSE_LOG_DEBUG << oss.str();
     return UBSE_OK;
 }
 
 UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
-                                              const std::vector<UbseUrmaInfo> &bondingInfo,
+                                              const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo,
                                               std::vector<UbcoreTopoNode> &nodes)
 {
     nodes.clear();
-    std::set<uint32_t> slotIds;
+    std::set<std::string> slotIds;
     auto ret = GetSlotIds(bondingInfo, slotIds);
-    if (ret != UBSE_OK) {
+    if (ret != UBSE_OK || slotIds.empty()) {
         UBSE_LOG_ERROR << "Failed to get slotIds";
         return ret;
     }
 
-    std::unordered_map<uint32_t, UbcoreTopoNode> nodeMap;
+    std::unordered_map<std::string, UbcoreTopoNode> nodeMap;
     // 每个 slot 构建一个 UbcoreTopoNode
-    InitialTopoNodes(slotIds, nodeMap);
+    InitialNodes(slotIds, nodeMap);
     // 填充每个 node 的链路信息（根据 PhysicalLink）
     ret = FillTopo(allLinkInfo, nodeMap);
     if (ret != UBSE_OK) {
@@ -206,6 +231,7 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
         UBSE_LOG_ERROR << "Failed to fill bondingInfo";
         return ret;
     }
+    UBSE_LOG_INFO << "Found " << slotIds.size() << " nodes, and successfully filled uvs data";
 
     nodes.reserve(nodeMap.size());
     for (auto &pair : nodeMap) {
@@ -214,13 +240,16 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
     return UBSE_OK;
 }
 
-void UbseUrmaUvsModule::InitialTopoNodes(const std::set<uint32_t> slotIds,
-                                         std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
+void UbseUrmaUvsModule::InitialNodes(const std::set<std::string> slotIds,
+                                     std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
     nodeMap.clear();
     for (auto &id : slotIds) {
         UbcoreTopoNode node{};
-        node.id = id;
+        auto ret = ConvertStrToUint32(id, node.id);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to convert " << id << " to uint32";
+        }
         node.is_current = false;
 
         for (uint32_t i_iodie = 0; i_iodie < IODIE_NUM; i_iodie++) {
@@ -235,15 +264,17 @@ void UbseUrmaUvsModule::InitialTopoNodes(const std::set<uint32_t> slotIds,
 }
 
 UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkInfo,
-                                       std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
+                                       std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
     if (allLinkInfo.size() == 0) {
         UBSE_LOG_INFO << "No link info found";
         return UBSE_OK;
     }
     for (const auto &topo : allLinkInfo) {
-        if (nodeMap.find(topo.slotId) == nodeMap.end() || nodeMap.find(topo.peerSlotId) == nodeMap.end()) {
-            UBSE_LOG_ERROR << "Failed to find node id " << topo.slotId << " or peer slotId " << topo.peerSlotId
+        std::string curSlotId = std::to_string(topo.slotId);
+        std::string peerSlotId = std::to_string(topo.peerSlotId);
+        if (nodeMap.find(curSlotId) == nodeMap.end() || nodeMap.find(peerSlotId) == nodeMap.end()) {
+            UBSE_LOG_ERROR << "Failed to find slotId " << curSlotId << " or peer slotId " << peerSlotId
                            << " in nodes";
             return UBSE_ERROR;
         }
@@ -254,48 +285,80 @@ UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkI
             topo.peerPortId >= PORT_NUM) {
             return UBSE_ERROR;
         }
-        nodeMap[topo.slotId].link[iodie_idx][topo.portId].peer_node = topo.peerSlotId;
-        nodeMap[topo.slotId].link[iodie_idx][topo.portId].peer_iodie = peer_iodie_idx;
-        nodeMap[topo.slotId].link[iodie_idx][topo.portId].peer_port = topo.peerPortId;
+        nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_node = topo.peerSlotId;
+        nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_iodie = peer_iodie_idx;
+        nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_port = topo.peerPortId;
 
-        nodeMap[topo.peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_node = topo.slotId;
-        nodeMap[topo.peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_iodie = iodie_idx;
-        nodeMap[topo.peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_port = topo.portId;
+        nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_node = topo.slotId;
+        nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_iodie = iodie_idx;
+        nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_port = topo.portId;
     }
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaUvsModule::FillFeInfo(std::vector<UbseFeInfo> &fes, UbcoreTopoAggrDev &aggr_dev)
+UbseResult UbseUrmaUvsModule::FillFeInfo(const std::vector<UbseUrmaUvsFe> &fes, UbcoreTopoAggrDev &aggr_dev)
 {
+    auto fe_num = fes.size();
+    if (fe_num == 0) {
+        UBSE_LOG_ERROR << "No fe info found";
+        return UBSE_ERROR;
+    }
+    if (fe_num > IODIE_NUM) {
+        UBSE_LOG_ERROR << "Too many fe in one aggr_device";
+        return UBSE_ERROR;
+    }
+    for (size_t i = 0; i < fe_num; i++) {
+        auto ret = ConvertStrToUint32(fes[i].ubpuId, aggr_dev.fe[i].socket_id);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Convert socket_id failed, " << FormatRetCode(ret);
+            return ret;
+        }
+        ret = ParseColonHexString(fes[i].primaryEid, aggr_dev.fe[i].primary_eid);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to parse primaryEid=" << fes[i].primaryEid;
+            return ret;
+        }
+        for (auto &port : fes[i].portEid) {
+            uint32_t portId;
+            ret = ConvertStrToUint32(port.first, portId);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Convert socket_id failed, " << FormatRetCode(ret);
+                return ret;
+            }
+            auto ret = ParseColonHexString(port.second, aggr_dev.fe[i].port_eid[portId]);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Failed to parse portEid=" << port.second;
+                return ret;
+            }
+        }
+    }
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaUvsModule::FillBondingInfo(const std::vector<UbseUrmaInfo> &bondingInfo,
-                                              std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap)
+UbseResult UbseUrmaUvsModule::FillBondingInfo(const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo,
+                                              std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
     if (bondingInfo.empty()) {
         UBSE_LOG_ERROR << "No bonding info found";
         return UBSE_ERROR;
     }
 
-    std::unordered_map<uint32_t, std::vector<UbseUrmaInfo>> nodebondingInfos;
-
-    for (auto &info : nodebondingInfos) {
-        uint32_t bondingDevSize = info.second.size();
+    for (auto &info : bondingInfo) {
+        uint32_t bondingDevSize = info.devList.size();
         if (bondingDevSize > DEV_NUM) {
             UBSE_LOG_ERROR << "aggr_device num exceeded";
             return UBSE_ERROR;
         }
 
         for (size_t i = 0; i < bondingDevSize; i++) {
-            auto ret = ParseColonHexString(info.second[i].urmaDevEid, nodeMap[info.first].aggr_dev[i].aggr_eid);
+            auto ret = ParseColonHexString(info.devList[i].urmaDevEid, nodeMap[info.nodeId].aggr_dev[i].aggr_eid);
             if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to parse bondingEid=" << info.second[i].urmaDevEid;
+                UBSE_LOG_ERROR << "Failed to parse bondingEid=" << info.devList[i].urmaDevEid;
                 return ret;
             }
-            ret = FillFeInfo(info.second[i].feInfoLists, nodeMap[info.first].aggr_dev[i]);
+            ret = FillFeInfo(info.devList[i].feList, nodeMap[info.nodeId].aggr_dev[i]);
             if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to fill fe info for aggr_device=" << info.second[i].name;
+                UBSE_LOG_ERROR << "Failed to fill fe info for aggr_device.";
                 return ret;
             }
         }

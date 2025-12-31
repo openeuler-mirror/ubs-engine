@@ -590,6 +590,7 @@ UbseResult SetUrmaUvs(bool isBeforeElection = false)
             UBSE_LOG_ERROR << "fill com urma info failed";
             return ret;
         }
+        UBSE_LOG_INFO << "fill cur node topo and urma device success, set to urma uvs first time";
     } else {
         std::map<std::string, PhysicalLink> connectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
         if (connectInfo.empty()) {
@@ -599,8 +600,9 @@ UbseResult SetUrmaUvs(bool isBeforeElection = false)
         for (const auto &entry : connectInfo) {
             links.push_back(entry.second);
         }
+        UBSE_LOG_INFO << "get cur node topo success, update urma uvs";
     }
-    auto ret = UbseNodeComUrmaCollector::GetInstance().SetComUrma(links);
+    auto ret = UbseNodeComUrmaCollector::GetInstance().SetComUrma(links, isBeforeElection);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "set to urma uvs failed, ret=" << FormatRetCode(ret);
     }

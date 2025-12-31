@@ -93,21 +93,19 @@ public:
 
 private:
     UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
-                               const std::vector<UbseUrmaInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
+                               const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
 
     UbseResult ParseColonHexString(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
 
-    void InitialTopoNodes(const std::set<uint32_t> slotIds, std::unordered_map<uint32_t, UbcoreTopoNode> &mp);
+    void InitialNodes(const std::set<std::string> slotIds, std::unordered_map<std::string, UbcoreTopoNode> &mp);
 
     UbseResult FillTopo(const std::vector<PhysicalLink> &allLinkInfo,
-                        std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap);
+                        std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 
-    UbseResult FillBondingInfo(const std::vector<UbseUrmaInfo> &bondingInfo,
-                               std::unordered_map<uint32_t, UbcoreTopoNode> &nodeMap);
+    UbseResult FillBondingInfo(const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo,
+                               std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 
-    UbseResult FillFeInfo(std::vector<UbseFeInfo> &fes, UbcoreTopoAggrDev &aggr_dev);
-
-    UbseResult FillFeUrmaEid(UbseUrmaInfo &urmainfo, UbcoreTopoFe &fe);
+    UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe> &fes, UbcoreTopoAggrDev &aggr_dev);
 
     void Cleanup();
 
