@@ -70,7 +70,6 @@ void UbseUrmaUvsModule::UnInitialize()
     Cleanup();
 }
 
-
 UbseResult UbseUrmaUvsModule::Start()
 {
     return UBSE_OK;
@@ -88,12 +87,6 @@ void UbseUrmaUvsModule::Cleanup()
         uvsCreateAggrDev = nullptr;
         uvsDeleteAggrDev = nullptr;
     }
-}
-
-UbseResult UbseUrmaUvsModule::SetUvsInfo(uint32_t &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
-                                         const std::vector<UbseUrmaInfo> &bondingInfo)
-{
-    return UBSE_OK;
 }
 
 UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
@@ -274,8 +267,7 @@ UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkI
         std::string curSlotId = std::to_string(topo.slotId);
         std::string peerSlotId = std::to_string(topo.peerSlotId);
         if (nodeMap.find(curSlotId) == nodeMap.end() || nodeMap.find(peerSlotId) == nodeMap.end()) {
-            UBSE_LOG_ERROR << "Failed to find slotId " << curSlotId << " or peer slotId " << peerSlotId
-                           << " in nodes";
+            UBSE_LOG_ERROR << "Failed to find slotId " << curSlotId << " or peer slotId " << peerSlotId << " in nodes";
             return UBSE_ERROR;
         }
 
