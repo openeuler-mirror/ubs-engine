@@ -11,12 +11,26 @@
  */
 
 #include "ubse_urma_controller_manager.h"
+#include <cstdint>
+#include "securec.h"
 #include "ubse_election.h"
+#include "ubse_lcne_module.h"
+#include "ubse_logger_module.h"
+#include "ubse_node_controller.h"
+#include "ubse_str_util.h"
 
 namespace ubse::urmaController {
 using namespace ubse::election;
+using namespace ubse::common::def;
+using namespace ubse::log;
+using namespace ubse::nodeController;
+using namespace ubse::utils;
+using namespace ubse::mti;
 
-UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfo(const std::string urmaName, UbseUrmaInfo &urmaInfo)
+UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
+
+UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfo(const std::string &urmaName,
+                                                          ubse::urma::def::UbseUrmaInfo &urmaInfo)
 {
     /* 获取本节点信息 */
     UbseRoleInfo currentNodeInfo{};
@@ -25,4 +39,395 @@ UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfo(const std::string urma
     return UBSE_ERROR;
 }
 
+UbseResult UbseUrmaControllerManager::GetFeInfoByNodeId(const std::string &nodeId,
+                                                        std::vector<ubse::urma::def::UbseFeInfo> &feInfos)
+{
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
+        return UBSE_MASTER_EMPTY_VECTOR_ERROR;
+    }
+    for (auto &urmaInfo : nodeInfos[nodeId].urmaList) {
+        for (auto &eidGroup : urmaInfo.second.eidGroups) {
+            if (eidGroup.feInfo) {
+                feInfos.push_back(*(eidGroup.feInfo));
+            }
+        }
+    }
+    return UBSE_OK;
+}
+
+bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId)
+{
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    auto ret = nodeInfos.find(nodeId) != nodeInfos.end();
+    return ret;
+}
+
+std::vector<std::string> UbseUrmaControllerManager::GetEmptyNodeInfo()
+{
+    std::vector<UbseRoleInfo> allNodeList;
+    UbseGetAllNodeInfos(allNodeList);
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    std::vector<std::string> res{};
+    for (auto info : allNodeList) {
+        if (nodeInfos.find(info.nodeId) == nodeInfos.end()) {
+            res.push_back(info.nodeId);
+        }
+    }
+    return res;
+}
+
+UbseResult UbseUrmaControllerManager::GetUrmaNameByType(const ubse::urma::def::UrmaDevType type,
+                                                        std::vector<std::string> &boundingName,
+                                                        std::vector<uint32_t> &status)
+{
+    UbseRoleInfo currentNodeInfo{};
+    UbseGetCurrentNodeInfo(currentNodeInfo);
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
+        if (info.second.urmaDevType == type) {
+            boundingName.push_back(info.second.subPath);
+            status.push_back(static_cast<uint32_t>(info.second.state));
+        }
+    }
+
+    return UBSE_OK;
+}
+
+std::string UbseUrmaControllerManager::GetVfeInfoKey(const ubse::urma::def::UbseFeInfo &info)
+{
+    return info.slotId + "_" + info.ubpuId + "_" + info.iouId + "_" + info.entityId;
+}
+
+UbseResult UbseUrmaControllerManager::GetVfeByUrmaName(const std::string &urmaName,
+                                                       std::vector<ubse::urma::def::UbseFeInfo> &feInfos)
+{
+    UbseRoleInfo currentNodeInfo{};
+    auto ret = UbseGetCurrentNodeInfo(currentNodeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node info";
+        return ret;
+    }
+    std::set<std::string> feInfoKeys;
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
+        if (info.second.subPath != urmaName) {
+            continue;
+        }
+        for (auto &eidGroup : info.second.eidGroups) {
+            if (eidGroup.feInfo == nullptr) {
+                continue;
+            }
+            ubse::urma::def::UbseFeInfo info = *(eidGroup.feInfo);
+            std::string key = UbseUrmaControllerManager::GetVfeInfoKey(info);
+            if (feInfoKeys.find(key) == feInfoKeys.end()) {
+                feInfoKeys.insert(key);
+                feInfos.push_back(info);
+            }
+        }
+        break;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::AllocByUrmaName(const std::string &urmaName, std::vector<std::string> &feNames,
+                                                      std::string &eid)
+{
+    UbseRoleInfo currentNodeInfo{};
+    UbseGetCurrentNodeInfo(currentNodeInfo);
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
+        return UBSE_ERROR;
+    }
+    for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
+        if (info.second.subPath != urmaName) {
+            continue;
+        }
+        eid = info.second.urmaDevEid;
+        for (auto &eidGroup : info.second.eidGroups) {
+            feNames.push_back(eidGroup.feInfo->name);
+        }
+        break;
+    }
+    return UBSE_OK;
+}
+
+void UbseUrmaControllerManager::SetActiveState(const std::string &name, const std::string &nodeId)
+{
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
+        return;
+    }
+    for (auto &info : nodeInfos[nodeId].urmaList) {
+        if (info.second.subPath == name && info.second.state == ubse::urma::def::UrmaDevState::UNKNOWN) {
+            info.second.state = ubse::urma::def::UrmaDevState::ACTIVED;
+            break;
+        }
+    }
+    return;
+}
+
+void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const ubse::urma::def::UrmaDevType type,
+                                                          std::vector<UbseUrmaInfoForQuery> &devInfos)
+{
+    UbseRoleInfo currentNodeInfo{};
+    UbseGetCurrentNodeInfo(currentNodeInfo);
+    const size_t feCntPerUrmaInfo = 2;
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    for (auto info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
+        if (info.second.urmaDevType == type) {
+            UbseUrmaInfoForQuery urmaInfo;
+            urmaInfo.bondingName = info.second.subPath;
+            if (info.second.eidGroups.size() != feCntPerUrmaInfo) {
+                continue;
+            }
+            urmaInfo.fe1Name = info.second.eidGroups[0].feInfo->name;
+            urmaInfo.fe2Name = info.second.eidGroups[1].feInfo->name;
+            urmaInfo.state = info.second.state;
+            devInfos.push_back(urmaInfo);
+        }
+    }
+}
+
+UbseResult UbseUrmaControllerManager::GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos)
+{
+    for (auto nodeInfo : nodeInfos) {
+        UbseUrmaUvsNodeInfo tmpUvsInfo;
+        tmpUvsInfo.nodeId = nodeInfo.second.nodeId;
+        for (auto urmaInfo : nodeInfo.second.urmaList) {
+            UbseUrmaUvsAggrDev dev;
+            dev.urmaDevEid = urmaInfo.second.urmaDevEid;
+
+            for (auto group : urmaInfo.second.eidGroups) {
+                UbseUrmaUvsFe feInfo;
+                feInfo.ubpuId = group.feInfo->ubpuId;
+                feInfo.primaryEid = group.primaryEid;
+                feInfo.portEid = group.portEids;
+                dev.feList.push_back(feInfo);
+            }
+        }
+    }
+    return UBSE_OK;
+}
+
+void UbseUrmaControllerManager::SetFeName(const std::string feEid, const std::string &urmaEidName)
+{
+    rwLock.LockWrite();
+    auto SetNameIfEidEqual = [&feEid, &urmaEidName](ubse::urma::def::EidGroup &eidGroup) {
+        if (eidGroup.primaryEid == feEid && eidGroup.feInfo != nullptr) {
+            eidGroup.feInfo->name = urmaEidName;
+        }
+    };
+    auto travelAllEidGroups = [&SetNameIfEidEqual](ubse::urma::def::UbseUrmaNodeInfo &nodeInfo) {
+        for (auto &info : nodeInfo.urmaList) {
+            for (auto &eidGroup : info.second.eidGroups) {
+                SetNameIfEidEqual(eidGroup);
+            }
+        }
+    };
+    for (auto &nodeInfo : nodeInfos) {
+        travelAllEidGroups(nodeInfo.second);
+    }
+    rwLock.UnLock();
+}
+
+UbseResult GenerateUrmaDevEid(const UbseLcneFeInfo &info, std::string &devEid)
+{
+    unsigned char bondingEid[IPV6_BYTE_COUNT];
+    uint32_t cpySegCnt = 0;
+    uint32_t slotId = 0;
+    uint32_t ubpuId = 0;
+    uint32_t iouId = 0;
+    uint32_t entityId = 0;
+    if (ConvertStrToUint32(info.slotId, slotId) != UBSE_OK || ConvertStrToUint32(info.ubpuId, ubpuId) != UBSE_OK ||
+        ConvertStrToUint32(info.iouId, iouId) != UBSE_OK || ConvertStrToUint32(info.entityId, entityId) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to convert slotId=" << info.slotId;
+        return UBSE_ERROR;
+    }
+
+    auto ret =
+        memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &slotId, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &ubpuId, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &iouId, IPV6_SEGMENT_LENGTH);
+    ret |=
+        memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &entityId, IPV6_SEGMENT_LENGTH);
+    if (ret != EOK) {
+        UBSE_LOG_ERROR << "Failed to generate bonding eid, ret=" << ret;
+        return UBSE_ERROR;
+    }
+    devEid = std::string(bondingEid, bondingEid + IPV6_BYTE_COUNT);
+    return UBSE_OK;
+}
+
+struct UbseFeInfoCmp {
+    bool operator()(const UbseLcneFeInfo &left, const UbseLcneFeInfo &right) const
+    {
+        if (left.slotId != right.slotId) {
+            return left.slotId < right.slotId;
+        }
+        if (left.ubpuId != right.ubpuId) {
+            return left.ubpuId < right.ubpuId;
+        }
+        if (left.iouId != right.iouId) {
+            return left.iouId < right.iouId;
+        }
+        return left.entityId < right.entityId;
+    }
+};
+
+constexpr size_t UBPU_BOUNDARY_CNT = 2; // 一个slot只有两个chip
+UbseResult FindTwoUbpuBoundaries(std::vector<UbseLcneFeInfo> &feInfos, std::pair<size_t, size_t> &boundaries)
+{
+    if (feInfos.size() < UBPU_BOUNDARY_CNT) {
+        UBSE_LOG_ERROR << "Not enough feInfos to find two ubpu boundaries";
+        return UBSE_ERROR;
+    }
+    // 假设slot_id相同，先按UbseFeInfoCmp对feInfos排序，便于按ubpuId分组
+    std::sort(feInfos.begin(), feInfos.end(), UbseFeInfoCmp());
+    auto ubpu0 = feInfos[0].ubpuId;
+    auto ubpuEndIt0 = std::partition_point(feInfos.begin(), feInfos.end(),
+                                           [ubpu0](const UbseLcneFeInfo &fe) { return fe.ubpuId == ubpu0; });
+    size_t ubpuEnd0 = std::distance(feInfos.begin(), ubpuEndIt0); // 第一个非 ubpu0 的索引
+    if (ubpuEnd0 == feInfos.size()) {
+        UBSE_LOG_ERROR << "Only one ubpuId found, ubpuId=" << ubpu0;
+        return UBSE_ERROR;
+    }
+    auto ubpu1 = feInfos[ubpuEnd0].ubpuId;
+    auto ubpuEndIt1 = std::partition_point(ubpuEndIt0, feInfos.end(),
+                                           [ubpu1](const UbseLcneFeInfo &fe) { return fe.ubpuId == ubpu1; });
+    size_t ubpuEnd1 = std::distance(feInfos.begin(), ubpuEndIt1); // 第一个非 ubpu1 的索引
+    if (ubpuEnd1 != feInfos.size()) {
+        // 出现第三种ubpuId，为保持鲁棒性，仅日志警告
+        UBSE_LOG_WARN << "More than two ubpuId found, ubpuId=" << feInfos[ubpuEnd1].ubpuId;
+    }
+    UBSE_LOG_INFO << "ubpu0=" << ubpu0 << " end_idx=" << ubpuEnd0 << ", ubpu1=" << ubpu1 << " end_idx=" << ubpuEnd1;
+    boundaries = std::make_pair(ubpuEnd0, ubpuEnd1);
+    return UBSE_OK;
+}
+
+bool UbseUrmaControllerManager::IsUrmaIdExists(const std::string &nodeId, const std::string &urmaId)
+{
+    return nodeInfos.find(nodeId) != nodeInfos.end() &&
+           nodeInfos[nodeId].urmaList.find(urmaId) != nodeInfos[nodeId].urmaList.end();
+}
+
+void UbseUrmaControllerManager::InsertNewNodeInfo(const std::string &nodeId,
+                                                  ubse::urma::def::UbseUrmaNodeInfo &insertNodeInfo)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    nodeInfos[nodeId] = std::move(insertNodeInfo);
+}
+
+const std::map<UbseLcneFeType, ubse::urma::def::FeType> g_LcneFeTypeToUrmaFeTypeMap = {
+    {UbseLcneFeType::PHYSICAL_TYPE, ubse::urma::def::FeType::PHYSICAL_TYPE},
+    {UbseLcneFeType::VIRTUAL_TYPE, ubse::urma::def::FeType::VIRTUAL_TYPE},
+    {UbseLcneFeType::BUTT_TYPE, ubse::urma::def::FeType::BUTT_TYPE}};
+
+ubse::urma::def::FeType ConvertLcneFeTypeToUrmaFeType(const UbseLcneFeType &lcneFeType)
+{
+    auto it = g_LcneFeTypeToUrmaFeTypeMap.find(lcneFeType);
+    if (it != g_LcneFeTypeToUrmaFeTypeMap.end()) {
+        return it->second;
+    }
+    return ubse::urma::def::FeType::BUTT_TYPE;
+}
+
+void UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &urmaId,
+                                                        const std::string &devEid, UbseLcneFeInfo &lcneFe0,
+                                                        UbseLcneFeInfo &lcneFe1)
+{
+    auto urmaFe0 = std::make_shared<ubse::urma::def::UbseFeInfo>(
+        ubse::urma::def::UbseFeInfo{.slotId = lcneFe0.slotId,
+                                    .ubpuId = lcneFe0.ubpuId,
+                                    .iouId = lcneFe0.iouId,
+                                    .entityId = lcneFe0.entityId,
+                                    .fetype = ConvertLcneFeTypeToUrmaFeType(lcneFe0.fetype)});
+    auto urmaFe1 = std::make_shared<ubse::urma::def::UbseFeInfo>(
+        ubse::urma::def::UbseFeInfo{.slotId = lcneFe1.slotId,
+                                    .ubpuId = lcneFe1.ubpuId,
+                                    .iouId = lcneFe1.iouId,
+                                    .entityId = lcneFe1.entityId,
+                                    .fetype = ConvertLcneFeTypeToUrmaFeType(lcneFe1.fetype)});
+    if (!urmaFe0 || !urmaFe1) {
+        UBSE_LOG_ERROR << "Failed to allocate memory for UbseFeInfo";
+        return;
+    }
+    ubse::urma::def::UbseUrmaInfo urmaInfo{.urmaDevEid = devEid,
+                                           .urmaDevType = ubse::urma::def::UrmaDevType::UNIQUE,
+                                           .state = ubse::urma::def::UrmaDevState::UNKNOWN};
+    for (auto &lcneEidGroup : lcneFe0.eidGroups) {
+        ubse::urma::def::EidGroup group{
+            .primaryEid = lcneEidGroup.primaryEid, .portEids = std::move(lcneEidGroup.portEids), .feInfo = urmaFe0};
+        urmaInfo.eidGroups.push_back(group);
+    }
+    for (auto &lcneEidGroup : lcneFe1.eidGroups) {
+        ubse::urma::def::EidGroup group{
+            .primaryEid = lcneEidGroup.primaryEid, .portEids = std::move(lcneEidGroup.portEids), .feInfo = urmaFe1};
+        urmaInfo.eidGroups.push_back(group);
+    }
+    nodeInfos[nodeId].urmaList[urmaId] = urmaInfo;
+}
+
+UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &nodeId,
+                                                           std::vector<UbseLcneFeInfo> &feInfos)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    UBSE_LOG_INFO << "Begin to construct new bounding info for nodeId=" << nodeId;
+    // 根据ubpuId将feInfos划分成两个连续的区域，取得每部分的结束下标
+    std::pair<size_t, size_t> boundaries;
+    if (FindTwoUbpuBoundaries(feInfos, boundaries) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to find two ubpu boundaries";
+        return UBSE_ERROR;
+    }
+    // 每次从两个区域各取一个fe组成bonding
+    size_t ubpuEnd0 = boundaries.first;
+    size_t ubpuEnd1 = boundaries.second;
+    size_t maxBoundingCnt = std::min(ubpuEnd0, ubpuEnd1 - ubpuEnd0);
+    for (size_t i = 0; i < maxBoundingCnt; ++i) {
+        UbseLcneFeInfo &lcneFe0 = feInfos[i];
+        UbseLcneFeInfo &lcneFe1 = feInfos[ubpuEnd0 + i];
+        // 使用第一个fe生成devEid、urmaId
+        std::string urmaId = "urma_" + lcneFe0.iouId + "_" + lcneFe0.entityId;
+        std::string devEid;
+        if (GenerateUrmaDevEid(lcneFe0, devEid) != UBSE_OK || IsUrmaIdExists(nodeId, urmaId)) {
+            continue;
+        }
+        CreateAndInsertUrmaInfo(nodeId, urmaId, devEid, lcneFe0, lcneFe1);
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &nodeId,
+                                                           std::vector<UbseLcneFeInfo> &&feInfos)
+{
+    return ConstructNewUrmaInfo(nodeId, feInfos);
+}
+
+void UbseUrmaControllerManager::SetAllUrmaInfoToInactiveForNode(const std::string &nodeId)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    auto nodeInfo = nodeInfos[nodeId];
+    for (auto &urmaInfo : nodeInfo.urmaList) {
+        urmaInfo.second.state = ubse::urma::def::UrmaDevState::INACTIVED;
+    }
+}
+
+ubse::urma::def::UbseUrmaNodeInfo UbseUrmaControllerManager::GetUrmaNodeInfo(const std::string &nodeId)
+{
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    return nodeInfos[nodeId];
+}
+
+void UbseUrmaControllerManager::UbseUrmaBandwidthInit(const std::string &nodeId,
+                                                      const std::function<void(const std::string)> &initFunc)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    auto nodeInfo = nodeInfos[nodeId];
+    for (const auto &urmaInfoPair : nodeInfo.urmaList) { // check
+        initFunc(urmaInfoPair.second.subPath);
+    }
+}
 } // namespace ubse::urmaController

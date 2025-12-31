@@ -16,9 +16,9 @@
 #include "ubse_context.h"
 #include "ubse_logger_inner.h"
 #include "ubse_thread_pool_module.h"
+#include "ubse_topology_interface.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_def.h"
-#include "ubse_topology_interface.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -37,19 +37,18 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
     UBSE_LOG_INFO << "UbseUrmaBandWidthSet Start," << urmaName << ", minBandWidth=" << minBandWidth
                   << ", maxBandWidth=" << maxBandWidth;
     /* 从urma名获取urma信息，如果找不到返回错误码UBS_ENGINE_ERR_NOT_EXIST */
-    UbseUrmaInfo urmaInfo;
+    def::UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetLocalUrmaDevInfo failed, urmaName =" << urmaName;
         return UBSE_ERROR_SRCH;
     }
     /* 判断是否独享类型，不是返回不支持 */
-    if (urmaInfo.urmaDevType != UrmaDevType::UNIQUE) {
+    if (urmaInfo.urmaDevType != def::UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthSet failed, urmaDevType ="
                        << (uint32_t)urmaInfo.urmaDevType;
         return UBSE_ERROR_SRCH;
     }
-
     /* 创建profile */
     ubse::mti::UbseQosProfile ubseQosProfile;
     const std::string profileName = "Profile_" + urmaName;
@@ -94,14 +93,14 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
 {
     UBSE_LOG_INFO << "UbseUrmaBandWidthReset Start," << urmaName;
     /* 从urma名获取urma信息，如果找不到返回错误码UBS_ENGINE_ERR_NOT_EXIST */
-    UbseUrmaInfo urmaInfo;
+    def::UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetLocalUrmaDevInfo failed, urmaName =" << urmaName;
         return UBSE_ERROR_SRCH;
     }
     /* 判断是否独享类型，不是返回不支持 */
-    if (urmaInfo.urmaDevType != UrmaDevType::UNIQUE) {
+    if (urmaInfo.urmaDevType != def::UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthReset failed, urmaDevType ="
                        << (uint32_t)urmaInfo.urmaDevType;
         return UBSE_ERROR_SRCH;
@@ -127,7 +126,7 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
 void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
 {
     UBSE_LOG_INFO << "UbseUrmaBandWidthUpdate Start," << urmaName;
-    UbseUrmaInfo urmaInfo;
+    def::UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     {
         if (ret != UBSE_OK) {
@@ -164,6 +163,49 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
     }
     UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
     return;
+}
+
+UbseResult UrmaController::UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMesage)
+{
+    // 这里要切一个线程,避免耗时操作阻塞事件回调
+    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto urmaExecutor = taskExecutor->Get("UrmaExecutor");
+    if (urmaExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor for urma failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    urmaExecutor->Execute([]() { return UrmaController::GetInstance().DoTopoLinkChange(); });
+    return UBSE_OK;
+}
+
+UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage)
+{
+    // 这里要切一个线程,避免耗时操作阻塞事件回调
+    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto urmaExecutor = taskExecutor->Get("UrmaExecutor");
+    if (urmaExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor for urma failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    urmaExecutor->Execute([]() { return UrmaController::GetInstance().DoNodeJoin(); });
+    return UBSE_OK;
+}
+
+void UrmaController::DoTopoLinkChange() {}
+
+void UrmaController::DoNodeJoin() {}
+
+std::vector<ubse::nodeController::PhysicalLink> UrmaController::GetDirConnectInfo()
+{
+    return std::vector<ubse::nodeController::PhysicalLink>();
 }
 
 } // namespace ubse::urmaController
