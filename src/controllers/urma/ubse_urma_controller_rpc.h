@@ -238,7 +238,7 @@ struct UrmaQueryReq {
 };
 
 struct UrmaQueryRsp {
-    std::vector<UbseFeInfo> devInfo;
+    UbseUrmaNodeInfo nodeInfo;
 };
 
 class UbseUrmaQueryReqSimpo : public UbseBaseMessage {

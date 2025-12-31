@@ -18,6 +18,7 @@
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_node_com_urma_collector.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_controller.h"
@@ -275,14 +276,36 @@ UbseResult DoRpcQuery(const UbseRoleInfo &roleInfo, const std::string &dstId)
     UrmaQueryReq req{dstId};
     request->SetUrmaQueryReq(req);
     auto ret = comModule->RpcSend(sendParam, request, response);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Do rpc query failed.";
+    if (ret != UBSE_OK || response->GetErrCode() != UBSE_OK) {
+        UBSE_LOG_ERROR << "Do rpc query failed, ret=" << ret << ", response code=" << response->GetErrCode();
         return ret;
     }
-    // check
+    auto rsp = response->GetUbseUrmaQueryRsp();
+    UbseUrmaControllerManager::GetInstance().InsertNewNodeInfo(dstId, rsp.nodeInfo);
     return UBSE_OK;
 }
 
+void ActivateBondingDevice(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos, UbseRoleInfo &roleInfo)
+{
+    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
+    if (urmaModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
+        return;
+    }
+    for (auto devInfo : uvsInfos) {
+        for (auto dev : devInfo.devList) {
+            auto res = urmaModule->ActivateBondingDevice(dev.urmaDevEid);
+            if (res == UBSE_OK) {
+                UbseUrmaControllerManager::GetInstance().SetActiveState(dev.urmaDevEid, roleInfo.nodeId);
+            }
+            for (auto feInfo : dev.feList) {
+                std::string urmaEidName;
+                urmaModule->GetNameByUrmaEid(feInfo.primaryEid, urmaEidName);
+                UbseUrmaControllerManager::GetInstance().SetFeName(feInfo.primaryEid, urmaEidName);
+            }
+        }
+    }
+}
 UbseResult DoQueryInfo(const std::string &dstId)
 {
     UbseRoleInfo roleInfo;
@@ -299,36 +322,31 @@ UbseResult DoQueryInfo(const std::string &dstId)
         UBSE_LOG_ERROR << "Getting UrmaModule failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseGetCurrentNodeInfo(roleInfo);
-    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-    UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
-    auto allLinkInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo(); // check
+    if (UbseGetCurrentNodeInfo(roleInfo) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node info.";
+        return UBSE_ERROR;
+    }
+    std::vector<PhysicalLink> allLinkInfo;
+    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node topology, ret=" << ret;
+        return ret;
+    }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     bool isAllPortDown = std::all_of(allLinkInfo.begin(), allLinkInfo.end(), [&curNode](const auto &linkInfo) {
-        return linkInfo.second.slotId != curNode.slotId && linkInfo.second.peerSlotId != curNode.slotId;
+        return linkInfo.slotId != curNode.slotId && linkInfo.peerSlotId != curNode.slotId;
     });
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
-    std::vector<PhysicalLink> reqVec;
-    for (auto &linkInfo : allLinkInfo) {
-        reqVec.push_back(linkInfo.second);
+    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+    UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
+    auto ret = urmaModule->SetUvsInfo(roleInfo.nodeId, UrmaController::GetInstance().GetDirConnectInfo(), uvsInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
+        return ret;
     }
-    auto ret = urmaModule->SetUvsInfo(roleInfo.nodeId, reqVec, uvsInfos);
-    for (auto devInfo : uvsInfos) {
-        for (auto dev : devInfo.devList) {
-            auto res = urmaModule->ActivateBondingDevice(dev.urmaDevEid);
-            if (res == UBSE_OK) {
-                UbseUrmaControllerManager::GetInstance().SetActiveState(dev.urmaDevEid, roleInfo.nodeId);
-            }
-            for (auto feInfo : dev.feList) {
-                std::string urmaEidName;
-                urmaModule->GetNameByUrmaEid(feInfo.primaryEid, urmaEidName);
-                UbseUrmaControllerManager::GetInstance().SetFeName(feInfo.primaryEid, urmaEidName);
-            }
-        }
-    }
+    ActivateBondingDevice(uvsInfos, roleInfo);
     // check
     return UBSE_OK;
 }
@@ -401,6 +419,7 @@ UbseResult UbseUrmaQueryReqSimpo::Deserialize()
 UbseResult UbseUrmaQueryRspSimpo::Serialize()
 {
     UbseSerialization out;
+    out << rsp.nodeInfo;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Failed to serialize urma fe infos";
         return UBSE_ERROR;
@@ -417,6 +436,7 @@ UbseResult UbseUrmaQueryRspSimpo::Deserialize()
         return UBSE_ERROR;
     }
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
+    in >> rsp.nodeInfo;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to deserilize urma fe infos";
         return UBSE_ERROR;
@@ -429,10 +449,10 @@ UbseResult UbseUrmaQueryMessageHandler::Handle(const UbseBaseMessagePtr &req, co
 {
     auto request = UbseBaseMessage::DeConvert<UbseUrmaQueryReqSimpo>(req);
     auto response = UbseBaseMessage::DeConvert<UbseUrmaQueryRspSimpo>(rsp);
-    std::vector<UbseFeInfo> feInfos{};
-    UbseUrmaControllerManager::GetInstance().GetFeInfoByNodeId(request->GetUrmaQueryReq().nodeId, feInfos);
-    UrmaQueryRsp newRsp{.devInfo = std::move(feInfos)};
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(request->GetUrmaQueryReq().nodeId);
+    UrmaQueryRsp newRsp{.nodeInfo = std::move(nodeInfo)};
     response->SetUbseQueryRsp(newRsp);
+    response->SetErrCode(UBSE_OK);
     return UBSE_OK;
 }
 
@@ -569,7 +589,7 @@ UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, UbseUrmaNodeInf
         return UBSE_ERROR;
     }
     ReportUrmaNodeInfoReq nodeInfoReq{.nodeId = nodeId, .urmaNodeInfo = std::move(nodeInfo)};
-    req->SetUbseUrmaNodeInfo(nodeInfoReq);
+    req->SetUbseUrmaNodeInfo(std::move(nodeInfoReq));
     UbseRoleInfo masterInfo{};
     if (auto ret = UbseGetMasterInfo(masterInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get master info, " << FormatRetCode(ret);

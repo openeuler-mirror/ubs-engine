@@ -122,6 +122,11 @@ std::string UbseUrmaControllerManager::GetVfeInfoKey(const UbseFeInfo &info)
     return info.slotId + "_" + info.ubpuId + "_" + info.iouId + "_" + info.entityId;
 }
 
+std::string UbseUrmaControllerManager::GetVfeInfoKey(const UbseLcneFeInfo &info)
+{
+    return info.slotId + "_" + info.ubpuId + "_" + info.iouId + "_" + info.entityId;
+}
+
 UbseResult UbseUrmaControllerManager::GetVfeByUrmaName(const std::string &urmaName, std::vector<UbseFeInfo> &feInfos)
 {
     UbseRoleInfo currentNodeInfo{};
@@ -259,26 +264,35 @@ void UbseUrmaControllerManager::SetFeName(const std::string feEid, const std::st
     rwLock.UnLock();
 }
 
-UbseResult GenerateUrmaDevEid(const UbseLcneFeInfo &info, std::string &devEid)
+UbseResult UbseUrmaControllerManager::GenerateUrmaDevEid(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1,
+                                                         std::string &devEid)
 {
     unsigned char bondingEid[IPV6_BYTE_COUNT];
-    uint32_t cpySegCnt = 0;
     uint32_t slotId = 0;
-    uint32_t ubpuId = 0;
-    uint32_t iouId = 0;
-    uint32_t entityId = 0;
-    if (ConvertStrToUint32(info.slotId, slotId) != UBSE_OK || ConvertStrToUint32(info.ubpuId, ubpuId) != UBSE_OK ||
-        ConvertStrToUint32(info.iouId, iouId) != UBSE_OK || ConvertStrToUint32(info.entityId, entityId) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to convert slotId=" << info.slotId;
+    if (ConvertStrToUint32(fe0.slotId, slotId) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to convert slotId=" << fe0.slotId;
         return UBSE_ERROR;
     }
+    // 获取两个fe的id，再根据id创建eid
+    auto feKey0 = GetVfeInfoKey(fe0);
+    auto feKey1 = GetVfeInfoKey(fe1);
+    if (feIdMap.find(feKey0) == feIdMap.end()) {
+        feIdMap[feKey0] = GenerateUniqueFeId();
+    }
+    if (feIdMap.find(feKey1) == feIdMap.end()) {
+        feIdMap[feKey1] = GenerateUniqueFeId();
+    }
+    uint32_t fe0Id = feIdMap[feKey0];
+    uint32_t fe1Id = feIdMap[feKey1];
+    uint32_t copyCnt = 0;
+    uint32_t padding = 0;
 
+    // [slotId, fe0Id, fe1Id, 0000]，每个字段占32位
     auto ret =
-        memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &slotId, IPV6_SEGMENT_LENGTH);
-    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &ubpuId, IPV6_SEGMENT_LENGTH);
-    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &iouId, IPV6_SEGMENT_LENGTH);
-    ret |=
-        memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * cpySegCnt++, IPV6_SEGMENT_LENGTH, &entityId, IPV6_SEGMENT_LENGTH);
+        memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &slotId, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &fe0Id, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &fe1Id, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &padding, IPV6_SEGMENT_LENGTH);
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Failed to generate bonding eid, ret=" << ret;
         return UBSE_ERROR;
@@ -333,10 +347,10 @@ UbseResult FindTwoUbpuBoundaries(std::vector<UbseLcneFeInfo> &feInfos, std::pair
     return UBSE_OK;
 }
 
-bool UbseUrmaControllerManager::IsUrmaIdExists(const std::string &nodeId, const std::string &urmaId)
+bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId, const std::string &devEid)
 {
-    return nodeInfos.find(nodeId) != nodeInfos.end() &&
-           nodeInfos[nodeId].urmaList.find(urmaId) != nodeInfos[nodeId].urmaList.end();
+    return std::any_of(nodeInfos[nodeId].urmaList.begin(), nodeInfos[nodeId].urmaList.end(),
+                       [&devEid](const auto &urmaInfo) { return urmaInfo.second.urmaDevEid == devEid; });
 }
 
 void UbseUrmaControllerManager::InsertNewNodeInfo(const std::string &nodeId, UbseUrmaNodeInfo &insertNodeInfo)
@@ -359,9 +373,8 @@ FeType ConvertLcneFeTypeToUrmaFeType(const UbseLcneFeType &lcneFeType)
     return FeType::BUTT_TYPE;
 }
 
-void UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &urmaId,
-                                                        const std::string &devEid, UbseLcneFeInfo &lcneFe0,
-                                                        UbseLcneFeInfo &lcneFe1)
+void UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid,
+                                                        UbseLcneFeInfo &lcneFe0, UbseLcneFeInfo &lcneFe1)
 {
     auto urmaFe0 = std::make_shared<UbseFeInfo>(UbseFeInfo{.slotId = lcneFe0.slotId,
                                                            .ubpuId = lcneFe0.ubpuId,
@@ -390,7 +403,18 @@ void UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeI
                     .portEids = std::move(lcneFe1.eidGroups[0].portEids),
                     .feInfo = urmaFe1};
     urmaInfo.eidGroups.push_back(group1);
+    std::string urmaId = "urma_" + std::to_string(GenerateUrmaId());
     nodeInfos[nodeId].urmaList[urmaId] = urmaInfo;
+}
+
+uint32_t UbseUrmaControllerManager::GenerateUniqueFeId()
+{
+    return ++globalFeId;
+}
+
+uint64_t UbseUrmaControllerManager::GenerateUrmaId()
+{
+    return ++globalUrmaId;
 }
 
 UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &nodeId,
@@ -411,13 +435,12 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
     for (size_t i = 0; i < maxBoundingCnt; ++i) {
         UbseLcneFeInfo &lcneFe0 = feInfos[i];
         UbseLcneFeInfo &lcneFe1 = feInfos[ubpuEnd0 + i];
-        // 使用第一个fe生成devEid、urmaId
-        std::string urmaId = "urma_" + lcneFe0.iouId + "_" + lcneFe0.entityId;
+        // 使用第一个fe生成devEid
         std::string devEid;
-        if (GenerateUrmaDevEid(lcneFe0, devEid) != UBSE_OK || IsUrmaIdExists(nodeId, urmaId)) {
+        if (GenerateUrmaDevEid(lcneFe0, lcneFe1, devEid) != UBSE_OK || IsUrmaInfoExists(nodeId, devEid)) {
             continue;
         }
-        CreateAndInsertUrmaInfo(nodeId, urmaId, devEid, lcneFe0, lcneFe1);
+        CreateAndInsertUrmaInfo(nodeId, devEid, lcneFe0, lcneFe1);
     }
     return UBSE_OK;
 }
