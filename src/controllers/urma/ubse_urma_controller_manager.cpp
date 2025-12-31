@@ -64,6 +64,14 @@ bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId)
     return ret;
 }
 
+std::shared_ptr<ubse::urma::def::UbseFeInfo> GetUrmaVfeFromEidGroup(ubse::urma::def::EidGroup &eidGroup)
+{
+    if (eidGroup.feInfo) {
+        return eidGroup.feInfo;
+    }
+    return nullptr;
+}
+
 std::vector<std::string> UbseUrmaControllerManager::GetEmptyNodeInfo()
 {
     std::vector<UbseRoleInfo> allNodeList;
@@ -358,16 +366,18 @@ void UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeI
     ubse::urma::def::UbseUrmaInfo urmaInfo{.urmaDevEid = devEid,
                                            .urmaDevType = ubse::urma::def::UrmaDevType::UNIQUE,
                                            .state = ubse::urma::def::UrmaDevState::UNKNOWN};
-    for (auto &lcneEidGroup : lcneFe0.eidGroups) {
-        ubse::urma::def::EidGroup group{
-            .primaryEid = lcneEidGroup.primaryEid, .portEids = std::move(lcneEidGroup.portEids), .feInfo = urmaFe0};
-        urmaInfo.eidGroups.push_back(group);
+    if (lcneFe0.eidGroups.size() < 1 || lcneFe1.eidGroups.size() < 1) {
+        return;
     }
-    for (auto &lcneEidGroup : lcneFe1.eidGroups) {
-        ubse::urma::def::EidGroup group{
-            .primaryEid = lcneEidGroup.primaryEid, .portEids = std::move(lcneEidGroup.portEids), .feInfo = urmaFe1};
-        urmaInfo.eidGroups.push_back(group);
-    }
+    // 当前仅支持独享urmaInfo
+    ubse::urma::def::EidGroup group0{.primaryEid = lcneFe0.eidGroups[0].primaryEid,
+                                     .portEids = std::move(lcneFe0.eidGroups[0].portEids),
+                                     .feInfo = urmaFe0};
+    urmaInfo.eidGroups.push_back(group0);
+    ubse::urma::def::EidGroup group1{.primaryEid = lcneFe1.eidGroups[0].primaryEid,
+                                     .portEids = std::move(lcneFe1.eidGroups[0].portEids),
+                                     .feInfo = urmaFe1};
+    urmaInfo.eidGroups.push_back(group1);
     nodeInfos[nodeId].urmaList[urmaId] = urmaInfo;
 }
 
