@@ -31,7 +31,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
     }
     *request_buffer.buffer = trans_urma_type;
     // 调用接口
-    auto ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &request_buffer, &response_buffer);
+    auto ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_DEV_GET, &request_buffer, &response_buffer);
     ubse_api_buffer_free(&request_buffer);
     if (ret != UBS_SUCCESS) {
         ubse_api_buffer_free(&response_buffer);
