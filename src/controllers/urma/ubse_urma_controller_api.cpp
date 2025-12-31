@@ -60,7 +60,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage &req, 
     }
     uint8_t *buffer = req.buffer;
     std::string name = std::string(reinterpret_cast<const char *>(buffer));
-    buffer += name.length();
+    buffer += name.length() + 1;
     uint32_t minBandWidth = ntohl(*(uint32_t *)buffer);
     buffer += sizeof(minBandWidth);
     uint32_t maxBandWidth = ntohl(*(uint32_t *)buffer);

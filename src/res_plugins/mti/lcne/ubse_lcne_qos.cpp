@@ -299,18 +299,19 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseQosProfile
         UBSE_LOG_ERROR << "[MTI] Xml parse cir failed.";
         return UBSE_ERROR;
     }
-    if (ubseXml->Child("cir") == nullptr) {
+    if (ubseXml->Next("cir") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse cir failed.";
         return UBSE_ERROR;
     }
     try {
         ubseQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+        ubseXml->Previous();
     } catch (const std::invalid_argument &e) {
         return UBSE_ERROR;
     } catch (const std::out_of_range &e) {
         return UBSE_ERROR;
     }
-    if (ubseXml->Child("pir") == nullptr) {
+    if (ubseXml->Next("pir") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse pir failed.";
         return UBSE_ERROR;
     }

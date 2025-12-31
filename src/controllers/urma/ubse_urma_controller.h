@@ -49,6 +49,7 @@ public:
 private:
     void DoNodeJoin();
     void DoTopoLinkChange();
+    bool UbseUrmaBandWidthCheck(def::UbseUrmaInfo urmaInfo, const std::string profileName);
 };
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H

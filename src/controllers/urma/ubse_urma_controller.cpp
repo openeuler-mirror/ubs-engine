@@ -69,7 +69,17 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
 
     /* 对Fe下发Qos带宽 */
     for (auto i : urmaInfo.eidGroups) {
+        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
+            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        if (ubseFeInfo == nullptr) {
+            return UBSE_ERROR;
+        }
         UbseLcneFeInfo lcneFeInfo;
+        lcneFeInfo.slotId = ubseFeInfo->slotId;
+        lcneFeInfo.ubpuId = ubseFeInfo->ubpuId;
+        lcneFeInfo.iouId = ubseFeInfo->iouId;
+        lcneFeInfo.entityId = ubseFeInfo->entityId;
+        lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
         ret = UbseLcneQos::GetInstance().ApplyVfeQos(lcneFeInfo, profileName);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "UbseLcneQos::ApplyVfeQos failed";
@@ -112,7 +122,17 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
         return UBSE_ERROR_SRCH;
     }
     for (auto i : urmaInfo.eidGroups) {
+        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
+            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        if (ubseFeInfo == nullptr) {
+            return UBSE_ERROR;
+        }
         UbseLcneFeInfo lcneFeInfo;
+        lcneFeInfo.slotId = ubseFeInfo->slotId;
+        lcneFeInfo.ubpuId = ubseFeInfo->ubpuId;
+        lcneFeInfo.iouId = ubseFeInfo->iouId;
+        lcneFeInfo.entityId = ubseFeInfo->entityId;
+        lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
         ret = UbseLcneQos::GetInstance().DeleteVfeQos(lcneFeInfo);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "UbseLcneQos::DeleteVfeQos failed.";
@@ -134,11 +154,9 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
     UBSE_LOG_INFO << "UbseUrmaBandWidthUpdate Start," << urmaName;
     def::UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
-    {
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetLocalUrmaDevInfo failed," << urmaName;
-            return;
-        }
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetLocalUrmaDevInfo failed," << urmaName;
+        return;
     }
     /* 先查询是否存在对应的Qos配置，没有则返回成功 */
     ubse::mti::UbseQosProfile ubseQosProfile;
@@ -149,26 +167,50 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
         return;
     }
     /* 接下来遍历该urma下的Fe是否都生效了该proflie配置 */
-    bool isNeedUpdate = false;
-    for (auto i : urmaInfo.eidGroups) {
-        std::string vfeProfileName;
-        UbseLcneFeInfo lcneFeInfo;
-        ret = UbseLcneQos::GetInstance().QueryVfeQos(lcneFeInfo, vfeProfileName);
-        if ((ret != UBSE_OK) || (vfeProfileName != profileName)) {
-            isNeedUpdate = true;
-            break;
-        }
-    }
-    if (!isNeedUpdate) {
+    if (UbseUrmaBandWidthCheck(urmaInfo, profileName)) {
         return;
     }
     /* 先删除VFE上面所有的生效Qos，然后再删除profile */
     for (auto i : urmaInfo.eidGroups) {
+        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
+            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        if (ubseFeInfo == nullptr) {
+            return;
+        }
         UbseLcneFeInfo lcneFeInfo;
+        lcneFeInfo.slotId = ubseFeInfo->slotId;
+        lcneFeInfo.ubpuId = ubseFeInfo->ubpuId;
+        lcneFeInfo.iouId = ubseFeInfo->iouId;
+        lcneFeInfo.entityId = ubseFeInfo->entityId;
+        lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
         UbseLcneQos::GetInstance().DeleteVfeQos(lcneFeInfo);
     }
     UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
     return;
+}
+
+bool UrmaController::UbseUrmaBandWidthCheck(def::UbseUrmaInfo urmaInfo, const std::string profileName)
+{
+    for (auto i : urmaInfo.eidGroups) {
+        std::string vfeProfileName;
+        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
+            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        if (ubseFeInfo == nullptr) {
+            return true;
+        }
+        UbseLcneFeInfo lcneFeInfo;
+        lcneFeInfo.slotId = ubseFeInfo->slotId;
+        lcneFeInfo.ubpuId = ubseFeInfo->ubpuId;
+        lcneFeInfo.iouId = ubseFeInfo->iouId;
+        lcneFeInfo.entityId = ubseFeInfo->entityId;
+        lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
+        auto ret = UbseLcneQos::GetInstance().QueryVfeQos(lcneFeInfo, vfeProfileName);
+        if ((ret != UBSE_OK) || (vfeProfileName != profileName)) {
+            return false;
+            break;
+        }
+    }
+    return true;
 }
 
 UbseResult UrmaController::UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMesage)
