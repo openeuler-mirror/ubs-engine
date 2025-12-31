@@ -21,7 +21,7 @@
 
 #include "ubse_serial_util.h"
 
-namespace ubse::urma::def {
+namespace ubse::urma {
 struct UbseQosProfile {
     std::string proflieName;
     uint32_t maxBandWidth;
@@ -134,6 +134,6 @@ struct UbseUrmaNodeInfo {
         return deserializer;
     }
 };
-} // namespace ubse::urma::def
+} // namespace ubse::urma
 
 #endif // UBSE_URMA_DEF_H

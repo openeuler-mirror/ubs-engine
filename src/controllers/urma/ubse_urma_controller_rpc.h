@@ -35,6 +35,7 @@ using namespace ubse::utils;
 using namespace ubse::election;
 using namespace ubse::urmaController;
 using namespace ubse::context;
+using namespace ubse::urma;
 
 using HcomCbRecv = void *;
 using HcomCbCtx = void *;
@@ -237,7 +238,7 @@ struct UrmaQueryReq {
 };
 
 struct UrmaQueryRsp {
-    std::vector<ubse::urma::def::UbseFeInfo> devInfo;
+    std::vector<UbseFeInfo> devInfo;
 };
 
 class UbseUrmaQueryReqSimpo : public UbseBaseMessage {
@@ -408,7 +409,7 @@ UbseResult UbseUrmaAsyncNotifyAllNodes(const UbseBaseMessagePtr &req, uint16_t m
 
 struct ReportUrmaNodeInfoReq {
     std::string nodeId;
-    ubse::urma::def::UbseUrmaNodeInfo urmaNodeInfo;
+    UbseUrmaNodeInfo urmaNodeInfo;
 
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &out,
                                                        const ReportUrmaNodeInfoReq &obj)
@@ -481,6 +482,6 @@ public:
     uint16_t GetModuleCode() override;
 };
 
-UbseResult ReportUrmaNodeInfoToMaster(const std::string nodeId, def::UbseUrmaNodeInfo &&nodeInfo);
+UbseResult ReportUrmaNodeInfoToMaster(const std::string nodeId, UbseUrmaNodeInfo &&nodeInfo);
 } // namespace ubse::urmaController
 #endif

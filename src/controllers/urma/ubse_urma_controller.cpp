@@ -43,14 +43,14 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
     UBSE_LOG_INFO << "UbseUrmaBandWidthSet Start," << urmaName << ", minBandWidth=" << minBandWidth
                   << ", maxBandWidth=" << maxBandWidth;
     /* 从urma名获取urma信息，如果找不到返回错误码UBS_ENGINE_ERR_NOT_EXIST */
-    def::UbseUrmaInfo urmaInfo;
+    UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetLocalUrmaDevInfo failed, urmaName =" << urmaName;
         return UBSE_ERROR_SRCH;
     }
     /* 判断是否独享类型，不是返回不支持 */
-    if (urmaInfo.urmaDevType != def::UrmaDevType::UNIQUE) {
+    if (urmaInfo.urmaDevType != UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthSet failed, urmaDevType ="
                        << (uint32_t)urmaInfo.urmaDevType;
         return UBSE_ERROR_SRCH;
@@ -69,8 +69,7 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
 
     /* 对Fe下发Qos带宽 */
     for (auto i : urmaInfo.eidGroups) {
-        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
-            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        std::shared_ptr<UbseFeInfo> ubseFeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
         if (ubseFeInfo == nullptr) {
             return UBSE_ERROR;
         }
@@ -109,21 +108,20 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
 {
     UBSE_LOG_INFO << "UbseUrmaBandWidthReset Start," << urmaName;
     /* 从urma名获取urma信息，如果找不到返回错误码UBS_ENGINE_ERR_NOT_EXIST */
-    def::UbseUrmaInfo urmaInfo;
+    UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetLocalUrmaDevInfo failed, urmaName =" << urmaName;
         return UBSE_ERROR_SRCH;
     }
     /* 判断是否独享类型，不是返回不支持 */
-    if (urmaInfo.urmaDevType != def::UrmaDevType::UNIQUE) {
+    if (urmaInfo.urmaDevType != UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthReset failed, urmaDevType ="
                        << (uint32_t)urmaInfo.urmaDevType;
         return UBSE_ERROR_SRCH;
     }
     for (auto i : urmaInfo.eidGroups) {
-        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
-            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        std::shared_ptr<UbseFeInfo> ubseFeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
         if (ubseFeInfo == nullptr) {
             return UBSE_ERROR;
         }
@@ -152,7 +150,7 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
 void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
 {
     UBSE_LOG_INFO << "UbseUrmaBandWidthUpdate Start," << urmaName;
-    def::UbseUrmaInfo urmaInfo;
+    UbseUrmaInfo urmaInfo;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetLocalUrmaDevInfo failed," << urmaName;
@@ -172,8 +170,7 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
     }
     /* 先删除VFE上面所有的生效Qos，然后再删除profile */
     for (auto i : urmaInfo.eidGroups) {
-        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
-            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        std::shared_ptr<UbseFeInfo> ubseFeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
         if (ubseFeInfo == nullptr) {
             return;
         }
@@ -189,12 +186,11 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
     return;
 }
 
-bool UrmaController::UbseUrmaBandWidthCheck(def::UbseUrmaInfo urmaInfo, const std::string profileName)
+bool UrmaController::UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName)
 {
     for (auto i : urmaInfo.eidGroups) {
         std::string vfeProfileName;
-        std::shared_ptr<ubse::urma::def::UbseFeInfo> ubseFeInfo =
-            UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
+        std::shared_ptr<UbseFeInfo> ubseFeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);
         if (ubseFeInfo == nullptr) {
             return true;
         }

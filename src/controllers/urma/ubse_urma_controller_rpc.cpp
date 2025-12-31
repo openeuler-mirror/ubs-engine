@@ -32,18 +32,19 @@ using namespace ubse::serial;
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::nodeController;
+using namespace ubse::urma;
 
 const int URMA_NO2 = 2;
 
-ubse::urma::def::UrmaDevState ConvertUint32ToBondingState(uint32_t val)
+UrmaDevState ConvertUint32ToBondingState(uint32_t val)
 {
     if (val == 1) {
-        return ubse::urma::def::UrmaDevState::ACTIVED;
+        return UrmaDevState::ACTIVED;
     }
     if (val == URMA_NO2) {
-        return ubse::urma::def::UrmaDevState::INACTIVED;
+        return UrmaDevState::INACTIVED;
     }
-    return ubse::urma::def::UrmaDevState::UNKNOWN;
+    return UrmaDevState::UNKNOWN;
 }
 
 UbseResult UbseUrmaQosReqSimpo::Serialize()
@@ -199,8 +200,8 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
     /* 如果是本节点的消息就查询，如果是主节点就转发，其他情况丢弃 */
     if (std::to_string(urmaReq.nodeId) == currentNodeInfo.nodeId) {
         UrmaDevQueryRpcRsp rpcRsp;
-        UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(
-            static_cast<ubse::urma::def::UrmaDevType>(urmaReq.type), rpcRsp.urmaInfos);
+        UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(static_cast<UrmaDevType>(urmaReq.type),
+                                                                           rpcRsp.urmaInfos);
 
         response->SetUbseUrmaDevQueryRsp(rpcRsp);
         return UBSE_OK;
@@ -428,7 +429,7 @@ UbseResult UbseUrmaQueryMessageHandler::Handle(const UbseBaseMessagePtr &req, co
 {
     auto request = UbseBaseMessage::DeConvert<UbseUrmaQueryReqSimpo>(req);
     auto response = UbseBaseMessage::DeConvert<UbseUrmaQueryRspSimpo>(rsp);
-    std::vector<ubse::urma::def::UbseFeInfo> feInfos{};
+    std::vector<UbseFeInfo> feInfos{};
     UbseUrmaControllerManager::GetInstance().GetFeInfoByNodeId(request->GetUrmaQueryReq().nodeId, feInfos);
     UrmaQueryRsp newRsp{.devInfo = std::move(feInfos)};
     response->SetUbseQueryRsp(newRsp);
@@ -558,7 +559,7 @@ uint16_t UbseUrmaReportUrmaNodeInfoMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_URMA);
 }
 
-UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, def::UbseUrmaNodeInfo &&nodeInfo)
+UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, UbseUrmaNodeInfo &&nodeInfo)
 {
     // 向master节点上报本节点urma信息
     UbseUrmaReportUrmaNodeInfoReqSimpoPtr req = new (std::nothrow) UbseUrmaReportUrmaNodeInfoReqSimpo();
