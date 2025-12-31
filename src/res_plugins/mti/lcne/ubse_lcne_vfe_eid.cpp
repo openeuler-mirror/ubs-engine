@@ -202,6 +202,7 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
 UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseLcneFeInfo &feInfo)
 {
     uint32_t i = 0;
+    UbseLcneEidGroup eidGroup;    
     while (ubseEidXml->Next("urma-communication-info", i) != nullptr) {
         if (ubseEidXml->Next("urma-eid") == nullptr) {
             i++;
@@ -209,7 +210,6 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
             continue;
         }
         std::string eid = ubseEidXml->Text();
-        UbseLcneEidGroup eidGroup;
         ubseEidXml->Previous();
         if (ubseEidXml->Next("port-group-id") != nullptr) {
             uint32_t portId;
@@ -237,6 +237,7 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
         i++;
         ubseEidXml->Previous();
     }
+    feInfo.eidGroups.emplace_back(eidGroup);
     return UBSE_OK;
 }
 
