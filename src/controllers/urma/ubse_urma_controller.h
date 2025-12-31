@@ -18,6 +18,7 @@
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
 #include "ubse_urma_def.h"
+#include "ubse_urma_controller_manager.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -27,6 +28,7 @@ typedef struct {
     std::string vfe0Path;
     std::string vfe1Path;
     std::string bondingPath;
+    std::string bondingEid;
 } UbseUrmaDevPath;
 
 class UrmaController {
@@ -41,6 +43,15 @@ public:
     UbseResult UbseUrmaBandWidthGet(const std::string urmaName, uint32_t &minBandWidth, uint32_t &maxBandWidth);
     UbseResult UbseUrmaBandWidthReset(const std::string urmaName);
     void UbseUrmaBandWidthUpdate(const std::string urmaName);
+    // For SDK
+    UbseResult UbseGetLocalUrmaDevInfoByType(const UrmaDevType type, std::vector<std::string> &nameInfo,
+                                             std::vector<uint32_t> &status);
+    UbseResult UbseAllocUrmaDev(const std::string name, UbseUrmaDevPath &devPaths);
+    UbseResult UbseFreeUrmaDev(const std::string name);
+
+    UbseResult UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
+                                                 std::vector<UbseUrmaInfoForQuery> &devInfos);
+
     std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
     static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMesage);
     static UbseResult UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage);
@@ -49,6 +60,8 @@ private:
     void DoNodeJoin();
     void DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
+    UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const UrmaDevType type,
+                                          std::vector<UbseUrmaInfoForQuery> &urmaInfo);
 };
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H

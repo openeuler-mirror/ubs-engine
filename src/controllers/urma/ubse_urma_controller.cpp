@@ -37,6 +37,9 @@ using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
+const int INDEX_NO_2 = 2;
+const std::string PATH_PREFIX = "/dev/uburma/";
+
 UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint32_t minBandWidth,
                                                 uint32_t maxBandWidth)
 {
@@ -322,6 +325,97 @@ std::vector<ubse::nodeController::PhysicalLink> UrmaController::GetDirConnectInf
         allLinkInfo.emplace_back(std::move(link.second));
     }
     return allLinkInfo;
+}
+
+UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type, std::vector<std::string> &nameInfo,
+                                                         std::vector<uint32_t> &status)
+{
+    UbseUrmaControllerManager::GetInstance().GetUrmaNameByType(type, nameInfo, status);
+    return UBSE_OK;
+}
+
+UbseResult UrmaController::UbseAllocUrmaDev(const std::string urmaName, UbseUrmaDevPath &devPaths)
+{
+    std::vector<std::string> feNames;
+    std::string eid;
+    UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid);
+    if (feNames.size() <= INDEX_NO_2) {
+        UBSE_LOG_ERROR << "Failed to alloc for fe name size is less than 2";
+        return UBSE_ERROR;
+    }
+    devPaths.bondingPath = PATH_PREFIX + feNames[0];
+    devPaths.vfe0Path = PATH_PREFIX + feNames[1];
+    devPaths.vfe1Path = PATH_PREFIX + feNames[INDEX_NO_2];
+    devPaths.bondingEid = eid;
+    return UBSE_OK;
+}
+UbseResult UrmaController::UbseFreeUrmaDev(const std::string urmaName)
+{
+    return UBSE_OK;
+}
+
+UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const UrmaDevType type,
+                                                  std::vector<UbseUrmaInfoForQuery> &urmaInfo)
+{
+    auto ubseComModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (ubseComModule == nullptr) {
+        UBSE_LOG_ERROR << "UbseComModule is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseUrmaDevQueryReqPtr ubseRequestPtr = new (std::nothrow) UrmaDevQueryReqSimpo();
+    if (ubseRequestPtr == nullptr) {
+        UBSE_LOG_ERROR << "new UbseUrmaDevQueryReqSimpo failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UrmaDevQueryRpcReq req = {nodeId, static_cast<uint32_t>(type)};
+    ubseRequestPtr->SetUbseUrmaDevReq(req);
+    UbseUrmaDevRspPtr ubseResponsePtr = new (std::nothrow) UrmaDevQueryRspSimpo();
+    if (ubseResponsePtr == nullptr) {
+        UBSE_LOG_ERROR << "new UbseUrmaDevRspSimpo failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "UbseComModule is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ubse::election::UbseRoleInfo masterInfo{};
+    auto res = UbseGetMasterInfo(masterInfo);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseGetMasterInfo failed";
+        return res;
+    }
+    SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_URMA),
+                        static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_DEV_QUERY)};
+    res = comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "comModule RpcSend failed, " << FormatRetCode(res);
+        return res;
+    }
+    auto rsp = ubseResponsePtr->GetUbseUrmaDevRsp();
+    urmaInfo = rsp.urmaInfos;
+    return UBSE_OK;
+}
+
+UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
+                                                             std::vector<UbseUrmaInfoForQuery> &devInfos)
+{
+    ubse::election::UbseRoleInfo currentNodeInfo{};
+    ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
+    if (std::to_string(nodeId) == currentNodeInfo.nodeId) {
+        UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(type, devInfos);
+        return UBSE_OK;
+    }
+    std::vector<UbseUrmaInfoForQuery> urmaInfo;
+    auto ret = UbseQueryUrmaInfoByRpc(nodeId, type, urmaInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get urma info by rpc, ret=" << ret;
+        return ret;
+    }
+    for (const auto &devInfo : urmaInfo) {
+        devInfos.push_back(devInfo);
+    }
+    return UBSE_OK;
 }
 
 } // namespace ubse::urmaController
