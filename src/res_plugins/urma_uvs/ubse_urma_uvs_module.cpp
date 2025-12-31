@@ -241,7 +241,7 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
 }
 
 void UbseUrmaUvsModule::InitialNodes(const std::set<std::string> slotIds,
-                                         std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
+                                     std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
     nodeMap.clear();
     for (auto &id : slotIds) {
