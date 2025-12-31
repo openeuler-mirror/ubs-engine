@@ -25,14 +25,14 @@
 #include <utility>              // for move
 #include <vector>               // for vector
 
-#include "ubse_com_engine.h"        // for UbseCommunication
-#include "ubse_base_message.h"      // for UbseBaseMessage, UbseBaseMessag...
-#include "ubse_com_def.h"           // for UbseComMessageCtx, UbseComMessage
-#include "ubse_common_def.h"        // for UbseResult, UBSE_AGENT_IPC_SERV...
-#include "ubse_error.h"             // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
-#include "ubse_logger.h"            // for UbseLoggerEntry, FormatRetCode
-#include "ubse_logger_inner.h"      // for RM_LOG_ERROR, RM_LOG_DEBUG
-#include "ubse_pointer_process.h"   // for SafeFree
+#include "ubse_base_message.h"    // for UbseBaseMessage, UbseBaseMessag...
+#include "ubse_com_def.h"         // for UbseComMessageCtx, UbseComMessage
+#include "ubse_com_engine.h"      // for UbseCommunication
+#include "ubse_common_def.h"      // for UbseResult, UBSE_AGENT_IPC_SERV...
+#include "ubse_error.h"           // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
+#include "ubse_logger.h"          // for UbseLoggerEntry, FormatRetCode
+#include "ubse_logger_inner.h"    // for RM_LOG_ERROR, RM_LOG_DEBUG
+#include "ubse_pointer_process.h" // for SafeFree
 
 namespace ubse::com {
 const std::string FAKE_CUR_NODE_ID = "FakeCurNodeId";
@@ -83,6 +83,7 @@ enum class UbseUrmaRpcOpCode {
     URMA_RPC_URMA_INFO_REPORT = 2,
     URMA_RPC_URMA_INFO_NOTIFY = 3,
     URMA_RPC_URMA_INFO_QUERY = 4,
+    URMA_RPC_DEV_QUERY = 5,
     URMA_RPC_BUTT
 };
 enum class UbseOpCode {

@@ -27,6 +27,8 @@ using namespace ubse::com;
 
 DYNAMIC_CREATE(UbseUrmaControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
+std::string g_ubseNodeJoin = "UbseNodeJoinEvent";
+std::string g_ubseTopoChange = "UbseTopoLinkChangeEvent";
 
 UbseResult UbseUrmaControllerModule::Initialize()
 {
@@ -45,6 +47,62 @@ UbseResult UbseUrmaControllerModule::Initialize()
 
 void UbseUrmaControllerModule::UnInitialize() {}
 
+UbseResult RpcReg()
+{
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting ComModule failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseComBaseMessageHandlerPtr pQosMessageHandler = new (std::nothrow) UbseUrmaQosMessageHandler();
+
+    UbseComBaseMessageHandlerPtr pReportUrmaNodeInfoMessageHandler = new (std::nothrow)
+        UbseUrmaReportUrmaNodeInfoMessageHandler;
+
+    UbseComBaseMessageHandlerPtr pNotifyMessageHandler = new (std::nothrow) UbseUrmaNotifyMessageHandler();
+
+    UbseComBaseMessageHandlerPtr pQueryMessageHandler = new (std::nothrow) UbseUrmaQueryMessageHandler();
+
+    UbseComBaseMessageHandlerPtr pQueryDevHandler = new (std::nothrow) UbseUrmaDevQueryMessageHandler();
+
+    if (pQosMessageHandler == nullptr || pReportUrmaNodeInfoMessageHandler == nullptr ||
+        pNotifyMessageHandler == nullptr || pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr) {
+        UBSE_LOG_ERROR << "Fail to create UbseComBaseMessageHandler";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ret = comModule->RegRpcService<UbseUrmaQosReqSimpo, UbseUrmaQosRspSimpo>(pQosMessageHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Reg UbseUrmaQosMessageHandler failed.";
+        return ret;
+    }
+
+    ret = comModule->RegRpcService<UbseUrmaNotifyReqSimpo, UbseUrmaNotifyRspSimpo>(pNotifyMessageHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Reg UbseUrmaNotifyMessageHandler failed.";
+        return ret;
+    }
+
+    ret = comModule->RegRpcService<UbseUrmaQueryReqSimpo, UbseUrmaQueryRspSimpo>(pQueryMessageHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Reg UbseUrmaQueryMessageHandler  failed.";
+        return ret;
+    }
+
+    ret = comModule->RegRpcService<UbseUrmaQueryReqSimpo, UbseUrmaQueryRspSimpo>(pQueryDevHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Reg UbseUrmaQueryMessageHandler  failed.";
+        return ret;
+    }
+
+    ret = comModule->RegRpcService<UbseUrmaReportUrmaNodeInfoReqSimpo, UbseUrmaReportUrmaNodeInfoRspSimpo>(
+        pReportUrmaNodeInfoMessageHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to register report urma info handler for rpc";
+        return ret;
+    }
+    return UBSE_OK;
+}
+
 UbseResult UbseUrmaControllerModule::Start()
 {
     auto ret = UbseUrmaControllerApi::Register();
@@ -52,20 +110,20 @@ UbseResult UbseUrmaControllerModule::Start()
         UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
         return ret;
     }
-    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
-    if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Getting ComModule failed.";
-        return UBSE_ERROR_NULLPTR;
+    if (RpcReg() != UBSE_OK) {
+        return UBSE_ERROR;
     }
-    UbseComBaseMessageHandlerPtr pQosMessageHandler = new (std::nothrow) UbseUrmaQosMessageHandler();
-    if (pQosMessageHandler == nullptr) {
-        UBSE_LOG_ERROR << "Fail to create UbseComBaseMessageHandler";
-        return UBSE_ERROR_NULLPTR;
-    }
-    ret = comModule->RegRpcService<UbseUrmaQosReqSimpo, UbseUrmaQosRspSimpo>(pQosMessageHandler);
+
+    ret = ubse::event::UbseSubEvent(g_ubseNodeJoin,
+                                    ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Reg UbseUrmaQosMessageHandler failed.";
-        return ret;
+        UBSE_LOG_ERROR << "Fail to Follow the event=" << g_ubseNodeJoin;
+    }
+
+    ret = ubse::event::UbseSubEvent(g_ubseTopoChange,
+                                    ubse::urmaController::UrmaController::GetInstance().UbseTopoLinkChangeHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Fail to Follow the event=" << g_ubseTopoChange;
     }
 
     return UBSE_OK;
