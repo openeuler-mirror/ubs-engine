@@ -218,7 +218,7 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
 
     std::unordered_map<std::string, UbcoreTopoNode> nodeMap;
     // 每个 slot 构建一个 UbcoreTopoNode
-    InitialTopoNodes(slotIds, nodeMap);
+    InitialNodes(slotIds, nodeMap);
     // 填充每个 node 的链路信息（根据 PhysicalLink）
     ret = FillTopo(allLinkInfo, nodeMap);
     if (ret != UBSE_OK) {
@@ -240,7 +240,7 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
     return UBSE_OK;
 }
 
-void UbseUrmaUvsModule::InitialTopoNodes(const std::set<std::string> slotIds,
+void UbseUrmaUvsModule::InitialNodes(const std::set<std::string> slotIds,
                                          std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
     nodeMap.clear();
