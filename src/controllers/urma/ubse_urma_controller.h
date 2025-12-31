@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -16,6 +16,8 @@
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_node_controller.h"
+#include "ubse_urma.h"
 #include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
@@ -27,14 +29,6 @@ typedef struct {
     std::string vfe1Path;
     std::string bondingPath;
 } UbseUrmaDevPath;
-
-typedef struct {
-    std::string bondingName;
-    std::string fe1Name;
-    std::string fe2Name;
-    UrmaDevType bondingType;
-    UrmaDevState state;
-} UbseUrmaInfoForQuery;
 
 class UrmaController {
 public:
@@ -48,7 +42,14 @@ public:
     UbseResult UbseUrmaBandWidthGet(const std::string urmaName, uint32_t &minBandWidth, uint32_t &maxBandWidth);
     UbseResult UbseUrmaBandWidthReset(const std::string urmaName);
     void UbseUrmaBandWidthUpdate(const std::string urmaName);
+    std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
+    static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMesage);
+    static UbseResult UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage);
+
 private:
+    void DoNodeJoin();
+    void DoTopoLinkChange();
+    bool UbseUrmaBandWidthCheck(def::UbseUrmaInfo urmaInfo, const std::string profileName);
 };
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H

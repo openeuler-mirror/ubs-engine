@@ -13,15 +13,15 @@
 #ifndef UBSE_URMA_DEF_H
 #define UBSE_URMA_DEF_H
 
-#include <stdint.h>
+#include <cstdint>
 #include <map>
+#include <memory>
 #include <string> // for string, basic_string
 #include <vector>
-#include <memory>
 
 #include "ubse_serial_util.h"
 
-namespace ubse::urma {
+namespace ubse::urma::def {
 struct UbseQosProfile {
     std::string proflieName;
     uint32_t maxBandWidth;
@@ -103,16 +103,16 @@ struct UbseUrmaInfo {
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfo &info)
     {
-        serializer << info.subPath << info.urmaDevEid << info.eidGroups
-                   << ubse::serial::enum_v(info.urmaDevType) << ubse::serial::enum_v(info.state);
+        serializer << info.subPath << info.urmaDevEid << info.eidGroups << ubse::serial::enum_v(info.urmaDevType)
+                   << ubse::serial::enum_v(info.state);
         return serializer;
     }
 
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaInfo &info)
     {
-        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >>
-            ubse::serial::enum_v(info.urmaDevType) >> ubse::serial::enum_v(info.state);
+        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >> ubse::serial::enum_v(info.urmaDevType) >>
+            ubse::serial::enum_v(info.state);
         return deserializer;
     }
 };
@@ -134,6 +134,6 @@ struct UbseUrmaNodeInfo {
         return deserializer;
     }
 };
-} // namespace ubse::urma
+} // namespace ubse::urma::def
 
 #endif // UBSE_URMA_DEF_H
