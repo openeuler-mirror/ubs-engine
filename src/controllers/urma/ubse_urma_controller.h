@@ -17,7 +17,6 @@
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
-#include "ubse_urma.h"
 #include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
@@ -49,7 +48,7 @@ public:
 private:
     void DoNodeJoin();
     void DoTopoLinkChange();
-    bool UbseUrmaBandWidthCheck(def::UbseUrmaInfo urmaInfo, const std::string profileName);
+    bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
 };
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H

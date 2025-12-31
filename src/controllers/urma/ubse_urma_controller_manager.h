@@ -19,7 +19,6 @@
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_topology_interface.h"
-#include "ubse_urma.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs.h"
 
@@ -32,8 +31,8 @@ typedef struct {
     std::string bondingName;
     std::string fe1Name;
     std::string fe2Name;
-    ubse::urma::def::UrmaDevType bondingType;
-    ubse::urma::def::UrmaDevState state;
+    UrmaDevType bondingType;
+    UrmaDevState state;
 } UbseUrmaInfoForQuery;
 
 class UbseUrmaControllerManager {
@@ -44,43 +43,40 @@ public:
         return instance;
     }
     // 通过RPC通信获取其余节点的nodeInfo后，通过此方法存储
-    void InsertNewNodeInfo(const std::string &nodeId, ubse::urma::def::UbseUrmaNodeInfo &insertNodeInfo);
+    void InsertNewNodeInfo(const std::string &nodeId, UbseUrmaNodeInfo &insertNodeInfo);
     UbseResult ConstructNewUrmaInfo(
         const std::string &nodeId,
         std::vector<UbseLcneFeInfo> &feInfos); // 更新对应节点的fe信息，计算出urmaInfo设备信息
     UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<UbseLcneFeInfo> &&feInfos);
-    UbseResult GetFeInfoByNodeId(const std::string &nodeId, std::vector<ubse::urma::def::UbseFeInfo> &feInfos);
+    UbseResult GetFeInfoByNodeId(const std::string &nodeId, std::vector<UbseFeInfo> &feInfos);
     bool IsUrmaInfoExists(const std::string &nodeId);
     bool IsUrmaIdExists(const std::string &nodeId, const std::string &urmaId);
     std::vector<std::string> GetEmptyNodeInfo();
     void SetActiveState(const std::string &name, const std::string &nodeId);
-    UbseResult GetUrmaNameByType(const ubse::urma::def::UrmaDevType type, std::vector<std::string> &urmaInfoName,
+    UbseResult GetUrmaNameByType(const UrmaDevType type, std::vector<std::string> &urmaInfoName,
                                  std::vector<uint32_t> &status);
-    void GetUrmaNameForQueryByType(const ubse::urma::def::UrmaDevType type,
-                                   std::vector<UbseUrmaInfoForQuery> &devInfos);
-    UbseResult GetVfeByUrmaName(const std::string &urmaName, std::vector<ubse::urma::def::UbseFeInfo> &feInfos);
+    void GetUrmaNameForQueryByType(const UrmaDevType type, std::vector<UbseUrmaInfoForQuery> &devInfos);
+    UbseResult GetVfeByUrmaName(const std::string &urmaName, std::vector<UbseFeInfo> &feInfos);
 
-    UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, ubse::urma::def::UbseUrmaInfo &urmaInfo);
+    UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
 
     UbseResult AllocByUrmaName(const std::string &urmaInfoName, std::vector<std::string> &feNames, std::string &eid);
     UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
-    ubse::urma::def::UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
+    UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
     void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
     void UbseUrmaBandwidthInit(const std::string &nodeId, const std::function<void(const std::string)> &initFunc);
 
-    static std::string GetVfeInfoKey(const ubse::urma::def::UbseFeInfo &info);
-    static std::shared_ptr<ubse::urma::def::UbseFeInfo> GetUrmaVfeFromEidGroup(ubse::urma::def::EidGroup &eidGroup);
+    static std::string GetVfeInfoKey(const UbseFeInfo &info);
+    static std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
 
 private:
     void CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &urmaId, const std::string &devEid,
                                  UbseLcneFeInfo &lcneFe0, UbseLcneFeInfo &lcneFe1);
 
 private:
-    std::vector<UbseUrmaInfo> urmaList{}; // nodeid和计算的bounding信息
     utils::ReadWriteLock rwLock;
-    std::vector<UbseFeInfo> FeLists{};
-    std::map<std::string, ubse::urma::def::UbseUrmaNodeInfo> nodeInfos{};
+    std::map<std::string, UbseUrmaNodeInfo> nodeInfos{};
 };
 } // namespace ubse::urmaController
 
