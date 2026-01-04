@@ -195,7 +195,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     }
     ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
+    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));

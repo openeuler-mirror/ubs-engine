@@ -66,6 +66,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
       * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
       * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
       * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+      * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
       */
 uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_path_t *dev_info);
 
@@ -79,6 +80,7 @@ uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_path_t *dev_info);
       * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
       * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
       * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+      * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
       */
 uint32_t ubs_urma_dev_free(const char *name);
 
@@ -94,6 +96,7 @@ uint32_t ubs_urma_dev_free(const char *name);
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
  */
 uint32_t ubs_urma_bandwidth_set(const char *name, uint32_t minBandWidth, uint32_t maxBandWidth);
 
@@ -108,6 +111,7 @@ uint32_t ubs_urma_bandwidth_set(const char *name, uint32_t minBandWidth, uint32_
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
  */
 uint32_t ubs_urma_bandwidth_get(const char *name, uint32_t *minBandWidth, uint32_t *maxBandWidth);
 
@@ -119,7 +123,8 @@ uint32_t ubs_urma_bandwidth_get(const char *name, uint32_t *minBandWidth, uint32
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
- * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误；
+ * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在；
  */
 uint32_t ubs_urma_bandwidth_reset(const char *name);
 
