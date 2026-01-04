@@ -291,9 +291,8 @@ void UrmaController::DoNodeJoin()
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
     // 向master节点上报本节点nodeInfo
-    if (auto ret = ReportUrmaNodeInfoToMaster(curNode.nodeId,
-                                              UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId));
-        ret != UBSE_OK) {
+    auto urmaNodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+    if (auto ret = ReportUrmaNodeInfoToMaster(curNode.nodeId, urmaNodeInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to report urma node info to master, " << FormatRetCode(ret);
         return;
     }
