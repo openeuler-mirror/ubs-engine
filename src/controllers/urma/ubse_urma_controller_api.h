@@ -37,7 +37,7 @@ private:
     static uint32_t UbseUrmaSendCliQosRsp(const uint64_t requestId, UrmaQosRpcRsp urmaQosRsp);
 
     static uint32_t UbseUrmaDevGet(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseUrmaLocalDevGet(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t UbseUrmaDevAlloc(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t UbseUrmaDevFree(const UbseIpcMessage &req, const UbseRequestContext &context);
 };

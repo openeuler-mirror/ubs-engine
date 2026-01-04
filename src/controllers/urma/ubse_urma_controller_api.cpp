@@ -81,7 +81,7 @@ UbseResult UbseUrmaControllerApi::Register()
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_RESET, UbseUrmaBandWidthReset);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, UbseUrmaBandWidthCliGet);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGet);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, UbseUrmaLocalDevGet);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, UbseUrmaCliDevGet);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_ALLOC, UbseUrmaDevAlloc);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_FREE, UbseUrmaDevFree);
     if (ret != UBSE_OK) {
@@ -118,7 +118,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage &req, 
     uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthSet(name, minBandWidth, maxBandWidth);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthSet failed," << FormatRetCode(ret);
-        return UBSE_ERROR_CONF_INVALID;
+        return ret;
     }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
@@ -147,7 +147,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage &req, 
         UrmaController::GetInstance().UbseUrmaBandWidthGet(name, urmaQosRsp.minBandWidth, urmaQosRsp.maxBandWidth);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthGet failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return ret;
     }
     return UbseUrmaSendQosRsp(context.requestId, urmaQosRsp);
 }
@@ -171,7 +171,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &re
         UrmaController::GetInstance().UbseUrmaBandWidthGet(name, urmaQosRsp.minBandWidth, urmaQosRsp.maxBandWidth);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthGet failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return ret;
     }
     return UbseUrmaSendCliQosRsp(context.requestId, urmaQosRsp);
 }
@@ -186,7 +186,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage &req
     uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthReset(name);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthReset failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return ret;
     }
 
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -291,7 +291,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendCliQosRsp(const uint64_t requestId, 
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
@@ -422,7 +422,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaLocalDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma LocalDevGet IPC request info is null.";
