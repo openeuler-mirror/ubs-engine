@@ -26,7 +26,7 @@ DYNAMIC_CREATE(UbseMemControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID)
 
 const uint32_t RES_MAX_TIMEOUT_SECONDS = 3600;
-const uint32_t CYCLE_CHECK_TIME_MS = 300000;
+const uint32_t CYCLE_CHECK_TIME_MS = 300;
 static std::atomic<bool> g_startCheckDecoderHandle{false};
 #ifdef UB_ENVIRONMENT
 const uint32_t RES_WAIT_TIMEOUT(3600); // 秒

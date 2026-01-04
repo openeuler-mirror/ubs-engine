@@ -133,15 +133,15 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
                 continue;
             }
             PhysicalLink link{};
-            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK &&
-                ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK &&
+            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK ||
+                ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK ||
                 ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to convert nodeId=" << nodeId << ", ubpuId=" << ubpuId
                                << ", portId=" << portKv.second.portId;
                 return UBSE_ERROR;
             }
-            if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK &&
-                ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK &&
+            if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK ||
+                ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK ||
                 ConvertStrToUint32(portKv.second.remotePortId, link.peerPortId) != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to convert nodeId=" << portKv.second.remoteSlotId
                                << ", ubpuId=" << portKv.second.remoteChipId
