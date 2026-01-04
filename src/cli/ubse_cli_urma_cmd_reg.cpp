@@ -18,7 +18,6 @@
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_serial_util.h"
-#include "ubse_ipc_common.h"
 
 namespace ubse::cli::reg {
 UBSE_CLI_REGISTER_MODULE("CLI_URMA_MODULE", UbseCliRegUrmaModule);
@@ -31,7 +30,7 @@ static const std::string URMA_NODE_OPT = "node";
 static const std::string URMA_INTERNAL_ERROR = "ERROR: Internal error with error code ";
 static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The options are as follows: " + URMA_NODE_OPT + ".";
-static const std::string URMA_EMPTY_ERROR = "ERROR: The urma Lists is empty. ";    
+static const std::string URMA_EMPTY_ERROR = "ERROR: The urma Lists is empty.";
 static const std::string URMA_QUERY_OPTION_DES = "Query urma information by node id";
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
@@ -121,7 +120,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
             return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
         }
         ubse_api_buffer_t request_buffer{ubse_req_serial.GetBuffer(),
-                                           static_cast<uint32_t>(ubse_req_serial.GetLength())};
+                                         static_cast<uint32_t>(ubse_req_serial.GetLength())};
         ubse_api_buffer_t response_buffer = {NULL, 0};
         auto ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &request_buffer, &response_buffer);
         UbseCliBufferGuard ubseCliBufferGuard(response_buffer);
@@ -150,7 +149,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     if (urmaNode == params.end()) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
-    uint32_t urmaType = 0; //暂时只支持独享
+    uint32_t urmaType = 0; // 暂时只支持独享
     uint32_t nodeId;
     try {
         nodeId = static_cast<uint32_t>(std::stoul(urmaNode->second));
