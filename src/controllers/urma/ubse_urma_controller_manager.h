@@ -50,7 +50,7 @@ public:
     UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<UbseLcneFeInfo> &&feInfos);
     UbseResult GetFeInfoByNodeId(const std::string &nodeId, std::vector<UbseFeInfo> &feInfos);
     bool IsUrmaInfoExists(const std::string &nodeId);
-    bool IsUrmaIdExists(const std::string &nodeId, const std::string &urmaId);
+    bool IsUrmaInfoExists(const std::string &nodeId, const std::string &devEid); // 本节点是否包含指定eid的urmaInfo
     std::vector<std::string> GetEmptyNodeInfo();
     void SetActiveState(const std::string &name, const std::string &nodeId);
     UbseResult GetUrmaNameByType(const UrmaDevType type, std::vector<std::string> &urmaInfoName,
@@ -68,15 +68,23 @@ public:
     void UbseUrmaBandwidthInit(const std::string &nodeId, const std::function<void(const std::string)> &initFunc);
 
     static std::string GetVfeInfoKey(const UbseFeInfo &info);
+    static std::string GetVfeInfoKey(const UbseLcneFeInfo &info);
     static std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
 
 private:
-    void CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &urmaId, const std::string &devEid,
-                                 UbseLcneFeInfo &lcneFe0, UbseLcneFeInfo &lcneFe1);
+    void CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid, UbseLcneFeInfo &lcneFe0,
+                                 UbseLcneFeInfo &lcneFe1);
+
+    UbseResult GenerateUrmaDevEid(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1, std::string &devEid);
+    uint32_t GenerateUniqueFeId();
+    uint64_t GenerateUrmaId();
 
 private:
     utils::ReadWriteLock rwLock;
     std::map<std::string, UbseUrmaNodeInfo> nodeInfos{};
+    std::atomic<uint32_t> globalFeId{0};       // 节点内唯一的feId生成器
+    std::atomic<uint64_t> globalUrmaId{0};     // 节点内唯一的urmaId生成器
+    std::map<std::string, uint32_t> feIdMap{}; // <feKey, feId>
 };
 } // namespace ubse::urmaController
 
