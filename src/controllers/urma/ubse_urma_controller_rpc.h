@@ -482,6 +482,6 @@ public:
     uint16_t GetModuleCode() override;
 };
 
-UbseResult ReportUrmaNodeInfoToMaster(const std::string nodeId, UbseUrmaNodeInfo &&nodeInfo);
+UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, UbseUrmaNodeInfo &nodeInfo);
 } // namespace ubse::urmaController
 #endif

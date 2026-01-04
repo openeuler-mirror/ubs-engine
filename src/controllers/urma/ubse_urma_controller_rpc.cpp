@@ -285,7 +285,7 @@ UbseResult DoRpcQuery(const UbseRoleInfo &roleInfo, const std::string &dstId)
     return UBSE_OK;
 }
 
-void ActivateBondingDevice(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos, UbseRoleInfo &roleInfo)
+void UrmaCtlActivateBondingDevice(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos, UbseRoleInfo &roleInfo)
 {
     auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
     if (urmaModule == nullptr) {
@@ -305,6 +305,13 @@ void ActivateBondingDevice(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos, UbseRoleI
             }
         }
     }
+    // 重置模板
+    static std::once_flag initFlag;
+    std::call_once(initFlag, [&]() {
+        UbseUrmaControllerManager::GetInstance().UbseUrmaBandwidthInit(
+            roleInfo.nodeId,
+            [](const std::string &urmaName) { UrmaController::GetInstance().UbseUrmaBandWidthUpdate(urmaName); });
+    });
 }
 UbseResult DoQueryInfo(const std::string &dstId)
 {
@@ -346,8 +353,7 @@ UbseResult DoQueryInfo(const std::string &dstId)
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
         return ret;
     }
-    ActivateBondingDevice(uvsInfos, roleInfo);
-    // check
+    UrmaCtlActivateBondingDevice(uvsInfos, roleInfo);
     return UBSE_OK;
 }
 
@@ -579,7 +585,7 @@ uint16_t UbseUrmaReportUrmaNodeInfoMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_URMA);
 }
 
-UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, UbseUrmaNodeInfo &&nodeInfo)
+UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, UbseUrmaNodeInfo &nodeInfo)
 {
     // 向master节点上报本节点urma信息
     UbseUrmaReportUrmaNodeInfoReqSimpoPtr req = new (std::nothrow) UbseUrmaReportUrmaNodeInfoReqSimpo();
