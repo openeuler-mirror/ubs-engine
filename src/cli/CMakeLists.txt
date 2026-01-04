@@ -7,6 +7,7 @@ add_executable(ubsectl ubse_cli_main.cpp
         ubse_cli_node_cmd_reg.cpp
         ubse_cli_mem_cmd_reg.cpp
         ubse_cli_cert_cmd_reg.cpp
+        ubse_cli_urma_cmd_reg.cpp        
 )
 
 target_link_libraries(ubsectl PRIVATE
