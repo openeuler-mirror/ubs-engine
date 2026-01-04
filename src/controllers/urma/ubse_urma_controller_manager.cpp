@@ -73,7 +73,7 @@ bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId)
     return ret;
 }
 
-std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup)
+std::shared_ptr<UbseFeInfo> UbseUrmaControllerManager::GetUrmaVfeFromEidGroup(EidGroup &eidGroup)
 {
     if (eidGroup.feInfo) {
         return eidGroup.feInfo;
