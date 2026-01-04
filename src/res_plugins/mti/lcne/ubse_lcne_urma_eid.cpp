@@ -29,6 +29,7 @@ UBSE_DEFINE_THIS_MODULE("ubse", UBSE_LCNE_MID);
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace ubse::mti;
+UbseResult MockUrmaEidParse(const std::string &responseStr, std::map<DevName, UbseLcneSocketInfo> &ss);
 
 void OutPutUrmaEidResultToLog(std::map<DevName, UbseLcneSocketInfo> &urmaEidMap)
 {
@@ -124,6 +125,11 @@ UbseResult UbseLcneUrmaEid::GetUrmaEid(std::map<DevName, UbseLcneSocketInfo> &al
         UBSE_LOG_ERROR << "[MTI] LCNE UrmaEid response is empty.";
         return UBSE_ERROR;
     }
+    if (MockUrmaEidParse(rsp.body, allSocketComEid) == UBSE_OK) {
+        UBSE_LOG_INFO << "[MTI] MOCK Lcne UrmaEid Info" << "\n";
+        return UBSE_OK;
+    }
+
     res = ParseGetUrmaEidResponse(rsp.body, allSocketComEid);
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] Failed to parse response body for get urma eid";
@@ -160,6 +166,60 @@ UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string &responseS
         DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
         std::string entityId = ubseXml->Child("entity-id")->Text();
         if (ubseXml->Child("label")->Text() != "host-urma-entity") {
+            ubseXml->Previous();
+            staticUrmaEidsIndex++;
+            continue;
+        }
+        ubseXml = ubseXml->Next("urma-eid-infos");
+        if (ubseXml == nullptr) {
+            return UBSE_ERROR;
+        }
+        UbseLcneSocketInfo socketInfo{};
+        socketInfo.entityId = entityId;
+        int urmaEidInfoIndex = 0;
+        while (ubseXml->Next("urma-eid-info", urmaEidInfoIndex) != nullptr) {
+            if (ubseXml->Next("physical-port") != nullptr) {
+                ubseXml->Previous();
+                std::string port = ubseXml->Child("physical-port")->Text();
+                std::string urmaEid = ubseXml->Child("urma-eid")->Text();
+                socketInfo.portEidList[port].urmaEid = urmaEid;
+            } else if (ubseXml->Next("port-group-id") != nullptr) {
+                ubseXml->Previous();
+                std::string primaryEid = ubseXml->Child("urma-eid")->Text();
+                socketInfo.primaryEid = primaryEid;
+            }
+            ubseXml->Previous();
+            urmaEidInfoIndex++;
+        }
+        socketInfoMap[devName] = socketInfo;
+        ubseXml->Previous();
+        ubseXml->Previous();
+        staticUrmaEidsIndex++;
+    }
+    ss = socketInfoMap;
+    return UBSE_OK;
+}
+
+UbseResult MockUrmaEidParse(const std::string &responseStr, std::map<DevName, UbseLcneSocketInfo> &ss)
+{
+    std::map<DevName, UbseLcneSocketInfo> socketInfoMap{};
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    if (ubseXml == nullptr) {
+        return UBSE_ERROR_NOMEM;
+    }
+    const auto ret = ubseXml->Parse();
+    if (ret != UbseXmlError::OK) {
+        return UBSE_ERROR;
+    }
+    ubseXml = ubseXml->Next("static-urma-eids");
+    if (ubseXml == nullptr) {
+        return UBSE_ERROR;
+    }
+    int staticUrmaEidsIndex = 0;
+    while (ubseXml->Next("static-urma-eid", staticUrmaEidsIndex) != nullptr) {
+        DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
+        std::string entityId = ubseXml->Child("entity-id")->Text();
+        if (socketInfoMap.find(devName) != socketInfoMap.end()) {
             ubseXml->Previous();
             staticUrmaEidsIndex++;
             continue;

@@ -28,6 +28,7 @@ add_executable(ubse
         ras/ubse_ras_module.cpp
         api_server/ubse_api_server_module.cpp
         controllers/mem/mem_controller/ubse_mem_controller_module.cpp
+        res_plugins/urma_uvs/ubse_urma_uvs_module.cpp
         #       外部模块入口
         framework/log/ubse_logger.cpp
         framework/com/ubse_com.cpp
@@ -53,6 +54,7 @@ target_link_libraries(ubse PRIVATE
         syssentry
         cert_api_static
         api_server
+        ubse_urma_uvs
 )
 
 if (ASAN_BUILD)

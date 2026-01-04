@@ -24,9 +24,16 @@ using namespace common::def;
 using namespace ubse::http;
 using namespace ubse::mti;
 using namespace ubse::log;
+std::string ToTwoDigitString(int num);
+void OutPutFeEidResultToLog(std::vector<UbseLcneFeInfo> &feEidMap);
+UbseResult MockVfeEid(UbseLcneIouInfo& iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos);
 
 UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
+    if (MockVfeEid(iouInfo, allFeInfos) == UBSE_OK) {
+        UBSE_LOG_INFO << "[MTI] MOCK Lcne VFE eid Info" << "\n";
+        return UBSE_OK;
+    }
     /* 第一步先下发消息查询消息获取所有Vfe列表 */
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -269,6 +276,52 @@ UbseResult UbseLcneVfeEid::GetPortIdFromInterfaceName(std::string intfaceName, u
         return UBSE_OK;
     }
     return UBSE_ERROR;
+}
+
+std::string ToTwoDigitString(int num)
+{
+    std::ostringstream oss;
+    oss << std::setw(NO_2) << std::setfill('0') << num;
+    return oss.str();
+}
+
+void OutPutFeEidResultToLog(std::vector<UbseLcneFeInfo> &feEidMap)
+{
+    std::ostringstream oss;
+    for (auto &item : feEidMap) {
+        oss << "Fe: " << item.slotId << "-" << item.ubpuId << "-" << item.iouId << "-" << item.entityId
+            << "PrimaryEid:" << item.eidGroups[0].primaryEid << "\n";
+        for (auto &portEid : item.eidGroups[0].portEids) {
+            oss << "portId:" << portEid.first << ", " << portEid.second << "\n";
+        }
+        oss << "\n";
+    }
+    auto result = oss.str();
+    UBSE_LOG_INFO << "[MTI] FeEid Info:" << "\n" << result;
+}
+
+UbseResult MockVfeEid(UbseLcneIouInfo& iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
+{
+    allFeInfos.clear();
+    for (int i = 1; i <= NO_32; ++i) {
+        UbseLcneFeInfo feInfo;
+        feInfo.slotId = iouInfo.slotId;
+        feInfo.ubpuId = iouInfo.ubpuId;
+        feInfo.iouId = iouInfo.iouId;
+        feInfo.entityId = std::to_string(i);
+        feInfo.fetype = UbseLcneFeType::VIRTUAL_TYPE;
+        UbseLcneEidGroup eidGroup;
+        eidGroup.primaryEid = "0000:000" + feInfo.slotId + ":000" + feInfo.ubpuId + ":000"
+                            + feInfo.iouId + ":00" + ToTwoDigitString(i) +":0000:0001:0001";
+        for (int j = 1; j <= NO_8; ++j) {
+            eidGroup.portEids[std::to_string(j)] = "0000:000" + feInfo.slotId + ":000" + feInfo.ubpuId + ":000"
+                            + feInfo.iouId + ":00" + ToTwoDigitString(i) +":0000:0002:000" + std::to_string(j);
+        }
+        feInfo.eidGroups.emplace_back(eidGroup);
+        allFeInfos.emplace_back(feInfo);
+    }
+    OutPutFeEidResultToLog(allFeInfos);
+    return UBSE_OK;
 }
 
 } // namespace ubse::lcne

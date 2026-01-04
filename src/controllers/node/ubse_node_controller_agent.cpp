@@ -77,14 +77,8 @@ UbseResult UbseNodeControllerAgent::Initialize()
 {
     UBSE_LOG_INFO << "UbseNodeControllerAgent init";
 
-    auto ret = SetUrmaUvs(true);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SetUrmaUvs failed: " << FormatRetCode(ret);
-        return ret;
-    }
-
     // 注册消息处理器
-    ret = RegAgentMsgHandler();
+    auto ret = RegAgentMsgHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register agent message handler failed, " << FormatRetCode(ret);
         return ret;
@@ -167,6 +161,12 @@ UbseResult UbseNodeControllerAgent::UbseNodeInfoReportTimerHandler()
 
 UbseResult UbseNodeControllerAgent::Start()
 {
+    auto ret = SetUrmaUvs(true);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SetUrmaUvs failed: " << FormatRetCode(ret);
+        return ret;
+    }
+
     taskExecutor_->Execute([this]() -> void {
         UbseNodeInfo info{};
         CollectBaseInfo(info);
@@ -620,7 +620,7 @@ UbseResult PubNodeUrmaChange(std::string &nodeId, std::string action)
         UBSE_LOG_ERROR << "Get eventModule failed";
         return UBSE_ERROR_NULLPTR;
     }
-
+    UBSE_LOG_DEBUG << "PubEvent " << action << " to urmactl";
     auto ret = eventModule->UbsePubEvent(action, nodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to PubEvent" << action << ", nodeId = " << nodeId << ","
