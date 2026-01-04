@@ -31,6 +31,12 @@ uint32_t mock_ubse_invoke_call_empty(uint16_t module_code, uint16_t op_code, con
 uint32_t mock_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
     const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
 
+uint32_t mock_urma_qos_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
+
+uint32_t mock_urma_invoke_call_empty(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
+    ubse_api_buffer_t *response_data);
+
 uint32_t mock_cluster_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
     const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
 

@@ -18,19 +18,20 @@
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_serial_util.h"
+#include "ubse_ipc_common.h"
 
 namespace ubse::cli::reg {
 UBSE_CLI_REGISTER_MODULE("CLI_URMA_MODULE", UbseCliRegUrmaModule);
 using namespace ubse::cli::framework;
 using namespace ubse::serial;
 using namespace ubse::common::def;
-using namespace ubse::urma;
 
 static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed in client.";
 static const std::string URMA_NODE_OPT = "node";
 static const std::string URMA_INTERNAL_ERROR = "ERROR: Internal error with error code ";
-static const std::string URMA_EMPTY_ERROR =
+static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The options are as follows: " + URMA_NODE_OPT + ".";
+static const std::string URMA_EMPTY_ERROR = "ERROR: The urma Lists is empty. ";    
 static const std::string URMA_QUERY_OPTION_DES = "Query urma information by node id";
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
@@ -119,11 +120,10 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
         if (!ubse_req_serial.Check()) {
             return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
         }
-        u bse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(),
+        ubse_api_buffer_t request_buffer{ubse_req_serial.GetBuffer(),
                                            static_cast<uint32_t>(ubse_req_serial.GetLength())};
         ubse_api_buffer_t response_buffer = {NULL, 0};
-        ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &request_buffer, &response_buffer);
-        ubse_api_buffer_free(&request_buffer);
+        auto ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &request_buffer, &response_buffer);
         UbseCliBufferGuard ubseCliBufferGuard(response_buffer);
         if (ret != UBSE_OK) {
             return UbseCliStringPromptReply(
@@ -148,14 +148,14 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
 {
     auto urmaNode = params.find(URMA_NODE_OPT);
     if (urmaNode == params.end()) {
-        return UbseCliStringPromptReply(URMA_EMPTY_ERROR);
+        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
-    uint32_t urmaType = UNIQUE;
+    uint32_t urmaType = 0; //暂时只支持独享
     uint32_t nodeId;
     try {
         nodeId = static_cast<uint32_t>(std::stoul(urmaNode->second));
     } catch (const std::exception &e) {
-        return UbseCliStringPromptReply(URMA_EMPTY_ERROR);
+        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
     UbseSerialization ubse_req_serial;
     ubse_req_serial << nodeId << urmaType;
@@ -185,9 +185,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     [maybe_unused]] const std::map<std::string, std::string> &params)
 {
     UbseSerialization ubse_req_serial(NO_8);
-    uint32_t urmaType = UNIQUE;
+    uint32_t urmaType = 0; // 暂时只支持独享
     if (params.find(URMA_NODE_OPT) == params.end()) {
-        return UbseCliStringPromptReply(URMA_EMPTY_ERROR);
+        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
     uint32_t nodeId = std::stoul(params.at(URMA_NODE_OPT));
     ubse_req_serial << nodeId << urmaType;
