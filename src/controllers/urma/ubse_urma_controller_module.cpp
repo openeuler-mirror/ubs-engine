@@ -18,17 +18,17 @@
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_api.h"
 #include "ubse_urma_controller_rpc.h"
+#include "ubse_common_def.h"
 
 namespace ubse::urmaController {
 using namespace ubse::log;
 using namespace ubse::module;
 using namespace ubse::task_executor;
 using namespace ubse::com;
+using namespace ubse::common::def;
 
 DYNAMIC_CREATE(UbseUrmaControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
-std::string g_ubseNodeJoin = "UbseNodeJoinEvent";
-std::string g_ubseTopoChange = "UbseTopoLinkChangeEvent";
 
 UbseResult UbseUrmaControllerModule::Initialize()
 {
@@ -114,16 +114,18 @@ UbseResult UbseUrmaControllerModule::Start()
         return UBSE_ERROR;
     }
 
-    ret = ubse::event::UbseSubEvent(g_ubseNodeJoin,
+    std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
+    ret = ubse::event::UbseSubEvent(nodeJoinEventId,
                                     ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Fail to Follow the event=" << g_ubseNodeJoin;
+        UBSE_LOG_ERROR << "Fail to Follow the event=" << nodeJoinEventId;
     }
 
-    ret = ubse::event::UbseSubEvent(g_ubseTopoChange,
+    std::string nodeTopoLinkChangeEventId = UBSE_EVENT_NODE_TOPO_LINK_CHANGE;
+    ret = ubse::event::UbseSubEvent(nodeTopoLinkChangeEventId,
                                     ubse::urmaController::UrmaController::GetInstance().UbseTopoLinkChangeHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Fail to Follow the event=" << g_ubseTopoChange;
+        UBSE_LOG_ERROR << "Fail to Follow the event=" << nodeTopoLinkChangeEventId;
     }
 
     return UBSE_OK;
