@@ -29,8 +29,7 @@ typedef enum {
 
 typedef struct {
     char name[UBS_URMA_NAME_MAX];
-    uint32_t numa;
-    uint32_t healthy;
+    uint32_t healthy; // 0表示端口可用，1表示端口不可用
 } urma_device_t;
 
 typedef struct {
