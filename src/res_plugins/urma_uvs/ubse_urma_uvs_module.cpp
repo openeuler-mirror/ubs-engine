@@ -310,8 +310,8 @@ UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkI
     for (const auto &topo : allLinkInfo) {
         std::string curSlotId = std::to_string(topo.slotId);
         std::string peerSlotId = std::to_string(topo.peerSlotId);
-        if (nodeMap.find(curSlotId) == nodeMap.end() || nodeMap.find(peerSlotId) == nodeMap.end()) {
-            UBSE_LOG_ERROR << "Failed to find slotId " << curSlotId << " or peer slotId " << peerSlotId << " in nodes";
+        if (nodeMap.find(curSlotId) == nodeMap.end()) {
+            UBSE_LOG_ERROR << "Failed to find slotId " << curSlotId << " in nodes";
             return UBSE_ERROR;
         }
 
@@ -320,12 +320,17 @@ UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkI
         if (iodie_idx >= IODIE_NUM || topo.portId >= PORT_NUM || peer_iodie_idx >= IODIE_NUM ||
             topo.peerPortId >= PORT_NUM) {
             UBSE_LOG_ERROR << std::to_string(topo.portId) << " or " << std::to_string(topo.peerPortId);
-            UBSE_LOG_ERROR << std::to_string(iodie_idx) << " or " << std::to_string(peer_iodie_idx) ;
+            UBSE_LOG_ERROR << std::to_string(iodie_idx) << " or " << std::to_string(peer_iodie_idx);
             return UBSE_ERROR;
         }
         nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_node = topo.peerSlotId;
         nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_iodie = peer_iodie_idx;
         nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_port = topo.peerPortId;
+
+        if (nodeMap.find(peerSlotId) == nodeMap.end()) {
+            UBSE_LOG_ERROR << "Failed to find peer slotId " << peerSlotId << " in nodes";
+            return UBSE_OK;
+        }
 
         nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_node = topo.slotId;
         nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_iodie = iodie_idx;

@@ -35,6 +35,7 @@ static const std::string URMA_QUERY_OPTION_DES =
     "Query urma information by node-id, the option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_QOS_QUERY_OPTION_DES =
     "Query urma-qos information by node-id, the option is as follow: node-id(1 ~ max node-id).";
+static const std::string URMA_CLI_URMA_STATUS_ERROR = "ERROR: Invalid URMA status.";
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
 {
@@ -62,6 +63,9 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaDevInfo()
     return builder.UbseCliBuild();
 }
 
+constexpr uint32_t URMA_INFO_STATUS_NUM = 3;
+std::array<std::string, URMA_INFO_STATUS_NUM> urmaStatusArray = {"active", "inactive", "unknow"};
+
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevInfoTable(
     UbseDeSerialization &ubse_de_serial, uint32_t urma_size)
 {
@@ -83,11 +87,14 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
         if (!ubse_de_serial.Check()) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
+        if (urmaStatus >= urmaStatusArray.size()) {
+            return UbseCliStringPromptReply(URMA_CLI_URMA_STATUS_ERROR);
+        }
 
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, uramName);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, fe1Name);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, fe2Name);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, std::to_string(urmaStatus));
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, urmaStatusArray[urmaStatus]);
     }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
