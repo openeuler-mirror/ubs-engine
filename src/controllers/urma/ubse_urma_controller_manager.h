@@ -52,7 +52,7 @@ public:
     bool IsUrmaInfoExists(const std::string &nodeId);
     bool IsUrmaInfoExists(const std::string &nodeId, const std::string &devEid); // 本节点是否包含指定eid的urmaInfo
     std::vector<std::string> GetEmptyNodeInfo();
-    void SetActiveState(const std::string &name, const std::string &nodeId);
+    void SetActiveState(const std::string &urmaDevEid, const std::string &nodeId);
     UbseResult GetUrmaNameByType(const UrmaDevType type, std::vector<std::string> &urmaInfoName,
                                  std::vector<uint32_t> &status);
     void GetUrmaNameForQueryByType(const UrmaDevType type, std::vector<UbseUrmaInfoForQuery> &devInfos);
@@ -62,6 +62,7 @@ public:
 
     UbseResult AllocByUrmaName(const std::string &urmaInfoName, std::vector<std::string> &feNames, std::string &eid);
     UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
+    void SetUrmaName(const std::string &urmaEid, const std::string &urmaName);
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
     void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
