@@ -26,7 +26,9 @@ using namespace ubse::utils;
 
 DYNAMIC_CREATE(UbseUrmaUvsModule);
 
-UBSE_DEFINE_THIS_MODULE("ubse_urma", UBSE_URMA_UVS_MID)
+UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_UVS_MID)
+
+bool g_isMocked = true;
 
 UbseResult UbseUrmaUvsModule::Initialize()
 {
@@ -39,28 +41,27 @@ UbseResult UbseUrmaUvsModule::Initialize()
 
     uvsSetTopoInfo = (UvsSetTopoInfo)dlsym(handle, "uvs_set_topo_info");
     if (uvsSetTopoInfo == nullptr) {
-        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
+        UBSE_LOG_WARN << "Failed to find symbol 'uvs_set_topo_info'";
     }
 
     uvsGetDeviceNameByUrmaEid = (UvsGetDeviceNameByUrmaEid)dlsym(handle, "uvs_get_device_name_by_eid");
     if (uvsGetDeviceNameByUrmaEid == nullptr) {
-        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
+        UBSE_LOG_WARN << "Failed to find symbol 'uvs_get_device_name_by_eid'";
     }
 
     uvsCreateAggrDev = (UvsCreateAggrDev)dlsym(handle, "uvs_create_agg_dev");
     if (uvsCreateAggrDev == nullptr) {
-        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_create_agg_dev'";
+        UBSE_LOG_WARN << "Failed to find symbol 'uvs_create_agg_dev'";
     }
 
     uvsDeleteAggrDev = (UvsDeleteAggrDev)dlsym(handle, "uvs_delete_agg_dev");
     if (uvsDeleteAggrDev == nullptr) {
-        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_delete_agg_dev'";
+        UBSE_LOG_WARN << "Failed to find symbol 'uvs_delete_agg_dev'";
     }
 
     if (uvsSetTopoInfo == nullptr || uvsGetDeviceNameByUrmaEid == nullptr || uvsCreateAggrDev == nullptr ||
         uvsDeleteAggrDev == nullptr) {
-        dlclose(handle);
-        return UBSE_ERROR_NULLPTR;
+        UBSE_LOG_WARN << "Failed to find symbol in libtpsa.so";
     }
     return UBSE_OK;
 }
@@ -92,6 +93,7 @@ void UbseUrmaUvsModule::Cleanup()
 UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
                                          const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
 {
+    UBSE_LOG_DEBUG << "Set Uvs Info";
     std::vector<UbcoreTopoNode> nodes;
     auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
     if (ret != UBSE_OK) {
@@ -103,6 +105,13 @@ UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std
             node.is_current = true;
         }
     }
+    if (g_isMocked) {
+        return UBSE_OK;
+    }
+    if (uvsSetTopoInfo == nullptr) {
+        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
+        return UBSE_ERROR_NOENT;
+    }
     ret = uvsSetTopoInfo(nodes.data(), nodes.size());
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
@@ -113,6 +122,7 @@ UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std
 
 UbseResult UbseUrmaUvsModule::GetNameByUrmaEid(const std::string &urmaEid, std::string &urmaEidName)
 {
+    UBSE_LOG_DEBUG << "Get Name By UrmaEid";
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ParseColonHexString(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -120,6 +130,15 @@ UbseResult UbseUrmaUvsModule::GetNameByUrmaEid(const std::string &urmaEid, std::
         return ret;
     }
     char name[DEV_NAME_LEN];
+    if (g_isMocked) {
+        char lastChar = urmaEid.back();
+        urmaEidName = "mockname" + std::string(1, lastChar);
+        return UBSE_OK;
+    }
+    if (uvsGetDeviceNameByUrmaEid == nullptr) {
+        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
+        return UBSE_ERROR_NOENT;
+    }
     ret = uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to get device name";
@@ -131,6 +150,7 @@ UbseResult UbseUrmaUvsModule::GetNameByUrmaEid(const std::string &urmaEid, std::
 
 UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool isactivate)
 {
+    UBSE_LOG_DEBUG << "Get State By UrmaEid";
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ParseColonHexString(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -138,6 +158,14 @@ UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool
         return ret;
     }
     char name[DEV_NAME_LEN];
+    if (g_isMocked) {
+        isactivate = true;
+        return UBSE_OK;
+    }
+    if (uvsGetDeviceNameByUrmaEid == nullptr) {
+        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
+        return UBSE_ERROR_NOENT;
+    }
     ret = uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to get state";
@@ -150,11 +178,19 @@ UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool
 
 UbseResult UbseUrmaUvsModule::ActivateBondingDevice(const std::string &urmaEid)
 {
+    UBSE_LOG_DEBUG << "Activate Bonding Device";
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ParseColonHexString(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to parse bondingEid=" << urmaEid;
         return ret;
+    }
+    if (g_isMocked) {
+        return UBSE_OK;
+    }
+    if (uvsCreateAggrDev == nullptr) {
+        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_create_agg_dev'";
+        return UBSE_ERROR_NOENT;
     }
     ret = uvsCreateAggrDev(bondingEid);
     if (UBSE_RESULT_FAIL(ret)) {
@@ -166,11 +202,19 @@ UbseResult UbseUrmaUvsModule::ActivateBondingDevice(const std::string &urmaEid)
 
 UbseResult UbseUrmaUvsModule::DeactivateBondingDevice(const std::string &urmaEid)
 {
+    UBSE_LOG_DEBUG << "Deactivate Bonding Device";
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ParseColonHexString(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to parse bondingEid=" << urmaEid;
         return ret;
+    }
+    if (g_isMocked) {
+        return UBSE_OK;
+    }
+    if (uvsDeleteAggrDev == nullptr) {
+        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_delete_agg_dev'";
+        return UBSE_ERROR_NOENT;
     }
     ret = uvsDeleteAggrDev(bondingEid);
     if (UBSE_RESULT_FAIL(ret)) {
@@ -180,7 +224,7 @@ UbseResult UbseUrmaUvsModule::DeactivateBondingDevice(const std::string &urmaEid
     return UBSE_OK;
 }
 
-UbseResult GetSlotIds(const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::set<std::string> slotIds)
+UbseResult GetSlotIds(const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::set<std::string> &slotIds)
 {
     if (bondingInfo.empty()) {
         return UBSE_ERROR;
@@ -206,7 +250,7 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
     auto ret = GetSlotIds(bondingInfo, slotIds);
     if (ret != UBSE_OK || slotIds.empty()) {
         UBSE_LOG_ERROR << "Failed to get slotIds";
-        return ret;
+        return UBSE_ERROR;
     }
 
     std::unordered_map<std::string, UbcoreTopoNode> nodeMap;
@@ -275,6 +319,8 @@ UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkI
         uint32_t peer_iodie_idx = topo.peerChipId - 1;
         if (iodie_idx >= IODIE_NUM || topo.portId >= PORT_NUM || peer_iodie_idx >= IODIE_NUM ||
             topo.peerPortId >= PORT_NUM) {
+            UBSE_LOG_ERROR << std::to_string(topo.portId) << " or " << std::to_string(topo.peerPortId);
+            UBSE_LOG_ERROR << std::to_string(iodie_idx) << " or " << std::to_string(peer_iodie_idx) ;
             return UBSE_ERROR;
         }
         nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_node = topo.peerSlotId;
@@ -317,7 +363,7 @@ UbseResult UbseUrmaUvsModule::FillFeInfo(const std::vector<UbseUrmaUvsFe> &fes, 
                 UBSE_LOG_ERROR << "Convert socket_id failed, " << FormatRetCode(ret);
                 return ret;
             }
-            auto ret = ParseColonHexString(port.second, aggr_dev.fe[i].port_eid[portId]);
+            ret = ParseColonHexString(port.second, aggr_dev.fe[i].port_eid[portId]);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to parse portEid=" << port.second;
                 return ret;
