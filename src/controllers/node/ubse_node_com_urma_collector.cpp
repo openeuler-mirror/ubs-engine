@@ -33,14 +33,13 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
     auto lcneModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
     if (lcneModule == nullptr) {
         UBSE_LOG_ERROR << "Get lcne module failed. ";
-        return UBSE_ERROR;
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
     std::vector<MtiNodeInfo> ubseNodeInfos{};
     auto ret = lcneModule->UbseGetAllNodeInfos(ubseNodeInfos);
     for (const auto &ubseNodeInfo : ubseNodeInfos) {
         comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid = ubseNodeInfo.eid;
-        comUrmaIsActive[ubseNodeInfo.eid] = false;
     }
 
     auto allSocketComEid = lcneModule->GetAllSocketComEid();
@@ -77,7 +76,7 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLi
     auto ret = GetAllComUrma(hostUrmaInfos);
     if (ret != UBSE_OK || hostUrmaInfos.empty()) {
         UBSE_LOG_ERROR << "Get all com urma info failed.";
-        return ret;
+        return UBSE_ERROR;
     }
 
     ret = urmaUvsModule->SetUvsInfo(ubseNodeInfo.nodeId, allLinkInfo, hostUrmaInfos);
@@ -119,7 +118,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
     DevTopology devTopology{};
     auto ret = lcneModule->UbseGetDevTopology(devTopology);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] get topology info not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
         return ret;
     }
 
@@ -138,7 +137,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
                 ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to convert nodeId=" << nodeId << ", ubpuId=" << ubpuId
                                << ", portId=" << portKv.second.portId;
-                return UBSE_ERROR;
+                continue;
             }
             if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK ||
                 ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK ||
@@ -146,7 +145,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
                 UBSE_LOG_ERROR << "Failed to convert nodeId=" << portKv.second.remoteSlotId
                                << ", ubpuId=" << portKv.second.remoteChipId
                                << ", portId=" << portKv.second.remotePortId;
-                return UBSE_ERROR;
+                continue;
             }
             link.linkStatus = LinkStatus::init;
             allLinkInfo.push_back(link);
@@ -166,7 +165,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseLcneIouIn
     DevTopology devTopology{};
     auto ret = lcneModule->UbseGetDevTopology(devTopology);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] get topology info not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
         return ret;
     }
     iouList.clear();

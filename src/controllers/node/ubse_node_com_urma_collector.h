@@ -42,7 +42,6 @@ public:
 
 private:
     std::map<std::string, UbseUrmaUvsAggrDev> comUrmaInfos;
-    std::map<std::string, bool> comUrmaIsActive;
 };
 
 } // namespace ubse::nodeController
