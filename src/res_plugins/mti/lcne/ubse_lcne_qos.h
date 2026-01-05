@@ -13,7 +13,7 @@
 #ifndef UBSE_LCNE_QOS_H
 #define UBSE_LCNE_QOS_H
 
-#include <stdint.h>
+#include <cstdint>
 #include <string>             // for string, basic_string
 #include <utility>            // for move
 #include "ubse_common_def.h"  // for UbseResult
