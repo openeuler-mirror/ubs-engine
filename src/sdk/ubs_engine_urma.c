@@ -27,7 +27,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
     request_buffer.length = sizeof(uint32_t);
     request_buffer.buffer = malloc(request_buffer.length);
     if (request_buffer.buffer == NULL) {
-        return UBS_ERR_OUT_OF_MEMORY;
+        return UBS_ENGINE_ERR_INTERNAL;
     }
     *request_buffer.buffer = trans_urma_type;
     // 调用接口
@@ -118,7 +118,7 @@ uint32_t ubs_urma_bandwidth_set(const char *name, uint32_t minBandWidth, uint32_
     request_buffer.length = totallen;
     request_buffer.buffer = malloc(totallen);
     if (request_buffer.buffer == NULL) {
-        return UBS_ERR_OUT_OF_MEMORY;
+        return UBS_ENGINE_ERR_INTERNAL;
     }
     uint8_t *buffer = request_buffer.buffer;
     uint32_t ret = strcpy_s((char *)buffer, nameLen + 1, name);

@@ -27,11 +27,14 @@ using namespace ubse::common::def;
 
 static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed in client.";
 static const std::string URMA_NODE_OPT = "node";
-static const std::string URMA_INTERNAL_ERROR = "ERROR: Internal error with error code ";
+static const std::string URMA_INTERNAL_ERROR = "ERROR: Internal error.";
 static const std::string URMA_NODE_ID_ERROR =
-    "ERROR: Invalid request param,The options are as follows: " + URMA_NODE_OPT + ".";
-static const std::string URMA_EMPTY_ERROR = "ERROR: The urma Lists is empty.";
-static const std::string URMA_QUERY_OPTION_DES = "Query urma information by node id";
+    "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
+static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
+static const std::string URMA_QUERY_OPTION_DES =
+    "Query urma information by node-id, the option is as follow: node-id(1 ~ max node-id).";
+static const std::string URMA_QOS_QUERY_OPTION_DES =
+    "Query urma-qos information by node-id, the option is as follow: node-id(1 ~ max node-id).";
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
 {
@@ -44,7 +47,7 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaQos()
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("display")
         .UbseCliSetType("urma-qos")
-        .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QUERY_OPTION_DES)
+        .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QOS_QUERY_OPTION_DES)
         .UbseCliSetFunc(UbseQueryUrmaQosFunc);
     return builder.UbseCliBuild();
 }
@@ -76,7 +79,6 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
         std::string fe1Name;
         std::string fe2Name;
         uint32_t urmaStatus;
-        /* 待确认反序列化还有些什么内容 */
         ubse_de_serial >> uramName >> fe1Name >> fe2Name >> urmaStatus;
         if (!ubse_de_serial.Check()) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
@@ -125,8 +127,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
         auto ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &request_buffer, &response_buffer);
         UbseCliBufferGuard ubseCliBufferGuard(response_buffer);
         if (ret != UBSE_OK) {
-            return UbseCliStringPromptReply(
-                std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+            return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
         }
         uint32_t minBandWidth = 0;
         uint32_t maxBandWidth = 0;
@@ -183,12 +184,19 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc([
     [maybe_unused]] const std::map<std::string, std::string> &params)
 {
-    UbseSerialization ubse_req_serial(NO_8);
-    uint32_t urmaType = 0; // 暂时只支持独享
-    if (params.find(URMA_NODE_OPT) == params.end()) {
+    auto urmaNode = params.find(URMA_NODE_OPT);
+    if (urmaNode == params.end()) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
-    uint32_t nodeId = std::stoul(params.at(URMA_NODE_OPT));
+    uint32_t nodeId;
+    try {
+        nodeId = static_cast<uint32_t>(std::stoul(urmaNode->second));
+    } catch (const std::exception &e) {
+        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
+    }
+    UbseSerialization ubse_req_serial;
+    uint32_t urmaType = 0; // 暂时只支持独享
+
     ubse_req_serial << nodeId << urmaType;
     if (!ubse_req_serial.Check()) {
         return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
@@ -198,7 +206,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     uint32_t urmaSize{};
