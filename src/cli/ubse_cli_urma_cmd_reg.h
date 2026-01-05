@@ -28,8 +28,7 @@ private:
     static UbseCliCommandInfo UbseCliQueryUrmaQos();
     static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaQosFunc(
         [[maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaQosTable(uint32_t nodeId,
-                                                                         UbseDeSerialization &ubse_de_serial,
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaQosTable(UbseDeSerialization &ubse_de_serial,
                                                                          uint32_t urma_size);
     static UbseCliCommandInfo UbseCliQueryUrmaDevInfo();
     static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaDevInfoFunc(

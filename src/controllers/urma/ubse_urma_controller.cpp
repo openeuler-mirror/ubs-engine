@@ -39,6 +39,7 @@ UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
 const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
+const uint32_t BYTE_TO_BIT = 8;
 
 UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint32_t minBandWidth,
                                                 uint32_t maxBandWidth)
@@ -59,12 +60,12 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
         return UBSE_ERROR_CONF_INVALID;
     }
     /* 创建profile */
-    ubse::mti::UbseQosProfile ubseQosProfile;
+    ubse::mti::UbseLcneQosProfile lcneQosProfile;
     const std::string profileName = "Profile_" + urmaName;
-    ubseQosProfile.proflieName = profileName;
-    ubseQosProfile.minBandWidth = minBandWidth;
-    ubseQosProfile.maxBandWidth = maxBandWidth;
-    ret = UbseLcneQos::GetInstance().CreatQosProfile(ubseQosProfile);
+    lcneQosProfile.proflieName = profileName;
+    lcneQosProfile.minBandWidth = minBandWidth;
+    lcneQosProfile.maxBandWidth = maxBandWidth;
+    ret = UbseLcneQos::GetInstance().CreatQosProfile(lcneQosProfile);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseLcneQos::CreatQosProfile failed," << profileName << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -88,22 +89,27 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
             return UBSE_ERROR;
         }
     }
-    return ret;
+    /* Qos信息本地存储，按照8的倍数生效防止重启后LCEN信息不一致 */
+    UrmaQosProfile urmaQosProfile;
+    urmaQosProfile.profileName = profileName;
+    urmaQosProfile.minBandWidth = minBandWidth / BYTE_TO_BIT * BYTE_TO_BIT;
+    urmaQosProfile.maxBandWidth = maxBandWidth / BYTE_TO_BIT * BYTE_TO_BIT;
+    return UbseUrmaControllerManager::GetInstance().SetUrmaQos(urmaName, urmaQosProfile);
 }
 
 UbseResult UrmaController::UbseUrmaBandWidthGet(const std::string urmaName, uint32_t &minBandWidth,
                                                 uint32_t &maxBandWidth)
 {
-    ubse::mti::UbseQosProfile ubseQosProfile;
+    ubse::mti::UbseLcneQosProfile lcneQosProfile;
     UBSE_LOG_INFO << "UbseUrmaBandWidthGet Start," << urmaName;
-    const std::string profileName = "Profile_" + urmaName;
-    uint32_t ret = UbseLcneQos::GetInstance().QureyQosProfile(profileName, ubseQosProfile);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseLcneQos::QureyQosProfile failed," << profileName << FormatRetCode(ret);
+    UrmaQosProfile urmaQosProfile;
+    uint32_t ret = UbseUrmaControllerManager::GetInstance().GetUrmaQos(urmaName, urmaQosProfile);
+    if (ret != UBSE_OK || urmaQosProfile.profileName == "") {
+        UBSE_LOG_ERROR << "UbseUrmaControllerManager::GetUrmaQos failed," << urmaName << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
     }
-    minBandWidth = ubseQosProfile.minBandWidth;
-    maxBandWidth = ubseQosProfile.maxBandWidth;
+    minBandWidth = urmaQosProfile.minBandWidth;
+    maxBandWidth = urmaQosProfile.maxBandWidth;
     return ret;
 }
 
@@ -147,7 +153,11 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
         UBSE_LOG_ERROR << "UbseLcneQos::DeleteQosProfile failed," << profileName << FormatRetCode(ret);
         return UBSE_ERROR;
     }
-    return ret;
+    UrmaQosProfile urmaQosProfile;
+    urmaQosProfile.profileName = "";
+    urmaQosProfile.minBandWidth = UINT32_MAX;
+    urmaQosProfile.maxBandWidth = UINT32_MAX;
+    return UbseUrmaControllerManager::GetInstance().SetUrmaQos(urmaName, urmaQosProfile);
 }
 
 void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
@@ -160,15 +170,20 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
         return;
     }
     /* 先查询是否存在对应的Qos配置，没有则返回成功 */
-    ubse::mti::UbseQosProfile ubseQosProfile;
+    ubse::mti::UbseLcneQosProfile ubseLcneQosProfile;
     const std::string profileName = "Profile_" + urmaName;
-    ret = UbseLcneQos::GetInstance().QureyQosProfile(profileName, ubseQosProfile);
+    ret = UbseLcneQos::GetInstance().QureyQosProfile(profileName, ubseLcneQosProfile);
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "UbseLcneQos::QureyQosProfile failed," << profileName << FormatRetCode(ret);
         return;
     }
     /* 接下来遍历该urma下的Fe是否都生效了该proflie配置 */
     if (UbseUrmaBandWidthCheck(urmaInfo, profileName)) {
+        UrmaQosProfile urmaQosProfile;
+        urmaQosProfile.profileName = profileName;
+        urmaQosProfile.minBandWidth = ubseLcneQosProfile.minBandWidth;
+        urmaQosProfile.maxBandWidth = ubseLcneQosProfile.maxBandWidth;
+        UbseUrmaControllerManager::GetInstance().SetUrmaQos(urmaName, urmaQosProfile);
         return;
     }
     /* 先删除VFE上面所有的生效Qos，然后再删除profile */

@@ -12,13 +12,13 @@
 
 #include "ubse_urma_controller_module.h"
 #include "ubse_com_module.h"
+#include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_event.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_api.h"
 #include "ubse_urma_controller_rpc.h"
-#include "ubse_common_def.h"
 
 namespace ubse::urmaController {
 using namespace ubse::log;
@@ -54,7 +54,6 @@ UbseResult RpcReg()
         UBSE_LOG_ERROR << "Getting ComModule failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseComBaseMessageHandlerPtr pQosMessageHandler = new (std::nothrow) UbseUrmaQosMessageHandler();
 
     UbseComBaseMessageHandlerPtr pReportUrmaNodeInfoMessageHandler = new (std::nothrow)
         UbseUrmaReportUrmaNodeInfoMessageHandler;
@@ -65,18 +64,13 @@ UbseResult RpcReg()
 
     UbseComBaseMessageHandlerPtr pQueryDevHandler = new (std::nothrow) UbseUrmaDevQueryMessageHandler();
 
-    if (pQosMessageHandler == nullptr || pReportUrmaNodeInfoMessageHandler == nullptr ||
-        pNotifyMessageHandler == nullptr || pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr) {
+    if (pReportUrmaNodeInfoMessageHandler == nullptr || pNotifyMessageHandler == nullptr ||
+        pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr) {
         UBSE_LOG_ERROR << "Fail to create UbseComBaseMessageHandler";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = comModule->RegRpcService<UbseUrmaQosReqSimpo, UbseUrmaQosRspSimpo>(pQosMessageHandler);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Reg UbseUrmaQosMessageHandler failed.";
-        return ret;
-    }
 
-    ret = comModule->RegRpcService<UbseUrmaNotifyReqSimpo, UbseUrmaNotifyRspSimpo>(pNotifyMessageHandler);
+    auto ret = comModule->RegRpcService<UbseUrmaNotifyReqSimpo, UbseUrmaNotifyRspSimpo>(pNotifyMessageHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Reg UbseUrmaNotifyMessageHandler failed.";
         return ret;

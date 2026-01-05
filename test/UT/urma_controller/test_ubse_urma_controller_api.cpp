@@ -99,9 +99,9 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaBandWidthSet_fail)
     ret = UbseUrmaControllerApi::UbseUrmaBandWidthSet(req, context);
     EXPECT_EQ(UBSE_ERROR_NULLPTR, ret);
     GlobalMockObject::verify();
-    MOCKER(&UrmaController::UbseUrmaBandWidthSet).stubs().will(returnValue(static_cast<uint32_t>(UBSE_ERROR)));
+    MOCKER(&UrmaController::UbseUrmaBandWidthSet).stubs().will(returnValue(static_cast<uint32_t>(UBSE_ERROR_NOT_EXIST)));
     ret = UbseUrmaControllerApi::UbseUrmaBandWidthSet(req, context);
-    EXPECT_EQ(UBSE_ERROR_CONF_INVALID, ret);
+    EXPECT_EQ(UBSE_ERROR_NOT_EXIST, ret);
     free(req.buffer);
     GlobalMockObject::verify();
 }
@@ -140,9 +140,9 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaBandWidthReset_fail)
     ret = UbseUrmaControllerApi::UbseUrmaBandWidthReset(req, context);
     EXPECT_EQ(UBSE_ERROR_NULLPTR, ret);
     GlobalMockObject::verify();
-    MOCKER(&UrmaController::UbseUrmaBandWidthReset).stubs().will(returnValue(static_cast<uint32_t>(UBSE_ERROR)));
+    MOCKER(&UrmaController::UbseUrmaBandWidthReset).stubs().will(returnValue(static_cast<uint32_t>(UBSE_ERROR_NOT_EXIST)));
     ret = UbseUrmaControllerApi::UbseUrmaBandWidthReset(req, context);
-    EXPECT_EQ(UBSE_ERROR_SRCH, ret);
+    EXPECT_EQ(UBSE_ERROR_NOT_EXIST, ret);
     GlobalMockObject::verify();
 }
 
@@ -185,9 +185,9 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaBandWidthGet_fail)
     ret = UbseUrmaControllerApi::UbseUrmaBandWidthGet(req, context);
     EXPECT_EQ(UBSE_ERROR_NULLPTR, ret);
     GlobalMockObject::verify();
-    MOCKER(&UrmaController::UbseUrmaBandWidthGet).stubs().will(returnValue(static_cast<uint32_t>(UBSE_ERROR)));
+    MOCKER(&UrmaController::UbseUrmaBandWidthGet).stubs().will(returnValue(static_cast<uint32_t>(UBSE_ERROR_NOT_EXIST)));
     ret = UbseUrmaControllerApi::UbseUrmaBandWidthGet(req, context);
-    EXPECT_EQ(UBSE_ERROR_SRCH, ret);
+    EXPECT_EQ(UBSE_ERROR_NOT_EXIST, ret);
     free(req.buffer);
     GlobalMockObject::verify();
 }

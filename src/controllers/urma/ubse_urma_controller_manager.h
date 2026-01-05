@@ -28,11 +28,13 @@ using namespace ubse::urma;
 using namespace ubse::mti;
 
 typedef struct {
-    std::string bondingName;
+    std::string urmaName;
     std::string fe1Name;
     std::string fe2Name;
     UrmaDevType bondingType;
     UrmaDevState state;
+    uint32_t    minBandWidth;
+    uint32_t    maxBandWidth;    
 } UbseUrmaInfoForQuery;
 
 class UbseUrmaControllerManager {
@@ -61,6 +63,8 @@ public:
     UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
 
     UbseResult AllocByUrmaName(const std::string &urmaInfoName, std::vector<std::string> &feNames, std::string &eid);
+    UbseResult SetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile urmaQosProfile);
+    UbseResult GetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile &urmaQosProfile);
     UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);

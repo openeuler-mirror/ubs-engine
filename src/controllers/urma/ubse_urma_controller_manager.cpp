@@ -210,13 +210,15 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
     for (auto info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         if (info.second.urmaDevType == type) {
             UbseUrmaInfoForQuery urmaInfo;
-            urmaInfo.bondingName = info.second.subPath;
+            urmaInfo.urmaName = info.second.subPath;
             if (info.second.eidGroups.size() != feCntPerUrmaInfo) {
                 continue;
             }
             urmaInfo.fe1Name = info.second.eidGroups[0].feInfo->name;
             urmaInfo.fe2Name = info.second.eidGroups[1].feInfo->name;
             urmaInfo.state = info.second.state;
+            urmaInfo.minBandWidth = info.second.urmaQosProfile.minBandWidth;
+            urmaInfo.maxBandWidth = info.second.urmaQosProfile.maxBandWidth;
             devInfos.push_back(urmaInfo);
         }
     }
@@ -357,6 +359,16 @@ void UbseUrmaControllerManager::InsertNewNodeInfo(const std::string &nodeId, Ubs
 {
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
     nodeInfos[nodeId] = std::move(insertNodeInfo);
+}
+
+UbseResult UbseUrmaControllerManager::GetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile &urmaQosProfile)
+{
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::SetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile urmaQosProfile)
+{
+    return UBSE_OK;
 }
 
 const std::map<UbseLcneFeType, FeType> g_LcneFeTypeToUrmaFeTypeMap = {
