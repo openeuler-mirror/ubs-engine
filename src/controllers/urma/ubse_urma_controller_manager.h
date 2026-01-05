@@ -61,6 +61,8 @@ public:
     UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
 
     UbseResult AllocByUrmaName(const std::string &urmaInfoName, std::vector<std::string> &feNames, std::string &eid);
+    UbseResult SetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile urmaQosProfile);
+    UbseResult GetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile &urmaQosProfile);
     UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);

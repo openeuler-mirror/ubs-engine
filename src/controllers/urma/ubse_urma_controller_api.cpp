@@ -13,7 +13,6 @@
 #include "ubse_urma_controller_api.h"
 #include <netinet/in.h>
 #include <securec.h>
-#include "ubs_engine_urma.h"
 #include "ubse_api_server_module.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
@@ -35,6 +34,9 @@ using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
+const uint32_t UBSE_URMA_NAME_MAX = 32;        // 包含结束符长度
+const uint32_t UBSE_MAX_URMA_PATH_LENGTH = 64; // 包含结束符长度
+
 size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
 {
     size_t len = 0;
@@ -48,7 +50,7 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
     size_t infoSize = nameInfos.size();
     size_t rspSize = sizeof(uint32_t);
     for (auto &s : nameInfos) {
-        rspSize += UbseStringCalcSize(s, UBS_URMA_NAME_MAX - 1) + sizeof(uint32_t);
+        rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t);
         response.buffer = new (std::nothrow) uint8_t[rspSize];
         response.length = rspSize;
         if (response.buffer == nullptr) {
@@ -58,7 +60,7 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
         if (!packUtil.UbsePackUint32(static_cast<uint32_t>(infoSize)))
             return IPC_ERROR_SERIALIZATION_FAILED;
         for (size_t i = 0; i < nameInfos.size(); i++) {
-            if (!packUtil.UbsePackString(nameInfos[i], UBS_URMA_NAME_MAX - 1)) {
+            if (!packUtil.UbsePackString(nameInfos[i], UBSE_URMA_NAME_MAX - 1)) {
                 return IPC_ERROR_SERIALIZATION_FAILED;
             }
             if (!packUtil.UbsePackUint32(status[i])) {
@@ -98,23 +100,22 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage &req, 
         return UBSE_ERROR_NULLPTR;
     }
     uint8_t *buffer = req.buffer;
-    std::string name(static_cast<const char*>(static_cast<const void*>(buffer)));
-    buffer += name.length() + 1;
-    uint32_t networkOrderValue = 0;
-    errno_t memret = memcpy_s(&networkOrderValue, sizeof(networkOrderValue), buffer, sizeof(uint32_t));
-    if (memret != 0) {
-        UBSE_LOG_ERROR << "memcpy_s failed to read uint32_t from buffer.";
+    const char *str = reinterpret_cast<const char *>(buffer);
+    uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
+    if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
     }
-    uint32_t minBandWidth = ntohl(networkOrderValue);
+    std::string name(str, strlen);
+    buffer += strlen + 1;
+
+    uint32_t minBandWidth;
+    uint32_t maxBandWidth;
+    memcpy_s(&minBandWidth, sizeof(minBandWidth), buffer, sizeof(uint32_t));
     buffer += sizeof(minBandWidth);
-    networkOrderValue = 0;
-    memret = memcpy_s(&networkOrderValue, sizeof(networkOrderValue), buffer, sizeof(uint32_t));
-    if (memret != 0) {
-        UBSE_LOG_ERROR << "memcpy_s failed to read uint32_t from buffer.";
-        return UBSE_ERROR;
-    }
-    uint32_t maxBandWidth = ntohl(networkOrderValue);
+    memcpy_s(&maxBandWidth, sizeof(maxBandWidth), buffer, sizeof(uint32_t));
+    minBandWidth = ntohl(minBandWidth);
+    maxBandWidth = ntohl(maxBandWidth);
+
     uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthSet(name, minBandWidth, maxBandWidth);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthSet failed," << FormatRetCode(ret);
@@ -141,7 +142,12 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage &req, 
         UBSE_LOG_ERROR << "UbseUrmaBandWidthGet request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    std::string name(static_cast<const char*>(static_cast<const void*>(buffer)));
+    const char *str = reinterpret_cast<const char *>(buffer);
+    uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
+    if (strlen >= UBSE_URMA_NAME_MAX) {
+        return UBSE_ERROR;
+    }
+    std::string name(str, strlen);
     UrmaQosRpcRsp urmaQosRsp;
     uint32_t ret =
         UrmaController::GetInstance().UbseUrmaBandWidthGet(name, urmaQosRsp.minBandWidth, urmaQosRsp.maxBandWidth);
@@ -182,7 +188,12 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage &req
         UBSE_LOG_ERROR << "UbseUrmaBandWidthReset request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    std::string name(static_cast<const char*>(static_cast<const void*>(req.buffer)));
+    const char *str = reinterpret_cast<const char *>(req.buffer);
+    uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
+    if (strlen >= UBSE_URMA_NAME_MAX) {
+        return UBSE_ERROR;
+    }
+    std::string name(str, strlen);
     uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthReset(name);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthReset failed," << FormatRetCode(ret);
@@ -249,19 +260,17 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, Urm
         return UBSE_ERROR_NULLPTR;
     }
     UbseIpcMessage response = {nullptr, 0};
-    response.length = sizeof(urmaQosRsp.minBandWidth) + sizeof(urmaQosRsp.maxBandWidth);
+    uint32_t minBandWidth = htonl(urmaQosRsp.minBandWidth);
+    uint32_t maxBandWidth = htonl(urmaQosRsp.maxBandWidth);
+    response.length = sizeof(minBandWidth) + sizeof(maxBandWidth);
     uint8_t *buffer = (uint8_t *)malloc(response.length);
-    response.buffer = buffer;
-    // 安全序列化 uint32_t 值（网络字节序）
-    uint32_t minVal = htonl(urmaQosRsp.minBandWidth);
-    uint32_t maxVal = htonl(urmaQosRsp.maxBandWidth);
-    errno_t ret1 = memcpy_s(buffer, response.length, &minVal, sizeof(minVal));
-    errno_t ret2 = memcpy_s(buffer + sizeof(minVal), response.length - sizeof(minVal), &maxVal, sizeof(maxVal));
-    if (ret1 != 0 || ret2 != 0) {
-        std::free(buffer);
-        UBSE_LOG_ERROR << "memcpy_s failed";
+    if (buffer == nullptr) {
         return UBSE_ERROR;
     }
+    response.buffer = buffer;
+    memcpy_s(buffer, sizeof(minBandWidth), &minBandWidth, sizeof(minBandWidth));
+    buffer += sizeof(minBandWidth);
+    memcpy_s(buffer, sizeof(maxBandWidth), &maxBandWidth, sizeof(maxBandWidth));
     uint32_t ret = apiServerModule->SendResponse(IPC_SUCCESS, requestId, response);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << " UbseUrmaSendQosRsp response send failed," << FormatRetCode(ret);
@@ -368,7 +377,12 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
         UBSE_LOG_ERROR << "Ubse Urma Dev Alloc IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    std::string name(static_cast<const char*>(static_cast<const void*>(req.buffer)));
+    const char *str = reinterpret_cast<const char *>(req.buffer);
+    uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
+    if (strlen >= UBSE_URMA_NAME_MAX) {
+        return UBSE_ERROR;
+    }
+    std::string name(str, strlen);
     UbseUrmaDevPath devInfos;
     uint32_t ret = UrmaController::GetInstance().UbseAllocUrmaDev(name, devInfos);
     if (ret != UBSE_OK) {
@@ -401,7 +415,12 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
         UBSE_LOG_ERROR << "Ubse Urma Dev Free IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    std::string name(static_cast<const char*>(static_cast<const void*>(req.buffer)));
+    const char *str = reinterpret_cast<const char *>(req.buffer);
+    uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
+    if (strlen >= UBSE_URMA_NAME_MAX) {
+        return UBSE_ERROR;
+    }
+    std::string name(str, strlen);
     uint32_t ret = UrmaController::GetInstance().UbseFreeUrmaDev(name);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
@@ -436,8 +455,8 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
     }
     std::vector<std::string> nameInfos;
     std::vector<uint32_t> status;
-    uint32_t ret = UrmaController::GetInstance().UbseGetLocalUrmaDevInfoByType(static_cast<UrmaDevType>(type),
-                                                                               nameInfos, status);
+    uint32_t ret =
+        UrmaController::GetInstance().UbseGetLocalUrmaDevInfoByType(static_cast<UrmaDevType>(type), nameInfos, status);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseGetLocalUrmaDevInfoByType failed," << FormatRetCode(ret);
         return UBSE_ERROR_SRCH;

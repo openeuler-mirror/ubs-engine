@@ -35,7 +35,7 @@ const uint32_t LCNE_QOS_WEIGHT = 12;
 const uint32_t ONE_K = 1024;
 const uint32_t BYTE_TO_BIT = 8;
 
-UbseResult UbseLcneQos::CreatQosProfile(UbseQosProfile ubseQosProfile)
+UbseResult UbseLcneQos::CreatQosProfile(UbseLcneQosProfile ubseLcneQosProfile)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -45,7 +45,7 @@ UbseResult UbseLcneQos::CreatQosProfile(UbseQosProfile ubseQosProfile)
     req.path = LCNE_QOS_PROFILE_URI;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
     req.headers.emplace("Content-Type", LCNE_QOS_CONTENT_TYPE);
-    auto ret = BuildQoSProfileXml(ubseQosProfile, body);
+    auto ret = BuildQoSProfileXml(ubseLcneQosProfile, body);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] buildQoSProfileXml failed. ";
         return ret;
@@ -90,7 +90,7 @@ UbseResult UbseLcneQos::DeleteQosProfile(std::string proflieName)
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::QureyQosProfile(std::string proflieName, UbseQosProfile &ubseQosProfile)
+UbseResult UbseLcneQos::QureyQosProfile(std::string proflieName, UbseLcneQosProfile &ubseLcneQosProfile)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -115,7 +115,7 @@ UbseResult UbseLcneQos::QureyQosProfile(std::string proflieName, UbseQosProfile 
         return UBSE_ERROR;
     }
     // 解析xml响应
-    ret = ParseQosProfileResponse(rsp.body, ubseQosProfile);
+    ret = ParseQosProfileResponse(rsp.body, ubseLcneQosProfile);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] QosProfile Info Parse XML data is failed.";
         return UBSE_ERROR;
@@ -213,7 +213,7 @@ UbseResult UbseLcneQos::QueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &prof
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::BuildQoSProfileXml(UbseQosProfile ubseQosProfile, std::string &xmlStr)
+UbseResult UbseLcneQos::BuildQoSProfileXml(UbseLcneQosProfile ubseLcneQosProfile, std::string &xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -223,7 +223,7 @@ UbseResult UbseLcneQos::BuildQoSProfileXml(UbseQosProfile ubseQosProfile, std::s
     ubseXml->AddNode("tqos-profile");
     ubseXml->Attr("xmlns", LCNE_QOS_PROFILE_XML);
     ubseXml->AddNode("name");
-    ubseXml->Child("name")->Text(ubseQosProfile.proflieName);
+    ubseXml->Child("name")->Text(ubseLcneQosProfile.proflieName);
     ubseXml->AddNode("schedule");
     std::shared_ptr<UbseXml> scheduleXml = ubseXml->Next("schedule");
     scheduleXml->AddNode("mode");
@@ -234,8 +234,8 @@ UbseResult UbseLcneQos::BuildQoSProfileXml(UbseQosProfile ubseQosProfile, std::s
     ubseXml->AddNode("shaper");
     std::shared_ptr<UbseXml> shaperXml = ubseXml->Next("shaper");
     /* 北向传入带宽为Mbps， 南向单位为MBps */
-    uint32_t cir = ubseQosProfile.minBandWidth / BYTE_TO_BIT;
-    uint32_t pir = ubseQosProfile.maxBandWidth / BYTE_TO_BIT;
+    uint32_t cir = ubseLcneQosProfile.minBandWidth / BYTE_TO_BIT;
+    uint32_t pir = ubseLcneQosProfile.maxBandWidth / BYTE_TO_BIT;
 
     /* 如果cir/pir小于4MBps时,cbs/pbs等于cir/pir，否则取4M */
     uint32_t cbs = MAX_LCNE_QOS_CBS * ONE_K * ONE_K;
@@ -282,7 +282,7 @@ UbseResult UbseLcneQos::BuildQoSXml(UbseLcneFeInfo ubseFeInfo, std::string profi
 
     return UBSE_OK;
 }
-UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseQosProfile &ubseQosProfile)
+UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseLcneQosProfile &ubseLcneQosProfile)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {
@@ -304,7 +304,7 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseQosProfile
         return UBSE_ERROR;
     }
     try {
-        ubseQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+        ubseLcneQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
         ubseXml->Previous();
     } catch (const std::invalid_argument &e) {
         return UBSE_ERROR;
@@ -316,7 +316,7 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseQosProfile
         return UBSE_ERROR;
     }
     try {
-        ubseQosProfile.maxBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+        ubseLcneQosProfile.maxBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
     } catch (const std::invalid_argument &e) {
         return UBSE_ERROR;
     } catch (const std::out_of_range &e) {

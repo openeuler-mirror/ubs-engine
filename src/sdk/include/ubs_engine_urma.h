@@ -19,8 +19,8 @@
 extern "C" {
 #endif
 
-#define UBS_URMA_NAME_MAX 32         // 包含结束符长度
-#define UBSE_MAX_URMA_PATH_LENGTH 64 // 包含结束符长度
+#define UBS_URMA_NAME_MAX 32        // 包含结束符长度
+#define UBS_MAX_URMA_PATH_LENGTH 64 // 包含结束符长度
 
 typedef enum {
     UNIQUE = 0, // 独占类型
@@ -33,54 +33,54 @@ typedef struct {
 } urma_device_t;
 
 typedef struct {
-    char vfe0_path[UBSE_MAX_URMA_PATH_LENGTH];
-    char vfe1_path[UBSE_MAX_URMA_PATH_LENGTH];
-    char bonding_path[UBSE_MAX_URMA_PATH_LENGTH];
-    char bonding_eid[UBSE_MAX_URMA_PATH_LENGTH];
+    char vfe0_path[UBS_MAX_URMA_PATH_LENGTH];
+    char vfe1_path[UBS_MAX_URMA_PATH_LENGTH];
+    char bonding_path[UBS_MAX_URMA_PATH_LENGTH];
+    char bonding_eid[UBS_MAX_URMA_PATH_LENGTH];
 } ubs_urma_dev_path_t;
 
 /**
-      * @brief 查询指定类型的urma设备信息
-      *
-      * @param urma_type [IN] urma设备类型
-      * @param urma_devices [OUT] urma设备信息列表，调用者需要释放该内存
-      * @param urma_cnt [OUT] urma设备信息数量
-      * @return UBS_SUCCESS:操作成功;
-      * UBS_ERR_NULL_POINTER:空指针;
-      * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
-      * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
-      * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
-      * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
-      */
+ * @brief 查询指定类型的urma设备信息
+ *
+ * @param urma_type [IN] urma设备类型
+ * @param urma_devices [OUT] urma设备信息列表，调用者需要释放该内存
+ * @param urma_cnt [OUT] urma设备信息数量
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
 uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_devices, uint32_t *urma_cnt);
 
 /**
-      * @brief 分配指定的urma设备
-      *
-      * @param name [IN] urma设备名称
-      * @param dev_info [IN/OUT] 分配urma设备的路径，需要调用方申请内存
-      * @return UBS_SUCCESS:操作成功;
-      * UBS_ERR_NULL_POINTER:空指针;
-      * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
-      * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
-      * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
-      * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
-      * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
-      */
+ * @brief 分配指定的urma设备
+ *
+ * @param name [IN] urma设备名称
+ * @param dev_info [IN/OUT] 分配urma设备的路径，需要调用方申请内存
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
+ */
 uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_path_t *dev_info);
 
 /**
-      * @brief 释放指定的urma设备
-      *
-      * @param name [IN] urma设备名称
-      * @return UBS_SUCCESS:操作成功;
-      * UBS_ERR_NULL_POINTER:空指针;
-      * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
-      * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
-      * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
-      * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
-      * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
-      */
+ * @brief 释放指定的urma设备
+ *
+ * @param name [IN] urma设备名称
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
+ */
 uint32_t ubs_urma_dev_free(const char *name);
 
 /**

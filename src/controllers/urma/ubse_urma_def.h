@@ -22,8 +22,9 @@
 #include "ubse_serial_util.h"
 
 namespace ubse::urma {
-struct UbseQosProfile {
-    std::string proflieName;
+
+struct UrmaQosProfile {
+    std::string profileName{};
     uint32_t maxBandWidth;
     uint32_t minBandWidth;
 };
@@ -97,6 +98,7 @@ struct UbseUrmaInfo {
     std::string subPath;    // 对应uvs中的boundingname，用于组成设备path
     std::string urmaDevEid; // [slotId, fe0Id, fe1Id, 0000]，每个字段占32位
     std::vector<EidGroup> eidGroups;
+    UrmaQosProfile urmaQosProfile;
     UrmaDevType urmaDevType;
     UrmaDevState state;
 

@@ -92,8 +92,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTable(uint32_t nodeId,
-                                                                                    UbseDeSerialization &ubse_de_serial,
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTable(UbseDeSerialization &ubse_de_serial,
                                                                                     uint32_t urma_size)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_5, UBSE_CLI_NUM_4 * UBSE_CLI_NUM_10);
@@ -110,29 +109,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
         std::string uramName;
         std::string fe1Name;
         std::string fe2Name;
-        uint32_t urmaStatus;
-        ubse_de_serial >> uramName >> fe1Name >> fe2Name >> urmaStatus;
-        if (!ubse_de_serial.Check()) {
-            return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
-        }
-        /* 继续查询Qos带宽 */
-        UbseSerialization ubse_req_serial;
-        ubse_req_serial << nodeId << uramName;
-        if (!ubse_req_serial.Check()) {
-            return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
-        }
-        ubse_api_buffer_t request_buffer{ubse_req_serial.GetBuffer(),
-                                         static_cast<uint32_t>(ubse_req_serial.GetLength())};
-        ubse_api_buffer_t response_buffer = {NULL, 0};
-        auto ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &request_buffer, &response_buffer);
-        UbseCliBufferGuard ubseCliBufferGuard(response_buffer);
-        if (ret != UBSE_OK) {
-            return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
-        }
-        uint32_t minBandWidth = 0;
-        uint32_t maxBandWidth = 0;
-        UbseDeSerialization ubse_de_serial_qos(response_buffer.buffer, response_buffer.length);
-        ubse_de_serial_qos >> minBandWidth >> maxBandWidth;
+        uint32_t minBandWidth;
+        uint32_t maxBandWidth;
+        ubse_de_serial >> uramName >> fe1Name >> fe2Name >> minBandWidth >> maxBandWidth;
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, uramName);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(minBandWidth));
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, std::to_string(maxBandWidth));
@@ -164,7 +143,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     }
     ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
+    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
@@ -178,7 +157,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     if (urmaSize == 0) {
         return UbseCliStringPromptReply(URMA_EMPTY_ERROR);
     }
-    return UbseCliProcessUrmaQosTable(nodeId, ubse_de_serial, urmaSize);
+    return UbseCliProcessUrmaQosTable(ubse_de_serial, urmaSize);
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc([
