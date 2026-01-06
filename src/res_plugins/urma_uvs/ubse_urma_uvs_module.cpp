@@ -112,7 +112,7 @@ UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
         return UBSE_ERROR_NOENT;
     }
-    ret = uvsSetTopoInfo(nodes.data(), nodes.size());
+    ret = uvsSetTopoInfo(nodes.data(), static_cast<uint32_t>(nodes.size()));
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
         return ret;
@@ -272,12 +272,12 @@ UbseResult UbseUrmaUvsModule::FillNodeComInfo(const std::vector<PhysicalLink> &a
 
     nodes.reserve(nodeMap.size());
     for (auto &pair : nodeMap) {
-        nodes.push_back(std::move(pair.second));
+        nodes.push_back(pair.second);
     }
     return UBSE_OK;
 }
 
-void UbseUrmaUvsModule::InitialNodes(const std::set<std::string> slotIds,
+void UbseUrmaUvsModule::InitialNodes(const std::set<std::string> &slotIds,
                                      std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
     nodeMap.clear();
@@ -303,17 +303,13 @@ void UbseUrmaUvsModule::InitialNodes(const std::set<std::string> slotIds,
 UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkInfo,
                                        std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
-    if (allLinkInfo.size() == 0) {
+    if (allLinkInfo.empty()) {
         UBSE_LOG_INFO << "No link info found";
         return UBSE_OK;
     }
     for (const auto &topo : allLinkInfo) {
         std::string curSlotId = std::to_string(topo.slotId);
         std::string peerSlotId = std::to_string(topo.peerSlotId);
-        if (nodeMap.find(curSlotId) == nodeMap.end()) {
-            UBSE_LOG_ERROR << "Failed to find slotId " << curSlotId << " in nodes";
-            return UBSE_ERROR;
-        }
 
         uint32_t iodie_idx = topo.chipId - 1;
         uint32_t peer_iodie_idx = topo.peerChipId - 1;
@@ -323,18 +319,22 @@ UbseResult UbseUrmaUvsModule::FillTopo(const std::vector<PhysicalLink> &allLinkI
             UBSE_LOG_ERROR << std::to_string(iodie_idx) << " or " << std::to_string(peer_iodie_idx);
             return UBSE_ERROR;
         }
-        nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_node = topo.peerSlotId;
-        nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_iodie = peer_iodie_idx;
-        nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_port = topo.peerPortId;
 
-        if (nodeMap.find(peerSlotId) == nodeMap.end()) {
-            UBSE_LOG_ERROR << "Failed to find peer slotId " << peerSlotId << " in nodes";
-            return UBSE_OK;
+        if (nodeMap.find(curSlotId) != nodeMap.end()) {
+            nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_node = topo.peerSlotId;
+            nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_iodie = peer_iodie_idx;
+            nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_port = topo.peerPortId;
+        } else {
+            UBSE_LOG_WARN << "Failed to find slotId " << curSlotId << " in nodes, skip fill this node";
         }
 
-        nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_node = topo.slotId;
-        nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_iodie = iodie_idx;
-        nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_port = topo.portId;
+        if (nodeMap.find(peerSlotId) != nodeMap.end()) {
+            nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_node = topo.slotId;
+            nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_iodie = iodie_idx;
+            nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_port = topo.portId;
+        } else {
+            UBSE_LOG_WARN << "Failed to find peerSlotId " << peerSlotId << " in nodes, skip fill this node";
+        }
     }
     return UBSE_OK;
 }
@@ -387,7 +387,7 @@ UbseResult UbseUrmaUvsModule::FillBondingInfo(const std::vector<UbseUrmaUvsNodeI
     }
 
     for (auto &info : bondingInfo) {
-        uint32_t bondingDevSize = info.devList.size();
+        uint32_t bondingDevSize = static_cast<uint32_t>(info.devList.size());
         if (bondingDevSize > DEV_NUM) {
             UBSE_LOG_ERROR << "aggr_device num exceeded";
             return UBSE_ERROR;
