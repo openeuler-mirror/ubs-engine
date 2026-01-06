@@ -249,7 +249,10 @@ void UrmaController::DoTopoLinkChange()
     // 计算所有port是否都中断
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::vector<PhysicalLink> allLinkInfo;
-    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
+    auto getNodeTopoFunc = [&allLinkInfo]() {
+        return UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo);
+    };
+    if (auto ret = CallFuncRetry(getNodeTopoFunc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node topology, ret=" << ret;
         return;
     }
@@ -264,7 +267,10 @@ void UrmaController::DoTopoLinkChange()
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
     auto uvsModule = ubse::context::UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
-    if (auto ret = uvsModule->SetUvsInfo(curNode.nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
+    if (auto ret = CallFuncRetry([&uvsModule, &curNode, &uvsInfos, this]() {
+                return uvsModule->SetUvsInfo(curNode.nodeId, this->GetDirConnectInfo(), uvsInfos);
+            });
+            ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
     }
 }
@@ -274,7 +280,10 @@ void UrmaController::DoNodeJoin()
     // 计算所有port是否都中断
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::vector<PhysicalLink> allLinkInfo;
-    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
+    auto getNodeTopoFunc = [&allLinkInfo]() {
+        return UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo);
+    };
+    if (auto ret = CallFuncRetry(getNodeTopoFunc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node topology, ret=" << ret;
         return;
     }
@@ -284,13 +293,14 @@ void UrmaController::DoNodeJoin()
     // 向mti查询本节点所有vfe对应静态urma eid
     std::vector<UbseLcneIouInfo> iouList;
     std::vector<UbseLcneFeInfo> allFeInfos;
-    if (UbseNodeComUrmaCollector::GetInstance().GetCurNodeIouList(iouList) != UBSE_OK) {
+    if (CallFuncRetry([&]() { return UbseNodeComUrmaCollector::GetInstance().GetCurNodeIouList(iouList); }) !=
+            UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node IOU list";
         return;
     }
     for (auto &iou : iouList) {
         std::vector<UbseLcneFeInfo> tmpFeInfos;
-        if (UbseLcneVfeEid::GetInstance().GetVfeEid(iou, tmpFeInfos) != UBSE_OK) {
+        if (CallFuncRetry([&]() { return UbseLcneVfeEid::GetInstance().GetVfeEid(iou, tmpFeInfos); }) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
             return;
         }
@@ -307,7 +317,10 @@ void UrmaController::DoNodeJoin()
     }
     // 向master节点上报本节点nodeInfo
     auto urmaNodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
-    if (auto ret = ReportUrmaNodeInfoToMaster(curNode.nodeId, urmaNodeInfo); ret != UBSE_OK) {
+    auto reportUrmaNodeInfoToMasterFunc = [&curNode, &urmaNodeInfo]() {
+        return ReportUrmaNodeInfoToMaster(curNode.nodeId, urmaNodeInfo);
+    };
+    if (auto ret = CallFuncRetry(reportUrmaNodeInfoToMasterFunc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to report urma node info to master, " << FormatRetCode(ret);
         return;
     }
@@ -344,8 +357,7 @@ std::vector<ubse::nodeController::PhysicalLink> UrmaController::GetDirConnectInf
 UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type, std::vector<std::string> &nameInfo,
                                                          std::vector<uint32_t> &status)
 {
-    UbseUrmaControllerManager::GetInstance().GetUrmaNameByType(type, nameInfo, status);
-    return UBSE_OK;
+    return UbseUrmaControllerManager::GetInstance().GetUrmaNameByType(type, nameInfo, status);
 }
 
 UbseResult UrmaController::UbseAllocUrmaDev(const std::string urmaName, UbseUrmaDevPath &devPaths)
@@ -383,7 +395,7 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const 
     }
     UrmaDevQueryRpcReq req = {nodeId, static_cast<uint32_t>(type)};
     ubseRequestPtr->SetUbseUrmaDevReq(req);
-    UbseUrmaDevRspPtr ubseResponsePtr = new (std::nothrow) UrmaDevQueryRspSimpo();
+    UbseUrmaDevQueryRspPtr ubseResponsePtr = new (std::nothrow) UrmaDevQueryRspSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "new UbseUrmaDevRspSimpo failed";
         return UBSE_ERROR_NULLPTR;

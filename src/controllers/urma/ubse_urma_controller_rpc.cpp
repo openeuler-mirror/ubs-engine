@@ -157,10 +157,10 @@ UbseResult UrmaDevQueryRspSimpo::Serialize()
 {
     UbseSerialization out;
     const uint32_t tmpSize = rsp.urmaInfos.size();
-    out << tmpSize;
-    for (size_t i = 0; i < tmpSize; i++) {
-        const uint32_t tmpState = static_cast<uint32_t>(rsp.urmaInfos[i].state);
-        out << rsp.urmaInfos[i].bondingName << rsp.urmaInfos[i].fe1Name << rsp.urmaInfos[i].fe2Name << tmpState;
+    out << rsp;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize UrmaDevQueryRspSimpo";
+        return UBSE_ERROR;
     }
     mOutputRawDataSize = out.GetLength();
     mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
@@ -174,15 +174,10 @@ UbseResult UrmaDevQueryRspSimpo::Deserialize()
         return UBSE_ERROR;
     }
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    uint32_t tmpSize;
-    in >> tmpSize;
-    for (size_t i = 0; i < tmpSize; i++) {
-        UbseUrmaInfoForQuery tmpInfo;
-        in >> tmpInfo.bondingName >> tmpInfo.fe1Name >> tmpInfo.fe2Name;
-        uint32_t tmpState;
-        in >> tmpState;
-        tmpInfo.state = ConvertUint32ToBondingState(tmpState);
-        rsp.urmaInfos.push_back(tmpInfo);
+    in >> rsp;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserialize UrmaDevQueryRspSimpo";
+        return UBSE_ERROR;
     }
     return UBSE_OK;
 }

@@ -47,25 +47,35 @@ size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
 
 UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_t> status, UbseIpcMessage &response)
 {
+    if (nameInfos.size() != status.size()) {
+        UBSE_LOG_ERROR << "nameInfos and status size mismatch";
+        return IPC_ERROR_INVALID_ARGUMENT;
+    }
     size_t infoSize = nameInfos.size();
     size_t rspSize = sizeof(uint32_t);
     for (auto &s : nameInfos) {
         rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t);
-        response.buffer = new (std::nothrow) uint8_t[rspSize];
-        response.length = rspSize;
-        if (response.buffer == nullptr) {
+    }
+    response.buffer = new (std::nothrow) uint8_t[rspSize];
+    response.length = rspSize;
+    if (response.buffer == nullptr) {
+        UBSE_LOG_ERROR << "Failed to allocate response buffer for size=" << rspSize;
+        return IPC_ERROR_SERIALIZATION_FAILED;
+    }
+    UbsePackUtil packUtil(response.buffer, response.length);
+    if (!packUtil.UbsePackUint32(static_cast<uint32_t>(infoSize))) {
+        UBSE_LOG_ERROR << "Failed to pack infoSize=" << infoSize;
+        return IPC_ERROR_SERIALIZATION_FAILED;
+    }
+
+    for (size_t i = 0; i < nameInfos.size(); i++) {
+        if (!packUtil.UbsePackString(nameInfos[i], UBSE_URMA_NAME_MAX - 1)) {
+            UBSE_LOG_ERROR << "Failed to pack nameInfo[" << i << "]=" << nameInfos[i];
             return IPC_ERROR_SERIALIZATION_FAILED;
         }
-        UbsePackUtil packUtil(response.buffer, response.length);
-        if (!packUtil.UbsePackUint32(static_cast<uint32_t>(infoSize)))
+        if (!packUtil.UbsePackUint32(status[i])) {
+            UBSE_LOG_ERROR << "Failed to pack status[" << i << "]=" << status[i];
             return IPC_ERROR_SERIALIZATION_FAILED;
-        for (size_t i = 0; i < nameInfos.size(); i++) {
-            if (!packUtil.UbsePackString(nameInfos[i], UBSE_URMA_NAME_MAX - 1)) {
-                return IPC_ERROR_SERIALIZATION_FAILED;
-            }
-            if (!packUtil.UbsePackUint32(status[i])) {
-                return IPC_ERROR_SERIALIZATION_FAILED;
-            }
         }
     }
     return UBSE_OK;
@@ -327,6 +337,10 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     ubse_req_serial << tmpSize;
     for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
         const uint32_t tmpstate = static_cast<uint32_t>(urmaInfo[i].state);
+        UBSE_LOG_DEBUG << "Urma Info - Bonding Name: " << urmaInfo[i].bondingName
+                      << ", FE1 Name: " << urmaInfo[i].fe1Name
+                      << ", FE2 Name: " << urmaInfo[i].fe2Name
+                      << ", State: " << tmpstate;
         ubse_req_serial << urmaInfo[i].bondingName << urmaInfo[i].fe1Name << urmaInfo[i].fe2Name << tmpstate;
     }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
