@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -11,8 +11,6 @@
  */
 
 #include "ubse_urma_controller.h"
-#include "lcne/ubse_lcne_vfe_eid.h"
-#include "src/res_plugins/mti/lcne/ubse_lcne_qos.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_logger_inner.h"
@@ -28,7 +26,6 @@
 namespace ubse::urmaController {
 using namespace ubse::common::def;
 using namespace ubse::log;
-using namespace ubse::lcne;
 using namespace ubse::com;
 using namespace ubse::urma;
 using namespace ubse::task_executor;
@@ -60,12 +57,12 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
         return UBSE_ERROR_CONF_INVALID;
     }
     /* 创建profile */
-    ubse::mti::UbseLcneQosProfile lcneQosProfile;
+    UbseLcneQosProfile lcneQosProfile;
     const std::string profileName = "Profile_" + urmaName;
     lcneQosProfile.proflieName = profileName;
     lcneQosProfile.minBandWidth = minBandWidth;
     lcneQosProfile.maxBandWidth = maxBandWidth;
-    ret = UbseLcneQos::GetInstance().CreatQosProfile(lcneQosProfile);
+    ret = UbseCreatQosProfile(lcneQosProfile);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseLcneQos::CreatQosProfile failed," << profileName << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -83,7 +80,7 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
         lcneFeInfo.iouId = ubseFeInfo->iouId;
         lcneFeInfo.entityId = ubseFeInfo->entityId;
         lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
-        ret = UbseLcneQos::GetInstance().ApplyVfeQos(lcneFeInfo, profileName);
+        ret = UbseApplyVfeQos(lcneFeInfo, profileName);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "UbseLcneQos::ApplyVfeQos failed";
             return UBSE_ERROR;
@@ -100,7 +97,6 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
 UbseResult UrmaController::UbseUrmaBandWidthGet(const std::string urmaName, uint32_t &minBandWidth,
                                                 uint32_t &maxBandWidth)
 {
-    ubse::mti::UbseLcneQosProfile lcneQosProfile;
     UBSE_LOG_INFO << "UbseUrmaBandWidthGet Start," << urmaName;
     UrmaQosProfile urmaQosProfile;
     uint32_t ret = UbseUrmaControllerManager::GetInstance().GetUrmaQos(urmaName, urmaQosProfile);
@@ -140,7 +136,7 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
         lcneFeInfo.iouId = ubseFeInfo->iouId;
         lcneFeInfo.entityId = ubseFeInfo->entityId;
         lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
-        ret = UbseLcneQos::GetInstance().DeleteVfeQos(lcneFeInfo);
+        ret = UbseDeleteVfeQos(lcneFeInfo);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "UbseLcneQos::DeleteVfeQos failed.";
             return UBSE_ERROR;
@@ -148,7 +144,7 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
     }
 
     const std::string profileName = "Profile_" + urmaName;
-    ret = UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
+    ret = UbseDeleteQosProfile(profileName);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseLcneQos::DeleteQosProfile failed," << profileName << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -170,15 +166,16 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
         return;
     }
     /* 先查询是否存在对应的Qos配置，没有则返回成功 */
-    ubse::mti::UbseLcneQosProfile ubseLcneQosProfile;
+    UbseLcneQosProfile ubseLcneQosProfile;
     const std::string profileName = "Profile_" + urmaName;
-    ret = UbseLcneQos::GetInstance().QureyQosProfile(profileName, ubseLcneQosProfile);
+    ret = UbseQureyQosProfile(profileName, ubseLcneQosProfile);
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "UbseLcneQos::QureyQosProfile failed," << profileName << FormatRetCode(ret);
         return;
     }
     /* 接下来遍历该urma下的Fe是否都生效了该proflie配置 */
     if (UbseUrmaBandWidthCheck(urmaInfo, profileName)) {
+        /* 检查没问题需要回复本地数据 */
         UrmaQosProfile urmaQosProfile;
         urmaQosProfile.profileName = profileName;
         urmaQosProfile.minBandWidth = ubseLcneQosProfile.minBandWidth;
@@ -198,9 +195,9 @@ void UrmaController::UbseUrmaBandWidthUpdate(const std::string urmaName)
         lcneFeInfo.iouId = ubseFeInfo->iouId;
         lcneFeInfo.entityId = ubseFeInfo->entityId;
         lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
-        UbseLcneQos::GetInstance().DeleteVfeQos(lcneFeInfo);
+        UbseDeleteVfeQos(lcneFeInfo);
     }
-    UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
+    UbseDeleteQosProfile(profileName);
     return;
 }
 
@@ -218,7 +215,7 @@ bool UrmaController::UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::st
         lcneFeInfo.iouId = ubseFeInfo->iouId;
         lcneFeInfo.entityId = ubseFeInfo->entityId;
         lcneFeInfo.fetype = (UbseLcneFeType)ubseFeInfo->fetype;
-        auto ret = UbseLcneQos::GetInstance().QueryVfeQos(lcneFeInfo, vfeProfileName);
+        auto ret = UbseQueryVfeQos(lcneFeInfo, vfeProfileName);
         if ((ret != UBSE_OK) || (vfeProfileName != profileName)) {
             return false;
             break;
@@ -300,7 +297,7 @@ void UrmaController::DoNodeJoin()
     }
     for (auto &iou : iouList) {
         std::vector<UbseLcneFeInfo> tmpFeInfos;
-        if (CallFuncRetry([&]() { return UbseLcneVfeEid::GetInstance().GetVfeEid(iou, tmpFeInfos); }) != UBSE_OK) {
+        if (CallFuncRetry([&]() { return UbseGetVfeEid(iou, tmpFeInfos); }) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
             return;
         }

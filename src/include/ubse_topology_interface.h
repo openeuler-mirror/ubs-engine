@@ -275,7 +275,7 @@ uint32_t UbseDeleteVfeQos(UbseLcneFeInfo ubseFeInfo);
 /**
  * @brief 下发xml消息到Lcne上查询Vfe上的QosProfile应用
  * @param [in] ubseFeInfo：待查询的Vfe
- * @param [out] proflieName：查询到的profile名称* 
+ * @param [out] proflieName：查询到的profile名称
  * @return 成功返回0, 失败返回非0
  */
 uint32_t UbseQueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &proflieName);
