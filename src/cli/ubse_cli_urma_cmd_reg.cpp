@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -72,7 +72,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_4, UBSE_CLI_NUM_4 * UBSE_CLI_NUM_10);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "bonding-name");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "uram-name");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "fe1-name");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "fe2-name");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "status");
@@ -105,7 +105,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_5, UBSE_CLI_NUM_4 * UBSE_CLI_NUM_10);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "uram-dev");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "uram-name");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "minBandWidth(Gbps)");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "maxBandWidth(Gbps)");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "fe1-name");
@@ -119,6 +119,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
         uint32_t minBandWidth;
         uint32_t maxBandWidth;
         ubse_de_serial >> uramName >> fe1Name >> fe2Name >> minBandWidth >> maxBandWidth;
+        if (!ubse_de_serial.Check()) {
+            return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+        }
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, uramName);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(minBandWidth));
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, std::to_string(maxBandWidth));
@@ -136,7 +139,6 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     if (urmaNode == params.end()) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
-    uint32_t urmaType = 0; // 暂时只支持独享
     uint32_t nodeId;
     try {
         nodeId = static_cast<uint32_t>(std::stoul(urmaNode->second));
@@ -144,7 +146,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
     UbseSerialization ubse_req_serial;
-    ubse_req_serial << nodeId << urmaType;
+    ubse_req_serial << nodeId;
     if (!ubse_req_serial.Check()) {
         return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
     }

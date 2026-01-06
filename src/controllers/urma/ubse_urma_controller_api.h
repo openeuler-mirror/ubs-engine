@@ -31,10 +31,7 @@ private:
     static uint32_t UbseUrmaBandWidthGet(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t UbseUrmaBandWidthCliGet(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t UbseUrmaBandWidthReset(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseUrmaBandWidthGetNeighber(const uint32_t nodeId, const std::string name,
-                                                   const UbseRequestContext &context);
-    static uint32_t UbseUrmaSendQosRsp(const uint64_t requestId, UrmaQosRpcRsp urmaQosRsp);
-    static uint32_t UbseUrmaSendCliQosRsp(const uint64_t requestId, UrmaQosRpcRsp urmaQosRsp);
+    static uint32_t UbseUrmaSendQosRsp(const uint64_t requestId, uint32_t minBandWidth, uint32_t maxBandWidth);
 
     static uint32_t UbseUrmaDevGet(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context);

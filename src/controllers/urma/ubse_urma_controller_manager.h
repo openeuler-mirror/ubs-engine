@@ -28,16 +28,17 @@ using namespace ubse::urma;
 using namespace ubse::mti;
 
 struct UbseUrmaInfoForQuery {
-    std::string bondingName;
+    std::string urmaName;
     std::string fe1Name;
     std::string fe2Name;
     UrmaDevType bondingType;
     UrmaDevState state;
-
+    uint32_t minBandWidth;
+    uint32_t maxBandWidth;
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfoForQuery &info)
     {
-        serializer << info.bondingName << info.fe1Name << info.fe2Name << ubse::serial::enum_v(info.bondingType)
+        serializer << info.urmaName << info.fe1Name << info.fe2Name << ubse::serial::enum_v(info.bondingType)
                    << ubse::serial::enum_v(info.state);
         return serializer;
     }
@@ -45,7 +46,7 @@ struct UbseUrmaInfoForQuery {
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaInfoForQuery &info)
     {
-        deserializer >> info.bondingName >> info.fe1Name >> info.fe2Name >> ubse::serial::enum_v(info.bondingType) >>
+        deserializer >> info.urmaName >> info.fe1Name >> info.fe2Name >> ubse::serial::enum_v(info.bondingType) >>
             ubse::serial::enum_v(info.state);
         return deserializer;
     }
