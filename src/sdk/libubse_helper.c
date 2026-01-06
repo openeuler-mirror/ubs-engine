@@ -673,9 +673,9 @@ ubs_error_t ubse_urma_dev_alloc_unpack(const uint8_t *buffer, uint32_t len, ubs_
     unpack_ctx_t ctx;
     ctx.ptr = buffer;
     ctx.remaining = len;
-    ubs_error_t ret = unpack_string(&ctx, dev_info->bonding_path, UBSE_MAX_URMA_PATH_LENGTH);
-    ret |= unpack_string(&ctx, dev_info->vfe0_path, UBSE_MAX_URMA_PATH_LENGTH);
-    ret |= unpack_string(&ctx, dev_info->vfe1_path, UBSE_MAX_URMA_PATH_LENGTH);
-    ret |= unpack_string(&ctx, dev_info->bonding_eid, UBSE_MAX_URMA_PATH_LENGTH);
+    ubs_error_t ret = unpack_string(&ctx, dev_info->bonding_path, UBS_MAX_URMA_PATH_LENGTH);
+    ret |= unpack_string(&ctx, dev_info->vfe0_path, UBS_MAX_URMA_PATH_LENGTH);
+    ret |= unpack_string(&ctx, dev_info->vfe1_path, UBS_MAX_URMA_PATH_LENGTH);
+    ret |= unpack_string(&ctx, dev_info->bonding_eid, UBS_MAX_URMA_PATH_LENGTH);
     return ret;
 }

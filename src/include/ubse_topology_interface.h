@@ -209,7 +209,7 @@ struct UbseLcneFeInfo {
     std::vector<UbseLcneEidGroup> eidGroups;
 };
 
-struct UbseQosProfile {
+struct UbseLcneQosProfile {
     std::string proflieName;
     uint32_t maxBandWidth;
     uint32_t minBandWidth;

@@ -67,7 +67,7 @@ uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_path_t *dev_info)
         return ubse_map_daemon_error(ret);
     }
     // 解包
-    if (response_buffer.length != UBSE_MAX_URMA_PATH_LENGTH * sizeof(char)) {
+    if (response_buffer.length != UBS_MAX_URMA_PATH_LENGTH * sizeof(char)) {
         ubse_api_buffer_free(&response_buffer);
         return UBS_ENGINE_ERR_INTERNAL;
     }

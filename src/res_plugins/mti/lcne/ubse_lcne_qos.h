@@ -13,7 +13,7 @@
 #ifndef UBSE_LCNE_QOS_H
 #define UBSE_LCNE_QOS_H
 
-#include <stdint.h>
+#include <cstdint>
 #include <string>             // for string, basic_string
 #include <utility>            // for move
 #include "ubse_common_def.h"  // for UbseResult
@@ -35,11 +35,11 @@ public:
     }
 
     /* 创建Qos Profile模板信息 */
-    UbseResult CreatQosProfile(UbseQosProfile ubseQosProfile);
+    UbseResult CreatQosProfile(UbseLcneQosProfile ubseLcneQosProfile);
     /* 删除Qos Profile模板信息 */
     UbseResult DeleteQosProfile(std::string proflieName);
     /* 查询Qos Profile模板信息 */
-    UbseResult QureyQosProfile(std::string proflieName, UbseQosProfile &ubseQosProfile);
+    UbseResult QureyQosProfile(std::string proflieName, UbseLcneQosProfile &ubseLcneQosProfile);
     /* 应用Qos Profile到vfe上 */
     UbseResult ApplyVfeQos(UbseLcneFeInfo ubseFeInfo, std::string proflieName);
     /* 删除vfe上的Qos Profile */
@@ -49,9 +49,9 @@ public:
 
 private:
     UbseLcneQos(std::string host, int port) : host(std::move(host)), port(port) {}
-    UbseResult BuildQoSProfileXml(UbseQosProfile ubseQosProfile, std::string &xmlStr);
+    UbseResult BuildQoSProfileXml(UbseLcneQosProfile ubseLcneQosProfile, std::string &xmlStr);
     UbseResult BuildQoSXml(UbseLcneFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr);
-    UbseResult ParseQosProfileResponse(std::string body, UbseQosProfile &ubseQosProfile);
+    UbseResult ParseQosProfileResponse(std::string body, UbseLcneQosProfile &ubseLcneQosProfile);
     UbseResult ParseVfeQosResponse(std::string body, std::string &proflieName);
     std::string host;
     int port;
