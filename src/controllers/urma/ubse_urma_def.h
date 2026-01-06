@@ -82,6 +82,10 @@ struct EidGroup {
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const EidGroup &group)
     {
+        if (group.feInfo == nullptr) {
+            serializer << nullptr;
+            return serializer;
+        }
         serializer << group.primaryEid << group.portEids << *(group.feInfo);
         return serializer;
     }
@@ -89,7 +93,9 @@ struct EidGroup {
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          EidGroup &group)
     {
-        deserializer >> group.primaryEid >> group.portEids >> *(group.feInfo);
+        group.feInfo = std::make_shared<UbseFeInfo>();
+        UbseFeInfo &refFeInfo = *group.feInfo;
+        deserializer >> group.primaryEid >> group.portEids >> refFeInfo;
         return deserializer;
     }
 };

@@ -166,11 +166,29 @@ UbseResult UbseUrmaNotifyReqSimpo::Deserialize()
 
 UbseResult UbseUrmaNotifyRspSimpo::Serialize()
 {
+    UbseSerialization out;
+    out << mErrCode;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize urma infos";
+        return UBSE_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
     return UBSE_OK;
 }
 
 UbseResult UbseUrmaNotifyRspSimpo::Deserialize()
 {
+    if (mInputRawData == nullptr) {
+        UBSE_LOG_ERROR << "InputRawData is null.";
+        return UBSE_ERROR;
+    }
+    UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
+    in >> mErrCode;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserilize urma infos";
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 
@@ -213,9 +231,18 @@ void UrmaCtlActivateBondingDevice(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos, Ub
             if (res == UBSE_OK) {
                 UbseUrmaControllerManager::GetInstance().SetActiveState(dev.urmaDevEid, roleInfo.nodeId);
             }
+            std::string urmaName;
+            if (auto ret = urmaModule->GetNameByUrmaEid(dev.urmaDevEid, urmaName); ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Failed to get urma name for eid=" << dev.urmaDevEid;
+                continue;
+            }
+            UbseUrmaControllerManager::GetInstance().SetUrmaName(dev.urmaDevEid, urmaName);
             for (auto feInfo : dev.feList) {
                 std::string urmaEidName;
-                urmaModule->GetNameByUrmaEid(feInfo.primaryEid, urmaEidName);
+                if (auto ret = urmaModule->GetNameByUrmaEid(feInfo.primaryEid, urmaEidName); ret != UBSE_OK) {
+                    UBSE_LOG_ERROR << "Failed to get urma name for eid=" << feInfo.primaryEid;
+                    continue;
+                }
                 UbseUrmaControllerManager::GetInstance().SetFeName(feInfo.primaryEid, urmaEidName);
             }
         }
@@ -417,45 +444,65 @@ UbseResult UbseUrmaReportUrmaNodeInfoReqSimpo::Deserialize()
 
 UbseResult UbseUrmaReportUrmaNodeInfoRspSimpo::Serialize()
 {
+    UbseSerialization out;
+    out << mErrCode;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize urma infos";
+        return UBSE_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
     return UBSE_OK;
 }
 
 UbseResult UbseUrmaReportUrmaNodeInfoRspSimpo::Deserialize()
 {
+    if (mInputRawData == nullptr) {
+        UBSE_LOG_ERROR << "InputRawData is null.";
+        return UBSE_ERROR;
+    }
+    UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
+    in >> mErrCode;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserilize urma infos";
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 
-std::queue<std::string> GetWaitingNotifyNodes()
+void UbseUrmaAsyncNotifyOneNodeUrmaInfoChange(const std::string &changeNodeId, const std::string &notifyNodeId)
 {
-    std::queue<std::string> waitingNotifyNodes;
-    auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-    for (auto kv : nodeInfos) {
-        auto nodeInfo = kv.second;
-        if (!nodeInfo.nodeId.empty()) {
-            waitingNotifyNodes.push(nodeInfo.nodeId);
-        }
+    UBSE_LOG_INFO << "Notify urma info changes for nodeId=" << changeNodeId << " to " << notifyNodeId;
+    UbseUrmaNotifyReqPtr req = new (std::nothrow) UbseUrmaNotifyReqSimpo;
+    UbseUrmaNotifyRspPtr rsp = new (std::nothrow) UbseUrmaNotifyRspSimpo;
+    if (req == nullptr || rsp == nullptr) {
+        UBSE_LOG_ERROR << "Failed to create rpc message";
+        return;
     }
-    return waitingNotifyNodes;
+    UrmaNotifyReq notifyReq{.nodeId = changeNodeId};
+    req->SetUrmaNotifyReq(notifyReq);
+    SendParam sendParam{notifyNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_URMA),
+                        static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_URMA_INFO_NOTIFY)};
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get com module";
+        return;
+    }
+    if (auto ret = comModule->RpcSend(sendParam, req, rsp); ret != UBSE_OK || rsp->GetErrCode() != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to send rpc message, ret=" << ret << ", " << FormatRetCode(rsp->GetErrCode());
+        return;
+    }
 }
-
-UbseResult UbseUrmaAsyncNotifyUrmaInfoChange(const std::string &nodeId)
+UbseResult UbseUrmaAsyncNotifyUrmaInfoChange(const std::string &changeNodeId)
 {
-    UBSE_LOG_INFO << "Notify urma info changes for nodeId=" << nodeId;
+    UBSE_LOG_INFO << "Notify urma info changes for nodeId=" << changeNodeId;
     try {
-        std::thread([nodeId]() {
-            UbseBaseMessagePtr req = new (std::nothrow) UbseUrmaNotifyReqSimpo;
-            if (req == nullptr) {
-                UBSE_LOG_ERROR << "Failed to create rpc request";
-                return;
-            }
-            auto ret = UbseUrmaAsyncNotifyAllNodes<UbseUrmaNotifyReqSimpo, UbseUrmaNotifyRspSimpo>(
-                req, static_cast<uint16_t>(UbseModuleCode::UBSE_URMA),
-                static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_URMA_INFO_NOTIFY));
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to notify all nodes, ret=" << ret;
-                return;
-            }
-        }).detach();
+        auto nodes = UbseNodeController::GetInstance().GetAllNodes();
+        for (auto &node : nodes) {
+            std::thread([changeNodeId, node]() {
+                UbseUrmaAsyncNotifyOneNodeUrmaInfoChange(changeNodeId, node.second.nodeId);
+            }).detach();
+        }
     } catch (const std::exception &e) {
         UBSE_LOG_ERROR << "Failed to create thread, " << e.what();
         return UBSE_ERROR;
@@ -472,7 +519,7 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
     auto nodeInfoReq = request->GetUbseUrmaNodeInfo();
     auto nodeId = nodeInfoReq.nodeId;
     auto &nodeInfo = nodeInfoReq.urmaNodeInfo;
-    if (nodeId.empty()) {
+    if (nodeId.empty() || nodeInfo.nodeId.empty()) {
         UBSE_LOG_ERROR << "node id is empty";
         rsp->SetErrCode(UBSE_ERROR);
         return UBSE_ERROR;

@@ -39,6 +39,10 @@ UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfo(const std::string &urm
         return UBSE_ERROR;
     }
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
+        return UBSE_ERROR;
+    }
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         if (info.second.subPath != urmaName) {
             continue;
@@ -69,7 +73,7 @@ UbseResult UbseUrmaControllerManager::GetFeInfoByNodeId(const std::string &nodeI
 bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId)
 {
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
-    auto ret = nodeInfos.find(nodeId) != nodeInfos.end();
+    auto ret = nodeInfos.find(nodeId) != nodeInfos.end() && !nodeInfos[nodeId].urmaList.empty();
     return ret;
 }
 
@@ -107,6 +111,10 @@ UbseResult UbseUrmaControllerManager::GetUrmaNameByType(const UrmaDevType type, 
         return UBSE_ERROR;
     }
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
+        return UBSE_ERROR;
+    }
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         if (info.second.urmaDevType == type) {
             boundingName.push_back(info.second.subPath);
@@ -137,6 +145,10 @@ UbseResult UbseUrmaControllerManager::GetVfeByUrmaName(const std::string &urmaNa
     }
     std::set<std::string> feInfoKeys;
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
+        return UBSE_OK;
+    }
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         if (info.second.subPath != urmaName) {
             continue;
@@ -184,7 +196,7 @@ UbseResult UbseUrmaControllerManager::AllocByUrmaName(const std::string &urmaNam
     return UBSE_OK;
 }
 
-void UbseUrmaControllerManager::SetActiveState(const std::string &name, const std::string &nodeId)
+void UbseUrmaControllerManager::SetActiveState(const std::string &urmaDevEid, const std::string &nodeId)
 {
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     if (nodeInfos.find(nodeId) == nodeInfos.end()) {
@@ -192,7 +204,7 @@ void UbseUrmaControllerManager::SetActiveState(const std::string &name, const st
         return;
     }
     for (auto &info : nodeInfos[nodeId].urmaList) {
-        if (info.second.subPath == name && info.second.state == UrmaDevState::UNKNOWN) {
+        if (info.second.urmaDevEid == urmaDevEid && info.second.state == UrmaDevState::UNKNOWN) {
             info.second.state = UrmaDevState::ACTIVED;
             break;
         }
@@ -207,6 +219,10 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
     UbseGetCurrentNodeInfo(currentNodeInfo);
     const size_t feCntPerUrmaInfo = 2;
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
+        return;
+    }
     for (auto info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         if (info.second.urmaDevType == type) {
             UbseUrmaInfoForQuery urmaInfo;
@@ -226,28 +242,44 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
 
 UbseResult UbseUrmaControllerManager::GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos)
 {
-    for (auto nodeInfo : nodeInfos) {
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    for (auto &nodeInfo : nodeInfos) {
         UbseUrmaUvsNodeInfo tmpUvsInfo;
         tmpUvsInfo.nodeId = nodeInfo.second.nodeId;
-        for (auto urmaInfo : nodeInfo.second.urmaList) {
+        for (auto &urmaInfo : nodeInfo.second.urmaList) {
             UbseUrmaUvsAggrDev dev;
             dev.urmaDevEid = urmaInfo.second.urmaDevEid;
 
-            for (auto group : urmaInfo.second.eidGroups) {
+            for (auto &group : urmaInfo.second.eidGroups) {
                 UbseUrmaUvsFe feInfo;
                 feInfo.ubpuId = group.feInfo->ubpuId;
                 feInfo.primaryEid = group.primaryEid;
                 feInfo.portEid = group.portEids;
                 dev.feList.push_back(feInfo);
             }
+            tmpUvsInfo.devList.push_back(dev);
         }
+        uvsInfos.push_back(tmpUvsInfo);
     }
     return UBSE_OK;
 }
 
+void UbseUrmaControllerManager::SetUrmaName(const std::string &urmaEid, const std::string &urmaName)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    for (auto &nodeInfo : nodeInfos) {
+        for (auto &info : nodeInfo.second.urmaList) {
+            if (info.second.urmaDevEid == urmaEid) {
+                info.second.subPath = urmaName;
+                return;
+            }
+        }
+    }
+}
+
 void UbseUrmaControllerManager::SetFeName(const std::string feEid, const std::string &urmaEidName)
 {
-    rwLock.LockWrite();
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
     auto SetNameIfEidEqual = [&feEid, &urmaEidName](EidGroup &eidGroup) {
         if (eidGroup.primaryEid == feEid && eidGroup.feInfo != nullptr) {
             eidGroup.feInfo->name = urmaEidName;
@@ -263,7 +295,6 @@ void UbseUrmaControllerManager::SetFeName(const std::string feEid, const std::st
     for (auto &nodeInfo : nodeInfos) {
         travelAllEidGroups(nodeInfo.second);
     }
-    rwLock.UnLock();
 }
 
 UbseResult UbseUrmaControllerManager::GenerateUrmaDevEid(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1,
@@ -299,7 +330,22 @@ UbseResult UbseUrmaControllerManager::GenerateUrmaDevEid(const UbseLcneFeInfo &f
         UBSE_LOG_ERROR << "Failed to generate bonding eid, ret=" << ret;
         return UBSE_ERROR;
     }
-    devEid = std::string(bondingEid, bondingEid + IPV6_BYTE_COUNT);
+    std::array<char, IPV6_FULL_FORMAT_LENGTH + 1> buffer{};
+    snprintf_s(buffer.data(), buffer.size(), IPV6_FULL_FORMAT_LENGTH,
+               "%02x%02x:"
+               "%02x%02x:"
+               "%02x%02x:"
+               "%02x%02x:"
+               "%02x%02x:"
+               "%02x%02x:"
+               "%02x%02x:"
+               "%02x%02x",
+               bondingEid[NO_0], bondingEid[NO_1], bondingEid[NO_2], bondingEid[NO_3], bondingEid[NO_4],
+               bondingEid[NO_5], bondingEid[NO_6], bondingEid[NO_7], bondingEid[NO_8], bondingEid[NO_9],
+               bondingEid[NO_10], bondingEid[NO_11], bondingEid[NO_12], bondingEid[NO_13], bondingEid[NO_14],
+               bondingEid[NO_15]);
+
+    devEid = buffer.data();
     return UBSE_OK;
 }
 
@@ -351,13 +397,29 @@ UbseResult FindTwoUbpuBoundaries(std::vector<UbseLcneFeInfo> &feInfos, std::pair
 
 bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId, const std::string &devEid)
 {
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        return false;
+    }
     return std::any_of(nodeInfos[nodeId].urmaList.begin(), nodeInfos[nodeId].urmaList.end(),
                        [&devEid](const auto &urmaInfo) { return urmaInfo.second.urmaDevEid == devEid; });
+}
+
+void PrintNodeInfo(UbseUrmaNodeInfo &nodeInfo)
+{
+    UBSE_LOG_INFO << "Node ID=" << nodeInfo.nodeId;
+    UBSE_LOG_INFO << "URMA List:";
+    for (const auto &urma : nodeInfo.urmaList) {
+        UBSE_LOG_INFO << "  URMA ID=" << urma.first << ", URMA Sub Path=" << urma.second.subPath
+                      << ", URMA Dev EID=" << urma.second.urmaDevEid
+                      << ", URMA Dev Type=" << static_cast<int>(urma.second.urmaDevType)
+                      << ", URMA State=" << static_cast<int>(urma.second.state);
+    }
 }
 
 void UbseUrmaControllerManager::InsertNewNodeInfo(const std::string &nodeId, UbseUrmaNodeInfo &insertNodeInfo)
 {
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    PrintNodeInfo(insertNodeInfo);
     nodeInfos[nodeId] = std::move(insertNodeInfo);
 }
 
@@ -416,6 +478,9 @@ void UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeI
                     .feInfo = urmaFe1};
     urmaInfo.eidGroups.push_back(group1);
     std::string urmaId = "urma_" + std::to_string(GenerateUrmaId());
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        nodeInfos[nodeId] = UbseUrmaNodeInfo{.nodeId = nodeId};
+    }
     nodeInfos[nodeId].urmaList[urmaId] = urmaInfo;
 }
 
@@ -466,6 +531,10 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
 void UbseUrmaControllerManager::SetAllUrmaInfoToInactiveForNode(const std::string &nodeId)
 {
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
+        return;
+    }
     auto nodeInfo = nodeInfos[nodeId];
     for (auto &urmaInfo : nodeInfo.urmaList) {
         urmaInfo.second.state = UrmaDevState::INACTIVED;
@@ -475,6 +544,9 @@ void UbseUrmaControllerManager::SetAllUrmaInfoToInactiveForNode(const std::strin
 UbseUrmaNodeInfo UbseUrmaControllerManager::GetUrmaNodeInfo(const std::string &nodeId)
 {
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        nodeInfos[nodeId].nodeId = nodeId;
+    }
     return nodeInfos[nodeId];
 }
 
@@ -482,6 +554,10 @@ void UbseUrmaControllerManager::UbseUrmaBandwidthInit(const std::string &nodeId,
                                                       const std::function<void(const std::string)> &initFunc)
 {
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
+        return;
+    }
     auto nodeInfo = nodeInfos[nodeId];
     for (const auto &urmaInfoPair : nodeInfo.urmaList) { // check
         initFunc(urmaInfoPair.second.subPath);
