@@ -78,11 +78,10 @@ enum class UbseModuleCode {
     RAS = 119
 };
 enum class UbseUrmaRpcOpCode {
-    URMA_RPC_QOS_QUERY = 0,
-    URMA_RPC_URMA_INFO_REPORT = 1,
-    URMA_RPC_URMA_INFO_NOTIFY = 2,
-    URMA_RPC_URMA_INFO_QUERY = 3,
-    URMA_RPC_DEV_QUERY = 4,
+    URMA_RPC_URMA_INFO_REPORT = 0,
+    URMA_RPC_URMA_INFO_NOTIFY = 1,
+    URMA_RPC_URMA_INFO_QUERY = 2,
+    URMA_RPC_DEV_QUERY = 3,
     URMA_RPC_BUTT
 };
 enum class UbseOpCode {

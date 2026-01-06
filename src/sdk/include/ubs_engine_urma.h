@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -21,6 +21,7 @@ extern "C" {
 
 #define UBS_URMA_NAME_MAX 32        // 包含结束符长度
 #define UBS_MAX_URMA_PATH_LENGTH 64 // 包含结束符长度
+#define UBS_VFE_PATH_NUM 2
 
 typedef enum {
     UNIQUE = 0, // 独占类型
@@ -30,14 +31,13 @@ typedef enum {
 typedef struct {
     char name[UBS_URMA_NAME_MAX];
     uint32_t healthy; // 0表示端口可用，1表示端口不可用
-} urma_device_t;
+} ubs_urma_dev_t;
 
 typedef struct {
-    char vfe0_path[UBS_MAX_URMA_PATH_LENGTH];
-    char vfe1_path[UBS_MAX_URMA_PATH_LENGTH];
     char bonding_path[UBS_MAX_URMA_PATH_LENGTH];
     char bonding_eid[UBS_MAX_URMA_PATH_LENGTH];
-} ubs_urma_dev_path_t;
+    char vfe_path[UBS_VFE_PATH_NUM][UBS_MAX_URMA_PATH_LENGTH];
+} ubs_urma_dev_info_t;
 
 /**
  * @brief 查询指定类型的urma设备信息
@@ -52,7 +52,7 @@ typedef struct {
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_devices, uint32_t *urma_cnt);
+uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt);
 
 /**
  * @brief 分配指定的urma设备
@@ -67,7 +67,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
  */
-uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_path_t *dev_info);
+uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info);
 
 /**
  * @brief 释放指定的urma设备

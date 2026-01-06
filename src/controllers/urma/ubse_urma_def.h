@@ -27,6 +27,20 @@ struct UrmaQosProfile {
     std::string profileName{};
     uint32_t maxBandWidth;
     uint32_t minBandWidth;
+
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UrmaQosProfile &profile)
+    {
+        serializer << profile.profileName << profile.maxBandWidth << profile.minBandWidth;
+        return serializer;
+    }
+
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UrmaQosProfile &profile)
+    {
+        deserializer >> profile.profileName >> profile.maxBandWidth >> profile.minBandWidth;
+        return deserializer;
+    }
 };
 
 enum class UrmaDevType {
@@ -111,23 +125,24 @@ struct UbseUrmaInfo {
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfo &info)
     {
-        serializer << info.subPath << info.urmaDevEid << info.eidGroups << ubse::serial::enum_v(info.urmaDevType)
-                   << ubse::serial::enum_v(info.state);
+        serializer << info.subPath << info.urmaDevEid << info.eidGroups << info.urmaQosProfile
+                   << ubse::serial::enum_v(info.urmaDevType) << ubse::serial::enum_v(info.state);
         return serializer;
     }
 
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaInfo &info)
     {
-        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >> ubse::serial::enum_v(info.urmaDevType) >>
-            ubse::serial::enum_v(info.state);
+        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >> info.urmaQosProfile >>
+            ubse::serial::enum_v(info.urmaDevType) >> ubse::serial::enum_v(info.state);
         return deserializer;
     }
 };
 
 struct UbseUrmaNodeInfo {
     std::string nodeId;
-    std::map<std::string, UbseUrmaInfo> urmaList; // urma对北向唯一标识，由ubse生成，urma+urmaId Urma信息
+    std::map<std::string, UbseUrmaInfo>
+        urmaList; // <urmaName, urmaInfo>，urmaName (urma_urmaId)是对北向唯一标识，由ubse生成
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaNodeInfo &info)
     {
