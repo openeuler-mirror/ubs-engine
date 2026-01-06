@@ -188,7 +188,6 @@ UbseResult UbseUrmaControllerManager::AllocByUrmaName(const std::string &urmaNam
             continue;
         }
         eid = info.second.urmaDevEid;
-        feNames.push_back(info.second.subPath);
         for (auto &eidGroup : info.second.eidGroups) {
             feNames.push_back(eidGroup.feInfo->name);
         }
