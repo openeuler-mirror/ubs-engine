@@ -584,14 +584,24 @@ UbseUrmaNodeInfo UbseUrmaControllerManager::GetUrmaNodeInfo(const std::string &n
 void UbseUrmaControllerManager::UbseUrmaBandwidthInit(const std::string &nodeId,
                                                       const std::function<void(const std::string)> &initFunc)
 {
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
-    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
-        UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
-        return;
+    UbseUrmaNodeInfo nodeInfo;
+    {
+        ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+        if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+            UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
+            return;
+        }
+        nodeInfo = nodeInfos[nodeId];
     }
-    auto nodeInfo = nodeInfos[nodeId];
-    for (const auto &urmaInfoPair : nodeInfo.urmaList) {
-        initFunc(urmaInfoPair.first);
+
+    try {
+        std::thread([initFunc, nodeInfo]() {
+            for (const auto &urmaInfoPair : nodeInfo.urmaList) {
+                initFunc(urmaInfoPair.first);
+            }
+        }).detach();
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "Failed to initialize URMA bandwidth for node=" << nodeId << ", error=" << e.what();
     }
 }
 } // namespace ubse::urmaController

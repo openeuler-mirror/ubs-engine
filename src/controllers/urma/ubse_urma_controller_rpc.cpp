@@ -510,6 +510,7 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
                                                             const UbseBaseMessagePtr &rsp,
                                                             UbseComBaseMessageHandlerCtxPtr ctx)
 {
+    UBSE_LOG_INFO << "Handling URMA report node info message";
     auto request = UbseBaseMessage::DeConvert<UbseUrmaReportUrmaNodeInfoReqSimpo>(req);
     auto nodeInfoReq = request->GetUbseUrmaNodeInfo();
     auto nodeId = nodeInfoReq.nodeId;
