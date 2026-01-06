@@ -421,6 +421,16 @@ void UbseUrmaControllerManager::InsertNewNodeInfo(const std::string &nodeId, Ubs
     nodeInfos[nodeId] = std::move(insertNodeInfo);
 }
 
+UbseResult UbseUrmaControllerManager::GetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile &urmaQosProfile)
+{
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::SetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile urmaQosProfile)
+{
+    return UBSE_OK;
+}
+
 const std::map<UbseLcneFeType, FeType> g_LcneFeTypeToUrmaFeTypeMap = {
     {UbseLcneFeType::PHYSICAL_TYPE, FeType::PHYSICAL_TYPE},
     {UbseLcneFeType::VIRTUAL_TYPE, FeType::VIRTUAL_TYPE},
