@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -16,7 +16,7 @@
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
 
-uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_devices, uint32_t *urma_cnt)
+uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
 {
     if ((urma_devices == NULL) || (urma_cnt == NULL)) {
         return UBS_ERR_NULL_POINTER;
@@ -31,7 +31,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
     }
     *request_buffer.buffer = trans_urma_type;
     // 调用接口
-    auto ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_DEV_GET, &request_buffer, &response_buffer);
+    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_DEV_GET, &request_buffer, &response_buffer);
     ubse_api_buffer_free(&request_buffer);
     if (ret != UBS_SUCCESS) {
         ubse_api_buffer_free(&response_buffer);
@@ -39,8 +39,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
     }
     // 解包
 
-    if (ubse_urma_dev_get_unpack(response_buffer.buffer, response_buffer.length, urma_devices, urma_cnt) !=
-        UBS_SUCCESS) {
+    if (ubse_urma_dev_unpack(response_buffer.buffer, response_buffer.length, urma_devices, urma_cnt) != UBS_SUCCESS) {
         ubse_api_buffer_free(&response_buffer);
         return UBS_ENGINE_ERR_INTERNAL;
     }
@@ -48,7 +47,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
     return UBS_SUCCESS;
 }
 
-uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_path_t *dev_info)
+uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info)
 {
     if ((name == NULL) || (dev_info == NULL)) {
         return UBS_ERR_NULL_POINTER;
@@ -66,12 +65,7 @@ uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_path_t *dev_info)
         ubse_api_buffer_free(&response_buffer);
         return ubse_map_daemon_error(ret);
     }
-    // 解包
-    if (response_buffer.length != UBS_MAX_URMA_PATH_LENGTH * sizeof(char)) {
-        ubse_api_buffer_free(&response_buffer);
-        return UBS_ENGINE_ERR_INTERNAL;
-    }
-    if (ubse_urma_dev_alloc_unpack(response_buffer.buffer, response_buffer.length, dev_info) != UBS_SUCCESS) {
+    if (ubse_urma_dev_info_unpack(response_buffer.buffer, response_buffer.length, dev_info) != UBS_SUCCESS) {
         ubse_api_buffer_free(&response_buffer);
         return UBS_ENGINE_ERR_INTERNAL;
     }
@@ -184,14 +178,12 @@ uint32_t ubs_urma_bandwidth_get(const char *name, uint32_t *minBandWidth, uint32
         return ubse_map_daemon_error(ret);
     }
     // 解包
-    if (response_buffer.length != sizeof(uint32_t) + sizeof(uint32_t)) {
+
+    if (ubse_urma_qos_unpack(response_buffer.buffer, response_buffer.length, minBandWidth, maxBandWidth) !=
+        UBS_SUCCESS) {
         ubse_api_buffer_free(&response_buffer);
         return UBS_ENGINE_ERR_INTERNAL;
     }
-    uint8_t *buffer = response_buffer.buffer;
-    *minBandWidth = ntohl(*(uint32_t *)buffer);
-    buffer += sizeof(uint32_t);
-    *maxBandWidth = ntohl(*(uint32_t *)buffer);
     ubse_api_buffer_free(&response_buffer);
     return UBS_SUCCESS;
 }

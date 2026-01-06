@@ -27,7 +27,7 @@ using namespace ubse::common::def;
 using namespace ubse::urma;
 using namespace ubse::mti;
 
-typedef struct {
+struct UbseUrmaInfoForQuery {
     std::string urmaName;
     std::string fe1Name;
     std::string fe2Name;
@@ -35,7 +35,22 @@ typedef struct {
     UrmaDevState state;
     uint32_t minBandWidth;
     uint32_t maxBandWidth;
-} UbseUrmaInfoForQuery;
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UbseUrmaInfoForQuery &info)
+    {
+        serializer << info.urmaName << info.fe1Name << info.fe2Name << ubse::serial::enum_v(info.bondingType)
+                   << ubse::serial::enum_v(info.state);
+        return serializer;
+    }
+
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UbseUrmaInfoForQuery &info)
+    {
+        deserializer >> info.urmaName >> info.fe1Name >> info.fe2Name >> ubse::serial::enum_v(info.bondingType) >>
+            ubse::serial::enum_v(info.state);
+        return deserializer;
+    }
+};
 
 class UbseUrmaControllerManager {
 public:
@@ -83,6 +98,7 @@ private:
     UbseResult GenerateUrmaDevEid(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1, std::string &devEid);
     uint32_t GenerateUniqueFeId();
     uint64_t GenerateUrmaId();
+    void PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo);
 
 private:
     utils::ReadWriteLock rwLock;

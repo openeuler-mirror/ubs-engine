@@ -57,6 +57,20 @@ struct UrmaDevQueryRpcReq {
 
 struct UrmaDevQueryRpcRsp {
     std::vector<UbseUrmaInfoForQuery> urmaInfos;
+    
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UrmaDevQueryRpcRsp &info)
+    {
+        serializer << info.urmaInfos;
+        return serializer;
+    }
+
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UrmaDevQueryRpcRsp &info)
+    {
+        deserializer >> info.urmaInfos;
+        return deserializer;
+    }
 };
 
 class UrmaDevQueryReqSimpo : public UbseBaseMessage {
@@ -107,7 +121,7 @@ public:
 private:
     UrmaDevQueryRpcRsp rsp;
 };
-using UbseUrmaDevRspPtr = Ref<UrmaDevQueryRspSimpo>;
+using UbseUrmaDevQueryRspPtr = Ref<UrmaDevQueryRspSimpo>;
 
 struct UrmaNotifyReq {
     std::string nodeId; // 有更新的nodeId

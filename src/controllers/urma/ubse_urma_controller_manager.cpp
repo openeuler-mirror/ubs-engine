@@ -223,7 +223,8 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
         UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
         return;
     }
-    for (auto info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
+    PrintNodeInfo(nodeInfos[currentNodeInfo.nodeId]);
+    for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         if (info.second.urmaDevType == type) {
             UbseUrmaInfoForQuery urmaInfo;
             urmaInfo.urmaName = info.second.subPath;
@@ -235,6 +236,8 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
             urmaInfo.state = info.second.state;
             urmaInfo.minBandWidth = info.second.urmaQosProfile.minBandWidth;
             urmaInfo.maxBandWidth = info.second.urmaQosProfile.maxBandWidth;
+            UBSE_LOG_DEBUG << "Found URMA info for query: " << urmaInfo.urmaName
+                           << ", state=" << (uint32_t)urmaInfo.state;
             devInfos.push_back(urmaInfo);
         }
     }
@@ -404,7 +407,7 @@ bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId, cons
                        [&devEid](const auto &urmaInfo) { return urmaInfo.second.urmaDevEid == devEid; });
 }
 
-void PrintNodeInfo(UbseUrmaNodeInfo &nodeInfo)
+void UbseUrmaControllerManager::PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo)
 {
     UBSE_LOG_INFO << "Node ID=" << nodeInfo.nodeId;
     UBSE_LOG_INFO << "URMA List:";

@@ -82,7 +82,7 @@ UbseResult RpcReg()
         return ret;
     }
 
-    ret = comModule->RegRpcService<UbseUrmaQueryReqSimpo, UbseUrmaQueryRspSimpo>(pQueryDevHandler);
+    ret = comModule->RegRpcService<UrmaDevQueryReqSimpo, UrmaDevQueryRspSimpo>(pQueryDevHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Reg UbseUrmaQueryMessageHandler  failed.";
         return ret;
