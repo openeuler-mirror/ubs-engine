@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -34,24 +34,24 @@ public:
         return instance;
     }
 
-    /* 创建Qos Profile模板信息 */
-    UbseResult CreatQosProfile(UbseQosProfile ubseQosProfile);
-    /* 删除Qos Profile模板信息 */
+    // 创建Qos Profile模板信息
+    UbseResult CreatQosProfile(UbseLcneQosProfile ubseLcneQosProfile);
+    // 删除Qos Profile模板信息
     UbseResult DeleteQosProfile(std::string proflieName);
-    /* 查询Qos Profile模板信息 */
-    UbseResult QureyQosProfile(std::string proflieName, UbseQosProfile &ubseQosProfile);
-    /* 应用Qos Profile到vfe上 */
+    // 查询Qos Profile模板信息
+    UbseResult QureyQosProfile(std::string proflieName, UbseLcneQosProfile &ubseLcneQosProfile);
+    // 应用Qos Profile到vfe上
     UbseResult ApplyVfeQos(UbseLcneFeInfo ubseFeInfo, std::string proflieName);
-    /* 删除vfe上的Qos Profile */
+    // 删除vfe上的Qos Profile
     UbseResult DeleteVfeQos(UbseLcneFeInfo ubseFeInfo);
-    /* 查询vfe上的Qos Profile */
+    // 查询vfe上的Qos Profile
     UbseResult QueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &proflieName);
 
 private:
     UbseLcneQos(std::string host, int port) : host(std::move(host)), port(port) {}
-    UbseResult BuildQoSProfileXml(UbseQosProfile ubseQosProfile, std::string &xmlStr);
+    UbseResult BuildQoSProfileXml(UbseLcneQosProfile ubseLcneQosProfile, std::string &xmlStr);
     UbseResult BuildQoSXml(UbseLcneFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr);
-    UbseResult ParseQosProfileResponse(std::string body, UbseQosProfile &ubseQosProfile);
+    UbseResult ParseQosProfileResponse(std::string body, UbseLcneQosProfile &ubseLcneQosProfile);
     UbseResult ParseVfeQosResponse(std::string body, std::string &proflieName);
     std::string host;
     int port;

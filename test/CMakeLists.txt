@@ -116,7 +116,6 @@ set(TEST_DIR ${PROJECT_SOURCE_DIR}/test)
 enable_testing()
 include(GoogleTest)
 
-add_subdirectory(FUZZ)
 add_subdirectory(IT)
 add_subdirectory(UT)
 

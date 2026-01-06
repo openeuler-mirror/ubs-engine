@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -27,7 +27,7 @@ using namespace ubse::log;
 
 UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
-    /* 第一步先下发消息查询消息获取所有Vfe列表 */
+    // 第一步先下发消息查询消息获取所有Vfe列表
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     req.method = "GET";
@@ -52,7 +52,7 @@ UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLc
         UBSE_LOG_ERROR << "[MTI] ParseGetFeListResponse fail.";
         return ret;
     }
-    /* 然后再下发消息更新vfe中的emid数据 */
+    // 然后再下发消息更新vfe中的emid数据
     return UpdateVfeEid(iouInfo, allFeInfos);
 }
 UbseResult UbseLcneVfeEid::UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
@@ -254,8 +254,8 @@ UbseLcneFeInfo *UbseLcneVfeEid::FindVfeInVector(std::string slotId, std::string 
 
 UbseResult UbseLcneVfeEid::GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId)
 {
-    // 查找最后一个'/'的位置
-    size_t lastSlashPos = intfaceName.find_last_of('/');
+    // 接口名400GUB8/1/4， 返回最后一个/后的4-1=3
+    size_t lastSlashPos = intfaceName.find_last_of('/'); // 查找最后一个'/'的位置
     if (lastSlashPos != std::string::npos) {
         // 提取'/'后面的部分
         std::string portStr = intfaceName.substr(lastSlashPos + 1);
