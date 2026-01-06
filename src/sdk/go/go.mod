@@ -1,3 +1,3 @@
-module ubs_engine_go_sdk
+module atomgit.com/openeuler/ubs-engine/src/sdk/go/v1
 
 go 1.21
