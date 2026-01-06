@@ -76,11 +76,11 @@ public:
 
     UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
 
-    UbseResult AllocByUrmaName(const std::string &urmaInfoName, std::vector<std::string> &feNames, std::string &eid);
-    UbseResult SetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile urmaQosProfile);
+    UbseResult AllocByUrmaName(const std::string &urmaName, std::vector<std::string> &feNames, std::string &eid);
+    UbseResult SetUrmaQos(const std::string &urmaInfoName, const UrmaQosProfile &urmaQosProfile);
     UbseResult GetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile &urmaQosProfile);
     UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
-    void SetUrmaName(const std::string &urmaEid, const std::string &urmaName);
+    void SetUrmaSubPath(const std::string &urmaEid, const std::string &urmaSubPath);
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
     void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
@@ -98,6 +98,7 @@ private:
     uint32_t GenerateUniqueFeId();
     uint64_t GenerateUrmaId();
     void PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo);
+    UbseResult GetLocalUrmaDevInfoInternal(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
 
 private:
     utils::ReadWriteLock rwLock;

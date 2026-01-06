@@ -311,12 +311,12 @@ void UrmaCtlActivateBondingDevice(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos, Ub
             if (res == UBSE_OK) {
                 UbseUrmaControllerManager::GetInstance().SetActiveState(dev.urmaDevEid, roleInfo.nodeId);
             }
-            std::string urmaName;
-            if (auto ret = urmaModule->GetNameByUrmaEid(dev.urmaDevEid, urmaName); ret != UBSE_OK) {
+            std::string subPath;
+            if (auto ret = urmaModule->GetNameByUrmaEid(dev.urmaDevEid, subPath); ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to get urma name for eid=" << dev.urmaDevEid;
                 continue;
             }
-            UbseUrmaControllerManager::GetInstance().SetUrmaName(dev.urmaDevEid, urmaName);
+            UbseUrmaControllerManager::GetInstance().SetUrmaSubPath(dev.urmaDevEid, subPath);
             for (auto feInfo : dev.feList) {
                 std::string urmaEidName;
                 if (auto ret = urmaModule->GetNameByUrmaEid(feInfo.primaryEid, urmaEidName); ret != UBSE_OK) {
