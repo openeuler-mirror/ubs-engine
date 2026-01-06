@@ -268,9 +268,9 @@ void UrmaController::DoTopoLinkChange()
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
     auto uvsModule = ubse::context::UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
     if (auto ret = CallFuncRetry([&uvsModule, &curNode, &uvsInfos, this]() {
-                return uvsModule->SetUvsInfo(curNode.nodeId, this->GetDirConnectInfo(), uvsInfos);
-            });
-            ret != UBSE_OK) {
+            return uvsModule->SetUvsInfo(curNode.nodeId, this->GetDirConnectInfo(), uvsInfos);
+        });
+        ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
     }
 }
@@ -294,7 +294,7 @@ void UrmaController::DoNodeJoin()
     std::vector<UbseLcneIouInfo> iouList;
     std::vector<UbseLcneFeInfo> allFeInfos;
     if (CallFuncRetry([&]() { return UbseNodeComUrmaCollector::GetInstance().GetCurNodeIouList(iouList); }) !=
-            UBSE_OK) {
+        UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node IOU list";
         return;
     }
@@ -432,16 +432,7 @@ UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType t
         UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(type, devInfos);
         return UBSE_OK;
     }
-    std::vector<UbseUrmaInfoForQuery> urmaInfo;
-    auto ret = UbseQueryUrmaInfoByRpc(nodeId, type, urmaInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get urma info by rpc, ret=" << ret;
-        return ret;
-    }
-    for (const auto &devInfo : urmaInfo) {
-        devInfos.push_back(devInfo);
-    }
-    return UBSE_OK;
+    return UbseQueryUrmaInfoByRpc(nodeId, type, devInfos);
 }
 
 } // namespace ubse::urmaController
