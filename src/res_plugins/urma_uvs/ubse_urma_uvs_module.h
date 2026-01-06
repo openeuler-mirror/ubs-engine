@@ -32,9 +32,8 @@ using UvsDeleteAggrDev = uint32_t (*)(char *aggrDevEid);
 
 constexpr uint32_t EID_LEN = 16;
 constexpr uint32_t IODIE_NUM = 2;
-constexpr uint32_t IODIE_NUM_PER_CHIP = 1;
 constexpr uint32_t PORT_NUM = 9;
-constexpr uint32_t DEV_NUM = 64;
+constexpr uint32_t DEV_NUM = 128;
 constexpr size_t DEV_NAME_LEN = 32;
 
 constexpr uint32_t IPV6_FULL_FORMAT_LENGTH = 39;
@@ -43,7 +42,7 @@ constexpr size_t IPV6_SEGMENT_COUNT = 8;
 constexpr size_t IPV6_SEGMENT_LENGTH = 4;
 
 struct UbcoreTopoFe {
-    uint32_t socket_id;
+    uint32_t chip_id;
     char primary_eid[EID_LEN];
     char port_eid[PORT_NUM][EID_LEN];
 };
@@ -61,7 +60,7 @@ struct UbcoreTopoLink {
 
 struct UbcoreTopoNode {
     uint32_t id;
-    uint32_t is_current;
+    uint32_t is_current;    // 0代表非本节点，1代表是本节点
     UbcoreTopoLink link[IODIE_NUM][PORT_NUM];
     UbcoreTopoAggrDev aggr_dev[DEV_NUM];
 };
@@ -81,7 +80,7 @@ public:
 
     UbseResult GetNameByUrmaEid(const std::string &urmaEid, std::string &urmaEidName);
 
-    UbseResult GetStateByUrmaEid(const std::string &urmaEid, bool isactivate);
+    UbseResult GetStateByUrmaEid(const std::string &urmaEid, bool &isactivate);
 
     UbseResult ActivateBondingDevice(const std::string &urmaEid);
 
