@@ -19,10 +19,10 @@
 namespace ubse::utils {
 class UbsePackUtil {
 public:
-    explicit UbsePackUtil(uint8_t *buffer, size_t bufferSize) noexcept : ptr(buffer), remaining(bufferSize) {}
+    explicit UbsePackUtil(uint8_t *buffer, size_t bufferSize) noexcept : ptr(buffer), length(bufferSize) {}
     bool UbsePackUint32(uint32_t value)
     {
-        if (remaining < sizeof(uint32_t)) {
+        if (length < sizeof(uint32_t)) {
             return false;
         }
         errno_t err = memcpy_s(ptr, sizeof(uint32_t), &value, sizeof(uint32_t));
@@ -30,13 +30,13 @@ public:
             return false;
         }
         ptr += sizeof(uint32_t);
-        remaining -= sizeof(uint32_t);
+        length -= sizeof(uint32_t);
         return true;
     }
 
     bool UbsePackUint64(uint64_t value)
     {
-        if (remaining < sizeof(uint64_t)) {
+        if (length < sizeof(uint64_t)) {
             return false;
         }
         errno_t err = memcpy_s(ptr, sizeof(uint64_t), &value, sizeof(uint64_t));
@@ -44,7 +44,7 @@ public:
             return false;
         }
         ptr += sizeof(uint64_t);
-        remaining -= sizeof(uint64_t);
+        length -= sizeof(uint64_t);
         return true;
     }
 
@@ -54,7 +54,7 @@ public:
         if (len > maxlen) {
             len = maxlen;
         }
-        if (remaining < sizeof(uint32_t) + len) {
+        if (length < sizeof(uint32_t) + len) {
             return false;
         }
         if (!UbsePackUint32(len)) {
@@ -67,15 +67,15 @@ public:
                 return false;
             }
             ptr += len;
-            remaining -= len;
+            length -= len;
         }
         return true;
     }
 
 private:
     uint8_t *ptr;
-    size_t remaining;
+    size_t length;
 };
 } // namespace ubse::utils
 
-#endif //UBSE_PACK_UTIL_H
+#endif // UBSE_PACK_UTIL_H
