@@ -18,7 +18,7 @@ void RegNodeControllerHandler()
                                                         static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_ALL_NODE)};
     const ubse::com::UbseComEndpoint reportTopologyEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
-        static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_REPORT_TOPOLOGY)};
+        static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_LCNE_CHANGE_REPORT_TOPOLOGY)};
     const ubse::com::UbseComEndpoint getDevConnect = {
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_GET_DEV_CONNECT)};
@@ -118,7 +118,7 @@ UbseResult ReportUbseNodeInfo(const std::string &nodeId, UbseNodeInfo info)
 {
     const ubse::com::UbseComEndpoint endpoint{
         .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
-        .serviceId = static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_REPORT_TOPOLOGY),
+        .serviceId = static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_LCNE_CHANGE_REPORT_TOPOLOGY),
         .address = nodeId,
     };
     UbseResult reportRet = UBSE_OK;

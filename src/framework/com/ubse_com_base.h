@@ -25,14 +25,14 @@
 #include <utility>              // for move
 #include <vector>               // for vector
 
-#include "ubse_base_message.h"      // for UbseBaseMessage, UbseBaseMessag...
-#include "ubse_com_def.h"           // for UbseComMessageCtx, UbseComMessage
-#include "ubse_common_def.h"        // for UbseResult, UBSE_AGENT_IPC_SERV...
-#include "engine/ubse_com_engine.h" // for UbseCommunication
-#include "ubse_error.h"             // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
-#include "ubse_logger.h"            // for UbseLoggerEntry, FormatRetCode
-#include "ubse_logger_inner.h"      // for RM_LOG_ERROR, RM_LOG_DEBUG
-#include "ubse_pointer_process.h"   // for SafeFree
+#include "ubse_base_message.h"    // for UbseBaseMessage, UbseBaseMessag...
+#include "ubse_com_def.h"         // for UbseComMessageCtx, UbseComMessage
+#include "ubse_com_engine.h"      // for UbseCommunication
+#include "ubse_common_def.h"      // for UbseResult, UBSE_AGENT_IPC_SERV...
+#include "ubse_error.h"           // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
+#include "ubse_logger.h"          // for UbseLoggerEntry, FormatRetCode
+#include "ubse_logger_inner.h"    // for RM_LOG_ERROR, RM_LOG_DEBUG
+#include "ubse_pointer_process.h" // for SafeFree
 
 namespace ubse::com {
 const std::string FAKE_CUR_NODE_ID = "FakeCurNodeId";
@@ -54,6 +54,7 @@ enum class UbseModuleCode {
     DATA_SYNC = 14,
     STORAGE = 15,
     UBSE_OBJ = 17,
+    UBSE_URMA = 200,
     UBSE_JOB = 801,
     UBSE_MEM_CONTROLLER = 802,
     UBSE_MEM = 901,
@@ -76,7 +77,13 @@ enum class UbseModuleCode {
     UBSE_MEM_BORROW_RESULT_NOTIFY = 926,
     RAS = 119
 };
-
+enum class UbseUrmaRpcOpCode {
+    URMA_RPC_URMA_INFO_REPORT = 0,
+    URMA_RPC_URMA_INFO_NOTIFY = 1,
+    URMA_RPC_URMA_INFO_QUERY = 2,
+    URMA_RPC_DEV_QUERY = 3,
+    URMA_RPC_BUTT
+};
 enum class UbseOpCode {
     NUMA_METRIC = 0,
     VM_METRIC = 1,
@@ -116,8 +123,10 @@ enum class UbseOpCode {
     UBSE_MEM_DEBINFO_QUERY = 802,
     NODE_CONTROLLER_COLLECT = 901,
     NODE_CONTROLLER_ALL_NODE = 902,
-    NODE_CONTROLLER_REPORT_TOPOLOGY = 903,
+    NODE_CONTROLLER_LCNE_CHANGE_REPORT_TOPOLOGY = 903,
     NODE_CONTROLLER_GET_DEV_CONNECT = 904,
+    NODE_CONTROLLER_REPORT = 905,
+    NODE_CONTROLLER_NODE_CHANGE = 906,
     UBSE_MEM_FD_BORROW = 911,
     UBSE_MEM_NUMA_BORROW = 912,
     UBSE_MEM_ADDR_BORROW = 913,
@@ -219,12 +228,12 @@ public:
         : remoteId(std::move(remoteId)),
           moduleCode(moduleCode),
           opCode(opCode),
-          channelType(channelType){};
+          channelType(channelType) {};
 
     SendParam(std::string remoteId, uint16_t moduleCode, uint16_t opCode)
         : remoteId(std::move(remoteId)),
           moduleCode(moduleCode),
-          opCode(opCode){};
+          opCode(opCode) {};
 
     const std::string &GetRemoteId() const;
 
@@ -332,7 +341,7 @@ void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &
 
 class UbseComBase : public Referable {
 public:
-    UbseComBase(std::string nodeId, std::string name) : nodeId(nodeId), name(name){};
+    UbseComBase(std::string nodeId, std::string name) : nodeId(nodeId), name(name) {};
 
     /* *
      * @brief 启动Server或Client
@@ -456,7 +465,7 @@ public:
         ret = TransResponse(UbseBaseMessage::Convert<TRsp>(response), retData, withCopy);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "node " << nodeId << " trans " << param.GetRemoteId() << " response failed,"
-                         << FormatRetCode(ret);
+                           << FormatRetCode(ret);
         }
         UbseComMessage::FreeMessage(msg);
         SafeFree(retData.data);
@@ -556,13 +565,13 @@ private:
         auto ret = reqPtr->SetInputRawData(ucMsg->GetMessageBody(), ucMsg->GetMessageBodyLen());
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " set req body failed,"
-                         << FormatRetCode(ret);
+                           << FormatRetCode(ret);
             return;
         }
         ret = reqPtr->Deserialize();
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " deserialize failed,"
-                         << FormatRetCode(ret);
+                           << FormatRetCode(ret);
             return;
         }
         auto respPtr = UbseBaseMessage::Convert<TRsp>(response);
@@ -597,7 +606,7 @@ private:
                 auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx(engineName, channelId, respCtx);
                 if (ctx == nullptr) {
                     UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode
-                                 << " new UbseComBaseMessageHandlerCtx fail";
+                                   << " new UbseComBaseMessageHandlerCtx fail";
                     return;
                 }
                 ctx->SetCrc(crc);
@@ -605,7 +614,7 @@ private:
                 auto handlerRet = handler->Handle(reqPtr, respPtr, ctx);
                 if (handlerRet != UBSE_OK) {
                     UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode << " exec failed,"
-                                 << FormatRetCode(handlerRet);
+                                   << FormatRetCode(handlerRet);
                     respPtr->SetErrCode(handlerRet);
                 }
                 UbseComMessageCtx msgCtx(engineName, respCtx, channelId, message.GetDstId());

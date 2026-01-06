@@ -116,9 +116,16 @@ struct UbseLcnePortInfo {
 };
 
 struct UbseLcneSocketInfo {
+    std::string entityId;
     std::string primaryEid;                              // port-group-id 字段对应的 urma-eid
     std::map<std::string, UbseLcnePortInfo> portEidList; // 此处为由于框内通信端口的eid（feid最小的部分）
     // key为port-id
+};
+
+struct UbseLcneIouInfo {
+    std::string slotId;
+    std::string ubpuId;                              // port-group-id 字段对应的 urma-eid
+    std::string iouId;
 };
 
 struct IODieInfo {
@@ -179,9 +186,34 @@ struct UbseLcneOSInfo {
 // 查询节点物理上bus instance信息
 struct UbseLcneBusInstanceInfo {
     std::string hostBusinstanceEid;
-    std::string localNodeId;             // 当前节点的nodeid（slotid）
+    std::string localNodeId; // 当前节点的nodeid（slotid）
 };
 
+enum class UbseLcneFeType {
+    PHYSICAL_TYPE = 0, // pfe0, 物理类型FE用于集群通信
+    VIRTUAL_TYPE = 1,  // vfe1, 虚拟类型VFE
+    BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示
+};
+
+struct UbseLcneEidGroup {
+    std::string primaryEid;
+    std::map<std::string, std::string> portEids;
+};
+
+struct UbseLcneFeInfo {
+    std::string slotId;
+    std::string ubpuId;
+    std::string iouId;
+    std::string entityId;
+    UbseLcneFeType fetype;
+    std::vector<UbseLcneEidGroup> eidGroups;
+};
+
+struct UbseLcneQosProfile {
+    std::string proflieName;
+    uint32_t maxBandWidth;
+    uint32_t minBandWidth;
+};
 /**
  * @brief 获取LCNE提供的本节点信息
  * @param [out] ubseNodeInfo: 当前节点信息
