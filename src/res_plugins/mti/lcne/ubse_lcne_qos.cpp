@@ -114,13 +114,14 @@ UbseResult UbseLcneQos::QureyQosProfile(std::string proflieName, UbseLcneQosProf
         UBSE_LOG_ERROR << "[MTI] QosProfile response is empty.";
         return UBSE_ERROR;
     }
-    ubseLcneQosProfile.proflieName = proflieName;
+
     // 解析xml响应
     ret = ParseQosProfileResponse(rsp.body, ubseLcneQosProfile);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] QosProfile Info Parse XML data is failed.";
         return UBSE_ERROR;
     }
+    ubseLcneQosProfile.proflieName = proflieName;
     return UBSE_OK;
 }
 
