@@ -38,7 +38,6 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, urma_device_t **urma_de
         return ubse_map_daemon_error(ret);
     }
     // 解包
-
     if (ubse_urma_dev_get_unpack(response_buffer.buffer, response_buffer.length, urma_devices, urma_cnt) !=
         UBS_SUCCESS) {
         ubse_api_buffer_free(&response_buffer);

@@ -14,11 +14,13 @@
 #define UBSE_URMA_CONTROLLER_H
 
 #include <vector>
+#include <thread>
+#include <chrono>
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
-#include "ubse_urma_def.h"
 #include "ubse_urma_controller_manager.h"
+#include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -61,7 +63,25 @@ private:
     void DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
     UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const UrmaDevType type,
-                                          std::vector<UbseUrmaInfoForQuery> &urmaInfo);
+                                      std::vector<UbseUrmaInfoForQuery> &urmaInfo);
 };
+
+template <typename Func, typename... Args>
+UbseResult CallFuncRetry(Func func, Args &&...args)
+{
+    static_assert(std::is_invocable_r_v<UbseResult, Func, Args...>,
+                  "Func must be callable with the provided arguments and return UbseResult");
+    const int retryCount = 5;
+    const int sleepSecondPerTry = 1;
+    UbseResult ret = UBSE_OK;
+    for (int i = 0; i < retryCount; ++i) {
+        ret = func(std::forward<Args>(args)...);
+        if (ret == UBSE_OK) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(sleepSecondPerTry));
+    }
+    return ret;
+}
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H
