@@ -23,8 +23,8 @@
 extern "C" {
 #endif
 
-constexpr const uint32_t UbseLcneOk = 0;     // 0 返回成功
-constexpr const uint32_t UbseLcneError = 1;  // 1 返回失败
+constexpr const uint32_t UbseLcneOk = 0;    // 0 返回成功
+constexpr const uint32_t UbseLcneError = 1; // 1 返回失败
 
 // 定义故障类型
 typedef enum {
@@ -124,7 +124,7 @@ struct UbseLcneSocketInfo {
 
 struct UbseLcneIouInfo {
     std::string slotId;
-    std::string ubpuId;                              // port-group-id 字段对应的 urma-eid
+    std::string ubpuId; // port-group-id 字段对应的 urma-eid
     std::string iouId;
 };
 
@@ -227,5 +227,58 @@ uint32_t UbseGetLocalNodeInfo(MtiNodeInfo &ubseNodeInfo);
  * @return 成功返回0, 失败返回非0
  */
 uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos);
+
+/**
+ * @brief 获取LCNE感知的VfeEid信息
+ * @param [out] allFeInfos: 本节点的Vfe及对应的Eid信息
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseGetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos);
+
+/**
+ * @brief 下发xml消息到Lcne上创建QosProfile
+ * @param [in] ubseLcneQosProfile：待创建profile信息
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseCreatQosProfile(UbseLcneQosProfile ubseLcneQosProfile);
+
+/**
+ * @brief 下发xml消息到Lcne上删除QosProfile
+ * @param [in] proflieName：待删除profile名称
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseDeleteQosProfile(std::string proflieName);
+
+/**
+ * @brief 下发xml消息到Lcne上查询QosProfile的具体参数
+ * @param [in] proflieName：待查询profile名称
+ * @param [out] ubseLcneQosProfile：查询到的profile信息
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseQureyQosProfile(std::string proflieName, UbseLcneQosProfile &ubseLcneQosProfile);
+
+/**
+ * @brief 下发xml消息到Lcne上使能应用QosProfile
+ * @param [in] ubseFeInfo：待生效的Vfe信息
+ * @param [in] proflieName：待生效profile名称
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseApplyVfeQos(UbseLcneFeInfo ubseFeInfo, std::string proflieName);
+
+/**
+ * @brief 下发xml消息到Lcne上删除Vfe上的QosProfile应用
+ * @param [in] ubseFeInfo：待删除的Vfe
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseDeleteVfeQos(UbseLcneFeInfo ubseFeInfo);
+
+/**
+ * @brief 下发xml消息到Lcne上查询Vfe上的QosProfile应用
+ * @param [in] ubseFeInfo：待查询的Vfe
+ * @param [out] proflieName：查询到的profile名称* 
+ * @return 成功返回0, 失败返回非0
+ */
+uint32_t UbseQueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &proflieName);
+
 } // namespace ubse::mti
 #endif // UBSE_TOPOLOGY_INTERFACE_H
