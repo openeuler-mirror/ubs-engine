@@ -230,6 +230,7 @@ uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos);
 
 /**
  * @brief 获取LCNE感知的VfeEid信息
+ * @param [in] iouInfo, 本节点的slot/ubpu/iou信息
  * @param [out] allFeInfos: 本节点的Vfe及对应的Eid信息
  * @return 成功返回0, 失败返回非0
  */
