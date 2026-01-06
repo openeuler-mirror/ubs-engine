@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -592,5 +592,105 @@ ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t *buffer, uint32_t len, 
         }
         ptr += ubse_node_numa_mem_size;
     }
+    return UBS_SUCCESS;
+}
+typedef struct {
+    const uint8_t *ptr;
+    uint32_t len;
+} unpack_ctx_t;
+
+ubs_error_t unpack_uint32(unpack_ctx_t *ctx, uint32_t *value)
+{
+    if (ctx->len < sizeof(uint32_t)) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    *value = ntohl(*(const uint32_t *)(ctx->ptr));
+    ctx->ptr += sizeof(uint32_t);
+    ctx->len -= sizeof(uint32_t);
+    return UBS_SUCCESS;
+}
+
+ubs_error_t unpack_string(unpack_ctx_t *ctx, char *dest, uint32_t max_len)
+{
+    uint32_t str_len = 0;
+    ubs_error_t ret = unpack_uint32(ctx, &str_len);
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+
+    if ((str_len + 1) > max_len || str_len > ctx->len) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+
+    errno_t err = memcpy_s(dest, max_len, ctx->ptr, str_len);
+    if (err != EOK) {
+        return ubse_map_sys_error(err);
+    }
+    dest[str_len] = '\0';
+    ctx->ptr += str_len;
+    ctx->len -= str_len;
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_urma_subdev_unpack(unpack_ctx_t *ctx, ubs_urma_dev_t *urma_dev)
+{
+    ubs_error_t ret = unpack_string(ctx, urma_dev->name, UBS_URMA_NAME_MAX);
+    ret |= unpack_uint32(ctx, &urma_dev->healthy);
+    return ret;
+}
+
+ubs_error_t ubse_urma_dev_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
+{
+    if (len < sizeof(uint32_t)) {
+        *urma_devices = NULL;
+        *urma_cnt = 0;
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    unpack_ctx_t ctx = {.ptr = buffer, .len = len};
+    unpack_uint32(&ctx, urma_cnt);
+    if (*urma_cnt == 0) {
+        *urma_devices = NULL;
+        *urma_cnt = 0;
+        return UBS_SUCCESS;
+    }
+
+    *urma_devices = (ubs_urma_dev_t *)calloc(*urma_cnt, sizeof(ubs_urma_dev_t));
+    if (*urma_devices == NULL) {
+        *urma_cnt = 0;
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    for (uint32_t i = 0; i < *urma_cnt; i++) {
+        ubs_error_t ret = ubse_urma_subdev_unpack(&ctx, &(*urma_devices)[i]);
+        if (ret != UBS_SUCCESS) {
+            free(*urma_devices);
+            *urma_devices = NULL;
+            *urma_cnt = 0;
+            return ret;
+        }
+    }
+
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_urma_dev_info_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_dev_info_t *dev_info)
+{
+    unpack_ctx_t ctx;
+    ctx.ptr = buffer;
+    ctx.len = len;
+    ubs_error_t ret = unpack_string(&ctx, dev_info->bonding_path, UBS_MAX_URMA_PATH_LENGTH);
+    ret |= unpack_string(&ctx, dev_info->vfe_path[0], UBS_MAX_URMA_PATH_LENGTH);
+    ret |= unpack_string(&ctx, dev_info->vfe_path[UBS_VFE_PATH_NUM - 1], UBS_MAX_URMA_PATH_LENGTH);
+    ret |= unpack_string(&ctx, dev_info->bonding_eid, UBS_MAX_URMA_PATH_LENGTH);
+    return ret;
+}
+
+ubs_error_t ubse_urma_qos_unpack(const uint8_t *buffer, uint32_t len, uint32_t *minBandWidth, uint32_t *maxBandWidth)
+{
+    if (len != sizeof(uint32_t) + sizeof(uint32_t)) {
+        return UBS_ENGINE_ERR_INTERNAL;
+    }
+    *minBandWidth = ntohl(*(uint32_t *)buffer);
+    buffer += sizeof(uint32_t);
+    *maxBandWidth = ntohl(*(uint32_t *)buffer);
     return UBS_SUCCESS;
 }
