@@ -60,6 +60,8 @@
 #define UBSE_ERROR_SERIALIZE_FAILED UBSE_COMMON_ERROR(17)    /* 序列化失败 */
 #define UBSE_ERROR_DESERIALIZE_FAILED UBSE_COMMON_ERROR(18)  /* 反序列化失败 */
 #define UBSE_ERROR_NULL_INFO UBSE_COMMON_ERROR(19)           /* 业务信息为空 */
+#define UBSE_ERROR_NOT_SUPPORT UBSE_COMMON_ERROR(41)         /* 不支持的操作，当前错误码机制不完善，暂时和UBS对外值保持一样 */
+#define UBSE_ERROR_NOT_EXIST UBSE_COMMON_ERROR(1007)         /* 设备不存在，当前错误码机制不完善，暂时先定义 */
 
 /* *************************************** */
 /* 各个模块MID定义                          */
@@ -119,8 +121,9 @@
 #define SYS_SENTRY UBSE_MID_MAKE_MANAGER(37)                 /* 0X1024 */
 #define UBSE_NODE_CONTROLLER_MID UBSE_MID_MAKE_MANAGER(38)   /* 0X1027 */
 #define UBSE_API_SERVER_MID UBSE_MID_MAKE_MANAGER(39)        /* 0X1027 */
-#define UBSE_MMI_MID UBSE_MID_MAKE_MANAGER(33)               /* 0X1028 */
 #define UBSE_SECURITY_MID UBSE_MID_MAKE_MANAGER(40)          /* 0X1028 */
+#define UBSE_URMA_CONTROLLER_MID UBSE_MID_MAKE_MANAGER(41)   /* 0X1029 */
+#define UBSE_URMA_UVS_MID UBSE_MID_MAKE_MANAGER(42)          /* 0X1030 */
 
 /* Ubse CLI */
 #define UBSE_CLI_MID_BASE UBSE_MID_MAKE_CLI(0)               /* 0X2000 基础模块 */
