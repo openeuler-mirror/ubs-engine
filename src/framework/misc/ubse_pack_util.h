@@ -13,76 +13,69 @@
 #ifndef UBSE_PACK_UTIL_H
 #define UBSE_PACK_UTIL_H
 
-#include <cstddef>
-#include <memory>
-#include <type_traits> // For std::is_void_v
-
-template <typename T>
-void SafeFree(T &ptr)
-{
-    if (ptr) {
-        free(ptr);
-        ptr = nullptr;
+#include <securec.h>
+#include <cstdint>
+#include <string>
+namespace ubse::utils {
+class UbsePackUtil {
+public:
+    explicit UbsePackUtil(uint8_t *buffer, size_t bufferSize) noexcept : ptr(buffer), remaining(bufferSize) {}
+    bool UbsePackUint32(uint32_t value)
+    {
+        if (remaining < sizeof(uint32_t)) {
+            return false;
+        }
+        errno_t err = memcpy_s(ptr, sizeof(uint32_t), &value, sizeof(uint32_t));
+        if (err != EOK) {
+            return false;
+        }
+        ptr += sizeof(uint32_t);
+        remaining -= sizeof(uint32_t);
+        return true;
     }
-}
 
-template <typename T>
-void SafeDelete(T &ptr)
-{
-    if (ptr) {
-        delete ptr;
-        ptr = nullptr;
+    bool UbsePackUint64(uint64_t value)
+    {
+        if (remaining < sizeof(uint64_t)) {
+            return false;
+        }
+        errno_t err = memcpy_s(ptr, sizeof(uint64_t), &value, sizeof(uint64_t));
+        if (err != EOK) {
+            return false;
+        }
+        ptr += sizeof(uint64_t);
+        remaining -= sizeof(uint64_t);
+        return true;
     }
-}
 
-template <typename T>
-void SafeDeleteArray(T *&ptr, size_t ptrLen = 1)
-{
-    static_assert(!std::is_void_v<T>, "Cannot delete array of void");
-    if (ptr && ptrLen != 0) {
-        delete[] ptr;
-        ptr = nullptr;
-    }
-}
+    bool UbsePackString(const std::string &str, uint32_t maxlen)
+    {
+        auto len = static_cast<uint32_t>(str.length());
+        if (len > maxlen) {
+            len = maxlen;
+        }
+        if (remaining < sizeof(uint32_t) + len) {
+            return false;
+        }
+        if (!UbsePackUint32(len)) {
+            return false;
+        }
 
-template <typename T, typename... Args>
-std::shared_ptr<T> SafeMakeShared(Args &&...args)
-{
-    T *raw = new (std::nothrow) T(std::forward<Args>(args)...);
-    if (!raw) {
-        return nullptr;
+        if (len > 0) {
+            errno_t ret = memcpy_s(ptr, len, str.c_str(), len);
+            if (ret != EOK) {
+                return false;
+            }
+            ptr += len;
+            remaining -= len;
+        }
+        return true;
     }
-    return std::shared_ptr<T>(raw);
-}
 
-template <typename... Args>
-std::unique_ptr<uint8_t[]> SafeMakeUnique(size_t size, Args &&...args)
-{
-    auto raw = new (std::nothrow) uint8_t[size]{std::forward<Args>(args)...};
-    if (!raw) {
-        return nullptr;
-    }
-    return std::unique_ptr<uint8_t[]>(raw);
-}
-
-template <typename T, typename... Args>
-std::unique_ptr<T> SafeMakeUnique(Args &&...args)
-{
-    T *raw = new (std::nothrow) T(std::forward<Args>(args)...);
-    if (!raw) {
-        return nullptr;
-    }
-    return std::unique_ptr<T>(raw);
-}
-
-template <typename... Args>
-std::shared_ptr<uint8_t[]> SafeMakeShared(size_t size, Args &&...args)
-{
-    auto raw = new (std::nothrow) uint8_t[size]{std::forward<Args>(args)...};
-    if (!raw) {
-        return nullptr;
-    }
-    return std::shared_ptr<uint8_t[]>(raw);
-}
+private:
+    uint8_t *ptr;
+    size_t remaining;
+};
+} // namespace ubse::utils
 
 #endif //UBSE_PACK_UTIL_H
