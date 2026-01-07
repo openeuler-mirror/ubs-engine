@@ -18,6 +18,9 @@
 
 uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
 {
+    if (urma_type != UNIQUE && urma_type != UNIQUE){
+        return UBS_ENGINE_ERR_OUT_OF_RANGE
+    }
     if ((urma_devices == NULL) || (urma_cnt == NULL)) {
         return UBS_ERR_NULL_POINTER;
     }
