@@ -25,7 +25,7 @@
 namespace ubse::urmaController {
 using namespace ubse::common::def;
 using namespace ubse::context;
-using namespace ::api::server;
+using namespace api::server;
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace ubse::election;
@@ -188,14 +188,23 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &re
         UBSE_LOG_ERROR << "UrmaController::UbseGetUrmaDevInfoByNodeIdAndType failed," << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
     }
-    ubse::serial::UbseSerialization responseSerial;
-    const uint32_t urmaSize = static_cast<uint32_t>(urmaInfo.size());
-    responseSerial << urmaSize;
-    for (uint32_t i = 0; i < urmaSize; ++i) {
-        responseSerial << urmaInfo[i].urmaName << urmaInfo[i].fe1Name << urmaInfo[i].fe2Name << urmaInfo[i].minBandWidth
-                       << urmaInfo[i].maxBandWidth;
+    UbseSerialization qosSerial;
+    uint32_t urmaSize = 0;
+    for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
+        if (urmaInfo[i].qosProfile.profileName != "")
+            qosSerial << urmaInfo[i].urmaName << urmaInfo[i].fe1Name << urmaInfo[i].fe2Name
+                      << urmaInfo[i].qosProfile.minBandWidth << urmaInfo[i].qosProfile.maxBandWidth;
+        urmaSize++;
     }
 
+    UbseSerialization responseSerial;
+    responseSerial << urmaSize;
+    if (urmaSize != 0) {
+        responseSerial << qosSerial;
+    }
+    if (!responseSerial.Check()) {
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
     UbseIpcMessage response = {responseSerial.GetBuffer(), static_cast<uint32_t>(responseSerial.GetLength())};
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     ret = apiServerModule->SendResponse(IPC_SUCCESS, context.requestId, response);
@@ -273,7 +282,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
         UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubse::serial::UbseDeSerialization out{req.buffer, req.length};
+    UbseDeSerialization out{req.buffer, req.length};
     uint32_t nodeId;
     uint32_t urmaType;
 
@@ -289,7 +298,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseGetUrmaDevInfoByNodeIdAndType failed," << FormatRetCode(ret);
         return UBSE_ERROR_SRCH;
     }
-    ubse::serial::UbseSerialization ubse_req_serial;
+    UbseSerialization ubse_req_serial;
     const uint32_t urmaSize = static_cast<uint32_t>(urmaInfo.size());
     ubse_req_serial << urmaSize;
     for (uint32_t i = 0; i < urmaInfo.size(); ++i) {

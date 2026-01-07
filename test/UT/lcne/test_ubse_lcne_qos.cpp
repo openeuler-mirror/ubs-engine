@@ -46,7 +46,7 @@ TEST_F(TestUbseLcneQos, CreatQosProfile)
     const auto func1 = &UbseHttpModule::HttpSend;
     MOCKER_CPP(func1).stubs().with(host, port, outBound(req), outBound(rsp)).will(returnValue(UBSE_OK));
 
-    UbseQosProfile ubseQosProfile;
+    UbseLcneQosProfile ubseQosProfile;
     ubseQosProfile.proflieName = "proflie1";
     ubseQosProfile.maxBandWidth = 100;
     ubseQosProfile.minBandWidth = 10;
@@ -64,7 +64,7 @@ TEST_F(TestUbseLcneQos, CreatQosProfile_fail)
     rsp.body = "Rsp_body";
     const auto func1 = &UbseHttpModule::HttpSend;
     MOCKER_CPP(func1).stubs().with(host, port, outBound(req), outBound(rsp)).will(returnValue(UBSE_ERROR));
-    UbseQosProfile ubseQosProfile;
+    UbseLcneQosProfile ubseQosProfile;
     ubseQosProfile.proflieName = "proflie1";
     ubseQosProfile.maxBandWidth = 100;
     ubseQosProfile.minBandWidth = 10;
@@ -141,7 +141,7 @@ TEST_F(TestUbseLcneQos, QureyQosProfile)
     const auto func2 = &UbseLcneQos::ParseQosProfileResponse;
     MOCKER_CPP(func2).stubs().will(returnValue(UBSE_OK));
     std::string proflieName = "proflie1";
-    UbseQosProfile ubseQosProfile;
+    UbseLcneQosProfile ubseQosProfile;
     UbseResult ret = UbseLcneQos::GetInstance().QureyQosProfile(proflieName, ubseQosProfile);
     EXPECT_EQ(UBSE_OK, ret);
 }
@@ -159,7 +159,7 @@ TEST_F(TestUbseLcneQos, QureyQosProfile_fail)
     const auto func2 = &UbseLcneQos::ParseQosProfileResponse;
     MOCKER_CPP(func2).stubs().will(returnValue(UBSE_ERROR));
     std::string proflieName = "proflie1";
-    UbseQosProfile ubseQosProfile;
+    UbseLcneQosProfile ubseQosProfile;
     UbseResult ret = UbseLcneQos::GetInstance().QureyQosProfile(proflieName, ubseQosProfile);
     EXPECT_EQ(UBSE_ERROR, ret);
     rsp.body = "";
@@ -305,7 +305,7 @@ TEST_F(TestUbseLcneQos, QueryVfeQos_fail)
 TEST_F(TestUbseLcneQos, BuildQoSProfileXml)
 {
     std::string xmlStr;
-    UbseQosProfile ubseQosProfile;
+    UbseLcneQosProfile ubseQosProfile;
     ubseQosProfile.proflieName = "profile1";
     ubseQosProfile.minBandWidth = 80;
     ubseQosProfile.maxBandWidth = 160;
@@ -369,7 +369,7 @@ TEST_F(TestUbseLcneQos, ParseQosProfileResponse)
   </shaper>
 </tqos-profile>
 )";
-    UbseQosProfile ubseQosProfile;
+    UbseLcneQosProfile ubseQosProfile;
     UbseResult ret = UbseLcneQos::GetInstance().ParseQosProfileResponse(body, ubseQosProfile);
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ(80, ubseQosProfile.minBandWidth);
