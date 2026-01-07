@@ -168,11 +168,10 @@ UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool
     }
     ret = uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Uvs failed to get state";
         isactivate = false;
-        return ret;
+    } else {
+        isactivate = true;
     }
-    isactivate = true;
     return UBSE_OK;
 }
 
