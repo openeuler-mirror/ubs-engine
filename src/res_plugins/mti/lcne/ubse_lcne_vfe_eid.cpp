@@ -24,16 +24,9 @@ using namespace common::def;
 using namespace ubse::http;
 using namespace ubse::mti;
 using namespace ubse::log;
-std::string ToTwoDigitString(int num);
-void OutPutFeEidResultToLog(std::vector<UbseLcneFeInfo> &feEidMap);
-UbseResult MockVfeEid(UbseLcneIouInfo& iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos);
 
 UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
-    if (MockVfeEid(iouInfo, allFeInfos) == UBSE_OK) {
-        UBSE_LOG_INFO << "[MTI] MOCK Lcne VFE eid Info" << "\n";
-        return UBSE_OK;
-    }
     /* 第一步先下发消息查询消息获取所有Vfe列表 */
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -54,7 +47,7 @@ UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLc
         UBSE_LOG_ERROR << "[MTI] LCNE UrmaEid response is empty.";
         return UBSE_ERROR;
     }
-    ret = ParseGetFeListResponse(rsp.body, allFeInfos);
+    ret = ParseGetFeListResponse(rsp.body, allFeInfos, iouInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] ParseGetFeListResponse fail.";
         return ret;
@@ -84,10 +77,13 @@ UbseResult UbseLcneVfeEid::UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<Ubs
         UBSE_LOG_ERROR << "[MTI] LCNE UrmaEid response is empty.";
         return UBSE_ERROR;
     }
-    return ParseGetFeEidResponse(rsp.body, allFeInfos);
+    return ParseGetFeEidResponse(rsp.body, allFeInfos, iouInfo);
 }
+
+/* 适配LCNE联调方案，待删除该函数第三个参数 */
 UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr,
-                                                  std::vector<UbseLcneFeInfo> &allFeInfos)
+                                                  std::vector<UbseLcneFeInfo> &allFeInfos,
+                                                  const UbseLcneIouInfo &iouInfo)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -97,6 +93,17 @@ UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr
     if (ret != UbseXmlError::OK) {
         return UBSE_ERROR;
     }
+
+    /* 适配LCNE联调方案，待删除代码开始 */
+    if (ubseXml->Next("mue-ue-binding-infos") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-infos failed.";
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Next("mue-ue-binding-info") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-infos failed.";
+        return UBSE_ERROR;
+    }
+    /* 适配LCNE联调方案，待删除代码结束 */
     if (ubseXml->Next("slot-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
         return UBSE_ERROR;
@@ -108,6 +115,22 @@ UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr
         return UBSE_ERROR;
     }
     std::string ubpuId = ubseXml->Text();
+    /* 适配LCNE联调方案，待删除代码开始 */
+    if (ubpuId != iouInfo.ubpuId) {
+        ubseXml->Previous();
+        ubseXml->Previous();
+        // 找到下一个
+        if (ubseXml->Next("mue-ue-binding-info", 1) == nullptr) {
+            UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-info failed.";
+            return UBSE_ERROR;
+        }
+        if (ubseXml->Next("ubpu-id") == nullptr) {
+            UBSE_LOG_ERROR << "[MTI] Xml parse ubpu-id failed.";
+            return UBSE_ERROR;
+        }
+        ubpuId = ubseXml->Text();
+    }
+    /* 适配LCNE联调方案，待删除代码结束 */
     ubseXml->Previous();
     if (ubseXml->Next("iou-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse iou-id failed.";
@@ -155,8 +178,10 @@ std::vector<std::string> UbseLcneVfeEid::ueIdlistSplit(const std::string &str, c
     return tokens;
 }
 
+/* 适配LCNE联调方案，待删除该函数第三个参数 */
 UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
-                                                 std::vector<UbseLcneFeInfo> &allFeInfos)
+                                                 std::vector<UbseLcneFeInfo> &allFeInfos,
+                                                 const UbseLcneIouInfo &iouInfo)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -166,6 +191,16 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
     if (ret != UbseXmlError::OK) {
         return UBSE_ERROR;
     }
+    /* 适配LCNE联调方案，待删除代码开始 */
+    if (ubseXml->Next("entity-urma-communication-infos") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-infos failed.";
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Next("entity-urma-communication-info") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-info failed.";
+        return UBSE_ERROR;
+    }
+    /* 适配LCNE联调方案，待删除代码结束 */
     if (ubseXml->Next("slot-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
         return UBSE_ERROR;
@@ -177,6 +212,22 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
         return UBSE_ERROR;
     }
     std::string ubpuId = ubseXml->Text();
+    /* 适配LCNE联调方案，待删除代码开始 */
+    if (ubpuId != iouInfo.ubpuId) {
+        ubseXml->Previous();
+        ubseXml->Previous();
+        // 找到下一个
+        if (ubseXml->Next("entity-urma-communication-info", 1) == nullptr) {
+            UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-info failed.";
+            return UBSE_ERROR;
+        }
+        if (ubseXml->Next("ubpu-id") == nullptr) {
+            UBSE_LOG_ERROR << "[MTI] Xml parse ubpu-id failed.";
+            return UBSE_ERROR;
+        }
+        ubpuId = ubseXml->Text();
+    }
+    /* 适配LCNE联调方案，待删除代码结束 */
     ubseXml->Previous();
     if (ubseXml->Next("iou-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse iou-id failed.";
@@ -277,51 +328,4 @@ UbseResult UbseLcneVfeEid::GetPortIdFromInterfaceName(std::string intfaceName, u
     }
     return UBSE_ERROR;
 }
-
-std::string ToTwoDigitString(int num)
-{
-    std::ostringstream oss;
-    oss << std::setw(NO_2) << std::setfill('0') << num;
-    return oss.str();
-}
-
-void OutPutFeEidResultToLog(std::vector<UbseLcneFeInfo> &feEidMap)
-{
-    std::ostringstream oss;
-    for (auto &item : feEidMap) {
-        oss << "Fe: " << item.slotId << "-" << item.ubpuId << "-" << item.iouId << "-" << item.entityId
-            << "PrimaryEid:" << item.eidGroups[0].primaryEid << "\n";
-        for (auto &portEid : item.eidGroups[0].portEids) {
-            oss << "portId:" << portEid.first << ", " << portEid.second << "\n";
-        }
-        oss << "\n";
-    }
-    auto result = oss.str();
-    UBSE_LOG_INFO << "[MTI] FeEid Info:" << "\n" << result;
-}
-
-UbseResult MockVfeEid(UbseLcneIouInfo& iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
-{
-    allFeInfos.clear();
-    for (int i = 1; i <= NO_32; ++i) {
-        UbseLcneFeInfo feInfo;
-        feInfo.slotId = iouInfo.slotId;
-        feInfo.ubpuId = iouInfo.ubpuId;
-        feInfo.iouId = iouInfo.iouId;
-        feInfo.entityId = std::to_string(i);
-        feInfo.fetype = UbseLcneFeType::VIRTUAL_TYPE;
-        UbseLcneEidGroup eidGroup;
-        eidGroup.primaryEid = "0000:000" + feInfo.slotId + ":000" + feInfo.ubpuId + ":000"
-                            + feInfo.iouId + ":00" + ToTwoDigitString(i) +":0000:0001:0001";
-        for (int j = 1; j <= NO_8; ++j) {
-            eidGroup.portEids[std::to_string(j)] = "0000:000" + feInfo.slotId + ":000" + feInfo.ubpuId + ":000"
-                            + feInfo.iouId + ":00" + ToTwoDigitString(i) +":0000:0002:000" + std::to_string(j);
-        }
-        feInfo.eidGroups.emplace_back(eidGroup);
-        allFeInfos.emplace_back(feInfo);
-    }
-    OutPutFeEidResultToLog(allFeInfos);
-    return UBSE_OK;
-}
-
 } // namespace ubse::lcne
