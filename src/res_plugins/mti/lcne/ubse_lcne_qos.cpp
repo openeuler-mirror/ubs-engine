@@ -309,8 +309,8 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseLcneQosPro
     if (ubseXml->Next("pir") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse pir failed.";
         return UBSE_ERROR;
-    }    
-    std::string maxBandWidthStr = ubseXml->Text();    
+    }
+    std::string maxBandWidthStr = ubseXml->Text();
     try {
         ubseLcneQosProfile.minBandWidth = std::stoul(minBandWidthStr) * BYTE_TO_BIT;
         ubseLcneQosProfile.maxBandWidth = std::stoul(maxBandWidthStr) * BYTE_TO_BIT;

@@ -54,7 +54,7 @@ UbseResult UrmaController::UbseUrmaBandWidthSet(const std::string urmaName, uint
     if (urmaInfo.urmaDevType != UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthSet failed, urmaDevType ="
                        << (uint32_t)urmaInfo.urmaDevType;
-        return UBSE_ERROR_CONF_INVALID;
+        return UBSE_ERROR_NOT_SUPPORT;
     }
     /* 创建profile */
     UbseLcneQosProfile lcneQosProfile;
@@ -123,7 +123,7 @@ UbseResult UrmaController::UbseUrmaBandWidthReset(const std::string urmaName)
     if (urmaInfo.urmaDevType != UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthReset failed, urmaDevType ="
                        << (uint32_t)urmaInfo.urmaDevType;
-        return UBSE_ERROR_CONF_INVALID;
+        return UBSE_ERROR_NOT_SUPPORT;
     }
     for (auto i : urmaInfo.eidGroups) {
         std::shared_ptr<UbseFeInfo> ubseFeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaVfeFromEidGroup(i);

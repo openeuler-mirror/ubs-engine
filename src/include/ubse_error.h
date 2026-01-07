@@ -60,6 +60,7 @@
 #define UBSE_ERROR_SERIALIZE_FAILED UBSE_COMMON_ERROR(17)    /* 序列化失败 */
 #define UBSE_ERROR_DESERIALIZE_FAILED UBSE_COMMON_ERROR(18)  /* 反序列化失败 */
 #define UBSE_ERROR_NULL_INFO UBSE_COMMON_ERROR(19)           /* 业务信息为空 */
+#define UBSE_ERROR_NOT_SUPPORT UBSE_COMMON_ERROR(41)         /* 不支持的操作，当前错误码机制不完善，暂时和UBS对外值保持一样 */
 #define UBSE_ERROR_NOT_EXIST UBSE_COMMON_ERROR(1007)         /* 设备不存在，当前错误码机制不完善，暂时先定义 */
 
 /* *************************************** */
