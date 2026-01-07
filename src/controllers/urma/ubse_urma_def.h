@@ -46,7 +46,6 @@ struct UrmaQosProfile {
 enum class UrmaDevType {
     UNIQUE = 0,
     SHARED = 1,
-    SELF_USED = 2,
     BUTT
 };
 
