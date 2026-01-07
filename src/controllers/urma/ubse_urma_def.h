@@ -25,20 +25,18 @@ namespace ubse::urma {
 
 struct UrmaQosProfile {
     std::string profileName{};
-    uint32_t maxBandWidth;
     uint32_t minBandWidth;
-
+    uint32_t maxBandWidth;
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UrmaQosProfile &profile)
     {
-        serializer << profile.profileName << profile.maxBandWidth << profile.minBandWidth;
+        serializer << profile.profileName << profile.minBandWidth << profile.maxBandWidth;
         return serializer;
     }
-
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UrmaQosProfile &profile)
     {
-        deserializer >> profile.profileName >> profile.maxBandWidth >> profile.minBandWidth;
+        deserializer >> profile.profileName >> profile.minBandWidth >> profile.maxBandWidth;
         return deserializer;
     }
 };
@@ -46,7 +44,6 @@ struct UrmaQosProfile {
 enum class UrmaDevType {
     UNIQUE = 0,
     SHARED = 1,
-    SELF_USED = 2,
     BUTT
 };
 

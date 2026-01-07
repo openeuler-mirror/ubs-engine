@@ -237,8 +237,9 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
             if (info.second.eidGroups.size() != feCntPerUrmaInfo) {
                 continue;
             }
-            urmaInfo.fe1Name = info.second.eidGroups[0].feInfo->name;
-            urmaInfo.fe2Name = info.second.eidGroups[1].feInfo->name;
+            for (auto eidGroup : info.second.eidGroups) {
+                urmaInfo.feNames.emplace_back(eidGroup.feInfo->name);
+            }
             urmaInfo.state = info.second.state;
             urmaInfo.qosProfile = info.second.urmaQosProfile;
             UBSE_LOG_DEBUG << "Found URMA info for query: " << urmaInfo.urmaName

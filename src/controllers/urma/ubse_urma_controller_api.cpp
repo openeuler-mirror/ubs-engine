@@ -36,7 +36,7 @@ UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
 const uint32_t UBSE_URMA_NAME_MAX = 32;        // 包含结束符长度
 const uint32_t UBSE_MAX_URMA_PATH_LENGTH = 64; // 包含结束符长度
-const size_t MAX_BUFFER_SIZE = 10 * 1024; // 10 KB
+const size_t MAX_BUFFER_SIZE = 10 * 1024;      // 10 KB
 
 size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
 {
@@ -193,8 +193,8 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &re
     uint32_t urmaSize = 0;
     for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
         if (urmaInfo[i].qosProfile.profileName != "")
-            qosSerial << urmaInfo[i].urmaName << urmaInfo[i].fe1Name << urmaInfo[i].fe2Name
-                      << urmaInfo[i].qosProfile.minBandWidth << urmaInfo[i].qosProfile.maxBandWidth;
+            qosSerial << urmaInfo[i].urmaName << urmaInfo[i].feNames << urmaInfo[i].qosProfile.minBandWidth
+                      << urmaInfo[i].qosProfile.maxBandWidth;
         urmaSize++;
     }
 
@@ -304,9 +304,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     ubse_req_serial << urmaSize;
     for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
         const uint32_t urmaState = static_cast<uint32_t>(urmaInfo[i].state);
-        ubse_req_serial << urmaInfo[i].urmaName << urmaInfo[i].fe1Name << urmaInfo[i].fe2Name << urmaState;
-        UBSE_LOG_DEBUG << "Urma Info - urmaName: " << urmaInfo[i].urmaName << ", FE1 Name: " << urmaInfo[i].fe1Name
-                       << ", FE2 Name: " << urmaInfo[i].fe2Name << ", State: " << urmaState;
+        ubse_req_serial << urmaInfo[i].urmaName << urmaInfo[i].feNames << urmaState;
+        UBSE_LOG_DEBUG << "Urma Info - urmaName: " << urmaInfo[i].urmaName << ", FE1 Name: " << urmaInfo[i].feNames[0]
+                       << ", FE2 Name: " << urmaInfo[i].feNames[1] << ", State: " << urmaState;
     }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
@@ -374,7 +374,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
     UbseUrmaDevPath devInfos;
     uint32_t ret = UrmaController::GetInstance().UbseAllocUrmaDev(name, devInfos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaDevAlloc failed," << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
     }
 
@@ -411,7 +411,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     std::string name(str, strlen);
     uint32_t ret = UrmaController::GetInstance().UbseFreeUrmaDev(name);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaDevFree failed," << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
     }
 

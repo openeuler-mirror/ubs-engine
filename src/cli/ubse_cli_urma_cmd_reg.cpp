@@ -79,12 +79,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     for (uint32_t i = 0; i < urma_size; i++) {
         row = variable_cell_builder.UbseCliAddRow();
-        std::string uramName;
-        std::string fe1Name;
-        std::string fe2Name;
-        uint32_t urmaStatus;
-        ubse_de_serial >> uramName >> fe1Name >> fe2Name >> urmaStatus;
-        if (!ubse_de_serial.Check()) {
+        std::string uramName{};
+        std::vector<std::string> feNames;
+        uint32_t urmaStatus{};
+        ubse_de_serial >> uramName >> feNames >> urmaStatus;
+        if ((!ubse_de_serial.Check()) || (feNames.size() <= 1)) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
         if (urmaStatus >= urmaStatusArray.size()) {
@@ -92,8 +91,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
         }
 
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, uramName);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, fe1Name);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, fe2Name);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, feNames[0]);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, feNames[1]);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, urmaStatusArray[urmaStatus]);
     }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
@@ -113,20 +112,19 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     for (uint32_t i = 0; i < urma_size; i++) {
         row = variable_cell_builder.UbseCliAddRow();
-        std::string uramName;
-        std::string fe1Name;
-        std::string fe2Name;
-        uint32_t minBandWidth;
-        uint32_t maxBandWidth;
-        ubse_de_serial >> uramName >> fe1Name >> fe2Name >> minBandWidth >> maxBandWidth;
-        if (!ubse_de_serial.Check()) {
+        std::string uramName{};
+        std::vector<std::string> feNames;
+        uint32_t minBandWidth{};
+        uint32_t maxBandWidth{};
+        ubse_de_serial >> uramName >> feNames >> minBandWidth >> maxBandWidth;
+        if ((!ubse_de_serial.Check()) || (feNames.size() <= 1)) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, uramName);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(minBandWidth));
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, std::to_string(maxBandWidth));
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, fe1Name);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, fe2Name);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, feNames[0]);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, feNames[1]);
     }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
