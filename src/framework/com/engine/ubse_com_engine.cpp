@@ -292,7 +292,8 @@ void SetChannelTimeout(const UbseChannelType chType, UBSHcomChannelPtr channelPt
     }
 }
 
-UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options, UBSHcomChannelPtr &channelPtr)
+UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options,
+                                    UBSHcomChannelPtr &channelPtr)
 {
     if (engineInfo.GetProtocol() == UbseProtocol::TCP) {
         return hcomNetService->Connect("tcp://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
@@ -401,6 +402,24 @@ void UbseComEngine::RemoveChannel(std::string remoteNodeId, UbseChannelType type
     rwLock.UnLock();
 }
 
+void UbseComEngine::DoEngineStart()
+{
+    UbseResult res = UBSE_ERROR;
+    while (res != UBSE_OK) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(NO_128));
+        if (deleted.load(std::memory_order_acquire)) {
+            UBSE_LOG_DEBUG << "Engine stopped, exit retry loop.";
+            break;
+        }
+        std::lock_guard<std::mutex> lock(serviceMutex_);
+        if (!hcomNetService) {
+            break;
+        }
+        res = hcomNetService->Start();
+    }
+    UBSE_LOG_WARN << "Create engine " << engineInfo.GetName() << "successfully";
+}
+
 UbseResult UbseComEngine::Start()
 {
     auto engineName = engineInfo.GetName();
@@ -408,16 +427,23 @@ UbseResult UbseComEngine::Start()
     InitEngineOptions();
     auto ret = hcomNetService->Start();
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Create engine " << engineName << " failed, start service fail";
+        UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, ret=" << ret << ",will retry";
+        try {
+            std::thread([this]() { DoEngineStart(); }).detach();
+        } catch (const std::exception &e) {
+            UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
+            return UBSE_ERROR;
+        }
     }
-    return ret;
+    return UBSE_OK;
 }
 
 void UbseComEngine::Stop()
 {
+    deleted.store(true);
     auto engineName = engineInfo.GetName();
+    std::lock_guard<std::mutex> lock(serviceMutex_);
     if (hcomNetService != nullptr) {
-        deleted.store(true);
         auto ret = UBSHcomService::Destroy(engineName);
         hcomNetService = nullptr;
     }
@@ -455,7 +481,7 @@ void UbseComEngine::RegisterEngineHandlers()
     bool isUbc = engineInfo.GetProtocol() == UbseProtocol::UBC;
     if (isOobSvr || isUbc) {
         UBSHcomServiceNewChannelHandler newChannelHandler = [this](const std::string &addr, const UBSHcomChannelPtr &ch,
-                                                                const std::string &payload) -> UbseResult {
+                                                                   const std::string &payload) -> UbseResult {
             if (UBSE_UNLIKELY(ch == nullptr)) {
                 return UBSE_COM_ERROR_CHANNEL_NULL;
             }
@@ -530,7 +556,8 @@ bool CertCallback(const std::string &name, std::string &value)
     return true;
 }
 
-bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len, UBSHcomTLSEraseKeypass &erase)
+bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len,
+                        UBSHcomTLSEraseKeypass &erase)
 {
     UBSE_LOG_INFO << "Start to load private key";
     std::string keyPassPath = PASSWORD_FILENAME;

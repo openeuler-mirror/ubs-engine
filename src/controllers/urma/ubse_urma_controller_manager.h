@@ -38,7 +38,8 @@ struct UbseUrmaInfoForQuery {
                                                        const UbseUrmaInfoForQuery &info)
     {
         serializer << info.urmaName << info.fe1Name << info.fe2Name << ubse::serial::enum_v(info.bondingType)
-                   << ubse::serial::enum_v(info.state);
+                   << ubse::serial::enum_v(info.state) << info.qosProfile.profileName << info.qosProfile.minBandWidth
+                   << info.qosProfile.maxBandWidth;
         return serializer;
     }
 
@@ -46,7 +47,8 @@ struct UbseUrmaInfoForQuery {
                                                          UbseUrmaInfoForQuery &info)
     {
         deserializer >> info.urmaName >> info.fe1Name >> info.fe2Name >> ubse::serial::enum_v(info.bondingType) >>
-            ubse::serial::enum_v(info.state);
+            ubse::serial::enum_v(info.state) >> info.qosProfile.profileName >> info.qosProfile.minBandWidth >>
+            info.qosProfile.maxBandWidth;
         return deserializer;
     }
 };

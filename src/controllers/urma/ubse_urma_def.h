@@ -157,6 +157,12 @@ struct UbseUrmaNodeInfo {
         return deserializer;
     }
 };
+
+typedef struct {
+    std::vector<std::string> vfePaths;
+    std::string bondingPath;
+    std::string bondingEid;
+} UbseUrmaDevPath;
 } // namespace ubse::urma
 
 #endif // UBSE_URMA_DEF_H

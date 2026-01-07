@@ -242,6 +242,7 @@ protected:
 protected:
     UbseResult InsertChannelToMap(UbseComChannelInfo &chInfo);
     bool SplitIp(const std::string ipPortStr, std::string &ip);
+    void DoEngineStart();
 
 protected:
     UbseComEngineInfo engineInfo;           // 引擎信息
@@ -251,7 +252,7 @@ protected:
     UbseComLinkManager linkManager;         // 连接通道管理器
     HandlerMap handlerMap{};                // 操作函数映射表，一个引擎一个表
     ubse::utils::ReadWriteLock rwLock;      // 读写锁
-
+    std::mutex serviceMutex_;
     void *address = nullptr; // 预分配内存地址
     std::map<std::string, std::set<UbseChannelType>> connectingMap;
     std::mutex conMutex;

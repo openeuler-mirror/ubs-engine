@@ -142,6 +142,15 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
         return UBSE_OK;
     }
     UBSE_LOG_INFO << "master online, current nodeId=" << nodeId << " is master.";
+
+    std::string selfNodeId = nodeId;
+    auto ret = UbsePubEvent(UBSE_EVENT_NODE_JOIN, selfNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbsePubEvent failed";
+        return ret;
+    }
+    UBSE_LOG_DEBUG << "PubEvent " << UBSE_EVENT_NODE_JOIN << " to urmactl";
+
     taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_16, NO_1024);
     if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
         return UBSE_ERROR_NULLPTR;

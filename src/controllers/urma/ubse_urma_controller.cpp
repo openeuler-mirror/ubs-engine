@@ -367,8 +367,9 @@ UbseResult UrmaController::UbseAllocUrmaDev(const std::string urmaName, UbseUrma
         return UBSE_ERROR;
     }
     devPaths.bondingPath = PATH_PREFIX + feNames[0];
-    devPaths.vfe0Path = PATH_PREFIX + feNames[1];
-    devPaths.vfe1Path = PATH_PREFIX + feNames[INDEX_NO_2];
+    for (auto it = feNames.begin() + 1; it != feNames.end(); ++it) {
+        devPaths.vfePaths.push_back(PATH_PREFIX + *it);
+    }
     devPaths.bondingEid = eid;
     return UBSE_OK;
 }

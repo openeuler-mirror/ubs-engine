@@ -36,6 +36,7 @@ UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
 const uint32_t UBSE_URMA_NAME_MAX = 32;        // 包含结束符长度
 const uint32_t UBSE_MAX_URMA_PATH_LENGTH = 64; // 包含结束符长度
+const size_t MAX_BUFFER_SIZE = 10 * 1024; // 10 KB
 
 size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
 {
@@ -323,26 +324,31 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
 
 UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
 {
-    auto boundingSize = UbseStringCalcSize(pathInfos.bondingPath, UBSE_MAX_URMA_PATH_LENGTH - 1);
-    auto vfe0Size = UbseStringCalcSize(pathInfos.vfe0Path, UBSE_MAX_URMA_PATH_LENGTH - 1);
-    auto vfe1Size = UbseStringCalcSize(pathInfos.vfe1Path, UBSE_MAX_URMA_PATH_LENGTH - 1);
-    auto eidSize = UbseStringCalcSize(pathInfos.bondingEid, UBSE_MAX_URMA_PATH_LENGTH - 1);
-    response.buffer = new (std::nothrow) uint8_t[boundingSize + vfe0Size + vfe1Size + eidSize];
+    auto bufferSize = UbseStringCalcSize(pathInfos.bondingPath, UBSE_MAX_URMA_PATH_LENGTH - 1);
+    for (const auto &path : pathInfos.vfePaths) {
+        bufferSize += UbseStringCalcSize(path, UBSE_MAX_URMA_PATH_LENGTH - 1);
+    }
+    bufferSize += UbseStringCalcSize(pathInfos.bondingEid, UBSE_MAX_URMA_PATH_LENGTH - 1);
+    if (bufferSize > MAX_BUFFER_SIZE) {
+        UBSE_LOG_ERROR << "Requested buffer size " << bufferSize << " exceeds limit " << MAX_BUFFER_SIZE;
+        return UBSE_ERROR_INVAL;
+    }
+    response.buffer = new (std::nothrow) uint8_t[bufferSize];
     if (response.buffer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    response.length = boundingSize + vfe0Size + vfe1Size;
+    response.length = bufferSize;
     UbsePackUtil packUtil(response.buffer, response.length);
 
     if (!packUtil.UbsePackString(pathInfos.bondingPath, UBSE_MAX_URMA_PATH_LENGTH - 1)) {
         delete[] response.buffer;
         return UBSE_ERROR;
     }
-    if (!packUtil.UbsePackString(pathInfos.vfe0Path, UBSE_MAX_URMA_PATH_LENGTH - 1)) {
+    if (!packUtil.UbsePackString(pathInfos.vfePaths[0], UBSE_MAX_URMA_PATH_LENGTH - 1)) {
         delete[] response.buffer;
         return UBSE_ERROR;
     }
-    if (!packUtil.UbsePackString(pathInfos.vfe1Path, UBSE_MAX_URMA_PATH_LENGTH - 1)) {
+    if (!packUtil.UbsePackString(pathInfos.vfePaths[1], UBSE_MAX_URMA_PATH_LENGTH - 1)) {
         delete[] response.buffer;
         return UBSE_ERROR;
     }
