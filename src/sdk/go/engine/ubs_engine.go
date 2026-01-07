@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"ubs_engine_go_sdk/dlopen"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/dlopen"
 )
 
 func UbsEngineClientInitialize(ubsEngineUdsPath string) (int32, error) {
