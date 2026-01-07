@@ -26,13 +26,6 @@ namespace ubse::urmaController {
 using namespace ubse::common::def;
 using namespace ubse::urma;
 
-typedef struct {
-    std::string vfe0Path;
-    std::string vfe1Path;
-    std::string bondingPath;
-    std::string bondingEid;
-} UbseUrmaDevPath;
-
 class UrmaController {
 public:
     static UrmaController &GetInstance()
