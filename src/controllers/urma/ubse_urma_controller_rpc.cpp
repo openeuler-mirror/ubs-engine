@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -510,6 +510,7 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
                                                             const UbseBaseMessagePtr &rsp,
                                                             UbseComBaseMessageHandlerCtxPtr ctx)
 {
+    UBSE_LOG_INFO << "Handling URMA report node info message";
     auto request = UbseBaseMessage::DeConvert<UbseUrmaReportUrmaNodeInfoReqSimpo>(req);
     auto nodeInfoReq = request->GetUbseUrmaNodeInfo();
     auto nodeId = nodeInfoReq.nodeId;

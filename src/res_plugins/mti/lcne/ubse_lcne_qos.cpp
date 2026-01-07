@@ -120,6 +120,7 @@ UbseResult UbseLcneQos::QureyQosProfile(std::string proflieName, UbseLcneQosProf
         UBSE_LOG_ERROR << "[MTI] QosProfile Info Parse XML data is failed.";
         return UBSE_ERROR;
     }
+    ubseLcneQosProfile.proflieName = proflieName;
     return UBSE_OK;
 }
 

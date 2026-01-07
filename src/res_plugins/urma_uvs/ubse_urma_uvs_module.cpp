@@ -102,7 +102,7 @@ UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std
     }
     for (auto &node : nodes) {
         if (std::to_string(node.id) == current_slot_id) {
-            node.is_current = true;
+            node.is_current = 1;
         }
     }
     if (g_isMocked) {
@@ -148,7 +148,7 @@ UbseResult UbseUrmaUvsModule::GetNameByUrmaEid(const std::string &urmaEid, std::
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool isactivate)
+UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool &isactivate)
 {
     UBSE_LOG_DEBUG << "Get State By UrmaEid";
     char bondingEid[IPV6_BYTE_COUNT];
@@ -179,6 +179,11 @@ UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool
 UbseResult UbseUrmaUvsModule::ActivateBondingDevice(const std::string &urmaEid)
 {
     UBSE_LOG_DEBUG << "Activate Bonding Device";
+    bool isactivate = false;
+    if (GetStateByUrmaEid(urmaEid, isactivate) == UBSE_OK && isactivate) {
+        UBSE_LOG_WARN << "UrmaEid=" << urmaEid << " is already active, skipping.";
+        return UBSE_OK;
+    }
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ParseColonHexString(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -287,7 +292,7 @@ void UbseUrmaUvsModule::InitialNodes(const std::set<std::string> &slotIds,
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to convert " << id << " to uint32";
         }
-        node.is_current = false;
+        node.is_current = 0;
 
         for (uint32_t i_iodie = 0; i_iodie < IODIE_NUM; i_iodie++) {
             for (uint32_t j_port = 0; j_port < PORT_NUM; j_port++) {
@@ -351,9 +356,9 @@ UbseResult UbseUrmaUvsModule::FillFeInfo(const std::vector<UbseUrmaUvsFe> &fes, 
         return UBSE_ERROR;
     }
     for (size_t i = 0; i < fe_num; i++) {
-        auto ret = ConvertStrToUint32(fes[i].ubpuId, aggr_dev.fe[i].socket_id);
+        auto ret = ConvertStrToUint32(fes[i].ubpuId, aggr_dev.fe[i].chip_id);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Convert socket_id failed, " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Convert ubpuId failed, " << FormatRetCode(ret);
             return ret;
         }
         ret = ParseColonHexString(fes[i].primaryEid, aggr_dev.fe[i].primary_eid);
@@ -365,7 +370,7 @@ UbseResult UbseUrmaUvsModule::FillFeInfo(const std::vector<UbseUrmaUvsFe> &fes, 
             uint32_t portId;
             ret = ConvertStrToUint32(port.first, portId);
             if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Convert socket_id failed, " << FormatRetCode(ret);
+                UBSE_LOG_ERROR << "Convert portId failed, " << FormatRetCode(ret);
                 return ret;
             }
             ret = ParseColonHexString(port.second, aggr_dev.fe[i].port_eid[portId]);

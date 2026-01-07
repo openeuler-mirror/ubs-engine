@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -40,7 +40,7 @@ const uint32_t UBSE_MAX_URMA_PATH_LENGTH = 64; // 包含结束符长度
 size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
 {
     size_t len = 0;
-    len += sizeof(uint32_t);
+    len += sizeof(uint32_t); // 字符串长度指示
     len += std::min(maxLen, str.size());
     return len;
 }
@@ -54,6 +54,7 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
     size_t infoSize = nameInfos.size();
     size_t rspSize = sizeof(uint32_t);
     for (auto &s : nameInfos) {
+        /* 每个名字后面需要增加一个status占用4个字节 */
         rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t);
     }
     response.buffer = new (std::nothrow) uint8_t[rspSize];
@@ -64,16 +65,19 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
     }
     UbsePackUtil packUtil(response.buffer, response.length);
     if (!packUtil.UbsePackUint32(static_cast<uint32_t>(infoSize))) {
+        delete[] response.buffer;
         UBSE_LOG_ERROR << "Failed to pack infoSize=" << infoSize;
         return IPC_ERROR_SERIALIZATION_FAILED;
     }
 
     for (size_t i = 0; i < nameInfos.size(); i++) {
         if (!packUtil.UbsePackString(nameInfos[i], UBSE_URMA_NAME_MAX - 1)) {
+            delete[] response.buffer;
             UBSE_LOG_ERROR << "Failed to pack nameInfo[" << i << "]=" << nameInfos[i];
             return IPC_ERROR_SERIALIZATION_FAILED;
         }
         if (!packUtil.UbsePackUint32(status[i])) {
+            delete[] response.buffer;
             UBSE_LOG_ERROR << "Failed to pack status[" << i << "]=" << status[i];
             return IPC_ERROR_SERIALIZATION_FAILED;
         }
@@ -256,6 +260,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, uin
     memcpy_s(buffer, sizeof(maxBandWidth), &maxBandWidthOut, sizeof(maxBandWidthOut));
     uint32_t ret = apiServerModule->SendResponse(IPC_SUCCESS, requestId, response);
     if (ret != UBSE_OK) {
+        free(response.buffer);
         UBSE_LOG_ERROR << " UbseUrmaSendQosRsp response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
@@ -315,22 +320,26 @@ UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
     auto eidSize = UbseStringCalcSize(pathInfos.bondingEid, UBSE_MAX_URMA_PATH_LENGTH - 1);
     response.buffer = new (std::nothrow) uint8_t[boundingSize + vfe0Size + vfe1Size + eidSize];
     if (response.buffer == nullptr) {
-        return IPC_ERROR_SERIALIZATION_FAILED;
+        return UBSE_ERROR_NULLPTR;
     }
     response.length = boundingSize + vfe0Size + vfe1Size;
     UbsePackUtil packUtil(response.buffer, response.length);
 
     if (!packUtil.UbsePackString(pathInfos.bondingPath, UBSE_MAX_URMA_PATH_LENGTH - 1)) {
-        return IPC_ERROR_SERIALIZATION_FAILED;
+        delete[] response.buffer;
+        return UBSE_ERROR;
     }
     if (!packUtil.UbsePackString(pathInfos.vfe0Path, UBSE_MAX_URMA_PATH_LENGTH - 1)) {
-        return IPC_ERROR_SERIALIZATION_FAILED;
+        delete[] response.buffer;
+        return UBSE_ERROR;
     }
     if (!packUtil.UbsePackString(pathInfos.vfe1Path, UBSE_MAX_URMA_PATH_LENGTH - 1)) {
-        return IPC_ERROR_SERIALIZATION_FAILED;
+        delete[] response.buffer;
+        return UBSE_ERROR;
     }
     if (!packUtil.UbsePackString(pathInfos.bondingEid, UBSE_MAX_URMA_PATH_LENGTH - 1)) {
-        return IPC_ERROR_SERIALIZATION_FAILED;
+        delete[] response.buffer;
+        return UBSE_ERROR;
     }
     return UBSE_OK;
 }
@@ -351,7 +360,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
     uint32_t ret = UrmaController::GetInstance().UbseAllocUrmaDev(name, devInfos);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return UBSE_ERROR_NOT_EXIST;
     }
 
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -388,7 +397,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     uint32_t ret = UrmaController::GetInstance().UbseFreeUrmaDev(name);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return UBSE_ERROR_NOT_EXIST;
     }
 
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -415,7 +424,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
     errno_t retCode = memcpy_s(req.buffer, sizeof(uint32_t), &type, sizeof(uint32_t));
     if (retCode != EOK) {
         UBSE_LOG_ERROR << "memcpy_s failed," << FormatRetCode(errno);
-        return UBSE_ERROR_NOSPC;
+        return UBSE_ERROR;
     }
     std::vector<std::string> nameInfos;
     std::vector<uint32_t> status;
@@ -423,7 +432,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
         UrmaController::GetInstance().UbseGetLocalUrmaDevInfoByType(static_cast<UrmaDevType>(type), nameInfos, status);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseGetLocalUrmaDevInfoByType failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return UBSE_ERROR_NOT_EXIST;
     }
 
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -435,7 +444,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
     ret = LocalDevPack(nameInfos, status, response);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "LoaclDevRspPack failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return UBSE_ERROR;
     }
     ret = apiServerModule->SendResponse(IPC_SUCCESS, context.requestId, response);
     if (ret != UBSE_OK) {
