@@ -374,7 +374,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
     UbseUrmaDevPath devInfos;
     uint32_t ret = UrmaController::GetInstance().UbseAllocUrmaDev(name, devInfos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaDevAlloc failed," << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
     }
 
@@ -411,7 +411,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     std::string name(str, strlen);
     uint32_t ret = UrmaController::GetInstance().UbseFreeUrmaDev(name);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthDisable failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UrmaController::UbseUrmaDevFree failed," << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
     }
 

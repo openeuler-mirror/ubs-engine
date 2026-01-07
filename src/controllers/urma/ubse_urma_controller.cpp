@@ -356,7 +356,7 @@ UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type,
 {
     /* 判断是否合法类型，非法返回不支持 */
     if (type >= UrmaDevType::BUTT) {
-        UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthSet failed, urmaDevType ="
+        UBSE_LOG_ERROR << "get urma name by type failed, type ="
                        << (uint32_t)type;
         return UBSE_ERROR_NOT_SUPPORT;
     }
