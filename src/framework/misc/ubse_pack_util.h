@@ -25,7 +25,8 @@ public:
         if (remaining < sizeof(uint32_t)) {
             return false;
         }
-        errno_t err = memcpy_s(ptr, sizeof(uint32_t), &value, sizeof(uint32_t));
+        uint32_t net_value = htonl(value);
+        errno_t err = memcpy_s(ptr, sizeof(uint32_t), &net_value, sizeof(uint32_t));
         if (err != EOK) {
             return false;
         }
