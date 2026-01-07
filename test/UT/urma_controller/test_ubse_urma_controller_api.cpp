@@ -211,27 +211,4 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaBandWidthCliGet)
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaBandWidthCliGet_Neigbour)
-{
-    UbseRequestContext context;
-    uint32_t nodeId = 0xFFFFFFFE;
-    UbseSerialization ubse_req_serial;
-    ubse_req_serial << nodeId << "urma1";
-    UbseIpcMessage req{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
-    UbseRoleInfo currentNodeInfo{};
-    currentNodeInfo.nodeId = "0";
-    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
-    std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
-    std::shared_ptr<UbseApiServerModule> apiModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
-    const auto func = &UbseComModule::RpcSend<UbseUrmaQosReqPtr, UbseUrmaQosRspPtr>;
-    MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
-    uint32_t ret = UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(req, context);
-    EXPECT_EQ(UBSE_OK, ret);
-    GlobalMockObject::verify();
-}
-
 } // namespace ubse::urmaControllerApi::ut

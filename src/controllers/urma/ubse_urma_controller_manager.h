@@ -33,8 +33,7 @@ struct UbseUrmaInfoForQuery {
     std::string fe2Name;
     UrmaDevType bondingType;
     UrmaDevState state;
-    uint32_t minBandWidth;
-    uint32_t maxBandWidth;
+    UrmaQosProfile qosProfile;
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfoForQuery &info)
     {

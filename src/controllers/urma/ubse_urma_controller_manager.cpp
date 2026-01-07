@@ -240,8 +240,7 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
             urmaInfo.fe1Name = info.second.eidGroups[0].feInfo->name;
             urmaInfo.fe2Name = info.second.eidGroups[1].feInfo->name;
             urmaInfo.state = info.second.state;
-            urmaInfo.minBandWidth = info.second.urmaQosProfile.minBandWidth;
-            urmaInfo.maxBandWidth = info.second.urmaQosProfile.maxBandWidth;
+            urmaInfo.qosProfile = info.second.urmaQosProfile;
             UBSE_LOG_DEBUG << "Found URMA info for query: " << urmaInfo.urmaName
                            << ", state=" << (uint32_t)urmaInfo.state;
             devInfos.push_back(urmaInfo);

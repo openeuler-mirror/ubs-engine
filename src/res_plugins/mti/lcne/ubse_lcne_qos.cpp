@@ -304,20 +304,16 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseLcneQosPro
         UBSE_LOG_ERROR << "[MTI] Xml parse cir failed.";
         return UBSE_ERROR;
     }
-    try {
-        ubseLcneQosProfile.minBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
-        ubseXml->Previous();
-    } catch (const std::invalid_argument &e) {
-        return UBSE_ERROR;
-    } catch (const std::out_of_range &e) {
-        return UBSE_ERROR;
-    }
+    std::string minBandWidthStr = ubseXml->Text();
+    ubseXml->Previous();
     if (ubseXml->Next("pir") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse pir failed.";
         return UBSE_ERROR;
-    }
+    }    
+    std::string maxBandWidthStr = ubseXml->Text();    
     try {
-        ubseLcneQosProfile.maxBandWidth = std::stoul(ubseXml->Text()) * BYTE_TO_BIT;
+        ubseLcneQosProfile.minBandWidth = std::stoul(minBandWidthStr) * BYTE_TO_BIT;
+        ubseLcneQosProfile.maxBandWidth = std::stoul(maxBandWidthStr) * BYTE_TO_BIT;
     } catch (const std::invalid_argument &e) {
         return UBSE_ERROR;
     } catch (const std::out_of_range &e) {
