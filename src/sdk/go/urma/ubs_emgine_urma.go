@@ -6,15 +6,15 @@ package urma
 #include <stdlib.h>
 #include "ubs_engine_urma.h"
 
-typedef uint32_t (*ubs_urma_dev_get_ptr)(ubs_urma_type, urma_device_t**, uint32_t*);
-typedef uint32_t (*ubs_urma_dev_alloc_ptr)(const char*, ubs_urma_dev_path_t);
+typedef uint32_t (*ubs_urma_dev_get_ptr)(ubs_urma_type, ubs_urma_dev_t**, uint32_t*);
+typedef uint32_t (*ubs_urma_dev_alloc_ptr)(const char*, ubs_urma_dev_info_t*);
 
-uint32_t call_ubs_urma_dev_get(ubs_urma_dev_get_ptr fn, ubs_urma_type urma_type, urma_device_t **urma_devices, uint32_t *urma_cnt) {
+uint32_t call_ubs_urma_dev_get(ubs_urma_dev_get_ptr fn, ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt) {
 	if (fn == NULL) return (uint32_t)-1;
 	return fn(urma_type, urma_devices, urma_cnt);
 }
 
-uint32_t call_ubs_urma_dev_alloc(ubs_urma_dev_alloc_ptr fn, const char *name, ubs_urma_dev_path_t dev_info) {
+uint32_t call_ubs_urma_dev_alloc(ubs_urma_dev_alloc_ptr fn, const char *name, ubs_urma_dev_info_t *dev_info) {
 	if (fn == NULL) return -1;
 	return fn(name, dev_info);
 }
@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"ubs_engine_go_sdk/dlopen"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/dlopen"
 )
 
 const (
@@ -41,8 +41,6 @@ type Device struct {
 	Name string
 	// Healthy device healthy status
 	Healthy bool
-	// NumaID device local numa id
-	NumaID uint32
 }
 
 // DevicePath urma device path info
@@ -92,23 +90,23 @@ func UbsAllocateDevice(name string) ([]string, error) {
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
 
-	var cPath C.ubs_urma_dev_path_t
-	ret := C.call_ubs_urma_dev_alloc(allocUrmaDevFunc, cName, cPath)
+	var cInfo C.ubs_urma_dev_info_t
+	ret := C.call_ubs_urma_dev_alloc(allocUrmaDevFunc, cName, &cInfo)
 	if ret != 0 {
 		return []string{}, fmt.Errorf("ubs_urma_dev_alloc failed: %d", ret)
 	}
 
 	paths := []string{
-		C.GoString(&cPath.vfe0_path[0]),
-		C.GoString(&cPath.vfe1_path[0]),
-		C.GoString(&cPath.bonding_path[0]),
+		C.GoString(&cInfo.vfe_path[0][0]),
+		C.GoString(&cInfo.vfe_path[1][0]),
+		C.GoString(&cInfo.bonding_path[0]),
 	}
 
 	return paths, nil
 }
 
 func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr, t urmaType) ([]Device, error) {
-	var cDevs *C.urma_device_t
+	var cDevs *C.ubs_urma_dev_t
 	defer C.free(unsafe.Pointer(cDevs))
 	var cCount C.uint32_t
 	ret := C.call_ubs_urma_dev_get(fn, C.ubs_urma_type(t), &cDevs, &cCount)
@@ -121,15 +119,14 @@ func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr, t urmaType) ([]Device, e
 	return parseUrmaDeviceArray(cDevs, int(cCount)), nil
 }
 
-func parseUrmaDeviceArray(cDevs *C.urma_device_t, count int) []Device {
+func parseUrmaDeviceArray(cDevs *C.ubs_urma_dev_t, count int) []Device {
 	devs := make([]Device, 0, count)
-	elemSize := unsafe.Sizeof(C.urma_device_t{})
+	elemSize := unsafe.Sizeof(C.ubs_urma_dev_t{})
 
 	for i := 0; i < count; i++ {
-		cDev := (*C.urma_device_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cDevs)) + uintptr(i)*elemSize))
+		cDev := (*C.ubs_urma_dev_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cDevs)) + uintptr(i)*elemSize))
 		devs = append(devs, Device{
 			Name:    C.GoString(&cDev.name[0]),
-			NumaID:  uint32(cDev.numa),
 			Healthy: cDev.healthy != 0,
 		})
 	}

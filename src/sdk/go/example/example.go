@@ -3,9 +3,9 @@ package main
 
 import (
 	"fmt"
-	
-	"ubs_engine_go_sdk/engine"
-	"ubs_engine_go_sdk/urma"
+
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/engine"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/urma"
 )
 
 func main() {
