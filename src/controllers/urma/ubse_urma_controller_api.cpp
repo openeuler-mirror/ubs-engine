@@ -55,7 +55,7 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
     size_t infoSize = nameInfos.size();
     size_t rspSize = sizeof(uint32_t);
     for (auto &s : nameInfos) {
-        /* 每个名字后面需要增加一个status占用4个字节 */
+        // 每个名字后面需要增加一个status占用4个字节
         rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t);
     }
     response.buffer = new (std::nothrow) uint8_t[rspSize];
@@ -125,13 +125,19 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage &req, 
 
     uint32_t minBandWidth;
     uint32_t maxBandWidth;
-    memcpy_s(&minBandWidth, sizeof(minBandWidth), buffer, sizeof(uint32_t));
+    uint32_t ret = memcpy_s(&minBandWidth, sizeof(minBandWidth), buffer, sizeof(uint32_t));
+    if (ret != EOK) {
+        return UBSE_ERROR;
+    }
     buffer += sizeof(minBandWidth);
-    memcpy_s(&maxBandWidth, sizeof(maxBandWidth), buffer, sizeof(uint32_t));
+    ret = memcpy_s(&maxBandWidth, sizeof(maxBandWidth), buffer, sizeof(uint32_t));
+    if (ret != EOK) {
+        return UBSE_ERROR;
+    }
     minBandWidth = ntohl(minBandWidth);
     maxBandWidth = ntohl(maxBandWidth);
 
-    uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthSet(name, minBandWidth, maxBandWidth);
+    ret = UrmaController::GetInstance().UbseUrmaBandWidthSet(name, minBandWidth, maxBandWidth);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseUrmaBandWidthSet failed," << FormatRetCode(ret);
         return ret;
@@ -248,8 +254,8 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage &req
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, uint32_t minBandWidth,
-                                                   uint32_t maxBandWidth)
+uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, const uint32_t minBandWidth,
+                                                   const uint32_t maxBandWidth)
 {
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
@@ -265,10 +271,16 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, uin
         return UBSE_ERROR;
     }
     response.buffer = buffer;
-    memcpy_s(buffer, sizeof(minBandWidth), &minBandWidthOut, sizeof(minBandWidthOut));
+    uint32_t ret = memcpy_s(buffer, sizeof(minBandWidth), &minBandWidthOut, sizeof(minBandWidthOut));
+    if (ret != EOK) {
+        return UBSE_ERROR;
+    }
     buffer += sizeof(minBandWidth);
-    memcpy_s(buffer, sizeof(maxBandWidth), &maxBandWidthOut, sizeof(maxBandWidthOut));
-    uint32_t ret = apiServerModule->SendResponse(IPC_SUCCESS, requestId, response);
+    ret = memcpy_s(buffer, sizeof(maxBandWidth), &maxBandWidthOut, sizeof(maxBandWidthOut));
+    if (ret != EOK) {
+        return UBSE_ERROR;
+    }
+    ret = apiServerModule->SendResponse(IPC_SUCCESS, requestId, response);
     if (ret != UBSE_OK) {
         free(response.buffer);
         UBSE_LOG_ERROR << " UbseUrmaSendQosRsp response send failed," << FormatRetCode(ret);
