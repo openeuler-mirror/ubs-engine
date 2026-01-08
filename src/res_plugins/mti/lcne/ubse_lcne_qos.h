@@ -34,17 +34,17 @@ public:
         return instance;
     }
 
-    /* 创建Qos Profile模板信息 */
+    // 创建Qos Profile模板信息
     UbseResult CreatQosProfile(UbseLcneQosProfile ubseLcneQosProfile);
-    /* 删除Qos Profile模板信息 */
+    // 删除Qos Profile模板信息
     UbseResult DeleteQosProfile(std::string proflieName);
-    /* 查询Qos Profile模板信息 */
+    // 查询Qos Profile模板信息
     UbseResult QureyQosProfile(std::string proflieName, UbseLcneQosProfile &ubseLcneQosProfile);
-    /* 应用Qos Profile到vfe上 */
+    // 应用Qos Profile到vfe上
     UbseResult ApplyVfeQos(UbseLcneFeInfo ubseFeInfo, std::string proflieName);
-    /* 删除vfe上的Qos Profile */
+    // 删除vfe上的Qos Profile
     UbseResult DeleteVfeQos(UbseLcneFeInfo ubseFeInfo);
-    /* 查询vfe上的Qos Profile */
+    // 查询vfe上的Qos Profile
     UbseResult QueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &proflieName);
 
 private:

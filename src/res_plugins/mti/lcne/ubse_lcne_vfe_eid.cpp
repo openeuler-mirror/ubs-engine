@@ -27,7 +27,7 @@ using namespace ubse::log;
 
 UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
-    /* 第一步先下发消息查询消息获取所有Vfe列表 */
+    // 第一步先下发消息查询消息获取所有Vfe列表
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     req.method = "GET";
@@ -52,7 +52,7 @@ UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLc
         UBSE_LOG_ERROR << "[MTI] ParseGetFeListResponse fail.";
         return ret;
     }
-    /* 然后再下发消息更新vfe中的emid数据 */
+    // 然后再下发消息更新vfe中的emid数据
     return UpdateVfeEid(iouInfo, allFeInfos);
 }
 UbseResult UbseLcneVfeEid::UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)

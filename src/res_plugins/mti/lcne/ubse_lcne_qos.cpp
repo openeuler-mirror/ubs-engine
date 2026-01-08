@@ -234,11 +234,11 @@ UbseResult UbseLcneQos::BuildQoSProfileXml(UbseLcneQosProfile ubseLcneQosProfile
     ubseXml->Previous();
     ubseXml->AddNode("shaper");
     std::shared_ptr<UbseXml> shaperXml = ubseXml->Next("shaper");
-    /* 北向传入带宽为Mbps， 南向单位为MBps */
+    // 北向传入带宽为Mbps， 南向单位为MBps
     uint32_t cir = ubseLcneQosProfile.minBandWidth / BYTE_TO_BIT;
     uint32_t pir = ubseLcneQosProfile.maxBandWidth / BYTE_TO_BIT;
 
-    /* 如果cir/pir小于4MBps时,cbs/pbs等于cir/pir，否则取4M */
+    // 如果cir/pir小于4MBps时,cbs/pbs等于cir/pir，否则取4M
     uint32_t cbs = MAX_LCNE_QOS_CBS * ONE_K * ONE_K;
     if (cir < MAX_LCNE_QOS_CBS) {
         cbs = cir * ONE_K * ONE_K;
