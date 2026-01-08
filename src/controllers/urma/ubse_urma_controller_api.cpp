@@ -198,10 +198,11 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &re
     UbseSerialization qosSerial;
     uint32_t urmaSize = 0;
     for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
-        if (urmaInfo[i].qosProfile.profileName != "")
+        if (urmaInfo[i].qosProfile.profileName != "") {
             qosSerial << urmaInfo[i].urmaName << urmaInfo[i].feNames << urmaInfo[i].qosProfile.minBandWidth
                       << urmaInfo[i].qosProfile.maxBandWidth;
-        urmaSize++;
+            urmaSize++;
+        }
     }
 
     UbseSerialization responseSerial;
@@ -317,8 +318,6 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
         const uint32_t urmaState = static_cast<uint32_t>(urmaInfo[i].state);
         ubse_req_serial << urmaInfo[i].urmaName << urmaInfo[i].feNames << urmaState;
-        UBSE_LOG_DEBUG << "Urma Info - urmaName: " << urmaInfo[i].urmaName << ", FE1 Name: " << urmaInfo[i].feNames[0]
-                       << ", FE2 Name: " << urmaInfo[i].feNames[1] << ", State: " << urmaState;
     }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
