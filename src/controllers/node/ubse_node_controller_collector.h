@@ -13,7 +13,7 @@
 #ifndef UBSE_NODE_CONTROLLER_COLLECTOR_H
 #define UBSE_NODE_CONTROLLER_COLLECTOR_H
 
-#include "src/res_plugins/mti/ubse_lcne_module.h"
+#include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
 
