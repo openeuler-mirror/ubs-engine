@@ -6,15 +6,15 @@
 
 #include <atomic>
 
+#include "lcne/ubse_lcne_decoder_entry.h"
+#include "lcne/ubse_lcne_decoder_specification.h"
+#include "rpc/UbseMemDebInfoQueryHandler.h"
+#include "ubse_conf.h"
+#include "ubse_context.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_rpc.h"
-#include "rpc/UbseMemDebInfoQueryHandler.h"
-#include "ubse_conf.h"
-#include "ubse_context.h"
-#include "lcne/ubse_lcne_decoder_specification.h"
-#include "lcne/ubse_lcne_decoder_entry.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::config;
@@ -55,7 +55,7 @@ void DelHandleByMapDiff(const decoder::utils::DecoderLocTohandleValueMap &allHan
 
     UbseResult res = UBSE_OK;
     for (const auto &delInfo : diffHandleInfo) {
-        UBSE_LOG_INFO << "one diff handle, ubpuId is " << delInfo.ubpuId << " iouId is "<< delInfo.iouId
+        UBSE_LOG_INFO << "one diff handle, ubpuId is " << delInfo.ubpuId << " iouId is " << delInfo.iouId
                       << " marId is " << delInfo.marId << " decoderId is " << delInfo.decoderIdx << "handle is "
                       << delInfo.handle;
         res = lcne::UbseLcneDecoderEntry::GetInstance().DeleteDecoderEntry(delInfo);
@@ -95,8 +95,8 @@ UbseResult CycleCheckDecoderHandle()
     if (!faultInfo.empty()) {
         for (const auto delInfo : faultInfo) {
             UBSE_LOG_ERROR << "delete one diff handle failed, ubpuId is " << delInfo.ubpuId << " iouId is "
-                << delInfo.iouId << " marId is " << delInfo.marId << " decoderId is " << delInfo.decoderIdx <<
-                "handle is " << delInfo.handle << ", " << FormatRetCode(UBSE_ERROR);
+                           << delInfo.iouId << " marId is " << delInfo.marId << " decoderId is " << delInfo.decoderIdx
+                           << "handle is " << delInfo.handle << ", " << FormatRetCode(UBSE_ERROR);
         }
         return UBSE_ERROR;
     }
@@ -126,21 +126,24 @@ UbseResult UbseMemControllerModule::Initialize()
         return ret;
     }
     UbseNodeController::GetInstance().RegLocalStateNotifyHandler(EnableCycleCheck);
-    handleCheckTimer.Start(CYCLE_CHECK_TIME_MS, []() -> UbseResult {
-        if (g_startCheckDecoderHandle.load() != true) {
-            return UBSE_OK;
-        }
-        return CycleCheckDecoderHandle();
-    });
+    ubse::timer::UbseTimerHandlerRegister(
+        "handleCheckTimer",
+        []() -> UbseResult {
+            if (g_startCheckDecoderHandle.load() != true) {
+                return UBSE_OK;
+            }
+            return CycleCheckDecoderHandle();
+        },
+        CYCLE_CHECK_TIME_MS);
     return UBSE_OK;
 }
 
 void UbseMemControllerModule::UnInitialize()
 {
-    handleCheckTimer.Stop();
+    ubse::timer::UbseTimerHandlerUnregister("handleCheckTimer");
 }
 
-void SetDecoderSpecification() 
+void SetDecoderSpecification()
 {
     mami::UbseMamiMemDecoderSetInfo decoderSetInfo{};
     mami::UbseMamiMemDecoderInfo decoder0{0, 0, 0, 0};
@@ -151,7 +154,7 @@ void SetDecoderSpecification()
     decoderSetInfo.marId = 0;
     std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> outSocketInfo;
     auto res = decoder::utils::MemDecoderUtils::GetCurNodeSocketInfo(outSocketInfo);
-    if(res != UBSE_OK) {
+    if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "GetCurNodeSocketInfo failed, used default decoderSpecification";
         return;
     }

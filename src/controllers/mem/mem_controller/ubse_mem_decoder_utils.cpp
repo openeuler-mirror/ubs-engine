@@ -45,8 +45,8 @@ UbseResult MemDecoderUtils::GetChipAndDieId(const uint32_t socketId, std::pair<u
                 chipDiePair.first = stoi(cpuInfo.second.chipId);
                 chipDiePair.second = stoi(cpuInfo.second.cardId);
             } catch (...) {
-                UBSE_LOG_ERROR << "stoi throw a exception, chipId is " << cpuInfo.second.chipId << " cardId is " <<
-                    cpuInfo.second.cardId;
+                UBSE_LOG_ERROR << "stoi throw a exception, chipId is " << cpuInfo.second.chipId << " cardId is "
+                               << cpuInfo.second.cardId;
                 return UBSE_ERROR;
             }
             break;
@@ -61,7 +61,7 @@ UbseResult MemDecoderUtils::GetChipAndDieId(const uint32_t socketId, std::pair<u
 }
 
 UbseResult GetAllHandlesFromAllDecoderId(UbseMamiMemHandleQueryInfo &queryInfo,
-    DecoderLocTohandleValueMap &handleValues)
+                                         DecoderLocTohandleValueMap &handleValues)
 {
     std::vector<uint32_t> decoderIdSet{0, 1}; // 0 是cc表，1 是nc表
     for (const auto &decoderId : decoderIdSet) {
@@ -73,8 +73,7 @@ UbseResult GetAllHandlesFromAllDecoderId(UbseMamiMemHandleQueryInfo &queryInfo,
                             .decoderId = queryInfo.decoderId};
         auto ret = UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, tempHandleValues);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MTI_MEM] get handles of decoderId=" << decoderId << ", failed, "
-                            << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "[MTI_MEM] get handles of decoderId=" << decoderId << ", failed, " << FormatRetCode(ret);
             return ret;
         }
         handleValues[loc] = tempHandleValues;
@@ -89,8 +88,7 @@ UbseResult GetAllHandlesFromAllMarId(UbseMamiMemHandleQueryInfo &queryInfo, Deco
         queryInfo.marId = marId;
         auto ret = GetAllHandlesFromAllDecoderId(queryInfo, handleValues);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MTI_MEM] get handles of marid=" << marId << ", failed, "
-                            << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "[MTI_MEM] get handles of marid=" << marId << ", failed, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -134,7 +132,7 @@ std::vector<uint32_t> MemDecoderUtils::GetAllChipId()
 
 UbseResult MemDecoderUtils::SetMarIdParam(uint32_t chipId, uint32_t remoteChipId, ImportDecoderParam &importParam)
 {
-    auto allLinkInfo = nodeController::UbseNodeController::GetInstance().UbseGetDirectConnectInfo();
+    auto allLinkInfo = nodeController::UbseNodeController::GetInstance().UbseGetDirConnectInfo();
     std::vector<ubse::nodeController::PhysicalLink> linkInfos{};
     for (const auto &[key, linkInfo] : allLinkInfo) {
         if (linkInfo.chipId == chipId && linkInfo.peerChipId == remoteChipId) {
@@ -160,7 +158,7 @@ UbseResult MemDecoderUtils::GetCurNodeSocketInfo(
     auto nodeInfo = nodeController::UbseNodeController::GetInstance().GetCurNode();
     for (const auto &[cpuLoc, socketInfo] : nodeInfo.cpuInfos) {
         try {
-            outSocketInfo[cpuLoc.socketId] = std::make_pair(std::stoi(socketInfo.chipId), std::stoi(socketInfo.cardId));
+            outSocketInfo[cpuLoc.chipId] = std::make_pair(std::stoi(socketInfo.chipId), std::stoi(socketInfo.cardId));
         } catch (...) {
             UBSE_LOG_ERROR << "stoi throw one exception";
             return UBSE_ERROR;
@@ -192,8 +190,8 @@ UbseResult MemDecoderUtils::GetHandleMapFromImportObj(DecoderLocTohandleMap &han
         auto chipDie = socketIdToChipDie[socketId];
         uint8_t decoderId = 0; // 0是cc表
         for (const auto &importResult : decoderResult) {
-            DecoderEntryLoc loc{.ubpuId = chipDie.first, .iouId = chipDie.second, .marId = importResult.marId,
-                .decoderId = decoderId};
+            DecoderEntryLoc loc{
+                .ubpuId = chipDie.first, .iouId = chipDie.second, .marId = importResult.marId, .decoderId = decoderId};
             handleMap[loc].insert(importResult.handle);
         }
     }
@@ -204,11 +202,11 @@ UbseResult MemDecoderUtils::GetHandleMapFromImportObj(DecoderLocTohandleMap &han
         auto chipDie = socketIdToChipDie[socketId];
         uint8_t decoderId = 0; // 0是cc表
         for (const auto &importResult : decoderResult) {
-            DecoderEntryLoc loc{.ubpuId = chipDie.first, .iouId = chipDie.second, .marId = importResult.marId,
-                .decoderId = decoderId};
+            DecoderEntryLoc loc{
+                .ubpuId = chipDie.first, .iouId = chipDie.second, .marId = importResult.marId, .decoderId = decoderId};
             handleMap[loc].insert(importResult.handle);
         }
     }
     return UBSE_OK;
 }
-}
+} // namespace ubse::mem::decoder::utils

@@ -13,9 +13,11 @@
 #ifndef UBSE_NODE_TOPOLOGY_H
 #define UBSE_NODE_TOPOLOGY_H
 
+#include "ubse_election.h"
 #include "ubse_lcne_topology.h"
 
 namespace ubse::nodeController {
+using namespace ubse::election;
 enum class JumpCount {
     One = 0,
     Two = 1,
@@ -62,7 +64,8 @@ struct TelemetrySocketData {
 struct MemNodeData : public TelemetrySocketData {
     bool isRegisterRm = false; // 该节点是否有可连接的RM,非OS固定为false
     MemNodeData() = default;
-    MemNodeData(TelemetrySocketData &&telemetryNodeData) : TelemetrySocketData(std::move(telemetryNodeData)){};
+    explicit MemNodeData(TelemetrySocketData &&telemetryNodeData)
+        : TelemetrySocketData(std::move(telemetryNodeData)) {};
 
     bool operator==(const MemNodeData &memNodeData) const
     {
@@ -111,6 +114,8 @@ uint32_t UbseNodeTopoGetBasicData(std::unordered_map<std::string, TelemetryNodeD
 uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput &nodeMemCnaInfoInput,
                                        UbseNodeMemCnaInfoOutput &nodeMemCnaInfoOutput);
 uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology);
+
+uint32_t UbseNodeGetLinkUpNodes(std::vector<UbseRoleInfo> &roleInfo);
 
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_TOPOLOGY_H
