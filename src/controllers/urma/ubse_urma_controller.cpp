@@ -264,10 +264,19 @@ void UrmaController::DoTopoLinkChange()
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
     auto uvsModule = ubse::context::UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
     if (auto ret = CallFuncRetry([&uvsModule, &curNode, &uvsInfos, this]() {
-            return uvsModule->SetUvsInfo(curNode.nodeId, this->GetDirConnectInfo(), uvsInfos);
+            return uvsModule->SetUvsInfo(curNode.nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
+                                         uvsInfos);
         });
         ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
+    }
+}
+
+void UbseUrmaBandwidthInit(const std::string &nodeId)
+{
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
+    for (const auto &urmaInfoPair : nodeInfo.urmaList) {
+        UrmaController::GetInstance().UbseUrmaBandWidthUpdate(urmaInfoPair.first);
     }
 }
 
@@ -307,6 +316,9 @@ void UrmaController::DoNodeJoin()
         UBSE_LOG_ERROR << "Failed to insert new bounding info";
         return;
     }
+    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId);
+    // 初始化带宽模板，可重复调用
+    UbseUrmaBandwidthInit(curNode.nodeId);
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
@@ -337,17 +349,6 @@ UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::
     }
     urmaExecutor->Execute([]() { return UrmaController::GetInstance().DoNodeJoin(); });
     return UBSE_OK;
-}
-
-std::vector<ubse::nodeController::PhysicalLink> UrmaController::GetDirConnectInfo()
-{
-    std::vector<ubse::nodeController::PhysicalLink> allLinkInfo;
-    auto allLink = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
-    allLinkInfo.reserve(allLink.size());
-    for (const auto &link : allLink) {
-        allLinkInfo.emplace_back(std::move(link.second));
-    }
-    return allLinkInfo;
 }
 
 UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type, std::vector<std::string> &nameInfo,

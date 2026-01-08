@@ -18,6 +18,7 @@
 #include "lock/ubse_lock.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_node_controller.h"
 #include "ubse_topology_interface.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs.h"
@@ -26,6 +27,7 @@ namespace ubse::urmaController {
 using namespace ubse::common::def;
 using namespace ubse::urma;
 using namespace ubse::mti;
+using namespace ubse::nodeController;
 
 struct UbseUrmaInfoForQuery {
     std::string urmaName;
@@ -83,11 +85,12 @@ public:
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
     void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
-    void UbseUrmaBandwidthInit(const std::string &nodeId, const std::function<void(const std::string)> &initFunc);
 
     static std::string GetVfeInfoKey(const UbseFeInfo &info);
     static std::string GetVfeInfoKey(const UbseLcneFeInfo &info);
     static std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
+    void UrmaCtlActivateUrmaDevice(std::string &nodeId);
+    std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 
 private:
     void CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid, UbseLcneFeInfo &lcneFe0,
