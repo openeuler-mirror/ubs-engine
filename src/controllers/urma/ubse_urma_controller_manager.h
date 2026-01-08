@@ -29,26 +29,23 @@ using namespace ubse::mti;
 
 struct UbseUrmaInfoForQuery {
     std::string urmaName;
-    std::string fe1Name;
-    std::string fe2Name;
+    std::vector<std::string> feNames;
     UrmaDevType bondingType;
     UrmaDevState state;
     UrmaQosProfile qosProfile;
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfoForQuery &info)
     {
-        serializer << info.urmaName << info.fe1Name << info.fe2Name << ubse::serial::enum_v(info.bondingType)
-                   << ubse::serial::enum_v(info.state) << info.qosProfile.profileName << info.qosProfile.minBandWidth
-                   << info.qosProfile.maxBandWidth;
+        serializer << info.urmaName << info.feNames << ubse::serial::enum_v(info.bondingType)
+                   << ubse::serial::enum_v(info.state) << info.qosProfile;
         return serializer;
     }
 
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaInfoForQuery &info)
     {
-        deserializer >> info.urmaName >> info.fe1Name >> info.fe2Name >> ubse::serial::enum_v(info.bondingType) >>
-            ubse::serial::enum_v(info.state) >> info.qosProfile.profileName >> info.qosProfile.minBandWidth >>
-            info.qosProfile.maxBandWidth;
+        deserializer >> info.urmaName >> info.feNames >> ubse::serial::enum_v(info.bondingType) >>
+            ubse::serial::enum_v(info.state) >> info.qosProfile;
         return deserializer;
     }
 };
