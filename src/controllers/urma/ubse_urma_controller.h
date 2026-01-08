@@ -47,7 +47,6 @@ public:
     UbseResult UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
                                                  std::vector<UbseUrmaInfoForQuery> &devInfos);
 
-    std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
     static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMesage);
     static UbseResult UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage);
 

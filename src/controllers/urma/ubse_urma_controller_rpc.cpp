@@ -213,43 +213,6 @@ UbseResult DoRpcQuery(const UbseRoleInfo &roleInfo, const std::string &dstId)
     return UBSE_OK;
 }
 
-void UrmaCtlActivateBondingDevice(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos, UbseRoleInfo &roleInfo)
-{
-    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
-    if (urmaModule == nullptr) {
-        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
-        return;
-    }
-    for (auto devInfo : uvsInfos) {
-        for (auto dev : devInfo.devList) {
-            auto res = urmaModule->ActivateBondingDevice(dev.urmaDevEid);
-            if (res == UBSE_OK) {
-                UbseUrmaControllerManager::GetInstance().SetActiveState(dev.urmaDevEid, roleInfo.nodeId);
-            }
-            std::string subPath;
-            if (auto ret = urmaModule->GetNameByUrmaEid(dev.urmaDevEid, subPath); ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to get urma name for eid=" << dev.urmaDevEid;
-                continue;
-            }
-            UbseUrmaControllerManager::GetInstance().SetUrmaSubPath(dev.urmaDevEid, subPath);
-            for (auto feInfo : dev.feList) {
-                std::string urmaEidName;
-                if (auto ret = urmaModule->GetNameByUrmaEid(feInfo.primaryEid, urmaEidName); ret != UBSE_OK) {
-                    UBSE_LOG_ERROR << "Failed to get urma name for eid=" << feInfo.primaryEid;
-                    continue;
-                }
-                UbseUrmaControllerManager::GetInstance().SetFeName(feInfo.primaryEid, urmaEidName);
-            }
-        }
-    }
-    // 重置模板
-    static std::once_flag initFlag;
-    std::call_once(initFlag, [&]() {
-        UbseUrmaControllerManager::GetInstance().UbseUrmaBandwidthInit(
-            roleInfo.nodeId,
-            [](const std::string &urmaName) { UrmaController::GetInstance().UbseUrmaBandWidthUpdate(urmaName); });
-    });
-}
 UbseResult DoQueryInfo(const std::string &dstId)
 {
     UbseRoleInfo roleInfo;
@@ -283,14 +246,7 @@ UbseResult DoQueryInfo(const std::string &dstId)
         // 将该节点的所有urmaInfo状态改成Inactive
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
-    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-    UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
-    auto ret = urmaModule->SetUvsInfo(roleInfo.nodeId, UrmaController::GetInstance().GetDirConnectInfo(), uvsInfos);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
-        return ret;
-    }
-    UrmaCtlActivateBondingDevice(uvsInfos, roleInfo);
+    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(roleInfo.nodeId);
     return UBSE_OK;
 }
 
