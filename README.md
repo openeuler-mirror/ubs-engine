@@ -96,7 +96,7 @@ UBSEngine/
 │   ├── ras                     //故障处理
 │   ├── res_plugins
 │   │   ├── syssentry           //syssentry对接
-│   │   ├── mti                 //lcne对接
+│   │   ├── mti                 //UBM对接
 │   │   └── mmi                 //内存资源接口
 │   │   
 │   └── sdk                     //sdk模块
