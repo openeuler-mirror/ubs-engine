@@ -18,6 +18,7 @@
 #include "lock/ubse_lock.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_node_controller.h"
 #include "ubse_topology_interface.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs.h"
@@ -26,27 +27,27 @@ namespace ubse::urmaController {
 using namespace ubse::common::def;
 using namespace ubse::urma;
 using namespace ubse::mti;
+using namespace ubse::nodeController;
 
 struct UbseUrmaInfoForQuery {
     std::string urmaName;
-    std::string fe1Name;
-    std::string fe2Name;
+    std::vector<std::string> feNames;
     UrmaDevType bondingType;
     UrmaDevState state;
     UrmaQosProfile qosProfile;
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfoForQuery &info)
     {
-        serializer << info.urmaName << info.fe1Name << info.fe2Name << ubse::serial::enum_v(info.bondingType)
-                   << ubse::serial::enum_v(info.state);
+        serializer << info.urmaName << info.feNames << ubse::serial::enum_v(info.bondingType)
+                   << ubse::serial::enum_v(info.state) << info.qosProfile;
         return serializer;
     }
 
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaInfoForQuery &info)
     {
-        deserializer >> info.urmaName >> info.fe1Name >> info.fe2Name >> ubse::serial::enum_v(info.bondingType) >>
-            ubse::serial::enum_v(info.state);
+        deserializer >> info.urmaName >> info.feNames >> ubse::serial::enum_v(info.bondingType) >>
+            ubse::serial::enum_v(info.state) >> info.qosProfile;
         return deserializer;
     }
 };
@@ -84,11 +85,12 @@ public:
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
     void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
-    void UbseUrmaBandwidthInit(const std::string &nodeId, const std::function<void(const std::string)> &initFunc);
 
     static std::string GetVfeInfoKey(const UbseFeInfo &info);
     static std::string GetVfeInfoKey(const UbseLcneFeInfo &info);
     static std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
+    void UrmaCtlActivateUrmaDevice(std::string &nodeId);
+    std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 
 private:
     void CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid, UbseLcneFeInfo &lcneFe0,
