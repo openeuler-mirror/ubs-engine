@@ -28,8 +28,6 @@ DYNAMIC_CREATE(UbseUrmaUvsModule);
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_UVS_MID)
 
-bool g_isMocked = true;
-
 UbseResult UbseUrmaUvsModule::Initialize()
 {
     Cleanup();
@@ -105,9 +103,6 @@ UbseResult UbseUrmaUvsModule::SetUvsInfo(std::string &current_slot_id, const std
             node.is_current = 1;
         }
     }
-    if (g_isMocked) {
-        return UBSE_OK;
-    }
     if (uvsSetTopoInfo == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
         return UBSE_ERROR_NOENT;
@@ -130,11 +125,6 @@ UbseResult UbseUrmaUvsModule::GetNameByUrmaEid(const std::string &urmaEid, std::
         return ret;
     }
     char name[DEV_NAME_LEN];
-    if (g_isMocked) {
-        char lastChar = urmaEid.back();
-        urmaEidName = "mockname" + std::string(1, lastChar);
-        return UBSE_OK;
-    }
     if (uvsGetDeviceNameByUrmaEid == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NOENT;
@@ -158,10 +148,6 @@ UbseResult UbseUrmaUvsModule::GetStateByUrmaEid(const std::string &urmaEid, bool
         return ret;
     }
     char name[DEV_NAME_LEN];
-    if (g_isMocked) {
-        isactivate = true;
-        return UBSE_OK;
-    }
     if (uvsGetDeviceNameByUrmaEid == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NOENT;
@@ -189,9 +175,6 @@ UbseResult UbseUrmaUvsModule::ActivateBondingDevice(const std::string &urmaEid)
         UBSE_LOG_ERROR << "Failed to parse bondingEid=" << urmaEid;
         return ret;
     }
-    if (g_isMocked) {
-        return UBSE_OK;
-    }
     if (uvsCreateAggrDev == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_create_agg_dev'";
         return UBSE_ERROR_NOENT;
@@ -212,9 +195,6 @@ UbseResult UbseUrmaUvsModule::DeactivateBondingDevice(const std::string &urmaEid
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to parse bondingEid=" << urmaEid;
         return ret;
-    }
-    if (g_isMocked) {
-        return UBSE_OK;
     }
     if (uvsDeleteAggrDev == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_delete_agg_dev'";
