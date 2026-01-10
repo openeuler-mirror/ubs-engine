@@ -257,6 +257,7 @@ void UrmaController::DoTopoLinkChange()
     });
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
+        UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
     // 下发所有节点拓扑及所有urmaInfo
@@ -269,14 +270,6 @@ void UrmaController::DoTopoLinkChange()
         });
         ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
-    }
-}
-
-void UbseUrmaBandwidthInit(const std::string &nodeId)
-{
-    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
-    for (const auto &urmaInfoPair : nodeInfo.urmaList) {
-        UrmaController::GetInstance().UbseUrmaBandWidthUpdate(urmaInfoPair.first);
     }
 }
 
@@ -305,6 +298,7 @@ void UrmaController::DoNodeJoin()
     }
     for (auto &iou : iouList) {
         std::vector<UbseLcneFeInfo> tmpFeInfos;
+        // check: 重试直至成功
         if (CallFuncRetry([&]() { return UbseGetVfeEid(iou, tmpFeInfos); }) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
             return;
@@ -316,11 +310,9 @@ void UrmaController::DoNodeJoin()
         UBSE_LOG_ERROR << "Failed to insert new bounding info";
         return;
     }
-    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId);
-    // 初始化带宽模板，可重复调用
-    UbseUrmaBandwidthInit(curNode.nodeId);
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
+        UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
     // 向master节点上报本节点nodeInfo

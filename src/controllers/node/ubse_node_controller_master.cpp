@@ -322,6 +322,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeUpHandler(const std::string &nodeId
             ret = CollectRemoteNodeInfo(nodeId, info);
             if (ret == UBSE_OK) {
                 UbseNodeController::GetInstance().UpdateNodeInfo(nodeId, info);
+                UbseNodeController::GetInstance().UpdateDevDirConnectInfo();
                 break;
             }
             UBSE_LOG_WARN << "nodeId=" << nodeId << " collect topology failed, will retry, " << FormatRetCode(ret);

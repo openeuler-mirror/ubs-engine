@@ -447,11 +447,12 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
         return UBSE_ERROR_NULLPTR;
     }
     uint32_t type;
-    errno_t retCode = memcpy_s(req.buffer, sizeof(uint32_t), &type, sizeof(uint32_t));
+    errno_t retCode = memcpy_s(&type, sizeof(uint32_t), req.buffer, sizeof(uint32_t));
     if (retCode != EOK) {
         UBSE_LOG_ERROR << "memcpy_s failed," << FormatRetCode(errno);
         return UBSE_ERROR;
     }
+    type = ntohl(type);
     std::vector<std::string> nameInfos;
     std::vector<uint32_t> status;
     uint32_t ret =
