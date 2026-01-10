@@ -93,8 +93,8 @@ public:
     std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 
 private:
-    void CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid, UbseLcneFeInfo &lcneFe0,
-                                 UbseLcneFeInfo &lcneFe1);
+    UbseResult CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid, UbseLcneFeInfo &lcneFe0,
+                                       UbseLcneFeInfo &lcneFe1);
 
     UbseResult GenerateUrmaDevEid(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1, std::string &devEid);
     uint32_t GenerateUniqueFeId();
