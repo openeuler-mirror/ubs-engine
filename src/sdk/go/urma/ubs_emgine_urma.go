@@ -43,14 +43,14 @@ type Device struct {
 	Healthy bool
 }
 
-// DevicePath urma device path info
-type DevicePath struct {
-	// Vfe0Path vfe0 urma device path
-	Vfe0Path string
-	// Vfe1Path vfe1 urma device path
-	Vfe1Path string
+// DeviceInfo urma device path info
+type DeviceInfo struct {
+	// VfePaths vfe urma device path
+	VfePaths []string
 	// BondingPath bonding urma device path
 	BondingPath string
+	// BondingEid bonding urma device eid
+	BondingEid string
 }
 
 // UbsGetVfeDevice get unique urma device list
@@ -78,13 +78,13 @@ func UbsGetSharedDevice() ([]Device, error) {
 }
 
 // UbsAllocateDevice allocate bonding urma device and return paths
-func UbsAllocateDevice(name string) ([]string, error) {
+func UbsAllocateDevice(name string) (DeviceInfo, error) {
 	if name == "" {
-		return nil, fmt.Errorf("name is empty")
+		return DeviceInfo{}, fmt.Errorf("name is empty")
 	}
 	allocUrmaDevPtr, err := dlopen.LoadFunc("ubs_urma_dev_alloc")
 	if err != nil {
-		return []string{}, fmt.Errorf("failed to load ubs_urma_dev_alloc: %v", err)
+		return DeviceInfo{}, fmt.Errorf("failed to load ubs_urma_dev_alloc: %v", err)
 	}
 	allocUrmaDevFunc := (C.ubs_urma_dev_alloc_ptr)(allocUrmaDevPtr)
 	cName := C.CString(name)
@@ -93,16 +93,19 @@ func UbsAllocateDevice(name string) ([]string, error) {
 	var cInfo C.ubs_urma_dev_info_t
 	ret := C.call_ubs_urma_dev_alloc(allocUrmaDevFunc, cName, &cInfo)
 	if ret != 0 {
-		return []string{}, fmt.Errorf("ubs_urma_dev_alloc failed: %d", ret)
+		return DeviceInfo{}, fmt.Errorf("ubs_urma_dev_alloc failed: %d", ret)
 	}
 
-	paths := []string{
+	vfePaths := []string{
 		C.GoString(&cInfo.vfe_path[0][0]),
 		C.GoString(&cInfo.vfe_path[1][0]),
-		C.GoString(&cInfo.bonding_path[0]),
 	}
 
-	return paths, nil
+	return DeviceInfo{
+		VfePaths:    vfePaths,
+		BondingPath: C.GoString(&cInfo.bonding_path[0]),
+		BondingEid:  C.GoString(&cInfo.bonding_eid[0]),
+	}, nil
 }
 
 func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr, t urmaType) ([]Device, error) {
@@ -127,7 +130,7 @@ func parseUrmaDeviceArray(cDevs *C.ubs_urma_dev_t, count int) []Device {
 		cDev := (*C.ubs_urma_dev_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cDevs)) + uintptr(i)*elemSize))
 		devs = append(devs, Device{
 			Name:    C.GoString(&cDev.name[0]),
-			Healthy: cDev.healthy != 0,
+			Healthy: cDev.healthy == 0,
 		})
 	}
 	return devs
