@@ -213,6 +213,14 @@ UbseResult DoRpcQuery(const UbseRoleInfo &roleInfo, const std::string &dstId)
     return UBSE_OK;
 }
 
+void UbseUrmaBandwidthInit(const std::string &nodeId)
+{
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
+    for (const auto &urmaInfoPair : nodeInfo.urmaList) {
+        UrmaController::GetInstance().UbseUrmaBandWidthUpdate(urmaInfoPair.first);
+    }
+}
+
 UbseResult DoQueryInfo(const std::string &dstId)
 {
     UbseRoleInfo roleInfo;
@@ -244,22 +252,25 @@ UbseResult DoQueryInfo(const std::string &dstId)
     });
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
+        UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
+
     UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(roleInfo.nodeId);
+    // 初始化带宽模板，可重复调用
+    UbseUrmaBandwidthInit(curNode.nodeId);
     return UBSE_OK;
 }
 
 void DoUpdateUrmaInfo(const std::string &nodeId)
 {
-    if (!UbseUrmaControllerManager::GetInstance().IsUrmaInfoExists(nodeId)) {
-        std::thread th([nodeId]() {
-            if (DoQueryInfo(nodeId) == UBSE_OK) {
-                return;
-            }
-        });
-        th.detach();
-    }
+    // check: 判断节点信息是否已获取
+    std::thread th([nodeId]() {
+        if (DoQueryInfo(nodeId) == UBSE_OK) {
+            return;
+        }
+    });
+    th.detach();
 }
 
 UbseResult UbseUrmaNotifyMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
@@ -269,9 +280,10 @@ UbseResult UbseUrmaNotifyMessageHandler::Handle(const UbseBaseMessagePtr &req, c
     auto response = UbseBaseMessage::DeConvert<UbseUrmaNotifyRspSimpo>(rsp);
     UrmaNotifyReq newReq = request->GetUrmaNotifyReq();
     response->SetErrCode(UBSE_OK);
-    auto nodeList = UbseUrmaControllerManager::GetInstance().GetEmptyNodeInfo();
-    for (auto nodeId : nodeList) {
-        DoUpdateUrmaInfo(nodeId);
+    // check: 如果节点状态不是最新，更新节点信息
+    auto nodes = UbseNodeController::GetInstance().GetAllNodes();
+    for (auto node : nodes) {
+        DoUpdateUrmaInfo(node.second.nodeId);
     }
     return UBSE_OK;
 }

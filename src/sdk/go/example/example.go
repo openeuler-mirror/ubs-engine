@@ -12,32 +12,45 @@ func main() {
 	_, connectError := engine.UbsEngineClientInitialize("")
 	if connectError != nil {
 		fmt.Printf("connectError: %s\n", connectError.Error())
+		return
 	}
 	defer engine.UbsEngineClientFinalize()
-	devices1, err := urma.UbsGetVfeDevice()
+	uniqueDevices, err := urma.UbsGetVfeDevice()
 	if err != nil {
 		fmt.Printf("UbsGetVfeDevice Error: %s\n", err.Error())
+		return
 	}
-	fmt.Printf("devices1: %v\n", devices1)
+	fmt.Printf("uniqueDevices: %v\n", uniqueDevices)
 
-	devices2, err := urma.UbsGetSharedDevice()
+	if len(uniqueDevices) == 0 {
+		fmt.Println("No unique device found")
+		return
+	}
+
+	uniqueDevicePaths, err := urma.UbsAllocateDevice(uniqueDevices[0].Name)
+	if err != nil {
+		fmt.Printf("Error allocating device1: %s, err: %s", uniqueDevices[0].Name, err)
+		return
+	}
+	fmt.Printf("uniqueDevicePaths: %v\n", uniqueDevicePaths)
+
+	shareDevices, err := urma.UbsGetSharedDevice()
 	if err != nil {
 		fmt.Printf("Error getting shared device: %s", err)
+		return
 	}
-	fmt.Printf("devices2: %v\n", devices2)
+	fmt.Printf("shareDevices: %v\n", shareDevices)
 
-	if len(devices1) == 0 || len(devices2) == 0 {
-		fmt.Println("No devices found")
+	if len(shareDevices) == 0 {
+		fmt.Println("No share device found")
+		return
 	}
-	device1Paths, err := urma.UbsAllocateDevice(devices1[0].Name)
-	if err != nil {
-		fmt.Printf("Error allocating device1: %s, err: %s", devices1[0].Name, err)
-	}
-	fmt.Printf("devicePaths: %v\n", device1Paths)
 
-	device2Paths, err := urma.UbsAllocateDevice(devices2[0].Name)
+	shareDevicePaths, err := urma.UbsAllocateDevice(shareDevices[0].Name)
 	if err != nil {
-		fmt.Printf("Error allocating device2: %s, err: %s", devices2[0].Name, err)
+		fmt.Printf("Error allocating device2: %s, err: %s", shareDevices[0].Name, err)
+		return
 	}
-	fmt.Printf("device2Paths: %v\n", device2Paths)
+	fmt.Printf("shareDevicePaths: %v\n", shareDevicePaths)
+	return
 }

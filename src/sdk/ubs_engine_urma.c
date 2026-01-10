@@ -29,7 +29,7 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, ubs_urma_dev_t **urma_d
     if (request_buffer.buffer == NULL) {
         return UBS_ENGINE_ERR_INTERNAL;
     }
-    *request_buffer.buffer = trans_urma_type;
+    *(uint32_t *)request_buffer.buffer = htonl(trans_urma_type);
     // 调用接口
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_DEV_GET, &request_buffer, &response_buffer);
     ubse_api_buffer_free(&request_buffer);

@@ -24,8 +24,8 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_master.h"
-#include "ubse_timer.h"
 #include "ubse_serial_util.h"
+#include "ubse_timer.h"
 
 const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;  // 节点侧采集失败重试周期，单位/s
 const uint32_t UBSE_NODE_REPORT_INTERVAL = 2;         // 节点侧主动向中心侧上报节点内存，拓扑周期；单位秒
@@ -54,8 +54,9 @@ UbseResult RegAgentMsgHandler()
     const ubse::com::UbseComEndpoint collectEndpoint = {static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
                                                         static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_COLLECT)};
 
-    const ubse::com::UbseComEndpoint nodeChangeEndpoint = {static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
-                                                     static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_NODE_CHANGE)};
+    const ubse::com::UbseComEndpoint nodeChangeEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
+        static_cast<uint32_t>(UbseOpCode::NODE_CONTROLLER_NODE_CHANGE)};
 
     auto ret = UbseRegRpcService(collectEndpoint, CollectNodeInfoHandler);
     if (ret != UBSE_OK) {
@@ -174,10 +175,10 @@ UbseResult UbseNodeControllerAgent::Start()
         UbseNodeController::GetInstance().SetCurrentNodeId(info.nodeId);
         // 将节点刷新至内存，mem ctl从obmm采集账本；海量账本场景下，采集时间较长；需要交由子线程处理
         UbseNodeController::GetInstance().UpdateNodeInfo(info.nodeId, info);
-        // 将节点本地状态刷新至 ready，加入集群选主
-        UbseNodeController::GetInstance().UpdateNodeInfoLocalState(UbseNodeLocalState::UBSE_NODE_READY);
         // 更新 link id
         UbseNodeController::GetInstance().UpdateDevDirConnectInfo();
+        // 将节点本地状态刷新至 ready，加入集群选主
+        UbseNodeController::GetInstance().UpdateNodeInfoLocalState(UbseNodeLocalState::UBSE_NODE_READY);
         // 注册采集定时器并启动
         UbseTimerHandlerRegister(
             UBSE_NODE_AGENT_REPORT_TIMER, [this]() -> UbseResult { return UbseNodeInfoReportTimerHandler(); },
@@ -623,8 +624,7 @@ UbseResult PubNodeUrmaChange(std::string &nodeId, std::string action)
     UBSE_LOG_DEBUG << "PubEvent " << action << " to urmactl";
     auto ret = eventModule->UbsePubEvent(action, nodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to PubEvent" << action << ", nodeId = " << nodeId << ","
-                       << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to PubEvent" << action << ", nodeId = " << nodeId << "," << FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
