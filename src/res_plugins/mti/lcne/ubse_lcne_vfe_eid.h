@@ -38,14 +38,12 @@ public:
 private:
     UbseLcneVfeEid(std::string host, int port) : host(std::move(host)), port(port) {}
     UbseResult UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos);
-    UbseResult ParseGetFeListResponse(const std::string &responseStr, std::vector<UbseLcneFeInfo> &allFeInfos,
-                                      const UbseLcneIouInfo &iouInfo);
-    UbseResult ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseLcneFeInfo> &allFeInfos,
-                                     const UbseLcneIouInfo &iouInfo);
+    UbseResult ParseGetFeListResponse(const std::string &responseStr, std::vector<UbseLcneFeInfo> &allFeInfos);
+    UbseResult ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseLcneFeInfo> &allFeInfos);
     UbseResult ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseLcneFeInfo &feInfo);
     std::vector<std::string> ueIdlistSplit(const std::string &str, const std::string &delimiter);
     UbseLcneFeInfo *FindVfeInVector(std::string slotId, std::string ubpuId, std::string iouId, std::string entityId,
-                                    std::vector<UbseLcneFeInfo> &allFeInfos);
+                                std::vector<UbseLcneFeInfo> &allFeInfos);
     UbseResult GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId);
     std::string host;
     int port;
