@@ -2,7 +2,7 @@
 package urma
 
 /*
-#cgo CFLAGS: -I/usr/include/ubse
+#cgo CFLAGS: -I/usr/include/ubse -I${SRCDIR}/../../include
 #include <stdlib.h>
 #include "ubs_engine_urma.h"
 
