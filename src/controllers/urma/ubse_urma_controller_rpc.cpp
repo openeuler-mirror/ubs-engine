@@ -112,7 +112,7 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
     if (std::to_string(urmaReq.nodeId) == currentNodeInfo.nodeId) {
         UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(static_cast<UrmaDevType>(urmaReq.type),
                                                                            rpcRsp.urmaInfos);
-        rpcRsp.result = UBSE_OK
+        rpcRsp.result = UBSE_OK;
         response->SetUbseUrmaDevQueryRsp(rpcRsp);
         return UBSE_OK;
     } else if (masterInfo.nodeId == currentNodeInfo.nodeId) {
@@ -121,7 +121,7 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
         auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
         if (comModule == nullptr) {
             UBSE_LOG_ERROR << "Getting ComModule failed.";
-            rpcRsp.result = UBSE_ERROR_NULLPTR
+            rpcRsp.result = UBSE_ERROR_NULLPTR;
             response->SetUbseUrmaDevQueryRsp(rpcRsp);
             return UBSE_ERROR_NULLPTR;
         }
