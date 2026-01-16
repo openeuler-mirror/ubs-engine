@@ -11,8 +11,8 @@ function _ubse_commond_completion() {
     local cmd=${COMP_WORDS[COMP_CWORD-1]}
     local prev=${COMP_WORDS[COMP_CWORD-2]}
 
-    commands='display import delete check'
-    display_types='topo memory cluster'
+    commands='display import delete check urma'
+    display_types='topo memory cluster urma'
     check_types='memory'
 
     case "${cmd}" in
@@ -43,6 +43,10 @@ function _ubse_commond_completion() {
                 COMPREPLY=( $(compgen -W "${check_types}" -- ${cur}) )
                 return 0
             ;;
+            'urma')
+                COMPREPLY=( $(compgen -W '--node -n' -- ${cur}) )
+                return 0
+            ;;
             '*')
                 return 0
             ;;
@@ -57,12 +61,15 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '--type' -- ${cur}) )
                         return 0
                     ;;
+                    'urma')
+                        COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
+                        return 0
+                    ;;
                     '*')
                         return 0
                     ;;
                 esac
             ;;
-
             'import')
                 case ${COMP_WORDS[2]} in
                     'cert')
@@ -78,7 +85,6 @@ function _ubse_commond_completion() {
                     ;;
                 esac
             ;;
-
             '*')
                 return 0
             ;;
@@ -93,12 +99,15 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-t' -- ${cur}) )
                         return 0
                     ;;
+                    'urma')
+                        COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
+                        return 0
+                    ;;
                     '*')
                         return 0
                     ;;
                 esac
             ;;
-
             'import')
                 case ${COMP_WORDS[2]} in
                     'cert')
@@ -114,7 +123,6 @@ function _ubse_commond_completion() {
                     ;;
                 esac
             ;;
-
             '*')
                 return 0
             ;;
