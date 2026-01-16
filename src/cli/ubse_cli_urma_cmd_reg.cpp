@@ -28,8 +28,10 @@ using namespace ubse::common::def;
 static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed in client.";
 static const std::string URMA_NODE_OPT = "node";
 static const std::string URMA_INTERNAL_ERROR = "ERROR: Internal error.";
-static const std::string URMA_NODE_ID_ERROR =
+static const std::string URMA_NODE_STATE_ERROR =
     "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
+static const std::string URMA_NODE_ID_ERROR =
+    "ERROR: Node state is abnormal, maybe fault or node down.";
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
 static const std::string URMA_QUERY_OPTION_DES =
     "Query urma information by node-id, the option is as follow: node-id(1 ~ max node-id).";
@@ -191,6 +193,12 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret == UBSE_ERROR_EXIST) {
+        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
+    }
+    if (ret == UBSE_ERROR_INVAL) {
+        return UbseCliStringPromptReply(URMA_NODE_STATE_ERROR);
+    }
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
     }

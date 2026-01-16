@@ -347,7 +347,7 @@ UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type,
                                                          std::vector<uint32_t> &status)
 {
     // 判断是否合法类型，非法返回不支持
-    if (type >= UrmaDevType::BUTT) {
+    if (type >= UrmaDevType::BUTT || type < UrmaDevType::BUTT) {
         UBSE_LOG_ERROR << "get urma name by type failed, type =" << (uint32_t)type;
         return UBSE_ERROR_NOT_SUPPORT;
     }
@@ -415,12 +415,41 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const 
     }
     auto rsp = ubseResponsePtr->GetUbseUrmaDevRsp();
     urmaInfo = rsp.urmaInfos;
+    if (rsp.result != UBSE_OK) {
+        UBSE_LOG_ERROR << "response result is not OK, " << FormatRetCode(res);
+        return rsp.result;
+    }
     return UBSE_OK;
 }
 
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
                                                              std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
+        std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
+    if (ubseStaticNodeInfos.empty()) {
+        UBSE_LOG_ERROR << "LoadConfig get allNodes failed.";
+        return UBSE_ERROR;
+    }
+    if (!std::any_of(ubseStaticNodeInfos.begin(), ubseStaticNodeInfos.end(),
+                     [&](const auto &info) { return info.nodeId == std::to_string(nodeId); })) {
+        UBSE_LOG_WARN << "nodeId = " << nodeId << " not in cluster.";
+        return UBSE_ERROR_NOT_EXIST;
+    }
+    std::unordered_map<std::string, UbseNodeInfo> ubseNodeInfoMap = UbseNodeController::GetInstance().GetAllNodes();
+    if (ubseNodeInfoMap.empty()) {
+        UBSE_LOG_ERROR << "get allNodes from nodectl failed.";
+        return UBSE_ERROR_INVAL;
+    }
+    if (ubseNodeInfoMap.find(std::to_string(nodeId)) == ubseNodeInfoMap.end()) {
+        UBSE_LOG_WARN << "nodeId = " << nodeId << " not node up.";
+        return UBSE_ERROR_INVAL;
+    }
+    auto nodeState = ubseNodeInfoMap[std::to_string(nodeId)].clusterState;
+    if (nodeState == UbseNodeClusterState::UBSE_NODE_UNKNOWN || nodeState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+        nodeState == UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
+        UBSE_LOG_WARN << "nodeId = " << nodeId << " is fault state = " << (int)nodeState;
+        return UBSE_ERROR_INVAL;
+    }
     ubse::election::UbseRoleInfo currentNodeInfo{};
     ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
     if (std::to_string(nodeId) == currentNodeInfo.nodeId) {
