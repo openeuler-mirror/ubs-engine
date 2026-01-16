@@ -126,7 +126,7 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
             return UBSE_ERROR_NULLPTR;
         }
         auto ret = comModule->RpcSend(sendParam, request, response);
-        if (ret != UBSE_OK ) {
+        if (ret != UBSE_OK) {
             rpcRsp.result = ret;
             response->SetUbseUrmaDevQueryRsp(rpcRsp);
             return ret;
