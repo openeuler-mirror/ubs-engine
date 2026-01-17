@@ -259,6 +259,7 @@ void UrmaController::DoTopoLinkChange()
         // 将该节点的所有urmaInfo状态改成Inactive
         UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
+        return;
     }
     // 下发所有节点拓扑及所有urmaInfo
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
@@ -270,7 +271,10 @@ void UrmaController::DoTopoLinkChange()
         });
         ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
+        return;
     }
+    // 下发成功后修改状态为ACTIVATE
+    UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToActiveForNode(curNode.nodeId);
 }
 
 void UrmaController::DoNodeJoin()
