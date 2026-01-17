@@ -254,6 +254,7 @@ UbseResult DoQueryInfo(const std::string &dstId)
         // 将该节点的所有urmaInfo状态改成Inactive
         UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
+        return UBSE_OK;
     }
 
     UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(roleInfo.nodeId);
@@ -267,6 +268,7 @@ void DoUpdateUrmaInfo(const std::string &nodeId)
     // check: 判断节点信息是否已获取
     std::thread th([nodeId]() {
         if (DoQueryInfo(nodeId) == UBSE_OK) {
+            UBSE_LOG_INFO << "Do update urma info success for nodeId=" << nodeId;
             return;
         }
     });

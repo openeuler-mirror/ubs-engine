@@ -127,6 +127,19 @@ UbseResult UbseUrmaControllerModule::Start()
 
 void UbseUrmaControllerModule::Stop()
 {
+    std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
+    auto ret = ubse::event::UbseUnSubEvent(nodeJoinEventId,
+                                           ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Fail to unsub the event=" << nodeJoinEventId;
+    }
+
+    std::string nodeTopoLinkChangeEventId = UBSE_EVENT_NODE_TOPO_LINK_CHANGE;
+    ret = ubse::event::UbseUnSubEvent(nodeTopoLinkChangeEventId,
+                                      ubse::urmaController::UrmaController::GetInstance().UbseTopoLinkChangeHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Fail to unsub the event=" << nodeTopoLinkChangeEventId;
+    }
     return;
 }
 
