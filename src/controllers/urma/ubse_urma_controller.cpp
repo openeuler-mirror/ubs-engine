@@ -347,7 +347,7 @@ UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type,
                                                          std::vector<uint32_t> &status)
 {
     // 判断是否合法类型，非法返回不支持
-    if (type >= UrmaDevType::BUTT || type < UrmaDevType::BUTT) {
+    if (type >= UrmaDevType::BUTT || type < UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "get urma name by type failed, type =" << (uint32_t)type;
         return UBSE_ERROR_NOT_SUPPORT;
     }
