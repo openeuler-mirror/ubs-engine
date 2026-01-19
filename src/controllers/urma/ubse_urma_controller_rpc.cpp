@@ -107,13 +107,12 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
     UbseGetCurrentNodeInfo(currentNodeInfo);
     UbseRoleInfo masterInfo{};
     UbseGetMasterInfo(masterInfo);
-
+    UrmaDevQueryRpcRsp rpcRsp;
     /* 如果是本节点的消息就查询，如果是主节点就转发，其他情况丢弃 */
     if (std::to_string(urmaReq.nodeId) == currentNodeInfo.nodeId) {
-        UrmaDevQueryRpcRsp rpcRsp;
         UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(static_cast<UrmaDevType>(urmaReq.type),
                                                                            rpcRsp.urmaInfos);
-
+        rpcRsp.result = UBSE_OK;
         response->SetUbseUrmaDevQueryRsp(rpcRsp);
         return UBSE_OK;
     } else if (masterInfo.nodeId == currentNodeInfo.nodeId) {
@@ -122,9 +121,16 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
         auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
         if (comModule == nullptr) {
             UBSE_LOG_ERROR << "Getting ComModule failed.";
+            rpcRsp.result = UBSE_ERROR_NULLPTR;
+            response->SetUbseUrmaDevQueryRsp(rpcRsp);
             return UBSE_ERROR_NULLPTR;
         }
-        return comModule->RpcSend(sendParam, request, response);
+        auto ret = comModule->RpcSend(sendParam, request, response);
+        if (ret != UBSE_OK) {
+            rpcRsp.result = ret;
+            response->SetUbseUrmaDevQueryRsp(rpcRsp);
+            return ret;
+        }
     }
     return UBSE_OK;
 }

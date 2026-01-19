@@ -303,14 +303,14 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     out >> nodeId >> urmaType;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaDevGet deserialiazation fail";
-        return UBSE_ERROR_SRCH;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     std::vector<UbseUrmaInfoForQuery> urmaInfo;
     uint32_t ret = UrmaController::GetInstance().UbseGetUrmaDevInfoByNodeIdAndType(static_cast<UrmaDevType>(urmaType),
                                                                                    nodeId, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseGetUrmaDevInfoByNodeIdAndType failed," << FormatRetCode(ret);
-        return UBSE_ERROR_SRCH;
+        return ret;
     }
     UbseSerialization ubse_req_serial;
     const uint32_t urmaSize = static_cast<uint32_t>(urmaInfo.size());
