@@ -193,7 +193,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
-    if (ret == UBSE_ERROR_EXIST) {
+    if (ret == UBSE_ERROR_NOT_EXIST) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
     if (ret == UBSE_ERROR_INVAL) {
