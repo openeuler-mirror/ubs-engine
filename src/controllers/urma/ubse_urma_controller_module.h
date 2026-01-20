@@ -13,6 +13,8 @@
 #ifndef UBSE_URMA_CONTROLLER_MODULE_H
 #define UBSE_URMA_CONTROLLER_MODULE_H
 
+#include <atomic>
+
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_module.h"
@@ -21,6 +23,25 @@ namespace ubse::urmaController {
 
 using namespace ubse::log;
 using namespace ubse::module;
+
+class AsyncHandlerGuard {
+public:
+    AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guard_cnt(cnt)
+    {
+        guard_cnt.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    ~AsyncHandlerGuard()
+    {
+        guard_cnt.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    AsyncHandlerGuard(const AsyncHandlerGuard &) = delete;
+    AsyncHandlerGuard &operator=(const AsyncHandlerGuard &) = delete;
+
+private:
+    std::atomic<uint32_t> &guard_cnt;
+};
 
 class UbseUrmaControllerModule : public UbseModule {
 public:

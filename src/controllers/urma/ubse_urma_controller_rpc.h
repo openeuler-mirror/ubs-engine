@@ -29,6 +29,8 @@
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_def.h"
 
+const std::string URMA_CONTROLLER_TASK = "UbseUrmaControllerTask";
+
 namespace ubse::urmaController {
 using namespace ubse::com;
 using namespace ubse::utils;
@@ -58,6 +60,7 @@ struct UrmaDevQueryRpcReq {
 struct UrmaDevQueryRpcRsp {
     std::vector<UbseUrmaInfoForQuery> urmaInfos;
     uint32_t result;
+
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UrmaDevQueryRpcRsp &info)
     {
@@ -124,7 +127,8 @@ private:
 using UbseUrmaDevQueryRspPtr = Ref<UrmaDevQueryRspSimpo>;
 
 struct UrmaNotifyReq {
-    std::string nodeId; // 有更新的nodeId
+    std::string nodeId;          // 有更新的nodeId
+    uint64_t updateTimeStamp{0}; // 更新时间戳
 };
 
 class UbseUrmaNotifyReqSimpo : public UbseBaseMessage {
