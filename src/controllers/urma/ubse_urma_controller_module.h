@@ -26,21 +26,21 @@ using namespace ubse::module;
 
 class AsyncHandlerGuard {
 public:
-    AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guard_cnt(cnt)
+    explicit AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
     {
-        guard_cnt.fetch_add(1, std::memory_order_relaxed);
+        guardCnt.fetch_add(1, std::memory_order_relaxed);
     }
 
     ~AsyncHandlerGuard()
     {
-        guard_cnt.fetch_sub(1, std::memory_order_relaxed);
+        guardCnt.fetch_sub(1, std::memory_order_relaxed);
     }
 
     AsyncHandlerGuard(const AsyncHandlerGuard &) = delete;
     AsyncHandlerGuard &operator=(const AsyncHandlerGuard &) = delete;
 
 private:
-    std::atomic<uint32_t> &guard_cnt;
+    std::atomic<uint32_t> &guardCnt;
 };
 
 class UbseUrmaControllerModule : public UbseModule {

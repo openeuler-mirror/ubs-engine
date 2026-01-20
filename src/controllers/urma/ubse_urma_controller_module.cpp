@@ -144,7 +144,9 @@ UbseResult UbseUrmaControllerModule::Start()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
-    ret = taskExecutorModule->Create(URMA_CONTROLLER_TASK, 8, 1024);
+    const uint16_t threadNum = 8;
+    const uint32_t queueCapacity = 1024;
+    ret = taskExecutorModule->Create(URMA_CONTROLLER_TASK, threadNum, queueCapacity);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Create urma controller task executor failed";
         return ret;

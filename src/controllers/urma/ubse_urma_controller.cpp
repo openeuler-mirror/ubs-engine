@@ -285,6 +285,23 @@ void UrmaController::DoTopoLinkChange()
     UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToActiveForNode(curNode.nodeId);
 }
 
+void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::string &joinNodeId)
+{
+    auto urmaNodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+    auto reportUrmaNodeInfoToMasterFunc = [&curNode, &urmaNodeInfo]() {
+        return ReportUrmaNodeInfoToMaster(curNode.nodeId, urmaNodeInfo);
+    };
+    if (curNode.nodeId != joinNodeId) {
+        UBSE_LOG_INFO << "Current node is not the join node, skip reporting, currentNodeId=" << curNode.nodeId
+                      << ", joinNodeId=" << joinNodeId;
+        return;
+    }
+    if (auto ret = CallFuncRetry(reportUrmaNodeInfoToMasterFunc); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to report urma node info to master, " << FormatRetCode(ret);
+        return;
+    }
+}
+
 void UrmaController::DoNodeJoin(const std::string &joinNodeId)
 {
     AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
@@ -333,19 +350,7 @@ void UrmaController::DoNodeJoin(const std::string &joinNodeId)
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
     // 向master节点上报本节点nodeInfo
-    auto urmaNodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
-    auto reportUrmaNodeInfoToMasterFunc = [&curNode, &urmaNodeInfo]() {
-        return ReportUrmaNodeInfoToMaster(curNode.nodeId, urmaNodeInfo);
-    };
-    if (curNode.nodeId != joinNodeId) {
-        UBSE_LOG_INFO << "Current node is not the join node, skip reporting, currentNodeId=" << curNode.nodeId
-                      << ", joinNodeId=" << joinNodeId;
-        return;
-    }
-    if (auto ret = CallFuncRetry(reportUrmaNodeInfoToMasterFunc); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to report urma node info to master, " << FormatRetCode(ret);
-        return;
-    }
+    ReportUrmaNodeInfoToMasterWithRetry(curNode, joinNodeId);
 }
 
 UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage)
