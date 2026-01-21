@@ -139,19 +139,19 @@ struct UbseUrmaInfo {
 struct UbseUrmaNodeInfo {
     std::string nodeId;
     std::map<std::string, UbseUrmaInfo>
-        urmaList;             // <urmaName, urmaInfo>，urmaName (urma_urmaId)是对北向唯一标识，由ubse生成
-    uint64_t updateSeqNum{0}; // 表示节点信息的更新序号，用于判断当前的是否为最新
+        urmaList;                // <urmaName, urmaInfo>，urmaName (urma_urmaId)是对北向唯一标识，由ubse生成
+    uint64_t updateTimeStamp{0}; // 表示节点信息的更新序号，用于判断当前的是否为最新
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaNodeInfo &info)
     {
-        serializer << info.nodeId << info.urmaList << info.updateSeqNum;
+        serializer << info.nodeId << info.urmaList << info.updateTimeStamp;
         return serializer;
     }
 
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaNodeInfo &info)
     {
-        deserializer >> info.nodeId >> info.urmaList >> info.updateSeqNum;
+        deserializer >> info.nodeId >> info.urmaList >> info.updateTimeStamp;
         return deserializer;
     }
 };
