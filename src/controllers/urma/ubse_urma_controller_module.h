@@ -27,7 +27,7 @@ using namespace ubse::module;
 class AsyncHandlerGuard {
 public:
     AsyncHandlerGuard();
-    AsyncHandlerGuard(std::atomic<uint32_t> &cnt);
+    explicit AsyncHandlerGuard(std::atomic<uint32_t> &cnt);
 
     ~AsyncHandlerGuard();
 
