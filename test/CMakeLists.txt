@@ -82,7 +82,7 @@ else()
 
     FetchContent_Declare(
             googletest
-            URL https://github.com/google/googletest/archive/main.tar.gz
+            URL https://raw.gitcode.com/GitHub_Trending/go/googletest/archive/refs/heads/v1.17.0.tar.gz
     )
 
     FetchContent_MakeAvailable(googletest)

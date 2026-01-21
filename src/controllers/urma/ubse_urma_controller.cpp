@@ -36,7 +36,6 @@ using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
-extern std::atomic<uint32_t> g_asyncHandlerCnt;
 
 const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
@@ -246,7 +245,7 @@ UbseResult UrmaController::UbseTopoLinkChangeHandler(std::string &eventId, const
 
 void UrmaController::DoTopoLinkChange()
 {
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         return;
     }
@@ -304,7 +303,7 @@ void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::strin
 
 void UrmaController::DoNodeJoin(const std::string &joinNodeId)
 {
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         return;
     }
@@ -477,7 +476,7 @@ UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType t
         UBSE_LOG_WARN << "nodeId = " << nodeId << " is fault state = " << (int)nodeState;
         return UBSE_ERROR_INVAL;
     }
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         return UBSE_OK;
     }

@@ -37,7 +37,6 @@ using namespace ubse::nodeController;
 using namespace ubse::urma;
 
 const int URMA_NO2 = 2;
-extern std::atomic<uint32_t> g_asyncHandlerCnt;
 UrmaDevState ConvertUint32ToBondingState(uint32_t val)
 {
     if (val == 1) {
@@ -101,7 +100,7 @@ UbseResult UrmaDevQueryRspSimpo::Deserialize()
 UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
                                                   UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         UBSE_LOG_INFO << "Stop urma controller, ignore message";
         return UBSE_OK;
@@ -238,7 +237,7 @@ void UbseUrmaBandwidthInit(const std::string &nodeId)
 
 UbseResult DoQueryInfo(const std::string &dstId, uint64_t updateTimeStamp)
 {
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         UBSE_LOG_INFO << "Urma controller is stopped, ignore msg";
         return UBSE_OK;
@@ -301,7 +300,7 @@ void DoUpdateUrmaInfo(const std::string &nodeId, uint64_t updateTimeStamp)
 UbseResult UbseUrmaNotifyMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
                                                 UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         UBSE_LOG_INFO << "Urma controller is stopped, ignore msg";
         return UBSE_OK;
@@ -463,7 +462,7 @@ UbseResult UbseUrmaReportUrmaNodeInfoRspSimpo::Deserialize()
 
 void UbseUrmaAsyncNotifyOneNodeUrmaInfoChange(const std::string &changeNodeId, const std::string &notifyNodeId)
 {
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         UBSE_LOG_INFO << "Urma controller is stopped, ignore msg";
         return;
@@ -515,7 +514,7 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
                                                             const UbseBaseMessagePtr &rsp,
                                                             UbseComBaseMessageHandlerCtxPtr ctx)
 {
-    AsyncHandlerGuard cntGuard(g_asyncHandlerCnt);
+    AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         UBSE_LOG_INFO << "Urma controller is stopped, ignore msg";
         return UBSE_OK;

@@ -26,15 +26,10 @@ using namespace ubse::module;
 
 class AsyncHandlerGuard {
 public:
-    explicit AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
-    {
-        guardCnt.fetch_add(1, std::memory_order_relaxed);
-    }
+    AsyncHandlerGuard();
+    AsyncHandlerGuard(std::atomic<uint32_t> &cnt);
 
-    ~AsyncHandlerGuard()
-    {
-        guardCnt.fetch_sub(1, std::memory_order_relaxed);
-    }
+    ~AsyncHandlerGuard();
 
     AsyncHandlerGuard(const AsyncHandlerGuard &) = delete;
     AsyncHandlerGuard &operator=(const AsyncHandlerGuard &) = delete;

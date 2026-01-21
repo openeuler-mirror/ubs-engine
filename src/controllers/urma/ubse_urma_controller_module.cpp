@@ -35,6 +35,21 @@ std::atomic<uint32_t> g_asyncHandlerCnt{0};
 DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::node::UbseNodeModule);
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
+AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
+{
+    guardCnt.fetch_add(1, std::memory_order_relaxed);
+}
+
+AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
+{
+    guardCnt.fetch_add(1, std::memory_order_relaxed);
+}
+
+AsyncHandlerGuard::~AsyncHandlerGuard()
+{
+    guardCnt.fetch_sub(1, std::memory_order_relaxed);
+}
+
 UbseResult UbseUrmaControllerModule::Initialize()
 {
     // 注册消息处理函数,监听 topo变化事件
