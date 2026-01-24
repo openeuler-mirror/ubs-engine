@@ -15,6 +15,8 @@
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_event.h"
+#include "ubse_node_controller.h"
+#include "ubse_node_module.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_api.h"
@@ -26,9 +28,27 @@ using namespace ubse::module;
 using namespace ubse::task_executor;
 using namespace ubse::com;
 using namespace ubse::common::def;
+using namespace ubse::nodeController;
 
-DYNAMIC_CREATE(UbseUrmaControllerModule);
+std::atomic<uint32_t> g_asyncHandlerCnt{0};
+
+DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::node::UbseNodeModule);
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
+
+AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
+{
+    guardCnt.fetch_add(1, std::memory_order_relaxed);
+}
+
+AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
+{
+    guardCnt.fetch_add(1, std::memory_order_relaxed);
+}
+
+AsyncHandlerGuard::~AsyncHandlerGuard()
+{
+    guardCnt.fetch_sub(1, std::memory_order_relaxed);
+}
 
 UbseResult UbseUrmaControllerModule::Initialize()
 {
@@ -97,6 +117,18 @@ UbseResult RpcReg()
     return UBSE_OK;
 }
 
+void DisconnectAllNormalLink()
+{
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_WARN << "Failed to get com module";
+        return;
+    }
+    auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
+    for (const auto &node : allNodes) {
+        comModule->RemoveChannel(node.second.nodeId, UbseChannelType::NORMAL);
+    }
+}
 UbseResult UbseUrmaControllerModule::Start()
 {
     auto ret = UbseUrmaControllerApi::Register();
@@ -121,12 +153,43 @@ UbseResult UbseUrmaControllerModule::Start()
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to Follow the event=" << nodeTopoLinkChangeEventId;
     }
+    // 创建任务执行器
+    auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
+    if (taskExecutorModule == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+
+    const uint16_t threadNum = 8;
+    const uint32_t queueCapacity = 1024;
+    ret = taskExecutorModule->Create(URMA_CONTROLLER_TASK, threadNum, queueCapacity);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Create urma controller task executor failed";
+        return ret;
+    }
 
     return UBSE_OK;
 }
 
 void UbseUrmaControllerModule::Stop()
 {
+    std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
+    auto ret = ubse::event::UbseUnSubEvent(nodeJoinEventId,
+                                           ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Fail to unsub the event=" << nodeJoinEventId;
+    }
+
+    std::string nodeTopoLinkChangeEventId = UBSE_EVENT_NODE_TOPO_LINK_CHANGE;
+    ret = ubse::event::UbseUnSubEvent(nodeTopoLinkChangeEventId,
+                                      ubse::urmaController::UrmaController::GetInstance().UbseTopoLinkChangeHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Fail to unsub the event=" << nodeTopoLinkChangeEventId;
+    }
+    DisconnectAllNormalLink();
+    while (g_asyncHandlerCnt != 0) {
+        UBSE_LOG_DEBUG << "There are async operation, wait to stop";
+        sleep(1);
+    }
     return;
 }
 

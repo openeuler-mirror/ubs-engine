@@ -13,12 +13,14 @@
 #include "ubse_urma_controller.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "ubse_election.h"
 #include "ubse_logger_inner.h"
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_topology_interface.h"
 #include "ubse_urma_controller_manager.h"
+#include "ubse_urma_controller_module.h"
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
@@ -33,6 +35,7 @@ using namespace ubse::mti;
 using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
+
 
 const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
@@ -242,6 +245,10 @@ UbseResult UrmaController::UbseTopoLinkChangeHandler(std::string &eventId, const
 
 void UrmaController::DoTopoLinkChange()
 {
+    AsyncHandlerGuard cntGuard;
+    if (g_globalStop) {
+        return;
+    }
     // 计算所有port是否都中断
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::vector<PhysicalLink> allLinkInfo;
@@ -259,6 +266,7 @@ void UrmaController::DoTopoLinkChange()
         // 将该节点的所有urmaInfo状态改成Inactive
         UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
+        return;
     }
     // 下发所有节点拓扑及所有urmaInfo
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
@@ -270,11 +278,36 @@ void UrmaController::DoTopoLinkChange()
         });
         ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
+        return;
+    }
+    // 下发成功后修改状态为ACTIVATE
+    UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToActiveForNode(curNode.nodeId);
+}
+
+void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::string &joinNodeId)
+{
+    auto urmaNodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+    auto reportUrmaNodeInfoToMasterFunc = [&curNode, &urmaNodeInfo]() {
+        return ReportUrmaNodeInfoToMaster(curNode.nodeId, urmaNodeInfo);
+    };
+    if (curNode.nodeId != joinNodeId) {
+        UBSE_LOG_INFO << "Current node is not the join node, skip reporting, currentNodeId=" << curNode.nodeId
+                      << ", joinNodeId=" << joinNodeId;
+        return;
+    }
+    if (auto ret = CallFuncRetry(reportUrmaNodeInfoToMasterFunc); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to report urma node info to master, " << FormatRetCode(ret);
+        return;
     }
 }
 
-void UrmaController::DoNodeJoin()
+void UrmaController::DoNodeJoin(const std::string &joinNodeId)
 {
+    AsyncHandlerGuard cntGuard;
+    if (g_globalStop) {
+        return;
+    }
+
     // 计算所有port是否都中断
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::vector<PhysicalLink> allLinkInfo;
@@ -298,7 +331,7 @@ void UrmaController::DoNodeJoin()
     }
     for (auto &iou : iouList) {
         std::vector<UbseLcneFeInfo> tmpFeInfos;
-        // check: 重试直至成功
+        // 重试
         if (CallFuncRetry([&]() { return UbseGetVfeEid(iou, tmpFeInfos); }) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
             return;
@@ -316,14 +349,7 @@ void UrmaController::DoNodeJoin()
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
     // 向master节点上报本节点nodeInfo
-    auto urmaNodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
-    auto reportUrmaNodeInfoToMasterFunc = [&curNode, &urmaNodeInfo]() {
-        return ReportUrmaNodeInfoToMaster(curNode.nodeId, urmaNodeInfo);
-    };
-    if (auto ret = CallFuncRetry(reportUrmaNodeInfoToMasterFunc); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to report urma node info to master, " << FormatRetCode(ret);
-        return;
-    }
+    ReportUrmaNodeInfoToMasterWithRetry(curNode, joinNodeId);
 }
 
 UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage)
@@ -339,7 +365,7 @@ UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::
         UBSE_LOG_ERROR << "Get task executor for urma failed";
         return UBSE_ERROR_NULLPTR;
     }
-    urmaExecutor->Execute([]() { return UrmaController::GetInstance().DoNodeJoin(); });
+    urmaExecutor->Execute([eventMesage]() { return UrmaController::GetInstance().DoNodeJoin(eventMesage); });
     return UBSE_OK;
 }
 
@@ -347,7 +373,7 @@ UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type,
                                                          std::vector<uint32_t> &status)
 {
     // 判断是否合法类型，非法返回不支持
-    if (type >= UrmaDevType::BUTT) {
+    if (type >= UrmaDevType::BUTT || type < UrmaDevType::UNIQUE) {
         UBSE_LOG_ERROR << "get urma name by type failed, type =" << (uint32_t)type;
         return UBSE_ERROR_NOT_SUPPORT;
     }
@@ -415,12 +441,45 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const 
     }
     auto rsp = ubseResponsePtr->GetUbseUrmaDevRsp();
     urmaInfo = rsp.urmaInfos;
+    if (rsp.result != UBSE_OK) {
+        UBSE_LOG_ERROR << "response result is not OK, " << FormatRetCode(res);
+        return rsp.result;
+    }
     return UBSE_OK;
 }
 
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
                                                              std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
+        std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
+    if (ubseStaticNodeInfos.empty()) {
+        UBSE_LOG_ERROR << "LoadConfig get allNodes failed.";
+        return UBSE_ERROR;
+    }
+    if (!std::any_of(ubseStaticNodeInfos.begin(), ubseStaticNodeInfos.end(),
+                     [&](const auto &info) { return info.nodeId == std::to_string(nodeId); })) {
+        UBSE_LOG_WARN << "nodeId = " << nodeId << " not in cluster.";
+        return UBSE_ERROR_NOT_EXIST;
+    }
+    std::unordered_map<std::string, UbseNodeInfo> ubseNodeInfoMap = UbseNodeController::GetInstance().GetAllNodes();
+    if (ubseNodeInfoMap.empty()) {
+        UBSE_LOG_ERROR << "get allNodes from nodectl failed.";
+        return UBSE_ERROR_INVAL;
+    }
+    if (ubseNodeInfoMap.find(std::to_string(nodeId)) == ubseNodeInfoMap.end()) {
+        UBSE_LOG_WARN << "nodeId = " << nodeId << " not node up.";
+        return UBSE_ERROR_INVAL;
+    }
+    auto nodeState = ubseNodeInfoMap[std::to_string(nodeId)].clusterState;
+    if (nodeState == UbseNodeClusterState::UBSE_NODE_UNKNOWN || nodeState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+        nodeState == UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
+        UBSE_LOG_WARN << "nodeId = " << nodeId << " is fault state = " << (int)nodeState;
+        return UBSE_ERROR_INVAL;
+    }
+    AsyncHandlerGuard cntGuard;
+    if (g_globalStop) {
+        return UBSE_OK;
+    }
     ubse::election::UbseRoleInfo currentNodeInfo{};
     ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
     if (std::to_string(nodeId) == currentNodeInfo.nodeId) {

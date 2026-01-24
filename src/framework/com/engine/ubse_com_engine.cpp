@@ -22,6 +22,7 @@
 #include "ubse_com_def.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_env_util.h"
 #include "ubse_logger_inner.h"
 #include "ubse_pointer_process.h"
@@ -636,6 +637,10 @@ void UbseComEngine::RegisterQueryCb(QueryEidByNodeIdCb cb)
 
 UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo &chInfo)
 {
+    if (ubse::context::g_globalStop) {
+        UBSE_LOG_INFO << "Global stop is triggered, ignore insert channel";
+        return UBSE_ERROR;
+    }
     conMutex.lock();
     auto iter = connectingMap.find(chInfo.GetConnectInfo().GetRemoteNodeId());
     if (iter != connectingMap.end() && iter->second.find(chInfo.GetChannelType()) != iter->second.end()) {

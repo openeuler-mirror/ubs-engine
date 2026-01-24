@@ -47,7 +47,7 @@ UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLc
         UBSE_LOG_ERROR << "[MTI] LCNE UrmaEid response is empty.";
         return UBSE_ERROR;
     }
-    ret = ParseGetFeListResponse(rsp.body, allFeInfos, iouInfo);
+    ret = ParseGetFeListResponse(rsp.body, allFeInfos);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] ParseGetFeListResponse fail.";
         return ret;
@@ -77,13 +77,10 @@ UbseResult UbseLcneVfeEid::UpdateVfeEid(UbseLcneIouInfo iouInfo, std::vector<Ubs
         UBSE_LOG_ERROR << "[MTI] LCNE UrmaEid response is empty.";
         return UBSE_ERROR;
     }
-    return ParseGetFeEidResponse(rsp.body, allFeInfos, iouInfo);
+    return ParseGetFeEidResponse(rsp.body, allFeInfos);
 }
-
-/* 适配LCNE联调方案，待删除该函数第三个参数 */
 UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr,
-                                                  std::vector<UbseLcneFeInfo> &allFeInfos,
-                                                  const UbseLcneIouInfo &iouInfo)
+                                                  std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -93,17 +90,6 @@ UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr
     if (ret != UbseXmlError::OK) {
         return UBSE_ERROR;
     }
-
-    /* 适配LCNE联调方案，待删除代码开始 */
-    if (ubseXml->Next("mue-ue-binding-infos") == nullptr) {
-        UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-infos failed.";
-        return UBSE_ERROR;
-    }
-    if (ubseXml->Next("mue-ue-binding-info") == nullptr) {
-        UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-infos failed.";
-        return UBSE_ERROR;
-    }
-    /* 适配LCNE联调方案，待删除代码结束 */
     if (ubseXml->Next("slot-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
         return UBSE_ERROR;
@@ -115,22 +101,6 @@ UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr
         return UBSE_ERROR;
     }
     std::string ubpuId = ubseXml->Text();
-    /* 适配LCNE联调方案，待删除代码开始 */
-    if (ubpuId != iouInfo.ubpuId) {
-        ubseXml->Previous();
-        ubseXml->Previous();
-        // 找到下一个
-        if (ubseXml->Next("mue-ue-binding-info", 1) == nullptr) {
-            UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-info failed.";
-            return UBSE_ERROR;
-        }
-        if (ubseXml->Next("ubpu-id") == nullptr) {
-            UBSE_LOG_ERROR << "[MTI] Xml parse ubpu-id failed.";
-            return UBSE_ERROR;
-        }
-        ubpuId = ubseXml->Text();
-    }
-    /* 适配LCNE联调方案，待删除代码结束 */
     ubseXml->Previous();
     if (ubseXml->Next("iou-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse iou-id failed.";
@@ -178,10 +148,8 @@ std::vector<std::string> UbseLcneVfeEid::ueIdlistSplit(const std::string &str, c
     return tokens;
 }
 
-/* 适配LCNE联调方案，待删除该函数第三个参数 */
 UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
-                                                 std::vector<UbseLcneFeInfo> &allFeInfos,
-                                                 const UbseLcneIouInfo &iouInfo)
+                                                 std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -191,16 +159,6 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
     if (ret != UbseXmlError::OK) {
         return UBSE_ERROR;
     }
-    /* 适配LCNE联调方案，待删除代码开始 */
-    if (ubseXml->Next("entity-urma-communication-infos") == nullptr) {
-        UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-infos failed.";
-        return UBSE_ERROR;
-    }
-    if (ubseXml->Next("entity-urma-communication-info") == nullptr) {
-        UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-info failed.";
-        return UBSE_ERROR;
-    }
-    /* 适配LCNE联调方案，待删除代码结束 */
     if (ubseXml->Next("slot-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
         return UBSE_ERROR;
@@ -212,22 +170,6 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
         return UBSE_ERROR;
     }
     std::string ubpuId = ubseXml->Text();
-    /* 适配LCNE联调方案，待删除代码开始 */
-    if (ubpuId != iouInfo.ubpuId) {
-        ubseXml->Previous();
-        ubseXml->Previous();
-        // 找到下一个
-        if (ubseXml->Next("entity-urma-communication-info", 1) == nullptr) {
-            UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-info failed.";
-            return UBSE_ERROR;
-        }
-        if (ubseXml->Next("ubpu-id") == nullptr) {
-            UBSE_LOG_ERROR << "[MTI] Xml parse ubpu-id failed.";
-            return UBSE_ERROR;
-        }
-        ubpuId = ubseXml->Text();
-    }
-    /* 适配LCNE联调方案，待删除代码结束 */
     ubseXml->Previous();
     if (ubseXml->Next("iou-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse iou-id failed.";
@@ -312,8 +254,8 @@ UbseLcneFeInfo *UbseLcneVfeEid::FindVfeInVector(std::string slotId, std::string 
 
 UbseResult UbseLcneVfeEid::GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId)
 {
-    // 查找最后一个'/'的位置
-    size_t lastSlashPos = intfaceName.find_last_of('/');
+    // 接口名400GUB8/1/4， 返回最后一个/后的4-1=3
+    size_t lastSlashPos = intfaceName.find_last_of('/'); // 查找最后一个'/'的位置
     if (lastSlashPos != std::string::npos) {
         // 提取'/'后面的部分
         std::string portStr = intfaceName.substr(lastSlashPos + 1);

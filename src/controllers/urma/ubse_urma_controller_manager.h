@@ -85,12 +85,14 @@ public:
     void SetFeName(const std::string feEid, const std::string &urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
     void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
+    void SetAllUrmaInfoToActiveForNode(const std::string &nodeId);
 
     static std::string GetVfeInfoKey(const UbseFeInfo &info);
     static std::string GetVfeInfoKey(const UbseLcneFeInfo &info);
     static std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
     void UrmaCtlActivateUrmaDevice(std::string &nodeId);
     std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
+    uint64_t GetUrmaUpdateTimeStamp(const std::string &nodeId);
 
 private:
     UbseResult CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid, UbseLcneFeInfo &lcneFe0,
