@@ -131,7 +131,7 @@ UbseResult UbseUrmaUvsModule::GetNameByUrmaEid(const std::string &urmaEid, std::
     }
     ret = uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Uvs failed to get device name";
+        UBSE_LOG_ERROR << "Uvs failed to get device name, ErrorCode=" << ret;
         return ret;
     }
     urmaEidName = name;
