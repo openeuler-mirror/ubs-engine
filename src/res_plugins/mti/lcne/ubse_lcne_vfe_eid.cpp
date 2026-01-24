@@ -25,7 +25,7 @@ using namespace ubse::http;
 using namespace ubse::mti;
 using namespace ubse::log;
 
-uint32_t CheckEidGroup(std::vector<UbseLcneEidGroup> &eidGroups, const std::string type,uint32_t portId);
+uint32_t CheckEidGroup(std::vector<UbseLcneEidGroup> &eidGroups, const std::string type, uint32_t portId);
 
 UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
@@ -295,14 +295,13 @@ uint32_t CheckEidGroup(std::vector<UbseLcneEidGroup> &eidGroups, const std::stri
 {
     auto group_size = eidGroups.size();
     uint32_t i = 0;
-    for (i= 0; i < group_size; i++) {
-        if(type == "port-group-id") {
-            if(eidGroups[i].primaryEid.empty()) {
+    for (i = 0; i < group_size; i++) {
+        if (type == "port-group-id") {
+            if (eidGroups[i].primaryEid.empty()) {
                 return i;
             }
-        }
-        else if (type == "interface-name") {
-            if(eidGroups[i].portEids.find(std::to_string(portId)) == eidGroups[i].portEids.end()) {
+        } else if (type == "interface-name") {
+            if (eidGroups[i].portEids.find(std::to_string(portId)) == eidGroups[i].portEids.end()) {
                 return i;
             }
         }
