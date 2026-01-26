@@ -1957,7 +1957,7 @@ new file mode 100644
 index 0000000..144b605
 --- /dev/null
 +++ b/include/mockcpp/WinCodeModifier.h
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,16 @@
 +#ifndef __MOCKCPP_WINCODEMODIFIER_H__
 +#define __MOCKCPP_WINCODEMODIFIER_H__
 +
