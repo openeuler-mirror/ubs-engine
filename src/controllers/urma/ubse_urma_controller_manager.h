@@ -32,6 +32,7 @@ using namespace ubse::nodeController;
 struct UbseUrmaInfoForQuery {
     std::string urmaName;
     std::vector<std::string> feNames;
+    std::vector<std::string> feEids;
     UrmaDevType bondingType;
     UrmaDevState state;
     UrmaQosProfile qosProfile;

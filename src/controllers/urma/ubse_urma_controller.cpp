@@ -451,7 +451,11 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const 
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
                                                              std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
-        std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
+    if (nodeId == UINT32_MAX) {
+        UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(type, devInfos);
+        return UBSE_OK;
+    }
+    std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
     if (ubseStaticNodeInfos.empty()) {
         UBSE_LOG_ERROR << "LoadConfig get allNodes failed.";
         return UBSE_ERROR;

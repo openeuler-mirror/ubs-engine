@@ -230,16 +230,18 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
     }
     PrintNodeInfo(nodeInfos[currentNodeInfo.nodeId]);
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
-        if (info.second.urmaDevType == type) {
+        if (info.second.urmaDevType == type || type == UrmaDevType::BUTT) {
             UbseUrmaInfoForQuery urmaInfo;
             urmaInfo.urmaName = info.first;
             if (info.second.eidGroups.size() != feCntPerUrmaInfo) {
                 continue;
             }
             for (auto eidGroup : info.second.eidGroups) {
+                urmaInfo.feEids.emplace_back(eidGroup.primaryEid);
                 urmaInfo.feNames.emplace_back(eidGroup.feInfo->name);
             }
             urmaInfo.state = info.second.state;
+            urmaInfo.bondingType =info.second.urmaDevType;
             urmaInfo.qosProfile = info.second.urmaQosProfile;
             UBSE_LOG_DEBUG << "Found URMA info for query: " << urmaInfo.urmaName
                            << ", state=" << (uint32_t)urmaInfo.state;

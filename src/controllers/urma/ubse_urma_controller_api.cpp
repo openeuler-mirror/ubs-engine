@@ -317,7 +317,8 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     ubse_req_serial << urmaSize;
     for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
         const uint32_t urmaState = static_cast<uint32_t>(urmaInfo[i].state);
-        ubse_req_serial << urmaInfo[i].urmaName << urmaInfo[i].feNames << urmaState;
+        const uint32_t urmaType = static_cast<uint32_t>(urmaInfo[i].bondingType);
+        ubse_req_serial << urmaInfo[i].urmaName << urmaType << urmaInfo[i].feNames << urmaInfo[i].feEids << urmaState;
     }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
