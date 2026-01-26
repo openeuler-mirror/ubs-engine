@@ -32,7 +32,7 @@ static const std::string URMA_INTERNAL_ERROR = "ERROR: Internal error.";
 static const std::string URMA_NODE_STATE_ERROR =
     "ERROR: Node state is abnormal, maybe fault or node down.";
 static const std::string URMA_TYPE_ERROR =
-    "ERROR: Invalid request param,The option is as follow: type(0/1).";
+    "ERROR: Invalid request param,The option is as follow: type(0/1), which means unique/shared.";
 static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
@@ -45,7 +45,8 @@ static const std::string URMA_CLI_URMA_TYPE_ERROR = "ERROR: Invalid URMA type.";
 constexpr uint32_t URMA_INFO_STATUS_NUM = 3;
 std::array<std::string, URMA_INFO_STATUS_NUM> urmaStatusArray = {"active", "inactive", "unknow"};
 constexpr uint32_t URMA_INFO_TYPE_NUM = 2;
-std::array<std::string, URMA_INFO_TYPE_NUM> urmaTypeArray = {"unique", "share"};
+std::array<std::string, URMA_INFO_TYPE_NUM> urmaTypeArray = {"unique", "shared"};
+constexpr uint32_t DEFAULT_TYPE_ALL = 2;
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
 {
@@ -196,24 +197,24 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaPar
         try {
             nodeId = static_cast<uint32_t>(std::stoul(urmaNodeCli->second));
         } catch (const std::exception &e) {
-            return UbseCliStringPromptReply(URMA_NODE_ID_OR_TYPE_ERROR);
+            return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
         }
     }
     if (urmaTypeCli == params.end()) {
-        urmaType = 2;  // 默认值
+        urmaType = DEFAULT_TYPE_ALL;  // 默认值
     } else {
         try {
             urmaType = static_cast<uint32_t>(std::stoul(urmaTypeCli->second));
         } catch (const std::exception &e) {
-            return UbseCliStringPromptReply(URMA_NODE_ID_OR_TYPE_ERROR);
+            return UbseCliStringPromptReply(URMA_TYPE_ERROR);
         }
     }
     // 校验：显式传入 UINT32_MAX 或非法类型值视为错误
     if (nodeId == UINT32_MAX && urmaNodeCli != params.end()) {
-        return UbseCliStringPromptReply(URMA_NODE_ID_OR_TYPE_ERROR);
+        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
     if (urmaType >= URMA_INFO_TYPE_NUM && urmaTypeCli != params.end()) {
-        return UbseCliStringPromptReply(URMA_NODE_ID_OR_TYPE_ERROR);
+        return UbseCliStringPromptReply(URMA_TYPE_ERROR);
     }
     return nullptr;
 }

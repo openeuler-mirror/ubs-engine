@@ -32,7 +32,7 @@ private:
                                                                          uint32_t urma_size);
     static UbseCliCommandInfo UbseCliQueryUrmaDevInfo();
     static std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaParams(
-        const std::map<std::string, std::string> &params, uint32_t &nodeId, uint32_t &urmaType)
+        const std::map<std::string, std::string> &params, uint32_t &nodeId, uint32_t &urmaType);
     static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaDevInfoFunc(
         [[maybe_unused]] const std::map<std::string, std::string> &params);
     static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaDevInfoTable(UbseDeSerialization &ubse_de_serial,
