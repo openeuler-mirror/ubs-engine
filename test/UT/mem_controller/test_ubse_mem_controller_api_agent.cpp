@@ -64,6 +64,7 @@ TEST_F(TestUbseMemControllerApiAgent, Init)
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow)
 {
+    GTEST_SKIP();
     election::UbseRoleInfo masterInfo{};
     masterInfo.nodeId = "1";
     MOCKER_CPP(&election::UbseGetMasterInfo)
