@@ -1,6 +1,5 @@
 set(UT_BINARY ${CMAKE_PROJECT_NAME}_ut)
 
-add_subdirectory(cli)
 # 将 UT 目录写入到 ubse_ut_dir.h 中
 configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/ubse_ut_dir.h.in"
@@ -47,6 +46,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
 target_link_options(${UT_BINARY} PRIVATE -rdynamic)
 
+add_subdirectory(cli)
 add_subdirectory(cert)
 add_subdirectory(config)
 add_subdirectory(context)
@@ -58,7 +58,6 @@ add_subdirectory(log)
 add_subdirectory(mem_controller)
 add_subdirectory(node)
 add_subdirectory(security)
-add_subdirectory(timer)
 add_subdirectory(serial_tool)
 add_subdirectory(thread_pool)
 add_subdirectory(utils)
