@@ -11,16 +11,19 @@
  */
 
 #include "ubse_topology_interface.h"
-#include "ubse_lcne_module.h"
-#include "ubse_logger_module.h"
 #include "ubse_conf.h"
+#include "ubse_lcne_module.h"
+#include "ubse_lcne_qos.h"
+#include "ubse_lcne_vfe_eid.h"
+#include "ubse_logger_module.h"
 
 namespace ubse::mti {
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::lcne;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_MTI_MID)
-uint32_t UbseGetLocalNodeInfo(MtiNodeInfo& ubseNodeInfo)
+uint32_t UbseGetLocalNodeInfo(MtiNodeInfo &ubseNodeInfo)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -30,7 +33,7 @@ uint32_t UbseGetLocalNodeInfo(MtiNodeInfo& ubseNodeInfo)
     return module->UbseGetLocalNodeInfo(ubseNodeInfo);
 }
 
-uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo>& ubseNodeInfos)
+uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -45,7 +48,7 @@ uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo>& ubseNodeInfos)
     }
 
     auto allIps = module->GetClusterIpListFromConf();
-    for (auto& ip : allIps) {
+    for (auto &ip : allIps) {
         MtiNodeInfo nodeInfo{};
         nodeInfo.nodeId = ip.second;
         nodeInfo.eid = ip.first;
@@ -53,4 +56,40 @@ uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo>& ubseNodeInfos)
     }
     return UBSE_OK;
 }
-}  // namespace ubse::mti
+
+uint32_t UbseGetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
+{
+    return UbseLcneVfeEid::GetInstance().GetVfeEid(iouInfo, allFeInfos);
+}
+
+uint32_t UbseCreatQosProfile(UbseLcneQosProfile ubseLcneQosProfile)
+{
+    return UbseLcneQos::GetInstance().CreatQosProfile(ubseLcneQosProfile);
+}
+
+uint32_t UbseDeleteQosProfile(std::string proflieName)
+{
+    return UbseLcneQos::GetInstance().DeleteQosProfile(proflieName);
+}
+
+uint32_t UbseQureyQosProfile(std::string proflieName, UbseLcneQosProfile &ubseLcneQosProfile)
+{
+    return UbseLcneQos::GetInstance().QureyQosProfile(proflieName, ubseLcneQosProfile);
+}
+
+uint32_t UbseApplyVfeQos(UbseLcneFeInfo ubseFeInfo, std::string proflieName)
+{
+    return UbseLcneQos::GetInstance().ApplyVfeQos(ubseFeInfo, proflieName);
+}
+
+uint32_t UbseDeleteVfeQos(UbseLcneFeInfo ubseFeInfo)
+{
+    return UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
+}
+
+uint32_t UbseQueryVfeQos(UbseLcneFeInfo ubseFeInfo, std::string &proflieName)
+{
+    return UbseLcneQos::GetInstance().QueryVfeQos(ubseFeInfo, proflieName);
+}
+
+} // namespace ubse::mti
