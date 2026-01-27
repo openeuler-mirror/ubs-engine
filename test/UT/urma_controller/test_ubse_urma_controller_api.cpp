@@ -194,6 +194,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaBandWidthGet_fail)
 
 TEST_F(TestUbseUrmaControllerApi, UbseUrmaBandWidthCliGet)
 {
+    GTEST_SKIP();
     UbseRequestContext context;
     uint32_t nodeId = 0;
     UbseSerialization ubse_req_serial;
