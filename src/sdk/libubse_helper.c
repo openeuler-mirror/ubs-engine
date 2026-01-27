@@ -11,10 +11,8 @@
  */
 
 #include "libubse_helper.h"
-
 #include <netinet/in.h>
 #include <securec.h>
-
 #include "ubs_engine.h"
 #include "ubse_ipc_common.h"
 // 自定义64位网络字节序转换
@@ -78,6 +76,8 @@ ubs_error_t ubse_map_daemon_error(int daemon_errno)
             return UBS_ERR_IPC_SERVICE_UNAVAILABLE; // 服务不可用
         case IPC_ERROR_INVALID_PATH_LENGTH:
             return UBS_ERR_IPC_CONNECTION_FAILED_PATH_LENGTH; // sun_path超长
+        case UBS_ERR_NOT_SUPPORTED:
+            return UBS_ERR_NOT_SUPPORTED; // 不支持的操作，待错误码机制完善后再优化
         default:
             return UBS_ERR_DAEMON_INTERNEL; // 内部错误
     }
