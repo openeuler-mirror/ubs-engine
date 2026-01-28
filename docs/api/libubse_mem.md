@@ -32,7 +32,7 @@ typedef enum {
 } ubs_mem_numa_type_t;
 
 typedef struct {
-    uint32_t slot_id;            // 节点唯一标识, 采用slotid, 与lcne保持一致
+    uint32_t slot_id;            // 节点唯一标识, 采用slotid, 与UBM保持一致
     uint32_t socket_id;          // socket id
     uint32_t numa_id;            // 节点中的numa id
     ubs_mem_numa_type_t numa_type;  // numa类型
@@ -150,7 +150,7 @@ typedef enum {
 } ubs_mem_distance_t;
 
 typedef struct {
-    uint32_t slot_id;     // 节点唯一标识, 采用slotid, 与lcne保持一致
+    uint32_t slot_id;     // 节点唯一标识, 采用slotid, 与UBM保持一致
     uint32_t socket_id;   // socket id
     uint64_t numa_id;     // 节点中的numa id
     uint64_t lender_size; // 借出内存大小, 单位Byte, 取值范围[128*1024*1024, 256*1024*1024*1024]
