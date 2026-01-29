@@ -522,22 +522,27 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
     UBSE_LOG_INFO << "Handling URMA report node info message";
     auto request = UbseBaseMessage::DeConvert<UbseUrmaReportUrmaNodeInfoReqSimpo>(req);
     auto nodeInfoReq = request->GetUbseUrmaNodeInfo();
-    auto nodeId = nodeInfoReq.nodeId;
+    auto changeNodeId = nodeInfoReq.nodeId;
     auto &nodeInfo = nodeInfoReq.urmaNodeInfo;
-    if (nodeId.empty() || nodeInfo.nodeId.empty()) {
+    if (changeNodeId.empty() || nodeInfo.nodeId.empty()) {
         UBSE_LOG_ERROR << "node id is empty";
         rsp->SetErrCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
 
     // 保存到全量列表中，待其它节点获取
-    UbseUrmaControllerManager::GetInstance().InsertNewNodeInfo(nodeId, nodeInfo);
+    UbseUrmaControllerManager::GetInstance().InsertNewNodeInfo(changeNodeId, nodeInfo);
     // 异步通知各节点nodeInfo变化
-    if (auto ret = UbseUrmaAsyncNotifyUrmaInfoChange(nodeId); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to notify all nodes when urma info changes for nodeId=" << nodeId;
-        rsp->SetErrCode(UBSE_ERROR);
-        return ret;
+    auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
+    for (auto &node : allNodes) {
+        auto nodeId = node.second.nodeId;
+        if (auto ret = UbseUrmaAsyncNotifyUrmaInfoChange(nodeId); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to notify all nodes when urma info changes for nodeId=" << nodeId;
+            rsp->SetErrCode(UBSE_ERROR);
+            return ret;
+        }
     }
+    
     rsp->SetErrCode(UBSE_OK);
     return UBSE_OK;
 }
