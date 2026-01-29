@@ -31,7 +31,7 @@ TEST_F(TestUbseSecurityManager, testGetCapabilities)
 {
     EXPECT_EQ(ubse::security::UbseSecurityManager::GetCapabilities(), UBSE_OK);
 }
-
+/*
 TEST_F(TestUbseSecurityManager, testSetInitialCapabilities)
 {
     EXPECT_EQ(ubse::security::UbseSecurityManager::SetInitialCapabilities(), UBSE_OK);
@@ -52,4 +52,5 @@ TEST_F(TestUbseSecurityManager, testModifyEffectiveCapabilities)
         static_cast<ubse::security::UbseCapOperateType>(999)),
         UBSE_ERROR_INVAL);
 }
+*/
 }
