@@ -18,8 +18,6 @@ endif()
 
 # --- Paths & Metadata ---
 set(MOCKCPP_VERSION "2.7")
-set(MOCKCPP_URL "https://github.com/sinojelly/mockcpp/archive/refs/tags/v${MOCKCPP_VERSION}.tar.gz")
-set(MOCKCPP_SHA256 "73ab0a8b6d1052361c2cebd85e022c0396f928d2e077bf132790ae3be766f603")
 
 string(SHA256 CONFIG_HASH
         "${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}-${CMAKE_GENERATOR}"
@@ -29,8 +27,8 @@ set(MOCKCPP_INSTALL_PREFIX "${_MS_LIB_CACHE}/mockcpp")
 # --- Download ---
 FetchContent_Declare(
         _mockcpp_src
-        URL      ${MOCKCPP_URL}
-        URL_HASH SHA256=${MOCKCPP_SHA256}
+        GIT_REPOSITORY https://gitcode.com/Ascend/mockcpp.git
+        GIT_TAG v${MOCKCPP_VERSION}
 )
 FetchContent_Populate(_mockcpp_src)
 

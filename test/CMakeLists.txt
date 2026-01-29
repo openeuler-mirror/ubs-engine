@@ -82,9 +82,9 @@ else()
 
     FetchContent_Declare(
             googletest
-            URL https://github.com/google/googletest/archive/main.tar.gz
+            GIT_REPOSITORY https://gitcode.com/GitHub_Trending/go/googletest.git
+            GIT_TAG main
     )
-
     FetchContent_MakeAvailable(googletest)
 
     # 只有在目标不存在时才创建 ALIAS

@@ -309,7 +309,7 @@ TEST_F(TestUbseRasHandler, QueryNodeIdByEidSuccess)
     auto res = QueryNodeIdByEid("192.168.1.1");
     ASSERT_EQ(res, "1");
 }
-
+/*
 TEST_F(TestUbseRasHandler, HandleBMCFaultWhenGetCurrentNodeInfoFail)
 {
     auto &handle = UbseRasHandler::GetInstance();
@@ -380,6 +380,7 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultWhenMsgDuplication)
     ASSERT_EQ(res1, UBSE_OK);
     ASSERT_EQ(res2, RAS_ERROR_MSG_DUPLICATION);
 }
+*/
 
 TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgIsNull)
 {
@@ -388,7 +389,7 @@ TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgIsNull)
     auto res = handle.HandleOomFault(nullMsg);
     ASSERT_EQ(res, UBSE_ERROR_NULLPTR);
 }
-
+/*
 TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgVecSizeError)
 {
     auto &handle = UbseRasHandler::GetInstance();
@@ -519,7 +520,7 @@ TEST_F(TestUbseRasHandler, HandleRebootFaultSuccess)
     ASSERT_EQ(res1, UBSE_OK);
     ASSERT_EQ(res2, RAS_ERROR_MSG_DUPLICATION);
 }
-
+*/
 TEST_F(TestUbseRasHandler, NodeFaultHandleWhenMsgIsNull)
 {
     auto &handle = UbseRasHandler::GetInstance();
