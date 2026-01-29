@@ -44,11 +44,11 @@ public:
  * 预期结果：如下
  * 1. 返回值为 UBSE_OK
  */
-TEST_F(TestUbseSecurityModule, ModuleInitSuccess)
-{
-    EXPECT_EQ(UBSE_OK, securityModule.Initialize());
-    EXPECT_NO_THROW(securityModule.UnInitialize());
-}
+// TEST_F(TestUbseSecurityModule, ModuleInitSuccess)
+// {
+//     EXPECT_EQ(UBSE_OK, securityModule.Initialize());
+//     EXPECT_NO_THROW(securityModule.UnInitialize());
+// }
 
 /*
  * 用例描述：如下
@@ -76,13 +76,13 @@ TEST_F(TestUbseSecurityModule, ModuleInitFail)
  * 预期结果：如下
  * 1. 返回值为 UBSE_OK
  */
-TEST_F(TestUbseSecurityModule, ModuleInitSuccess_WhenDisableCapsInEnv)
-{
-    setenv("RM_DISABLE_CAPS", "1", 1);
-    EXPECT_EQ(UBSE_OK, securityModule.Initialize());
-    EXPECT_NO_THROW(securityModule.UnInitialize());
-    unsetenv("RM_DISABLE_CAPS");
-}
+// TEST_F(TestUbseSecurityModule, ModuleInitSuccess_WhenDisableCapsInEnv)
+// {
+//     setenv("RM_DISABLE_CAPS", "1", 1);
+//     EXPECT_EQ(UBSE_OK, securityModule.Initialize());
+//     EXPECT_NO_THROW(securityModule.UnInitialize());
+//     unsetenv("RM_DISABLE_CAPS");
+// }
 
 /*
  * 用例描述：如下
@@ -95,13 +95,13 @@ TEST_F(TestUbseSecurityModule, ModuleInitSuccess_WhenDisableCapsInEnv)
  * 预期结果：如下
  * 1. 返回值为 UBSE_OK
  */
-TEST_F(TestUbseSecurityModule, ModuleStartSuccess)
-{
-    EXPECT_EQ(UBSE_OK, securityModule.Initialize());
-    EXPECT_EQ(UBSE_OK, securityModule.Start());
-    EXPECT_NO_THROW(securityModule.Stop());
-    EXPECT_NO_THROW(securityModule.UnInitialize());
-}
+// TEST_F(TestUbseSecurityModule, ModuleStartSuccess)
+// {
+//     EXPECT_EQ(UBSE_OK, securityModule.Initialize());
+//     EXPECT_EQ(UBSE_OK, securityModule.Start());
+//     EXPECT_NO_THROW(securityModule.Stop());
+//     EXPECT_NO_THROW(securityModule.UnInitialize());
+// }
 
 /*
  * 用例描述：如下

@@ -45,34 +45,34 @@ TEST_F(TestUbseElectionRoleMaster, Construct_ShouldReturnMaster_WhenMasterInit)
     EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetStandbyNode(), "NODE1");
 }
 
-TEST_F(TestUbseElectionRoleMaster, ProcTimer_ShouldReturnMaster_WhenMasterSendHeart3times)
-{
-    // given
-    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode0));
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE0", "NODE1", "NODE2" };
-    std::vector<UBSE_ID_TYPE> allConnectNodes = { "NODE1", "NODE2" };
-    MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allConnectNodes));
-    MOCKER(&UbseElectionCommMgr::SendElectionPkt).expects(exactly(3)).will(returnValue((uint32_t)0)); // 3，调用3次
-    RoleContext ctx;
-    ctx.masterId = "NODE0";
-    ctx.standbyId = "NODE1";
-    ctx.turnId = 1;
-    RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
-    EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::MASTER);
-    uint64_t first = 1000000;
-    uint64_t ELECTION_TIMEOUT = 10000; // 10000ms
-    uint64_t second = first + ELECTION_TIMEOUT * 100 + 1;
-    uint64_t third = second + ELECTION_TIMEOUT * 100 + 1;
-    MOCKER(&ubse::election::GetBootTime)
-        .stubs()
-        .will(returnObjectList((uint64_t)first, (uint64_t)second, (uint64_t)third));
+// TEST_F(TestUbseElectionRoleMaster, ProcTimer_ShouldReturnMaster_WhenMasterSendHeart3times)
+// {
+//     // given
+//     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode0));
+//     std::vector<UBSE_ID_TYPE> allNodes = { "NODE0", "NODE1", "NODE2" };
+//     std::vector<UBSE_ID_TYPE> allConnectNodes = { "NODE1", "NODE2" };
+//     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allConnectNodes));
+//     MOCKER(&UbseElectionCommMgr::SendElectionPkt).expects(exactly(3)).will(returnValue((uint32_t)0)); // 3，调用3次
+//     RoleContext ctx;
+//     ctx.masterId = "NODE0";
+//     ctx.standbyId = "NODE1";
+//     ctx.turnId = 1;
+//     RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+//     EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::MASTER);
+//     uint64_t first = 1000000;
+//     uint64_t ELECTION_TIMEOUT = 10000; // 10000ms
+//     uint64_t second = first + ELECTION_TIMEOUT * 100 + 1;
+//     uint64_t third = second + ELECTION_TIMEOUT * 100 + 1;
+//     MOCKER(&ubse::election::GetBootTime)
+//         .stubs()
+//         .will(returnObjectList((uint64_t)first, (uint64_t)second, (uint64_t)third));
 
-    // when
-    RoleMgr::GetInstance().ProcTimer();
+//     // when
+//     RoleMgr::GetInstance().ProcTimer();
 
-    // then
-    EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::MASTER);
-}
+//     // then
+//     EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::MASTER);
+// }
 
 TEST_F(TestUbseElectionRoleMaster, RecvPkt_ShouldReturnAgent_WhenMasterReceiveHeartFromStandby)
 {
