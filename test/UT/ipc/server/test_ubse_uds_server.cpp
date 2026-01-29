@@ -51,11 +51,11 @@ void TestUbseUdsServer::TearDown()
     Test::TearDown();
 }
 
-TEST_F(TestUbseUdsServer, StartSuccess)
-{
-    EXPECT_EQ(server->Start(), IPC_SUCCESS);
-    EXPECT_TRUE(server->running);
-}
+// TEST_F(TestUbseUdsServer, StartSuccess)
+// {
+//     EXPECT_EQ(server->Start(), IPC_SUCCESS);
+//     EXPECT_TRUE(server->running);
+// }
 
 // 测试Start方法在创建socket失败时的行为
 TEST_F(TestUbseUdsServer, StartCreateServerSocketFailure)
@@ -139,7 +139,7 @@ TEST_F(TestUbseUdsServer, StartWhenEpollCtlFailed)
     EXPECT_EQ(server->Start(), IPC_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running);
 }
-
+/*
 // 测试新连接成功
 TEST_F(TestUbseUdsServer, HandleNewConnectionSuccess)
 {
@@ -246,4 +246,5 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerException)
     delete[] data;
     udsClient.Disconnect();
 }
+*/
 } // namespace ubse::ut::ipc

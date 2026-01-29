@@ -30,13 +30,14 @@ if (NOT USE_SYSTEM_HCOM)
     # 假设 ubs-comm 仓库包含 hcom 的实现
     FetchContent_Declare(
             ubs_comm
-            GIT_REPOSITORY https://gitee.com/openeuler/ubs-comm.git
+            GIT_REPOSITORY https://gitcode.com/openeuler/ubs-comm.git
             GIT_TAG master
     )
 
     set(HCOM_BUILD_TYPE "release" CACHE STRING "")
     set(HCOM_BUILD_UB ON CACHE BOOL "")
     set(HCOM_BUILD_HTRACER ON CACHE BOOL "")
+    set(BUILD_TESTS OFF)
 
     FetchContent_MakeAvailable(ubs_comm)
     # 获取 hcom 源码路径

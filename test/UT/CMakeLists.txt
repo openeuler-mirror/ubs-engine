@@ -100,7 +100,6 @@ if (SKIP_RUN_TESTS)
 endif ()
 
 add_custom_target(ut
-        COMMAND sudo setcap cap_chown,cap_dac_override,cap_fowner,cap_sys_ptrace,cap_sys_nice,cap_audit_write,cap_net_admin=ep "${CMAKE_BINARY_DIR}/bin/${UT_BINARY}"
         COMMAND bash -c "${RUN_TEST}"
         COMMENT "Run UT Tests: ${RUN_TEST}"
 )
