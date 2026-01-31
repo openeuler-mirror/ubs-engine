@@ -583,6 +583,7 @@ UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string 
     // 当前仅支持独享urmaInfo
     UbseUrmaInfo urmaInfo{.urmaDevEid = devEid, .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::UNKNOWN};
     if (lcneFe0.eidGroups.size() < 1 || lcneFe1.eidGroups.size() < 1) {
+        UBSE_LOG_ERROR << "eidGroups is empty";
         return UBSE_ERROR;
     }
     EidGroup group0{.primaryEid = lcneFe0.eidGroups[0].primaryEid,
@@ -597,7 +598,7 @@ UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string 
     if (nodeInfos.find(nodeId) == nodeInfos.end()) {
         nodeInfos[nodeId] = UbseUrmaNodeInfo{.nodeId = nodeId};
     }
-    UBSE_LOG_DEBUG << "Add urmaInfo for nodeId=" << nodeId << ", urmaName=" << urmaName << ", devEid=" << devEid
+    UBSE_LOG_INFO << "Add urmaInfo for nodeId=" << nodeId << ", urmaName=" << urmaName << ", devEid=" << devEid
                    << ", fe0's primaryEid=" << group0.primaryEid << ", fe1's primaryEid=" << group1.primaryEid;
     nodeInfos[nodeId].urmaList[urmaName] = urmaInfo;
     return UBSE_OK;
@@ -655,6 +656,7 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
         UbseLcneFeInfo &lcneFe1 = feInfos[ubpuEnd0 + i];
         std::string devEid;
         if (GenerateUrmaDevEid(lcneFe0, lcneFe1, devEid) != UBSE_OK || IsUrmaInfoExists(nodeId, devEid)) {
+            UBSE_LOG_INFO << "Skip constructing new urma info for nodeId=" << nodeId << ", devEid=" << devEid;
             continue;
         }
         if (CreateAndInsertUrmaInfo(nodeId, devEid, lcneFe0, lcneFe1) == UBSE_OK) {
