@@ -284,6 +284,7 @@ UbseResult DoQueryInfo(const std::string &dstId, uint64_t updateTimeStamp)
 
 void DoUpdateUrmaInfo(const std::string &nodeId, uint64_t updateTimeStamp)
 {
+    UBSE_LOG_INFO << "Start to update urma info for nodeId=" << nodeId;
     try {
         std::thread th([nodeId, updateTimeStamp]() {
             if (DoQueryInfo(nodeId, updateTimeStamp) == UBSE_OK) {
@@ -300,6 +301,7 @@ void DoUpdateUrmaInfo(const std::string &nodeId, uint64_t updateTimeStamp)
 UbseResult UbseUrmaNotifyMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
                                                 UbseComBaseMessageHandlerCtxPtr ctx)
 {
+    UBSE_LOG_INFO << "Receive urma notification, start to handle";
     AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         UBSE_LOG_INFO << "Urma controller is stopped, ignore msg";
@@ -535,6 +537,10 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
     // 异步通知各节点nodeInfo变化
     auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
     for (auto &node : allNodes) {
+        if (g_globalStop) {
+            UBSE_LOG_INFO << "Urma controller is stopped, ignore msg";
+            return UBSE_OK;
+        }
         auto nodeId = node.second.nodeId;
         if (auto ret = UbseUrmaAsyncNotifyUrmaInfoChange(nodeId); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to notify all nodes when urma info changes for nodeId=" << nodeId;
@@ -542,7 +548,6 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
             return ret;
         }
     }
-    
     rsp->SetErrCode(UBSE_OK);
     return UBSE_OK;
 }
@@ -559,6 +564,7 @@ uint16_t UbseUrmaReportUrmaNodeInfoMessageHandler::GetModuleCode()
 
 UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, UbseUrmaNodeInfo &nodeInfo)
 {
+    UBSE_LOG_INFO << "Report urma node info to master, nodeId=" << nodeId;
     // 向master节点上报本节点urma信息
     UbseUrmaReportUrmaNodeInfoReqSimpoPtr req = new (std::nothrow) UbseUrmaReportUrmaNodeInfoReqSimpo();
     UbseUrmaReportUrmaNodeInfoRspSimpoPtr rsp = new (std::nothrow) UbseUrmaReportUrmaNodeInfoRspSimpo();

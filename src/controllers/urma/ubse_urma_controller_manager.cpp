@@ -190,6 +190,10 @@ UbseResult UbseUrmaControllerManager::AllocByUrmaName(const std::string &urmaNam
         return UBSE_ERROR_NOT_EXIST;
     }
     auto info = nodeInfos[currentNodeInfo.nodeId].urmaList[urmaName];
+    if (info.state != UrmaDevState::ACTIVED) {
+        UBSE_LOG_WARN << "The urma is not actived, name=" << urmaName << ", cannot be allocated";
+        return UBSE_ERROR_NOT_SUPPORT;
+    }
     eid = info.urmaDevEid;
     feNames.push_back(info.subPath);
     for (auto &eidGroup : info.eidGroups) {
@@ -633,8 +637,8 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
         UBSE_LOG_ERROR << "Invalid feInfos, all fields must be convertible to uint32_t";
         return UBSE_ERROR_INVAL;
     }
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
     UBSE_LOG_INFO << "Begin to construct new bounding info for nodeId=" << nodeId;
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
     // 根据ubpuId和iouId将feInfos划分成若干连续的区域，取得每部分的结束下标
     std::vector<size_t> boundaries;
     if (FindAllUbpuBoundaries(feInfos, boundaries) != UBSE_OK) {

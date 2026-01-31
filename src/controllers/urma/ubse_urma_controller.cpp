@@ -36,7 +36,6 @@ using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
-
 const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
 const uint32_t BYTE_TO_BIT = 8;
@@ -303,6 +302,7 @@ void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::strin
 
 void UrmaController::DoNodeJoin(const std::string &joinNodeId)
 {
+    UBSE_LOG_INFO << "Node join, joinNodeId=" << joinNodeId;
     AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         return;
@@ -329,6 +329,7 @@ void UrmaController::DoNodeJoin(const std::string &joinNodeId)
         UBSE_LOG_ERROR << "Failed to get current node IOU list";
         return;
     }
+    UBSE_LOG_INFO << "Get current node VFE EID";
     for (auto &iou : iouList) {
         std::vector<UbseLcneFeInfo> tmpFeInfos;
         // 重试
@@ -365,6 +366,7 @@ UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::
         UBSE_LOG_ERROR << "Get task executor for urma failed";
         return UBSE_ERROR_NULLPTR;
     }
+    UBSE_LOG_INFO << "Start to do node join, eventMesage=" << eventMesage;
     urmaExecutor->Execute([eventMesage]() { return UrmaController::GetInstance().DoNodeJoin(eventMesage); });
     return UBSE_OK;
 }
@@ -384,7 +386,10 @@ UbseResult UrmaController::UbseAllocUrmaDev(const std::string urmaName, UbseUrma
 {
     std::vector<std::string> feNames;
     std::string eid;
-    UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid);
+    if (auto ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to alloc urma dev, ret=" << ret;
+        return ret;
+    }
     if (feNames.size() <= INDEX_NO_2) {
         UBSE_LOG_ERROR << "Failed to alloc for fe name size is less than 2";
         return UBSE_ERROR;
@@ -451,7 +456,7 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const 
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
                                                              std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
-        std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
+    std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
     if (ubseStaticNodeInfos.empty()) {
         UBSE_LOG_ERROR << "LoadConfig get allNodes failed.";
         return UBSE_ERROR;

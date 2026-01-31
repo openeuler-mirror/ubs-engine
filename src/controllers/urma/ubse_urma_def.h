@@ -136,6 +136,41 @@ struct UbseUrmaInfo {
     }
 };
 
+struct UrmaNameCompare {
+    static std::pair<bool, uint64_t> ExtractNumber(const std::string& s)
+    {
+        size_t numPos = s.find_last_of('_');
+        if (numPos == std::string::npos || numPos == s.length() - 1) {
+            return {false, 0};
+        }
+        std::string numStr = s.substr(numPos + 1);
+        if (numStr.empty()) {
+            return {false, 0};
+        }
+        try {
+            uint64_t num = std::stoull(numStr);
+            return {true, num};
+        } catch (...) {
+            return {false, 0};
+        }
+    }
+
+    bool operator()(const std::string& a, const std::string& b) const
+    {
+        auto [a_has_num, a_num] = ExtractNumber(a);
+        auto [b_has_num, b_num] = ExtractNumber(b);
+        // 如果都符合格式，按数字比较
+        if (a_has_num && b_has_num) {
+            if (a_num != b_num) {
+                return a_num < b_num;
+            }
+            // 数字相同，按整个字符串字典序排序
+            return a < b;
+        }
+        return a < b;
+    }
+};
+
 struct UbseUrmaNodeInfo {
     std::string nodeId;
     std::map<std::string, UbseUrmaInfo>
