@@ -19,6 +19,7 @@
 #include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_str_util.h"
+#include "ubse_urma_controller.h"
 #include "ubse_urma_uvs_module.h"
 
 namespace ubse::urmaController {
@@ -45,8 +46,6 @@ UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfoInternal(const std::str
         UBSE_LOG_ERROR << "Failed to get current node info";
         return UBSE_ERROR;
     }
-    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(
-        currentNodeInfo.nodeId); // 考虑到设备可能被删除，查询之前先尝试激活bonding设备
     if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
         return UBSE_ERROR_NOT_EXIST;
@@ -244,8 +243,6 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
     UbseRoleInfo currentNodeInfo{};
     UbseGetCurrentNodeInfo(currentNodeInfo);
     const size_t feCntPerUrmaInfo = NO_2;
-    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(
-        currentNodeInfo.nodeId); // 考虑到设备可能被删除，查询之前先尝试激活bonding设备
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
@@ -613,11 +610,6 @@ bool ValidateLcneFeInfo(const std::vector<std::vector<UbseLcneFeInfo>> &feInfos)
         }
     };
     auto checkOneFe = [&canConvertToUint32](const UbseLcneFeInfo &fe) -> bool {
-        if (fe.eidGroups.empty()) {
-            UBSE_LOG_INFO << "eidGroups is empty" << ", lcneFe's slotId=" << fe.slotId << ", ubpuId=" << fe.ubpuId
-                          << ", iouId=" << fe.iouId << ", entityId=" << fe.entityId;
-            return false;
-        }
         return canConvertToUint32(fe.slotId) && canConvertToUint32(fe.ubpuId) && canConvertToUint32(fe.iouId) &&
                canConvertToUint32(fe.entityId);
     };
@@ -830,7 +822,7 @@ std::vector<ubse::nodeController::PhysicalLink> UbseUrmaControllerManager::GetDi
     return allLinkInfo;
 }
 
-void UbseUrmaControllerManager::UrmaCtlActivateUrmaDevice(std::string &nodeId)
+void UbseUrmaControllerManager::UrmaCtlActivateUrmaDevice(std::string &nodeId, bool needRetry)
 {
     // 不能加manager的锁
     auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
@@ -842,11 +834,24 @@ void UbseUrmaControllerManager::UrmaCtlActivateUrmaDevice(std::string &nodeId)
     std::lock_guard<std::mutex> lock(uvsMutex);
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
-    auto ret = urmaModule->SetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(), uvsInfos);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
-        return;
+    if (needRetry) {
+        if (auto ret = CallFuncRetry([&]() {
+                return urmaModule->SetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
+                                              uvsInfos);
+            });
+            ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
+            return;
+        }
+    } else {
+        if (auto ret =
+                urmaModule->SetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(), uvsInfos);
+            ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
+            return;
+        }
     }
+
     for (auto &devInfo : uvsInfos) {
         if (g_globalStop) {
             break;

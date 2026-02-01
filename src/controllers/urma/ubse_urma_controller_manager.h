@@ -90,7 +90,7 @@ public:
     static std::string GetVfeInfoKey(const UbseFeInfo &info);
     static std::string GetVfeInfoKey(const UbseLcneFeInfo &info);
     static std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
-    void UrmaCtlActivateUrmaDevice(std::string &nodeId);
+    void UrmaCtlActivateUrmaDevice(std::string &nodeId, bool needRetry = false);
     std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
     uint64_t GetUrmaUpdateTimeStamp(const std::string &nodeId);
 

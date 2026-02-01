@@ -275,7 +275,7 @@ UbseResult DoQueryInfo(const std::string &dstId, uint64_t updateTimeStamp)
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
         return UBSE_OK;
     }
-    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId);
+    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId, true);
     // 初始化带宽模板，可重复调用
     UbseUrmaBandwidthInit(curNode.nodeId);
     UBSE_LOG_INFO << "End to query urma info of nodeId=" << dstId;
@@ -527,7 +527,7 @@ UbseResult UbseUrmaReportUrmaNodeInfoMessageHandler::Handle(const UbseBaseMessag
     auto changeNodeId = nodeInfoReq.nodeId;
     auto &nodeInfo = nodeInfoReq.urmaNodeInfo;
     if (changeNodeId.empty() || nodeInfo.nodeId.empty()) {
-        UBSE_LOG_ERROR << "node id is empty";
+        UBSE_LOG_ERROR << "node id is empty, changeNodeId=" << changeNodeId << ", nodeId=" << nodeInfo.nodeId;
         rsp->SetErrCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
