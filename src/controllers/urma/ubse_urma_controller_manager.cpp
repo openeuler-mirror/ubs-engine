@@ -370,7 +370,6 @@ UbseResult UbseUrmaControllerManager::GenerateUrmaDevEid(const uint32_t superNod
     ret |= memcpy_s(bondingEid + segmentLength * copyCnt++, segmentLength, &slotId, segmentLength);
     ret |= memcpy_s(bondingEid + segmentLength * copyCnt++, segmentLength, &fe0Id, segmentLength);
     ret |= memcpy_s(bondingEid + segmentLength * copyCnt++, segmentLength, &fe1Id, segmentLength);
-
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Failed to generate bonding eid, ret=" << ret;
         return UBSE_ERROR;
