@@ -137,7 +137,7 @@ struct UbseUrmaInfo {
 };
 
 struct UrmaNameCompare {
-    static std::pair<bool, uint64_t> ExtractNumber(const std::string& s)
+    static std::pair<bool, uint64_t> ExtractNumber(const std::string &s)
     {
         size_t numPos = s.find_last_of('_');
         if (numPos == std::string::npos || numPos == s.length() - 1) {
@@ -155,7 +155,7 @@ struct UrmaNameCompare {
         }
     }
 
-    bool operator()(const std::string& a, const std::string& b) const
+    bool operator()(const std::string &a, const std::string &b) const
     {
         auto [a_has_num, a_num] = ExtractNumber(a);
         auto [b_has_num, b_num] = ExtractNumber(b);
@@ -173,7 +173,7 @@ struct UrmaNameCompare {
 
 struct UbseUrmaNodeInfo {
     std::string nodeId;
-    std::map<std::string, UbseUrmaInfo>
+    std::map<std::string, UbseUrmaInfo, UrmaNameCompare>
         urmaList;                // <urmaName, urmaInfo>，urmaName (urma_urmaId)是对北向唯一标识，由ubse生成
     uint64_t updateTimeStamp{0}; // 表示节点信息的更新序号，用于判断当前的是否为最新
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,

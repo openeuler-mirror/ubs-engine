@@ -323,7 +323,7 @@ void UrmaController::DoNodeJoin(const std::string &joinNodeId)
     });
     // 向mti查询本节点所有vfe对应静态urma eid
     std::vector<UbseLcneIouInfo> iouList;
-    std::vector<UbseLcneFeInfo> allFeInfos;
+    std::vector<std::vector<UbseLcneFeInfo>> allFeInfos; // allFeInfos[i] 表示第i个iou上的fe信息
     if (CallFuncRetry([&]() { return UbseNodeComUrmaCollector::GetInstance().GetCurNodeIouList(iouList); }) !=
         UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node IOU list";
@@ -337,7 +337,7 @@ void UrmaController::DoNodeJoin(const std::string &joinNodeId)
             UBSE_LOG_ERROR << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
             return;
         }
-        allFeInfos.insert(allFeInfos.end(), tmpFeInfos.begin(), tmpFeInfos.end());
+        allFeInfos.emplace_back(tmpFeInfos);
     }
 
     if (UbseUrmaControllerManager::GetInstance().ConstructNewUrmaInfo(curNode.nodeId, allFeInfos) != UBSE_OK) {

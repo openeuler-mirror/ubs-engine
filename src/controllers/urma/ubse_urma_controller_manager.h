@@ -61,15 +61,15 @@ public:
     }
     // 通过RPC通信获取其余节点的nodeInfo后，通过此方法存储
     void InsertNewNodeInfo(const std::string &nodeId, UbseUrmaNodeInfo &insertNodeInfo);
-    UbseResult ConstructNewUrmaInfo(
-        const std::string &nodeId,
-        std::vector<UbseLcneFeInfo> &feInfos); // 更新对应节点的fe信息，计算出urmaInfo设备信息
-    UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<UbseLcneFeInfo> &&feInfos);
+    // 更新对应节点的fe信息，计算出urmaInfo设备信息
+    UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseLcneFeInfo>> &feInfos);
+    UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseLcneFeInfo>> &&feInfos);
     UbseResult GetFeInfoByNodeId(const std::string &nodeId, std::vector<UbseFeInfo> &feInfos);
     bool IsUrmaInfoExists(const std::string &nodeId);
     bool IsUrmaInfoExists(const std::string &nodeId, const std::string &devEid); // 本节点是否包含指定eid的urmaInfo
     std::vector<std::string> GetEmptyNodeInfo();
     void SetActiveState(const std::string &urmaDevEid, const std::string &nodeId);
+    void SetInactiveState(const std::string &urmaDevEid, const std::string &nodeId);
     UbseResult GetUrmaNameByType(const UrmaDevType type, std::vector<std::string> &urmaInfoName,
                                  std::vector<uint32_t> &status);
     void GetUrmaNameForQueryByType(const UrmaDevType type, std::vector<UbseUrmaInfoForQuery> &devInfos);
@@ -95,14 +95,14 @@ public:
     uint64_t GetUrmaUpdateTimeStamp(const std::string &nodeId);
 
 private:
-    UbseResult CreateAndInsertUrmaInfo(const std::string &nodeId, const std::string &devEid, UbseLcneFeInfo &lcneFe0,
-                                       UbseLcneFeInfo &lcneFe1);
-
-    UbseResult GenerateUrmaDevEid(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1, std::string &devEid);
+    UbseResult CreateAndInsertUrmaInfo(const std::string &nodeId, UbseLcneFeInfo &lcneFe0, UbseLcneFeInfo &lcneFe1);
+    UbseResult GenerateUrmaDevEid(const uint32_t superNodeId, const uint32_t slotId, const uint32_t fe0Id,
+                                  const uint32_t fe1Id, std::string &devEid);
     uint32_t GenerateUniqueFeId();
     uint64_t GenerateUrmaId();
     void PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo);
     UbseResult GetLocalUrmaDevInfoInternal(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
+    bool IsLcneFeUsed(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1);
 
 private:
     utils::ReadWriteLock rwLock;
