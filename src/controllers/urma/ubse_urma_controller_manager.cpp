@@ -835,7 +835,7 @@ void UbseUrmaControllerManager::UrmaCtlActivateUrmaDevice(std::string &nodeId, b
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
     if (needRetry) {
-        if (auto ret = CallFuncRetry([&]() {
+        if (auto ret = CallFuncRetry([&urmaModule, &nodeId, &uvsInfos]() {
                 return urmaModule->SetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
                                               uvsInfos);
             });
