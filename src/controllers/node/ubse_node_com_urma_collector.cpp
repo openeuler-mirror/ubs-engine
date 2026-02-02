@@ -30,6 +30,7 @@ UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 
 UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
 {
+    comUrmaInfos.clear();
     auto lcneModule = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (lcneModule == nullptr) {
         UBSE_LOG_ERROR << "Get lcne module failed. ";
