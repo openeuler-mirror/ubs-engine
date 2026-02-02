@@ -214,6 +214,16 @@ public:
         return *this;
     }
 
+    template <typename T_KEY, typename T_VAL, typename T_CMP>
+    UbseSerialization &operator << (const std::map<T_KEY, T_VAL, T_CMP> &map)
+    {
+        *this << array_len_insert(map.size());
+        for (auto &element : map) {
+            *this << element.first << element.second;
+        }
+        return *this;
+    }
+
     UbseSerialization &operator << (const std::string &str);
 
     UbseSerialization &operator << (std::string &&str);
@@ -361,6 +371,19 @@ public:
     }
 
     template <typename T_KEY, typename T_VAL> UbseDeSerialization &operator >> (std::map<T_KEY, T_VAL> &map)
+    {
+        uint64_t len;
+        *this >> array_len_capture(len);
+        for (uint64_t i = 0; i < len; i++) {
+            T_KEY key;
+            *this >> key;
+            *this >> map[key];
+        }
+        return *this;
+    }
+
+    template <typename T_KEY, typename T_VAL, typename T_CMP>
+    UbseDeSerialization &operator >> (std::map<T_KEY, T_VAL, T_CMP> &map)
     {
         uint64_t len;
         *this >> array_len_capture(len);

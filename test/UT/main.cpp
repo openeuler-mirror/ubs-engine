@@ -137,7 +137,7 @@ void SignalHandlerWithContext(int sig, siginfo_t *info, void *context)
 {
     if (context) {
         const auto *uc = reinterpret_cast<ucontext_t *>(context);
-        PrintBackTrace(uc);
+        PrintBacktrace(uc);
     }
 
     _exit(128 + sig);
