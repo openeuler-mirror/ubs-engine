@@ -685,6 +685,13 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
     for (size_t i = 0; i < maxBoundingCnt; ++i) {
         UbseLcneFeInfo &lcneFe0 = feInfos[0][i];
         UbseLcneFeInfo &lcneFe1 = feInfos[1][i];
+        if (lcneFe0.eidGroups.empty() || lcneFe1.eidGroups.empty()) {
+            UBSE_LOG_WARN << "Eid group is empty, skip it, fe0 info: slotId=" << lcneFe0.slotId
+                          << ", ubpuId=" << lcneFe0.ubpuId << ", eid group size=" << lcneFe0.eidGroups.size()
+                          << ", fe1 info: slotId=" << lcneFe1.slotId << ", ubpuId=" << lcneFe1.ubpuId
+                          << ", eid group size=" << lcneFe1.eidGroups.size();
+            continue;
+        }
         if (IsLcneFeUsed(lcneFe0, lcneFe1)) {
             UBSE_LOG_INFO << "LcneFe is used, skip it, fe0 info: slotId=" << lcneFe0.slotId
                           << ", ubpuId=" << lcneFe0.ubpuId;
