@@ -86,7 +86,7 @@ UbseResult UbseNodeControllerAgent::Initialize()
     }
 
     // 创建任务执行器
-    taskExecutor_ = UbseTaskExecutor::Create("UbseNodeAgent", NO_1, NO_1024);
+    taskExecutor_ = UbseTaskExecutor::Create("UbseNodeAgent", NO_2, NO_1024);
     if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
         UBSE_LOG_ERROR << "Create agent task executor failed";
         return UBSE_ERROR_NULLPTR;
@@ -162,10 +162,14 @@ UbseResult UbseNodeControllerAgent::UbseNodeInfoReportTimerHandler()
 
 UbseResult UbseNodeControllerAgent::Start()
 {
-    auto ret = SetUrmaUvs(true);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SetUrmaUvs failed: " << FormatRetCode(ret);
-        return ret;
+    while (!g_globalStop.load()) {
+        auto ret = SetUrmaUvs(true);
+        if (ret == UBSE_OK) {
+            UBSE_LOG_INFO << "set urma uvs successfully";
+            break;
+        }
+        UBSE_LOG_ERROR << "set urma uvs_set_topo_info failed, will retry 3s later";
+        sleep(NO_3);
     }
 
     taskExecutor_->Execute([this]() -> void {
@@ -416,8 +420,7 @@ UbseResult nodeChangeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
     }
     auto ret = SetUrmaUvs(false);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SetUrmaUvs failed: " << FormatRetCode(ret);
-        return CreateErrorResponse(ret, resp);
+        UBSE_LOG_WARN << "SetUrmaUvs failed: " << FormatRetCode(ret);
     }
 
     if (action == UBSE_EVENT_NODE_TOPO_LINK_CHANGE || action == UBSE_EVENT_NODE_JOIN) {
@@ -595,8 +598,7 @@ UbseResult SetUrmaUvs(bool isBeforeElection = false)
     } else {
         std::map<std::string, PhysicalLink> connectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
         if (connectInfo.empty()) {
-            UBSE_LOG_ERROR << "get cur node topo failed";
-            return UBSE_ERROR;
+            UBSE_LOG_WARN << "get cur node link size = 0";
         }
         for (const auto &entry : connectInfo) {
             links.push_back(entry.second);
