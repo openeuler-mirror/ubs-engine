@@ -267,20 +267,8 @@ void UrmaController::DoTopoLinkChange()
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
         return;
     }
-    // 下发所有节点拓扑及所有urmaInfo
-    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-    UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
-    auto uvsModule = ubse::context::UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
-    if (auto ret = CallFuncRetry([&uvsModule, &curNode, &uvsInfos, this]() {
-            return uvsModule->SetUvsInfo(curNode.nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
-                                         uvsInfos);
-        });
-        ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
-        return;
-    }
-    // 下发成功后修改状态为ACTIVATE
-    UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToActiveForNode(curNode.nodeId);
+    // 下发所有节点拓扑及所有urmaInfo，尝试恢复bonding 状态
+    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId);
 }
 
 void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::string &joinNodeId)

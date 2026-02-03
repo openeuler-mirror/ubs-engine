@@ -216,6 +216,7 @@ void UbseUrmaControllerManager::SetActiveState(const std::string &urmaDevEid, co
     }
     for (auto &info : nodeInfos[nodeId].urmaList) {
         if (info.second.urmaDevEid == urmaDevEid) {
+            UBSE_LOG_INFO << "Success to set urma active, name=" << info.first;
             info.second.state = UrmaDevState::ACTIVED;
             break;
         }
@@ -292,6 +293,7 @@ UbseResult UbseUrmaControllerManager::GetAllUvsInfo(std::vector<UbseUrmaUvsNodeI
         UBSE_LOG_ERROR << "Get all com urma info failed.";
         return UBSE_ERROR;
     }
+
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     for (auto &nodeInfo : nodeInfos) {
         UbseUrmaUvsNodeInfo tmpUvsInfo{};
@@ -752,7 +754,6 @@ void UrmaCtlActivateOneUrmaDevice(UbseUrmaUvsNodeInfo &devInfo)
         return;
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    // 当一个urma被激活，且所有的vfe 均设置名字成功时，记录激活的设备
     for (auto &dev : devInfo.devList) {
         if (g_globalStop) {
             break;
@@ -832,33 +833,28 @@ std::vector<ubse::nodeController::PhysicalLink> UbseUrmaControllerManager::GetDi
 void UbseUrmaControllerManager::UrmaCtlActivateUrmaDevice(std::string &nodeId, bool needRetry)
 {
     // 不能加manager的锁
-    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
-    if (urmaModule == nullptr) {
-        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
-        return;
-    }
-    static std::mutex uvsMutex; // 加锁避免多线程下发造成竞态条件
-    std::lock_guard<std::mutex> lock(uvsMutex);
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
     if (needRetry) {
-        if (auto ret = CallFuncRetry([&urmaModule, &nodeId, &uvsInfos]() {
-                return urmaModule->SetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
-                                              uvsInfos);
+        if (auto ret = CallFuncRetry([&nodeId, &uvsInfos]() {
+                return UrmaControllerSetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
+                                                uvsInfos);
             });
             ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
             return;
         }
     } else {
-        if (auto ret =
-                urmaModule->SetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(), uvsInfos);
+        if (auto ret = UrmaControllerSetUvsInfo(nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
+                                                uvsInfos);
             ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
             return;
         }
     }
 
+    static std::mutex activeteMutex;
+    std::lock_guard<std::mutex> lock(activeteMutex);
     for (auto &devInfo : uvsInfos) {
         if (g_globalStop) {
             break;
@@ -877,5 +873,18 @@ UbseUrmaNodeInfo UbseUrmaControllerManager::GetUrmaNodeInfo(const std::string &n
         nodeInfos[nodeId].nodeId = nodeId;
     }
     return nodeInfos[nodeId];
+}
+
+UbseResult UrmaControllerSetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
+                                    const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
+{
+    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
+    if (urmaModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
+        return UBSE_ERROR;
+    }
+    static std::mutex setUvsInfoMutex; // 加锁避免多线程下发造成竞态条件
+    std::lock_guard<std::mutex> lock(setUvsInfoMutex);
+    return urmaModule->SetUvsInfo(current_slot_id, allLinkInfo, bondingInfo);
 }
 } // namespace ubse::urmaController

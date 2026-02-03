@@ -111,6 +111,9 @@ private:
     std::atomic<uint64_t> globalUrmaId{0};     // 节点内唯一的urmaId生成器
     std::map<std::string, uint32_t> feIdMap{}; // <feKey, feId>
 };
+
+UbseResult UrmaControllerSetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
+                                    const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
 } // namespace ubse::urmaController
 
 #endif // UBSE_URMA_CONTROLLER_MANAGER_H
