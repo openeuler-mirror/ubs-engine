@@ -46,7 +46,7 @@ TEST_F(TestUbseLcneNodeInfo, ParseIODieInfoQueryAllResponseSuccess)
       <upi>0x0003</upi>
       <primary-cna>0x0085a7</primary-cna>
       <ubpu-type>CPU</ubpu-type>
-      <die-status>normal</die-status>
+      <iou-status>normal</iou-status>
     </iou-info>
   </iou-infos>
 </vbussw-service>)";
