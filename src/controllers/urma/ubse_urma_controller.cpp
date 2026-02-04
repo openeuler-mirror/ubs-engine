@@ -267,7 +267,25 @@ void UrmaController::DoTopoLinkChange()
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
         return;
     }
-    // 下发所有节点拓扑及所有urmaInfo，尝试恢复bonding 状态
+    // 向urma重新查询bounding状态，并更新状态
+    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
+    if (urmaModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
+        return;
+    }
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+    for (auto &urmaInfo : nodeInfo.urmaList) {
+        auto urmaEid = urmaInfo.second.urmaDevEid;
+        bool isUrmaActive = false;
+        if (urmaModule->GetStateByUrmaEid(urmaEid, isUrmaActive) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to get urma state by urmaEid=" << urmaEid;
+            continue;
+        }
+        if (isUrmaActive) {
+            UbseUrmaControllerManager::GetInstance().SetActiveState(urmaEid, curNode.nodeId);
+        }
+    }
+    
     UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId);
 }
 
