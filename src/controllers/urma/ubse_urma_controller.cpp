@@ -270,17 +270,34 @@ void UrmaController::DoTopoLinkChange()
     // 下发所有节点拓扑及所有urmaInfo
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
-    auto uvsModule = ubse::context::UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
-    if (auto ret = CallFuncRetry([&uvsModule, &curNode, &uvsInfos, this]() {
-            return uvsModule->SetUvsInfo(curNode.nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
-                                         uvsInfos);
+    if (auto ret = CallFuncRetry([&curNode, &uvsInfos, this]() {
+            return UrmaControllerSetUvsInfo(curNode.nodeId,
+                                            UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(), uvsInfos);
         });
         ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
         return;
     }
-    // 下发成功后修改状态为ACTIVATE
-    UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToActiveForNode(curNode.nodeId);
+    // 向urma重新查询bounding状态，并更新状态
+    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
+    if (urmaModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
+        return;
+    }
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+    for (auto &urmaInfo : nodeInfo.urmaList) {
+        auto urmaEid = urmaInfo.second.urmaDevEid;
+        bool isUrmaActive = false;
+        if (urmaModule->GetStateByUrmaEid(urmaEid, isUrmaActive) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to get urma state by urmaEid=" << urmaEid;
+            continue;
+        }
+        if (isUrmaActive) {
+            UbseUrmaControllerManager::GetInstance().SetActiveState(urmaEid, curNode.nodeId);
+        }
+    }
+
+    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId);
 }
 
 void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::string &joinNodeId)
