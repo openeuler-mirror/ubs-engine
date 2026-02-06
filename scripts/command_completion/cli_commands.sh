@@ -44,7 +44,7 @@ function _ubse_commond_completion() {
                 return 0
             ;;
             'urma')
-                COMPREPLY=( $(compgen -W '--node -n' -- ${cur}) )
+                COMPREPLY=( $(compgen -W '--node -n --type -t' -- ${cur}) )
                 return 0
             ;;
             '*')
@@ -62,7 +62,7 @@ function _ubse_commond_completion() {
                         return 0
                     ;;
                     'urma')
-                        COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
+                        COMPREPLY=( $(compgen -W '--node --type' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -100,7 +100,7 @@ function _ubse_commond_completion() {
                         return 0
                     ;;
                     'urma')
-                        COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
+                        COMPREPLY=( $(compgen -W '-n -t' -- ${cur}) )
                         return 0
                     ;;
                     '*')
