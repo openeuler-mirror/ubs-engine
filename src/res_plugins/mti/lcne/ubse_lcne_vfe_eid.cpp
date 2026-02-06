@@ -25,6 +25,8 @@ using namespace ubse::http;
 using namespace ubse::mti;
 using namespace ubse::log;
 
+uint32_t CheckEidGroup(std::vector<UbseLcneEidGroup> &eidGroups, const std::string type, uint32_t portId);
+
 UbseResult UbseLcneVfeEid::GetVfeEid(UbseLcneIouInfo iouInfo, std::vector<UbseLcneFeInfo> &allFeInfos)
 {
     // 第一步先下发消息查询消息获取所有Vfe列表
@@ -88,6 +90,14 @@ UbseResult UbseLcneVfeEid::ParseGetFeListResponse(const std::string &responseStr
     }
     const auto ret = ubseXml->Parse();
     if (ret != UbseXmlError::OK) {
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Next("mue-ue-binding-infos") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-infos failed.";
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Next("mue-ue-binding-info") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse mue-ue-binding-infos failed.";
         return UBSE_ERROR;
     }
     if (ubseXml->Next("slot-id") == nullptr) {
@@ -159,6 +169,14 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
     if (ret != UbseXmlError::OK) {
         return UBSE_ERROR;
     }
+    if (ubseXml->Next("entity-urma-communication-infos") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-infos failed.";
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Next("entity-urma-communication-info") == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Xml parse entity-urma-communication-info failed.";
+        return UBSE_ERROR;
+    }
     if (ubseXml->Next("slot-id") == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
         return UBSE_ERROR;
@@ -202,7 +220,7 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
 UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseLcneFeInfo &feInfo)
 {
     uint32_t i = 0;
-    UbseLcneEidGroup eidGroup;
+    std::vector<UbseLcneEidGroup> eidGroups;
     while (ubseEidXml->Next("urma-communication-info", i) != nullptr) {
         if (ubseEidXml->Next("urma-eid") == nullptr) {
             i++;
@@ -220,7 +238,8 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
             } catch (const std::out_of_range &e) {
                 return UBSE_ERROR;
             }
-            eidGroup.primaryEid = eid;
+            auto n = CheckEidGroup(eidGroups, "port-group-id", portId);
+            eidGroups[n].primaryEid = eid;
             ubseEidXml->Previous();
         } else if (ubseEidXml->Next("interface-name") != nullptr) {
             std::string interfaceName = ubseEidXml->Text();
@@ -229,7 +248,8 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
             if (ret != UBSE_OK) {
                 return ret;
             }
-            eidGroup.portEids.insert({std::to_string(portId), eid});
+            auto n = CheckEidGroup(eidGroups, "interface-name", portId);
+            eidGroups[n].portEids[std::to_string(portId)] = eid;
             ubseEidXml->Previous();
         } else {
             return UBSE_ERROR;
@@ -237,7 +257,7 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
         i++;
         ubseEidXml->Previous();
     }
-    feInfo.eidGroups.emplace_back(eidGroup);
+    feInfo.eidGroups= std::move(eidGroups);
     return UBSE_OK;
 }
 
@@ -269,5 +289,24 @@ UbseResult UbseLcneVfeEid::GetPortIdFromInterfaceName(std::string intfaceName, u
         return UBSE_OK;
     }
     return UBSE_ERROR;
+}
+
+uint32_t CheckEidGroup(std::vector<UbseLcneEidGroup> &eidGroups, const std::string type, uint32_t portId)
+{
+    auto group_size = eidGroups.size();
+    uint32_t i = 0;
+    for (i = 0; i < group_size; i++) {
+        if (type == "port-group-id") {
+            if (eidGroups[i].primaryEid.empty()) {
+                return i;
+            }
+        } else if (type == "interface-name") {
+            if (eidGroups[i].portEids.find(std::to_string(portId)) == eidGroups[i].portEids.end()) {
+                return i;
+            }
+        }
+    }
+    eidGroups.push_back(UbseLcneEidGroup{});
+    return i;
 }
 } // namespace ubse::lcne

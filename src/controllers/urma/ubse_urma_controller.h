@@ -64,8 +64,8 @@ UbseResult CallFuncRetry(Func func, Args &&...args)
 {
     static_assert(std::is_invocable_r_v<UbseResult, Func, Args...>,
                   "Func must be callable with the provided arguments and return UbseResult");
-    const int retryCount = 5;
-    const int sleepSecondPerTry = 1;
+    const int retryCount = 60;
+    const int sleepSecondPerTry = 3;
     UbseResult ret = UBSE_OK;
     for (int i = 0; i < retryCount; ++i) {
         ret = func(std::forward<Args>(args)...);

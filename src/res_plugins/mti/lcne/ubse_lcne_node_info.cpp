@@ -67,7 +67,7 @@ void ParseIODieInfo(const std::shared_ptr<UbseXml> &ubseXml, UbseLcneIODieInfo &
     ubseLcneIODieInfo.upi = ubseXml->Child("upi")->Text();
     ubseLcneIODieInfo.primaryCna = ubseXml->Child("primary-cna")->Text();
     ubseLcneIODieInfo.chipType = StringToDevType(ubseXml->Child("ubpu-type")->Text());
-    ubseLcneIODieInfo.chipStatus = DevStatus::normal;
+    ubseLcneIODieInfo.chipStatusStr = ubseXml->Child("iou-status")->Text();
 }
 
 std::string UbseLcneIODieInfoMapToString(const UbseLcneIODieInfoMap &devMap)
@@ -109,6 +109,12 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string &r
         DevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
         UbseLcneIODieInfo ubseLcneIODieInfo{};
         ParseIODieInfo(ubseXml, ubseLcneIODieInfo);
+        if (ubseLcneIODieInfo.chipStatusStr != "normal") {
+            UBSE_LOG_ERROR << "[MTI] iou-status is" << ubseLcneIODieInfo.chipStatusStr;
+            return UBSE_ERROR;
+        } else {
+            ubseLcneIODieInfo.chipStatus = DevStatus::normal;
+        }
         ubseLcneIODieInfoMap[devName] = ubseLcneIODieInfo;
         if (ubseXml->Previous() != UbseXmlError::OK) {
             UBSE_LOG_ERROR << "[MTI] Failed to find xml previous, " << FormatRetCode(UBSE_ERROR);

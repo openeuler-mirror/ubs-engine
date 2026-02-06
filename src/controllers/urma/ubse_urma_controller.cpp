@@ -36,7 +36,6 @@ using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_URMA_CONTROLLER_MID)
 
-
 const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
 const uint32_t BYTE_TO_BIT = 8;
@@ -271,17 +270,34 @@ void UrmaController::DoTopoLinkChange()
     // 下发所有节点拓扑及所有urmaInfo
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
-    auto uvsModule = ubse::context::UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
-    if (auto ret = CallFuncRetry([&uvsModule, &curNode, &uvsInfos, this]() {
-            return uvsModule->SetUvsInfo(curNode.nodeId, UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(),
-                                         uvsInfos);
+    if (auto ret = CallFuncRetry([&curNode, &uvsInfos, this]() {
+            return UrmaControllerSetUvsInfo(curNode.nodeId,
+                                            UbseUrmaControllerManager::GetInstance().GetDirConnectInfo(), uvsInfos);
         });
         ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to set uvs info, ret=" << ret;
         return;
     }
-    // 下发成功后修改状态为ACTIVATE
-    UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToActiveForNode(curNode.nodeId);
+    // 向urma重新查询bounding状态，并更新状态
+    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
+    if (urmaModule == nullptr) {
+        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
+        return;
+    }
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+    for (auto &urmaInfo : nodeInfo.urmaList) {
+        auto urmaEid = urmaInfo.second.urmaDevEid;
+        bool isUrmaActive = false;
+        if (urmaModule->GetStateByUrmaEid(urmaEid, isUrmaActive) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to get urma state by urmaEid=" << urmaEid;
+            continue;
+        }
+        if (isUrmaActive) {
+            UbseUrmaControllerManager::GetInstance().SetActiveState(urmaEid, curNode.nodeId);
+        }
+    }
+
+    UbseUrmaControllerManager::GetInstance().UrmaCtlActivateUrmaDevice(curNode.nodeId);
 }
 
 void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::string &joinNodeId)
@@ -303,6 +319,7 @@ void ReportUrmaNodeInfoToMasterWithRetry(UbseNodeInfo &curNode, const std::strin
 
 void UrmaController::DoNodeJoin(const std::string &joinNodeId)
 {
+    UBSE_LOG_INFO << "Node join, joinNodeId=" << joinNodeId;
     AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
         return;
@@ -323,12 +340,13 @@ void UrmaController::DoNodeJoin(const std::string &joinNodeId)
     });
     // 向mti查询本节点所有vfe对应静态urma eid
     std::vector<UbseLcneIouInfo> iouList;
-    std::vector<UbseLcneFeInfo> allFeInfos;
+    std::vector<std::vector<UbseLcneFeInfo>> allFeInfos; // allFeInfos[i] 表示第i个iou上的fe信息
     if (CallFuncRetry([&]() { return UbseNodeComUrmaCollector::GetInstance().GetCurNodeIouList(iouList); }) !=
         UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node IOU list";
         return;
     }
+    UBSE_LOG_INFO << "Get current node VFE EID";
     for (auto &iou : iouList) {
         std::vector<UbseLcneFeInfo> tmpFeInfos;
         // 重试
@@ -336,7 +354,7 @@ void UrmaController::DoNodeJoin(const std::string &joinNodeId)
             UBSE_LOG_ERROR << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
             return;
         }
-        allFeInfos.insert(allFeInfos.end(), tmpFeInfos.begin(), tmpFeInfos.end());
+        allFeInfos.emplace_back(tmpFeInfos);
     }
 
     if (UbseUrmaControllerManager::GetInstance().ConstructNewUrmaInfo(curNode.nodeId, allFeInfos) != UBSE_OK) {
@@ -365,6 +383,7 @@ UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::
         UBSE_LOG_ERROR << "Get task executor for urma failed";
         return UBSE_ERROR_NULLPTR;
     }
+    UBSE_LOG_INFO << "Start to do node join, eventMesage=" << eventMesage;
     urmaExecutor->Execute([eventMesage]() { return UrmaController::GetInstance().DoNodeJoin(eventMesage); });
     return UBSE_OK;
 }
@@ -384,7 +403,10 @@ UbseResult UrmaController::UbseAllocUrmaDev(const std::string urmaName, UbseUrma
 {
     std::vector<std::string> feNames;
     std::string eid;
-    UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid);
+    if (auto ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to alloc urma dev, ret=" << ret;
+        return ret;
+    }
     if (feNames.size() <= INDEX_NO_2) {
         UBSE_LOG_ERROR << "Failed to alloc for fe name size is less than 2";
         return UBSE_ERROR;

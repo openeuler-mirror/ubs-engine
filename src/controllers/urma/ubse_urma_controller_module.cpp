@@ -50,23 +50,6 @@ AsyncHandlerGuard::~AsyncHandlerGuard()
     guardCnt.fetch_sub(1, std::memory_order_relaxed);
 }
 
-UbseResult UbseUrmaControllerModule::Initialize()
-{
-    // 注册消息处理函数,监听 topo变化事件
-    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-    if (taskExecutor == nullptr) {
-        return UBSE_ERROR_NULLPTR;
-    }
-    auto ret = taskExecutor->Create("UrmaExecutor", NO_2, NO_128);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
-        return UBSE_ERROR_CONF_INVALID;
-    }
-    return ret;
-}
-
-void UbseUrmaControllerModule::UnInitialize() {}
-
 UbseResult RpcReg()
 {
     auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
@@ -117,21 +100,19 @@ UbseResult RpcReg()
     return UBSE_OK;
 }
 
-void DisconnectAllNormalLink()
+UbseResult UbseUrmaControllerModule::Initialize()
 {
-    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
-    if (comModule == nullptr) {
-        UBSE_LOG_WARN << "Failed to get com module";
-        return;
+    // 注册消息处理函数,监听 topo变化事件
+    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        return UBSE_ERROR_NULLPTR;
     }
-    auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &node : allNodes) {
-        comModule->RemoveChannel(node.second.nodeId, UbseChannelType::NORMAL);
+    auto ret = taskExecutor->Create("UrmaExecutor", NO_2, NO_128);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
+        return UBSE_ERROR_CONF_INVALID;
     }
-}
-UbseResult UbseUrmaControllerModule::Start()
-{
-    auto ret = UbseUrmaControllerApi::Register();
+    ret = UbseUrmaControllerApi::Register();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
         return ret;
@@ -153,20 +134,26 @@ UbseResult UbseUrmaControllerModule::Start()
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to Follow the event=" << nodeTopoLinkChangeEventId;
     }
-    // 创建任务执行器
-    auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
-    if (taskExecutorModule == nullptr) {
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
+    return ret;
+}
 
-    const uint16_t threadNum = 8;
-    const uint32_t queueCapacity = 1024;
-    ret = taskExecutorModule->Create(URMA_CONTROLLER_TASK, threadNum, queueCapacity);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Create urma controller task executor failed";
-        return ret;
-    }
+void UbseUrmaControllerModule::UnInitialize() {}
 
+void DisconnectAllNormalLink()
+{
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_WARN << "Failed to get com module";
+        return;
+    }
+    auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
+    for (const auto &node : allNodes) {
+        comModule->RemoveChannel(node.second.nodeId, UbseChannelType::NORMAL);
+    }
+}
+
+UbseResult UbseUrmaControllerModule::Start()
+{
     return UBSE_OK;
 }
 

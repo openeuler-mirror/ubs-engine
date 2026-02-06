@@ -30,7 +30,8 @@ UBSE_DEFINE_THIS_MODULE("ubse", UBSE_NODE_CONTROLLER_MID)
 
 UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
 {
-    auto lcneModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
+    comUrmaInfos.clear();
+    auto lcneModule = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (lcneModule == nullptr) {
         UBSE_LOG_ERROR << "Get lcne module failed. ";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
@@ -61,10 +62,10 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
 
 UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLinkInfo, bool isBeforeElection)
 {
-    auto urmaUvsModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
+    auto urmaUvsModule = UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
     if (urmaUvsModule == nullptr) {
         UBSE_LOG_ERROR << "Get urma_uvs module failed. ";
-        return UBSE_ERROR;
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     UbseNodeInfo ubseNodeInfo = UbseNodeController::GetInstance().GetCurNode();
     if (ubseNodeInfo.nodeId.empty()) {
@@ -109,10 +110,10 @@ UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaUvsNodeIn
 
 UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &allLinkInfo)
 {
-    auto lcneModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
+    auto lcneModule = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (lcneModule == nullptr) {
         UBSE_LOG_ERROR << "Get lcne module failed. ";
-        return UBSE_ERROR;
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
     DevTopology devTopology{};
@@ -156,10 +157,10 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
 
 UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseLcneIouInfo> &iouList)
 {
-    auto lcneModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
+    auto lcneModule = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (lcneModule == nullptr) {
         UBSE_LOG_ERROR << "Get lcne module failed. ";
-        return UBSE_ERROR;
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
     DevTopology devTopology{};

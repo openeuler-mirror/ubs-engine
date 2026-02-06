@@ -75,15 +75,40 @@ public:
 
     void Stop() override;
 
+    /**
+     * @brief 下发拓扑和聚合设备信息到urma_uvs
+     * @param [in] current_slot_id：当前节点ID
+     * @param [in] allLinkInfo：拓扑链路信息
+     * @param [in] bondingInfo：聚合设备信息
+     * @return 成功返回0, 失败返回非0
+     */
     UbseResult SetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
                           const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
-
+    /**
+     * @brief 下发信息到urma_uvs获取聚合设备名称，仅已激活设备可以获得名称
+     * @param [in] urmaEid：聚合设备Eid，表示为IPV6地址
+     * @param [out] urmaEidName：urma_uvs给聚合设备起的名称
+     * @return 成功返回0, 失败返回非0
+     */
     UbseResult GetNameByUrmaEid(const std::string &urmaEid, std::string &urmaEidName);
-
+    /**
+     * @brief 下发信息到urma_uvs获取聚合设备名称，仅已激活设备可以获得名称
+     * @param [in] urmaEid：聚合设备Eid，表示为IPV6地址
+     * @param [out] isactivate：聚合设备是否激活
+     * @return 成功返回0, 失败返回非0
+     */
     UbseResult GetStateByUrmaEid(const std::string &urmaEid, bool &isactivate);
-
+    /**
+     * @brief 下发信息到urma_uvs激活聚合设备
+     * @param [in] urmaEid：聚合设备Eid，表示为IPV6地址
+     * @return 成功返回0, 失败返回非0
+     */
     UbseResult ActivateBondingDevice(const std::string &urmaEid);
-
+    /**
+     * @brief 下发信息到urma_uvs取消激活聚合设备
+     * @param [in] urmaEid：聚合设备Eid，表示为IPV6地址
+     * @return 成功返回0, 失败返回非0
+     */
     UbseResult DeactivateBondingDevice(const std::string &urmaEid);
 
 private:

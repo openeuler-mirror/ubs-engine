@@ -79,6 +79,7 @@ uint32_t UbseHttpModule::HttpSend(const std::string &host, int port, UbseHttpReq
     for (auto &header : req.headers) {
         headerMap.emplace(header.first, header.second);
     }
+    cli.set_path_encode(false);
     httplib::Request httpReq{};
     httpReq.method = req.method;
     httpReq.path = req.path;

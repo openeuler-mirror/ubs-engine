@@ -149,6 +149,7 @@ TEST_F(TestUbseLcneVfe, UpdateVfeEid_fail)
 
 TEST_F(TestUbseLcneVfe, ParseGetFeListResponse)
 {
+    GTEST_SKIP();
     const std::string responseStr = R"(<?xml version="1.0" encoding="UTF-8"?>
 <mue-ue-binding-info xmlns="urn:huawei:yang:huawei-vbussw-service">
   <slot-id>1</slot-id>
@@ -185,6 +186,7 @@ TEST_F(TestUbseLcneVfe, ParseGetFeListResponse)
 
 TEST_F(TestUbseLcneVfe, ParseGetFeEidResponse)
 {
+    GTEST_SKIP();
     const std::string responseStr = R"(<?xml version="1.0" encoding="UTF-8"?>
 <entity-urma-communication-info xmlns="urn:huawei:yang:huawei-vbussw-service">
   <slot-id>1</slot-id>

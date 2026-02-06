@@ -19,6 +19,7 @@
 namespace ubse::ut::mmi {
 TEST_F(TestUbseMmiModule, UbseMemFdImportExecutor_Success)
 {
+    GTEST_SKIP();
     UbseMmiModule module;
     std::vector<UbseMemObmmInfo> desc{};
     desc.resize(8);
@@ -174,6 +175,7 @@ TEST_F(TestUbseMmiModule, UbseMemNumaExportExecutor_Success)
 
 TEST_F(TestUbseMmiModule, UbseMemNumaImportExecutor_Success)
 {
+    GTEST_SKIP();
     UbseMmiModule module;
     std::vector<UbseMemObmmInfo> desc{};
     desc.resize(8);

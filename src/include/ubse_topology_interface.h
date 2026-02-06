@@ -161,6 +161,7 @@ struct UbseLcneIODieInfo {
     std::string upi;             // IOdie的upi
     std::string primaryCna;      // IOdie的Cna
     DevType chipType;            // IOdie的设备的类型
+    std::string chipStatusStr;        // IOdie的状态
     DevStatus chipStatus;        // IOdie的状态
 };
 

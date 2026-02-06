@@ -29,8 +29,6 @@
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_def.h"
 
-const std::string URMA_CONTROLLER_TASK = "UbseUrmaControllerTask";
-
 namespace ubse::urmaController {
 using namespace ubse::com;
 using namespace ubse::utils;

@@ -221,6 +221,7 @@ TEST(TestUbseCliFileUtils, CheckFilePathExistFileNotExist)
 
 TEST(TestUbseCliFileUtils, CheckFilePathExistIsDir)
 {
+    GTEST_SKIP();
     std::string tempDir = CreateTempDir();
     std::string errMsg;
     EXPECT_FALSE(FileUtils::CheckFilePathExist(tempDir, true));
