@@ -460,8 +460,7 @@ void UbseComEngine::InitEngineOptions()
     hcomNetService->SetConnectLBPolicy(NET_ROUND_ROBIN);
     std::vector<std::string> ipMasks;
     if ((engineInfo.GetEngineType() == UbseEngineType::SERVER) &&
-        (engineInfo.GetProtocol() == UbseProtocol::TCP || engineInfo.GetProtocol() == UbseProtocol::HCCS ||
-         engineInfo.GetProtocol() == UbseProtocol::UBC)) {
+        (engineInfo.GetProtocol() == UbseProtocol::TCP || engineInfo.GetProtocol() == UbseProtocol::HCCS)) {
         ipMasks.push_back(engineInfo.GetIpInfo().first + "/24");
     } else {
         ipMasks.push_back(DEFAULT_DEVICE_IP_MASK);
