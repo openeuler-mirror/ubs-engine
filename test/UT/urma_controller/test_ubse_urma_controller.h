@@ -18,6 +18,8 @@
 #include <gmock/gmock.h>
 #include <mockcpp/mokc.h>
 
+#include "ubse_urma_def.h"
+
 namespace ubse::urmaController {
 extern std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
 }
