@@ -170,8 +170,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(
-    [[maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
+    [maybe_unused]] const std::map<std::string, std::string> &params)
 {
     auto urmaNode = params.find(URMA_NODE_OPT);
     if (urmaNode == params.end()) {
@@ -280,8 +280,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaPar
     return nullptr;  // 解析成功
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc(
-    [[maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc([
+    [maybe_unused]] const std::map<std::string, std::string> &params)
 {
     uint32_t nodeId{};
     uint32_t urmaType{};
@@ -326,8 +326,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     return UbseCliProcessUrmaDevInfoTable(ubse_de_serial, urmaSize);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(
-    [[maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc([
+    [maybe_unused]] const std::map<std::string, std::string> &params)
 {
     auto urmaNode = params.find(URMA_NODE_OPT);
     if (urmaNode == params.end()) {
