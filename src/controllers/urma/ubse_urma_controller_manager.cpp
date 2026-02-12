@@ -262,6 +262,7 @@ void UbseUrmaControllerManager::GetUrmaNameForQueryByType(const UrmaDevType type
                 urmaInfo.feNames.emplace_back(eidGroup.feInfo->name);
             }
             urmaInfo.state = info.second.state;
+            urmaInfo.devEid = info.second.urmaDevEid;
             urmaInfo.bondingType =info.second.urmaDevType;
             urmaInfo.qosProfile = info.second.urmaQosProfile;
             UBSE_LOG_DEBUG << "Found URMA info for query: " << urmaInfo.urmaName

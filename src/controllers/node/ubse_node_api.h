@@ -30,6 +30,7 @@ private:
     static uint32_t UbseServerNodeList(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t UbseServerCpuTopoList(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t UbseQueryClusterInfo(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t UbseQueryNodeInfo(const UbseIpcMessage &req, const UbseRequestContext &context);
 };
 } // namespace ubse::node::api
 #endif // USBE_NODE_API_H
