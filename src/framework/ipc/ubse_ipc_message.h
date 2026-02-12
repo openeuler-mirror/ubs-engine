@@ -15,7 +15,7 @@
 
 #include <cstdint>
 
-const uint32_t UBSE_MESSAGE_SIZE = 20 * 1024; // 最大消息长度 10k
+const uint32_t UBSE_MESSAGE_SIZE = 20 * 1024; // 最大消息长度 20k
 
 #pragma pack(push, 1) // Ensure byte-aligned packing for cross-platform compatibility
 
