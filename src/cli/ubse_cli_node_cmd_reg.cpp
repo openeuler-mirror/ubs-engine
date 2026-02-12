@@ -287,11 +287,15 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::ProcessNodeInfoResponse
         return UbseCliStringPromptReply(errorMsg);
     } else if (errorCode == UBSE_ERR_NODE_NOT_ACTIVE) {
         std::string nodeId = ExtractNodeId(node);
-        if (nodeId.empty()) nodeId = node;
+        if (nodeId.empty()) {
+            nodeId = node;
+        }
         errorMsg = "ERROR: Node " + nodeId + " is not active";
     } else if (errorCode == UBSE_ERR_NODE_NOT_RESPONDING) {
         std::string nodeId = ExtractNodeId(node);
-        if (nodeId.empty()) nodeId = node;
+          if (nodeId.empty()) {
+            nodeId = node;
+        }
         errorMsg = "ERROR: Node " + nodeId + " is not responding";
     } else {
         return UbseCliStringPromptReply("ERROR: Unknown error code " + std::to_string(errorCode));

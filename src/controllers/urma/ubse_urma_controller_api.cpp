@@ -357,7 +357,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     UbseSerialization ubse_req_serial;
     const auto urmaSize = static_cast<uint32_t>(urmaInfo.size());
     ubse_req_serial << urmaSize;
-    for (auto & i : urmaInfo) {
+    for (auto &i : urmaInfo) {
         const auto urmaState = static_cast<uint32_t>(i.state);
         const auto urmaType = static_cast<uint32_t>(i.bondingType);
         ubse_req_serial << i.urmaName << urmaType << i.devEid << i.feNames

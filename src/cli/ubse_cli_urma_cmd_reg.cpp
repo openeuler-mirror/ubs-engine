@@ -13,12 +13,13 @@
 #include "ubse_cli_urma_cmd_reg.h"
 #include <netinet/in.h>
 #include <securec.h>
+#include <sstream>
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_serial_util.h"
-#include <sstream>
+
 
 namespace ubse::cli::reg {
 UBSE_CLI_REGISTER_MODULE("CLI_URMA_MODULE", UbseCliRegUrmaModule);
@@ -101,7 +102,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
         std::vector<std::string> feNames;
         std::vector<std::string> feEids;
         uint32_t urmaStatus{};
-        std::string devEid{}
+        std::string devEid{};
         ubse_de_serial >> uramName >> urmaType >> devEid >>feNames >> feEids >> urmaStatus;
         if ((!ubse_de_serial.Check()) || (feNames.size() <= 1 || feEids.size() <= 1)) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
