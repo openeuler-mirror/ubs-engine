@@ -290,35 +290,78 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, con
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, uint32_t &urmaType,
+                                std::vector<std::string> &deviceNameList)
 {
+    uint32_t deviceListSize;
     if (req.buffer == nullptr) {
-        UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
+        UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request buffer is null.";
         return UBSE_ERROR_NULLPTR;
     }
     UbseDeSerialization out{req.buffer, req.length};
-    uint32_t nodeId;
-    uint32_t urmaType;
-
-    out >> nodeId >> urmaType;
+    out >> nodeId >> urmaType >> deviceListSize;
     if (!out.Check()) {
-        UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaDevGet deserialiazation fail";
+        UBSE_LOG_ERROR << "Failed to deserialize basic parameters (nodeId, urmaType, deviceListSize)";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
+    deviceNameList.clear();
+    deviceNameList.reserve(deviceListSize);
+    // 读取设备名称列表
+    for (uint32_t i = 0; i < deviceListSize; ++i) {
+        std::string deviceName;
+        out >> deviceName;
+        UBSE_LOG_INFO << "deviceName =" << deviceName;
+        if (!out.Check()) {
+            UBSE_LOG_ERROR << "Failed to deserialize device name at index " << i;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        deviceNameList.push_back(std::move(deviceName));
+    }
+    UBSE_LOG_INFO << "deviceListSize =" << deviceNameList.size();
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Deserialization check failed after reading all device names";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+{
+    uint32_t nodeId{};
+    uint32_t urmaTypeQuery{};
+    std::vector<std::string> deviceNameList;
+    // 反序列化
+    uint32_t ret = ParseUrmaDevGetRequest(req, nodeId, urmaTypeQuery, deviceNameList);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
     std::vector<UbseUrmaInfoForQuery> urmaInfo;
-    uint32_t ret = UrmaController::GetInstance().UbseGetUrmaDevInfoByNodeIdAndType(static_cast<UrmaDevType>(urmaType),
-                                                                                   nodeId, urmaInfo);
+    ret = UrmaController::GetInstance().UbseGetUrmaDevInfoByNodeIdAndType(static_cast<UrmaDevType>(urmaTypeQuery),
+                                                                          nodeId, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseGetUrmaDevInfoByNodeIdAndType failed," << FormatRetCode(ret);
         return ret;
     }
+    // 根据 deviceNameList 进行过滤
+    if (!deviceNameList.empty()) {
+        std::unordered_set<std::string> allowedDevices(deviceNameList.begin(), deviceNameList.end());
+        std::vector<UbseUrmaInfoForQuery> filtered;
+        filtered.reserve(urmaInfo.size());
+        for (const auto &info : urmaInfo) {
+            if (allowedDevices.find(info.urmaName) != allowedDevices.end()) {
+                filtered.push_back(info);
+            }
+        }
+        urmaInfo = std::move(filtered);
+    }
     UbseSerialization ubse_req_serial;
-    const uint32_t urmaSize = static_cast<uint32_t>(urmaInfo.size());
+    const auto urmaSize = static_cast<uint32_t>(urmaInfo.size());
     ubse_req_serial << urmaSize;
-    for (uint32_t i = 0; i < urmaInfo.size(); ++i) {
-        const uint32_t urmaState = static_cast<uint32_t>(urmaInfo[i].state);
-        const uint32_t urmaType = static_cast<uint32_t>(urmaInfo[i].bondingType);
-        ubse_req_serial << urmaInfo[i].urmaName << urmaType << urmaInfo[i].feNames << urmaInfo[i].feEids << urmaState;
+    for (auto & i : urmaInfo) {
+        const auto urmaState = static_cast<uint32_t>(i.state);
+        const auto urmaType = static_cast<uint32_t>(i.bondingType);
+        ubse_req_serial << i.urmaName << urmaType << i.devEid << i.feNames
+                        << i.feEids << urmaState;
     }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {

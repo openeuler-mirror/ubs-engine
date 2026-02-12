@@ -33,22 +33,23 @@ struct UbseUrmaInfoForQuery {
     std::string urmaName;
     std::vector<std::string> feNames;
     std::vector<std::string> feEids;
+    std::string devEid;
     UrmaDevType bondingType;
     UrmaDevState state;
     UrmaQosProfile qosProfile;
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfoForQuery &info)
     {
-        serializer << info.urmaName << info.feNames << ubse::serial::enum_v(info.bondingType)
-                   << ubse::serial::enum_v(info.state) << info.qosProfile;
+        serializer << info.urmaName << info.feNames << info.feEids << info.devEid 
+                   << ubse::serial::enum_v(info.bondingType) << ubse::serial::enum_v(info.state) << info.qosProfile;
         return serializer;
     }
 
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaInfoForQuery &info)
     {
-        deserializer >> info.urmaName >> info.feNames >> ubse::serial::enum_v(info.bondingType) >>
-            ubse::serial::enum_v(info.state) >> info.qosProfile;
+        deserializer >> info.urmaName >> info.feNames >> info.feEids >> info.devEid 
+                     >> ubse::serial::enum_v(info.bondingType) >> ubse::serial::enum_v(info.state) >> info.qosProfile;
         return deserializer;
     }
 };

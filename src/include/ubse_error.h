@@ -62,6 +62,10 @@
 #define UBSE_ERROR_NULL_INFO UBSE_COMMON_ERROR(19)           /* 业务信息为空 */
 #define UBSE_ERROR_NOT_SUPPORT UBSE_COMMON_ERROR(41)         /* 不支持的操作，当前错误码机制不完善，暂时和UBS对外值保持一样 */
 #define UBSE_ERROR_NOT_EXIST UBSE_COMMON_ERROR(1007)         /* 设备不存在，当前错误码机制不完善，暂时先定义 */
+#define UBSE_ERR_NODE_NOT_FOUND UBSE_COMMON_ERROR(1100)           /* 节点不存在 */
+#define UBSE_ERR_NODE_UNREACHABLE UBSE_COMMON_ERROR(1101)         /* 节点不可达 */
+#define UBSE_ERR_NODE_NOT_ACTIVE UBSE_COMMON_ERROR(1102)          /* 节点不活跃 */
+#define UBSE_ERR_NODE_NOT_RESPONDING UBSE_COMMON_ERROR(1103)      /* 节点无响应 */
 
 /* *************************************** */
 /* 各个模块MID定义                          */

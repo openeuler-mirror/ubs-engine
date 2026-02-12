@@ -11,8 +11,8 @@ function _ubse_commond_completion() {
     local cmd=${COMP_WORDS[COMP_CWORD-1]}
     local prev=${COMP_WORDS[COMP_CWORD-2]}
 
-    commands='display import delete check urma'
-    display_types='topo memory cluster urma'
+    commands='display import delete check urma node'
+    display_types='topo memory cluster urma node'
     check_types='memory'
 
     case "${cmd}" in
@@ -44,7 +44,7 @@ function _ubse_commond_completion() {
                 return 0
             ;;
             'urma')
-                COMPREPLY=( $(compgen -W '--node -n --type -t' -- ${cur}) )
+                COMPREPLY=( $(compgen -W '--node -n --type -t --dev -d' -- ${cur}) )
                 return 0
             ;;
             '*')
@@ -62,7 +62,7 @@ function _ubse_commond_completion() {
                         return 0
                     ;;
                     'urma')
-                        COMPREPLY=( $(compgen -W '--node --type' -- ${cur}) )
+                        COMPREPLY=( $(compgen -W '--node --type --dev' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -100,7 +100,7 @@ function _ubse_commond_completion() {
                         return 0
                     ;;
                     'urma')
-                        COMPREPLY=( $(compgen -W '-n -t' -- ${cur}) )
+                        COMPREPLY=( $(compgen -W '-n -t -d' -- ${cur}) )
                         return 0
                     ;;
                     '*')

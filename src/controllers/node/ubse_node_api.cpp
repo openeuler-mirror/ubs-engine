@@ -295,6 +295,231 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage &req, const Ubse
     return UBSE_OK;
 }
 
+uint32_t SendErrorResponse(uint32_t errorCode, uint32_t requestId, const std::string &errorMsg)
+{
+    UBSE_LOG_ERROR << errorMsg << ", error: " << FormatRetCode(errorCode);
+    auto ubseApiModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (ubseApiModule == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get api server module";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseIpcMessage errorResp{};
+    errorResp.buffer = nullptr;
+    errorResp.length = 0;
+    auto ret = ubseApiModule->SendResponse(errorCode, requestId, errorResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Send error response failed: " << FormatRetCode(ret);
+    }
+    return ret;
+}
+
+static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage &req, std::string &targetNodeId,
+                                             const UbseRequestContext &context)
+{
+    // 允许空请求（查询本地节点）
+    if (req.buffer != nullptr && req.length > 0) {
+        try {
+            serial::UbseDeSerialization inStream(req.buffer, req.length);
+            inStream >> targetNodeId;
+
+            if (!inStream.Check()) {
+                UBSE_LOG_ERROR << "Deserialize failed";
+                return SendErrorResponse(UBSE_ERROR_DESERIALIZE_FAILED, context.requestId, "Deserialize failed");
+            }
+        } catch (const std::exception &e) {
+            UBSE_LOG_ERROR << "Deserialize exception: " << e.what();
+            return SendErrorResponse(UBSE_ERROR_DESERIALIZE_FAILED, context.requestId, "Deserialize exception");
+        }
+    } else if (req.buffer == nullptr || req.length == 0) {
+        UBSE_LOG_INFO << "Empty request, will query local node";
+    } else {
+        UBSE_LOG_ERROR << "Invalid request state";
+        return SendErrorResponse(UBSE_ERROR_DESERIALIZE_FAILED, context.requestId, "Invalid request");
+    }
+    return UBSE_OK;
+}
+
+static uint32_t EnsureTargetNodeIdStrict(std::string &targetNodeId, const UbseRequestContext &context)
+{
+    if (!targetNodeId.empty()) {
+        UBSE_LOG_INFO << "Querying remote node: " << targetNodeId;
+        return UBSE_OK;
+    }
+
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "Election module not loaded";
+        return SendErrorResponse(UBSE_ERROR_NULLPTR, context.requestId, "Election module not loaded");
+    }
+
+    Node currentNode;
+    auto ret = module->GetCurrentNode(currentNode);
+    if (ret != UBSE_OK || currentNode.id.empty()) {
+        UBSE_LOG_ERROR << "Failed to get current node: " << ret;
+        return SendErrorResponse(ret, context.requestId, "Failed to get current node");
+    }
+
+    targetNodeId = currentNode.id;
+    UBSE_LOG_INFO << "Querying local node, ID: " << targetNodeId;
+    return UBSE_OK;
+}
+
+static bool FindTargetNodeStrict(const std::vector<UbseNodeInfo> &nodeList, const std::string &targetNodeId,
+                                 UbseNodeInfo &targetNode)
+{
+    // 将targetNodeId转换为uint32_t
+    uint32_t targetSlotId = 0;
+    try {
+        targetSlotId = static_cast<uint32_t>(std::stoul(targetNodeId));
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "Invalid targetNodeId format: " << targetNodeId << ", error: " << e.what();
+        return false;
+    }
+
+    for (const auto &node : nodeList) {
+        if (node.slotId == targetSlotId) {
+            targetNode = node;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool IsOnlineStrict(const UbseNodeInfo &node)
+{
+    return node.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+           node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING;
+}
+
+static void SerializeNodeNotFoundStrict(UbseSerialization &ubseSerial, const std::string &targetNodeId)
+{
+    uint32_t errorCode = UBSE_ERR_NODE_NOT_FOUND;
+    ubseSerial << errorCode;
+    ubseSerial << targetNodeId;
+    ubseSerial << "-";
+    ubseSerial << "";  // bonding-eid
+}
+
+static void SerializeNodeFoundStrict(UbseSerialization &ubseSerial, const UbseNodeInfo &targetNode,
+                                     const std::unordered_map<std::string, std::string> &roleMap,
+                                     std::string &nodeNameOut, std::string &roleStrOut)
+{
+    const bool isOnline = IsOnlineStrict(targetNode);
+
+    std::string slotIdStr = std::to_string(targetNode.slotId);
+    std::string nodeName = isOnline ? (targetNode.hostName + "(" + slotIdStr + ")") : ("-(" + slotIdStr + ")");
+    nodeNameOut = nodeName;
+
+    std::string roleStr = "-";
+    if (isOnline) {
+        auto it = roleMap.find(slotIdStr);
+        roleStr = (it != roleMap.end()) ? it->second : UBSE_ROLE_AGENT;
+    }
+    roleStrOut = roleStr;
+
+    std::string bondingEid = targetNode.bondingEid;
+
+    uint32_t errorCode = UBSE_OK;
+    if (!isOnline) {
+        if (targetNode.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
+            errorCode = UBSE_ERR_NODE_UNREACHABLE;
+        } else if (targetNode.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
+            errorCode = UBSE_ERR_NODE_NOT_RESPONDING;
+        } else {
+            errorCode = UBSE_ERR_NODE_NOT_ACTIVE;
+        }
+    }
+
+    ubseSerial << errorCode;
+    ubseSerial << nodeName;
+    ubseSerial << roleStr;
+    ubseSerial << bondingEid;
+}
+
+static uint32_t CheckSerializationStrict(UbseSerialization &ubseSerial, const UbseRequestContext &context)
+{
+    if (!ubseSerial.Check()) {
+        UBSE_LOG_ERROR << "Serialization failed";
+        return SendErrorResponse(UBSE_ERROR_SERIALIZE_FAILED, context.requestId, "Serialization failed");
+    }
+    return UBSE_OK;
+}
+
+static uint32_t SendSerializedResponseStrict(UbseSerialization &ubseSerial, const UbseRequestContext &context)
+{
+    uint8_t *responseBuffer = ubseSerial.GetBuffer();
+    uint32_t responseLength = static_cast<uint32_t>(ubseSerial.GetLength());
+    if (responseBuffer == nullptr && responseLength > 0) {
+        UBSE_LOG_ERROR << "Buffer is null but length > 0";
+        return SendErrorResponse(UBSE_ERROR_SERIALIZE_FAILED, context.requestId, "Buffer allocation failed");
+    }
+
+    UbseIpcMessage res{responseBuffer, responseLength};
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "API server module not found";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    auto ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, res);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Send response failed: " << FormatRetCode(ret);
+    }
+
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeApi::UbseQueryNodeInfo(const UbseIpcMessage &req, const UbseRequestContext &context)
+{
+    UBSE_LOG_INFO << "UbseQueryNodeInfo START";
+    UBSE_LOG_INFO << "Request ID: " << context.requestId;
+
+    // 解析请求
+    std::string targetNodeId;
+    auto ret = ParseNodeIdFromRequestStrict(req, targetNodeId, context);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    // 确定 targetNodeId（必要时查 election）
+    ret = EnsureTargetNodeIdStrict(targetNodeId, context);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    // 获取节点列表 + roleMap
+    std::vector<UbseNodeInfo> nodeList;
+    UbseClusterList(nodeList);
+    std::unordered_map<std::string, std::string> roleMap = UbseGetRoleMap();
+
+    // 查找目标节点
+    UbseNodeInfo targetNode;
+    bool found = FindTargetNodeStrict(nodeList, targetNodeId, targetNode);
+
+    // 序列化响应
+    UbseSerialization ubseSerial;
+    if (!found) {
+        SerializeNodeNotFoundStrict(ubseSerial, targetNodeId);
+        UBSE_LOG_INFO << "Node not found: " << targetNodeId;
+    } else {
+        std::string nodeName;
+        std::string roleStr;
+        SerializeNodeFoundStrict(ubseSerial, targetNode, roleMap, nodeName, roleStr);
+        UBSE_LOG_INFO << "Found node: " << nodeName << ", role: " << roleStr;
+    }
+
+    ret = CheckSerializationStrict(ubseSerial, context);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    // 发送响应
+    ret = SendSerializedResponseStrict(ubseSerial, context);
+
+    UBSE_LOG_INFO << "UbseQueryNodeInfo END";
+    return ret;
+}
+
 UbseResult UbseNodeApi::Register()
 {
     auto ubse_api_server_module = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -308,6 +533,7 @@ UbseResult UbseNodeApi::Register()
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_NODE_LIST, UbseServerNodeList);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_NODE_CPU_TOPO_LIST, UbseServerCpuTopoList);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_CLUSTER_INFO, UbseQueryClusterInfo);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_NODE_CLI_NODE_INFO, UbseQueryNodeInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of TopoInfoQuery IPC-API failed," << FormatRetCode(ret);
         return ret;
