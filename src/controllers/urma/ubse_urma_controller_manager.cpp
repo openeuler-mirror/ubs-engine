@@ -606,8 +606,8 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
     for (auto &feInfo : feInfos) {
         std::sort(feInfo.begin(), feInfo.end(), UbseFeInfoCmp());
         for (auto &fe : feInfo) {
-            UBSE_LOG_INFO << "Fe info: slotId=" << fe.slotId << ", ubpuId=" << fe.ubpuId << ", iouId=" << fe.iouId
-                          << ", entityId=" << fe.entityId;
+            UBSE_LOG_DEBUG << "Fe info: slotId=" << fe.slotId << ", ubpuId=" << fe.ubpuId << ", iouId=" << fe.iouId
+                          << ", entityId=" << fe.entityId << ", eid group size=" << fe.eidGroups.size();
         }
     }
     UBSE_LOG_INFO << "Begin to construct new bounding info for nodeId=" << nodeId;
