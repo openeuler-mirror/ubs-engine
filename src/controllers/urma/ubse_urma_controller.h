@@ -47,34 +47,26 @@ public:
 
     UbseResult UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
                                                  std::vector<UbseUrmaInfoForQuery> &devInfos);
+    UbseResult UbseUrmaCliDevActivate(const std::string &nodeId);
 
     static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMesage);
     static UbseResult UbseNodeJoinHandler(std::string &eventId, const std::string &eventMesage);
 
 private:
-    void DoNodeJoin(const std::string &joinNodeId);
-    void DoTopoLinkChange();
+    UbseResult DoNodeJoin(const std::string &joinNodeId);
+    UbseResult HandleNodeJoinWithRetry(const std::string &joinNodeId);
+    UbseResult HandleTopoLinkChangeWithRetry();
+    UbseResult DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
     UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const UrmaDevType type,
                                       std::vector<UbseUrmaInfoForQuery> &urmaInfo);
 };
 
-template <typename Func, typename... Args>
-UbseResult CallFuncRetry(Func func, Args &&...args)
-{
-    static_assert(std::is_invocable_r_v<UbseResult, Func, Args...>,
-                  "Func must be callable with the provided arguments and return UbseResult");
-    const int retryCount = 60;
-    const int sleepSecondPerTry = 3;
-    UbseResult ret = UBSE_OK;
-    for (int i = 0; i < retryCount; ++i) {
-        ret = func(std::forward<Args>(args)...);
-        if (ret == UBSE_OK || ubse::context::g_globalStop) {
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::seconds(sleepSecondPerTry));
-    }
-    return ret;
-}
+std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
+UbseResult UrmaControllerSetUvsInfo(const std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
+                                    const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
+UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId);
+UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId);
+UbseResult QueryAllPortsStatus(bool &isAllPortDown);
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H

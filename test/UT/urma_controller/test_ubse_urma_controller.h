@@ -18,6 +18,9 @@
 #include <gmock/gmock.h>
 #include <mockcpp/mokc.h>
 
+namespace ubse::urmaController {
+extern std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
+}
 namespace ubse::urmaController::ut {
 class TestUbseUrmaController : public testing::Test {
     void SetUp() override

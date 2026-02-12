@@ -18,6 +18,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_module.h"
 #include "ubse_thread_pool_module.h"
+#include "ubse_timer.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_api.h"
 #include "ubse_urma_controller_rpc.h"
@@ -61,21 +62,23 @@ UbseResult RpcReg()
     UbseComBaseMessageHandlerPtr pReportUrmaNodeInfoMessageHandler = new (std::nothrow)
         UbseUrmaReportUrmaNodeInfoMessageHandler;
 
-    UbseComBaseMessageHandlerPtr pNotifyMessageHandler = new (std::nothrow) UbseUrmaNotifyMessageHandler();
+    UbseComBaseMessageHandlerPtr pBrocastUrmaInfoHandler = new (std::nothrow) UbseUrmaNotifyMessageHandler();
 
     UbseComBaseMessageHandlerPtr pQueryMessageHandler = new (std::nothrow) UbseUrmaQueryMessageHandler();
 
     UbseComBaseMessageHandlerPtr pQueryDevHandler = new (std::nothrow) UbseUrmaDevQueryMessageHandler();
 
-    if (pReportUrmaNodeInfoMessageHandler == nullptr || pNotifyMessageHandler == nullptr ||
-        pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr) {
+    UbseComBaseMessageHandlerPtr pActivateUrmaInfoHandler = new (std::nothrow) UbseUrmaActivateUrmaInfoMessageHandler();
+
+    if (pReportUrmaNodeInfoMessageHandler == nullptr || pBrocastUrmaInfoHandler == nullptr ||
+        pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr || pActivateUrmaInfoHandler == nullptr) {
         UBSE_LOG_ERROR << "Fail to create UbseComBaseMessageHandler";
         return UBSE_ERROR_NULLPTR;
     }
 
-    auto ret = comModule->RegRpcService<UbseUrmaNotifyReqSimpo, UbseUrmaNotifyRspSimpo>(pNotifyMessageHandler);
+    auto ret = comModule->RegRpcService<UbseUrmaBrocastReqSimpo, UbseUrmaBrocastRspSimpo>(pBrocastUrmaInfoHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Reg UbseUrmaNotifyMessageHandler failed.";
+        UBSE_LOG_ERROR << "Reg UbseUrmaBrocastReqSimpo failed.";
         return ret;
     }
 
@@ -97,6 +100,13 @@ UbseResult RpcReg()
         UBSE_LOG_ERROR << "Failed to register report urma info handler for rpc";
         return ret;
     }
+
+    ret = comModule->RegRpcService<UbseUrmaActivateUrmaInfoReqSimpo, UbseUrmaActivateUrmaInfoRspSimpo>(
+        pActivateUrmaInfoHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to register report urma info handler for rpc";
+        return ret;
+    }
     return UBSE_OK;
 }
 
@@ -107,7 +117,7 @@ UbseResult UbseUrmaControllerModule::Initialize()
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = taskExecutor->Create("UrmaExecutor", NO_2, NO_128);
+    auto ret = taskExecutor->Create("UrmaExecutor", NO_16, NO_128);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
         return UBSE_ERROR_CONF_INVALID;
@@ -180,4 +190,47 @@ void UbseUrmaControllerModule::Stop()
     return;
 }
 
+UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task)
+{
+    auto ret = task();
+    if (ret == UBSE_OK) {
+        UBSE_LOG_INFO << "Do timer task success, timer name=" << timerName;
+        ubse::timer::UbseTimerHandlerUnregister(timerName);
+        return UBSE_OK;
+    }
+    UBSE_LOG_WARN << "Do timer task failed, timer name=" << timerName << ", retry later";
+    if (g_globalStop) {
+        ubse::timer::UbseTimerHandlerUnregister(timerName);
+    }
+    return ret;
+}
+
+UbseResult HandleTaskWithRetry(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
+                               UbseUrmaRetryTaskHandler task)
+{
+    UBSE_LOG_INFO << "HandleTaskWithRetry start, taskName=" << taskName;
+    if (task() == UBSE_OK) {
+        UBSE_LOG_INFO << "Do task success, taskName=" << taskName;
+        return UBSE_OK;
+    }
+    UBSE_LOG_WARN << "Do task failed, taskName=" << taskName << ", retry later";
+    ubse::timer::UbseTimerHandlerRegister(
+        taskName,
+        [executorName, taskName, task]() {
+            auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+            if (taskExecutor == nullptr) {
+                UBSE_LOG_ERROR << "Get task executor failed";
+                return UBSE_ERROR_NULLPTR;
+            }
+            auto urmaExecutor = taskExecutor->Get(executorName);
+            if (urmaExecutor == nullptr) {
+                UBSE_LOG_ERROR << "Get task executor for urma failed";
+                return UBSE_ERROR_NULLPTR;
+            }
+            urmaExecutor->Execute([taskName, task]() { return DoTaskWithTimerCallback(taskName, task); });
+            return UBSE_OK;
+        },
+        timerInterval);
+    return UBSE_OK;
+}
 } // namespace ubse::urmaController

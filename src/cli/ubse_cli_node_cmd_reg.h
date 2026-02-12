@@ -34,6 +34,16 @@ private:
         size_t size);
     static std::shared_ptr<UbseCliResultEcho> UbseQueryClusterInfoFunc([
         [maybe_unused]] const std::map<std::string, std::string> &params);
+
+    static UbseCliCommandInfo UbseCliQueryNodeInfo();
+    static std::shared_ptr<UbseCliResultEcho> BuildNodeInfoTable(const std::string &node, const std::string &role,
+                                                                 const std::string &bondingEid);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeInfoFunc(
+        const std::map<std::string, std::string> &params);
+    // 辅助函数
+    static bool ValidateNodeId(const std::string &nodeId, uint32_t &parsedId);
+    static std::shared_ptr<UbseCliResultEcho> QueryNodeInfo(const std::string &nodeId);
+    static std::shared_ptr<UbseCliResultEcho> ProcessNodeInfoResponse(UbseDeSerialization &ubse_de_serial);
 };
 }
 
