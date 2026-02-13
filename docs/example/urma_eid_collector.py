@@ -284,7 +284,7 @@ class UrmaEidCollector:
         """Generate Prometheus metrics file."""
         print("  - Generating Prometheus metrics file...")
         lines = []
-        lines.append("# HELP urma_eid_type URMA device EID mapping")
+        lines.append("# HELP urma_eid_type URMA device EID information")
         lines.append("# TYPE urma_eid_type gauge")
 
         # Host metric: dev_eid=host_eid, value=0
