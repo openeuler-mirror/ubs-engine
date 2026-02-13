@@ -36,7 +36,7 @@ TEST_F(TestUbseUrmaController, UbseUrmaBandWidthSet)
         .with(name, outBound(urmaInfo))
         .will(returnValue(UBSE_OK));
     std::shared_ptr<UbseFeInfo> feInfo = std::make_shared<UbseFeInfo>();
-    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
+    MOCKER_CPP(GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
     MOCKER(&UbseLcneQos::CreatQosProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseLcneQos::ApplyVfeQos).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseUrmaControllerManager::SetUrmaQos).stubs().will(returnValue(UBSE_OK));
@@ -61,12 +61,12 @@ TEST_F(TestUbseUrmaController, UbseUrmaBandWidthSet_fail)
         .will(returnValue(UBSE_OK));
     MOCKER(&UbseUrmaControllerManager::SetUrmaQos).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseFeInfo> feInfo = std::make_shared<UbseFeInfo>();
-    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
+    MOCKER_CPP(GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
     MOCKER(&UbseLcneQos::CreatQosProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseLcneQos::ApplyVfeQos).stubs().will(returnValue(UBSE_ERROR_CONF_INVALID));
     uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthSet(name, minBandWidth, maxBandWidth);
     EXPECT_EQ(UBSE_ERROR, ret);
-    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaVfeFromEidGroup).stubs().will(returnValue(nullptr));
+    MOCKER_CPP(GetUrmaVfeFromEidGroup).stubs().will(returnValue(nullptr));
     ret = UrmaController::GetInstance().UbseUrmaBandWidthSet(name, minBandWidth, maxBandWidth);
     EXPECT_EQ(UBSE_ERROR, ret);
     MOCKER(&UbseLcneQos::CreatQosProfile).stubs().will(returnValue(UBSE_ERROR_CONF_INVALID));
@@ -131,7 +131,7 @@ TEST_F(TestUbseUrmaController, UbseUrmaBandWidthReset)
         .with(name, outBound(urmaInfo))
         .will(returnValue(UBSE_OK));
     std::shared_ptr<UbseFeInfo> feInfo = std::make_shared<UbseFeInfo>();
-    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
+    MOCKER_CPP(GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
     MOCKER(&UbseLcneQos::DeleteQosProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseLcneQos::DeleteVfeQos).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseUrmaControllerManager::SetUrmaQos).stubs().will(returnValue(UBSE_OK));
@@ -153,13 +153,13 @@ TEST_F(TestUbseUrmaController, UbseUrmaBandWidthReset_fail)
         .with(name, outBound(urmaInfo))
         .will(returnValue(UBSE_OK));
     std::shared_ptr<UbseFeInfo> feInfo = std::make_shared<UbseFeInfo>();
-    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
+    MOCKER_CPP(GetUrmaVfeFromEidGroup).stubs().will(returnValue(feInfo));
     MOCKER(&UbseUrmaControllerManager::SetUrmaQos).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseLcneQos::DeleteQosProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseLcneQos::DeleteVfeQos).stubs().will(returnValue(UBSE_ERROR));
     uint32_t ret = UrmaController::GetInstance().UbseUrmaBandWidthReset(name);
     EXPECT_EQ(UBSE_ERROR, ret);
-    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaVfeFromEidGroup).stubs().will(returnValue(nullptr));
+    MOCKER_CPP(GetUrmaVfeFromEidGroup).stubs().will(returnValue(nullptr));
     ret = UrmaController::GetInstance().UbseUrmaBandWidthReset(name);
     EXPECT_EQ(UBSE_ERROR, ret);
     MOCKER(&UbseLcneQos::DeleteQosProfile).stubs().will(returnValue(UBSE_ERROR));

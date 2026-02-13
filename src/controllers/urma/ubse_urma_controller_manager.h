@@ -66,16 +66,16 @@ public:
     // 更新对应节点的fe信息，计算出urmaInfo设备信息
     UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseLcneFeInfo>> &feInfos);
     UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseLcneFeInfo>> &&feInfos);
-    UbseResult GetFeInfoByNodeId(const std::string &nodeId, std::vector<UbseFeInfo> &feInfos);
+
     bool IsUrmaInfoExists(const std::string &nodeId);
     bool IsUrmaInfoExists(const std::string &nodeId, const std::string &devEid); // 本节点是否包含指定eid的urmaInfo
-    std::vector<std::string> GetEmptyNodeInfo();
+
     void SetActiveState(const std::string &urmaDevEid, const std::string &nodeId);
     void SetInactiveState(const std::string &urmaDevEid, const std::string &nodeId);
+
     UbseResult GetUrmaNameByType(const UrmaDevType type, std::vector<std::string> &urmaInfoName,
                                  std::vector<uint32_t> &status);
     void GetUrmaNameForQueryByType(const UrmaDevType type, std::vector<UbseUrmaInfoForQuery> &devInfos);
-    UbseResult GetVfeByUrmaName(const std::string &urmaName, std::vector<UbseFeInfo> &feInfos);
 
     UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
 
@@ -89,11 +89,6 @@ public:
     void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
     void SetAllUrmaInfoToActiveForNode(const std::string &nodeId);
 
-    static std::string GetVfeInfoKey(const UbseFeInfo &info);
-    static std::string GetVfeInfoKey(const UbseLcneFeInfo &info);
-    static std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup);
-    void UrmaCtlActivateUrmaDevice(std::string &nodeId, bool needRetry = false);
-    std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
     uint64_t GetUrmaUpdateTimeStamp(const std::string &nodeId);
 
 private:
@@ -103,7 +98,7 @@ private:
     uint32_t GenerateUniqueFeId();
     uint64_t GenerateUrmaId();
     void PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo);
-    UbseResult GetLocalUrmaDevInfoInternal(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
+    UbseResult GetLocalUrmaDevInfoInner(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
     bool IsLcneFeUsed(const UbseLcneFeInfo &fe0, const UbseLcneFeInfo &fe1);
 
 private:
@@ -113,9 +108,6 @@ private:
     std::atomic<uint64_t> globalUrmaId{0};     // 节点内唯一的urmaId生成器
     std::map<std::string, uint32_t> feIdMap{}; // <feKey, feId>
 };
-
-UbseResult UrmaControllerSetUvsInfo(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
-                                    const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
 } // namespace ubse::urmaController
 
 #endif // UBSE_URMA_CONTROLLER_MANAGER_H

@@ -124,24 +124,36 @@ private:
 };
 using UbseUrmaDevQueryRspPtr = Ref<UrmaDevQueryRspSimpo>;
 
-struct UrmaNotifyReq {
-    std::string nodeId;          // 有更新的nodeId
-    uint64_t updateTimeStamp{0}; // 更新时间戳
+struct UrmaBrocastReq {
+    std::map<std::string, uint64_t> urmaInfoTimeStamps; // <nodeId, updateTimeStamp>
+
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const std::map<std::string, uint64_t> &urmaInfoTimeStamps)
+    {
+        serializer << urmaInfoTimeStamps;
+        return serializer;
+    }
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         std::map<std::string, uint64_t> &urmaInfoTimeStamps)
+    {
+        deserializer >> urmaInfoTimeStamps;
+        return deserializer;
+    }
 };
 
-class UbseUrmaNotifyReqSimpo : public UbseBaseMessage {
+class UbseUrmaBrocastReqSimpo : public UbseBaseMessage {
 public:
-    UbseUrmaNotifyReqSimpo() = default;
-    explicit UbseUrmaNotifyReqSimpo(uint8_t *data, uint32_t size)
+    UbseUrmaBrocastReqSimpo() = default;
+    explicit UbseUrmaBrocastReqSimpo(uint8_t *data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
-    inline void SetUrmaNotifyReq(UrmaNotifyReq request)
+    inline void SetUrmaNotifyReq(UrmaBrocastReq request)
     {
         req = std::move(request);
     }
 
-    inline UrmaNotifyReq GetUrmaNotifyReq()
+    inline UrmaBrocastReq GetUrmaNotifyReq()
     {
         return req;
     }
@@ -150,15 +162,15 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    UrmaNotifyReq req;
+    UrmaBrocastReq req;
 };
 
-using UbseUrmaNotifyReqPtr = Ref<UbseUrmaNotifyReqSimpo>;
+using UbseUrmaBrocastReqPtr = Ref<UbseUrmaBrocastReqSimpo>;
 
-class UbseUrmaNotifyRspSimpo : public UbseBaseMessage {
+class UbseUrmaBrocastRspSimpo : public UbseBaseMessage {
 public:
-    UbseUrmaNotifyRspSimpo() = default;
-    explicit UbseUrmaNotifyRspSimpo(uint8_t *data, uint32_t size)
+    UbseUrmaBrocastRspSimpo() = default;
+    explicit UbseUrmaBrocastRspSimpo(uint8_t *data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
@@ -167,7 +179,7 @@ public:
 
     UbseResult Deserialize() override;
 };
-using UbseUrmaNotifyRspPtr = Ref<UbseUrmaNotifyRspSimpo>;
+using UbseUrmaBrocastRspPtr = Ref<UbseUrmaBrocastRspSimpo>;
 
 class UbseUrmaNotifyMessageHandler : public UbseComBaseMessageHandler {
 public:
@@ -179,12 +191,12 @@ public:
     uint16_t GetModuleCode() override;
 };
 
-struct UrmaQueryReq {
-    std::string nodeId; // 请求nodeId
+struct QueryUrmaInfoReq {
+    std::vector<std::string> updateNodeIds;
 };
 
-struct UrmaQueryRsp {
-    UbseUrmaNodeInfo nodeInfo;
+struct QueryUrmaInfoRsp {
+    std::vector<UbseUrmaNodeInfo> queryNodeInfos;
 };
 
 class UbseUrmaQueryReqSimpo : public UbseBaseMessage {
@@ -194,12 +206,12 @@ public:
     {
         SetInputRawData(data, size);
     }
-    inline void SetUrmaQueryReq(UrmaQueryReq request)
+    inline void SetUrmaQueryReq(QueryUrmaInfoReq request)
     {
         req = std::move(request);
     }
 
-    inline UrmaQueryReq GetUrmaQueryReq()
+    inline QueryUrmaInfoReq GetUrmaQueryReq()
     {
         return req;
     }
@@ -208,7 +220,7 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    UrmaQueryReq req;
+    QueryUrmaInfoReq req;
 };
 
 using UbseUrmaQueryReqSimpoPtr = Ref<UbseUrmaQueryReqSimpo>;
@@ -220,12 +232,12 @@ public:
     {
         SetInputRawData(data, size);
     }
-    inline void SetUbseQueryRsp(UrmaQueryRsp response)
+    inline void SetUbseQueryRsp(QueryUrmaInfoRsp response)
     {
         rsp = std::move(response);
     }
 
-    inline UrmaQueryRsp GetUbseUrmaQueryRsp()
+    inline QueryUrmaInfoRsp GetUbseUrmaQueryRsp()
     {
         return rsp;
     }
@@ -234,7 +246,7 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    UrmaQueryRsp rsp;
+    QueryUrmaInfoRsp rsp;
 };
 using UbseUrmaQueryRspSimpoPtr = Ref<UbseUrmaQueryRspSimpo>;
 
@@ -323,6 +335,62 @@ public:
     uint16_t GetModuleCode() override;
 };
 
-UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId, UbseUrmaNodeInfo &nodeInfo);
+UbseResult ReportUrmaNodeInfoToMaster(const std::string &nodeId);
+
+class UbseUrmaActivateUrmaInfoReqSimpo : public UbseBaseMessage {
+public:
+    UbseUrmaActivateUrmaInfoReqSimpo() = default;
+    explicit UbseUrmaActivateUrmaInfoReqSimpo(uint8_t *data, uint32_t size)
+    {
+        SetInputRawData(data, size);
+    }
+
+    inline void SetNodeId(const std::string &id)
+    {
+        nodeId = id;
+    }
+
+    inline void SetNodeId(std::string &&id)
+    {
+        nodeId = std::move(id);
+    }
+
+    inline std::string GetNodeId()
+    {
+        return nodeId;
+    }
+
+    UbseResult Serialize() override;
+
+    UbseResult Deserialize() override;
+
+private:
+    std::string nodeId;
+};
+using UbseUrmaActivateUrmaInfoReqSimpoPtr = Ref<UbseUrmaActivateUrmaInfoReqSimpo>;
+
+class UbseUrmaActivateUrmaInfoRspSimpo : public UbseBaseMessage {
+public:
+    UbseUrmaActivateUrmaInfoRspSimpo() = default;
+    explicit UbseUrmaActivateUrmaInfoRspSimpo(uint8_t *data, uint32_t size)
+    {
+        SetInputRawData(data, size);
+    }
+
+    UbseResult Serialize() override;
+
+    UbseResult Deserialize() override;
+};
+using UbseUrmaActivateUrmaInfoRspSimpoPtr = Ref<UbseUrmaActivateUrmaInfoRspSimpo>;
+
+class UbseUrmaActivateUrmaInfoMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
 } // namespace ubse::urmaController
 #endif
