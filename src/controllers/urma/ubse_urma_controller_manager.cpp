@@ -238,6 +238,7 @@ UbseResult UbseUrmaControllerManager::GetAllUvsInfo(std::vector<UbseUrmaUvsNodeI
                 feInfo.ubpuId = group.feInfo->ubpuId;
                 feInfo.primaryEid = group.primaryEid;
                 feInfo.portEid = group.portEids;
+                feInfo.entityId = group.feInfo->entityId;
                 dev.feList.push_back(feInfo);
             }
             tmpUvsInfo.devList.push_back(dev);

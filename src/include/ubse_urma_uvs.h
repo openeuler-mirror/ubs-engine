@@ -20,6 +20,7 @@
 namespace ubse::urma {
 struct UbseUrmaUvsFe {
     std::string ubpuId;
+    std::string entityId;
     std::string primaryEid;
     std::map<std::string, std::string> portEid;
 };

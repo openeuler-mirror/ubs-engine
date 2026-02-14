@@ -13,6 +13,7 @@
 #ifndef UBSE_MANAGER_UBSE_URMA_MODULE_H
 #define UBSE_MANAGER_UBSE_URMA_MODULE_H
 
+#include <cstdint>
 #include <set>
 
 #include "ubse_common_def.h"
@@ -43,6 +44,7 @@ constexpr size_t IPV6_SEGMENT_LENGTH = 4;
 
 struct UbcoreTopoFe {
     uint32_t chip_id;
+    uint32_t entity_id;
     char primary_eid[EID_LEN];
     char port_eid[PORT_NUM][EID_LEN];
 };

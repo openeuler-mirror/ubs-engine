@@ -104,9 +104,13 @@ struct EidGroup {
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          EidGroup &group)
     {
+        deserializer >> group.primaryEid >> group.portEids;
         group.feInfo = std::make_shared<UbseFeInfo>();
+        if (group.feInfo == nullptr) {
+            return deserializer;
+        }
         UbseFeInfo &refFeInfo = *group.feInfo;
-        deserializer >> group.primaryEid >> group.portEids >> refFeInfo;
+        deserializer >> refFeInfo;
         return deserializer;
     }
 };
