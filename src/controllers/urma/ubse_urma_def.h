@@ -106,7 +106,7 @@ struct EidGroup {
     {
         deserializer >> group.primaryEid >> group.portEids;
         group.feInfo = std::make_shared<UbseFeInfo>();
-        if (group.feInfo == nullptr){
+        if (group.feInfo == nullptr) {
             return deserializer;
         }
         UbseFeInfo &refFeInfo = *group.feInfo;
