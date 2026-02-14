@@ -340,6 +340,11 @@ UbseResult UbseUrmaUvsModule::FillFeInfo(const std::vector<UbseUrmaUvsFe> &fes, 
             UBSE_LOG_ERROR << "Convert ubpuId failed, " << FormatRetCode(ret);
             return ret;
         }
+        ret = ConvertStrToUint32(fes[i].entityId, aggr_dev.fe[i].entity_id);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Convert entityId failed, " << FormatRetCode(ret);
+            return ret;
+        }
         ret = ParseColonHexString(fes[i].primaryEid, aggr_dev.fe[i].primary_eid);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to parse primaryEid=" << fes[i].primaryEid;
