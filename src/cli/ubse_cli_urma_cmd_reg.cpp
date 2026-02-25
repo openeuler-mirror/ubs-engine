@@ -39,14 +39,14 @@ static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
 static const std::string URMA_QUERY_OPTION_DES_NODE =
-    "Query urma information for a specific node. Parameter 'node' must be an integer between 1 and the maximum node ID.
-    If omitted, defaults to querying the local node.";
+    "Query urma information for a specific node. Parameter 'node' must be an integer between 1 and the maximum node ID."
+    "If omitted, defaults to querying the local node.";
 static const std::string URMA_QUERY_OPTION_DES_TYPE =
-    "Filter the urma information by type. Parameter 'type' accepts 0 (unique) or 1 (shared).
-    If omitted, defaults to querying all types.";
+    "Filter the urma information by type. Parameter 'type' accepts 0 (unique) or 1 (shared)."
+    "If omitted, defaults to querying all types.";
 static const std::string URMA_QUERY_OPTION_DES_NAME =
-    "Query urma information for a specific device. Parameter 'dev' expects a valid device name string.
-    If omitted, defaults to querying all devices.";
+    "Query urma information for a specific device. Parameter 'dev' expects a valid device name string."
+    "If omitted, defaults to querying all devices.";
 static const std::string URMA_QOS_QUERY_OPTION_DES =
     "Query urma-qos information by node-id, the option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_CLI_URMA_STATUS_ERROR = "ERROR: Invalid URMA status.";
