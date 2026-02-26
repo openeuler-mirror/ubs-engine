@@ -464,7 +464,7 @@ uint64_t GenerateHwResId(const UbseLcneFeInfo &lcneFe)
 {
     uint64_t iouId = static_cast<uint64_t>(std::stoul(lcneFe.iouId));
     uint64_t entityId = static_cast<uint64_t>(std::stoul(lcneFe.entityId));
-    return (iouId << NO_64) | entityId;
+    return (iouId << NO_32) | entityId;
 }
 
 UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeId, UbseLcneFeInfo &lcneFe0,
