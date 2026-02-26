@@ -6,10 +6,10 @@ package urma
 #include <stdlib.h>
 #include "ubs_engine_urma.h"
 
-typedef uint32_t (*ubs_urma_dev_get_ptr)(ubs_urma_type, ubs_urma_dev_t**, uint32_t*);
+typedef uint32_t (*ubs_urma_dev_get_ptr)(ubs_urma_dev_t**, uint32_t*);
 typedef uint32_t (*ubs_urma_dev_alloc_ptr)(const char*, ubs_urma_dev_info_t*);
 
-uint32_t call_ubs_urma_dev_get(ubs_urma_dev_get_ptr fn, ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt) {
+uint32_t call_ubs_urma_dev_get(ubs_urma_dev_get_ptr fn, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt) {
 	if (fn == NULL) return (uint32_t)-1;
 	return fn(urma_type, urma_devices, urma_cnt);
 }
