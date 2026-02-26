@@ -65,7 +65,7 @@ bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId)
 }
 
 UbseResult UbseUrmaControllerManager::GetAllUrmaName(std::vector<std::string> &urmaInfoName,
-                                                     std::vector<uint32_t> &status, std::vector<uint64_t> &hw_res_ids)
+                                                     std::vector<uint32_t> &status, std::vector<uint64_t> &hwResIds)
 {
     UbseRoleInfo currentNodeInfo{};
     if (UbseGetCurrentNodeInfo(currentNodeInfo) != UBSE_OK) {
@@ -82,7 +82,7 @@ UbseResult UbseUrmaControllerManager::GetAllUrmaName(std::vector<std::string> &u
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         urmaInfoName.push_back(info.first);
         status.push_back(static_cast<uint32_t>(info.second.state));
-        hw_res_ids.push_back(info.second.hw_res_id);
+        hwResIds.push_back(info.second.hwResId);
     }
 
     return UBSE_OK;
@@ -511,7 +511,7 @@ UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string 
         std::string urmaName = "urma_" + std::to_string(GenerateUrmaId());
         UBSE_LOG_INFO << "Add urmaInfo for nodeId=" << nodeId << ", urmaName=" << urmaName << ", devEid=" << devEid
                       << ", fe0's primaryEid=" << group0.primaryEid << ", fe1's primaryEid=" << group1.primaryEid;
-        urmaInfo.hw_res_id = GenerateHwResId(lcneFe0);
+        urmaInfo.hwResId = GenerateHwResId(lcneFe0);
         nodeInfos[nodeId].urmaList[urmaName] = urmaInfo;
         fe0Id = GenerateUniqueFeId();
         fe1Id = GenerateUniqueFeId();

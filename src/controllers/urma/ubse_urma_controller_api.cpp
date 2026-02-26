@@ -47,10 +47,10 @@ size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
 }
 
 UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_t> status,
-                        std::vector<uint64_t> &hw_res_ids, UbseIpcMessage &response)
+                        std::vector<uint64_t> &hwResIds, UbseIpcMessage &response)
 {
-    if (nameInfos.size() != status.size() || status.size() != hw_res_ids.size()) {
-        UBSE_LOG_ERROR << "nameInfos, status and hw_res_ids size mismatch";
+    if (nameInfos.size() != status.size() || status.size() != hwResIds.size()) {
+        UBSE_LOG_ERROR << "nameInfos, status and hwResIds size mismatch";
         return IPC_ERROR_INVALID_ARGUMENT;
     }
     size_t infoSize = nameInfos.size();
@@ -83,9 +83,9 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
             UBSE_LOG_ERROR << "Failed to pack status[" << i << "]=" << status[i];
             return IPC_ERROR_SERIALIZATION_FAILED;
         }
-        if (!packUtil.UbsePackUint64(hw_res_ids[i])) {
+        if (!packUtil.UbsePackUint64(hwResIds[i])) {
             delete[] response.buffer;
-            UBSE_LOG_ERROR << "Failed to pack hw_res_ids[" << i << "]=" << hw_res_ids[i];
+            UBSE_LOG_ERROR << "Failed to pack hwResIds[" << i << "]=" << hwResIds[i];
             return IPC_ERROR_SERIALIZATION_FAILED;
         }
     }
@@ -535,8 +535,8 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
     }
     std::vector<std::string> nameInfos;
     std::vector<uint32_t> status;
-    std::vector<uint64_t> hw_res_ids;
-    uint32_t ret = UrmaController::GetInstance().UbseGetLocalUrmaDevInfo(nameInfos, status, hw_res_ids);
+    std::vector<uint64_t> hwResIds;
+    uint32_t ret = UrmaController::GetInstance().UbseGetLocalUrmaDevInfo(nameInfos, status, hwResIds);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseGetLocalUrmaDevInfo failed," << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
@@ -548,7 +548,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
         return UBSE_ERROR_NULLPTR;
     }
     UbseIpcMessage response = {nullptr, 0};
-    ret = LocalDevPack(nameInfos, status, hw_res_ids, response);
+    ret = LocalDevPack(nameInfos, status, hwResIds, response);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "LoaclDevRspPack failed," << FormatRetCode(ret);
         return UBSE_ERROR;

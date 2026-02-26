@@ -415,9 +415,9 @@ UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::
 }
 
 UbseResult UrmaController::UbseGetLocalUrmaDevInfo(std::vector<std::string> &nameInfo, std::vector<uint32_t> &status,
-                                                   std::vector<uint64_t> &hw_res_ids)
+                                                   std::vector<uint64_t> &hwResIds)
 {
-    return UbseUrmaControllerManager::GetInstance().GetAllUrmaName(nameInfo, status, hw_res_ids);
+    return UbseUrmaControllerManager::GetInstance().GetAllUrmaName(nameInfo, status, hwResIds);
 }
 
 UbseResult UrmaController::UbseAllocUrmaDev(const std::string urmaName, UbseUrmaDevPath &devPaths)
