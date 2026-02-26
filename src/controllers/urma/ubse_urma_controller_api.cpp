@@ -57,7 +57,7 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
     size_t rspSize = sizeof(uint32_t);
     for (auto &s : nameInfos) {
         // 每个名字后面需要增加一个status占用4个字节
-        rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t);
+        rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t) + sizeof(uint64_t);
     }
     response.buffer = new (std::nothrow) uint8_t[rspSize];
     response.length = rspSize;
