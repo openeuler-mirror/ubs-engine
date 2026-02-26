@@ -322,9 +322,6 @@ UbseResult QueryAllPortsStatus(bool &isAllPortDown)
 {
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::vector<PhysicalLink> allLinkInfo;
-    auto getNodeTopoFunc = [&allLinkInfo]() {
-        return;
-    };
     if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node topology, ret=" << ret;
         return ret;
