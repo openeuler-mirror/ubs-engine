@@ -322,9 +322,6 @@ UbseResult QueryAllPortsStatus(bool &isAllPortDown)
 {
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::vector<PhysicalLink> allLinkInfo;
-    auto getNodeTopoFunc = [&allLinkInfo]() {
-        return;
-    };
     if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node topology, ret=" << ret;
         return ret;
@@ -414,15 +411,10 @@ UbseResult UrmaController::UbseNodeJoinHandler(std::string &eventId, const std::
     return UBSE_OK;
 }
 
-UbseResult UrmaController::UbseGetLocalUrmaDevInfoByType(const UrmaDevType type, std::vector<std::string> &nameInfo,
-                                                         std::vector<uint32_t> &status)
+UbseResult UrmaController::UbseGetLocalUrmaDevInfo(std::vector<std::string> &nameInfo, std::vector<uint32_t> &status,
+                                                   std::vector<uint64_t> &hwResIds)
 {
-    // 判断是否合法类型，非法返回不支持
-    if (type >= UrmaDevType::BUTT || type < UrmaDevType::UNIQUE) {
-        UBSE_LOG_ERROR << "get urma name by type failed, type =" << (uint32_t)type;
-        return UBSE_ERROR_NOT_SUPPORT;
-    }
-    return UbseUrmaControllerManager::GetInstance().GetUrmaNameByType(type, nameInfo, status);
+    return UbseUrmaControllerManager::GetInstance().GetAllUrmaName(nameInfo, status, hwResIds);
 }
 
 UbseResult UrmaController::UbseAllocUrmaDev(const std::string urmaName, UbseUrmaDevPath &devPaths)

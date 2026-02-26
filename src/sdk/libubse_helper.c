@@ -610,6 +610,17 @@ ubs_error_t unpack_uint32(unpack_ctx_t *ctx, uint32_t *value)
     return UBS_SUCCESS;
 }
 
+ubs_error_t unpack_uint64(unpack_ctx_t *ctx, uint64_t *value)
+{
+    if (ctx->len < sizeof(uint64_t)) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    *value = ntohl(*(const uint64_t *)(ctx->ptr));
+    ctx->ptr += sizeof(uint64_t);
+    ctx->len -= sizeof(uint64_t);
+    return UBS_SUCCESS;
+}
+
 ubs_error_t unpack_string(unpack_ctx_t *ctx, char *dest, uint32_t max_len)
 {
     uint32_t str_len = 0;
@@ -636,6 +647,7 @@ ubs_error_t ubse_urma_subdev_unpack(unpack_ctx_t *ctx, ubs_urma_dev_t *urma_dev)
 {
     ubs_error_t ret = unpack_string(ctx, urma_dev->name, UBS_URMA_NAME_MAX);
     ret |= unpack_uint32(ctx, &urma_dev->healthy);
+    ret |= unpack_uint64(ctx, &urma_dev->hw_res_id);
     return ret;
 }
 

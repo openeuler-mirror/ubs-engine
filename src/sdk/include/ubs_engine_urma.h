@@ -31,6 +31,7 @@ typedef enum {
 typedef struct {
     char name[UBS_URMA_NAME_MAX];
     uint32_t healthy; // 0表示端口可用，1表示端口不可用
+    uint64_t hw_res_id;
 } ubs_urma_dev_t;
 
 typedef struct {
@@ -42,7 +43,6 @@ typedef struct {
 /**
  * @brief 查询指定类型的urma设备信息
  *
- * @param urma_type [IN] urma设备类型
  * @param urma_devices [OUT] urma设备信息列表，调用者需要释放该内存
  * @param urma_cnt [OUT] urma设备信息数量
  * @return UBS_SUCCESS:操作成功;
@@ -52,7 +52,7 @@ typedef struct {
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt);
+uint32_t ubs_urma_dev_get(ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt);
 
 /**
  * @brief 分配指定的urma设备

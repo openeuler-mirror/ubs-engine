@@ -64,8 +64,8 @@ bool UbseUrmaControllerManager::IsUrmaInfoExists(const std::string &nodeId)
     return nodeInfos.find(nodeId) != nodeInfos.end() && !nodeInfos[nodeId].urmaList.empty();
 }
 
-UbseResult UbseUrmaControllerManager::GetUrmaNameByType(const UrmaDevType type, std::vector<std::string> &urmaInfoName,
-                                                        std::vector<uint32_t> &status)
+UbseResult UbseUrmaControllerManager::GetAllUrmaName(std::vector<std::string> &urmaInfoName,
+                                                     std::vector<uint32_t> &status, std::vector<uint64_t> &hwResIds)
 {
     UbseRoleInfo currentNodeInfo{};
     if (UbseGetCurrentNodeInfo(currentNodeInfo) != UBSE_OK) {
@@ -80,10 +80,9 @@ UbseResult UbseUrmaControllerManager::GetUrmaNameByType(const UrmaDevType type, 
         return UBSE_ERROR;
     }
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
-        if (info.second.urmaDevType == type) {
-            urmaInfoName.push_back(info.first);
-            status.push_back(static_cast<uint32_t>(info.second.state));
-        }
+        urmaInfoName.push_back(info.first);
+        status.push_back(static_cast<uint32_t>(info.second.state));
+        hwResIds.push_back(info.second.hwResId);
     }
 
     return UBSE_OK;
@@ -461,6 +460,13 @@ UbseResult CreateAndInsertUrmaInfoPreset(const UbseLcneFeInfo &lcneFe0, const Ub
     return UBSE_OK;
 }
 
+uint64_t GenerateHwResId(const UbseLcneFeInfo &lcneFe)
+{
+    uint64_t iouId = static_cast<uint64_t>(std::stoul(lcneFe.iouId));
+    uint64_t entityId = static_cast<uint64_t>(std::stoul(lcneFe.entityId));
+    return (iouId << NO_32) | entityId;
+}
+
 UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string &nodeId, UbseLcneFeInfo &lcneFe0,
                                                               UbseLcneFeInfo &lcneFe1)
 {
@@ -505,6 +511,7 @@ UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string 
         std::string urmaName = "urma_" + std::to_string(GenerateUrmaId());
         UBSE_LOG_INFO << "Add urmaInfo for nodeId=" << nodeId << ", urmaName=" << urmaName << ", devEid=" << devEid
                       << ", fe0's primaryEid=" << group0.primaryEid << ", fe1's primaryEid=" << group1.primaryEid;
+        urmaInfo.hwResId = GenerateHwResId(lcneFe0);
         nodeInfos[nodeId].urmaList[urmaName] = urmaInfo;
         fe0Id = GenerateUniqueFeId();
         fe1Id = GenerateUniqueFeId();
@@ -537,8 +544,7 @@ bool ValidateLcneFeInfo(const std::vector<std::vector<UbseLcneFeInfo>> &feInfos)
     }
     auto canConvertToUint32 = [](const std::string &str) -> bool {
         try {
-            std::stoul(str);
-            return true;
+            return std::stoul(str) <= UINT32_MAX;
         } catch (const std::exception &) {
             return false;
         }

@@ -6,10 +6,10 @@ package urma
 #include <stdlib.h>
 #include "ubs_engine_urma.h"
 
-typedef uint32_t (*ubs_urma_dev_get_ptr)(ubs_urma_type, ubs_urma_dev_t**, uint32_t*);
+typedef uint32_t (*ubs_urma_dev_get_ptr)(ubs_urma_dev_t**, uint32_t*);
 typedef uint32_t (*ubs_urma_dev_alloc_ptr)(const char*, ubs_urma_dev_info_t*);
 
-uint32_t call_ubs_urma_dev_get(ubs_urma_dev_get_ptr fn, ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt) {
+uint32_t call_ubs_urma_dev_get(ubs_urma_dev_get_ptr fn, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt) {
 	if (fn == NULL) return (uint32_t)-1;
 	return fn(urma_type, urma_devices, urma_cnt);
 }
@@ -41,6 +41,8 @@ type Device struct {
 	Name string
 	// Healthy device healthy status
 	Healthy bool
+	// hardware resource id
+	HwResId uint64
 }
 
 // DeviceInfo urma device path info
@@ -53,7 +55,7 @@ type DeviceInfo struct {
 	BondingEid string
 }
 
-// UbsGetVfeDevice get unique urma device list
+// UbsGetVfeDevice get urma device list
 func UbsGetVfeDevice() ([]Device, error) {
 	getUrmaDevPtr, err := dlopen.LoadFunc("ubs_urma_dev_get")
 	if err != nil {
@@ -62,7 +64,7 @@ func UbsGetVfeDevice() ([]Device, error) {
 
 	getUrmaDevFunc := (C.ubs_urma_dev_get_ptr)(getUrmaDevPtr)
 
-	return callAndParseUrmaDevices(getUrmaDevFunc, urmaUnique)
+	return callAndParseUrmaDevices(getUrmaDevFunc)
 }
 
 // UbsGetSharedDevice get shared urma device list
@@ -74,7 +76,7 @@ func UbsGetSharedDevice() ([]Device, error) {
 
 	getUrmaDevFunc := (C.ubs_urma_dev_get_ptr)(getUrmaDevPtr)
 
-	return callAndParseUrmaDevices(getUrmaDevFunc, urmaShared)
+	return callAndParseUrmaDevices(getUrmaDevFunc)
 }
 
 // UbsAllocateDevice allocate bonding urma device and return paths
@@ -108,11 +110,11 @@ func UbsAllocateDevice(name string) (DeviceInfo, error) {
 	}, nil
 }
 
-func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr, t urmaType) ([]Device, error) {
+func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr) ([]Device, error) {
 	var cDevs *C.ubs_urma_dev_t
 	defer C.free(unsafe.Pointer(cDevs))
 	var cCount C.uint32_t
-	ret := C.call_ubs_urma_dev_get(fn, C.ubs_urma_type(t), &cDevs, &cCount)
+	ret := C.call_ubs_urma_dev_get(fn, &cDevs, &cCount)
 	if ret != 0 {
 		return nil, fmt.Errorf("call_ubs_urma_dev_get_ptr failed with code %d", ret)
 	}
@@ -131,6 +133,7 @@ func parseUrmaDeviceArray(cDevs *C.ubs_urma_dev_t, count int) []Device {
 		devs = append(devs, Device{
 			Name:    C.GoString(&cDev.name[0]),
 			Healthy: cDev.healthy == 0,
+			HwResId: cDev.hw_res_id,
 		})
 	}
 	return devs
