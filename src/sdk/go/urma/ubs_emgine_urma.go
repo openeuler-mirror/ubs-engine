@@ -11,7 +11,7 @@ typedef uint32_t (*ubs_urma_dev_alloc_ptr)(const char*, ubs_urma_dev_info_t*);
 
 uint32_t call_ubs_urma_dev_get(ubs_urma_dev_get_ptr fn, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt) {
 	if (fn == NULL) return (uint32_t)-1;
-	return fn(urma_type, urma_devices, urma_cnt);
+	return fn(urma_devices, urma_cnt);
 }
 
 uint32_t call_ubs_urma_dev_alloc(ubs_urma_dev_alloc_ptr fn, const char *name, ubs_urma_dev_info_t *dev_info) {
@@ -133,7 +133,7 @@ func parseUrmaDeviceArray(cDevs *C.ubs_urma_dev_t, count int) []Device {
 		devs = append(devs, Device{
 			Name:    C.GoString(&cDev.name[0]),
 			Healthy: cDev.healthy == 0,
-			HwResId: cDev.hw_res_id,
+			HwResId: uint64(cDev.hw_res_id),
 		})
 	}
 	return devs

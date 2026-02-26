@@ -615,7 +615,7 @@ ubs_error_t unpack_uint64(unpack_ctx_t *ctx, uint64_t *value)
     if (ctx->len < sizeof(uint64_t)) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = ntohl(*(const uint64_t *)(ctx->ptr));
+    *value = *(const uint64_t *)(ctx->ptr);
     ctx->ptr += sizeof(uint64_t);
     ctx->len -= sizeof(uint64_t);
     return UBS_SUCCESS;
