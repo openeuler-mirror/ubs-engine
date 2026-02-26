@@ -122,6 +122,7 @@ struct UbseUrmaInfo {
     UrmaQosProfile urmaQosProfile;
     UrmaDevType urmaDevType;
     UrmaDevState state;
+    uint64_t hw_res_id; // 第一个vfe的iouId << 64 | entityId
 
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfo &info)

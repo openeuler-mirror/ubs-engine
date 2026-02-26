@@ -16,20 +16,18 @@
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
 
-uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
+uint32_t ubs_urma_dev_get(ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
 {
     if ((urma_devices == NULL) || (urma_cnt == NULL)) {
         return UBS_ERR_NULL_POINTER;
     }
     ubse_api_buffer_t response_buffer = {NULL, 0};
     ubse_api_buffer_t request_buffer = {NULL, 0};
-    uint32_t trans_urma_type = urma_type;
     request_buffer.length = sizeof(uint32_t);
     request_buffer.buffer = malloc(request_buffer.length);
     if (request_buffer.buffer == NULL) {
         return UBS_ENGINE_ERR_INTERNAL;
     }
-    *(uint32_t *)request_buffer.buffer = htonl(trans_urma_type);
     // 调用接口
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_DEV_GET, &request_buffer, &response_buffer);
     ubse_api_buffer_free(&request_buffer);
@@ -38,7 +36,6 @@ uint32_t ubs_urma_dev_get(const ubs_urma_type urma_type, ubs_urma_dev_t **urma_d
         return ubse_map_daemon_error(ret);
     }
     // 解包
-
     if (ubse_urma_dev_unpack(response_buffer.buffer, response_buffer.length, urma_devices, urma_cnt) != UBS_SUCCESS) {
         ubse_api_buffer_free(&response_buffer);
         return UBS_ENGINE_ERR_INTERNAL;

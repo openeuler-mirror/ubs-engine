@@ -73,8 +73,7 @@ public:
     void SetActiveState(const std::string &urmaDevEid, const std::string &nodeId);
     void SetInactiveState(const std::string &urmaDevEid, const std::string &nodeId);
 
-    UbseResult GetUrmaNameByType(const UrmaDevType type, std::vector<std::string> &urmaInfoName,
-                                 std::vector<uint32_t> &status);
+    UbseResult GetAllUrmaName(std::vector<std::string> &urmaInfoName, std::vector<uint32_t> &status, std::vector<uint64_t> &hw_res_ids);
     void GetUrmaNameForQueryByType(const UrmaDevType type, std::vector<UbseUrmaInfoForQuery> &devInfos);
 
     UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);

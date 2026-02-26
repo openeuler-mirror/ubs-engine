@@ -40,8 +40,8 @@ public:
     UbseResult UbseUrmaBandWidthReset(const std::string urmaName);
     void UbseUrmaBandWidthUpdate(const std::string urmaName);
     // For SDK
-    UbseResult UbseGetLocalUrmaDevInfoByType(const UrmaDevType type, std::vector<std::string> &nameInfo,
-                                             std::vector<uint32_t> &status);
+    UbseResult UbseGetLocalUrmaDevInfo(std::vector<std::string> &nameInfo, std::vector<uint32_t> &status,
+                                       std::vector<uint64_t> &hw_res_ids);
     UbseResult UbseAllocUrmaDev(const std::string name, UbseUrmaDevPath &devPaths);
     UbseResult UbseFreeUrmaDev(const std::string name);
 
