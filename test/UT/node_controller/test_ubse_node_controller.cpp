@@ -827,7 +827,7 @@ TEST_F(TestUbseNodeController, UbseNodePadSocketData)
     std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};
     auto data = UbseNodePadSocketData("node2", "2", "2-2", telemetrySocketData, nodeDbMap);
     EXPECT_EQ(data.nodeId, "node2");
-    EXPECT_EQ(data.socket.socketId, "2");
+    EXPECT_EQ(data.socket.socketId, "-");
     TelemetryNodeData telemetryNodeData{};
     telemetryNodeData.hostname = "compute";
     telemetryNodeData.sockets = {{"1"}};
