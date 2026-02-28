@@ -1534,6 +1534,7 @@ TelemetrySocketData &UbseNodePadSocketData(const std::string &remoteNodeName, co
     auto itLdc = nodeDbMap.find(remoteNodeName);
     if (itLdc == nodeDbMap.end()) {
         UBSE_LOG_WARN << "The remoteNodeName " << remoteNodeName << " cannot match any str in nodeDbMap.";
+        telemetrySocketData.socket.socketId = "-";
     } else {
         TelemetryNodeData nodeData = itLdc->second;
         telemetrySocketData.hostname = nodeData.hostname;
