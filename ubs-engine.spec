@@ -15,13 +15,13 @@ Group:          System Environment/Base
 Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
 
-BuildRequires: cmake make gcc-c++ gcc
-BuildRequires: glibc-devel libstdc++-devel
-BuildRequires: systemd-devel
-BuildRequires: libboundscheck ubs-comm-devel libxml2-devel
-BuildRequires: numactl-libs
-BuildRequires: bash bc coreutils sudo util-linux-user ninja-build
-Requires: glibc libgcc libstdc++ libboundscheck libxml2 ubs-comm-lib
+BuildRequires:  cmake >= 3.22 make >= 4.3 gcc-c++ >= 10.3 gcc >= 10.3
+BuildRequires:  glibc-devel >= 2.34 libstdc++-devel >= 10.3
+BuildRequires:  systemd-devel >= 249
+BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 ubs-comm-devel
+BuildRequires:  numactl-libs >= 2.0
+BuildRequires:  ninja-build >= 1.10 bash bc coreutils sudo util-linux-user
+Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 ubs-comm-lib
 
 %define _rpmdir %_topdir/RPMS
 %define _srcrpmdir %_topdir/SRPMS
