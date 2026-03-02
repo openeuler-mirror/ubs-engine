@@ -34,8 +34,7 @@ private:
     static std::vector<std::string> ParseCommaSeparatedDeviceList(const std::string &deviceStr);
     static UbseCliCommandInfo UbseCliActivateUrmaDevInfo();
     static std::shared_ptr<UbseCliResultEcho> ParseAndValidateUrmaParams(
-        const std::map<std::string, std::string> &params, uint32_t &nodeId, uint32_t &urmaType,
-        std::vector<std::string> &deviceNameList);
+        const std::map<std::string, std::string> &params, uint32_t &nodeId, std::vector<std::string> &deviceNameList);
     static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaDevInfoFunc(
         [[maybe_unused]] const std::map<std::string, std::string> &params);
     static std::shared_ptr<UbseCliResultEcho> UbseActivateUrmaDevInfoFunc(

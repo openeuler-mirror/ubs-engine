@@ -115,8 +115,7 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
     UrmaDevQueryRpcRsp rpcRsp;
     /* 如果是本节点的消息就查询，如果是主节点就转发，其他情况丢弃 */
     if (std::to_string(urmaReq.nodeId) == currentNodeInfo.nodeId) {
-        UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(static_cast<UrmaDevType>(urmaReq.type),
-                                                                           rpcRsp.urmaInfos);
+        UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(rpcRsp.urmaInfos);
         rpcRsp.result = UBSE_OK;
         response->SetUbseUrmaDevQueryRsp(rpcRsp);
         return UBSE_OK;

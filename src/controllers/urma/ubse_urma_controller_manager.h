@@ -75,7 +75,7 @@ public:
 
     UbseResult GetAllUrmaName(std::vector<std::string> &urmaInfoName, std::vector<uint32_t> &status,
                               std::vector<uint64_t> &hwResIds);
-    void GetUrmaNameForQueryByType(const UrmaDevType type, std::vector<UbseUrmaInfoForQuery> &devInfos);
+    void GetUrmaInfoForQuery(std::vector<UbseUrmaInfoForQuery> &devInfos);
 
     UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
 
