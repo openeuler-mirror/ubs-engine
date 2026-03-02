@@ -197,7 +197,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &re
 
     std::vector<UbseUrmaInfoForQuery> urmaInfo;
     uint32_t ret =
-        UrmaController::GetInstance().UbseGetUrmaDevInfoByNodeIdAndType(UrmaDevType::UNIQUE, nodeId, urmaInfo);
+        UrmaController::GetInstance().UbseGetUrmaDevInfoByNodeId(nodeId, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UrmaController::UbseGetUrmaDevInfoByNodeIdAndType failed," << FormatRetCode(ret);
         return UBSE_ERROR_NOT_EXIST;
@@ -297,8 +297,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, con
     return UBSE_OK;
 }
 
-uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, uint32_t &urmaType,
-                                std::vector<std::string> &deviceNameList)
+uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, std::vector<std::string> &deviceNameList)
 {
     uint32_t deviceListSize;
     if (req.buffer == nullptr) {
@@ -306,7 +305,7 @@ uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, uin
         return UBSE_ERROR_NULLPTR;
     }
     UbseDeSerialization out{req.buffer, req.length};
-    out >> nodeId >> urmaType >> deviceListSize;
+    out >> nodeId >> deviceListSize;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Failed to deserialize basic parameters (nodeId, urmaType, deviceListSize)";
         return UBSE_ERROR_DESERIALIZE_FAILED;
@@ -335,16 +334,14 @@ uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, uin
 uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     uint32_t nodeId{};
-    uint32_t urmaTypeQuery{};
     std::vector<std::string> deviceNameList;
     // 反序列化
-    uint32_t ret = ParseUrmaDevGetRequest(req, nodeId, urmaTypeQuery, deviceNameList);
+    uint32_t ret = ParseUrmaDevGetRequest(req, nodeId, deviceNameList);
     if (ret != UBSE_OK) {
         return ret;
     }
     std::vector<UbseUrmaInfoForQuery> urmaInfo;
-    ret = UrmaController::GetInstance().UbseGetUrmaDevInfoByNodeIdAndType(static_cast<UrmaDevType>(urmaTypeQuery),
-                                                                          nodeId, urmaInfo);
+    ret = UrmaController::GetInstance().UbseGetUrmaDevInfoByNodeId(nodeId, urmaInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseGetUrmaDevInfoByNodeIdAndType failed," << FormatRetCode(ret);
         return ret;

@@ -45,8 +45,7 @@ public:
     UbseResult UbseAllocUrmaDev(const std::string name, UbseUrmaDevPath &devPaths);
     UbseResult UbseFreeUrmaDev(const std::string name);
 
-    UbseResult UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
-                                                 std::vector<UbseUrmaInfoForQuery> &devInfos);
+UbseResult UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &devInfos);
     UbseResult UbseUrmaCliDevActivate(const std::string &nodeId);
 
     static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMesage);
@@ -58,8 +57,7 @@ private:
     UbseResult HandleTopoLinkChangeWithRetry();
     UbseResult DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
-    UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const UrmaDevType type,
-                                      std::vector<UbseUrmaInfoForQuery> &urmaInfo);
+UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &urmaInfo);
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();

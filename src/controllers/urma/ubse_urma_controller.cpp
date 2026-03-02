@@ -441,8 +441,7 @@ UbseResult UrmaController::UbseFreeUrmaDev(const std::string urmaName)
     return UBSE_OK;
 }
 
-UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const UrmaDevType type,
-                                                  std::vector<UbseUrmaInfoForQuery> &urmaInfo)
+UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &urmaInfo)
 {
     auto ubseComModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
@@ -454,7 +453,7 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const 
         UBSE_LOG_ERROR << "new UbseUrmaDevQueryReqSimpo failed";
         return UBSE_ERROR_NULLPTR;
     }
-    UrmaDevQueryRpcReq req = {nodeId, static_cast<uint32_t>(type)};
+    UrmaDevQueryRpcReq req = {nodeId};
     ubseRequestPtr->SetUbseUrmaDevReq(req);
     UbseUrmaDevQueryRspPtr ubseResponsePtr = new (std::nothrow) UrmaDevQueryRspSimpo();
     if (ubseResponsePtr == nullptr) {
@@ -488,11 +487,11 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, const 
     return UBSE_OK;
 }
 
-UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType type, const uint32_t &nodeId,
-                                                             std::vector<UbseUrmaInfoForQuery> &devInfos)
+
+UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
     if (nodeId == UINT32_MAX) {
-        UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(type, devInfos);
+        UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(devInfos);
         return UBSE_OK;
     }
     std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
@@ -527,10 +526,10 @@ UbseResult UrmaController::UbseGetUrmaDevInfoByNodeIdAndType(const UrmaDevType t
     ubse::election::UbseRoleInfo currentNodeInfo{};
     ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
     if (std::to_string(nodeId) == currentNodeInfo.nodeId) {
-        UbseUrmaControllerManager::GetInstance().GetUrmaNameForQueryByType(type, devInfos);
+        UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(devInfos);
         return UBSE_OK;
     }
-    return UbseQueryUrmaInfoByRpc(nodeId, type, devInfos);
+    return UbseQueryUrmaInfoByRpc(nodeId, devInfos);
 }
 
 UbseResult UrmaController::UbseUrmaCliDevActivate(const std::string &nodeId)
