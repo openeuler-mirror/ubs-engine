@@ -487,8 +487,8 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::v
     return UBSE_OK;
 }
 
-
-UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,std::vector<UbseUrmaInfoForQuery> &devInfos)
+UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
+                                                      std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
     if (nodeId == UINT32_MAX) {
         UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(devInfos);
