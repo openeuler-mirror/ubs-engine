@@ -45,8 +45,7 @@ class UrmaEidCollector:
     CRICTL_PS_CMD = ["crictl", "ps", "-o", "json"]
     CRICTL_INSPECTP_CMD = ["crictl", "inspectp"]
 
-    URMA_VFE_RESOURCE_NAME = "unifiedbus.com/urma.vfe"
-    URMA_SHARE_RESOURCE_NAME = "unifiedbus.com/urma.shared"
+    URMA_RESOURCE_NAME = "unifiedbus.com/ub_net_device"
 
     UUID_PATTERN = re.compile(r'UUID:\s*([0-9a-fA-F\-]+)')
     EID_PATTERN = re.compile(r'^[0-9a-fA-F]{4}(?::[0-9a-fA-F]{4}){7}$')
@@ -225,7 +224,7 @@ class UrmaEidCollector:
 
         for entry in entries:
             resource_name = entry.get("ResourceName", "").strip()
-            if resource_name not in {self.URMA_VFE_RESOURCE_NAME, self.URMA_SHARE_RESOURCE_NAME}:
+            if resource_name != self.URMA_RESOURCE_NAME:
                 continue
 
             pod_uid = entry.get("PodUID", "").strip()
@@ -269,11 +268,14 @@ class UrmaEidCollector:
         output = self._run_cmd(cmd, timeout=20)
         eid_map = {}
         for line in output.splitlines():
-            parts = line.strip().split()
-            if len(parts) < 3:
+            line = line.strip()
+            if not line or line.startswith("-"):
+                continue
+            parts = line.split()
+            if len(parts) < 2:
                 continue
             dev_name = parts[0]
-            dev_eid = parts[2]
+            dev_eid = parts[1]
             if self.EID_PATTERN.match(dev_eid):
                 eid_map[dev_name] = dev_eid
 

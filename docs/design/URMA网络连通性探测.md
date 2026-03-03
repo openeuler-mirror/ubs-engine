@@ -58,10 +58,10 @@ compute01(1)    master                 4245:4944:0000:0000:0000:0000:0100:0000
 ```
 $ ubsectl display urma --dev urma_1,urma_2
 --------------------------------------------------------------------------------------
-urma-name    type   urma-eid    fe1-name   fe2-name   fe1-eid    fe2-eid     status
+urma-name    dev-eid    fe1-name   fe2-name   fe1-eid    fe2-eid     status
 --------------------------------------------------------------------------------------
-urma_1       share   eid0       udma1      udma49      eid1      eid2        active
-urma_2       unique  eid3       udma2      udma50      eid4      eid5        inactive
+urma_1        eid0       udma1      udma49      eid1      eid2       active
+urma_2        eid3       udma2      udma50      eid4      eid5       inactive
 ```
 
 输出字段说明：
