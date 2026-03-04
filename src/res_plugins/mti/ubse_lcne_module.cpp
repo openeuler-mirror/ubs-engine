@@ -56,7 +56,7 @@ UbseResult UbseLcneModule::GetLcneConf()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     // 真实lcne端口
-    std::string realLcnePortStr{realLcneDefaultPort}; // 默认为34256
+    std::string realLcnePortStr{realLcneDefaultPort}; // 默认为8799
     auto ret = module->GetConf<std::string>("ubse.ubfm", "lcne.server.port", realLcnePortStr);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Unable to get the configuration for lcne.port. The default value for lcne.port will be used.";

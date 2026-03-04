@@ -123,7 +123,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_Success)
     info.hostBusinstanceEid = "0x10401";
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -148,7 +148,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_SlotIdInvalid)
     info.hostBusinstanceEid = "0x10401";
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -178,7 +178,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_RspStatusFailed)
 {
     UbseLcneBusInstanceInfo busInstanceInfo;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -194,7 +194,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_RspEmpty)
 {
     UbseLcneBusInstanceInfo busInstanceInfo;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -210,7 +210,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_ParseFailed)
 {
     UbseLcneBusInstanceInfo busInstanceInfo;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;

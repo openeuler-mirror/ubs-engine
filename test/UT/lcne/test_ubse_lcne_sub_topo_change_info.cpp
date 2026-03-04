@@ -36,7 +36,7 @@ void TestUbseLcneLinkInfo::TearDown()
 TEST_F(TestUbseLcneLinkInfo, SubLcneLinkInfo_Success)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -64,7 +64,7 @@ TEST_F(TestUbseLcneLinkInfo, SubLcneLinkInfo_HttpSendFailed)
 TEST_F(TestUbseLcneLinkInfo, SubLcneLinkInfo_RspStatusFailed)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -80,7 +80,7 @@ TEST_F(TestUbseLcneLinkInfo, SubLcneLinkInfo_RspStatusFailed)
 TEST_F(TestUbseLcneLinkInfo, SubLcneLinkInfo_RspEmpty)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -96,7 +96,7 @@ TEST_F(TestUbseLcneLinkInfo, SubLcneLinkInfo_RspEmpty)
 TEST_F(TestUbseLcneLinkInfo, SubLcneLinkInfo_ParseFailed)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;

@@ -38,7 +38,7 @@ void TestUbseLcneQos ::TearDown()
 TEST_F(TestUbseLcneQos, CreatQosProfile)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_CREATED);
@@ -57,7 +57,7 @@ TEST_F(TestUbseLcneQos, CreatQosProfile)
 TEST_F(TestUbseLcneQos, CreatQosProfile_fail)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_CREATED);
@@ -83,7 +83,7 @@ TEST_F(TestUbseLcneQos, CreatQosProfile_fail)
 TEST_F(TestUbseLcneQos, DeleteQosProfile)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT);
@@ -98,7 +98,7 @@ TEST_F(TestUbseLcneQos, DeleteQosProfile)
 TEST_F(TestUbseLcneQos, DeleteQosProfile_fail)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_BAD_REQ);
@@ -131,7 +131,7 @@ TEST_F(TestUbseLcneQos, QureyQosProfile)
     </tqos-profile>
     )";
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -149,7 +149,7 @@ TEST_F(TestUbseLcneQos, QureyQosProfile)
 TEST_F(TestUbseLcneQos, QureyQosProfile_fail)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -177,7 +177,7 @@ TEST_F(TestUbseLcneQos, QureyQosProfile_fail)
 TEST_F(TestUbseLcneQos, ApplyVfeQos)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_CREATED);
@@ -193,7 +193,7 @@ TEST_F(TestUbseLcneQos, ApplyVfeQos)
 TEST_F(TestUbseLcneQos, ApplyVfeQos_fail)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -216,7 +216,7 @@ TEST_F(TestUbseLcneQos, ApplyVfeQos_fail)
 TEST_F(TestUbseLcneQos, DeleteVfeQos)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT);
@@ -232,7 +232,7 @@ TEST_F(TestUbseLcneQos, DeleteVfeQos)
 TEST_F(TestUbseLcneQos, DeleteVfeQos_fail)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -259,7 +259,7 @@ TEST_F(TestUbseLcneQos, QueryVfeQos)
     </tqos-entity-profile>
     )";
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -277,7 +277,7 @@ TEST_F(TestUbseLcneQos, QueryVfeQos)
 TEST_F(TestUbseLcneQos, QueryVfeQos_fail)
 {
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

@@ -134,7 +134,7 @@ TEST_F(TestUbseLcneTopologyClient, GetTopology_Success)
     nodes.push_back(node);
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -173,7 +173,7 @@ TEST_F(TestUbseLcneTopologyClient, GetTopology_RspStatusFailed)
 {
     std::vector<LcneNodeInfo> lcneNodes;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = 404;
@@ -189,7 +189,7 @@ TEST_F(TestUbseLcneTopologyClient, GetTopology_RspEmpty)
 {
     std::vector<LcneNodeInfo> lcneNodes;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -205,7 +205,7 @@ TEST_F(TestUbseLcneTopologyClient, GetTopology_ParseFailed)
 {
     std::vector<LcneNodeInfo> lcneNodes;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

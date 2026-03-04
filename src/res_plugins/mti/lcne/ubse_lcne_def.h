@@ -18,7 +18,7 @@
 namespace ubse::lcne {
 struct LcneServer {
     inline static int port = 8088;
-    inline static int realPort = 34256;
+    inline static int realPort = 8799;
 };
 
 } // namespace ubse::lcne
