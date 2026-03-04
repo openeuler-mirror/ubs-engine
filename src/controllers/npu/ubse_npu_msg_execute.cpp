@@ -1,0 +1,415 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+#include "ubse_npu_msg_execute.h"
+
+#include <array>
+
+#include "ubse_error.h"
+#include "ubse_logger.h"
+
+#include "src/framework/ipc/include/ubse_ipc_common.h"
+#include "ubse_context.h"
+#include "ubse_logger_inner.h"
+#include "ubse_npu_controller_module.h"
+#include "ubse_pack_util.h"
+
+namespace ubse::npu::controller {
+using namespace ubse::utils;
+using namespace ubse::context;
+using namespace ubse::log;
+UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+constexpr size_t HEAD_SIZE = 5 * sizeof(uint8_t);
+
+// list接口
+uint32_t AllDevicesListPack(std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
+// alloc接口
+uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo);
+uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
+                              const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
+uint32_t UbseFreeRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo);
+uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo);
+uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, TransRespMsg &buffer);
+
+uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg &resp)
+{
+    std::vector<std::shared_ptr<IResource>> devList;
+    auto npuCtrlModule = UbseContext::GetInstance().GetModule<UbseNpuControllerModule>();
+    if (npuCtrlModule == nullptr) {
+        UBSE_LOG_ERROR << "Get npu controller module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ret = npuCtrlModule->QueryAllDevices(devList);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "QueryLocalUbDevices failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    // 封装回复数据
+    ret = AllDevicesListPack(devList, resp);
+    UBSE_LOG_INFO << "[NPU] pack query dev request";
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseNode pack failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
+{
+    // 解析接收数据
+    UbseAllocRequest requestInfo;
+    auto ret = UbseAllocRequestUnpack(req, requestInfo);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    // 业务处理
+    std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> newBusInstanceGuid;
+    std::string newBusInstanceGuidStr(reinterpret_cast<const char *>(newBusInstanceGuid.data()),
+                                      UBSE_UB_DEVICE_GUID_SIZE);
+    std::vector<std::shared_ptr<IResource>> devList;
+    auto npuCtrlModule = UbseContext::GetInstance().GetModule<UbseNpuControllerModule>();
+    if (npuCtrlModule == nullptr) {
+        UBSE_LOG_ERROR << "Get npu controller module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = npuCtrlModule->AllocDevices(requestInfo, newBusInstanceGuidStr, devList);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "AllocDevices failed," << FormatRetCode(ret);
+        return ret;
+    }
+
+    std::copy(newBusInstanceGuidStr.begin(), newBusInstanceGuidStr.end(), newBusInstanceGuid.begin());
+    // 封装回复数据
+    ret = AllocDevResponsePack(newBusInstanceGuid, devList, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseNode pack failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp)
+{
+   UbseAllocRequest requestInfo{};
+    auto ret = UbseAllocRequestUnpack(req, requestInfo);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    auto npuCtrlModule = UbseContext::GetInstance().GetModule<UbseNpuControllerModule>();
+    if (npuCtrlModule == nullptr) {
+        UBSE_LOG_ERROR << "Get npu controller module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    ret = npuCtrlModule->FreeUbDevices(requestInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FreeUbDevice failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    // 构造一个空的返回消息
+    resp.length = NO_8;
+    resp.buffer = new uint8_t[resp.length];
+    return UBSE_OK;
+}
+
+uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg &resp)
+{
+    std::string requestGuid;
+    auto ret = UbseQueryTidUbaRequestUnpack(req, requestGuid);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    auto npuCtrlModule = UbseContext::GetInstance().GetModule<UbseNpuControllerModule>();
+    if (npuCtrlModule == nullptr) {
+        UBSE_LOG_ERROR << "Get npu controller module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbaTidSize ubaTidSizeInfo;
+    ret = npuCtrlModule->QueryUbaTidSize(requestGuid, ubaTidSizeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "QueryTidUbaSize failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    ret = QueryTidUbaResponsePack(ubaTidSizeInfo.tid, ubaTidSizeInfo.uba, ubaTidSizeInfo.size, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "response pack failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+void CountDevicesByType(std::vector<std::shared_ptr<IResource>> &devList, uint8_t &nicCnt, uint8_t &npuCnt,
+                        uint8_t &ubctrlCnt, uint8_t &busiCnt)
+{
+    for (auto &dev : devList) {
+        if (dev->GetType() == ResourceType::NIC) {
+            nicCnt++;
+        }
+        if (dev->GetType() == ResourceType::NPU) {
+            npuCnt++;
+        }
+        if (dev->GetType() == ResourceType::UBCONTROLLER) {
+            ubctrlCnt++;
+        }
+        if (dev->GetType() == ResourceType::BUSINSTANCE) {
+            busiCnt++;
+        }
+    }
+}
+
+uint32_t AllocateBuffer(std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer)
+{
+    size_t size = 0;
+    for (auto &dev : devList) {
+        size += dev->CalculateSize();
+    }
+    buffer.buffer = new (std::nothrow) uint8_t[size + HEAD_SIZE];
+    if (buffer.buffer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    buffer.length = size + HEAD_SIZE;
+    UBSE_LOG_INFO << "[NPU] buffer before pack size = " << buffer.length;
+    return UBSE_OK;
+}
+
+uint32_t PackDeviceSize(UbsePackUtil &packUtil, uint8_t &nicCnt, uint8_t &npuCnt, uint8_t &ubctrlCnt, uint8_t &busiCnt)
+{
+    if (!packUtil.UbsePackUint8(nicCnt))
+        return UBSE_ERROR;
+    if (!packUtil.UbsePackUint8(npuCnt))
+        return UBSE_ERROR;
+    if (!packUtil.UbsePackUint8(ubctrlCnt))
+        return UBSE_ERROR;
+    if (!packUtil.UbsePackUint8(busiCnt))
+        return UBSE_ERROR;
+    return UBSE_OK;
+}
+
+uint32_t AllDevicesListPack(std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer)
+{
+    uint8_t nicCnt = 0;
+    uint8_t npuCnt = 0;
+    uint8_t ubctrlCnt = 0;
+    uint8_t busiCnt = 0;
+    CountDevicesByType(devList, nicCnt, npuCnt, ubctrlCnt, busiCnt);
+    auto ret = AllocateBuffer(devList, buffer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "allocate buffer failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    // 打包
+    UbsePackUtil packUtil(buffer.buffer, buffer.length);
+    if (!packUtil.UbsePackUint8(devList.size()))
+        return UBSE_ERROR;
+    ret = PackDeviceSize(packUtil, nicCnt, npuCnt, ubctrlCnt, busiCnt);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "pack device size failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    for (auto &dev : devList) {
+        ret = dev->Pack(packUtil);
+        if (ret != UBSE_OK) {
+            delete[] buffer.buffer;
+            buffer.buffer = nullptr;
+            buffer.length = 0;
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
+void PrintInfo(UbseAllocRequest requestInfo)
+{
+    for (auto upi : requestInfo.upis) {
+        UBSE_LOG_INFO << "[NPU DATA] upi: " << (uint32_t)upi;
+    }
+    for (auto guid : requestInfo.busInstanceGuid) {
+        UBSE_LOG_INFO << "[NPU DATA] busInstanceGuid: " << (uint32_t)guid;
+    }
+
+    UBSE_LOG_INFO << "[NPU DATA] sub dev size: " << (uint32_t)requestInfo.ubDevList.size();
+}
+
+uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo)
+{
+    UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
+    for (size_t i = 0; i < UBSE_UB_UPI_STR_SIZE; i++) {
+        if (!unpackUtil.UnpackUint8(requestInfo.upis[i])) {
+            UBSE_LOG_ERROR << "Failed to unpack upi str";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+    }
+    uint8_t tmpGuid[UBSE_UB_DEVICE_GUID_SIZE];
+    for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {
+        if (!unpackUtil.UnpackUint8(tmpGuid[i])) {
+            UBSE_LOG_ERROR << "Failed to unpack bus instance guid";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+    }
+    requestInfo.busInstanceGuid = std::string(reinterpret_cast<const char *>(tmpGuid), UBSE_UB_DEVICE_GUID_SIZE);
+    auto validGuidLen = strlen(requestInfo.busInstanceGuid.c_str());
+    if (validGuidLen < requestInfo.busInstanceGuid.size()) {
+        requestInfo.busInstanceGuid.resize(validGuidLen);
+    }
+    uint8_t devListSize;
+    if (!unpackUtil.UnpackUint8(devListSize)) {
+        UBSE_LOG_ERROR << "Failed to unpack device list size";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    for (size_t i = 0; i < devListSize; i++) {
+        DevicesType tmpDev;
+        unsigned char devType;
+        if (!unpackUtil.UnpackUChar(devType)) {
+            UBSE_LOG_ERROR << "Failed to unpack devType";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        tmpDev.type = static_cast<ResourceType>(devType);
+        if (!unpackUtil.UnpackUint8(tmpDev.slotId)) {
+            UBSE_LOG_ERROR << "Failed to unpack slot_id";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        if (!unpackUtil.UnpackUint8(tmpDev.chipId)) {
+            UBSE_LOG_ERROR << "Failed to unpack chip_id";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        if (!unpackUtil.UnpackUint8(tmpDev.index)) {
+            UBSE_LOG_ERROR << "Failed to unpack index";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        requestInfo.ubDevList.emplace_back(tmpDev);
+    }
+    PrintInfo(requestInfo);
+    return UBSE_OK;
+}
+
+uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo)
+{
+    UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
+    for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {
+        uint8_t tmp;
+        if (!unpackUtil.UnpackUint8(tmp)) {
+            UBSE_LOG_ERROR << "Failed to unpack bus instance guid";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        requestInfo += tmp;
+    }
+    return UBSE_OK;
+}
+
+UbseResult PackAllocHead(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
+                         const std::vector<std::shared_ptr<IResource>> &devList, uint8_t nicCnt, uint8_t npuCnt,
+                         uint8_t ubctrlCnt, uint8_t busiCnt, UbsePackUtil &packUtil)
+{
+    for (auto guid : newBusInstanceGuid) {
+        if (!packUtil.UbsePackUint8(guid)) {
+            return UBSE_ERROR_SERIALIZE_FAILED;
+        }
+    }
+    if (!packUtil.UbsePackUint8(devList.size()) || !packUtil.UbsePackUint8(nicCnt) || !packUtil.UbsePackUint8(npuCnt) ||
+        !packUtil.UbsePackUint8(ubctrlCnt) || !packUtil.UbsePackUint8(busiCnt)) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+
+uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
+                              const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer)
+{
+    size_t size = 0;
+    size += sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
+    size += HEAD_SIZE;
+    for (auto &dev : devList) {
+        size += dev->CalculateSize();
+    }
+    buffer.buffer = new (std::nothrow) uint8_t[size];
+    if (buffer.buffer == nullptr) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    buffer.length = size;
+
+    uint8_t nicCnt = 0;
+    uint8_t npuCnt = 0;
+    uint8_t ubctrlCnt = 0;
+    uint8_t busiCnt = 0;
+    for (auto dev : devList) {
+        if (dev->GetType() == ResourceType::NIC) {
+            nicCnt++;
+        }
+        if (dev->GetType() == ResourceType::NPU) {
+            npuCnt++;
+        }
+        if (dev->GetType() == ResourceType::UBCONTROLLER) {
+            ubctrlCnt++;
+        }
+        if (dev->GetType() == ResourceType::BUSINSTANCE) {
+            busiCnt++;
+        }
+    }
+
+    // 打包
+    UbsePackUtil packUtil(buffer.buffer, size);
+    UbseResult ret = PackAllocHead(newBusInstanceGuid, devList, nicCnt, npuCnt, ubctrlCnt, busiCnt, packUtil);
+    if (ret != UBSE_OK) {
+        delete[] buffer.buffer;
+        buffer.buffer = nullptr;
+        buffer.length = 0;
+        return ret;
+    }
+
+    for (auto &dev : devList) {
+        ret = dev->Pack(packUtil);
+        if (ret != UBSE_OK) {
+            delete[] buffer.buffer;
+            buffer.buffer = nullptr;
+            buffer.length = 0;
+            return ret;
+        }
+    }
+    return ret;
+}
+
+uint32_t UbseFreeRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo)
+{
+    UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
+    for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {
+        uint8_t tmp;
+        if (!unpackUtil.UnpackUint8(tmp)) {
+            UBSE_LOG_ERROR << "Failed to unpack bus instance guid";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        requestInfo += tmp;
+    }
+    return UBSE_OK;
+}
+
+uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, TransRespMsg &buffer)
+{
+    uint32_t msgSize = sizeof(tid) + sizeof(uba) + sizeof(size);
+    buffer.buffer = new (std::nothrow) uint8_t[msgSize];
+    if (buffer.buffer == nullptr) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    buffer.length = msgSize;
+
+    auto cleanBuffer = [&buffer]() {
+        delete[] buffer.buffer;
+        buffer.buffer = nullptr;
+        buffer.length = 0;
+    };
+
+    UbsePackUtil packUtil(buffer.buffer, msgSize);
+    if (!packUtil.UbsePackUint32(tid) || !packUtil.UbsePackUint64(uba) || !packUtil.UbsePackUint64(size)) {
+        cleanBuffer();
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+} // namespace ubse::npu::controller
