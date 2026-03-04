@@ -160,16 +160,16 @@ void UbseNodeModule::Stop()
     NodeDownBuilder.SetName("UpdateNodeDown");
     UbseElectionChangeDeAttachHandler(NodeDownBuilder.Build());
 
-    for (const auto &name : taskSet) {
-        UBSE_LOG_INFO << "wait exit task=" << name;
-        auto taskExecutor = UbseContext::GetInstance().GetModule();
-        if (taskExecutor == nullptr) {
-            UBSE_LOG_WARN << "task module already exit.";
-            break;
-        }
-        taskExecutor->Remove(name);
-    }
-    UBSE_LOG_INFO << "all task stop.";
+   for (const auto &name : taskSet) {
+       UBSE_LOG_INFO << "wait exit task=" << name;
+       auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+       if (taskExecutor == nullptr) {
+           UBSE_LOG_WARN << "task module already exit.";
+           break;
+       }
+       taskExecutor->Remove(name);
+   }
+   UBSE_LOG_INFO << "all task stop.";
 }
 
 void ParseIp(const std::string &msg, std::string &nodeId, std::string &nodeIp, uint16_t &port, std::string &role)
