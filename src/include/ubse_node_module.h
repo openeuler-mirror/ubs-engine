@@ -59,6 +59,8 @@ public:
 
     static UbseResult NodeDownHandler(std::string nodeId);
 
+    static UbseResult BrokenHandler(std::string &, std::string &eventMessage);
+
 private:
     UbseResult EstablishDataChannel(UbseElectionEventType &type);
 
@@ -80,6 +82,8 @@ private:
 
     static std::shared_mutex nodeMutex;
     static std::vector<UbseRoleInfo> linkUpNodes;
+    static std::unordered_set<std::string> taskSet;
+    static std::shared_mutex taskMutex;
 };
 } // namespace ubse::node
 
