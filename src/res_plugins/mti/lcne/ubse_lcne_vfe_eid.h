@@ -29,7 +29,7 @@ class UbseLcneVfeEid {
 public:
     static UbseLcneVfeEid &GetInstance()
     {
-        static UbseLcneVfeEid instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 34256;
+        static UbseLcneVfeEid instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
         return instance;
     }
     // 发送请求

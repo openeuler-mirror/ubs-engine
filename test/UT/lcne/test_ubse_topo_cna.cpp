@@ -183,7 +183,7 @@ TEST_F(TestUbseTopoCna, QueryTopoCna_Success)
     infos.push_back(info1);
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -227,7 +227,7 @@ TEST_F(TestUbseTopoCna, QueryTopoCna_RspStatusFailed)
 {
     std::vector<LcneNodeCnaInfo> lcneNodeCnaInfos;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = 404;
@@ -243,7 +243,7 @@ TEST_F(TestUbseTopoCna, QueryTopoCna_RspEmpty)
 {
     std::vector<LcneNodeCnaInfo> lcneNodeCnaInfos;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -259,7 +259,7 @@ TEST_F(TestUbseTopoCna, QueryTopoCna_ParseFailed)
 {
     std::vector<LcneNodeCnaInfo> lcneNodeCnaInfos;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -293,7 +293,7 @@ TEST_F(TestUbseTopoCna, QueryTopoCna_CnaInvalid)
     infos.push_back(info);
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

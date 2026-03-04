@@ -90,7 +90,7 @@ TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfoSuccess)
     info.chipType = ubse::mti::DevType::CPU;
     ubmap.emplace(devName1, info);
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -124,7 +124,7 @@ TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfo_RspStatusFailed)
 {
     UbseLcneIODieInfoMap ubseLcneIODieInfoMap;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -140,7 +140,7 @@ TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfo_RspEmpty)
 {
     UbseLcneIODieInfoMap ubseLcneIODieInfoMap;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -156,7 +156,7 @@ TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfo_ParseFailed)
 {
     UbseLcneIODieInfoMap ubseLcneIODieInfoMap;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;

@@ -45,7 +45,7 @@ TEST_F(TestUbseLcneVfe, GetVfeEid)
     iouInfo.iouId = "1";
     std::vector<UbseLcneFeInfo> allFeInfos;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -67,7 +67,7 @@ TEST_F(TestUbseLcneVfe, GetVfeEid_fail)
     iouInfo.iouId = "1";
     std::vector<UbseLcneFeInfo> allFeInfos;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -102,7 +102,7 @@ TEST_F(TestUbseLcneVfe, UpdateVfeEid)
     iouInfo.iouId = "1";
     std::vector<UbseLcneFeInfo> allFeInfos;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -123,7 +123,7 @@ TEST_F(TestUbseLcneVfe, UpdateVfeEid_fail)
     iouInfo.iouId = "1";
     std::vector<UbseLcneFeInfo> allFeInfos;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

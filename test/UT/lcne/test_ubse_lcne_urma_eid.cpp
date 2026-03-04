@@ -185,7 +185,7 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_Success)
     infomap.emplace(devName3, info2);
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -221,7 +221,7 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_RspStatusFailed)
     std::map<DevName, UbseLcneSocketInfo> socketInfoMap;
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = 404;
@@ -238,7 +238,7 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_RspEmpty)
     std::map<DevName, UbseLcneSocketInfo> socketInfoMap;
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -255,7 +255,7 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_ParseFailed)
     std::map<DevName, UbseLcneSocketInfo> socketInfoMap;
 
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

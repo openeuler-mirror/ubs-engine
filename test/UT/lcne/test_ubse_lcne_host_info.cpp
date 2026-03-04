@@ -103,7 +103,7 @@ TEST_F(TestUbseLcneHostInfo, QueryLcneHostInfo_Success)
     info.upi = "0x1231";
     info.logicEntityStatus = LogicEntityStatus::online;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -138,7 +138,7 @@ TEST_F(TestUbseLcneHostInfo, QueryLcneHostInfo_RspStatusFailed)
 {
     UbseLcneOSInfo ubseLcneOSInfo;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -155,7 +155,7 @@ TEST_F(TestUbseLcneHostInfo, QueryLcneHostInfo_RspEmpty)
 {
     UbseLcneOSInfo ubseLcneOSInfo;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -172,7 +172,7 @@ TEST_F(TestUbseLcneHostInfo, QueryLcneHostInfo_ParseFailed)
 {
     UbseLcneOSInfo ubseLcneOSInfo;
     std::string host = "127.0.0.1";
-    int port = 34256;
+    int port = 8799;
 
     UbseHttpRequest req;
     UbseHttpResponse rsp;
