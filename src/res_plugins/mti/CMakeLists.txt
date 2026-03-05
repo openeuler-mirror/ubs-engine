@@ -1,3 +1,5 @@
+add_subdirectory(ctrl_q)
+
 file(GLOB SOURCES "*.cpp" "*.h")
 file(GLOB SOURCESLCNE "${CMAKE_CURRENT_SOURCE_DIR}/lcne/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/lcne/*.h")
 add_library(ubse_mti STATIC
