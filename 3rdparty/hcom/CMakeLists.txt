@@ -31,7 +31,7 @@ if (NOT USE_SYSTEM_HCOM)
     FetchContent_Declare(
             ubs_comm
             GIT_REPOSITORY https://gitcode.com/openeuler/ubs-comm.git
-            GIT_TAG master
+            GIT_TAG f1c36bc3a063495a62616cd54721d84b65318876
     )
 
     set(HCOM_BUILD_TYPE "release" CACHE STRING "")
