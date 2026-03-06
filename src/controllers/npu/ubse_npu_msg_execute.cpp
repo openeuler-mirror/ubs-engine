@@ -98,7 +98,7 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
 
 uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp)
 {
-   UbseAllocRequest requestInfo{};
+    UbseAllocRequest requestInfo{};
     auto ret = UbseAllocRequestUnpack(req, requestInfo);
     if (ret != UBSE_OK) {
         return ret;
