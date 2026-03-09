@@ -160,16 +160,16 @@ void UbseNodeModule::Stop()
     NodeDownBuilder.SetName("UpdateNodeDown");
     UbseElectionChangeDeAttachHandler(NodeDownBuilder.Build());
 
-   for (const auto &name : taskSet) {
-       UBSE_LOG_INFO << "wait exit task=" << name;
-       auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-       if (taskExecutor == nullptr) {
-           UBSE_LOG_WARN << "task module already exit.";
-           break;
-       }
-       taskExecutor->Remove(name);
-   }
-   UBSE_LOG_INFO << "all task stop.";
+    for (const auto &name : taskSet) {
+        UBSE_LOG_INFO << "wait exit task=" << name;
+        auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+        if (taskExecutor == nullptr) {
+            UBSE_LOG_WARN << "task module already exit.";
+            break;
+        }
+        taskExecutor->Remove(name);
+    }
+    UBSE_LOG_INFO << "all task stop.";
 }
 
 void ParseIp(const std::string &msg, std::string &nodeId, std::string &nodeIp, uint16_t &port, std::string &role)
@@ -184,57 +184,6 @@ void ParseIp(const std::string &msg, std::string &nodeId, std::string &nodeIp, u
     std::getline(ss, role, '-'); // 获取角色
 }
 
-UbseResult UbseNodeModule::BrokenHandler(std::string &, std::string &eventMessage)
-{
-    if (g_globalStop.load()) {
-        UBSE_LOG_WARN << "process already stop when handle broken channel.";
-        return UBSE_OK;
-    }
-    std::string executorName = GenerateTaskName();
-    auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-    if (taskExecutor == nullptr) {
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    UbseResult ret = taskExecutor->Create(executorName, NO_1, NO_2);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "create node executor failed";
-        return ret;
-    }
-    auto ptr = taskExecutor->Get(executorName);
-    if (ptr == nullptr) {
-        return UBSE_ERROR_NULLPTR;
-    }
-    taskMutex.lock();
-    taskSet.insert(executorName);
-    taskMutex.unlock();
-    ptr->Execute([eventMessage]() -> void {
-        std::string nodeId;
-        std::string nodeIp;
-        uint16_t port;
-        std::string role;
-        ParseIp(eventMessage, nodeId, nodeIp, port, role);
-        auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
-        if (comModule == nullptr) {
-            UBSE_LOG_ERROR << "com module not load when broken handler.";
-            return;
-        }
-        UBSE_LOG_INFO << "broken channel notify,start to connect to nodeId=" << nodeId << ", nodeIp=" << nodeIp
-                      << ", port=" << port;
-        UbseResult connectRet =
-            comModule->ConnectWithOption(ConnectOption{nodeId, nodeIp, port, UbseChannelType::NORMAL});
-        if (connectRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "connect to nodeId=" << nodeId << " failed, " << FormatRetCode(connectRet);
-            return;
-        }
-        PushLinkUpNode(nodeId, role);
-    });
-    ptr->Wait();
-    taskExecutor->Remove(executorName);
-    taskMutex.lock();
-    taskSet.erase(executorName);
-    taskMutex.unlock();
-    return UBSE_OK;
-}
 
 uint32_t UbseGetNodeHostName(std::vector<std::string> &hostName)
 {
@@ -389,6 +338,58 @@ std::string GenerateTaskName()
         randomID += std::to_string(dist(gen)); // 随机选择数字并转换为字符串
     }
     return "NodeExecutor" + randomID;
+}
+
+UbseResult UbseNodeModule::BrokenHandler(std::string &, std::string &eventMessage)
+{
+    if (g_globalStop.load()) {
+        UBSE_LOG_WARN << "process already stop when handle broken channel.";
+        return UBSE_OK;
+    }
+    std::string executorName = GenerateTaskName();
+    auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    UbseResult ret = taskExecutor->Create(executorName, NO_1, NO_2);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "create node executor failed";
+        return ret;
+    }
+    auto ptr = taskExecutor->Get(executorName);
+    if (ptr == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    taskMutex.lock();
+    taskSet.insert(executorName);
+    taskMutex.unlock();
+    ptr->Execute([eventMessage]() -> void {
+        std::string nodeId;
+        std::string nodeIp;
+        uint16_t port;
+        std::string role;
+        ParseIp(eventMessage, nodeId, nodeIp, port, role);
+        auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+        if (comModule == nullptr) {
+            UBSE_LOG_ERROR << "com module not load when broken handler.";
+            return;
+        }
+        UBSE_LOG_INFO << "broken channel notify,start to connect to nodeId=" << nodeId << ", nodeIp=" << nodeIp
+                      << ", port=" << port;
+        UbseResult connectRet =
+            comModule->ConnectWithOption(ConnectOption{nodeId, nodeIp, port, UbseChannelType::NORMAL});
+        if (connectRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "connect to nodeId=" << nodeId << " failed, " << FormatRetCode(connectRet);
+            return;
+        }
+        PushLinkUpNode(nodeId, role);
+    });
+    ptr->Wait();
+    taskExecutor->Remove(executorName);
+    taskMutex.lock();
+    taskSet.erase(executorName);
+    taskMutex.unlock();
+    return UBSE_OK;
 }
 
 UbseResult UbseNodeModule::Connect(std::vector<ubse::election::Node> agentNodes, std::string standbyId)

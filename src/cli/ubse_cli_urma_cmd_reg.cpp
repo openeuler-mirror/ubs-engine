@@ -99,8 +99,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
     variable_cell_builder.UbseCliAddlineSeparate(row);
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "urma-name");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "dev-eid");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "fe1-name");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "fe2-name");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "dev1-name");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "dev2-name");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "fe1-eid");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "fe2-eid");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, "status");
