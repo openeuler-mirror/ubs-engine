@@ -44,8 +44,8 @@ constexpr uint8_t NODE_UP_STATE = 1;
 
 std::shared_mutex UbseNodeModule::nodeMutex;
 std::vector<UbseRoleInfo> UbseNodeModule::linkUpNodes{};
-std::unordered_set<std::string> taskSet{};
-std::shared_mutex taskMutex{};
+std::unordered_set<std::string> UbseNodeModule::taskSet{};
+std::shared_mutex UbseNodeModule::taskMutex{};
 
 bool IsSpecialIP(const std::string &ip)
 {
