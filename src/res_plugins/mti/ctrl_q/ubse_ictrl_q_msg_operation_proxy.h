@@ -34,7 +34,16 @@ public:
         if (!CheckReqValidation(msg)) {
             return UBSE_ERROR;
         }
-        CtrlQRespMessage respMsg{nullptr, 0};
+        auto respMsg = SafeMakeUniqueWithFreeFunc<CtrlQRespMessage>([](CtrlQRespMessage *resp) {
+            if (resp->blocks != nullptr) {
+                delete[] resp->blocks;
+                resp->blockNums = 0;
+            }
+            delete resp;
+        });
+        if (respMsg == nullptr) {
+            return UBSE_ERROR_NOMEM;
+        }
         auto res = SendMsg(msg, respMsg);
         if (res != UBSE_OK) {
             return res;
