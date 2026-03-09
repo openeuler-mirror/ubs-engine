@@ -17,19 +17,19 @@
 #include <unistd.h>             // for sleep
 #include <algorithm>            // for max
 #include <fstream>
-#include <memory>               // for operator==, shared_ptr
+#include <memory> // for operator==, shared_ptr
 #include <random>
-#include <regex>                // for regex_match, regex
+#include <regex> // for regex_match, regex
 
-#include "ubse_event_module.h"  // for UbseEventModule
 #include "src/controllers/node/ubse_node_api.h"
-#include "ubse_com_base.h"      // for UbseLinkInfo, UbseModuleCode
-#include "ubse_com_def.h"       // for UbseLinkState
-#include "ubse_com_module.h"    // for UbseComModule
+#include "ubse_com_base.h"   // for UbseLinkInfo, UbseModuleCode
+#include "ubse_com_def.h"    // for UbseLinkState
+#include "ubse_com_module.h" // for UbseComModule
 #include "ubse_election.h"
-#include "ubse_error.h"         // for UBSE_OK, UBSE_ERROR_NULLPTR
-#include "ubse_file_util.h"     // for UbseFileUtil
-#include "ubse_logger_inner.h"  // for RM_LOG_ERROR, RM_LOG_INFO
+#include "ubse_error.h"        // for UBSE_OK, UBSE_ERROR_NULLPTR
+#include "ubse_event_module.h" // for UbseEventModule
+#include "ubse_file_util.h"    // for UbseFileUtil
+#include "ubse_logger_inner.h" // for RM_LOG_ERROR, RM_LOG_INFO
 #include "ubse_topology_interface.h"
 
 namespace ubse::node {
@@ -44,6 +44,8 @@ constexpr uint8_t NODE_UP_STATE = 1;
 
 std::shared_mutex UbseNodeModule::nodeMutex;
 std::vector<UbseRoleInfo> UbseNodeModule::linkUpNodes{};
+std::unordered_set<std::string> UbseNodeModule::taskSet{};
+std::shared_mutex UbseNodeModule::taskMutex{};
 
 bool IsSpecialIP(const std::string &ip)
 {
@@ -116,6 +118,8 @@ UbseResult UbseNodeModule::Initialize()
 
     std::string UBSE_EVENT_XALARM_PANIC = "ALARM_PANIC_EVENT";
     UbseSubEvent(UBSE_EVENT_XALARM_PANIC, UbseNodeModule::NodePanicHandler, UbseEventPriority::HIGH);
+    std::string UBSE_BROKEN_NOTIFY = "ubse.node.reconnect";
+    UbseSubEvent(UBSE_BROKEN_NOTIFY, UbseNodeModule::BrokenHandler, UbseEventPriority::HIGH);
     return CheckNodeId();
 }
 
@@ -128,6 +132,8 @@ void UbseNodeModule::UnInitialize()
 {
     std::string UBSE_EVENT_XALARM_PANIC = "ALARM_PANIC_EVENT";
     UbseUnSubEvent(UBSE_EVENT_XALARM_PANIC, UbseNodeModule::NodePanicHandler);
+    std::string UBSE_BROKEN_NOTIFY = "ubse.node.reconnect";
+    UbseUnSubEvent(UBSE_BROKEN_NOTIFY, UbseNodeModule::BrokenHandler);
 }
 
 void UbseNodeModule::Stop()
@@ -153,6 +159,29 @@ void UbseNodeModule::Stop()
     NodeDownBuilder.SetType(UbseElectionEventType::NODE_DOWN);
     NodeDownBuilder.SetName("UpdateNodeDown");
     UbseElectionChangeDeAttachHandler(NodeDownBuilder.Build());
+
+    for (const auto &name : taskSet) {
+        UBSE_LOG_INFO << "wait exit task=" << name;
+        auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+        if (taskExecutor == nullptr) {
+            UBSE_LOG_WARN << "task module already exit.";
+            break;
+        }
+        taskExecutor->Remove(name);
+    }
+    UBSE_LOG_INFO << "all task stop.";
+}
+
+void ParseIp(const std::string &msg, std::string &nodeId, std::string &nodeIp, uint16_t &port, std::string &role)
+{
+    std::stringstream ss(msg);
+    std::getline(ss, nodeId, '-'); // 获取nodeId
+    std::getline(ss, nodeIp, '-'); // 获取nodeIp
+    std::string portStr;
+    std::getline(ss, portStr, '-'); // 获取port
+
+    port = static_cast<uint16_t>(std::stoi(portStr));
+    std::getline(ss, role, '-'); // 获取角色
 }
 
 
@@ -311,6 +340,58 @@ std::string GenerateTaskName()
     return "NodeExecutor" + randomID;
 }
 
+UbseResult UbseNodeModule::BrokenHandler(std::string &, std::string &eventMessage)
+{
+    if (g_globalStop.load()) {
+        UBSE_LOG_WARN << "process already stop when handle broken channel.";
+        return UBSE_OK;
+    }
+    std::string executorName = GenerateTaskName();
+    auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    UbseResult ret = taskExecutor->Create(executorName, NO_1, NO_2);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "create node executor failed";
+        return ret;
+    }
+    auto ptr = taskExecutor->Get(executorName);
+    if (ptr == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    taskMutex.lock();
+    taskSet.insert(executorName);
+    taskMutex.unlock();
+    ptr->Execute([eventMessage]() -> void {
+        std::string nodeId;
+        std::string nodeIp;
+        uint16_t port;
+        std::string role;
+        ParseIp(eventMessage, nodeId, nodeIp, port, role);
+        auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+        if (comModule == nullptr) {
+            UBSE_LOG_ERROR << "com module not load when broken handler.";
+            return;
+        }
+        UBSE_LOG_INFO << "broken channel notify,start to connect to nodeId=" << nodeId << ", nodeIp=" << nodeIp
+                      << ", port=" << port;
+        UbseResult connectRet =
+            comModule->ConnectWithOption(ConnectOption{nodeId, nodeIp, port, UbseChannelType::NORMAL});
+        if (connectRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "connect to nodeId=" << nodeId << " failed, " << FormatRetCode(connectRet);
+            return;
+        }
+        PushLinkUpNode(nodeId, role);
+    });
+    ptr->Wait();
+    taskExecutor->Remove(executorName);
+    taskMutex.lock();
+    taskSet.erase(executorName);
+    taskMutex.unlock();
+    return UBSE_OK;
+}
+
 UbseResult UbseNodeModule::Connect(std::vector<ubse::election::Node> agentNodes, std::string standbyId)
 {
     if (agentNodes.empty()) {
@@ -333,8 +414,14 @@ UbseResult UbseNodeModule::Connect(std::vector<ubse::election::Node> agentNodes,
     if (ptr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
+    taskMutex.lock();
+    taskSet.insert(executorName);
+    taskMutex.unlock();
     ret = ConnectChannel(ptr, agentNodes, executorName, standbyId);
     taskExecutor->Remove(executorName);
+    taskMutex.lock();
+    taskSet.erase(executorName);
+    taskMutex.unlock();
     UBSE_LOG_INFO << "task: " << executorName << " executor end.";
     return ret;
 }
@@ -354,13 +441,13 @@ UbseResult UbseNodeModule::ConnectChannel(UbseTaskExecutorPtr ptr, const std::ve
         UBSE_LOG_INFO << "start connect to node: " << node.id << " task:" << executorName;
         ptr->Execute([&ret, node, comModule, executorName, standbyId]() -> void {
             UBSE_LOG_INFO << "start connecting to node: " << node.id
-                        << ", normal channel in thread , task:" << executorName;
+                          << ", normal channel in thread , task:" << executorName;
             UbseResult connectRet =
                 comModule->ConnectWithOption(ConnectOption{node.id, node.ip, node.port, UbseChannelType::NORMAL});
             if (connectRet != UBSE_OK) {
                 ret = connectRet;
                 UBSE_LOG_ERROR << "connect to node: " << node.id << " node failed, ret: " << FormatRetCode(connectRet)
-                             << ", normal channel, task: " << executorName;
+                               << ", normal channel, task: " << executorName;
                 return;
             }
             UBSE_LOG_INFO << "connect to node: " << node.id << " node success normal channel, task: " << executorName;

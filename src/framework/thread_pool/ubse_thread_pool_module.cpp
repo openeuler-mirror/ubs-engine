@@ -78,7 +78,7 @@ UbseTaskExecutorPtr UbseTaskExecutorModule::Get(const std::string &name)
 
 void UbseTaskExecutorModule::Remove(const std::string &name)
 {
-    ReadLocker<ReadWriteLock> lock(&rwLock);
+    WriteLocker<ReadWriteLock> lock(&rwLock);
     auto iter = executors.find(name);
     if (iter == executors.end()) {
         return;
