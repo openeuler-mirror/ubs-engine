@@ -71,6 +71,6 @@ UbseResult SendMsg(const CtrlQReqMessage &msg, CtrlQRespMessage &respMsg);
 
 UbseResult GetBatchOptRespResult(const CtrlQRespMessage &msg, uint8_t opCode, std::vector<bool> &resList);
 
-bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t opCode);
+bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opCode);
 } // namespace ubse::mti::ctrl_q
 #endif // UBSE_CTRL_Q_MSG_HELPER_H

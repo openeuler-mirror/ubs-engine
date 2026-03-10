@@ -138,12 +138,14 @@ struct RespReader {
     FixedHead head;
 } __attribute__((packed));
 
-bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t opCode)
+bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opCode)
 {
     auto &reader = *reinterpret_cast<const RespReader *>(msg.blocks);
-    if (reader.head.serviceType != DEFAULT_SERVICE_TYPE || reader.head.opCode != opCode) {
+    // bbNum 为0时，不检查bbNum
+    if (reader.head.serviceType != DEFAULT_SERVICE_TYPE || reader.head.opCode != opCode ||
+        (reader.head.bbNum != bbNum && reader.head.bbNum != 0)) {
         UBSE_LOG_ERROR << "Check resp failed, serviceType: " << reader.head.serviceType
-                       << ", opCode: " << reader.head.opCode;
+                       << ", bbNum: " << reader.head.bbNum << ", opCode: " << reader.head.opCode;
         return false;
     }
     return true;
