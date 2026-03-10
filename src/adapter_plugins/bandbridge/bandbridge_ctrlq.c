@@ -73,11 +73,13 @@ void bandbridge_ctrlq_send_to_sq(void* sendbuf, int sendbuf_size)
 {
     struct bandbridge_ctrlq_ring* sq = &g_ctrlq_info.sq;
     u32 total_size = sendbuf_size;
-    u32 size, offset = 0;
+    u32 size;
+    u32 offset = 0;
     int num = DIV_ROUND_UP(sendbuf_size, CTRLQ_BB_SIZE);
     int cnt = 0;
     u8* addr;
 
+    sq->pi = reg_read(CTRLQ_TX_TAIL_REG) & CTRLQ_TX_TAIL_MASK;
     while (cnt < num) {
         addr = sq->base_addr + sq->pi * CTRLQ_BB_SIZE;
         size = min(total_size, (u32)CTRLQ_BB_SIZE);
@@ -85,18 +87,18 @@ void bandbridge_ctrlq_send_to_sq(void* sendbuf, int sendbuf_size)
         total_size -= size;
         offset += size;
         sq->pi++;
-        if (sq->pi >= sq->depth)
+        if (sq->pi >= sq->depth) {
             sq->pi = 0;
+        }
         cnt++;
     }
 
     reg_write(CTRLQ_TX_TAIL_REG, sq->pi);
 }
 
-static void bandbridge_ctrlq_read_data_from_rq(void* recvbuf, int* recvbuf_size)
+static void bandbridge_ctrlq_read_data_from_rq(void* recvbuf, u8 bb_num)
 {
     struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
-    u8 bb_num = *recvbuf_size / CTRLQ_BB_SIZE;
     u16 pos = rq->ci;
     int i;
 
@@ -122,7 +124,7 @@ int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
             bandbridge_log_info("ctrlq rq is empty\n");
             continue;
         }
-
+        rq->ci = reg_read(CTRLQ_RX_HEAD_REG) & CTRLQ_RX_HEAD_MASK;
         addr = rq->base_addr + rq->ci * CTRLQ_BB_SIZE;
         memcpy_fromio(&head, addr, CTRLQ_BB_SIZE);
         rseq = le16_to_cpu(head.seq);
@@ -133,7 +135,8 @@ int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
             bandbridge_ctrlq_reset_rq_ci();
         }
 
-        if (rseq != sseq) {
+        // 两端的seq高位为01
+        if ((rseq & 0x7FFF) != (sseq & 0x7FFF)) {
             bandbridge_log_info("sseq is not match %d %d\n", rseq, sseq);
             bandbridge_ctrlq_update_rq_ci(bb_num);
             continue;
@@ -145,8 +148,7 @@ int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
             return -ENOSPC;
         }
 
-        *recvbuf_size = bb_num * CTRLQ_BB_SIZE;
-        bandbridge_ctrlq_read_data_from_rq(recvbuf, recvbuf_size);
+        bandbridge_ctrlq_read_data_from_rq(recvbuf, bb_num);
         bandbridge_ctrlq_update_rq_ci(bb_num);
         return 0;
     }
@@ -177,7 +179,8 @@ static void bandbridge_ctrlq_unmap_reg(void)
 static int bandbridge_ctrlq_map_queue(void)
 {
     u16 depth_reg_val;
-    u32 addr_h, addr_l;
+    u32 addr_h;
+    u32 addr_l;
     u64 ctrlq_addr;
     size_t size;
 
@@ -204,7 +207,8 @@ static int bandbridge_ctrlq_map_queue(void)
 
     addr_l = reg_read(CTRLQ_TX_BASEADDR_L_REG);
     addr_h = reg_read(CTRLQ_TX_BASEADDR_H_REG);
-    ctrlq_addr = (u64)addr_h << 32 | addr_l;
+    // 将addr_h和addr_l拼接成一个64位地址，addr_h作为高32位，addr_l作为低32位
+    ctrlq_addr = ((u64)addr_h << 32) | addr_l;
     size = sq->depth * CTRLQ_BB_SIZE;
     sq->base_addr = ioremap(ctrlq_addr, size);
     if (!sq->base_addr) {
@@ -214,7 +218,8 @@ static int bandbridge_ctrlq_map_queue(void)
 
     addr_l = reg_read(CTRLQ_RX_BASEADDR_L_REG);
     addr_h = reg_read(CTRLQ_RX_BASEADDR_H_REG);
-    ctrlq_addr = (u64)addr_h << 32 | addr_l;
+    // 将addr_h和addr_l拼接成一个64位地址，addr_h作为高32位，addr_l作为低32位
+    ctrlq_addr = ((u64)addr_h << 32) | addr_l;
     size = rq->depth * CTRLQ_BB_SIZE;
     rq->base_addr = ioremap(ctrlq_addr, size);
     if (!rq->base_addr) {

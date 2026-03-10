@@ -33,7 +33,9 @@ int main()
     int ret;
     struct bandbridge_mbuf mbuf;
 
+    // 设置发送缓冲区大小为64
     mbuf.sendbuf_size = 64;
+    // 设置接收缓冲区大小为64
     mbuf.recvbuf_size = 64;
     mbuf.sendbuf = malloc(mbuf.sendbuf_size);
     mbuf.recvbuf = malloc(mbuf.recvbuf_size);

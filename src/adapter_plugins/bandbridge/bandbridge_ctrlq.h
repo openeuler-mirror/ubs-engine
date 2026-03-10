@@ -17,10 +17,8 @@
 #include "bandbridge_log.h"
 #define CTRLQ_BB_SIZE 32
 
-//#define UB_REG_BASEADDR 0x3300000000
 #define UB_REG_BASEADDR 0x3319000000
-//#define CTRLQ_FE15_INDEX 17
-#define CTRLQ_FE15_INDEX 1
+#define CTRLQ_FE15_INDEX 15
 #define CTRLQ_PER_OFFSET 0x20000
 #define CTRLQ_REG_LEN 0x20000
 
@@ -65,7 +63,7 @@ struct bandbridge_ctrlq_msg_header {
     u8 ret;
     u16 seq;
     u8 resv[25];
-};
+} __attribute__((packed)); // 避免内存对齐导致偏移不对
 
 int bandbridge_ctrlq_init(void);
 void bandbridge_ctrlq_deinit(void);
@@ -88,9 +86,7 @@ static inline void* __iomem reg_map(char* name, u64 base_addr, int len)
 
 static inline u32 reg_read(u32 reg_offset)
 {
-    u32 val;
-    val = readl(g_ctrlq_va + reg_offset);
-    return val;
+    return readl(g_ctrlq_va + reg_offset);
 }
 
 static inline void reg_write(u32 reg_offset, u32 value)
@@ -98,4 +94,4 @@ static inline void reg_write(u32 reg_offset, u32 value)
     writel(value, g_ctrlq_va + reg_offset);
 }
 
-#endif //BANDBRIDGE_CTRLQ_H
+#endif // BANDBRIDGE_CTRLQ_H

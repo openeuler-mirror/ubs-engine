@@ -30,7 +30,7 @@ enum bandbridge_log_level {
 
 /* add log head info, LogTag_BANDBRIDGE|function|[line]| */
 #define BANDBRIDGE_LOG_TAG "LogTag_BANDBRIDGE"
-/* only use debug log */
+/* use debug log */
 #define bandbridge_log(l, format, args...) pr_##l("%s|%s:[%d]|" format, BANDBRIDGE_LOG_TAG, __func__, __LINE__, ##args)
 /* use default log, info/warn/err */
 #define bandbridge_default_log(l, format, args...) \
@@ -88,4 +88,4 @@ extern uint32_t g_bandbridge_log_level;
             bandbridge_log(warn, __VA_ARGS__);                                                         \
     } while (0)
 
-#endif //BANDBRIDGE_LOG_H
+#endif // BANDBRIDGE_LOG_H

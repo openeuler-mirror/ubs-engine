@@ -41,13 +41,18 @@ static int bandbridge_open(struct inode* inode, struct file* filp)
     int buf_size;
 
     struct bandbridge_mbuf* mbuf;
-    mbuf = kmalloc(sizeof(*mbuf),GFP_KERNEL);
+    mbuf = kmalloc(sizeof(*mbuf), GFP_KERNEL);
     if (!mbuf) {
         bandbridge_log_err("[bandbridge_open] alloc mbuf failed.\n");
         return -ENOMEM;
     }
 
     buf_size = bandbridge_ctrlq_get_sq_size();
+    if (buf_size <= 0) {
+        kfree(mbuf);
+        bandbridge_log_err("[bandbridge_open] sq buf_size is invalid.\n");
+        return -EINVAL;
+    }
     mbuf->sendbuf = vmalloc(buf_size);
     if (!mbuf->sendbuf) {
         kfree(mbuf);
@@ -56,6 +61,12 @@ static int bandbridge_open(struct inode* inode, struct file* filp)
     }
 
     buf_size = bandbridge_ctrlq_get_rq_size();
+    if (buf_size <= 0) {
+        vfree(mbuf->sendbuf);
+        kfree(mbuf);
+        bandbridge_log_err("[bandbridge_open] rq buf_size is invalid.\n");
+        return -EINVAL;
+    }
     mbuf->recvbuf = vmalloc(buf_size);
     if (!mbuf->recvbuf) {
         vfree(mbuf->sendbuf);
@@ -157,8 +168,6 @@ static long bandbridge_ioctl(struct file* filp, unsigned int cmd, unsigned long 
         default:
             return -EINVAL;
     }
-
-    return 0;
 }
 
 static const struct file_operations g_bandbridge_global_ops = {
@@ -170,8 +179,8 @@ static const struct file_operations g_bandbridge_global_ops = {
 
 static struct miscdevice bandbridge_miscdev = {
     .minor = MISC_DYNAMIC_MINOR,      // 使用动态分配的设备号
-    .name = BANDBRIDGE_NAME,          //设备名称
-    .fops = &g_bandbridge_global_ops, //文件操作函数
+    .name = BANDBRIDGE_NAME,          // 设备名称
+    .fops = &g_bandbridge_global_ops, // 文件操作函数
 };
 
 int bandbridge_cdev_register(void)

@@ -31,4 +31,4 @@ struct bandbridge_mbuf {
 int bandbridge_cdev_register(void);
 void bandbridge_cdev_unregister(void);
 
-#endif //BANDBRIDGE_DEVICE_H
+#endif // BANDBRIDGE_DEVICE_H
