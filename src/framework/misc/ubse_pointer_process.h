@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <memory>
 #include <type_traits> // For std::is_void_v
+#include <functional>
 
 template <typename T>
 void SafeFree(T &ptr)
@@ -73,6 +74,17 @@ std::unique_ptr<T> SafeMakeUnique(Args &&...args)
         return nullptr;
     }
     return std::unique_ptr<T>(raw);
+}
+
+template <typename T, typename... Args>
+std::unique_ptr<T, std::function<void(T *)>> SafeMakeUniqueWithFreeFunc(const std::function<void(T *)> &freeFunc,
+                                                                        Args &&...args)
+{
+    T *raw = new (std::nothrow) T(std::forward<Args>(args)...);
+    if (!raw) {
+        return nullptr;
+    }
+    return std::unique_ptr<T, decltype(freeFunc)>(raw, freeFunc);
 }
 
 template <typename... Args>
