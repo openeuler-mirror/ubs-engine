@@ -25,8 +25,8 @@ using namespace mti::bus_instance;
 
 class UbseCtrlQRegDavidFeToBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQRegDavidFeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                           const std::vector<UbseMtiIdevVfe> &vfeList);
+    explicit UbseCtrlQRegDavidFeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
+                                                    const std::vector<UbseMtiIdevVfe> &vfeList);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -37,8 +37,8 @@ private:
 
 class UbseCtrlQReg1825FeToBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQReg1825FeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                          const std::vector<UbseMti1825Vf> &vfList);
+    explicit UbseCtrlQReg1825FeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
+                                                   const std::vector<UbseMti1825Vf> &vfList);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -49,8 +49,8 @@ private:
 
 class UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                               const std::vector<UbseMtiIdevVfe> &vfeList);
+    explicit UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
+                                                        const std::vector<UbseMtiIdevVfe> &vfeList);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -61,8 +61,8 @@ private:
 
 class UbseCtrlQUnReg1825FeFromBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQUnReg1825FeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                              const std::vector<UbseMti1825Vf> &vfList);
+    explicit UbseCtrlQUnReg1825FeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
+                                                       const std::vector<UbseMti1825Vf> &vfList);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -73,7 +73,7 @@ private:
 
 class UbseCtrlQRegDevProxy : public ICtrlQMsgOperationProxy<std::vector<bool>> {
 public:
-    static const uint8_t OP_CODE;
+    static const uint8_t OP_CODE = 0x7;
     UbseCtrlQRegDevProxy() = default;
     ~UbseCtrlQRegDevProxy() override = default;
 
@@ -85,7 +85,7 @@ private:
 
 class UbseCtrlQUnRegDevProxy : public ICtrlQMsgOperationProxy<std::vector<bool>> {
 public:
-    static const uint8_t OP_CODE;
+    static const uint8_t OP_CODE = 0x8;
     UbseCtrlQUnRegDevProxy() = default;
     ~UbseCtrlQUnRegDevProxy() override = default;
 

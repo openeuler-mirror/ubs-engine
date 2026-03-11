@@ -20,9 +20,6 @@ namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_MTI_MID)
 
-const uint8_t UbseCtrlQRegDevProxy::OP_CODE = 0x7;
-const uint8_t UbseCtrlQUnRegDevProxy::OP_CODE = 0x8;
-
 struct UbseCtrlQRegDevReqMsg {
     FixedHead head;
     struct {

@@ -19,8 +19,6 @@ namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_MTI_MID)
 
-const uint8_t UbseCtrlQCreateBusInstanceProxy::OP_CODE = 0x4;
-
 struct UbseCtrlQCreateBusInstanceReq {
     FixedHead head;
     uint16_t upi;
@@ -96,8 +94,6 @@ UbseResult UbseCtrlQCreateBusInstanceProxy::ConvertRespMsgToUserData(const ICtrl
     }
     return UBSE_OK;
 }
-
-const uint8_t UbseCtrlQDestroyBusInstanceProxy::OP_CODE = 0x5;
 
 struct UbseCtrlQDestroyBusInstanceReq {
     FixedHead head;

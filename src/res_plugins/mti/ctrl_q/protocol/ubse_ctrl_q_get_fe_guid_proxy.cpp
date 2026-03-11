@@ -18,7 +18,6 @@
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse", UBSE_MTI_MID)
-const uint8_t UbseCtrlQGetFeGuidProxy::OP_CODE = 0x2;
 const uint8_t DEFAULT_RESP_BBNUM = 1;
 
 struct CtrlQGetFeGuidReqMsg {

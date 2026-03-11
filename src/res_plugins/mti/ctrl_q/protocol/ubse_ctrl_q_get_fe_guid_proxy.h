@@ -19,7 +19,7 @@ namespace ubse::mti::ctrl_q {
 using namespace mti::urma;
 class UbseCtrlQGetIdevPfeGuidReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe &pfe);
+    explicit UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe &pfe);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -29,7 +29,7 @@ private:
 
 class UbseCtrlQGetIdevVfeGuidReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe &vfe);
+    explicit UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe &vfe);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -39,7 +39,7 @@ private:
 
 class UbseCtrlQGetFeGuidProxy : public ICtrlQMsgOperationProxy<UbseMtiGuid> {
 public:
-    static const uint8_t OP_CODE;
+    static const uint8_t OP_CODE = 0x2;
     UbseCtrlQGetFeGuidProxy() = default;
     ~UbseCtrlQGetFeGuidProxy() override = default;
 

@@ -20,7 +20,7 @@ namespace ubse::mti::ctrl_q {
 using namespace mti::bus_instance;
 class UbseCtrlQCreateBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQCreateBusInstanceReqMsg(uint16_t upi, uint16_t vendor);
+    explicit UbseCtrlQCreateBusInstanceReqMsg(uint16_t upi, uint16_t vendor);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -35,7 +35,7 @@ private:
 
 class UbseCtrlQCreateBusInstanceProxy : public ICtrlQMsgOperationProxy<UbseMtiBusInst> {
 public:
-    static const uint8_t OP_CODE;
+    static const uint8_t OP_CODE = 0x4;
     UbseCtrlQCreateBusInstanceProxy() = default;
     ~UbseCtrlQCreateBusInstanceProxy() override = default;
 
@@ -47,7 +47,7 @@ private:
 
 class UbseCtrlQDestroyBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst &busInstance);
+    explicit UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst &busInstance);
 
     UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
 
@@ -57,7 +57,7 @@ private:
 
 class UbseCtrlQDestroyBusInstanceProxy : public ICtrlQMsgOperationProxy<bool> {
 public:
-    static const uint8_t OP_CODE;
+    static const uint8_t OP_CODE = 0x5;
     UbseCtrlQDestroyBusInstanceProxy() = default;
     ~UbseCtrlQDestroyBusInstanceProxy() override = default;
 
