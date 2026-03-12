@@ -6,6 +6,7 @@ FetchContent_Declare(
         build-rapidjson
         GIT_REPOSITORY https://gitcode.com/GitHub_Trending/ra/rapidjson.git
         GIT_TAG  ${RAPID_JSON_VERSION}
+        GIT_SUBMODULES ""
 )
 
 # 只下载不构建
