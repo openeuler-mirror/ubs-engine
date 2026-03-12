@@ -54,7 +54,7 @@ if (NOT USE_SYSTEM_HCOM)
 
     add_library(hcom INTERFACE)
     target_include_directories(hcom SYSTEM INTERFACE ${HCOM_DIST}/include)
-    target_link_libraries(hcom INTERFACE $ ${HCOM_LIB})
+    target_link_libraries(hcom INTERFACE ${HCOM_LIB})
     add_dependencies(hcom build_hcom)
 endif ()
 
