@@ -27,7 +27,6 @@
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_logger_module.h"
-#include "ubse_security_module.h"
 #include "ubse_str_util.h"
 #include "ubse_net_util.h"
 
@@ -42,7 +41,6 @@ using namespace ubse::lcne;
 using namespace ubse::utils;
 using namespace ubse::log;
 using namespace adapter_plugins::mti;
-using namespace ubse::security;
 BASE_DYNAMIC_CREATE(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -162,15 +160,12 @@ UbseResult UbseLcneModule::Initialize()
 }
 UbseResult UbseLcneModule::GetLcneData()
 {
-    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
     auto topoChangeRet = ubseLcneTopology.RegHttpHandler();
     auto topoRet = ubseLcneTopology.Start();
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
     auto urmaEidRet = UbseLcneUrmaEid::GetInstance().GetUrmaEid(allSocketComEid);
     auto busInstanceRet = UbseLcneBusInstance::GetInstance().QueryBusinstance(ubseLcneBusInstanceInfo);
     auto ioDieInfoRet = UbseLcneNodeInfo::GetGetInstance().QueryAllLcneIODieInfo(localBoardIOInfo);
     auto hostInfoRet = UbseLcneHostInfo::GetGetInstance().QueryLcneHostInfo(localBoardHostInfo);
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     if (topoRet == UBSE_OK && topoChangeRet == UBSE_OK && urmaEidRet == UBSE_OK && busInstanceRet == UBSE_OK &&
         ioDieInfoRet == UBSE_OK && hostInfoRet == UBSE_OK) {
         return UBSE_OK;

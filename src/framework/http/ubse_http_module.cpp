@@ -174,7 +174,10 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
         cli.set_address_family(AF_UNIX);
         cli.set_path_encode(false);
         cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+        std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
         cli.send(httpReq, httpRsp, error);
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     }
 
     if (httpRsp.body.size() > MAX_RESPONSE_BODY_SIZE) {
