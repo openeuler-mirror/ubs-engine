@@ -12,7 +12,7 @@
 
 #include "ubse_logger.h"
 
-#include <bits/chrono.h>         // for duration_cast, duration, high_resol...
+#include <chrono>         // for duration_cast, duration, high_resol...
 #include <unistd.h>              // for getpid, pid_t
 #include <algorithm>             // for max
 #include <ctime>                 // for time_t, gmtime, strftime
