@@ -9,9 +9,10 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <cstring>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <cstring>
 
 #include "ubse_cli_reg.h"
 #include "ubse_cli_whitelist.h"
@@ -90,7 +91,7 @@ int main(int argc, char *argv[])
     timer.it_value.tv_sec = TIMEOUT_SECONDS;
     if (setitimer(ITIMER_REAL, &timer, nullptr) != 0) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Set timer failed. " +
-            std::string(strerror(errno)) + "\n");
+                                                                     std::string(strerror(errno)) + "\n");
         return UBSE_ERROR;
     }
     UbseCliModuleRegistry::GetInstance()
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
         ->UbseCliDisplayResult();
     if (setitimer(ITIMER_REAL, nullptr, nullptr) != 0) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Set timer failed. " +
-            std::string(strerror(errno)) + "\n");
+                                                                     std::string(strerror(errno)) + "\n");
         return UBSE_ERROR;
     }
     return UBSE_OK;
