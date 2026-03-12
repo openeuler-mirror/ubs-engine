@@ -1,47 +1,5 @@
 # UBSE指导文档（JD POC）
 
-## 目录
-
-[1 UBSE 概述](#ubse-概述)
-
-[1.1 简介](#简介)
-
-[1.2 项目核心能力](#项目核心能力)
-
-[1.3 项目代码架构](#项目代码架构)
-
-[2 配套说明](#配套说明)
-
-[2.1 软件版本配套说明](#软件版本配套说明)
-
-[2.2 硬件版本配套说明](#硬件版本配套说明)
-
-[3 API&&CLI&&环境变量说明](#apicli环境变量说明)
-
-[3.1 SDK接口说明](#sdk接口说明)
-
-[3.2 CLI使用说明](#cli使用说明)
-
-[3.3 环境变量说明](#环境变量说明)
-
-[4 安装运行说明](#安装运行说明)
-
-[4.1 软件包准备](#软件包准备)
-
-[4.2 安装说明](#安装说明)
-
-[4.3 配置说明](#配置说明)
-
-[4.4 常用命令](#常用命令)
-
-[5 问题排查定位指导](#问题排查定位指导)
-
-[5.1 日志说明](#日志说明)
-
-[5.2 常见问题排查定位](#常见问题排查定位)
-
----
-
 ## 1 UBSE 概述
 
 ### 1.1 简介
@@ -181,7 +139,7 @@ int32_t ubs_urma_dev_get(urma_device_t **urma_devices, uint32_t *urma_cnt);
 ```c
 #define UBS_URMA_NAME_MAX 32 // 包含结束符长度
 typedef struct{
-    char name[UBSE_MAX_URMA_ID_LENGTH];
+    char name[UBS_URMA_NAME_MAX];
     uint32_t healthy;
     uint64_t hw_res_id; //第一个vfe的iouId-entityId
 } urma_device_t;
@@ -241,7 +199,7 @@ typedef struct {
 
 - **用法**
 ```shell
-ubsectl display urma --node {node-id}  --dev {urma_name}
+sudo -u ubse /bin/ubsectl display urma --node {node-id}  --dev {urma_name}
 ```
 - **输入参数说明**
 
@@ -264,10 +222,16 @@ ubsectl display urma --node {node-id}  --dev {urma_name}
 
 - **输出示例**
 ```
-$ ubsectl display urma --node 1 --dev urma_1
+$ sudo -u ubse /bin/ubsectl display urma --node 1 --dev urma_1
 -----------------------------------------------------------------------
-urma-name  urma-eid  dev1-name  dev2-name  dev1-eid  dev2-eid  status 
+urma-name  dev-eid  dev1-name  dev2-name  dev1-eid  dev2-eid  status 
 urma_1     eid_0      udma1      udma49     eid1       eid2    active
+```
+- **命令自动补全**
+
+安装Bash Completion(安装完成后当前终端不会立即生效，需要新建终端生效)
+```
+dnf install bash-completion
 ```
 
 ### 3.3 环境变量说明
@@ -282,73 +246,27 @@ export HCOM_CONNECTION_SEND_TIMEOUT_SEC=30
 export HCOM_CONNECTION_RECV_TIMEOUT_SEC=30
 ```
 ---
-## 4 安装运行说明
+## 4 安装配置及运行说明
+### 4.1 安装说明
+1.版本检查
+```
+yum list | grep ubs-engine
+```
+回显显示以下rpm包
+| 软件包名称 | 软件包说明 | 版本号 |
+| :--- | :--- | :--- |
+| ubs-engine.aarch64 | 主程序包，包含UBSE核心功能与CLI工具。 | 1.0.0-x |
+| ubs-engine-client-libs.aarch64 | UBSE对外开放的客户端库，支持三方程序使用该库访问UBSE。|  1.0.0-x |
+| ubs-engine-client-devel.aarch64 | 开发工具包，用于开发人员使用。 | 1.0.0-x |
+2.rpm包安装
+```
+yum install ubs-engine
+yum install ubs-engine-client-libs
+yum install ubs-engine-client-devel
+```
+### 4.2 配置说明
 
-### 4.1 软件包准备
-
-| 软件包名称 | 软件包说明 |
-| :--- | :--- |
-| ubs-engine-*x.x.x-x*.aarch64 | 主程序包，包含UBSE核心功能与CLI工具。 |
-| ubs-engine-client-libs-*x.x.x-x*.aarch64 | UBSE对外开放的客户端库，支持三方程序使用该库访问UBSE。 |
-| ubs-engine-client-devel-*x.x.x-x*.aarch64 | 开发工具包，用于开发人员使用。 |
-| ubs-engine-debuginfo-*x.x.x-x*.aarch64 | 主程序运行包含的debug日志信息。 |
-
-### 4.2 安装说明
-
-#### 4.2.1 安装注意事项
-
-- 需切换为root用户执行安装与启动。
-- 使用ubsectl前需要先启动UBSE。
-- 初始安装由安装者保证环境纯净，如环境不纯净则会使用环境中的配置文件，可能会导致业务功能运行异常。
-- 开启mempooling/vm插件时，如果其中之一启动失败，UBSE进程也会启动失败。
-- 进程启动失败时，systemd会重试启动进程，时间间隔为5s，直到进程启动成功或停止UBSE服务为止。
-
-#### 4.2.2 安装步骤
-
-##### 4.2.2.1 ubs-engine
-
-- 执行 `rpm -ivh ubs-engine-x.x.x-x.aarch64.rpm`
-
-- **安装注意事项**
-  - ubs-engine安装依赖libboundscheck.so和libhcom.so.*，需先安装libboundscheck和ubs-comm-lib，否则会安装失败。
-  - ubs-engine RPM包安装依赖UBM，如果UBM服务未安装，UBSE服务安装可能会失败。
-
-##### 4.2.2.2 ubs-engine-client-libs
-
-- 执行 `rpm -ivh ubs-engine-client-libs-x.x.x-x.aarch64.rpm`
-
-- **安装注意事项**
-  - ubs-engine-client-libs安装依赖libboundscheck.so，需先安装libboundscheck，否则会安装失败。
-
-##### 4.2.2.3 ubs-engine-client-devel
-
-- 执行 `rpm -ivh ubs-engine-client-devel-x.x.x-x.aarch64.rpm`
-
-- **安装注意事项**
-  - 开发包需要依赖客户端包，即ubs-engine-client-devel依赖ubs-engine-client-libs，安装ubs-engine-client-devel前需要安装ubs-engine-client-libs。
-
-##### 4.2.2.4 ubs-engine-debuginfo
-
-- 执行 `rpm -ivh ubs-engine-debuginfo-x.x.x-x.aarch64.rpm`
-
-- **目录结构**
-
-| 内容 | 说明 |
-| :--- | :--- |
-| /var/log/ubse/ubse.log | UBSE主进程的日志内容 |
-
-##### 4.2.2.5 启动服务
-
-- **启动服务**：`systemctl start ubse`
-
-- **查询服务状态**：`systemctl status ubse`
-  - 状态为active即表示服务已经启动
-
-- **查询服务对应进程**，观察进程是否存在：`ps -ef | grep /usr/bin/ubse`
-
-### 4.3 配置说明
-
-#### 4.3.1 配置参数说明
+#### 4.2.1 配置参数说明
 
 | 配置文件路径 | 配置文件名称 | 是否需进行配置 | 说明 |
 | :--- | :--- | :--- | :--- |
@@ -365,14 +283,14 @@ export HCOM_CONNECTION_RECV_TIMEOUT_SEC=30
 | [ubse.election] | heartbeat.timeInterval | 发送心跳间隔时间，单位毫秒。 | 默认值：2000<br>单位：毫秒<br>取值范围：[1000, 60000]<br>参数配置取值范围之外的值会被重置为默认值。 | 所有节点 |
 | [ubse.election] | heartbeat.lostThreshold | 备节点心跳丢失次数阈值。 | 默认值：3<br>取值范围：[3, 20]<br>参数配置取值范围之外的值会被重置为默认值。 | 所有节点 |
 | [ubse.rpc] | request.timeout | 通信接口的超时时间。 | 默认值：60<br>单位：秒<br>取值范围：[0,65535]<br>如果取值超过范围，则取默认值60。 | 所有节点 |
-| [ubse.rpc] | cluster.ipList | rpc使用tcp协议时的集群各节点ip地址。 | 默认值：192.168.100.100-192.168.100.103<br>开启urma时，注释此配置。 | 所有节点 |
-| [ubse.rpc] | cert.use | rpc安全证书能力开关（仅TCP支持）。 | 默认值：true（开启证书能力）<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。 | 所有节点（仅开启TCP时支持） |
+| [ubse.rpc] | cluster.ipList | rpc使用tcp协议时的集群各节点ip地址。 | 默认值：#192.168.100.100-192.168.100.103<br>默认使用urma通信，若用tcp则取消注释此配置。 | 所有节点 |
+| [ubse.rpc] | cert.use | rpc安全证书能力开关（仅TCP支持）。 | 默认值：false <br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。 | 所有节点（仅开启TCP时支持） |
 | [ubse.ubfm] | ubse.server.port | HTTP TCP服务器端口号。 | 默认开启该配置项，配置UBSE与UBM的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8082。<br>若关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
 | [ubse.ubfm] | lcne.server.port | 向LCNE进程发送消息的端口。 | 如果UBM部署到高安环境，开启该配置项，配置UBSE与LCNE的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8799。<br>默认关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
 | [ubse.memory] | system.pool.memory.ratio | 内存池化率 | 不涉及，不需要修改 | 所有节点 |
 | [ubse.memory] | obmm.memory.block.size | 内存块大小 | 不涉及，不需要修改| 所有节点 |
 
-#### 4.3.2 配置示例
+#### 4.2.2 配置示例
 
 ```text
 [ubse.log]
@@ -409,13 +327,13 @@ heartbeat.lostThreshold=3
 request.timeout=60
 
 #When the communication mode is TCP, configure the IP addresses of all nodes within the cluster. Continuous IP address segments are supported, with segments separated by a hyphen (-). Both address segments and individual addresses can coexist, separated by a comma (,).
-cluster.ipList=192.168.100.100-192.168.100.102,192.168.100.104
+# cluster.ipList=192.168.100.100-192.168.100.102,192.168.100.104
 
 #Whether to enable TLS certificate authentication
 true: Enable TLS authentication and use certificates for secure communication
 false: Disable TLS authentication, communication will be unencrypted
 Note: This feature can only be enabled under the TCP protocol.
-cert.use=true
+cert.use=false
 
 [ubse.ubfm]
 
@@ -436,7 +354,7 @@ obmm.memory.block.size=128
 ```
 
 
-### 4.4 常用命令
+### 4.3 常用命令
 
 - **启动服务**
   ```bash
