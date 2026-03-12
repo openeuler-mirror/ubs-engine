@@ -884,7 +884,6 @@ bool UbseUDSServer::AddPendingSession(int fd)
     // 获取客户端凭证
     UbseClientInfo clientInfo{};
     if (!GetClientCredentials(fd, clientInfo)) {
-        close(fd);
         UBSE_LOG_ERROR << "Reject connection: getsockopt(SO_PEERCRED) failed";
         return false;
     }
