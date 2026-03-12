@@ -20,6 +20,7 @@
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "ubse_thread_pool_module.h"
+#include "ubse_timer.h"
 
 namespace syssentry {
 using namespace ubse::log;
@@ -36,7 +37,14 @@ UbseResult SysSentryModule::Initialize()
     return taskExecutor->Create(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME, NO_1, NO_128);
 }
 
-void SysSentryModule::UnInitialize() {}
+void SysSentryModule::UnInitialize()
+{
+    auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_WARN << "TaskExecutorModule is null";
+    }
+    taskExecutor->Remove(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME);
+}
 
 UbseResult SysSentryModule::Start()
 {

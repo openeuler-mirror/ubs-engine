@@ -100,6 +100,7 @@ UbseResult UbseRasObserver::Start()
 void UbseRasObserver::Stop()
 {
     stopThread = true;
+    ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
     if (worker && worker->joinable()) {
         worker->detach();
         // 确保释放线程资源
@@ -258,28 +259,46 @@ void UbseRasObserver::UbseConfigSysSentryTimerRun()
 UbseResult UbseRasObserver::UbseConfigSysSentryWithRetry()
 {
     UBSE_LOG_INFO << "Start to config sysSentry";
+    if (g_globalStop) {
+        UBSE_LOG_INFO << "detect global stop flag, will stop config";
+        ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
+        return UBSE_OK;
+    }
     if (UbseConfigSysSentry() == UBSE_OK) {
         UBSE_LOG_INFO << "Success to config sysSentry";
         return UBSE_OK;
     }
-    UBSE_LOG_WARN << "Failed to config sysSentry, will retry later";
-    auto taskModule = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-    if (taskModule == nullptr) {
-        UBSE_LOG_ERROR << "Get task module failed";
-        return UBSE_ERROR;
+    // 配置sysSentry可能耗时过长，此处需要再校验一遍
+    if (g_globalStop) {
+        UBSE_LOG_INFO << "detect global stop flag, will stop config";
+        return UBSE_OK;
     }
-    UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME);
-    ubse::timer::UbseTimerHandlerRegister(
+    UBSE_LOG_WARN << "Failed to config sysSentry, will retry later";
+    auto ret = ubse::timer::UbseTimerHandlerRegister(
         UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME,
-        [executor]() -> UbseResult {
+        []() -> UbseResult {
+            if (g_globalStop) {
+                UBSE_LOG_INFO << "detect global stop flag, will stop config";
+                ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
+                return UBSE_OK;
+            }
+            auto taskModule = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+            if (taskModule == nullptr) {
+                UBSE_LOG_ERROR << "Get task module failed";
+                return UBSE_ERROR;
+            }
+            UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME);
             if (executor == nullptr) {
-                UBSE_LOG_WARN << "mem executor empty, skip clean shm";
+                UBSE_LOG_WARN << "executor empty, skip config sysSentry";
                 return UBSE_OK;
             }
             executor->Execute([]() -> void { UbseRasObserver::GetInstance().UbseConfigSysSentryTimerRun(); });
             return UBSE_OK;
         },
         UBSE_RAS_CONFIG_SYSSENTRY_TIMER_INTERVAL);
-    return UBSE_OK;
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Register timer failed, ret=" << FormatRetCode(ret);
+    }
+    return ret;
 }
 } // namespace syssentry
