@@ -19,8 +19,8 @@
 - **路径**：`/topolink/change/` (例: `/users/{id}`)
 - **请求头**：
   ```http
-  Accept: application/yang-data+xml
-  Content-Type: application/yang-data+xml
+  Authorization: Bearer [token]
+  Content-Type: application/xml
   ```
 
 #### 请求参数

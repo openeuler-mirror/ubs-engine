@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 # MatrixEngine is licensed under Mulan PSL v2.
@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 import os
 import sys
 from datetime import datetime, timezone
-
+from pathlib import Path
 
 def merge_xml_files(output_file, xml_files):
     # 创建一个根元素
@@ -89,8 +89,11 @@ if __name__ == "__main__":
 
     base_dir = sys.argv[1]
 
+    ut_xml_directory = Path(os.path.join(base_dir, "ut"))
+
+    xml_files = [str(f) for f in ut_xml_directory.glob("*.xml")]
     # 拼接 XML 文件路径
-    xml_files = [os.path.join(base_dir, "it_detail.xml"), os.path.join(base_dir, "ut_detail.xml")]
+    xml_files.append(os.path.join(base_dir, "it_detail.xml"))
 
     # 输出文件路径
     output_file = os.path.join(base_dir, "test_detail.xml")

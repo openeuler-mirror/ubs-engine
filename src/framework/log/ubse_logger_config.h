@@ -41,7 +41,7 @@ public:
 
 private:
     class Impl;
-    std::unique_ptr<Impl> pImpl;
+    std::unique_ptr<Impl> pImpl_;
 };
 } // namespace ubse::log
 #endif // UBSE_LOG_CONFIG_H

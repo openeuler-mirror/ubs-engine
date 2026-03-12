@@ -31,7 +31,7 @@ TEST_F(TestUbseSecurityManager, testGetCapabilities)
 {
     EXPECT_EQ(ubse::security::UbseSecurityManager::GetCapabilities(), UBSE_OK);
 }
-/*
+
 TEST_F(TestUbseSecurityManager, testSetInitialCapabilities)
 {
     EXPECT_EQ(ubse::security::UbseSecurityManager::SetInitialCapabilities(), UBSE_OK);
@@ -42,15 +42,7 @@ TEST_F(TestUbseSecurityManager, testModifyEffectiveCapabilities)
     const std::vector<__u32> caps = {
         CAP_FOWNER,
     };
-    EXPECT_EQ(ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities(caps,
-        ubse::security::UbseCapOperateType::CAP_DELETE),
-        UBSE_OK);
-    EXPECT_EQ(ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities(caps,
-        ubse::security::UbseCapOperateType::CAP_ADD),
-        UBSE_OK);
-    EXPECT_EQ(ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities(caps,
-        static_cast<ubse::security::UbseCapOperateType>(999)),
-        UBSE_ERROR_INVAL);
+    EXPECT_EQ(ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities(caps, false), UBSE_OK);
+    EXPECT_EQ(ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities(caps, true), UBSE_OK);
 }
-*/
 }

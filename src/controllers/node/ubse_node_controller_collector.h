@@ -13,14 +13,13 @@
 #ifndef UBSE_NODE_CONTROLLER_COLLECTOR_H
 #define UBSE_NODE_CONTROLLER_COLLECTOR_H
 
-#include "src/res_plugins/mti/ubse_lcne_module.h"
+#include "ubse_context.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::nodeController {
 using namespace ubse::module;
 using namespace ubse::log;
-using namespace ubse::mti;
 using namespace ubse::context;
 
 /**
@@ -59,6 +58,20 @@ UbseResult CollectNumaInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId
  * @return
  */
 UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId);
+
+/**
+ * 通过cli采集本节点SysSentry服务状态信息
+ * @param ubseNodeInfo [in,out] 节点对象
+ * @return 操作结果，UBSE_OK表示成功，其他表示失败
+ */
+UbseResult CollectSysSentryState(UbseNodeInfo &ubseNodeInfo);
+
+/**
+ * 通过检查内核文件路径，确认obmm内核是否已插入
+ * @param ubseNodeInfo [in,out] 节点对象
+ * @return 操作结果，UBSE_OK表示成功，其他表示失败
+ */
+UbseResult CollectObmmKernelState(UbseNodeInfo &ubseNodeInfo);
 } // namespace ubse::nodeController
 
 #endif // UBSE_NODE_CONTROLLER_COLLECTOR_H

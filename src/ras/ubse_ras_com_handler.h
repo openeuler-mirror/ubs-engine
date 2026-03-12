@@ -26,7 +26,7 @@ public:
 
     uint16_t GetOpCode() override
     {
-        return static_cast<uint16_t>(UbseOpCode::UBSE_RAS_BMC_REBOOT);
+        return static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_BMC_REBOOT);
     }
 
     uint16_t GetModuleCode() override
@@ -35,6 +35,44 @@ public:
     }
 };
 using UbseRasComHandlerPtr = Ref<UbseRasComHandler>;
+
+class UbseRasSwitchRoleHandler : public UbseComBaseMessageHandler {
+public:
+    UbseRasSwitchRoleHandler() = default;
+    
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_SWITCH_ROLE);
+    }
+
+    uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::RAS);
+    }
+};
+using UbseRasSwitchRoleHandlerPtr = Ref<UbseRasSwitchRoleHandler>;
+
+class UbseOomHandler : public UbseComBaseMessageHandler {
+public:
+    UbseOomHandler() = default;
+    
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_OOM);
+    }
+
+    uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::RAS);
+    }
+};
+using UbseOomHandlerPtr = Ref<UbseOomHandler>;
 } // namespace ubse::ras
 
 #endif // UBSE_MANAGER_UBSE_RAS_COM_HANDLER_H

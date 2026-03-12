@@ -11,13 +11,12 @@
  */
 
 #include "ubse_election_node_mgr.h"
-#include <fstream>
-#include <iostream>
 #include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
-#include "ubse_topology_interface.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 
 namespace ubse::election {
 using namespace ubse::log;
@@ -25,7 +24,7 @@ using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::nodeController;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_ELECTION_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 static const std::string ELECTION_ROLE_INIT = "init";
 
@@ -80,19 +79,20 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
         module->GetConf<uint32_t>(UBSE_ELECTION_SECTION, UBSE_ELECTION_HEARTBEAT_LOST_THRESHOLD, heartBeatLost_);
     if (ret != UBSE_OK || heartBeatLost_ < DEFAULT_HEART_BEAT_LOST || heartBeatLost_ > MAX_HEART_BEAT_LOST) {
         UBSE_LOG_WARN << "[ELECTION] Heartbeat loss threshold is invalid. Resetting to default: "
-                    << DEFAULT_HEART_BEAT_LOST << " .";
+                      << DEFAULT_HEART_BEAT_LOST << " .";
         heartBeatLost_ = DEFAULT_HEART_BEAT_LOST;
     }
 
     ret = module->GetConf<uint32_t>(UBSE_ELECTION_SECTION, UBSE_ELECTION_HEARTBEAT_TIME_INTERVAL, heartBeatTime);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetHeartBeatTime get heartbeat.timeInterval failed, " << FormatRetCode(ret)
-                    << ", will use default value : " << DEFAULT_HEART_BEAT_TIME;
+                      << ", will use default value : " << DEFAULT_HEART_BEAT_TIME;
         heartBeatTime_ = heartBeatTime;
     }
     if (heartBeatTime < 1000 || heartBeatTime > 60000) { // 心跳时间范围在1000到60000之间
         heartBeatTime_ = DEFAULT_HEART_BEAT_TIME;
-        UBSE_LOG_WARN << "heartBeatTime should be between 1000 and 60000, use default value: 5000";
+        UBSE_LOG_WARN << "heartBeatTime should be between 1000 and 60000, use default value: "
+                      << DEFAULT_HEART_BEAT_TIME;
     } else {
         heartBeatTime_ = heartBeatTime;
     }
@@ -103,17 +103,34 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
     }
 }
 
-void UbseElectionNodeMgr::ParseAllNodesVector(const std::vector<UbseNodeInfo> &allNodesVec)
+void UbseElectionNodeMgr::ParseAllNodesVector()
 {
-    bool ubEnable;
+    bool ubEnable = true;
     GetUBEnable(ubEnable);
-    for (const auto &node : allNodesVec) {
-        uint16_t port = ubEnable ? URMA_LISTEN_JETTY : TCP_LISTEN_PORT;
-        Node tempNode;
-        tempNode.id = node.nodeId;
-        tempNode.ip = ubEnable ? std::string(node.bondingEid) : node.comIp;
-        tempNode.port = port;
-        currentAllNodes_.push_back(tempNode);
+    const uint16_t port = ubEnable ? URMA_LISTEN_JETTY : TCP_LISTEN_PORT;
+    if (ubEnable) {
+        std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
+        if (ubseNodeInfos.empty()) {
+            UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
+            return;
+        }
+        for (const auto &node : ubseNodeInfos) {
+            Node tempNode;
+            tempNode.ip = std::string(node.bondingEid);
+            tempNode.port = port;
+            currentAllNodes_.push_back(tempNode);
+            nodeIpMap_.emplace(tempNode.ip, "");
+        }
+    } else {
+        std::vector<std::string> ipList{};
+        adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterIpList(ipList);
+        for (const auto &ip : ipList) {
+            Node tempNode;
+            tempNode.ip = ip;
+            tempNode.port = port;
+            currentAllNodes_.push_back(tempNode);
+            nodeIpMap_.emplace(tempNode.ip, "");
+        }
     }
 }
 
@@ -124,26 +141,26 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
         UBSE_LOG_ERROR << "[ELECTION] LoadConfig get nodeId failed.";
         return UBSE_ERROR;
     }
-    bool ubEnable;
+    bool ubEnable = true;
     GetUBEnable(ubEnable);
-    currentNode_.id = ubseNodeInfo.nodeId;
     if (ubEnable) {
         currentNode_.ip = std::string(ubseNodeInfo.bondingEid);
     } else {
-        currentNode_.ip = ubseNodeInfo.comIp;
+        adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(currentNode_.ip);
         currentNode_.port = TCP_LISTEN_PORT;
+    }
+    currentNode_.id = ubseNodeInfo.nodeId;
+    if (currentNode_.id.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] LoadConfig nodeId empty.";
+        return UBSE_ERROR;
     }
 
     lastAllNodes_.clear();
     lastAllNodes_ = std::move(currentAllNodes_);
     currentAllNodes_.clear();
 
-    std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
-    if (ubseNodeInfos.empty()) {
-        UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
-        return UBSE_ERROR;
-    }
-    ParseAllNodesVector(ubseNodeInfos);
+    ParseAllNodesVector();
+    UpdateCurrentNode();
 
     // 校验
     if (currentNode_.id == "" || currentNode_.ip == "" || currentAllNodes_.empty()) {
@@ -175,6 +192,7 @@ UbseResult UbseElectionNodeMgr::GetAllNode(std::vector<Node> &allNodes)
     allNodes = currentAllNodes_;
     return UBSE_OK;
 }
+
 UbseResult UbseElectionNodeMgr::GetAllNeighbourNode(std::vector<Node> &neighbourNodes)
 {
     auto ret = GetAllNode(neighbourNodes);
@@ -216,6 +234,116 @@ UbseResult UbseElectionNodeMgr::GetNodeInfoByID(const UBSE_ID_TYPE &id, std::str
     }
     UBSE_LOG_DEBUG << "[ELECTION] GetNodeInfoByID: id:" << id << "not found.";
     return UBSE_ERROR;
+}
+
+UbseResult UbseElectionNodeMgr::GetPortByIp(const std::string &ip, uint16_t &port)
+{
+    if (ip.empty()) {
+        UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: id is empty.";
+        return UBSE_ERROR;
+    }
+    if (currentAllNodes_.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] GetPortByIp: currentAllNodes_ is empty.";
+        return UBSE_ERROR;
+    }
+    for (const auto &it : currentAllNodes_) {
+        if (it.ip == ip) {
+            port = it.port;
+            return UBSE_OK;
+        }
+    }
+    UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: ip:" << ip << "not found.";
+    return UBSE_ERROR;
+}
+
+UbseResult UbseElectionNodeMgr::UpdateNodeIdWithConnect(const std::string &ip, const std::string &id)
+{
+    if (ip.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
+        return UBSE_ERROR;
+    }
+    if (id.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] id is empty.";
+        return UBSE_ERROR;
+    }
+    if (currentAllNodes_.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] currentAllNodes_ is empty.";
+        return UBSE_ERROR;
+    }
+
+    for (auto &node : currentAllNodes_) {
+        if (node.ip == ip) {
+            node.id = id;
+            nodeIpMap_[ip] = id;
+            UBSE_LOG_DEBUG << "[ELECTION] Updated for ip = " << ip << " to id = " << id;
+            return UBSE_OK;
+        }
+    }
+    // 如果没有找到匹配的节点
+    UBSE_LOG_ERROR << "[ELECTION] ip=" << ip << " not found in currentAllNodes_.";
+    return UBSE_ERROR;
+}
+
+UbseResult UbseElectionNodeMgr::GetNodeIdByIp(const std::string &ip, std::string &id)
+{
+    if (ip.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
+        return UBSE_ERROR;
+    }
+    if (nodeIpMap_.find(ip) != nodeIpMap_.end()) {
+        id = nodeIpMap_[ip];
+        return UBSE_OK;
+    }
+    UBSE_LOG_ERROR << "[ELECTION] ip not found in nodeIpMap_.";
+    return UBSE_ERROR;
+}
+
+UbseResult UbseElectionNodeMgr::GetNodeIpById(const std::string &id, std::string &ip)
+{
+    if (id.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
+        return UBSE_ERROR;
+    }
+    for (auto info : nodeIpMap_) {
+        if (std::get<1>(info) == id) {
+            ip = std::get<0>(info);
+            return UBSE_OK;
+        }
+    }
+    UBSE_LOG_ERROR << "[ELECTION] id not found in nodeIpMap_.";
+    return UBSE_ERROR;
+}
+
+UbseResult UbseElectionNodeMgr::GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE> &nodeIpMap)
+{
+    // 判断当前所有节点是否为空
+    if (nodeIpMap_.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] nodeIpMap_ is empty.";
+        return UBSE_ERROR;
+    }
+    nodeIpMap = nodeIpMap_;
+    return UBSE_OK;
+}
+
+void UbseElectionNodeMgr::UpdateCurrentNode()
+{
+    Node currentNode;
+    if (GetMyselfNode(currentNode) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] failed to get current node";
+        return;
+    }
+    if (currentAllNodes_.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] currentAllNodes_ is empty.";
+        return;
+    }
+    auto it = std::find_if(currentAllNodes_.begin(), currentAllNodes_.end(),
+                           [&currentNode](const Node &node) { return node.ip == currentNode.ip; });
+    if (it != currentAllNodes_.end()) {
+        it->id = currentNode.id;
+        UBSE_LOG_INFO << "[ELECTION] current id =" << currentNode.id << " current ip =" << currentNode.ip;
+        nodeIpMap_[currentNode.ip] = currentNode.id;
+    }
+    return;
 }
 
 uint32_t UbseElectionNodeMgr::GetHeartBeatTime() const

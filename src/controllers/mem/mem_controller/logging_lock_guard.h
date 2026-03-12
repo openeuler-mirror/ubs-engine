@@ -13,8 +13,8 @@
 #ifndef LOGGING_LOCK_GUARD_H
 #define LOGGING_LOCK_GUARD_H
 
-#include <mutex>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 namespace ubse::mem::controller {
@@ -30,11 +30,11 @@ public:
     LoggingLockGuard &operator=(const LoggingLockGuard &) = delete;
 
 private:
-    std::shared_ptr<std::mutex> GetObjMutex(const std::string objId);
-    void RemoveObjMutex(const std::string objId);
+    std::shared_ptr<std::mutex> GetObjMutex(const std::string &objId);
+    void RemoveObjMutex(const std::string &objId);
 
-    std::shared_ptr<std::mutex> mutex;
-    std::string name;
+    std::shared_ptr<std::mutex> mutex_;
+    std::string name_;
 
     static std::unordered_map<std::string, std::shared_ptr<std::mutex>> mutexMap;
     static std::mutex mapMutex;

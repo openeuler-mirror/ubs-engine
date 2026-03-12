@@ -1,6 +1,14 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "ubse_mem_numa_borrow_importobj_simpo.h"
 #include "ubse_error.h"
@@ -8,15 +16,14 @@
 
 namespace ubse::mem::controller::message {
 using namespace ubse::message;
-using namespace ubse::mem::obj;
+using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::serial;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseMemNumaBorrowImportobjSimpo::Serialize()
 {
     UbseSerialization out;
-    UbseMemNumaBorrowImportObjSerialization(out, importObj);
-    if (!out.Check()) {
+    if (!UbseMemNumaBorrowImportObjSerialization(out, importObj_)) {
         UBSE_LOG_ERROR << "Failed to serialize.";
         return UBSE_ERROR;
     }
@@ -32,10 +39,10 @@ UbseResult UbseMemNumaBorrowImportobjSimpo::Deserialize()
         return UBSE_ERROR;
     }
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    if (UbseMemNumaBorrowImportObjDeserialization(in, importObj) != UBSE_OK) {
+    if (!UbseMemNumaBorrowImportObjDeserialization(in, importObj_)) {
         UBSE_LOG_ERROR << "Failed to deserialize.";
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
-}
+} // namespace ubse::mem::controller::message

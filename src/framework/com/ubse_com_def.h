@@ -16,18 +16,20 @@
 #include <functional>
 #include <string>
 #include <utility>
-#include "ubse_base_message.h"
-#include "ubse_common_def.h"
 #include "hcom/hcom.h"
 #include "hcom/hcom_service.h"
 #include "hcom/hcom_service_context.h"
 #include "hcom/hcom_service_def.h"
 #include "securec.h"
+#include "trace_context.h"
+#include "ubse_base_message.h"
+#include "ubse_common_def.h"
 
 namespace ubse::com {
 using namespace ock::hcom;
 using namespace ubse::common::def;
 using namespace ubse::message;
+using UbseComCallBackForHA = std::function<UbseResult(const std::string &remoteIp, const std::string &remoteNodeId)>;
 // 大数据场景下，默认单次最大发送数据量大小，单位MB
 const uint32_t DEFAULT_MAX_SENDRECEIVE_SIZE = 1;      // 注意规避
 const uint32_t DEFAULT_SEND_RECEIVE_SEG_COUNT = 4200; // 注意规避
@@ -50,8 +52,7 @@ enum class UbseProtocol {
     TCP = 1,
     UDS,
     HCCS,
-    UB,
-    UBC = 7
+    UBC
 };
 
 enum class UbseWorkerMode {
@@ -66,11 +67,7 @@ enum class UbseLinkState {
 };
 
 enum class UbseChannelType {
-    SINGLE_SIDE = 0,  // 单向通道，客户端向服务端发送数据流单向通道
-    SINGLE_EP_NORMAL, // 双向单EP通道
-    NORMAL,           // 双向通道
-    EMERGENCY,        // 紧急消息通道
-    HEARTBEAT         // 心跳通道
+    NORMAL, // 双向通道
 };
 
 enum class UbseComLogLevel {
@@ -84,7 +81,10 @@ enum class UbseReplyResult {
     OK = 0,
     ERR = 1,
     ERR_NO_HANDLER = 2,
-    ERR_NO_REPLY = 3
+    ERR_NO_REPLY = 3,
+    ERR_TOO_LARGE_REPLY = 4,
+    ERR_CH_NOT_IN_MAP = 5,
+    ERR_VERIFY_FAIL = 6
 };
 
 struct ConnectOption {
@@ -182,25 +182,33 @@ public:
 
     uint16_t GetHcomHbTimeOut() const;
 
+    UbseComCallBackForHA GetNewChannelCb() const;
+
+    UbseComCallBackForHA GetBrokenChannelCb() const;
+
+    void SetChannelCb(UbseComCallBackForHA newChannel, UbseComCallBackForHA brokenChannel);
+
 private:
-    UbseEngineType engineType{UbseEngineType::SERVER};           // 引擎类型
-    UbseProtocol protocol{UbseProtocol::TCP};                    // 通信协议
-    UbseWorkerMode workerMode{UbseWorkerMode::NET_BUSY_POLLING}; // hcom工作模式
-    std::string nodeId;                                          // 节点标识
-    std::pair<std::string, uint16_t> ipInfo{};                   // TCP，RDMA模式下的ip端口信息
-    std::pair<std::string, uint16_t> udsInfo{};                  // UDS模式下的socket路径
-    std::string workGroup;                                       // hcom的workgroup配置信息
-    std::string name;                                            // 引擎名
-    UbseComLogFunc logFunc{};                                    // 注册给hcom的日志钩子函数
-    uint64_t maxSendReceiveSize = DEFAULT_MAX_SENDRECEIVE_SIZE;  // 大数据场景下，单次最大发送数据量大小，单位MB
-    IsReconnectHook reconnectHook = nullptr; // 通道断连后重连钩子     // 大数据场景下，单次最大发送数据量大小，单位MB
-    ShouldDoReconnectCb shouldDoReconnectCb = nullptr;
-    QueryEidByNodeIdCb queryEidByNodeIdCb = nullptr;
-    uint32_t sendReceiveSegCount = DEFAULT_SEND_RECEIVE_SEG_COUNT; // tls认证协议，默认使用HITLS
-    UBSHcomNetCipherSuite cipherSuite = AES_GCM_128;                      // 加密套算法
-    int16_t timeout = 60;                                          // 默认超时时间 60s
-    int16_t heartBeatTimeout = 1;                                  // 默认心跳超时时间 1s
-    uint16_t hcomHbTimeout = DEFAULT_HCOM_HB_TIMEOUT;
+    UbseEngineType engineType_{UbseEngineType::SERVER};           // 引擎类型
+    UbseProtocol protocol_{UbseProtocol::TCP};                    // 通信协议
+    UbseWorkerMode workerMode_{UbseWorkerMode::NET_BUSY_POLLING}; // hcom工作模式
+    std::string nodeId_;                                          // 节点标识
+    std::pair<std::string, uint16_t> ipInfo_{};                   // TCP，RDMA模式下的ip端口信息
+    std::pair<std::string, uint16_t> udsInfo_{};                  // UDS模式下的socket路径
+    std::string workGroup_;                                       // hcom的workgroup配置信息
+    std::string name_;                                            // 引擎名
+    UbseComLogFunc logFunc_{};                                    // 注册给hcom的日志钩子函数
+    uint64_t maxSendReceiveSize_ = DEFAULT_MAX_SENDRECEIVE_SIZE;  // 大数据场景下，单次最大发送数据量大小，单位MB
+    IsReconnectHook reconnectHook_ = nullptr; // 通道断连后重连钩子     // 大数据场景下，单次最大发送数据量大小，单位MB
+    ShouldDoReconnectCb shouldDoReconnectCb_ = nullptr;
+    QueryEidByNodeIdCb queryEidByNodeIdCb_ = nullptr;
+    uint32_t sendReceiveSegCount_ = DEFAULT_SEND_RECEIVE_SEG_COUNT; // tls认证协议，默认使用HITLS
+    UBSHcomNetCipherSuite cipherSuite_ = AES_GCM_128;               // 加密套算法
+    int16_t timeout_ = 60;                                          // 默认超时时间 60s
+    int16_t heartBeatTimeout_ = 1;                                  // 默认心跳超时时间 1s
+    uint16_t hcomHbTimeout_ = DEFAULT_HCOM_HB_TIMEOUT;
+    UbseComCallBackForHA mNewChannelCb_ = nullptr;
+    UbseComCallBackForHA mBrokenChannelCb_ = nullptr;
 };
 
 class UbseComChannelConnectInfo {
@@ -209,11 +217,11 @@ public:
 
     UbseComChannelConnectInfo(bool isUds, std::string ip, uint16_t port, std::string remoteNodeId,
                               std::string curNodeId)
-        : isUds(isUds),
-          ip(std::move(ip)),
-          port(port),
-          remoteNodeId(std::move(remoteNodeId)),
-          curNodeId(std::move(curNodeId)){};
+        : isUds_(isUds),
+          ip_(std::move(ip)),
+          port_(port),
+          remoteNodeId_(std::move(remoteNodeId)),
+          curNodeId_(std::move(curNodeId)){};
 
     const std::string &GetIp() const;
 
@@ -240,12 +248,12 @@ public:
     void SetCurNodeId(const std::string &nodeId);
 
 private:
-    bool isUds{false};        // 是否是Uds协议
-    std::string ip;           // 非uds模式下，为建连通道的远端节点Ip;uds模式为uds路径
-    uint16_t port{0};         // 建连通道的远端节点端口
-    std::string remoteNodeId; // 远程节点的Id
-    std::string curNodeId;    // 当前节点Id
-    uint16_t linkNum{1};      // 通道的链路数
+    bool isUds_{false};        // 是否是Uds协议
+    std::string ip_;           // 非uds模式下，为建连通道的远端节点Ip;uds模式为uds路径
+    uint16_t port_{0};         // 建连通道的远端节点端口
+    std::string remoteNodeId_; // 远程节点的Id
+    std::string curNodeId_;    // 当前节点Id
+    uint16_t linkNum_{1};      // 通道的链路数
 };
 
 class UbseComChannelInfo {
@@ -254,15 +262,15 @@ public:
 
     UbseComChannelInfo(bool isServer, UbseChannelType channelType, std::string engineName, UBSHcomChannelPtr channel,
                        UbseComChannelConnectInfo connectInfo)
-        : isServer(isServer),
-          channelType(channelType),
-          engineName(std::move(engineName)),
-          channel(std::move(channel)),
-          connectInfo(std::move(connectInfo)){};
+        : isServer_(isServer),
+          channelType_(channelType),
+          engineName_(std::move(engineName)),
+          channel_(std::move(channel)),
+          connectInfo_(std::move(connectInfo)){};
 
     ~UbseComChannelInfo()
     {
-        channel = nullptr;
+        channel_ = nullptr;
     }
 
     bool IsServerSide() const;
@@ -288,11 +296,11 @@ public:
     std::string ConvertUbseComChannelInfoToString();
 
 private:
-    bool isServer{true};                                  // 是否是server端
-    UbseChannelType channelType{UbseChannelType::NORMAL}; // 通道类型
-    std::string engineName;                               // 引擎名
-    UBSHcomChannelPtr channel = nullptr;                     // channel指针
-    UbseComChannelConnectInfo connectInfo;                // 连接信息
+    bool isServer_{true};                                  // 是否是server端
+    UbseChannelType channelType_{UbseChannelType::NORMAL}; // 通道类型
+    std::string engineName_;                               // 引擎名
+    UBSHcomChannelPtr channel_ = nullptr;                  // channel指针
+    UbseComChannelConnectInfo connectInfo_;                // 连接信息
 };
 
 /**
@@ -325,11 +333,27 @@ public:
 
     void SetCrc(uint32_t dataCrc);
 
+    inline void SetTraceId(const std::string &id)
+    {
+        size_t copyLen = std::min(id.size(), TRACE_ID_SIZE - 1);
+        auto ret = memcpy_s(traceId_, TRACE_ID_SIZE, id.c_str(), copyLen);
+        if (ret != EOK) {
+            return;
+        }
+        traceId_[copyLen] = '\0'; // 确保字符串终止
+    }
+
+    inline std::string GetTraceId() const
+    {
+        return traceId_;
+    }
+
 private:
-    uint16_t opCode;     // 操作码
-    uint16_t moduleCode; // 模块码
-    uint32_t bodyLen;    // 消息体长度
-    uint32_t crc;
+    uint16_t opCode_;     // 操作码
+    uint16_t moduleCode_; // 模块码
+    uint32_t bodyLen_;    // 消息体长度
+    uint32_t crc_;
+    char traceId_[TRACE_ID_SIZE];
 };
 
 class UbseComMessage {
@@ -351,8 +375,8 @@ public:
     uint32_t GetMessageBodyLen();
 
 private:
-    UbseComMessageHead head; // 消息头
-    uint8_t body[0];         // 消息体
+    UbseComMessageHead head_; // 消息头
+    uint8_t body_[0];         // 消息体
 };
 
 struct UbseUdsIdInfo {
@@ -368,10 +392,10 @@ public:
     UbseComMessageCtx(UbseComMessagePtr message, std::string srcId, std::string dstId, UbseChannelType channelType);
 
     UbseComMessageCtx(const std::string &engineName, uintptr_t transRspCtx, uint64_t netChannel, const std::string &id)
-        : dstId(id),
-          rspCtx(transRspCtx),
-          channelId(netChannel),
-          engineName(engineName)
+        : dstId_(id),
+          rspCtx_(transRspCtx),
+          channelId_(netChannel),
+          engineName_(engineName)
 
     {
     }
@@ -409,15 +433,45 @@ public:
 
     void SetUdsInfo(const UbseUdsIdInfo &uds);
 
+    void inline SetTraceId(const std::string &id)
+    {
+        traceId_ = id;
+    }
+
+    std::string inline GetTraceId() const
+    {
+        return traceId_;
+    }
+
+    void SetModuleCode(const uint64_t &moduleCode);
+
+    void SetOpCode(const uint64_t &opCode);
+
+    uint64_t GetModuleCode() const;
+    uint64_t GetOpCode() const;
+
+    const UBSHcomChannelPtr &GetChannelPtr() const;
+
+    void SetChannelPtr(const UBSHcomChannelPtr &chPtr);
+
+    void SetRemoteCall();
+
+    bool IsRemoteCall() const;
+
 private:
-    UbseComMessagePtr message;   // 消息指针
-    std::string srcId;           // 源节点Id
-    std::string dstId;           // 目标节点Id
-    uintptr_t rspCtx = 0;        // 放回消息上下文指针
-    UbseChannelType channelType; // 消息通道类型
-    uint64_t channelId = 0;      // 通道Id
-    std::string engineName;      // 引擎名
-    UbseUdsIdInfo udsInfo;
+    UbseComMessagePtr message_;    // 消息指针
+    UBSHcomChannelPtr channelPtr_; // 收到消息的链路指针
+    std::string srcId_;            // 源节点Id
+    std::string dstId_;            // 目标节点Id
+    uintptr_t rspCtx_ = 0;         // 放回消息上下文指针
+    UbseChannelType channelType_;  // 消息通道类型
+    uint64_t channelId_ = 0;       // 通道Id
+    std::string engineName_;       // 引擎名
+    UbseUdsIdInfo udsInfo_;
+    std::string traceId_;
+    uint64_t ctxModuleCode_;
+    uint64_t ctxOpCode_;
+    bool isRemoteCall_ = false;
 };
 
 struct UbseComDataDesc {
@@ -452,8 +506,8 @@ struct UbseComMsgHandler {
 };
 
 struct UbseComTcpStr {
-    std::string nodeId;                            // 模块编码
-    std::string comIp;                                // 操作码
+    std::string nodeId; // 模块编码
+    std::string comIp;  // 操作码
 };
 
 UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const uint16_t &opCode,
@@ -481,6 +535,6 @@ std::string UbseReplyResultToString(UbseReplyResult result);
 
 std::pair<std::string, UbseChannelType> SplitPayload(const std::string &payload);
 
-void GetTcpInfo(UbseComTcpStr &info);
+UBSHcomServiceProtocol UbseProtocolToHcomProtocol(UbseProtocol LocalProtocol);
 } // namespace UBSE::com
 #endif // UBSE_COM_DEF_H

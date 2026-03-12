@@ -13,18 +13,16 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_FD_BORROW_IMPORTOBJ_SIMPO_H
 #define UBSE_MANAGER_UBSE_MEM_FD_BORROW_IMPORTOBJ_SIMPO_H
 
-
-#include "ubse_mem_obj.h"
 #include "ubse_base_message.h"
 #include "ubse_mem_controller_serial.h"
+#include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller::message {
 using namespace ubse::message;
-using namespace ubse::mem::obj;
+using namespace ubse::adapter_plugins::mmi;
 
 class UbseMemFdBorrowImportobjSimpo : public UbseBaseMessage {
 public:
-
     UbseMemFdBorrowImportobjSimpo() = default;
 
     explicit UbseMemFdBorrowImportobjSimpo(uint8_t *data, uint32_t size)
@@ -34,12 +32,12 @@ public:
 
     inline void SetUbseMemFdBorrowImportobj(UbseMemFdBorrowImportObj obj)
     {
-        importObj = std::move(obj);
+        importObj_ = std::move(obj);
     }
 
     inline UbseMemFdBorrowImportObj GetUbseMemFdBorrowImportObj()
     {
-        return importObj;
+        return importObj_;
     }
 
     UbseResult Serialize() override;
@@ -48,13 +46,13 @@ public:
 
     UbseMemFdBorrowImportObj GetImportObj()
     {
-        return importObj;
+        return importObj_;
     }
 
 private:
-    UbseMemFdBorrowImportObj importObj;
+    UbseMemFdBorrowImportObj importObj_;
 };
 using UbseMemFdBorrowImportobjSimpoPtr = Ref<UbseMemFdBorrowImportobjSimpo>;
-};
+}; // namespace ubse::mem::controller::message
 
 #endif // UBSE_MANAGER_UBSE_MEM_FD_BORROW_IMPORTOBJ_SIMPO_H

@@ -19,9 +19,7 @@
 #include <shared_mutex>
 #include <string>
 #include <vector>
-
 #include "ubse_common_def.h"
-#include "ubse_http_module.h"
 #include "ubse_context.h"
 #include "ubse_plugin_admission.h"
 #include "ubse_plugin_config.h"
@@ -29,7 +27,6 @@
 namespace ubse::plugin {
 using namespace ubse::common::def;
 using namespace ubse::context;
-using namespace ubse::http;
 using UbsePluginInitFunc = uint32_t (*)(const uint16_t);
 using UbsePluginDeInitFunc = void (*)();
 
@@ -38,24 +35,24 @@ using UbsePluginDeInitFunc = void (*)();
  */
 class UbsePluginManager {
 public:
-    /* *
+    /**
      * 插件管理模块启动:读取插件配置和准入配置，并初始化所有插件
      * @return UbseResult
      */
     UbseResult Start();
 
-    /* *
+    /**
      * 卸載所有插件,调用去初始化函数，并关闭so文件
      */
     void DeInitializePlugins();
 
-    /* *
+    /**
      * 获取已加载插件
      * @param loadedPlugins 已加载插件集合
      */
     void GetLoadedPlugins(std::vector<std::string> &loadedPlugins);
 
-    /* *
+    /**
      * @brief 获取已加载插件句柄
      *
      * @param pluginName 插件名称
@@ -64,28 +61,28 @@ public:
     void *GetLoadedPlugin(const std::string &pluginName);
 
 private:
-    /* *
+    /**
      * 加载、初始化所有允许的插件
      * @return UbseResult
      */
     UbseResult LoadAndInitPlugins();
 
-    /* *
+    /**
      * 单独加载并初始化某个插件
      * @param pluginName 插件名称
-     * @param moduleCode 模块编码
+     * @param fileName so文件路径
      * @return UbseResult
      */
-    UbseResult LoadAndInitPlugin(const std::string &pluginName, const std::string &soPath);
+    UbseResult LoadAndInitPlugin(const std::string &pluginName, const std::string &fileName);
 
-    /* *
+    /**
      * 卸载单个插件，调用趋势化函数，并关闭so文件
      * @param pluginName 插件名称
      * @return UbseResult
      */
     UbseResult DeInitializePlugin(const std::string &pluginName);
 
-    /* *
+    /**
      * 加载指定插件的模块（so文件）。
      * @param pluginName  插件名称
      * @param fileName so文件路径
@@ -93,10 +90,10 @@ private:
      */
     UbseResult LoadPluginModule(const std::string &pluginName, const std::string &fileName);
 
-    /* *
+    /**
      * 获取指定插件的初始化函数。
-     * @param handle 插件模块句柄
      * @param pluginName 插件名称
+     * @param funcName 函数名称
      * @return UbsePluginInitFunc 初始化函数指针
      */
     UbsePluginInitFunc GetInitFunction(const std::string &pluginName, const std::string &funcName);
@@ -105,14 +102,14 @@ private:
 
 private:
     // 插件准入配置管理器，用于加载和管理插件准入信息
-    UbsePluginAdmission ubsePluginAdmission;
+    UbsePluginAdmission ubsePluginAdmission_;
 
     // 插件配置管理器, 用于加载和管理插件配置信息
-    UbsePluginConfig ubsePluginConfig;
+    UbsePluginConfig ubsePluginConfig_;
 
-    mutable std::shared_mutex loadedPluginModulesMutex;
+    mutable std::shared_mutex loadedPluginModulesMutex_;
     // 存储所有已加载插件的模块句柄
-    std::map<std::string, void *> loadedPluginModules;
+    std::map<std::string, void *> loadedPluginModules_;
 };
 } // namespace ubse::plugin
 #endif // UBSE_PLUGIN_MANAGER_H

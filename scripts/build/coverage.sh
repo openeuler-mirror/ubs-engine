@@ -102,7 +102,11 @@ ensure_fastcov_installed() {
     if ! command -v fastcov >/dev/null 2>&1 && \
        [[ ! -f "${FASTCOV_PATH}" ]]; then
         echo "Installing fastcov via pip..."
-        if ! pip3 install fastcov; then
+        if ! pip3 install fastcov \
+                --disable-pip-version-check --user \
+                --trusted-host mirrors.tools.huawei.com \
+                -i https://mirrors.tools.huawei.com/pypi/simple \
+        ; then
             error_exit "Failed to install fastcov. Check network connection."
         fi
     fi

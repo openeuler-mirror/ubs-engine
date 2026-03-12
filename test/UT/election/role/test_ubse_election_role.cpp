@@ -46,6 +46,8 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesAcce
     MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
     MOCKER(&UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     MOCKER(&UbseElectionCommMgr::SendElectionPkt).stubs().will(returnValue((uint32_t)0));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     // when
     uint32_t result = SendElectionPkt(myselfID);
@@ -146,6 +148,8 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesHasM
     std::shared_ptr<UbseElectionCommMgr> commMgr =
         std::make_shared<UbseElectionCommMgr>("Node1", "UbseMasterRpcServer");
     MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     uint32_t result = SendElectionPkt(myselfID);
 
@@ -361,6 +365,8 @@ TEST_F(TestUbseElectionRole, ConnectAllNodes_WhenReturnOk)
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get)
         .stubs()
         .will(returnValue(ubse::task_executor::UbseTaskExecutor::Create("ElectionLinkTask", 1, 100)));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     auto result = ConnectAllNodes();
     EXPECT_EQ(result, UBSE_OK);
 }

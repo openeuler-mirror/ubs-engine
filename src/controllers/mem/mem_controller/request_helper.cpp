@@ -21,6 +21,7 @@
 #include "ubse_logger_module.h"
 
 namespace ubse::mem_controller {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 std::shared_ptr<FutureMgr> FutureMgr::CreateInstance(const std::string &requestId)
 {
@@ -77,11 +78,11 @@ size_t FutureMgr::GetSize()
 
 bool FutureMgr::SetResult(const std::any &result)
 {
-    std::unique_lock<std::mutex> lock(mtx);
+    std::unique_lock<std::mutex> lock(mtx_);
     bool match = false;
-    if (curObjPromise) {
-        match = curObjPromise->SetResult(result);
-        curObjPromise.reset();
+    if (curObjPromise_) {
+        match = curObjPromise_->SetResult(result);
+        curObjPromise_.reset();
     }
     return match;
 }
@@ -90,11 +91,11 @@ FutureMgr::~FutureMgr()
 {
     // 析构时，清理objMgrInstanceMap，并通知有请求完成.
     std::unique_lock<std::mutex> lockMap(mapMutex);
-    mgrInstanceMap.erase(requestIdInner);
+    mgrInstanceMap.erase(requestIdInner_);
     waitRequestFinishedCv.notify_all();
 }
 
 std::mutex FutureMgr::mapMutex;
 std::condition_variable FutureMgr::waitRequestFinishedCv;
 std::unordered_map<std::string, std::weak_ptr<FutureMgr>> FutureMgr::mgrInstanceMap;
-}
+} // namespace ubse::mem_controller

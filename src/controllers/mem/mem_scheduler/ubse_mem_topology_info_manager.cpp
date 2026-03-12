@@ -1,72 +1,196 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
  */
 #include "ubse_mem_topology_info_manager.h"
 
 #include "mem_pool_strategy.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
-#include "ubse_mgr_configuration.h"
-#include "ubse_mem_resource.h"
+#include "ubse_math_util.h"
+#include "ubse_mem_functions.h"
 #include "ubse_mem_strategy_helper.h"
+#include "ubse_node.h"
 #include "ubse_node_controller.h"
-#include "ubse_node_topology.h"
 
 namespace ubse::mem::strategy {
 using namespace ubse::nodeController;
-using namespace ubse::resource::mem;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID)
+using namespace ubse::log;
+UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 
-void UbseMemTopologyInfoManager::FillTopoNumaInfoByNumaLoc(const UbseNumaInfo &numaInfo)
+void UbseMemTopologyInfoManager::FillTopoNumaInfoByNumaLoc(const UbseNumaInfo &numaInfo, UbseAllocator allocator,
+                                                           uint32_t pmd_mapping)
 {
     auto numaPtr = strategy::UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(numaInfo.location.nodeId,
                                                                                    numaInfo.location.numaId);
-    numaPtr->Update(true, numaInfo.timestamp, numaInfo.size * 1024u, (numaInfo.size - numaInfo.freeSize) * 1024u,
-                    numaInfo.freeSize * 1024u, numaInfo.bindCore);
-    numaPtr->UpdateActualMemTotal(numaInfo.size * 1024u);
+    if (numaPtr == nullptr) {
+        UBSE_LOG_WARN << "can't find this numaInfo";
+        return;
+    }
+    LogNumaInfo(numaInfo, allocator, pmd_mapping);
+    try {
+        UpdateNumaMemoryInfo(numaPtr, numaInfo, allocator, pmd_mapping);
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "Failed to update NUMA memory info: " << e.what();
+    }
+}
+
+void UbseMemTopologyInfoManager::UpdateNumaMemoryInfo(std::shared_ptr<MemNumaInfo> numaPtr,
+                                                      const UbseNumaInfo &numaInfo, UbseAllocator allocator,
+                                                      uint32_t pmd_mapping)
+{
+    numaPtr->UpdateActualMemTotal(SizeKb2Byte(numaInfo.size));
+    long double ratio = static_cast<long double>(pmd_mapping) / MAX_PERCENT;
+
+    uint64_t memTotal = 0;
+    uint64_t memUsed = 0;
+    uint64_t memFree = ubse::utils::SafeAdd(numaInfo.mempool_available_cleared, numaInfo.mempool_available_uncleared);
+
+    switch (allocator) {
+        case UbseAllocator::HUGETLB_PUD:
+            HandleHugeTlbPud(numaInfo, ratio, memTotal, memUsed, memFree);
+            break;
+        case UbseAllocator::HUGETLB_PMD:
+            HandleHugeTlbPmd(numaInfo, ratio, memTotal, memUsed, memFree);
+            break;
+        default:
+            HandleDefault(numaInfo, ratio, memTotal, memUsed, memFree);
+            break;
+    }
+    numaPtr->Update(numaInfo.timestamp, memTotal, memUsed, memFree, numaInfo.bindCore);
+}
+
+void UbseMemTopologyInfoManager::HandleHugeTlbPud(const UbseNumaInfo &numaInfo, long double ratio, uint64_t &memTotal,
+                                                  uint64_t &memUsed, uint64_t &memFree)
+{
+    uint64_t total1G = SizeGb2Byte(numaInfo.nr_hugepages_1G);
+    uint64_t used1G = SizeGb2Byte(ubse::utils::SafeSub(numaInfo.nr_hugepages_1G, numaInfo.free_hugepages_1G));
+    uint64_t free1G = SizeGb2Byte(numaInfo.free_hugepages_1G);
+    memTotal = ubse::utils::SafeAdd(memTotal, static_cast<uint64_t>(total1G * ratio));
+    memUsed = ubse::utils::SafeSub(static_cast<uint64_t>(used1G * ratio), memFree);
+    memFree = ubse::utils::SafeAdd(memFree, static_cast<uint64_t>(free1G * ratio));
+}
+
+void UbseMemTopologyInfoManager::HandleHugeTlbPmd(const UbseNumaInfo &numaInfo, long double ratio, uint64_t &memTotal,
+                                                  uint64_t &memUsed, uint64_t &memFree)
+{
+    if (UbseMemConfiguration::GetInstance().GetPageType() == PageSizeType::Page64K) {
+        uint64_t total512M = SizeMb2Byte(numaInfo.nr_hugepages_512M);
+        uint64_t used512M = SizeMb2Byte(ubse::utils::SafeSub(numaInfo.nr_hugepages_512M, numaInfo.free_hugepages_512M));
+        uint64_t free512M = SizeMb2Byte(numaInfo.free_hugepages_512M);
+        if (ratio != 0 && total512M > std::numeric_limits<uint64_t>::max() / (NO_512 * ratio) ||
+            used512M > std::numeric_limits<uint64_t>::max() / (NO_512 * ratio) ||
+            free512M > std::numeric_limits<uint64_t>::max() / (NO_512 * ratio)) {
+            throw std::overflow_error("Multiplication overflow");
+        }
+        memTotal = ubse::utils::SafeAdd(memTotal, static_cast<uint64_t>(total512M * NO_512 * ratio));
+        memUsed = ubse::utils::SafeSub(static_cast<uint64_t>(used512M * NO_512 * ratio), memFree);
+        memFree = ubse::utils::SafeAdd(memFree, static_cast<uint64_t>(free512M * NO_512 * ratio));
+    } else {
+        uint64_t total2M = SizeMb2Byte(numaInfo.nr_hugepages_2M);
+        uint64_t used2M = SizeMb2Byte(ubse::utils::SafeSub(numaInfo.nr_hugepages_2M, numaInfo.free_hugepages_2M));
+        uint64_t free2M = SizeMb2Byte(numaInfo.free_hugepages_2M);
+        if (ratio != 0 && total2M > std::numeric_limits<uint64_t>::max() / (NO_2 * ratio) ||
+            used2M > std::numeric_limits<uint64_t>::max() / (NO_2 * ratio) ||
+            free2M > std::numeric_limits<uint64_t>::max() / (NO_2 * ratio)) {
+            throw std::overflow_error("Multiplication overflow");
+        }
+        memTotal = ubse::utils::SafeAdd(memTotal, static_cast<uint64_t>(total2M * NO_2 * ratio));
+        memUsed = ubse::utils::SafeSub(static_cast<uint64_t>(used2M * NO_2 * ratio), memUsed);
+        memFree = ubse::utils::SafeAdd(memFree, static_cast<uint64_t>(free2M * NO_2 * ratio));
+    }
+}
+
+void UbseMemTopologyInfoManager::HandleDefault(const UbseNumaInfo &numaInfo, long double ratio, uint64_t &memTotal,
+                                               uint64_t &memUsed, uint64_t &memFree)
+{
+    uint64_t totalSize = SizeKb2Byte(numaInfo.size);
+    uint64_t usedSize = SizeKb2Byte(ubse::utils::SafeSub(numaInfo.size, numaInfo.freeSize));
+    uint64_t freeSize = SizeKb2Byte(numaInfo.freeSize);
+    memTotal = ubse::utils::SafeAdd(memTotal, static_cast<uint64_t>(totalSize * ratio));
+    memUsed = ubse::utils::SafeSub(static_cast<uint64_t>(usedSize * ratio), memFree);
+    memFree = ubse::utils::SafeAdd(memFree, static_cast<uint64_t>(freeSize * ratio));
+}
+
+void UbseMemTopologyInfoManager::LogNumaInfo(const UbseNumaInfo &numaInfo, UbseAllocator allocator,
+                                             uint32_t pmd_mapping)
+{
+    std::ostringstream oss;
+    oss << "Update numaInfo, nodeId=" << numaInfo.location.nodeId << ", numaId=" << numaInfo.location.numaId
+        << ", allocator=" << allocatorStrMap[allocator] << ", pmd_mapping=" << pmd_mapping << ". "
+        << "Mempool total=" << numaInfo.mempool_total << " byte, used=" << numaInfo.mempool_used
+        << " byte, available cleared=" << numaInfo.mempool_available_cleared
+        << " byte, available uncleared=" << numaInfo.mempool_available_uncleared;
+
+    if (allocator == UbseAllocator::HUGETLB_PUD) {
+        oss << " Total 1G pages=" << numaInfo.nr_hugepages_1G << ", free 1G pages=" << numaInfo.free_hugepages_1G;
+    } else if (allocator == UbseAllocator::HUGETLB_PMD) {
+        if (UbseMemConfiguration::GetInstance().GetPageType() == PageSizeType::Page64K) {
+            oss << " Total 512M pages=" << numaInfo.nr_hugepages_512M
+                << ", free 512M pages=" << numaInfo.free_hugepages_512M;
+        } else {
+            oss << " Total 2M pages=" << numaInfo.nr_hugepages_2M << ", free 2M pages=" << numaInfo.free_hugepages_2M;
+        }
+    } else {
+        oss << " Total size=" << numaInfo.size << " kb, free size=" << numaInfo.freeSize << " kb";
+    }
+    UBSE_LOG_INFO << oss.str();
 }
 
 UbseResult UbseMemTopologyInfoManager::NodesInit(const std::vector<strategy::NodeDataWithNumaInfo> &nodeDatas)
 {
-    // std::unique_lock<std::shared_mutex> lock(mLock);
-    mNodeDataList.clear();
-    mCurNodeIndex = 0;
-    mCurGlobalNumaIndex = 0;
+    // topo为增量节点更新
     for (const auto &nodeData : nodeDatas) {
+        if (NodeIdToIndex(nodeData.nodeData.nodeId) != INVALID_META_ID) {
+            continue;
+        }
         if (!AllocOneNode(nodeData.nodeData)) {
-            UBSE_LOG_ERROR << "AllocOneNode Failed";
+            UBSE_LOG_ERROR << "AllocOneNode Failed, nodeId=" << nodeData.nodeData.nodeId
+                           << ", node index=" << mCurNodeIndex_;
             return UBSE_ERROR;
         }
+        UpdateNodeMesgInfo(nodeDatas);
+    }
+    if (nodeDatas.size() <= 1) {
+        return UBSE_OK;
+    }
+    return UbseMemStrategyHelper::GetInstance().Init();
+}
+
+void UbseMemTopologyInfoManager::UpdateNodeMesgInfo(const std::vector<strategy::NodeDataWithNumaInfo> &nodeDatas)
+{
+    for (const auto &nodeData : nodeDatas) {
         for (const auto &numaInfo : nodeData.numaInfo) {
-            FillTopoNumaInfoByNumaLoc(numaInfo);
+            auto pmdMapping = UbseMemConfiguration::GetInstance().GetPmdMappingById(nodeData.nodeData.nodeId);
+            if (!pmdMapping.has_value()) {
+                UBSE_LOG_WARN << "Not found node config, nodeId=" << nodeData.nodeData.nodeId;
+                continue;
+            }
+            auto allocator = UbseMemConfiguration::GetInstance().GetObmmAllocatorById(nodeData.nodeData.nodeId);
+            if (!allocator.has_value()) {
+                UBSE_LOG_WARN << "Get obmm allocator failed, nodeId=" << nodeData.nodeData.nodeId;
+                continue;
+            }
+            FillTopoNumaInfoByNumaLoc(numaInfo, allocator.value(), pmdMapping.value());
         }
     }
-    return UbseMemStrategyHelper::GetInstance().Init();
 }
 
-UbseResult UbseMemTopologyInfoManager::NodeInit(const NodeData &nodeData)
-{
-    // std::unique_lock<std::shared_mutex> lock(mLock);
-    mNodeDataList.emplace_back(nodeData);
-    if (!AllocOneNode(nodeData)) {
-        return UBSE_ERROR;
-    }
-    return UbseMemStrategyHelper::GetInstance().Init();
-}
-
-std::vector<std::shared_ptr<MemNumaInfo>> UbseMemTopologyInfoManager::GetAllNumaInfo(const NodeId &nodeId,
-                                                                                     const bool &isNeedLock)
+std::vector<std::shared_ptr<MemNumaInfo>> UbseMemTopologyInfoManager::GetAllNumaInfo(const NodeId &nodeId)
 {
     std::vector<std::shared_ptr<MemNumaInfo>> ret;
-    if (isNeedLock) {
-        std::shared_lock<std::shared_mutex> readLocker(mLock);
-    }
-    for (const auto &pair : mNodeIdMap) {
+    for (const auto &pair : mNodeIdMap_) {
         auto node = pair.second;
         if (node == nullptr) {
-            ret.clear();
             UBSE_LOG_ERROR << "node is null error.";
-            return ret;
+            continue;
         }
         if (!nodeId.empty() && nodeId != pair.first) {
             continue;
@@ -83,39 +207,55 @@ UbseResult UbseMemTopologyInfoManager::GetSocketCnaInfo(const UbseMemNumaLoc &me
                                                         const UbseMemNumaLoc &memIdLocLend,
                                                         SocketCnaTopoInfo &socketCnaTopoInfo)
 {
-#if defined(COMPILE_WITHOUT_OBMM) && !defined(DEBUG_MEM_UT)
-    socketCnaTopoInfo.importNodeIdSocketId = memIdLocBorrow.nodeId + "-" + std::to_string(memIdLocBorrow.socketId);
-    socketCnaTopoInfo.exportNodeIdSocketId = memIdLocLend.nodeId + "-" + std::to_string(memIdLocLend.socketId);
-    return UBSE_OK;
-#endif
-    // MEM_TRACE_DELAY_BEGIN(MANAGER_STRATEGY_SUB_GET_CNA_INFO)
     UbseNodeMemCnaInfoInput cnaInfoInput{memIdLocBorrow.nodeId, memIdLocLend.nodeId,
                                          std::to_string(memIdLocLend.socketId)};
     UbseNodeMemCnaInfoOutput cnaInfoOutput{};
     auto ret = UbseNodeMemGetTopologyCnaInfo(cnaInfoInput, cnaInfoOutput);
     if (ret != 0) {
-        return E_CODE_SCBUS_DAEMON;
+        return ret;
     }
     socketCnaTopoInfo.importNodeIdSocketId = memIdLocBorrow.nodeId + "-" + cnaInfoOutput.borrowSocketId;
     socketCnaTopoInfo.exportNodeIdSocketId = memIdLocLend.nodeId + "-" + cnaInfoOutput.exportSocketId;
-    // MEM_TRACE_DELAY_END(MANAGER_STRATEGY_SUB_GET_CNA_INFO, 0)
+    return UBSE_OK;
+}
+
+UbseResult UbseMemTopologyInfoManager::GetAttachNodeId(std::string &borrowNodeId, const std::string &exportNodeId,
+                                                       int exportSocketId, uint32_t &attachSocketId)
+{
+    UbseNodeMemCnaInfoInput input;
+    input.borrowNodeId = borrowNodeId;
+    input.exportNodeId = exportNodeId;
+    input.exportSocketId = std::to_string(exportSocketId);
+    UbseNodeMemCnaInfoOutput output;
+    auto ret = UbseNodeMemGetTopologyCnaInfo(input, output);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Can not get cna info. BorrowNodeId=" << borrowNodeId << ", exportNodeId=" << exportNodeId
+                      << ", exportSocketId=" << exportSocketId;
+        return ret;
+    }
+    attachSocketId = static_cast<int>(atoi(output.borrowSocketId.c_str()));
+    try {
+        attachSocketId = static_cast<uint32_t>(stoi(output.borrowSocketId));
+    } catch (...) {
+        UBSE_LOG_ERROR << "Get socketCnaInfo failed, catch one Error";
+        return UBSE_ERROR_INVAL;
+    }
     return UBSE_OK;
 }
 
 UbseResult UbseMemTopologyInfoManager::GetMemNumaLoc(const NodeId &nodeId, NumaId numaId, UbseMemNumaLoc &memIdLoc)
 {
-    // std::shared_lock<std::shared_mutex> readLocker(mLock);
-    auto memNodeItem = mNodeIdMap.find(nodeId);
-    if (memNodeItem == mNodeIdMap.end()) {
+    auto memNodeItem = mNodeIdMap_.find(nodeId);
+    if (memNodeItem == mNodeIdMap_.end()) {
         return UBSE_ERROR;
     }
-    for (const auto &pair : mNumaLoc2IdMap) {
+    for (const auto &pair : mNumaLoc2IdMap_) {
         if (pair.first.nodeId == nodeId && pair.first.numaId == numaId) {
             memIdLoc = pair.first;
             return UBSE_OK;
         }
     }
-    return E_CODE_INVALID_PAR;
+    return UBSE_ERROR;
 }
 
 UbseResult UbseMemTopologyInfoManager::GetSocketTotalLentMem(const NodeId &nodeId, int socketId,
@@ -124,7 +264,7 @@ UbseResult UbseMemTopologyInfoManager::GetSocketTotalLentMem(const NodeId &nodeI
     auto list = GetAllNumaInfo("");
     if (list.empty()) {
         UBSE_LOG_ERROR << "Numa info list is empty";
-        return E_CODE_INVALID_PAR;
+        return UBSE_ERROR_INVAL;
     }
     uint64_t oneSocketTotalLentMem = 0;
     bool isFind = false;
@@ -132,12 +272,11 @@ UbseResult UbseMemTopologyInfoManager::GetSocketTotalLentMem(const NodeId &nodeI
         if (memNumaInfo == nullptr) {
             continue;
         }
-
         if (memNumaInfo->mUbseMemNumaLoc.nodeId != nodeId || memNumaInfo->mUbseMemNumaLoc.socketId != socketId) {
             continue;
         }
         // 累加该node上对应socket的所有numa的借出的内存
-        oneSocketTotalLentMem += static_cast<uint64_t>(memNumaInfo->mMemLent.load());
+        oneSocketTotalLentMem += static_cast<uint64_t>(memNumaInfo->mMemLent);
         isFind = true;
     }
 
@@ -145,7 +284,38 @@ UbseResult UbseMemTopologyInfoManager::GetSocketTotalLentMem(const NodeId &nodeI
         socketTotalLentMem = oneSocketTotalLentMem;
     } else {
         UBSE_LOG_ERROR << "GetSocketTotalLentMem fail, nodeId=" << nodeId << ", socketId=" << socketId;
-        return E_CODE_INVALID_PAR;
+        return UBSE_ERROR_INVAL;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseMemTopologyInfoManager::GetSocketTotalLentTimes(const NodeId &nodeId, int socketId,
+                                                               uint32_t &socketTotalLentTime)
+{
+    auto list = GetAllNumaInfo("");
+    if (list.empty()) {
+        UBSE_LOG_ERROR << "Numa info list is empty";
+        return UBSE_ERROR_INVAL;
+    }
+    uint64_t oneSocketTotalLentMem = 0;
+    bool isFind = false;
+    for (const auto &memNumaInfo : list) {
+        if (memNumaInfo == nullptr) {
+            continue;
+        }
+        if (memNumaInfo->mUbseMemNumaLoc.nodeId != nodeId || memNumaInfo->mUbseMemNumaLoc.socketId != socketId) {
+            continue;
+        }
+        // 累加该node上对应socket借出过多少次
+        oneSocketTotalLentMem += static_cast<uint64_t>(memNumaInfo->blocks);
+        isFind = true;
+    }
+
+    if (isFind) {
+        socketTotalLentTime = oneSocketTotalLentMem;
+    } else {
+        UBSE_LOG_ERROR << "GetSocketTotalLentMem fail, nodeId=" << nodeId << ", socketId=" << socketId;
+        return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
 }
@@ -159,10 +329,9 @@ std::shared_ptr<MemNumaInfo> UbseMemTopologyInfoManager::GetNumaInfo(const NodeI
         return nullptr;
     }
 
-    // std::shared_lock<std::shared_mutex> readLocker(mLock);
-    auto iter = mNodeIdMap.find(nodeId);
-    if (iter == mNodeIdMap.end() || iter->second == nullptr) {
-        UBSE_LOG_ERROR << "GetNumaInfo error nodeid=" << nodeId;
+    auto iter = mNodeIdMap_.find(nodeId);
+    if (iter == mNodeIdMap_.end() || iter->second == nullptr) {
+        UBSE_LOG_ERROR << "GetNumaInfo error nodeId=" << nodeId;
         return nullptr;
     }
     return iter->second->GetNumaInfoById(numaLoc);
@@ -207,7 +376,7 @@ static int RandomLateny()
 
 bool UbseMemTopologyInfoManager::SetNumaLatencies(tc::rs::mem::StrategyParam &strategyParam)
 {
-    for (size_t i = 0; i < mCurGlobalNumaIndex; ++i) {
+    for (size_t i = 0; i < mCurGlobalNumaIndex_; ++i) {
         strategyParam.numaLatencies[i][i] = 200u;
         for (size_t j = 0; j < i; ++j) {
             strategyParam.numaLatencies[i][j] = 200u + RandomLateny();
@@ -238,7 +407,7 @@ bool UbseMemTopologyInfoManager::SetNumaMemCapacities(tc::rs::mem::StrategyParam
             return false;
         }
         strategyParam.numaMemCapacities[memNumaInfo->mGlobalIndex] =
-            static_cast<signed int>(memNumaInfo->mMemTotal.load() / ONE_M);
+            static_cast<signed int>(memNumaInfo->mMemTotal / ONE_M);
     }
 
     return true;
@@ -247,8 +416,7 @@ bool UbseMemTopologyInfoManager::SetNumaMemCapacities(tc::rs::mem::StrategyParam
 bool UbseMemTopologyInfoManager::SetMaxMemParam(tc::rs::mem::StrategyParam &strategyParam,
                                                 const std::vector<std::shared_ptr<MemNumaInfo>> &numaList)
 {
-    uint64_t maxBorrowSize = MemMgrConfiguration::GetInstance().GetMaxBorrowSize();
-    for (int i = 0; i < tc::rs::mem::NUM_HOSTS; ++i) {
+    for (int i = 0; i < tc::rs::mem::NUM_HOSTS && i < mNodeDataList_.size(); ++i) {
         NodeId id = NodeIndexToId(i);
         if (id.empty()) {
             continue;
@@ -259,21 +427,18 @@ bool UbseMemTopologyInfoManager::SetMaxMemParam(tc::rs::mem::StrategyParam &stra
             return false;
         }
 
-        strategyParam.maxMemBorrowed[i] = static_cast<int32_t>(maxBorrowSize);
+        if (nodePoolMemSize > INT32_MAX) {
+            UBSE_LOG_ERROR << "Node pool mem size is too large.";
+            return false;
+        }
+        strategyParam.maxMemBorrowed[i] = static_cast<int32_t>(INT32_MAX);
         strategyParam.maxMemLent[i] = static_cast<int32_t>(nodePoolMemSize);
         strategyParam.maxMemOut[i] = static_cast<int32_t>(nodePoolMemSize);
         strategyParam.maxMemShared[i] = static_cast<int32_t>(nodePoolMemSize);
-        strategyParam.maxBorrowHosts[i] = mNodeDataList.size();
+        strategyParam.maxBorrowHosts[i] = mNodeDataList_.size();
         strategyParam.memHighLineL0[i] = MemWaterMarkHolder::GetInstance().GetUsedHigh();
         strategyParam.memHighLineL1[i] = MemWaterMarkHolder::GetInstance().GetUsedHigh();
         strategyParam.memLowLine[i] = MemWaterMarkHolder::GetInstance().GetUsedLow();
-        UBSE_LOG_DEBUG << "node: " << i << "strategyParam: "
-                     << "maxMemBorrowed is " << strategyParam.maxMemBorrowed[i] << ", maxMemLent is "
-                     << strategyParam.maxMemLent[i] << ", maxMemOut is " << strategyParam.maxMemOut[i]
-                     << ", maxMemShared is " << strategyParam.maxMemShared[i] << ", maxBorrowHosts is "
-                     << strategyParam.maxBorrowHosts[i] << ", memHighLineL0 is" << strategyParam.memHighLineL0[i]
-                     << ", memHighLineL1 is" << strategyParam.memHighLineL1[i] << ", memLowLine is"
-                     << strategyParam.memLowLine[i];
     }
     return true;
 }
@@ -282,26 +447,24 @@ bool UbseMemTopologyInfoManager::AllocOneNode(const NodeData &nodeData)
 {
     std::shared_ptr<MemNodeInfo> node;
     try {
-        node = std::make_shared<MemNodeInfo>(mCurNodeIndex, nodeData);
+        node = std::make_shared<MemNodeInfo>(mCurNodeIndex_, nodeData);
     } catch (...) {
         UBSE_LOG_ERROR << "allocate memory failed";
         return false;
     }
-    auto ret = node->Init(mNumaLoc2IdMap, mNumaLoc2IndexMap, mCurGlobalNumaIndex);
+    auto ret = node->Init(mNumaLoc2IdMap_, mNumaLoc2IndexMap_, mCurGlobalNumaIndex_);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "node init failed";
+        UBSE_LOG_ERROR << "node init failed, nodeId=" << node->mNodeData.nodeId;
         return false;
     }
-    if (mCurNodeIndex >= TOPOLOGY_MAX_HOST_NUM || mCurNodeIndex == INVALID_META_ID) {
-        UBSE_LOG_ERROR << "Unexpected nodeIndex value=" << mCurNodeIndex;
+    if (mCurNodeIndex_ >= TOPOLOGY_MAX_HOST_NUM || mCurNodeIndex_ == INVALID_META_ID) {
+        UBSE_LOG_ERROR << "Unexpected nodeIndex value=" << mCurNodeIndex_;
         return false;
     }
-    mNodeDataList.push_back(nodeData);
-    mNodeIdMap[nodeData.nodeId] = node;
-    mNodeIndexMap[mCurNodeIndex] = node;
-    UBSE_LOG_DEBUG << "one node alloc"
-                 << "node id is " << nodeData.nodeId << "node index is" << mCurNodeIndex;
-    mCurNodeIndex++; /* 每次使用index后加一，确保index唯一，需要考虑不溢出 */
+    mNodeDataList_.push_back(nodeData);
+    mNodeIdMap_[nodeData.nodeId] = node;
+    mNodeIndexMap_[mCurNodeIndex_] = node;
+    mCurNodeIndex_++; /* 每次使用index后加一，确保index唯一，需要考虑不溢出 */
 
     return true;
 }
@@ -327,27 +490,25 @@ bool UbseMemTopologyInfoManager::SetMemOutHardLimit(tc::rs::mem::StrategyParam &
             UBSE_LOG_ERROR << "The numa num=0, nodeId=" << hostId;
             return false;
         }
-
-        uint32_t nodeMemPoolRatio = 0;
-        nodeMemPoolRatio = MemMgrConfiguration::GetInstance().GetSystemPoolMemRatio();
-        auto tmpValue = static_cast<int32_t>(static_cast<double>(numaList[i]->mActualMemTotal.load()) *
-                                             nodeMemPoolRatio / ONE_M / MAX_PERCENT);
-#ifdef UB_ENVIRONMENT
-        tmpValue = static_cast<int32_t>(static_cast<double>(numaList[i]->mMemTotal.load()) * nodeMemPoolRatio / ONE_M /
-                                        MAX_PERCENT);
-#endif
-        strategyParam.memOutHardLimit[numaList[i]->mGlobalIndex] = static_cast<signed int>(tmpValue);
+        auto tmpValue = SizeByte2Mb(numaList[i]->mMemTotal);
+        if (tmpValue > INT32_MAX) {
+            UBSE_LOG_ERROR << "NodeId=" << numaList[i]->mUbseMemNumaLoc.nodeId
+                           << ", numaId=" << numaList[i]->mUbseMemNumaLoc.numaId << " the mem total=" << tmpValue
+                           << " exceeds INT32_MAX.";
+            return false;
+        }
+        strategyParam.memOutHardLimit[numaList[i]->mGlobalIndex] = static_cast<int32_t>(tmpValue);
         UBSE_LOG_DEBUG << "NodeId=" << hostId << ", numaId=" << numaList[i]->mUbseMemNumaLoc.numaId
-                    << " memOutHardLimit[" << numaList[i]->mGlobalIndex << "]";
+                       << ", memOutHardLimit[" << numaList[i]->mGlobalIndex << "], memOutHardLimit=" << tmpValue;
     }
     return true;
 }
 
 bool UbseMemTopologyInfoManager::FillStrategyParam(tc::rs::mem::StrategyParam &strategyParam)
 {
-    strategyParam.numHosts = mNodeDataList.size();
-    strategyParam.numAvailNumas = mCurGlobalNumaIndex;
-    auto numaList = GetAllNumaInfo("", false);
+    strategyParam.numHosts = mNodeDataList_.size();
+    strategyParam.numAvailNumas = mCurGlobalNumaIndex_;
+    auto numaList = GetAllNumaInfo("");
     SetAvailNumas(strategyParam, numaList);
     const auto setLatencies = SetNumaLatencies(strategyParam);
     SetNumaMemCapacities(strategyParam, numaList);
@@ -357,19 +518,24 @@ bool UbseMemTopologyInfoManager::FillStrategyParam(tc::rs::mem::StrategyParam &s
     strategyParam.watermarkGrain = tc::rs::mem::MemWatermarkGrainType::NUMA_WATERMARK;
     strategyParam.borrowParam = tc::rs::mem::BorrowAlgoParam();
     strategyParam.shareParam = tc::rs::mem::ShareAlgoParam();
-    strategyParam.unitMemSize = static_cast<int32_t>(MemMgrConfiguration::GetInstance().GetUnitSize() / ONE_M);
+    if (UbseMemConfiguration::GetInstance().IsLenderBalance()) {
+        strategyParam.borrowParam.wReliabilityCost = tc::rs::mem::LENDER_BALANCE_RELIABILITY_COST;
+        strategyParam.borrowParam.wBalanceCost = tc::rs::mem::LENDER_BALANCE_BALANCE_COST;
+        strategyParam.lenderNumaMode = tc::rs::mem::LenderNumaMode::BALANCE;
+    }
+    auto blockSize = UbseMemConfiguration::GetInstance().GetBlockSizeFromLenderNode();
+    if (!blockSize.has_value()) {
+        UBSE_LOG_ERROR << "Get block size failed";
+        return false;
+    }
+    strategyParam.unitMemSize = static_cast<int32_t>(blockSize.value());
 
     strategyParam.enableCustomLatencies = false;
     auto coordinate = TransferTopoToCoordinate(strategyParam);
     if (!coordinate) {
         UBSE_LOG_ERROR << "TransferTopoToCoordinate failed.";
     } else {
-        UBSE_LOG_DEBUG << "TransferTopoToCoordinate success.";
-        for (auto i = 0; i < tc::rs::mem::NUM_HOSTS; ++i) {
-            UBSE_LOG_DEBUG << "TransferTopoToCoordinate i=" << i
-                         << " x=" << static_cast<int>(strategyParam.hostMeshLocs[i].x)
-                         << " y=" << static_cast<int>(strategyParam.hostMeshLocs[i].y);
-        }
+        UBSE_LOG_INFO << "TransferTopoToCoordinate success.";
     }
 
     return setHardLimit && setLatencies;
@@ -378,12 +544,12 @@ bool UbseMemTopologyInfoManager::FillStrategyParam(tc::rs::mem::StrategyParam &s
 NodeIndex UbseMemTopologyInfoManager::NodeIdToIndex(const NodeId &nodeId)
 {
     NodeIndex ret = INVALID_META_ID;
-    auto nodeIter = mNodeIdMap.find(nodeId);
-    if (nodeIter != mNodeIdMap.end() && nodeIter->second != nullptr) {
+    auto nodeIter = mNodeIdMap_.find(nodeId);
+    if (nodeIter != mNodeIdMap_.end() && nodeIter->second != nullptr) {
         auto curNodeInfo = nodeIter->second;
         ret = curNodeInfo->mNodeIndex;
     } else {
-        UBSE_LOG_ERROR << "NodeIdToIndex not find nodeId=" << nodeId;
+        UBSE_LOG_WARN << "NodeIdToIndex not found, nodeId=" << nodeId;
     }
     return ret;
 }
@@ -391,20 +557,20 @@ NodeIndex UbseMemTopologyInfoManager::NodeIdToIndex(const NodeId &nodeId)
 NodeId UbseMemTopologyInfoManager::NodeIndexToId(NodeIndex nodeIndex)
 {
     NodeId ret = MEM_INVALID_NODE_ID;
-    auto nodeIter = mNodeIndexMap.find(nodeIndex);
-    if (nodeIter != mNodeIndexMap.end() && nodeIter->second != nullptr) {
+    auto nodeIter = mNodeIndexMap_.find(nodeIndex);
+    if (nodeIter != mNodeIndexMap_.end() && nodeIter->second != nullptr) {
         ret = nodeIter->second->mNodeId;
     } else {
-        UBSE_LOG_DEBUG << "NodeIndexToId not find, nodeindex=" << nodeIndex;
+        UBSE_LOG_WARN << "NodeIndexToId not found, nodeIndex=" << nodeIndex;
     }
     return ret;
 }
 
 std::shared_ptr<MemNodeInfo> UbseMemTopologyInfoManager::GetNodeInfoById(const NodeId &nodeId)
 {
-    auto find = mNodeIdMap.find(nodeId);
-    if (find == mNodeIdMap.end()) {
-        UBSE_LOG_ERROR << "GetNodeInfoById error nodeid=" << nodeId;
+    auto find = mNodeIdMap_.find(nodeId);
+    if (find == mNodeIdMap_.end()) {
+        UBSE_LOG_WARN << "GetNodeInfoById error nodeId=" << nodeId;
         return nullptr;
     }
     return find->second;
@@ -413,17 +579,10 @@ std::shared_ptr<MemNodeInfo> UbseMemTopologyInfoManager::GetNodeInfoById(const N
 BResult UbseMemTopologyInfoManager::GetNodePoolMemSize(const NodeId &nodeId, uint64_t &nodePoolMemSize,
                                                        const std::vector<std::shared_ptr<MemNumaInfo>> &numaList)
 {
-    uint32_t poolMemRatio = 0;
-    poolMemRatio = MemMgrConfiguration::GetInstance().GetSystemPoolMemRatio();
-
-    uint64_t nodeMemTotal = 0;
-    if (GetActualNodeMemTotal(nodeId, nodeMemTotal, numaList) != UBSE_OK) {
+    if (GetActualNodeMemTotal(nodeId, nodePoolMemSize, numaList) != UBSE_OK) {
         UBSE_LOG_ERROR << "Get nodeMemTotal err, node=" << nodeId;
-        return E_CODE_INVALID_PAR;
+        return UBSE_ERROR_INVAL;
     }
-
-    // 池化内存大小为nodeMemTotal的 poolMemRatio / 100
-    nodePoolMemSize = static_cast<uint64_t>((static_cast<double>(nodeMemTotal) / MAX_PERCENT) * poolMemRatio);
     return UBSE_OK;
 }
 
@@ -432,7 +591,7 @@ UbseResult UbseMemTopologyInfoManager::GetActualNodeMemTotal(const NodeId &nodeI
 {
     if (numaList.empty()) {
         UBSE_LOG_ERROR << "Numa info list is empty";
-        return E_CODE_INVALID_PAR;
+        return UBSE_ERROR_INVAL;
     }
 
     uint64_t oneNodeNumaMemTotalTmp = 0;
@@ -446,12 +605,7 @@ UbseResult UbseMemTopologyInfoManager::GetActualNodeMemTotal(const NodeId &nodeI
             continue;
         }
 
-        // 累加各numa的内存
-#ifdef UB_ENVIRONMENT
-        oneNodeNumaMemTotalTmp += static_cast<uint64_t>(memNumaInfo->mMemTotal.load() / ONE_M);
-#else
-        oneNodeNumaMemTotalTmp += static_cast<uint64_t>(memNumaInfo->mActualMemTotal.load() / ONE_M);
-#endif
+        oneNodeNumaMemTotalTmp += SizeByte2Mb(memNumaInfo->mMemTotal);
         isFind = true;
     }
 
@@ -459,7 +613,7 @@ UbseResult UbseMemTopologyInfoManager::GetActualNodeMemTotal(const NodeId &nodeI
         nodeNumaMemTotal = oneNodeNumaMemTotalTmp;
     } else {
         UBSE_LOG_ERROR << "GetNodeMemTotal fail, nodeId=" << nodeId;
-        return E_CODE_INVALID_PAR;
+        return UBSE_ERROR_INVAL;
     }
 
     return UBSE_OK;
@@ -506,7 +660,7 @@ static void UbseMemGetIntersectionWithAllNeighbor(
 }
 
 static void LocateXandY(tc::rs::mem::StrategyParam &strategyParam, UbseMemCoordinateDesc &coordinateDesc,
-                        int8_t locatedX, int8_t locatedY)
+                        int8_t locatedX, int8_t locatedY, NodeIndex i = 0)
 {
     std::set<NodeIndex> *pIntersectionX = nullptr;
     std::set<NodeIndex> *pIntersectionY = nullptr;
@@ -520,6 +674,13 @@ static void LocateXandY(tc::rs::mem::StrategyParam &strategyParam, UbseMemCoordi
     }
     // 任意两个节点的邻居的交集最多只有4个
     int8_t curY = locatedY;
+    strategyParam.hostMeshLocs[i].x = 0;
+    strategyParam.hostMeshLocs[i].y = 0;
+    coordinateDesc.nodeNumOnX[0] = 1;
+    coordinateDesc.nodeNumOnY[0] = 1;
+    coordinateDesc.coordinate[0][0] = i;
+    coordinateDesc.totalLocatedHostsNum++;
+
     for (auto it = pIntersectionX->begin(); it != pIntersectionX->end(); ++it) {
         if (strategyParam.hostMeshLocs[*it].x == -1) {
             strategyParam.hostMeshLocs[*it].x = coordinateDesc.nodeNumOnY[curY]; // X坐标取当前Y=0的轴上的节点数
@@ -545,71 +706,118 @@ static void LocateXandY(tc::rs::mem::StrategyParam &strategyParam, UbseMemCoordi
     return;
 }
 
+bool InitCoordinate(std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> &neighborNodes,
+                    UbseMemCoordinateDesc &coordinateDesc, tc::rs::mem::StrategyParam &strategyParam,
+                    const uint32_t &totalHostsNum)
+{
+    // 找到下一条还没有放满4个节点的X轴
+    int8_t curY = -1;
+    for (int i = 0; i < MAX_X_NODE_NUM; ++i) {
+        if (coordinateDesc.nodeNumOnY[i] < MAX_X_NODE_NUM) {
+            curY = i;
+            break;
+        }
+    }
+    if (curY == -1) {
+        return true; // 所有的X轴都放满4个节点
+    }
+    NodeIndex lastLocatedNode = -1;
+    for (int i = 0; i < MAX_X_NODE_NUM; ++i) {
+        if (coordinateDesc.coordinate[i][curY] != -1) {
+            lastLocatedNode = coordinateDesc.coordinate[i][curY]; // 找到当前X轴上已经放置的节点
+            break;
+        }
+    }
+    if (lastLocatedNode == -1) {
+        return false;
+    }
+    coordinateDesc.intersection1.clear();
+    coordinateDesc.intersection2.clear();
+    // 找到当前节点与所有邻居节点topo的两个交集，确定X轴和Y轴
+    UbseMemGetIntersectionWithAllNeighbor(lastLocatedNode, neighborNodes, coordinateDesc.intersection1,
+                                          coordinateDesc.intersection2);
+    LocateXandY(strategyParam, coordinateDesc, strategyParam.hostMeshLocs[lastLocatedNode].x,
+                strategyParam.hostMeshLocs[lastLocatedNode].y);
+    if (coordinateDesc.totalLocatedHostsNum == totalHostsNum) {
+        return true;
+    }
+    return false;
+}
+
+void InitSingleNode(int32_t totalHostsNum, const std::set<uint16_t> &nodeIndexList,
+                    UbseMemCoordinateDesc &coordinateDesc, tc::rs::mem::StrategyParam &strategyParam)
+{
+    std::vector<uint16_t> singleNodes{};
+    for (int i = 0; i < totalHostsNum; ++i) {
+        bool flag = true;
+        for (const auto j : nodeIndexList) {
+            if (j == i) {
+                flag = false;
+                break;
+            }
+        }
+        if (flag) {
+            singleNodes.push_back(i);
+        }
+    }
+
+    auto curY = 0;
+    auto x = coordinateDesc.nodeNumOnY[curY];
+    for (const auto &index : singleNodes) {
+        strategyParam.hostMeshLocs[index].x = x;
+        strategyParam.hostMeshLocs[index].y = curY + 1;
+        ++curY;
+        coordinateDesc.nodeNumOnX[strategyParam.hostMeshLocs[index].x]++;
+        coordinateDesc.nodeNumOnY[strategyParam.hostMeshLocs[index].y]++;
+        coordinateDesc.coordinate[strategyParam.hostMeshLocs[index].x][strategyParam.hostMeshLocs[index].y] = index;
+        coordinateDesc.totalLocatedHostsNum++;
+    }
+}
+
 bool UbseMemTopologyInfoManager::GenerateCoordinate(
-    std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> &neighborNodes, tc::rs::mem::StrategyParam &strategyParam)
+    std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> &neighborNodes, tc::rs::mem::StrategyParam &strategyParam,
+    const std::set<uint16_t> &nodeIndexList)
 {
     UbseMemCoordinateDesc coordinateDesc;
 
     for (auto &row : coordinateDesc.coordinate) {
         std::fill(row.begin(), row.end(), NodeIndex(-1));
     }
-    auto totalHostsNum = mNodeDataList.size();
+    auto totalHostsNum = UbseMemTopologyInfoManager::GetInstance().NumHosts();
     int i = 0;
+    uint32_t preSize = 0;
+    int maxI = 0;
     for (i = 0; i < tc::rs::mem::NUM_HOSTS; ++i) {
-        if (!neighborNodes[i].empty()) {
-            break; // 找到一个邻居节点不为空的节点
+        if (neighborNodes[i].size() > preSize) {
+            preSize = neighborNodes[i].size();
+            maxI = i;
         }
     }
+    i = maxI;
     // 找到当前节点与所有邻居节点topo的两个交集，确定X轴和Y轴
     UbseMemGetIntersectionWithAllNeighbor(i, neighborNodes, coordinateDesc.intersection1, coordinateDesc.intersection2);
-    LocateXandY(strategyParam, coordinateDesc, 0, 0);
+    LocateXandY(strategyParam, coordinateDesc, 0, 0, i); // 新增原点为中心节点的逻辑
     if (coordinateDesc.totalLocatedHostsNum == totalHostsNum) {
         return true;
     }
+
+    if (coordinateDesc.totalLocatedHostsNum == nodeIndexList.size()) {
+        InitSingleNode(totalHostsNum, nodeIndexList, coordinateDesc, strategyParam);
+        return true;
+    }
+
     // 最多有(totalHostsNum / MAX_X_NODE_NUM) + 1条X轴
     for (int n = 1; n < (totalHostsNum / MAX_X_NODE_NUM) + 1; ++n) {
-        // 找到下一条还没有放满4个节点的X轴
-        int8_t curY = -1;
-        for (int i = 0; i < MAX_X_NODE_NUM; ++i) {
-            if (coordinateDesc.nodeNumOnY[i] < MAX_X_NODE_NUM) {
-                curY = i;
-                break;
-            }
-        }
-        if (curY == -1) {
-            return true; // 所有的X轴都放满4个节点
-        }
-        NodeIndex lastLocatedNode = -1;
-        for (int i = 0; i < MAX_X_NODE_NUM; ++i) {
-            if (coordinateDesc.coordinate[i][curY] != -1) {
-                lastLocatedNode = coordinateDesc.coordinate[i][curY]; // 找到当前X轴上已经放置的节点
-                break;
-            }
-        }
-        if (lastLocatedNode == -1) {
-            return false;
-        }
-        coordinateDesc.intersection1.clear();
-        coordinateDesc.intersection2.clear();
-        // 找到当前节点与所有邻居节点topo的两个交集，确定X轴和Y轴
-        UbseMemGetIntersectionWithAllNeighbor(lastLocatedNode, neighborNodes, coordinateDesc.intersection1,
-                                              coordinateDesc.intersection2);
-        LocateXandY(strategyParam, coordinateDesc, strategyParam.hostMeshLocs[lastLocatedNode].x,
-                    strategyParam.hostMeshLocs[lastLocatedNode].y);
-        if (coordinateDesc.totalLocatedHostsNum == totalHostsNum) {
-            return true;
-        }
+        return InitCoordinate(neighborNodes, coordinateDesc, strategyParam, totalHostsNum);
     }
     return false;
 }
 
-// 扩容策略：①1D FM模式起配2节点，支持向3、4、5、6、7、8节点规模平滑扩容；若扩容目标规模>8节点，则需要
-// 现网改造重建；②2DFM模式起配12节点，支持向16节点规模平滑扩容
 bool UbseMemTopologyInfoManager::TransferTopoToCoordinate(tc::rs::mem::StrategyParam &strategyParam)
 {
     std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> neighborNodes; // 保存每个节点的邻居节点的index
-    bool fullMesh = false;
-    if (!UbseMemTransTopoToNeighborSet(neighborNodes, fullMesh)) {
+    std::set<uint16_t> nodeIndexList{};
+    if (!UbseMemTransTopoToNeighborSet(neighborNodes, nodeIndexList)) {
         UBSE_LOG_ERROR << "Transfer topo to neighbor set failed.";
         return false;
     }
@@ -618,23 +826,11 @@ bool UbseMemTopologyInfoManager::TransferTopoToCoordinate(tc::rs::mem::StrategyP
         meshLoc = tc::rs::mem::MeshLoc();
     }
 
-    if (!fullMesh) {
-        auto ret = GenerateCoordinate(neighborNodes, strategyParam);
-        if (!ret) {
-            UBSE_LOG_ERROR << "Generate coordinate failed.";
-        }
-        return ret;
+    auto ret = GenerateCoordinate(neighborNodes, strategyParam, nodeIndexList);
+    if (!ret) {
+        UBSE_LOG_ERROR << "Generate coordinate failed.";
     }
-    UBSE_LOG_DEBUG << "Current is fullMesh.";
-    int8_t x = 0;
-    for (int i = 0; i < tc::rs::mem::NUM_HOSTS; ++i) {
-        if (i >= mNodeDataList.size()) {
-            break;
-        }
-        strategyParam.hostMeshLocs[i] = {x++, 0};
-        UBSE_LOG_DEBUG << "node_index=" << i << "x=" << static_cast<uint32_t>(x - 1) << ", y=0";
-    }
-    return true;
+    return ret;
 }
 
 static bool GetNodeIdAndSocketIdFromNodeSocketString(const std::string &nodeSocketStr, std::string &nodeId,
@@ -646,66 +842,36 @@ static bool GetNodeIdAndSocketIdFromNodeSocketString(const std::string &nodeSock
         socketId = nodeSocketStr.substr(pos + 1);
         return true;
     } else {
-        UBSE_LOG_ERROR << "Ubse mem get nodeid and socketid failed,  node-socket string: " << nodeSocketStr;
+        UBSE_LOG_ERROR << "Ubse mem get nodeId and socketId failed,  node-socket string=" << nodeSocketStr;
         return false;
     }
 }
 
-// 判断是否全连接
-static void GetFullMesh(const std::unordered_map<std::string, std::vector<MemNodeData>> &nodeConnectTopo,
-                        bool &fullMesh)
-{
-    // 硬件总节点
-    std::unordered_set<std::string> allNodeIdList;
-    for (const auto &pair : nodeConnectTopo) {
-        std::string nodeId;
-        std::string socketId;
-        GetNodeIdAndSocketIdFromNodeSocketString(pair.first, nodeId, socketId);
-        allNodeIdList.insert(nodeId);
-        for (const auto &second : pair.second) {
-            allNodeIdList.insert(second.nodeId);
-        }
-    }
-    fullMesh = false;
-    size_t nodeNum = allNodeIdList.size();
-    LOG_DEBUG("node_num=" << nodeNum);
-    if (nodeNum > 8u) {
-        fullMesh = false;
-        return;
-    }
-    fullMesh = true;
-    for (const auto &pair : nodeConnectTopo) {
-        UBSE_LOG_DEBUG << "node_socket=" << pair.first << ", connect_num=" << pair.second.size();
-        if (pair.second.size() != nodeNum - 1u) {
-            fullMesh = false;
-        }
-    }
-}
-
 bool UbseMemTopologyInfoManager::UbseMemTransTopoToNeighborSet(
-    std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> &neighborNodes, bool &fullMesh)
+    std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> &neighborNodes, std::set<uint16_t> &nodeIndexList)
 {
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeConnectTopo;
     NodeIndex nodeIdx = 0;
     NodeIndex neighborNodeIdx = 0;
     std::string nodeId;
     std::string socketId;
+
     // 调用管控面接口查询topo
     auto ret = UbseMemGetTopologyInfo(nodeConnectTopo);
     if (ret != 0) {
         UBSE_LOG_ERROR << "Ubse mem get node connect topology info failed, ret=" << ret;
         return false;
     }
-    GetFullMesh(nodeConnectTopo, fullMesh);
     // 将topo转换为nodeIndex的set
     for (const auto &pair : nodeConnectTopo) {
         auto result = GetNodeIdAndSocketIdFromNodeSocketString(pair.first, nodeId, socketId);
         if (!result) {
-            UBSE_LOG_ERROR << "Ubse mem get nodeid and socketid failed,  node-socket string: " << pair.first;
+            UBSE_LOG_ERROR << "Ubse mem get nodeId and socketId failed,  node-socket string=" << pair.first;
             return false;
         }
 
         nodeIdx = NodeIdToIndex(nodeId);
+        nodeIndexList.insert(nodeIdx);
         if (nodeIdx >= tc::rs::mem::NUM_HOSTS) {
             UBSE_LOG_ERROR << "Neighbor node index is invalid, nodeId=" << nodeId << ", nodeIndex=" << nodeIdx;
             return false;
@@ -728,12 +894,12 @@ bool UbseMemTopologyInfoManager::UbseMemTransTopoToNeighborSet(
             neighborNodeIdx = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(neighbor.nodeId);
             if (neighborNodeIdx < 0 || neighborNodeIdx >= tc::rs::mem::NUM_HOSTS) {
                 UBSE_LOG_WARN << "Neighbor node index is invalid, nodeId=" << neighbor.nodeId
-                            << ", nodeIndex=" << neighborNodeIdx;
+                              << ", nodeIndex=" << neighborNodeIdx;
                 continue;
             }
             neighborNodes[nodeIdx].insert(neighborNodeIdx); // 插入邻居节点到集合中
             UBSE_LOG_INFO << "UbseMemTransTopoToNeighborSet neighborNodeIdx=" << neighborNodeIdx
-                        << ", NodeId=" << neighbor.nodeId;
+                          << ", NodeId=" << neighbor.nodeId;
         }
     }
     return true;
@@ -742,13 +908,37 @@ bool UbseMemTopologyInfoManager::UbseMemTransTopoToNeighborSet(
 bool UbseMemTopologyInfoManager::ConvertNumaIndex(const UbseMemNumaIndexLoc &ubseMemNumaIndexLoc,
                                                   UbseMemNumaLoc &numaLoc)
 {
-    // std::shared_lock<std::shared_mutex> readLocker(mLock);
-    auto find = mNumaLoc2IndexMap.find(ubseMemNumaIndexLoc);
-    if (find == mNumaLoc2IndexMap.end()) {
+    auto find = mNumaLoc2IndexMap_.find(ubseMemNumaIndexLoc);
+    if (find == mNumaLoc2IndexMap_.end()) {
         return false;
     }
     numaLoc = find->second;
     return true;
+}
+
+bool UbseMemTopologyInfoManager::ConvertNumaLoc(const UbseMemNumaLoc &numaLoc, UbseMemNumaIndexLoc &ubseMemNumaIndexLoc)
+{
+    auto find = mNumaLoc2IdMap_.find(numaLoc);
+    if (find == mNumaLoc2IdMap_.end()) {
+        UBSE_LOG_ERROR << "ConvertNumaLoc error, numaLoc="
+                       << "nodeId=" << numaLoc.nodeId << ", socketId=" << numaLoc.socketId
+                       << ", numaId=" << numaLoc.numaId;
+        return false;
+    }
+    ubseMemNumaIndexLoc = find->second;
+    return true;
+}
+
+void UbseMemTopologyInfoManager::Clear()
+{
+    mNodeDataList_.clear();
+    mCurNodeIndex_ = 0;
+    mCurGlobalNumaIndex_ = 0;
+    mNodeIdMap_.clear();
+    mNodeIndexMap_.clear();
+    mNumaLoc2IndexMap_.clear();
+    mNumaLoc2IdMap_.clear();
+    mNodeId2HostName_.clear();
 }
 
 } // namespace ubse::mem::strategy

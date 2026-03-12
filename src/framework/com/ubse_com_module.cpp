@@ -15,58 +15,37 @@
 #include <sys/stat.h>
 #include <csignal>
 
-#include "ubse_event_module.h"
-#include "ubse_thread_pool_module.h"
 #include "rpc/ubse_rpc_server.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
+#include "ubse_event_module.h"
 #include "ubse_file_util.h"
-#include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_str_util.h"
+#include "ubse_thread_pool_module.h"
+
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 namespace ubse::com {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::task_executor;
 using namespace ubse::election;
 using namespace ubse::config;
 BASE_DYNAMIC_CREATE(UbseComModule, UbseConfModule, ubse::task_executor::UbseTaskExecutorModule,
-                    ubse::event::UbseEventModule, ubse::mti::UbseLcneModule);
+                    ubse::event::UbseEventModule);
 const std::string UBSE_CERT_SECTION = "ubse.rpc";
 const std::string UBSE_CERT_CONFIG_KEY = "cert.use";
 constexpr uint16_t NODE_UP_STATE = 1;
-
-class UbseComSdkEvent {
-public:
-    static void UbseComSdkEventPub(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state);
-
-    static bool IsProcessActive(int pid);
-
-    static void Stop();
-
-    static std::thread monitorThread;
-
-private:
-    static std::unordered_set<uint32_t> monitoredPid;
-    static bool stopMonitorPid;
-    static std::mutex mtx;
-};
-
-std::unordered_set<uint32_t> UbseComSdkEvent::monitoredPid{};
-std::thread UbseComSdkEvent::monitorThread;
-bool UbseComSdkEvent::stopMonitorPid{false};
-std::mutex UbseComSdkEvent::mtx;
 
 UbseResult UbseComModule::Initialize()
 {
     return UBSE_OK;
 }
 
-void UbseComModule::UnInitialize()
-{
-    UbseComSdkEvent::Stop();
-}
+void UbseComModule::UnInitialize() {}
 
 UbseResult CreateRpcExecutor()
 {
@@ -129,6 +108,7 @@ void UbseLinkEventPub(const std::vector<UbseLinkInfo> &linkInfoList)
         std::string linkChangeChType = "changeChType:" + linkInfo.GetChType() + ";";
         eventMessage += linkNodeId + linkState + linkTimeStamp + linkChangeChType;
     }
+    UBSE_LOG_DEBUG << "Link event info: " << eventMessage;
     eventModule->UbsePubEvent(UBSE_EVENT_NODE_STATE, eventMessage);
 }
 
@@ -152,23 +132,25 @@ int16_t GetTimeOutValue()
     return static_cast<int16_t>(time);
 }
 
+const uint32_t MILLISECONDS_PER_SECOND = 1000;
+const uint32_t DEFAULT_HB_TIMEOUT = 2;
 int16_t GetHeartBeatTimeOutValue()
 {
     auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (ubseConfModule == nullptr) {
-        UBSE_LOG_WARN << "Unable to get config info, set to default value which is 30";
-        return DEFAULTHBTIMEOUT;
+        UBSE_LOG_WARN << "Unable to get config info, set to default value which is 2";
+        return DEFAULT_HB_TIMEOUT;
     }
     uint32_t time;
     auto ret = ubseConfModule->GetConf<uint32_t>("ubse.election", "heartbeat.timeInterval", time);
-    time /= 1000; // 毫秒转化成秒
+    time /= MILLISECONDS_PER_SECOND; // 毫秒转化成秒
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Unable to get heartbeat timeout config info, set to default value which is 30";
-        return DEFAULTHBTIMEOUT;
+        UBSE_LOG_WARN << "Unable to get heartbeat timeout config info, set to default value which is 2";
+        return DEFAULT_HB_TIMEOUT;
     }
     if (time > NO_60) {
-        UBSE_LOG_WARN << "Heartbeat timeout config range should be 0 to 60, set to default value which is 30";
-        return DEFAULTHBTIMEOUT;
+        UBSE_LOG_WARN << "Heartbeat timeout config range should be 0 to 60, set to default value which is 2";
+        return DEFAULT_HB_TIMEOUT;
     }
     return static_cast<int16_t>(time);
 }
@@ -179,157 +161,23 @@ UbseResult ServerTls(UbseComBasePtr &rpcServer)
         UBSE_LOG_ERROR << "rpc server failed. ";
         return UBSE_ERROR;
     }
-    rpcServer->TlsOn();
     return UBSE_OK;
 }
-
-bool UbseComModule::ReconnectCb(std::string brokenNodeId, UbseChannelType chType)
+UbseResult GetBondingEidByNodeId(std::string &bondingEid, const std::string &nodeId)
 {
-    if (chType == UbseChannelType::HEARTBEAT) { // 心跳链路两两节点间都有链路，需要重连
-        return true;
-    }
-    UbseRoleInfo masterNode{};
-    auto retCode = UbseGetMasterInfo(masterNode);
-    if (retCode != UBSE_OK) {
-        UBSE_LOG_ERROR << "get ubseMasterNodeId conf failed," << FormatRetCode(retCode);
-        return false; // 如果此接口失败，认为未选出主，后续主上线node会主动发起建连，重连没必要
-    }
-    if (GetCurRoleStr() == ELECTION_ROLE_MASTER) { // 如果本身是主节点，数据链路是必要的所以要重连
-        return true;
-    }
-    if (masterNode.nodeId == brokenNodeId) {
-        return true; // 如果对端是主，数据链路是必要的所以要重连
-    }
-    return false;
-}
-
-QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {
-    auto ubseMtiModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
-    if (ubseMtiModule == nullptr) {
-        UBSE_LOG_WARN << "Get Mti info failed";
-        return false;
-    }
-    if (ubseMtiModule->GetBondingEidByNodeId(eid, nodeId) != UBSE_OK) {
+    std::vector<adapter_plugins::mti::UbseMtiNodeInfo> nodeInfos;
+    if (adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterNodeInfoList(nodeInfos) != UBSE_OK) {
         UBSE_LOG_WARN << "Query eid failed";
-        return false;
-    }
-    return true;
-};
-
-UbseResult UbseComModule::RpcServerStart()
-{
-    bool enableTlsValue = true;
-    auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
-                    << ", ret: " << ret << ", use default value: true";
-        enableTlsValue = true;
-    }
-    if (enableTlsValue) {
-        UBSE_LOG_INFO << "Enable TLS-based Certificate Authentication";
-        ServerTls(rpcServer);
-    }
-    if (rpcServer == nullptr) {
-        UBSE_LOG_ERROR << "Rpc server is nullptr. ";
         return UBSE_ERROR;
     }
-    rpcServer->SetTimeOut(GetTimeOutValue(), GetHeartBeatTimeOutValue());
-    rpcServer->SetShouldDoReconnectCb(
-        [this](std::string brokenNodeId, UbseChannelType chType) { return this->ReconnectCb(brokenNodeId, chType); });
-    rpcServer->SetQueryEidByNodeIdCb(queryCb);
-    ret = rpcServer->Start();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Start UbseMasterRpcServer fail," << FormatRetCode(ret);
-        rpcServer->Stop();
-        return UBSE_ERROR_INVAL;
-    }
-    return UBSE_OK;
-}
-
-UbseResult UbseComModule::Start()
-{
-    if (ctx.GetProcessMode() == ubse::context::CLI) {
-        return UBSE_OK;
-    }
-    UbseResult ret = CreateRpcExecutor();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Init ComExecutor fail," << FormatRetCode(ret);
-        return ret;
-    }
-    UbseComBase::SetHandlerExecutor(UbseComHandlerExecutor);
-    UbseComBase::SetLinkEventHandler(UbseLinkEventPub);
-    UbseComBase::SetSdkLinkDownEventHandler(UbseComSdkEvent::UbseComSdkEventPub);
-
-    // 初始化
-    ret = InitUbseCom();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Init ubse com fail," << FormatRetCode(ret);
-        return ret;
-    }
-
-    // rpc Server
-    if (rpcServer != nullptr) {
-        ret = RpcServerStart();
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Start rpc fail," << FormatRetCode(ret);
-            return ret;
+    for (adapter_plugins::mti::UbseMtiNodeInfo &nodeInfo : nodeInfos) {
+        if (nodeId == nodeInfo.nodeId) {
+            bondingEid = nodeInfo.eid;
+            return UBSE_OK;
         }
     }
-
-    // rpc Server 队列初始化
-    queueRef = SafeMakeShared<UbseInterCom>();
-    if (queueRef == nullptr) {
-        UBSE_LOG_ERROR << "queue ref is nullptr. ";
-        return UBSE_ERROR_NULLPTR;
-    }
-    ret = queueRef->StartQueue();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Fail to start queue," << FormatRetCode(ret);
-        return ret;
-    }
-    return UBSE_OK;
+    return UBSE_ERROR;
 }
-
-void UbseComModule::Stop()
-{
-    if (rpcClient != nullptr) {
-        this->rpcClient->Stop();
-    }
-    if (rpcServer != nullptr) {
-        this->rpcServer->Stop();
-    }
-}
-
-const std::shared_ptr<ubse::com::UbseInterCom> UbseComModule::GetQueue()
-{
-    if (queueRef == nullptr) {
-        UBSE_LOG_ERROR << "Message Queue is not init";
-    }
-    return queueRef;
-}
-
-const std::string UbseComModule::GetCurRoleStr()
-{
-    ubse::election::UbseRoleInfo roleInfo{};
-    UbseResult ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get Role fail," << FormatRetCode(ret);
-        return "";
-    }
-    return roleInfo.nodeRole;
-}
-
-bool UbseComModule::IsCurrentNode(const std::string &nodeId)
-{
-    ubse::election::UbseRoleInfo roleInfo{};
-    UbseResult ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get Role fail," << FormatRetCode(ret);
-        return false;
-    }
-    return roleInfo.nodeId == nodeId;
-}
-
 UbseResult GetUBEnable(bool &ubEnable)
 {
     auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
@@ -348,45 +196,195 @@ UbseResult GetUBEnable(bool &ubEnable)
     return UBSE_OK;
 }
 
+QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {
+    bool ubEnable;
+    GetUBEnable(ubEnable);
+    if (ubEnable) {
+        if (GetBondingEidByNodeId(eid, nodeId) != UBSE_OK) {
+            UBSE_LOG_WARN << "Query eid failed";
+            return false;
+        }
+        return true;
+    }
+    auto electionModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_WARN << "Get electionModule info failed";
+        return false;
+    }
+    if (electionModule->GetNodeIpInfoById(nodeId, eid) != UBSE_OK) {
+        UBSE_LOG_WARN << "Query ip failed";
+        return false;
+    }
+    return true;
+};
+
+UbseResult UbseComModule::RpcServerStart()
+{
+    bool enableTlsValue = true;
+    auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
+                      << ", ret: " << ret << ", use default value: true";
+        enableTlsValue = true;
+    }
+    if (enableTlsValue) {
+        UBSE_LOG_INFO << "Enable TLS-based Certificate Authentication";
+        ServerTls(rpcServer_);
+    }
+    if (rpcServer_ == nullptr) {
+        UBSE_LOG_ERROR << "Rpc server is nullptr. ";
+        return UBSE_ERROR;
+    }
+    rpcServer_->SetTimeOut(GetTimeOutValue(), GetHeartBeatTimeOutValue());
+    rpcServer_->SetQueryEidByNodeIdCb(queryCb);
+    ret = rpcServer_->Start();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Start UbseMasterRpcServer fail," << FormatRetCode(ret);
+        rpcServer_->Stop();
+        return UBSE_ERROR_INVAL;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseComModule::Start()
+{
+    if (ctx_.GetProcessMode() == ubse::context::ProcessMode::CLI) {
+        return UBSE_OK;
+    }
+    UbseResult ret = CreateRpcExecutor();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Init ComExecutor fail," << FormatRetCode(ret);
+        return ret;
+    }
+
+    UbseComBase::SetHandlerExecutor(UbseComHandlerExecutor);
+    UbseComBase::SetLinkEventHandler(UbseLinkEventPub);
+    return UBSE_OK;
+}
+
+void UbseComModule::Stop()
+{
+    return;
+}
+const std::string UbseComModule::GetCurRoleStr()
+{
+    ubse::election::UbseRoleInfo roleInfo{};
+    UbseResult ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get Role fail," << FormatRetCode(ret);
+        return "";
+    }
+    return roleInfo.nodeRole;
+}
+
+UbseResult UbseComModule::StartComService(const std::string &localNodeId, const std::string &localIp,
+                                          UbseComCallBackForHA newChannelCb, UbseComCallBackForHA brokenChannelCb)
+{
+    auto ret = InitUbseCom(localNodeId, localIp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Init ubse com fail," << FormatRetCode(ret);
+        return ret;
+    }
+    rpcServer_->RegNewChannelCb(newChannelCb);
+    rpcServer_->RegBrokenChannelCb(brokenChannelCb);
+
+    // rpc Server
+    if (rpcServer_ != nullptr) {
+        ret = RpcServerStart();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Start rpc fail," << FormatRetCode(ret);
+            return ret;
+        }
+    }
+
+    // rpc Server 队列初始化
+    queueRef_ = SafeMakeShared<UbseInterCom>();
+    if (queueRef_ == nullptr) {
+        UBSE_LOG_ERROR << "queue ref is nullptr. ";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = queueRef_->StartQueue();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Fail to start queue," << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseComModule::StopComService()
+{
+    if (rpcServer_ != nullptr) {
+        this->rpcServer_->Stop();
+    }
+    return UBSE_OK;
+}
+
+bool UbseComModule::IsCurrentNode(const std::string &nodeId)
+{
+    ubse::election::UbseRoleInfo roleInfo{};
+    UbseResult ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get Role fail," << FormatRetCode(ret);
+        return false;
+    }
+    return roleInfo.nodeId == nodeId;
+}
+
 UbseResult GetNodeInfoFromMti(IpAddress &address, std::string &nodeId)
 {
     bool ubEnable;
     GetUBEnable(ubEnable);
+    adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo;
+    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    nodeId = ubseNodeInfo.nodeId;
     if (ubEnable) {
-        ubse::mti::MtiNodeInfo ubseNodeInfo;
-        auto ret = ubse::mti::UbseGetLocalNodeInfo(ubseNodeInfo);
-        if (ret != UBSE_OK) {
-            return ret;
-        }
-        nodeId = ubseNodeInfo.nodeId;
         address.first = ubseNodeInfo.eid;
         address.second = URMA_LISTEN_JETTY;
     } else {
-        UbseComTcpStr infostr;
-        GetTcpInfo(infostr);
-        nodeId = infostr.nodeId;
-        address.first = infostr.comIp;
+        adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(address.first);
         address.second = TCP_LISTEN_PORT;
     };
-    UBSE_LOG_INFO << "Com ip is " << address.first << ", com port is " << address.second
-                << ", com node id is " << nodeId;
+    UBSE_LOG_INFO << "Com ip is " << address.first << ", com port is " << address.second << ", com node id is "
+                  << nodeId;
     return UBSE_OK;
 }
 
-UbseResult UbseComModule::InitUbseCom()
+UbseResult UbseComModule::RegNewChannelCallBack(UbseComCallBackForHA func)
+{
+    if (rpcServer_ == nullptr) {
+        UBSE_LOG_ERROR << "rpcServer is nullptr, RegNewChannelCallBack fail";
+        return UBSE_ERROR;
+    }
+    return rpcServer_->RegNewChannelCb(std::move(func));
+}
+
+UbseResult UbseComModule::RegBrokenChannelCallBack(UbseComCallBackForHA func)
+{
+    if (rpcServer_ == nullptr) {
+        UBSE_LOG_ERROR << "rpcServer is nullptr, RegBrokenChannelCallBack fail";
+        return UBSE_ERROR;
+    }
+    return rpcServer_->RegBrokenChannelCb(std::move(func));
+}
+
+UbseResult UbseComModule::InitUbseCom(const std::string &localNodeId, const std::string &localIp)
 {
     // 从lcne获取网络信息
-    IpAddress address{"", 0};
-    std::string nodeId;
-    auto ret = GetNodeInfoFromMti(address, nodeId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Fail to get node info from mti" << FormatRetCode(ret);
-        return ret;
-    }
-
+    uint16_t port = 0;
+    bool ubEnable;
+    GetUBEnable(ubEnable);
+    if (ubEnable) {
+        port = URMA_LISTEN_JETTY;
+    } else {
+        port = TCP_LISTEN_PORT;
+    };
+    IpAddress address{localIp, port};
     // 初始化rpc server
-    rpcServer = new (std::nothrow) UbseRpcServer(address.first, address.second, MASTER_RPC_SERVER_NAME, nodeId);
-    if (rpcServer == nullptr) {
+    rpcServer_ = new (std::nothrow) UbseRpcServer(address.first, address.second, MASTER_RPC_SERVER_NAME, localNodeId);
+    if (rpcServer_ == nullptr) {
         UBSE_LOG_ERROR << "New UbseMasterRpcServer fail";
         return UBSE_ERROR_NOMEM;
     }
@@ -395,63 +393,28 @@ UbseResult UbseComModule::InitUbseCom()
 
 std::vector<UbseLinkInfo> UbseComModule::GetAllServerLinkInfo()
 {
-    if (rpcServer == nullptr) {
+    if (rpcServer_ == nullptr) {
         UBSE_LOG_ERROR << "rpcServer is nullptr, GetAllServerLinkInfo fail";
         return {};
     }
-    return rpcServer->GetAllLinkInfo();
+    return rpcServer_->GetAllLinkInfo();
+}
+
+std::string UbseComModule::GetNodeIdByIp(const std::string &ip)
+{
+    if (rpcServer_ == nullptr) {
+        UBSE_LOG_ERROR << "rpcServer is nullptr, GetNodeIdByIp fail";
+        return {};
+    }
+    return rpcServer_->GetNodeIdByIp(ip);
 }
 
 void UbseComModule::AddServerLinkNotifyFunc(const LinkNotifyFunction &func)
 {
-    if (rpcServer == nullptr) {
+    if (rpcServer_ == nullptr) {
         UBSE_LOG_ERROR << "rpcServer is nullptr, AddServerLinkNotifyFunc fail";
         return;
     }
-    rpcServer->AddLinkNotifyFunc(func);
-}
-
-std::vector<UbseLinkInfo> UbseComModule::GetAllClientLinkInfo()
-{
-    if (rpcClient == nullptr) {
-        UBSE_LOG_ERROR << "rpcClient is nullptr, GetAllClientLinkInfo fail";
-        return {};
-    }
-    return rpcClient->GetAllLinkInfo();
-}
-
-void UbseComModule::AddClientLinkNotifyFunc(const LinkNotifyFunction &func)
-{
-    if (rpcClient == nullptr) {
-        UBSE_LOG_ERROR << "rpcClient is nullptr, AddClientLinkNotifyFunc fail";
-        return;
-    }
-    rpcClient->AddLinkNotifyFunc(func);
-}
-
-void UbseComSdkEvent::UbseComSdkEventPub(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state)
-{
-    std::lock_guard<std::mutex> lock(mtx);
-    if (state == UbseLinkState::LINK_UP) {
-        monitoredPid.erase(idInfo.pid);
-    } else {
-        monitoredPid.insert(idInfo.pid);
-    }
-}
-
-bool UbseComSdkEvent::IsProcessActive(int pid)
-{
-    if (kill(pid, 0) == 0) {
-        return true; // 进程存在
-    }
-    return errno != ESRCH; // 若错误不是"进程不存在"，则认为进程存在（如权限不足）
-}
-
-void UbseComSdkEvent::Stop()
-{
-    stopMonitorPid = true;
-    if (monitorThread.joinable()) {
-        monitorThread.join();
-    }
+    rpcServer_->AddLinkNotifyFunc(func);
 }
 } // namespace ubse::com

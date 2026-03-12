@@ -25,7 +25,7 @@
 namespace ubse::event {
 class UbseEventQueue {
 public:
-    explicit UbseEventQueue(uint32_t capacity) : capacity(capacity) {}
+    explicit UbseEventQueue(uint32_t capacity) : capacity_(capacity) {}
 
     void AddEventTask(EventTask &eventTask);
 
@@ -34,13 +34,13 @@ public:
     void StopQueue();
 
 private:
-    std::deque<EventTask> queue;
-    uint32_t capacity;
-    std::mutex eventQueueMutex;
-    std::condition_variable notEmpty;
-    std::condition_variable notFull;
+    std::deque<EventTask> queue_;
+    uint32_t capacity_;
+    std::mutex eventQueueMutex_;
+    std::condition_variable notEmpty_;
+    std::condition_variable notFull_;
 
-    std::atomic<bool> isQueueRunning{ true };
+    std::atomic<bool> isQueueRunning_{true };
 };
 }
 

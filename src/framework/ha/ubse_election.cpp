@@ -21,7 +21,7 @@
 namespace ubse::election {
 using namespace ubse::log;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_ELECTION_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 uint32_t UbseGetNodeCount(uint32_t &count)
 {
@@ -350,6 +350,42 @@ uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos)
         }
     }
 
+    return ret;
+}
+
+uint32_t UbseGetRole(std::string &role)
+{
+    UbseRoleInfo currentNode;
+    auto ret = UbseGetCurrentNodeInfo(currentNode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetRole failed," << FormatRetCode(ret);
+        return ret;
+    }
+    role = currentNode.nodeRole;
+    return ret;
+}
+
+uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
+{
+    UbseRoleInfo roleInfo;
+    auto ret = UbseGetMasterInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetMasterNodeId failed, error code is: " << FormatRetCode(ret);
+        return ret;
+    }
+    masterNodeId = roleInfo.nodeId;
+    return ret;
+}
+
+uint32_t UbseGetCurrentNodeId(std::string &currentNodeId)
+{
+    UbseRoleInfo currentNode;
+    auto ret = UbseGetCurrentNodeInfo(currentNode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetMasterNodeId failed, error code is: " << FormatRetCode(ret);
+        return ret;
+    }
+    currentNodeId = currentNode.nodeId;
     return ret;
 }
 }

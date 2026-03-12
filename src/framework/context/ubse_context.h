@@ -36,7 +36,7 @@ namespace ubse::context {
 using namespace ubse::module;
 using ModulerCreatorFunc = std::function<std::shared_ptr<UbseModule>()>;
 
-enum ProcessMode {
+enum class ProcessMode {
     MANAGER, // manager启动
     CLI,     // cli启动
     DEFAULT  // 默认启动方式, manager启动
@@ -58,7 +58,7 @@ public:
     UbseContext &operator=(const UbseContext &) = delete;
 
     // 运行上下文
-    UbseResult Run(int argc, char *argv[], ProcessMode = MANAGER);
+    UbseResult Run(int argc, char *argv[], ProcessMode = ProcessMode::MANAGER);
 
     template <typename T, typename... Dependencies>
     UbseResult RegisterModule(const ModulerCreatorFunc &creator)
@@ -71,7 +71,7 @@ public:
             // 使用折叠表达式检查每个依赖项类型
             (CheckDependencyType<Dependencies>(), ...);
         }
-        moduleCreatorMap[typeid(T)] = {creator, {typeid(Dependencies)...}};
+        moduleCreatorMap_[typeid(T)] = {creator, {typeid(Dependencies)...}};
         return 0;
     }
 
@@ -86,7 +86,7 @@ public:
             // 使用折叠表达式检查每个依赖项类型
             (CheckDependencyType<Dependencies>(), ...);
         }
-        baseModuleCreatorMap[typeid(T)] = {creator, {typeid(Dependencies)...}};
+        baseModuleCreatorMap_[typeid(T)] = {creator, {typeid(Dependencies)...}};
         return 0;
     }
 
@@ -101,8 +101,8 @@ public:
         static_assert(std::is_base_of_v<UbseModule, T>, "GetModule must be used with UbseModule derived types");
         const std::type_index moduleType(typeid(T));
         try {
-            auto it = moduleMap.find(moduleType);
-            if (it != moduleMap.end()) {
+            auto it = moduleMap_.find(moduleType);
+            if (it != moduleMap_.end()) {
                 return std::dynamic_pointer_cast<T>(it->second);
             }
         } catch (...) {
@@ -124,13 +124,13 @@ public:
     // 获取 cmdArgc
     int GetArgc() const
     {
-        return cmdArgc;
+        return cmdArgc_;
     }
 
     // 获取 cmdArgv
     char **GetArgv() const
     {
-        return cmdArgv;
+        return cmdArgv_;
     }
 
     bool IsAllModulesReady() const;
@@ -188,21 +188,21 @@ private:
         static_assert(!std::is_abstract_v<U>, "Dependency cannot be abstract class");
     }
 
-    int cmdArgc = 0;
-    char **cmdArgv = nullptr;
-    std::string ubseRunPath{};
-    ProcessMode processMode = DEFAULT;
+    int cmdArgc_ = 0;
+    char **cmdArgv_ = nullptr;
+    std::string ubseRunPath_{};
+    ProcessMode processMode_ = ProcessMode::DEFAULT;
     // 命令行参数
-    std::unordered_map<std::string, std::string> argMap{};
-    std::unordered_map<std::type_index, ModuleEntry> moduleCreatorMap{};
-    std::unordered_map<std::type_index, ModuleEntry> baseModuleCreatorMap{};
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> sortedModules{};
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> sortedBaseModules{};
-    std::unordered_map<std::type_index, std::shared_ptr<UbseModule>> moduleMap{};
+    std::unordered_map<std::string, std::string> argMap_{};
+    std::unordered_map<std::type_index, ModuleEntry> moduleCreatorMap_{};
+    std::unordered_map<std::type_index, ModuleEntry> baseModuleCreatorMap_{};
+    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> sortedModules_{};
+    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> sortedBaseModules_{};
+    std::unordered_map<std::type_index, std::shared_ptr<UbseModule>> moduleMap_{};
 
-    uint8_t workReadiness = 0;
+    uint8_t workReadiness_ = 0;
 
-    std::atomic<bool> allModulesReady = false;
+    std::atomic<bool> allModulesReady_ = false;
 };
 } // namespace ubse::context
 #endif // UBSE_CONTEXT_H

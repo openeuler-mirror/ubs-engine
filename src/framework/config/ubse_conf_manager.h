@@ -22,43 +22,43 @@
 
 namespace ubse::config {
 using namespace ubse::common::def;
-
+class UbseConfModule;
 class Format {
 public:
-    const std::string charSectionStart;  // 配置节首字符 [
-    const std::string charSectionEnd;  // 配置节尾字符 [
-    const std::string charAssign;  // 等号
-    const std::string charCommentSemicolon;  // 参数注释（分号）
-    const std::string charCommentHash;  // 参数注释（警号）
+    const std::string charSectionStart_;  // 配置节首字符 [
+    const std::string charSectionEnd_;  // 配置节尾字符 [
+    const std::string charAssign_;  // 等号
+    const std::string charCommentSemicolon_;  // 参数注释（分号）
+    const std::string charCommentHash_;  // 参数注释（警号）
 
     explicit Format(std::string section_start = "[", std::string section_end = "]", std::string assign = "=",
                     std::string commentSemicolon = ";", std::string commentHash = "#")
-        : charSectionStart(std::move(section_start)),
-          charSectionEnd(std::move(section_end)),
-          charAssign(std::move(assign)),
-          charCommentSemicolon(std::move(commentSemicolon)),
-          charCommentHash(std::move(commentHash))
+        : charSectionStart_(std::move(section_start)),
+          charSectionEnd_(std::move(section_end)),
+          charAssign_(std::move(assign)),
+          charCommentSemicolon_(std::move(commentSemicolon)),
+          charCommentHash_(std::move(commentHash))
     {
     }
 
     [[nodiscard]] inline bool IsSectionStart(const std::string& ch) const
     {
-        return ch == charSectionStart;
+        return ch == charSectionStart_;
     }
 
     [[nodiscard]] inline bool IsSectionEnd(const std::string& ch) const
     {
-        return ch == charSectionEnd;
+        return ch == charSectionEnd_;
     }
 
     [[nodiscard]] inline bool IsAssign(const std::string& ch) const
     {
-        return ch == charAssign;
+        return ch == charAssign_;
     }
 
     [[nodiscard]] inline bool IsComment(const std::string& ch) const
     {
-        return ch == charCommentSemicolon || ch == charCommentHash;
+        return ch == charCommentSemicolon_ || ch == charCommentHash_;
     }
 };
 
@@ -67,6 +67,7 @@ using ConfigMap = std::map<std::string, SECTION>;
 
 class UbseConfigManager {
 public:
+    friend UbseConfModule;
     static UbseConfigManager& GetInstance()
     {
         static UbseConfigManager instance;
@@ -131,11 +132,13 @@ private:
 
     UbseResult ReadConfFile(const std::string& filePath);  // 读取文件到内存
 
-    Format format;
-    std::unordered_map<std::string, std::vector<std::string>> parseErrors;  // 解析错误信息
-    std::shared_mutex rwLock;
-    ConfigMap configMap;  // 全部配置
-    std::unordered_set<std::string> fileSet;
+    void AddConfig(const std::string &section, const std::string &key, const std::string &value);
+
+    Format format_;
+    std::unordered_map<std::string, std::vector<std::string>> parseErrors_;  // 解析错误信息
+    std::shared_mutex rwLock_;
+    ConfigMap configMap_;  // 全部配置
+    std::unordered_set<std::string> fileSet_;
 };
 
 }  // namespace ubse::config

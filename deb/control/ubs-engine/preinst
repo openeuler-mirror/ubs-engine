@@ -1,0 +1,81 @@
+#!/bin/bash
+set -e
+
+# $1 = "install" 或 "upgrade"
+# 用户创建逻辑放这里（和 RPM %pre 一致）
+
+print_error() {
+    echo "ERROR: $1" >&2
+    exit 1
+}
+
+create_user() {
+    local requested_uid=""
+    local requested_gid=""
+
+    if [ -n "${UBSE_USER_UID:-}" ]; then
+        if [[ "${UBSE_USER_UID}" =~ ^[0-9]+$ ]] && [ "$UBSE_USER_UID" -ge 0 ]; then
+            requested_uid="$UBSE_USER_UID"
+        else
+            print_error "Invalid UBSE_USER_UID: '$UBSE_USER_UID'. Must be a non-negative integer."
+        fi
+    fi
+
+    if [ -n "${UBSE_USER_GID:-}" ]; then
+        if [[ "${UBSE_USER_GID}" =~ ^[0-9]+$ ]] && [ "$UBSE_USER_GID" -ge 0 ]; then
+            requested_gid="$UBSE_USER_GID"
+        else
+            print_error "Invalid UBSE_USER_GID: '$UBSE_USER_GID'. Must be a non-negative integer."
+        fi
+    fi
+
+    local user_exists=false
+    local group_exists=false
+
+    if getent passwd ubse > /dev/null; then
+        user_exists=true
+    fi
+
+    if getent group ubse > /dev/null; then
+        group_exists=true
+    fi
+
+    if $user_exists || $group_exists; then
+        local current_uid=$(getent passwd ubse | cut -d: -f3)
+        local current_gid=$(getent passwd ubse | cut -d: -f4)
+        if [ -n "$requested_uid" ] && [ "$current_uid" != "$requested_uid" ]; then
+            print_error "User ubse exists with UID $current_uid, but requested UID is $requested_uid."
+        fi
+        if [ -n "$requested_gid" ] && [ "$current_gid" != "$requested_gid" ]; then
+            print_error "User ubse exists with GID $current_gid, but requested GID is $requested_gid."
+        fi
+        return 0
+    fi
+
+    if [ -z "$requested_gid" ]; then
+        groupadd -r ubse || print_error "Failed to create group ubse"
+    else
+        if getent group "$requested_gid" > /dev/null; then
+            print_error "GID $requested_gid is already in use."
+        fi
+        groupadd -r -g "$requested_gid" ubse || print_error "Failed to create group ubse with GID $requested_gid"
+    fi
+
+    local user_args=("-r" "-g" "ubse" "-s" "/usr/sbin/nologin")
+
+    if [ -n "$requested_uid" ]; then
+        if getent passwd "$requested_uid" > /dev/null; then
+            print_error "UID $requested_uid is already in use."
+        fi
+        user_args+=("-u" "$requested_uid")
+    fi
+    useradd "${user_args[@]}" ubse || print_error "Failed to create user ubse"
+}
+
+# 停止旧服务（如果是升级）
+if systemctl cat ubse.service >/dev/null 2>&1; then
+    systemctl stop ubse.service || true
+    systemctl disable ubse.service || true
+fi
+
+create_user

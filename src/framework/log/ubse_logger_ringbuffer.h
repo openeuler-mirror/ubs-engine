@@ -36,28 +36,28 @@ public:
     RingBuffer &operator=(RingBuffer const &) = delete;
 
 public:
-    uint32_t size;
-    std::vector<UbseLoggerEntry> buffer{};
-    std::atomic<uint32_t> left{};
-    std::atomic<uint32_t> right{};
-    std::atomic<bool> bufferFullWarned{false};
+    uint32_t size_;
+    std::vector<UbseLoggerEntry> buffer_{};
+    std::atomic<uint32_t> left_{};
+    std::atomic<uint32_t> right_{};
+    std::atomic<bool> bufferFullWarned_{false};
 };
 
 class LogBuffer {
 public:
-    explicit LogBuffer(uint32_t size) : readBuffer(size), writeBuffer(size) {}
+    explicit LogBuffer(uint32_t size) : readBuffer_(size), writeBuffer_(size) {}
 
     void Push(UbseLoggerEntry &&loggerEntry);
     bool Pop(UbseLoggerEntry &loggerEntry);
     void Swap();
 
 public:
-    std::shared_mutex mtx{};
-    bool stop = false;
+    std::shared_mutex mtx_{};
+    bool stop_ = false;
 
 private:
-    RingBuffer readBuffer;
-    RingBuffer writeBuffer;
+    RingBuffer readBuffer_;
+    RingBuffer writeBuffer_;
 };
 } // namespace ubse::log
 #endif // UBSE_LOGGER_BUFFER_H

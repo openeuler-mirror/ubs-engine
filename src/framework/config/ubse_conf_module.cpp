@@ -14,13 +14,13 @@
 
 #include <cstddef>                // for size_t
 #include <regex>
+#include <vector>
 
 #include "ubse_common_def.h"      // for UbseResult
 #include "ubse_security_module.h"
 #include "ubse_conf_manager.h"    // for UbseConfigManager
 #include "ubse_context.h"         // for UbseContext, ProcessMode
 #include "ubse_logger.h"          // for UbseLoggerEntry, UBSE_D...
-#include "ubse_logger_inner.h"    // for RM_LOG_WARN, RM_LOG_ERROR
 #include "ubse_str_util.h"
 
 namespace ubse::config {
@@ -30,12 +30,39 @@ using namespace ubse::common::def;
 using namespace ubse::utils;
 
 BASE_DYNAMIC_CREATE(UbseConfModule, ubse::security::UbseSecurityModule);
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONF_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string CONFIG_DEFAULT_DIR = "/etc/ubse";
 
 std::tuple<std::string, std::string, std::string> TrimConf(const std::string& section, const std::string& configKey,
                                                            const std::string& configVal = "");
+
+class RegisterFunc {
+public:
+    static RegisterFunc& GetInstance()
+    {
+        static RegisterFunc _ins;
+        return _ins;
+    }
+public:
+    void push(register_config_func &f)
+    {
+        funcs_.push_back(std::move(f));
+    }
+
+    const auto& GetFuncs()
+    {
+        return funcs_;
+    }
+private:
+    RegisterFunc() = default;
+    std::vector<register_config_func> funcs_;
+};
+
+RegisterConfigHelper::RegisterConfigHelper(register_config_func f)
+{
+    RegisterFunc::GetInstance().push(f);
+}
 
 UbseResult UbseConfModule::Initialize()
 {
@@ -46,10 +73,16 @@ UbseResult UbseConfModule::Initialize()
         return ret;
     }
 
-    ctxRef.GetArgStr("f", confCliDir);
-    ret = confMgrRef.Init(confCliDir);  // 允许命令行不传配置目录文件
+    ctxRef.GetArgStr("f", confCliDir_);
+    ret = confMgrRef.Init(confCliDir_);  // 允许命令行不传配置目录文件
     if (ret != UBSE_OK && ret != UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR) {
         return ret;
+    }
+    for (auto &f : RegisterFunc::GetInstance().GetFuncs()) {
+        auto result = f();
+        if (result.has_value()) {
+            confMgrRef.AddConfig(result->section, result->key, result->value);
+        }
     }
     return UBSE_OK;
 }
@@ -184,7 +217,7 @@ bool IsValidNumber(const std::string& str, bool allowFloating)
 
 void PrintConfLog(ErrorType type, const std::string& section, const std::string& configKey, const UbseResult& result)
 {
-    std::string errorMessage = "Unable to read key: " + configKey + " in section: " + section + ", ";
+    std::string errorMessage = "Unable to read key=" + configKey + " in section=" + section + ", ";
     switch (type) {
         case ErrorType::CONFIG_RETURN_FAILURE:
             UBSE_LOG_WARN << errorMessage << FormatRetCode(result);
@@ -199,12 +232,6 @@ void PrintConfLog(ErrorType type, const std::string& section, const std::string&
         case ErrorType::CONFIG_OUT_RANGE:
             UBSE_LOG_WARN << errorMessage << "the query result exceeds the range, " << FormatRetCode(result);
             break;
-        case ErrorType::CONFIG_STORE_FAILURE:
-            UBSE_LOG_WARN << errorMessage << FormatRetCode(result);
-            break;
-        case ErrorType::CONFIG_SET_DEFAULT_FAILED:
-            UBSE_LOG_WARN << "Unable to set default value for " << configKey << ", " << FormatRetCode(result);
-            break;
         default:
             UBSE_LOG_ERROR << "Unknown error.";
             break;
@@ -216,4 +243,6 @@ std::tuple<std::string, std::string, std::string> TrimConf(const std::string& se
 {
     return {Trim(section), Trim(configKey), Trim(configVal)};
 }
+
+
 }  // namespace ubse::config

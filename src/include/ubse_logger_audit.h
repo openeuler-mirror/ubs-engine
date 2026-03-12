@@ -65,12 +65,12 @@ public:
     virtual ~AuditLoggerEntry();
     AuditLoggerEntry &operator << (const std::string &data)
     {
-        os << data;
+        os_ << data;
         return *this;
     }
     std::string Str() const
     {
-        return os.str();
+        return os_.str();
     }
 
     virtual void Sendlog(AuditLoggerEntry &auditLoggerEntry) = 0;
@@ -80,11 +80,11 @@ protected:
     std::string RecordToString(RecordType &recordType);
     int RecordToAudit(RecordType &recordType);
     // 审计事件类型映射表(对应audit—records.h中的定义)
-    std::unordered_map<std::string, int> AuditType = { { "AUDIT_USER_CMD", 1123 },
-                                                       { "AUDIT_DEV_ALLOC", 2307 },
-                                                       { "AUDIT_DEV_DEALLOC", 2308 },
-                                                       { "AUDIT_CRYPTO_PARAM_CHANGE_USER", 2401 } };
-    std::ostringstream os;
+    std::unordered_map<std::string, int> AuditType_ = {{"AUDIT_USER_CMD",                 1123 },
+                                                       {"AUDIT_DEV_ALLOC",                2307 },
+                                                       {"AUDIT_DEV_DEALLOC",              2308 },
+                                                       {"AUDIT_CRYPTO_PARAM_CHANGE_USER", 2401 } };
+    std::ostringstream os_;
 };
 class OperateLoggerEntry : public AuditLoggerEntry {
 public:
@@ -93,8 +93,8 @@ public:
     void Sendlog(AuditLoggerEntry &auditLoggerEntry) override;
 
 private:
-    std::string interface;
-    RecordType type;
+    std::string interface_;
+    RecordType type_;
 };
 class RuntimeLoggerEntry : public AuditLoggerEntry {
 public:
@@ -103,7 +103,7 @@ public:
     void Sendlog(AuditLoggerEntry &auditLoggerEntry) override;
 
 private:
-    RecordType type;
+    RecordType type_;
 };
 class SecurityLoggerEntry : public AuditLoggerEntry {
 public:
@@ -112,8 +112,8 @@ public:
     void Sendlog(AuditLoggerEntry &auditLoggerEntry) override;
 
 private:
-    std::string interface;
-    RecordType type;
+    std::string interface_;
+    RecordType type_;
 };
 
 struct UbseAuditlog {

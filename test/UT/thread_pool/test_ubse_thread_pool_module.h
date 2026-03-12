@@ -13,11 +13,11 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_THREAD_POOL_MODULE_H
 #define UBSE_MANAGER_TEST_UBSE_THREAD_POOL_MODULE_H
 
+#include "gtest/gtest.h"
+#include "gmock/gmock.h"
+#include "mockcpp/mockcpp.hpp"
 #include "ubse_error.h"
 #include "ubse_thread_pool_module.h"
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::task_executor {
 using namespace ubse::task_executor;
@@ -32,6 +32,6 @@ protected:
 
     void TearDown() override;
 };
-} // namespace ubse::ut::thread_pool
+} // namespace ubse::ut::task_executor
 
 #endif // UBSE_MANAGER_TEST_UBSE_THREAD_POOL_MODULE_H

@@ -1,14 +1,14 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_ubse_mem_fd_borrow_exportobj_simpo.h"
 
@@ -16,7 +16,7 @@
 
 #include "message/ubse_mem_controller_serial.h"
 #include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "ubse_conf_error.h"
+#include "ubse_error.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::mem::serial;
@@ -42,8 +42,10 @@ void TestUbseMemFdBorrowExportobjSimpo::TearDown()
  */
 TEST_F(TestUbseMemFdBorrowExportobjSimpo, Serialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
     EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
+    MOCKER_CPP(&UbseSerialization::Check).reset();
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
     EXPECT_TRUE(UBSE_OK == obj->Serialize());
 }
 
@@ -67,8 +69,8 @@ TEST_F(TestUbseMemFdBorrowExportobjSimpo, Deserialize)
     obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
     MOCKER_CPP(&UbseMemFdBorrowExportObjDeserialization)
         .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
+        .will(returnValue(false))
+        .then(returnValue(true));
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
     EXPECT_TRUE(UBSE_OK == obj->Deserialize());
 }

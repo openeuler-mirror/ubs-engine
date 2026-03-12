@@ -9,52 +9,167 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+
 #include "ubse_cli_mem_cmd_reg.h"
+#include <chrono>
+#include <future>
+#include <regex>
+#include <thread>
+
+#include "src/sdk/c/include/ubs_error.h"
 #include "ubse_cli_buffer_guard.h"
+#include "ubse_cli_mem_attach.h"
+#include "ubse_cli_mem_create.h"
+#include "ubse_cli_mem_detach.h"
+#include "ubse_cli_mem_query.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
+#include "ubse_mem_controller.h"
 #include "ubse_serial_util.h"
+#include "ubse_str_util.h"
 
 namespace ubse::cli::reg {
 UBSE_CLI_REGISTER_MODULE("CLI_MEM_MODULE", UbseCliRegMemModule);
 using namespace ubse::cli::framework;
 using namespace ubse::serial;
+using namespace ubse::mem::controller;
 
-const std::string OPTION = "type";
-const std::string OPENTION_TIP = "Queries the memory information of a specified option. The options are as follows: "
-    "node_borrow, borrow_detail.";
-const std::string INVALID_OPTION_TIP =
-    "ERROR: Invalid request param,The options are as follows: node_borrow, borrow_detail.";
+// public option reg
+static const std::string PUBLIC_NAME_OPTION = "name";
+// public option desc
+static const std::string PUBLIC_NAME_OPTION_TIP = "Input a unique name. The name must not exceed 47 characters "
+    "and can only include English letters, numbers, dots, colons, underscores, and hyphens.";
+// public option input error
+static const std::string PUBLIC_NAME_OPTION_REQUIRED =
+    "ERROR: The request option -n or --name is required, and the supported name must not exceed 47 characters and can "
+    "only include English letters, numbers, dots, colons, underscores, and hyphens.";
+static const std::string PUBLIC_NAME_PARAM_INVALID =
+    "ERROR: Invalid name. The name must not exceed 47 characters and can only include English letters, numbers, dots, "
+    "colons, underscores, and hyphens.";
+
+// display memory option reg
+static const std::string DISPLAY_MEM_T_OPTION = "type";
+static const std::string DISPLAY_MEM_BT_OPTION = "borrow-type";
+static const std::string DISPLAY_MEM_N_OPTION = "name";
+// display memory option desc
+static const std::string DISPLAY_MEM_TYPE_OPTION_TIP =
+    "Query the memory information of a specified option. The option is as follows: node_borrow, borrow_detail, "
+    "node_lend, numa_status, config.";
+static const std::string DISPLAY_MEM_BORROW_TYPE_OPTION_TIP =
+    "Input the borrow-type to filter memory account. The option is as follows: "
+    "fd, numa, share. Supported only when the type parameter is borrow_detail.";
+static const std::string DISPLAY_MEM_NAME_OPTION_TIP =
+    "Input a unique name to filter memory account. The name must not exceed 47 characters and can only include English "
+    "letters, numbers, dots, colons, underscores, and hyphens. Supported only when the type parameter is "
+    "borrow_detail.";
+// display memory option input error
+static const std::string DISPLAY_MEM_TYPE_OPTION_REQUIRED =
+    "ERROR: The request option -t or --type is required, and the supported param is as follows: node_borrow, "
+    "borrow_detail, node_lend, numa_status, config.";
+static const std::string DISPLAY_MEM_TYPE_PARAM_INVALID =
+    "ERROR: Invalid type. The supported param is as follows: node_borrow, "
+    "borrow_detail, node_lend, numa_status, config.";
+static const std::string DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID =
+    "ERROR: Invalid borrow-type. The supported param is as follows: numa, fd, share.";
+static const std::string DISPLAY_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+static const std::string DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
+    "ERROR: The -n or --name option only supports when the -t or --type parameter is borrow_detail.";
+static const std::string DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
+    "ERROR: The -bt or --borrow-type option only supports when the -t or --type parameter is borrow_detail.";
+
+// create memory option reg
+static const std::string CREATE_MEM_T_OPTION = "type";
+static const std::string CREATE_MEM_L_OPTION = "link";
+static const std::string CREATE_MEM_S_OPTION = "size";
+static const std::string CREATE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+static const std::string CREATE_MEM_R_OPTION = "region";
+// create memory option desc
+static const std::string CREATE_MEM_TYPE_OPTION_TIP = "Specify the type. The option is as follows: numa, fd, share.";
+static const std::string CREATE_MEM_LINK_OPTION_TIP =
+    "Specify the link. The format is: nodeID/socketID/portID-nodeID/socketID/portID (e.g., 1/36/0-2/36/0). Supported "
+    "only when the type parameter is numa.";
+static const std::string CREATE_MEM_SIZE_OPTION_TIP =
+    "Specify the size. The minimum allowed size is 4M. (e.g., 128M,1G).";
+static const std::string CREATE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+static const std::string CREATE_MEM_REGION_OPTION_TIP =
+    "Specify the shared region node IDs. The format is: node1,node2 "
+    "(e.g., 1,2). Supported only when the type parameter is share.";
+// create memory option input error
+static const std::string CREATE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+static const std::string CREATE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+static const std::string CREATE_MEM_TYPE_OPTION_REQUIRED =
+    "ERROR: The request option -t or --type is required, and the supported param is as follows: numa, fd, share.";
+static const std::string CREATE_MEM_TYPE_PARAM_INVALID =
+    "ERROR: Invalid type. The supported param is as follows: numa, fd, share.";
+static const std::string CREATE_MEM_SIZE_OPTION_REQUIRED =
+    "ERROR: The request option -s or --size is required, and the minimum allowed size is 4M. (e.g., 128M,1G)";
+static const std::string CREATE_MEM_SIZE_PARAM_INVALID =
+    "ERROR: Invalid size. The minimum allowed size is 4M. (e.g., 128M,1G)";
+static const std::string CREATE_MEM_LINK_PARAM_INVALID =
+    "ERROR: Invalid link. The link must be hyphen-separated nodeID/socketID/portID pairs (e.g., 1/36/0-2/36/0).";
+static const std::string CREATE_MEM_REGION_PARAM_INVALID =
+    "ERROR: Invalid region. The region must be comma-separated numeric node IDs (e.g., 1,2,3).";
+static const std::string CREATE_MEM_LINK_OPTION_UNSUPPORT =
+    "ERROR: The -l or --link option only supports when the -t or --type parameter is numa.";
+static const std::string CREATE_MEM_REGION_OPTION_UNSUPPORT =
+    "ERROR: The -r or --region option only supports when the -t or --type parameter is share.";
+
+// delete memory option reg
+static const std::string DELETE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+static const std::string DELETE_MEM_T_OPTION = "type";
+// delete memory option desc
+static const std::string DELETE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+static const std::string DELETE_MEM_TYPE_OPTION_TIP =
+    "Input the type to delete memory. The default value is numa. The option is as follows: fd, numa, share, addr.";
+// delete memory option input error
+static const std::string DELETE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+static const std::string DELETE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+static const std::string DELETE_MEM_TYPE_PARAM_INVALID =
+    "ERROR: Invalid type. The supported param is as follows: numa, fd, share, addr.";
+
+// attach memory option reg
+static const std::string ATTACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+// attach memory option desc
+static const std::string ATTACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+// attach memory option input error
+static const std::string ATTACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+static const std::string ATTACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+
+// detach memory option reg
+static const std::string DETACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+// detach memory option desc
+static const std::string DETACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+// detach memory option input error
+static const std::string DETACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+static const std::string DETACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
 
 static const std::string NODE_BORROW_EMPTY = "INFO: The node borrow information is empty.";
 static const std::string BORROW_DETAIL_EMPTY = "INFO: The borrow detail information is empty.";
 
+static const std::string SERIALIZATION_ERROR = "ERROR: Serialization failed.";
 static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed.";
 static const std::string MEMORY_INTERNAL_ERROR = "ERROR: Internal error with error code ";
 static const std::string MEMORY_EMPTY_ERROR = "ERROR: Failed to obtain memory information";
+static const std::string SET_TIMER_ERROR = "ERROR: Set timer failed. ";
 
-static const uint16_t MEM_MODULE_CODE = 0x0001;
-static const uint16_t MEM_NODE_BORROW_OP_CODE = 0x0011;
-static const uint16_t MEM_BORROW_DETAIL_OP_CODE = 0x0012;
+static const uint16_t MEM_MODULE_CODE = UBSE_MEM;
+static const uint16_t MEM_NODE_BORROW_OP_CODE = UBSE_MEM_CLI_NODE_BORROW;
+static const uint16_t MEMORY_DELETE_OP_CODE = UBSE_MEM_CLI_DELETE_MEMORY;
+static const uint16_t MEMORY_NUMA_STATE_QUERY_OP_CODE = UBSE_MEM_CLI_NUMA_STATE_QUERY;
+const int8_t MEM_SUCCESS_CODE = UBSE_OK;
+const int MAX_NAME_LENGTH = 47;
+const uint32_t REQUEST_BUFFER_CAPACITY = 8;
+const int8_t RETRY_WAIT_TIME = 10;
+constexpr size_t NODE_LENGTH = 80; // hostname(slot_id), hostname最长为64
 
-const int ONE_M = 1024 * 1024;
-
-std::string ConvertStrToMbStr(const char *data)
+std::string FormatHostnameSlot(const std::string &hostname, uint32_t slotId)
 {
-    if (data == nullptr) {
-        return std::to_string(0);
-    }
-    char *remain = nullptr;
-    uint64_t num = std::strtoull(data, &remain, 10L);
-    if (remain == data) {
-        return std::to_string(0);
-    }
-    return std::to_string(num / ONE_M);
+    return (hostname.empty() ? "-" : hostname) + "(" + std::to_string(slotId) + ")";
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowInfo()
 {
-    UbseSerialization ubse_req_serial(8); // Create a blank request.
+    UbseSerialization ubse_req_serial(REQUEST_BUFFER_CAPACITY); // Create a blank request.
     ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
         static_cast<uint32_t>(ubse_req_serial.GetLength()) };
     ubse_api_buffer_t ubse_res_buffer{};
@@ -65,131 +180,250 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowIn
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t node_borrow_account_size{};
-    ubse_de_serial >> node_borrow_account_size;
+    ubse_de_serial >> array_len_capture(node_borrow_account_size);
     if (!ubse_de_serial.Check()) {
         return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
     }
     if (node_borrow_account_size == 0) {
         return UbseCliStringPromptReply(NODE_BORROW_EMPTY);
     }
-    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, UBSE_CLI_NUM_10 + UBSE_CLI_NUM_10);
+    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "from");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "lend");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "size");
     variable_cell_builder.UbseCliAddBottomlineSeparate();
 
     for (size_t i = 0; i < node_borrow_account_size; i++) {
         row = variable_cell_builder.UbseCliAddRow();
-        std::string ubs_node{};
-        std::string ubs_from{};
-        std::string size{};
-        ubse_de_serial >> ubs_node >> ubs_from >> size;
+        uint32_t borrowSlotId{};
+        std::string borrowHostname{};
+        uint32_t lendSlotId{};
+        std::string lendHostname{};
+        uint64_t size{};
+        ubse_de_serial >> borrowSlotId >> borrowHostname >> lendSlotId >> lendHostname >> size;
         if (!ubse_de_serial.Check()) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, ubs_node);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, ubs_from);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, size);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, FormatHostnameSlot(borrowHostname, borrowSlotId));
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, FormatHostnameSlot(lendHostname, lendSlotId));
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, std::to_string(size));
     }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-struct UbseOneBorrowDetailInfo {
-    std::string name{};
-    std::string type{};
-    std::string borrowNode{};
-    std::string borrowSize{};
-    std::string lendNode{};
-    std::string lendSize{};
-    std::string status{};
-};
-
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessBorrowDetailData(
-    UbseDeSerialization &ubse_de_serial, size_t node_borrow_detail_size)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeLendInfo()
 {
-    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_7, UBSE_CLI_NUM_10 + UBSE_CLI_NUM_10);
-    size_t row = variable_cell_builder.UbseCliAddRow();
-    variable_cell_builder.UbseCliAddlineSeparate(row);
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "name");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "type");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "borrow_node");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "borrow_size");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "lend_node");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "lend_size");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, "status");
-    variable_cell_builder.UbseCliAddBottomlineSeparate();
-    for (size_t i = 0; i < node_borrow_detail_size; i++) {
-        row = variable_cell_builder.UbseCliAddRow();
-        UbseOneBorrowDetailInfo ubse_one_borrow_detail_info;
-        ubse_de_serial >> ubse_one_borrow_detail_info.name >> ubse_one_borrow_detail_info.type >>
-            ubse_one_borrow_detail_info.borrowNode >> ubse_one_borrow_detail_info.borrowSize >>
-            ubse_one_borrow_detail_info.lendNode >> ubse_one_borrow_detail_info.lendSize >>
-            ubse_one_borrow_detail_info.status;
-        if (!ubse_de_serial.Check()) {
-            return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
-        }
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, ubse_one_borrow_detail_info.name);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, ubse_one_borrow_detail_info.type);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, ubse_one_borrow_detail_info.borrowNode);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4,
-            ConvertStrToMbStr(ubse_one_borrow_detail_info.borrowSize.c_str()));
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, ubse_one_borrow_detail_info.lendNode);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6,
-            ConvertStrToMbStr(ubse_one_borrow_detail_info.lendSize.c_str()));
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, ubse_one_borrow_detail_info.status);
-    }
-    variable_cell_builder.UbseCliAddBottomlineSeparate();
-    return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
-}
-
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryBorrowDetailInfo()
-{
-    UbseSerialization ubse_req_serial(8);
-    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_req_buffer{ nullptr, 0 };
     ubse_api_buffer_t ubse_res_buffer{};
-    uint32_t ret = ubse_invoke_call(MEM_MODULE_CODE, MEM_BORROW_DETAIL_OP_CODE, &ubse_req_buffer, &ubse_res_buffer);
+    uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NODE_LEND, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
-    size_t node_borrow_detail_size{};
-    ubse_de_serial >> node_borrow_detail_size;
+    size_t node_borrow_account_size{};
+    ubse_de_serial >> array_len_capture(node_borrow_account_size);
     if (!ubse_de_serial.Check()) {
         return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
     }
-    if (node_borrow_detail_size == 0) {
-        return UbseCliStringPromptReply(BORROW_DETAIL_EMPTY);
+    if (node_borrow_account_size == 0) {
+        return UbseCliStringPromptReply(NODE_BORROW_EMPTY);
     }
-    return UbseCliProcessBorrowDetailData(ubse_de_serial, node_borrow_detail_size);
+    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, NODE_LENGTH);
+    size_t row = variable_cell_builder.UbseCliAddRow();
+    variable_cell_builder.UbseCliAddlineSeparate(row);
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "borrow");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "size");
+    variable_cell_builder.UbseCliAddBottomlineSeparate();
+
+    for (size_t i = 0; i < node_borrow_account_size; i++) {
+        row = variable_cell_builder.UbseCliAddRow();
+        uint32_t borrowSlotId{};
+        std::string borrowHostname{};
+        uint32_t lendSlotId{};
+        std::string lendHostname{};
+        uint64_t size{};
+        ubse_de_serial >> borrowSlotId >> borrowHostname >> lendSlotId >> lendHostname >> size;
+        if (!ubse_de_serial.Check()) {
+            return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+        }
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, FormatHostnameSlot(lendHostname, lendSlotId));
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, FormatHostnameSlot(borrowHostname, borrowSlotId));
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, std::to_string(size));
+    }
+    variable_cell_builder.UbseCliAddBottomlineSeparate();
+    return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+struct UbseNumaStatusInfo {
+    std::string node{};
+    std::string numa{};
+    std::string total{};
+    std::string used{};
+    std::string freeSize{};
+    std::string used_percent{};
+};
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatusData(
+    UbseDeSerialization &deSerialization, size_t numaInfoSize)
 {
-    auto it_kind = params.find(OPTION);
-    std::string bodyString;
-    if (it_kind == params.end()) {
-        return UbseCliStringPromptReply(INVALID_OPTION_TIP);
-    } else if (it_kind->second == "node_borrow") {
-        return UbseCliQueryNodeBorrowInfo();
-    } else if (it_kind->second == "borrow_detail") {
-        return UbseCliQueryBorrowDetailInfo();
+    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_6, NODE_LENGTH);
+    size_t row = variable_cell_builder.UbseCliAddRow();
+    variable_cell_builder.UbseCliAddlineSeparate(row);
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "numa");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "total");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "used");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "free");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "used_percent");
+    variable_cell_builder.UbseCliAddBottomlineSeparate();
+    for (size_t i = 0; i < numaInfoSize; i++) {
+        row = variable_cell_builder.UbseCliAddRow();
+        UbseNumaStatusInfo numaInfo{};
+        deSerialization >> numaInfo.node >> numaInfo.numa >> numaInfo.total >> numaInfo.used >> numaInfo.freeSize >>
+            numaInfo.used_percent;
+        if (!deSerialization.Check()) {
+            return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+        }
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, numaInfo.node);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, numaInfo.numa);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, numaInfo.total);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, numaInfo.used);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, numaInfo.freeSize);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, numaInfo.used_percent);
     }
-    return UbseCliStringPromptReply(INVALID_OPTION_TIP);
+    variable_cell_builder.UbseCliAddBottomlineSeparate();
+    return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
+{
+    ubse_api_buffer_t ubse_req_buffer{ nullptr, 0 };
+    ubse_api_buffer_t ubse_res_buffer{};
+    uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NUMA_STATUS, &ubse_req_buffer, &ubse_res_buffer);
+    UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret != UBSE_OK) {
+        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+    }
+    UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
+    size_t numaInfoSize{};
+    ubse_de_serial >> array_len_capture(numaInfoSize);
+    if (!ubse_de_serial.Check()) {
+        return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+    }
+    if (numaInfoSize == 0) {
+        return UbseCliStringPromptReply(BORROW_DETAIL_EMPTY);
+    }
+    return UbseCliProcessNumaStatusData(ubse_de_serial, numaInfoSize);
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::QueryMemConfig()
+{
+    UbseSerialization ubse_req_serial(REQUEST_BUFFER_CAPACITY);
+    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
+        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_res_buffer{};
+    uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CONFIG, &ubse_req_buffer, &ubse_res_buffer);
+    UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret != UBSE_OK) {
+        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+    }
+    UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
+    size_t node_size;
+    ubse_de_serial >> array_len_capture(node_size);
+    if (!ubse_de_serial.Check()) {
+        return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+    }
+    if (node_size == 0) {
+        return UbseCliStringPromptReply(NODE_BORROW_EMPTY);
+    }
+
+    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_2, NODE_LENGTH);
+    size_t row = variable_cell_builder.UbseCliAddRow();
+    variable_cell_builder.UbseCliAddlineSeparate(row);
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "isLender");
+    variable_cell_builder.UbseCliAddBottomlineSeparate();
+
+    for (size_t i = 0; i < node_size; i++) {
+        row = variable_cell_builder.UbseCliAddRow();
+        std::string ubs_node{};
+        bool isLender{};
+        ubse_de_serial >> ubs_node >> isLender;
+        if (!ubse_de_serial.Check()) {
+            return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+        }
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, ubs_node);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, isLender ? "true" : "false");
+    }
+    variable_cell_builder.UbseCliAddBottomlineSeparate();
+    return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
+}
+
+bool CheckBorrowDetailType(const std::string &type)
+{
+    return type == "fd" || type == "numa" || type == "share";
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
+    const std::map<std::string, std::string> &params)
+{
+    auto it_kind = params.find(DISPLAY_MEM_T_OPTION);
+    auto it_borrow_type = params.find(DISPLAY_MEM_BT_OPTION);
+    auto it_name = params.find(DISPLAY_MEM_N_OPTION);
+    if (it_kind == params.end()) {
+        return UbseCliStringPromptReply(DISPLAY_MEM_TYPE_OPTION_REQUIRED);
+    }
+    std::string kind = it_kind->second;
+    if (kind == "borrow_detail") {
+        UbseCliMemDisplayBorrowDetail::Filter fliter;
+        std::string borrow_type{};
+        if (it_borrow_type != params.end()) {
+            if (!CheckBorrowDetailType(it_borrow_type->second)) {
+                return UbseCliStringPromptReply(DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID);
+            }
+            fliter.type = it_borrow_type->second;
+        }
+        if (it_name != params.end()) {
+            if (!CheckName(it_name->second)) {
+                return UbseCliStringPromptReply(DISPLAY_MEM_NAME_PARAM_INVALID);
+            }
+            fliter.name = it_name->second;
+        }
+        UbseCliMemDisplayBorrowDetail query;
+        return query.UbseCliQueryBorrowDetail(fliter);
+    } else {
+        if (it_name != params.end()) {
+            return UbseCliStringPromptReply(DISPLAY_MEM_NAME_OPTION_UNSUPPORT);
+        }
+        if (it_borrow_type != params.end()) {
+            return UbseCliStringPromptReply(DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT);
+        }
+        if (kind == "node_borrow") {
+            return UbseCliQueryNodeBorrowInfo();
+        } else if (kind == "node_lend") {
+            return UbseCliQueryNodeLendInfo();
+        } else if (kind == "numa_status") {
+            return UbseCliQueryNumaStatus();
+        } else if (kind == "config") {
+            return QueryMemConfig();
+        }
+    }
+    return UbseCliStringPromptReply(DISPLAY_MEM_TYPE_PARAM_INVALID);
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatusFunc([
     [maybe_unused]] const std::map<std::string, std::string> &params)
 {
     UbseSerialization ubse_req_serial(UBSE_CLI_NUM_8);
-    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
+    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
+        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
     ubse_api_buffer_t ubse_res_buffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_MEM, USBE_MEM_CLI_CHECK_STATUS, &ubse_req_buffer, &ubse_res_buffer);
+    uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CHECK_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(MEMORY_INTERNAL_ERROR + std::to_string(ret));
@@ -209,22 +443,25 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatus
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemoryStatusData(UbseDeSerialization &ubse_de_serial,
     size_t size)
 {
-    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_2, UBSE_CLI_NUM_2 * UBSE_CLI_NUM_10);
+    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "status");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "detail");
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     for (size_t i = 0; i < size; i++) {
         row = variable_cell_builder.UbseCliAddRow();
         std::string node{};
         std::string status{};
-        ubse_de_serial >> node >> status;
+        std::string detail{};
+        ubse_de_serial >> node >> status >> detail;
         if (!ubse_de_serial.Check()) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, node);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, status);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, detail);
     }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
@@ -235,7 +472,9 @@ UbseCliCommandInfo UbseCliRegMemModule::UbseCliQueryMem()
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("display")
         .UbseCliSetType("memory")
-        .UbseCliAddOption("t", OPTION, OPENTION_TIP)
+        .UbseCliAddOption("t", DISPLAY_MEM_T_OPTION, DISPLAY_MEM_TYPE_OPTION_TIP)
+        .UbseCliAddOption("bt", DISPLAY_MEM_BT_OPTION, DISPLAY_MEM_BORROW_TYPE_OPTION_TIP)
+        .UbseCliAddOption("n", DISPLAY_MEM_N_OPTION, DISPLAY_MEM_NAME_OPTION_TIP)
         .UbseCliSetFunc(UbseCliMemQueryFunc);
     return builder.UbseCliBuild();
 }
@@ -243,15 +482,454 @@ UbseCliCommandInfo UbseCliRegMemModule::UbseCliQueryMem()
 UbseCliCommandInfo UbseCliRegMemModule::UbseCliCheckMemoryStatus()
 {
     UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("check")
+    builder.UbseCliSetCommand("check").UbseCliSetType("memory").UbseCliSetFunc(UbseCliCheckMemoryStatusFunc);
+    return builder.UbseCliBuild();
+}
+
+bool LinkIsMatch(const std::string &str)
+{
+    const std::regex pattern(R"(^\d+/\d+/\d+-\d+/\d+/\d+$)");
+    return std::regex_match(str, pattern);
+}
+
+bool SizeIsMatch(const std::string &str, size_t &size)
+{
+    std::regex pattern(R"(^(\d+)(G|M))");
+    std::smatch match;
+    if (!std::regex_match(str, match, pattern)) {
+        return false;
+    }
+    std::string num = match[1];
+    std::string unit = match[2];
+    uint64_t tmpSize{0};
+    ubse::utils::ConvertStrToUint64(match[1], tmpSize);
+    uint64_t multiplier = 1ULL;
+    if (unit == "M") {
+        if (tmpSize < 4ULL) {
+            return false;
+        }
+        multiplier = 1024ULL * 1024ULL;
+    } else {
+        multiplier = 1024ULL * 1024ULL * 1024ULL;
+    }
+    if (tmpSize > std::numeric_limits<size_t>::max() / multiplier) {
+        return false; // 溢出
+    }
+
+    size = tmpSize * multiplier;
+    return true;
+}
+
+bool CheckName(const std::string &name)
+{
+    if (name.length() > MAX_NAME_LENGTH || name.empty()) {
+        return false;
+    }
+    for (char c : name) {
+        if (!isdigit(c) && !isalpha(c) && c != '_' && c != '-' && c != '.' && c != ':') {
+            return false;
+        }
+    }
+    return true;
+}
+
+static std::string FormatMemoryInfoReply(const std::string &name, int64_t numaId, const std::string &importNode,
+    const std::string &exportNode)
+{
+    std::ostringstream oss;
+    oss << "name:" << name << '\n'
+        << "numaId:" << numaId << '\n'
+        << "import-node:" << importNode << '\n'
+        << "export-node:" << exportNode << '\n';
+    return oss.str();
+}
+
+static std::string MakeInternalErrorString(uint32_t errorCode)
+{
+    return std::string("ERROR: Internal error with error code ") + std::to_string(errorCode);
+}
+
+struct ParsedResponse {
+    bool success;
+    std::string name;
+    UbseMemStage stage;
+    int64_t numaId;
+    std::string importNode;
+    std::string exportNode;
+    std::string errorMsg;
+};
+
+ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t &responseBuffer)
+{
+    ParsedResponse result{};
+    UbseDeSerialization deserial{ responseBuffer.buffer, responseBuffer.length };
+    std::string name;
+    std::string state;
+    try {
+        deserial >> name >> state;
+        if (!deserial.Check()) {
+            result.success = false;
+            result.errorMsg = DE_SERIALIZATION_ERROR;
+            return result;
+        }
+        auto stageInt = std::stoi(state);
+        result.stage = static_cast<UbseMemStage>(stageInt);
+        result.name = std::move(name);
+    } catch (const std::invalid_argument &e) {
+        result.success = false;
+        result.errorMsg = "ERROR: Internal error.";
+        return result;
+    } catch (const std::out_of_range &e) {
+        result.success = false;
+        result.errorMsg = "ERROR: Internal error.";
+        return result;
+    }
+    if (result.stage == UbseMemStage::UBSE_EXIST || result.stage == UbseMemStage::UBSE_ERR_ONLY_IMPORT) {
+        try {
+            deserial >> result.numaId >> result.exportNode >> result.importNode;
+            if (!deserial.Check()) {
+                result.success = false;
+                result.errorMsg = DE_SERIALIZATION_ERROR;
+                return result;
+            }
+        } catch (...) {
+            result.success = false;
+            result.errorMsg = "ERROR: Failed to parse NUMA info.";
+            return result;
+        }
+    }
+    result.success = true;
+    return result;
+}
+
+// 处理 IPC 超时后的轮询查询逻辑
+std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string &name)
+{
+    while (true) {
+        UbseSerialization timeOutSerial;
+        timeOutSerial << name;
+        if (!timeOutSerial.Check()) {
+            return UbseCliRegModule::UbseCliStringPromptReply(SERIALIZATION_ERROR);
+        }
+        ubse_api_buffer_t requestBuffer{ timeOutSerial.GetBuffer(), static_cast<uint32_t>(timeOutSerial.GetLength()) };
+        ubse_api_buffer_t responseBuffer;
+        uint32_t ret =
+            ubse_invoke_call(MEM_MODULE_CODE, MEMORY_NUMA_STATE_QUERY_OP_CODE, &requestBuffer, &responseBuffer);
+        UbseCliBufferGuard ubseCliBufferGuard(responseBuffer);
+        if (ret == UBSE_IPC_ERROR_QUERY_NUMA_NOT_EXIST) {
+            return UbseCliRegModule::UbseCliStringPromptReply("Delete successfully");
+        }
+        if (ret != UBSE_OK) {
+            return UbseCliRegModule::UbseCliStringPromptReply(MakeInternalErrorString(ret));
+        }
+        auto parsed = ParseResponseBuffer(responseBuffer);
+        if (!parsed.success) {
+            return UbseCliRegModule::UbseCliStringPromptReply(parsed.errorMsg);
+        }
+        switch (parsed.stage) {
+            case UbseMemStage::UBSE_EXIST:
+                return UbseCliRegModule::UbseCliStringPromptReply(
+                    FormatMemoryInfoReply(parsed.name, parsed.numaId, parsed.importNode, parsed.exportNode));
+            case UbseMemStage::UBSE_ERR_ONLY_IMPORT:
+                return UbseCliRegModule::UbseCliStringPromptReply(
+                    FormatMemoryInfoReply(parsed.name, parsed.numaId, parsed.importNode, parsed.exportNode) +
+                    "\nbut export node is fault");
+            case UbseMemStage::UBSE_CREATING:
+            case UbseMemStage::UBSE_DELETING:
+                sleep(RETRY_WAIT_TIME);
+                break;
+            case UbseMemStage::UBSE_ERR_WAIT_UNEXPORT:
+            case UbseMemStage::UBSE_NOT_EXIST:
+                return UbseCliRegModule::UbseCliStringPromptReply("Delete successfully");
+            default:
+                return UbseCliRegModule::UbseCliStringPromptReply(MakeInternalErrorString(ret));
+        }
+    }
+}
+
+bool ParseRegionString(const std::string &regionStr, std::vector<uint32_t> &regions)
+{
+    if (regionStr.empty() || regionStr.front() == ',' || regionStr.back() == ',') {
+        return false;
+    }
+
+    regions.clear();
+    std::stringstream ss(regionStr);
+    std::string item;
+
+    while (std::getline(ss, item, ',')) {
+        if (item.empty()) {
+            return false;
+        }
+
+        try {
+            size_t pos = 0;
+            unsigned long value = std::stoul(item, &pos);
+            // 检查是否完整解析
+            if (pos != item.length()) {
+                return false;
+            }
+            if (value > std::numeric_limits<uint32_t>::max()) {
+                return false;
+            }
+            regions.push_back(static_cast<uint32_t>(value));
+        } catch (...) {
+            return false; // 不是有效数字
+        }
+    }
+
+    return !regions.empty();
+}
+
+static std::set<std::string> GetAllowedParams(const std::string &type)
+{
+    std::set<std::string> allowed = { CREATE_MEM_T_OPTION, CREATE_MEM_N_OPTION, CREATE_MEM_S_OPTION };
+
+    if (type == "numa") {
+        allowed.insert(CREATE_MEM_L_OPTION);
+    } else if (type == "share") {
+        allowed.insert(CREATE_MEM_R_OPTION);
+    }
+
+    return allowed;
+}
+
+static bool ValidateParamsWhitelist(const std::map<std::string, std::string> &params,
+                                    const std::set<std::string> &allowed, std::string &errorMsg)
+{
+    for (const auto &[key, value] : params) {
+        if (allowed.find(key) != allowed.end()) {
+            continue;
+        } else if (key == CREATE_MEM_L_OPTION) {
+            errorMsg = CREATE_MEM_LINK_OPTION_UNSUPPORT;
+            return false;
+        } else if (key == CREATE_MEM_R_OPTION) {
+            errorMsg = CREATE_MEM_REGION_OPTION_UNSUPPORT;
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool ValidateCommonParams(const std::map<std::string, std::string> &params, std::string &name, size_t &size,
+                                 std::string &errorMsg)
+{
+    auto itName = params.find(CREATE_MEM_N_OPTION);
+    if (itName == params.end()) {
+        errorMsg = CREATE_MEM_NAME_OPTION_REQUIRED;
+        return false;
+    }
+    if (!CheckName(itName->second)) {
+        errorMsg = CREATE_MEM_NAME_PARAM_INVALID;
+        return false;
+    }
+    name = itName->second;
+
+    auto itSize = params.find(CREATE_MEM_S_OPTION);
+    if (itSize == params.end()) {
+        errorMsg = CREATE_MEM_SIZE_OPTION_REQUIRED;
+        return false;
+    }
+
+    if (itSize == params.end() || !SizeIsMatch(itSize->second, size)) {
+        errorMsg = CREATE_MEM_SIZE_PARAM_INVALID;
+        return false;
+    }
+
+    return true;
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
+    const std::map<std::string, std::string> &params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto it = params.find(CREATE_MEM_T_OPTION);
+    if (it == params.end()) {
+        return UbseCliStringPromptReply(CREATE_MEM_TYPE_OPTION_REQUIRED);
+    }
+    const std::string &type = it->second;
+    if (type != "numa" && type != "share" && type != "fd") {
+        return UbseCliStringPromptReply(CREATE_MEM_TYPE_PARAM_INVALID);
+    }
+    // 验证参数白名单
+    auto allowedParams = GetAllowedParams(type);
+    std::string errorMsg;
+    if (!ValidateParamsWhitelist(params, allowedParams, errorMsg)) {
+        return UbseCliStringPromptReply(errorMsg);
+    }
+    // 验证公共参数
+    std::string name;
+    size_t size{};
+    if (!ValidateCommonParams(params, name, size, errorMsg)) {
+        return UbseCliStringPromptReply(errorMsg);
+    }
+    // 根据类型创建
+    UbseCliMemCreate memCreate{};
+    if (type == "numa") {
+        // NUMA 类型：可以有 link 参数
+        auto itLink = params.find(CREATE_MEM_L_OPTION);
+        if (itLink != params.end() && !LinkIsMatch(itLink->second)) {
+            return UbseCliStringPromptReply(CREATE_MEM_LINK_PARAM_INVALID);
+        }
+        auto linkValue = (itLink != params.end()) ? itLink->second : "";
+        return memCreate.UbseCliCreateNumaMem(name, size, linkValue);
+    } else if (type == "share") {
+        // SHARE 类型：可以有 region 参数
+        auto itRegion = params.find(CREATE_MEM_R_OPTION);
+        std::vector<uint32_t> region{};
+        if (itRegion != params.end() && !ParseRegionString(itRegion->second, region)) {
+            return UbseCliStringPromptReply(CREATE_MEM_REGION_PARAM_INVALID);
+        }
+        return memCreate.UbseCliCreateShareMem(name, size, region);
+    } else {
+        // type == "fd"
+        return memCreate.UbseCliCreateFdMem(name, size);
+    }
+}
+
+bool CheckDeleteType(const std::string &type)
+{
+    return type == "fd" || type == "numa" || type == "addr" || type == "share";
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
+    const std::map<std::string, std::string> &params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto name = params.find(DELETE_MEM_N_OPTION);
+    if (name == params.end()) {
+        return UbseCliStringPromptReply(DELETE_MEM_NAME_OPTION_REQUIRED);
+    }
+    if (!CheckName(name->second)) {
+        return UbseCliStringPromptReply(DELETE_MEM_NAME_PARAM_INVALID);
+    }
+    std::string deleteType = "numa"; // 默认使用numa
+    auto type = params.find(DELETE_MEM_T_OPTION);
+    if (type != params.end()) {
+        if (!CheckDeleteType(type->second)) {
+            return UbseCliStringPromptReply(DELETE_MEM_TYPE_PARAM_INVALID);
+        }
+        deleteType = type->second;
+    }
+    UbseSerialization serial;
+    serial << name->second << deleteType;
+    if (!serial.Check()) {
+        return UbseCliStringPromptReply(SERIALIZATION_ERROR);
+    }
+    ubse_api_buffer_t reqBuffer{ serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength()) };
+    ubse_api_buffer_t resBuffer{};
+    UbseCliWaitIndicator waitIndicator("Deleting memory");
+    uint32_t ret = ubse_invoke_call(MEM_MODULE_CODE, MEMORY_DELETE_OP_CODE, &reqBuffer, &resBuffer);
+    UbseCliBufferGuard ubseCliBufferGuard(resBuffer);
+    // 处理超时错误
+    if (ret == UBSE_ERR_TIMED_OUT) {
+        return HandleTimeoutRetry(name->second);
+    }
+    if (ret != UBSE_OK) {
+        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+    }
+    UbseDeSerialization deserial{ resBuffer.buffer, resBuffer.length };
+    // 成功回显
+    uint32_t errorCode{ 0 };
+    std::string errMsg;
+    deserial >> errorCode >> errMsg;
+    if (deserial.Check() && errorCode == MEM_SUCCESS_CODE) {
+        return UbseCliStringPromptReply("Delete successfully");
+    }
+    // 失败回显
+    return UbseCliStringPromptReply("ERROR: " + errMsg);
+}
+
+UbseCliCommandInfo UbseCliRegMemModule::CreateMemory()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("create")
         .UbseCliSetType("memory")
-        .UbseCliSetFunc(UbseCliCheckMemoryStatusFunc);
+        .UbseCliAddOption("t", CREATE_MEM_T_OPTION, CREATE_MEM_TYPE_OPTION_TIP)
+        .UbseCliAddOption("l", CREATE_MEM_L_OPTION, CREATE_MEM_LINK_OPTION_TIP)
+        .UbseCliAddOption("s", CREATE_MEM_S_OPTION, CREATE_MEM_SIZE_OPTION_TIP)
+        .UbseCliAddOption("n", CREATE_MEM_N_OPTION, CREATE_MEM_NAME_OPTION_TIP)
+        .UbseCliAddOption("r", CREATE_MEM_R_OPTION, CREATE_MEM_REGION_OPTION_TIP)
+        .UbseCliSetFunc(CreateMemoryFunc);
+    return builder.UbseCliBuild();
+}
+
+UbseCliCommandInfo UbseCliRegMemModule::DeleteMemory()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("delete")
+        .UbseCliSetType("memory")
+        .UbseCliAddOption("n", DELETE_MEM_N_OPTION, DELETE_MEM_NAME_OPTION_TIP)
+        .UbseCliAddOption("t", DELETE_MEM_T_OPTION, DELETE_MEM_TYPE_OPTION_TIP)
+        .UbseCliSetFunc(DeleteMemoryFunc);
     return builder.UbseCliBuild();
 }
 
 void UbseCliRegMemModule::UbseCliSignUp()
 {
-    this->cmd.emplace_back(UbseCliQueryMem());
-    this->cmd.emplace_back(UbseCliCheckMemoryStatus());
+    this->cmd_.emplace_back(UbseCliQueryMem());
+    this->cmd_.emplace_back(UbseCliCheckMemoryStatus());
+    this->cmd_.emplace_back(CreateMemory());
+    this->cmd_.emplace_back(DeleteMemory());
+    this->cmd_.emplace_back(ShmMemoryAttach());
+    this->cmd_.emplace_back(ShmMemoryDetach());
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryAttachFunc(
+    const std::map<std::string, std::string> &params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto itName = params.find(ATTACH_MEM_N_OPTION);
+    if (itName == params.end()) {
+        return UbseCliStringPromptReply(ATTACH_MEM_NAME_OPTION_REQUIRED);
+    }
+    if (!CheckName(itName->second)) {
+        return UbseCliStringPromptReply(ATTACH_MEM_NAME_PARAM_INVALID);
+    }
+    UbseCliMemAttach memAttach{};
+    return memAttach.UbseCliAttachMem(itName->second);
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryDetachFunc(
+    const std::map<std::string, std::string> &params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto itName = params.find(DETACH_MEM_N_OPTION);
+    if (itName == params.end()) {
+        return UbseCliStringPromptReply(DETACH_MEM_NAME_OPTION_REQUIRED);
+    }
+    if (!CheckName(itName->second)) {
+        return UbseCliStringPromptReply(DETACH_MEM_NAME_PARAM_INVALID);
+    }
+    UbseCliMemDetach memDetach{};
+    return memDetach.UbseCliDetachMem(itName->second);
+}
+
+UbseCliCommandInfo UbseCliRegMemModule::ShmMemoryAttach()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("attach")
+        .UbseCliSetType("memory")
+        .UbseCliAddOption("n", ATTACH_MEM_N_OPTION, ATTACH_MEM_NAME_OPTION_TIP)
+        .UbseCliSetFunc(ShmMemoryAttachFunc);
+    return builder.UbseCliBuild();
+}
+
+UbseCliCommandInfo UbseCliRegMemModule::ShmMemoryDetach()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("detach")
+        .UbseCliSetType("memory")
+        .UbseCliAddOption("n", DETACH_MEM_N_OPTION, DETACH_MEM_NAME_OPTION_TIP)
+        .UbseCliSetFunc(ShmMemoryDetachFunc);
+    return builder.UbseCliBuild();
 }
 } // namespace ubse::cli::reg

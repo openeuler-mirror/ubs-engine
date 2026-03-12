@@ -17,7 +17,8 @@
 
 namespace ubse::election::utils {
 
-std::vector<std::string> Split(const std::string& s, char delimiter) {
+std::vector<std::string> Split(const std::string &s, char delimiter)
+{
     std::vector<std::string> tokens;
     std::string token;
     std::istringstream tokenStream(s);
@@ -27,31 +28,31 @@ std::vector<std::string> Split(const std::string& s, char delimiter) {
     return tokens;
 }
 
-std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage) {
+const size_t FIELDS_COUNT = 4;
+const size_t PAIR_SIZE = 2;
+std::vector<NodeLinkInfo> ParseEventMessage(const std::string &eventMessage)
+{
     std::vector<NodeLinkInfo> linkList;
-
     auto linkBlocks = Split(eventMessage, ';');
     for (const auto &block : linkBlocks) {
         if (block.empty()) {
             continue;
         }
         auto fields = Split(block, ',');
-        if (fields.size() != 4) {
+        if (fields.size() != FIELDS_COUNT) {
             continue;  // 字段数量不匹配，跳过
         }
-        std::string nodeId;
-        uint32_t state;
-        uint32_t timestamp;
-        std::string changeChType;
+        std::string nodeId, changeChType;
+        uint32_t state, timestamp;
         bool valid = true;
         auto nid = Split(fields[0], ':');
-        if (nid.size() == 2) {
+        if (nid.size() == PAIR_SIZE) {
             nodeId = nid[1];
         } else {
             valid = false;
         }
         auto st = Split(fields[1], ':');
-        if (valid && st.size() == 2) {
+        if (valid && st.size() == PAIR_SIZE) {
             try {
                 state = std::stoi(st[1]);
             } catch (...) {
@@ -59,7 +60,7 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage) {
             }
         }
         auto ts = Split(fields[2], ':');
-        if (valid && ts.size() == 2) {
+        if (valid && ts.size() == PAIR_SIZE) {
             try {
                 timestamp = std::stoll(ts[1]);
             } catch (...) {
@@ -67,17 +68,28 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage) {
             }
         }
         auto ct = Split(fields[3], ':');
-        if (valid && ct.size() == 2) {
+        if (valid && ct.size() == PAIR_SIZE) {
             changeChType = ct[1];
         } else {
             valid = false;
         }
-
         if (valid) {
             NodeLinkInfo nodeLinkInfo{nodeId, state, timestamp, changeChType};
             linkList.emplace_back(nodeLinkInfo);
         }
     }
     return linkList;
+}
+
+bool parseFaultEventMsg(const std::string &msg, std::string &faultNodeId, std::string &faultType)
+{
+    size_t pos = msg.find('_');
+    if (pos == std::string::npos) {
+        return false;
+    }
+
+    faultNodeId = msg.substr(0, pos);
+    faultType = msg.substr(pos + 1);
+    return true;
 }
 }

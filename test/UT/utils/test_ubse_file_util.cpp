@@ -13,21 +13,28 @@
 #include "test_ubse_file_util.h"
 
 #include <fstream>
-
+#include <filesystem>
 #include "ubse_error.h"
 
 namespace ubse::ut::utils {
 using namespace ubse::utils;
 
+const std::string FILE_PATH = "/var/log/CheckFileExists";
+
 void TestUbseFileUtil::SetUp()
 {
     Test::SetUp();
+    std::filesystem::create_directories("/var/log");
+    ofstream ofs(FILE_PATH);
+    ofs << "";
+    ofs.close();
 }
 
 void TestUbseFileUtil::TearDown()
 {
     Test::TearDown();
     GlobalMockObject::verify();
+    std::filesystem::remove(FILE_PATH);
 }
 
 // 测试文件路径
@@ -106,123 +113,130 @@ TEST_F(TestUbseFileUtil, InvalidPath)
 
 /*
  * 用例描述：
- * 测试有效路径匹配成功
+ * 测试属于绝对路径
  * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入有效路径 "/valid/path" 和正则表达式 "^/valid/path$"
+ * 1. 调用 IsAbsolutePath 函数，传入路径 "/var/log"
  * 2. 检查返回值是否为 UBSE_OK
  * 预期结果：
  * 1. 返回值应为 UBSE_OK
  */
-TEST_F(TestUbseFileUtil, MatchValidPath)
+TEST_F(TestUbseFileUtil, IsAbsolutePath)
 {
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath("/valid/path", R"(^/valid/path$)"), UBSE_OK);
+    EXPECT_EQ(UbseFileUtil::IsAbsolutePath("/var/log"), UBSE_OK);
 }
 
 /*
  * 用例描述：
- * 测试带有通配符的有效路径匹配成功
+ * 测试不属于绝对路径
  * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入路径 "/valid/path/extra" 和正则表达式 "^/valid/path/.*$"
- * 2. 检查返回值是否为 UBSE_OK
- * 预期结果：
- * 1. 返回值应为 UBSE_OK
- */
-TEST_F(TestUbseFileUtil, MatchValidPathWithWildcard)
-{
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath("/valid/path/extra", R"(^/valid/path/.*$)"), UBSE_OK);
-}
-
-/*
- * 用例描述：
- * 测试无效路径匹配失败
- * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入无效路径 "/invalid/path" 和正则表达式 "^/valid/path$"
+ * 1. 调用 IsAbsolutePath 函数，传入路径 "var/log"
  * 2. 检查返回值是否为 UBSE_ERROR
  * 预期结果：
  * 1. 返回值应为 UBSE_ERROR
  */
-TEST_F(TestUbseFileUtil, NoMatchInvalidPath)
+TEST_F(TestUbseFileUtil, NotAbsolutePath)
 {
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath("/invalid/path", R"(^/valid/path$)"), UBSE_ERROR);
+    EXPECT_EQ(UbseFileUtil::IsAbsolutePath("var/log"), UBSE_ERROR);
 }
 
 /*
  * 用例描述：
- * 测试空路径匹配失败
+ * 测试属于目录
  * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入空路径 "" 和正则表达式 "^/valid/path$"
- * 2. 检查返回值是否为 UBSE_ERROR
+ * 1. 调用 IsDirectory 函数，传入路径 "/var/log"
+ * 2. 检查返回值
  * 预期结果：
- * 1. 返回值应为 UBSE_ERROR
+ * 1. 返回值true
  */
-TEST_F(TestUbseFileUtil, NoMatchEmptyPath)
+TEST_F(TestUbseFileUtil, IsDirectory)
 {
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath("", R"(^/valid/path$)"), UBSE_ERROR);
+    EXPECT_EQ(UbseFileUtil::IsDirectory("/var/log"), true);
 }
 
 /*
  * 用例描述：
- * 测试带有空格的路径匹配失败
+ * 测试不属于目录
  * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入路径 " /valid/path " 和正则表达式 "^/valid/path$"
- * 2. 检查返回值是否为 UBSE_ERROR
+ * 1. 调用 IsDirectory 函数，传入路径 "/var/log/messages"
+ * 2. 检查返回值
  * 预期结果：
- * 1. 返回值应为 UBSE_ERROR
+ * 1. 返回false
  */
-TEST_F(TestUbseFileUtil, NoMatchPathWithSpaces)
+TEST_F(TestUbseFileUtil, NotDirectory)
 {
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath(" /valid/path ", R"(^/valid/path$)"), UBSE_ERROR);
+    EXPECT_EQ(UbseFileUtil::IsDirectory("/var/log/messages"), false);
 }
 
 /*
  * 用例描述：
- * 测试根路径匹配成功
+ * 测试列出目录下面的文件
  * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入根路径 "/" 和正则表达式 "^/$"
- * 2. 检查返回值是否为 UBSE_OK
+ * 1. 调用 ListFiles 函数，传入目录"/InvalidDirectory"和正则匹配log
+ * 2. 检查返回值列表是否为空
+*  3. 调用 ListFiles 函数，传入目录"/var"和正则匹配log
+ * 4. 检查返回值列表是否为空
  * 预期结果：
- * 1. 返回值应为 UBSE_OK
+ * E2. 检查返回值列表为空
+ * E4. 检查返回值列表不为空
  */
-TEST_F(TestUbseFileUtil, MatchRootPath)
+TEST_F(TestUbseFileUtil, ListFiles)
 {
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath("/", R"(^/$)"), UBSE_OK);
+    std::string pattern = "log";
+    std::regex express(pattern);
+
+    std::vector<std::string> files = UbseFileUtil::ListFiles("/InvalidDirectory", express);
+    EXPECT_TRUE(files.empty());
+
+    files = UbseFileUtil::ListFiles("/var", express);
+    EXPECT_FALSE(files.empty());
 }
 
 /*
  * 用例描述：
- * 测试包含特殊字符的有效路径匹配成功
+ * 测试创建目录
  * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入路径 "/valid/path/with_special_chars_!@#$%^&*" 和正则表达式
- * "^/valid/path/with_special_chars_.*$"
- * 2. 检查返回值是否为 UBSE_OK
+ * 1. 调用 CreateAndChmodDirectory 函数，传入路径 "/var/run/ubse"
+ * 2. 检查返回值是否 UBSE_OK
+ * 3. 调用 CreateAndChmodDirectory 函数，传入路径 "var/run/ubse"
+ * 4. 检查返回值是否 UBSE_OK
  * 预期结果：
- * 1. 返回值应为 UBSE_OK
+ * E2. 返回值是 UBSE_OK
+ * E4. 返回值不是 UBSE_OK
  */
-TEST_F(TestUbseFileUtil, MatchPathWithSpecialCharacters)
+TEST_F(TestUbseFileUtil, CreateAndChmodDirectory)
 {
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath("/valid/path/with_special_chars_!@#$%^&*",
-        R"(^/valid/path/with_special_chars_.*$)"),
-        UBSE_OK);
+    EXPECT_EQ(UbseFileUtil::CreateAndChmodDirectory("/var/run/ubse", 0750), UBSE_OK);
+    EXPECT_NE(UbseFileUtil::CreateAndChmodDirectory("var/run/ubse", 0750), UBSE_OK);
 }
 
 /*
  * 用例描述：
- * 测试包含特殊字符的无效路径匹配失败
+ * 测试检查文件
  * 测试步骤：
- * 1. 调用 IsSpecifiedPath 函数，传入路径 "/invalid/path/with_special_chars_!@#$%^&*" 和正则表达式 "^/valid/path/.*$"
- * 2. 检查返回值是否为 UBSE_ERROR
+ * 1. 调用 CheckFileExists 函数，传入路径 FILE_PATH
+ * 2. 检查返回值
+ * 3. 调用 CheckFileExists 函数，传入路径 "/var/log/InvalidFile"
+ * 4. 检查返回值
  * 预期结果：
- * 1. 返回值应为 UBSE_ERROR
+ * E2. 返回true
+ * E4. 返回false
  */
-TEST_F(TestUbseFileUtil, NoMatchPathWithSpecialCharacters)
+TEST_F(TestUbseFileUtil, CheckFileExists)
 {
-    EXPECT_EQ(UbseFileUtil::IsSpecifiedPath("/invalid/path/with_special_chars_!@#$%^&*", R"(^/valid/path/.*$)"),
-        UBSE_ERROR);
+    EXPECT_EQ(UbseFileUtil::CheckFileExists("/var/log/InvalidFile"), false);
 }
 
-TEST_F(TestUbseFileUtil, GetLibDir_ExecutablePath)
+/*
+ * 用例描述：
+ * 测试检查文件
+ * 测试步骤：
+ * 1. 调用 SetFileAttributes 函数，传入路径 FILE_PATH
+ * 2. 检查不抛异常
+ * 预期结果：
+ * E2. 不抛异常
+ */
+TEST_F(TestUbseFileUtil, SetFileAttributes)
 {
-    std::string result = UbseFileUtil::GetLibDir();
-    ASSERT_FALSE(result.empty());
+    EXPECT_NO_THROW(UbseFileUtil::SetFileAttributes(FILE_PATH, 1024, 0, 0750));
 }
 }

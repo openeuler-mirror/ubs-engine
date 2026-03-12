@@ -26,15 +26,15 @@
 #include "ubse_election.h"
 #include "ubse_error.h"           // for UBSE_OK, UBSE_ERROR_INVAL, UBSE...
 #include "ubse_logger.h"          // for UbseLoggerEntry, FormatRetCode
-#include "ubse_logger_inner.h"    // for RM_LOG_ERROR, RM_LOG_INFO, RM_L...
 #include "ubse_pointer_process.h" // for SafeDelete
 
 using namespace ubse::com;
 using namespace ubse::context;
 using namespace ubse::election;
 namespace ubse::com {
-constexpr uint16_t UBSE_OBJ_MODULE = 17;
-constexpr uint16_t UBSE_OBJ_OP = 0;
+UBSE_DEFINE_THIS_MODULE("ubse");
+constexpr uint16_t UBSE_RPC_RETRY_TIME = 3;
+
 inline void FreeByteBuffer(const UbseByteBuffer &buffer, const std::string &id)
 {
     if (buffer.freeFunc == nullptr) {
@@ -67,25 +67,22 @@ std::string GetMasterNodeId()
 class UbseNetMessageHandler : public UbseComBaseMessageHandler {
 public:
     UbseNetMessageHandler(uint16_t opCode, uint16_t moduleCode, UbseComServiceHandler handler)
-        : opCode(opCode),
-          moduleCode(moduleCode),
-          handler(std::move(handler))
-    {
-    }
+        : opCode(opCode), moduleCode(moduleCode), handler(std::move(handler))
+    {}
     UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
                       UbseComBaseMessageHandlerCtxPtr handlerCtx) override
     {
-        UbseByteBuffer data{};
         auto reqPtr = UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(req);
-        data.data = reqPtr->GetData();
-        data.len = reqPtr->GetDataLen();
+        UbseByteBuffer data{reqPtr->GetData(), reqPtr->GetDataLen(), nullptr};
         UbseByteBuffer respData{};
-        if (moduleCode != UBSE_OBJ_MODULE && opCode != UBSE_OBJ_OP) {
-            UBSE_LOG_INFO << "Execute rpc handler moduleId: " << moduleCode << ",serviceId: " << opCode;
+
+        if (moduleCode != static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER)) {
+            UBSE_LOG_INFO << "Execute rpc handler moduleId=" << moduleCode << ",serviceId=" << opCode;
         }
         handler(data, respData);
-        if (moduleCode != UBSE_OBJ_MODULE && opCode != UBSE_OBJ_OP) {
-            UBSE_LOG_INFO << "Execute handler moduleId: " << moduleCode << ",serviceId: " << opCode << " finished";
+
+        if (moduleCode != static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER)) {
+            UBSE_LOG_INFO << "Execute handler moduleId=" << moduleCode << ",serviceId=" << opCode << " finished";
         }
         auto respPtr = UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(rsp);
         if (respPtr->SetInputRawData(respData.data, static_cast<uint32_t>(respData.len)) != UBSE_OK) {
@@ -99,10 +96,14 @@ public:
             UbseComDataDesc dataDesc;
             dataDesc.data = respData.data;
             dataDesc.len = static_cast<uint32_t>(respData.len);
-            UbseComMessageCtx ctx;
-            ctx.SetEngineName(handlerCtx->GetEngineName());
-            ctx.SetRspCtx(handlerCtx->GetResponseCtx());
-            ctx.SetChannelId(handlerCtx->GetChannelId());
+            UbseComMessageCtx ctx(handlerCtx->GetEngineName(), handlerCtx->GetResponseCtx(), handlerCtx->GetChannelId(),
+                                  "REPLY");
+            ctx.SetModuleCode(moduleCode);
+            ctx.SetOpCode(opCode);
+            ctx.SetChannelPtr(handlerCtx->GetChannelPtr());
+            if (handlerCtx->IsRemoteCall()) {
+                ctx.SetRemoteCall();
+            }
             ret = UbseComBase::ReplyMsg(ctx, dataDesc);
         }
         FreeByteBuffer(respData, "module_code=" + std::to_string(moduleCode) + ", op_code=" + std::to_string(opCode));
@@ -127,7 +128,6 @@ private:
     uint16_t opCode;
     uint16_t moduleCode;
     UbseComServiceHandler handler;
-    bool isIpc = false;
 };
 
 class UbseComHelper {
@@ -167,11 +167,13 @@ public:
     }
 
     static uint32_t UbseSyncCallFunc(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *cbCtx,
-                                     const UbseComRespHandler &handler)
+        const UbseComRespHandler &handler)
     {
         auto &ctxRef = UbseContext::GetInstance();
         auto ubseComModuleRef = ctxRef.GetModule<UbseComModule>();
         if (ubseComModuleRef == nullptr) {
+            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                        ", service_ID=" + std::to_string(endpoint.serviceId));
             UBSE_LOG_ERROR << "Get ubseComModule fail";
             return UBSE_ERROR_NULLPTR;
         }
@@ -180,6 +182,8 @@ public:
             UbseComBaseBufferMessage(reqData.data, static_cast<uint32_t>(reqData.len));
         UbseComBaseBufferMessagePtr response = new (std::nothrow) UbseComBaseBufferMessage();
         if (request == nullptr || response == nullptr) {
+            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                        ", service_ID=" + std::to_string(endpoint.serviceId));
             UBSE_LOG_ERROR << "Fail to new response buffer";
             return UBSE_ERROR_NULLPTR;
         }
@@ -199,6 +203,24 @@ public:
         return UBSE_OK;
     }
 };
+
+UbseResult RpcSendWithRetry(const SendParam &sendParam, UbseComBaseBufferMessagePtr &request,
+                            UbseComBaseBufferMessagePtr &response)
+{
+    auto &ctxRef = UbseContext::GetInstance();
+    auto rackComModuleRef = ctxRef.GetModule<UbseComModule>();
+    if (rackComModuleRef == nullptr) {
+        UBSE_LOG_ERROR << "Get rackComModule fail";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto res = rackComModuleRef->RpcSend(sendParam, request, response);
+    for (int i = 0; res != UBSE_OK && i < UBSE_RPC_RETRY_TIME; i++) {
+        UBSE_LOG_ERROR << "RpcSend return " << FormatRetCode(res) << "retry " << i << " times";
+        res = rackComModuleRef->RpcSend(sendParam, request, response);
+        sleep(3); // 3 seconds sleep
+    }
+    return res;
+}
 
 uint32_t UbseRegRpcService(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler)
 {
@@ -222,7 +244,7 @@ uint32_t UbseRegRpcService(const UbseComEndpoint &endpoint, const UbseComService
         return ret;
     }
 
-    UBSE_LOG_INFO << "Register moduleId: " << moduleCode << ",serviceId is " << opCode << " ret is " << ret;
+    UBSE_LOG_INFO << "Register moduleId=" << moduleCode << ",serviceId=" << opCode;
     return ret;
 }
 
@@ -230,12 +252,18 @@ uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqD
                      const UbseComRespHandler &handler)
 {
     std::string role = GetCurRole();
-    UBSE_LOG_INFO << "Ubse sync send msg to node=" << endpoint.address << ", moduleCode=" << endpoint.moduleId
-                << ", opCode=" << endpoint.serviceId;
+    UBSE_LOG_DEBUG << "Ubse sync send msg to node=" << endpoint.address << ", moduleCode=" << endpoint.moduleId
+                  << ", opCode=" << endpoint.serviceId;
+    if (reqData.data == nullptr) {
+        UBSE_LOG_ERROR << "Failed to send for request data is nullptr";
+        return UBSE_ERROR_NULLPTR;
+    }
     if (role == ELECTION_ROLE_MASTER) {
         if (endpoint.address.empty()) {
+            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                        ", service_ID=" + std::to_string(endpoint.serviceId));
             UBSE_LOG_ERROR << "Sync send for module code = " << endpoint.moduleId << ", opCode = " << endpoint.serviceId
-                         << ",give empty node id ";
+                           << ",give empty node id ";
             return UBSE_ERROR_INVAL;
         }
         return UbseComHelper::UbseSyncCallFunc(endpoint, reqData, ctx, handler);
@@ -257,11 +285,18 @@ uint32_t UbseRpcAsyncSend(const UbseComEndpoint &endpoint, const UbseByteBuffer 
 {
     std::string role = GetCurRole();
     UBSE_LOG_INFO << "Ubse async send msg to node = " << endpoint.address << " , moduleCode = " << endpoint.moduleId
-                << ", opCode = " << endpoint.serviceId;
+                  << ", opCode = " << endpoint.serviceId;
+    if (reqData.data == nullptr) {
+        UBSE_LOG_ERROR << "Failed to send for request data is nullptr";
+        return UBSE_ERROR_NULLPTR;
+    }
     if (role == ELECTION_ROLE_MASTER) {
         if (endpoint.address.empty()) {
-            UBSE_LOG_ERROR << "Async send for module code = " << endpoint.moduleId << ", opCode = "
-                        << endpoint.serviceId << " " << ",give empty node id ";
+            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                        ", service_ID=" + std::to_string(endpoint.serviceId));
+            UBSE_LOG_ERROR << "Async send for module code = " << endpoint.moduleId
+                           << ", opCode = " << endpoint.serviceId << " "
+                           << ",give empty node id ";
             return UBSE_ERROR_INVAL;
         }
         return UbseComHelper::UbseAsyncCallFunc(endpoint, reqData, ctx, handler);

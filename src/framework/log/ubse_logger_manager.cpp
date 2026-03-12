@@ -19,8 +19,8 @@
 
 namespace ubse::log {
 UbseLoggerManager *UbseLoggerManager::gInstance = nullptr;
-bool UbseLoggerManager::gInited = false;
-std::atomic<bool> UbseLoggerManager::threadRunning;
+bool UbseLoggerManager::gInited_ = false;
+std::atomic<bool> UbseLoggerManager::threadRunning_;
 
 UbseLoggerManager *UbseLoggerManager::Instance()
 {
@@ -40,7 +40,7 @@ void UbseLoggerManager::Destroy()
 {
     /* un-initialize and delete logger */
     if (gInstance != nullptr) {
-        if (gInited) {
+        if (gInited_) {
             gInstance->Exit();
         }
         delete gInstance;
@@ -50,76 +50,69 @@ void UbseLoggerManager::Destroy()
 
 UbseResult UbseLoggerManager::Init(const LoggerOptions &options, UbseLoggerWriter *logWriter)
 {
-    if (gInited) {
+    if (gInited_) {
         return UBSE_OK;
     }
     /* create */
     if (logWriter == nullptr) {
         return UBSE_ERROR;
     }
-    this->minLogLevel = options.minLogLevel;
-    this->syslogOpen = options.syslogOpen;
-    this->syslogType = options.syslogType;
-    gInstance->writer = logWriter;
-    threadRunning.store(true);
-    ubseLoggerFilter.SetFilterCycle(5); // 设置过滤周期为5秒
+    this->minLogLevel_ = options.minLogLevel;
+    this->syslogOpen_ = options.syslogOpen;
+    this->syslogType_ = options.syslogType;
+    gInstance->writer_ = logWriter;
+    threadRunning_.store(true);
     try {
-        logBuffer = std::make_unique<LogBuffer>(options.bufferMaxItem);
-        loggingThread = std::thread([this] { UbseLoggerManager::Pop(); });
+        logBuffer_ = std::make_unique<LogBuffer>(options.bufferMaxItem);
+        loggingThread_ = std::thread([this] { UbseLoggerManager::Pop(); });
     } catch (...) {
         std::cerr << "Out of memory or create thread failed." << std::endl;
         return UBSE_ERROR;
     }
 
-    gInited = true;
+    gInited_ = true;
     return UBSE_OK;
 }
 
 void UbseLoggerManager::Exit()
 {
-    std::unique_lock<std::shared_mutex> lock(logBuffer->mtx);
-    logBuffer->stop = true;
+    std::unique_lock<std::shared_mutex> lock(logBuffer_->mtx_);
+    logBuffer_->stop_ = true;
     lock.unlock();
-    threadRunning.store(false);
-    if (loggingThread.joinable()) {
-        loggingThread.join();
+    threadRunning_.store(false);
+    if (loggingThread_.joinable()) {
+        loggingThread_.join();
     }
 }
 
 bool UbseLoggerManager::IsLog(UbseLogLevel level)
 {
-    return level >= minLogLevel;
+    return level >= minLogLevel_;
 }
 
 void UbseLoggerManager::Push(UbseLoggerEntry &&loggerEntry)
 {
-    logBuffer->Push(std::move(loggerEntry));
+    logBuffer_->Push(std::move(loggerEntry));
 }
 
 void UbseLoggerManager::Pop()
 {
     UbseLoggerEntry loggerEntry(nullptr, UbseLogLevel::INFO, nullptr, nullptr, 0);
-    while (threadRunning.load()) {
-        if (logBuffer->Pop(loggerEntry)) {
-            if (ubseLoggerFilter.IsLogFilter(loggerEntry)) {
-                continue;
-            }
-            writer->Write(loggerEntry);
+    while (threadRunning_.load()) {
+        if (logBuffer_->Pop(loggerEntry)) {
+            writer_->Write(loggerEntry);
             // syslog打开且不被过滤
-            if (syslogOpen) {
+            if (syslogOpen_) {
                 LogToSyslog(loggerEntry);
             }
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(1)); // 环形缓冲区无数据则线程休眠1毫秒
         }
     }
-    while (logBuffer->Pop(loggerEntry)) {
-        if (ubseLoggerFilter.IsLogFilter(loggerEntry)) {
-            continue;
-        }
-        writer->Write(loggerEntry);
+    while (logBuffer_->Pop(loggerEntry)) {
+        writer_->Write(loggerEntry);
         // syslog打开且不被过滤
-        if (this->syslogOpen) {
+        if (this->syslogOpen_) {
             LogToSyslog(loggerEntry);
         }
     }
@@ -129,7 +122,7 @@ void UbseLoggerManager::LogToSyslog(UbseLoggerEntry &loggerEntry)
 {
     auto level = loggerEntry.GetLogLevel();
     auto syslogLevel = LogToSyslogLevel(level);
-    openlog("ubse", 0, this->syslogType);
+    openlog("ubse", 0, this->syslogType_);
     std::ostringstream oss;
     loggerEntry.FormatSyslog(oss);
     syslog(syslogLevel, "%s", oss.str().c_str());
@@ -158,7 +151,7 @@ uint32_t UbseLoggerManager::LogToSyslogLevel(UbseLogLevel &level)
 
 void UbseLoggerManager::SetLogLevel(UbseLogLevel level)
 {
-    minLogLevel = level;
+    minLogLevel_ = level;
 }
 
 UbseLogLevel UbseLoggerManager::StringToLogLevel(const std::string &level)

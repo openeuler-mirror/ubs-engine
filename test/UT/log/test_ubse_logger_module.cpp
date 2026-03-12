@@ -12,7 +12,9 @@
 
 #include "test_ubse_logger_module.h"
 
-#include "ubse_http_error.h"
+#include <dlfcn.h>
+
+#include "ubse_error.h"
 #include "ubse_logger_config.h"
 
 namespace ubse::ut::log {
@@ -45,7 +47,7 @@ TEST_F(TestUbseLoggerModule, TestInitialize2)
         .will(returnValue(1024)); // 设置GetLogCfgQueueItems返回值为1024
     UbseLoggerManager::gInstance = new (std::nothrow) UbseLoggerManager();
     MOCKER(*UbseLoggerManager::Instance).stubs().will(returnValue(UbseLoggerManager::gInstance));
-    UbseLoggerManager::gInited = false;
+    UbseLoggerManager::gInited_ = false;
     MOCKER(&UbseLoggerManager::Init).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(loggerModule.Initialize(), UBSE_OK);
     EXPECT_EQ(loggerModule.Start(), UBSE_OK);
@@ -87,6 +89,24 @@ TEST_F(TestUbseLoggerModule, TestStop)
     UbseLoggerModule loggerModule;
     UbseLoggerManager::gInstance = nullptr;
     EXPECT_NO_THROW(loggerModule.Stop());
+}
+
+/*
+ * 用例描述
+ * 测试Initialize返回UBSE_ERROR
+ */
+TEST_F(TestUbseLoggerModule, TestInitializeFail)
+{
+    UbseLoggerModule loggerModule;
+    void *mockMethod = nullptr;
+    MOCKER(&dlopen).stubs().will(returnValue(mockMethod));
+    MOCKER(&UbseLoggerConfig::Initialize).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NE(loggerModule.Initialize(), UBSE_OK);
+
+    MOCKER(&dlopen).reset();
+    MOCKER(&dlsym).stubs().will(returnValue(mockMethod));
+    MOCKER(&UbseLoggerConfig::Initialize).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NE(loggerModule.Initialize(), UBSE_OK);
 }
 
 }

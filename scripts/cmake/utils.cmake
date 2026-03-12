@@ -101,6 +101,16 @@ function(setup_coverage)
     endif ()
 endfunction()
 
+macro(install_dep dep_name)
+    add_custom_target(build_${dep_name}
+            COMMAND mkdir -p ${CMAKE_SOURCE_DIR}/deps
+            COMMAND rm -rf ${dep_name}/*
+            COMMAND tar -xzf ${CMAKE_SOURCE_DIR}/.deps/${dep_name}_aarch64.tar.gz -C ${CMAKE_SOURCE_DIR}/deps
+            COMMENT "Install dep ${dep_name} into /deps/${dep_name}."
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    )
+endmacro()
+
 function(print_list list)
     foreach (item ${list})
         message(STATUS "${item}")
@@ -170,7 +180,7 @@ macro(add_ut module)
     add_executable(${UT_BINARY} EXCLUDE_FROM_ALL ${TEST_SOURCES} ${CMAKE_SOURCE_DIR}/test/UT/main.cpp)
     target_link_libraries(${UT_BINARY} PUBLIC
             mockcpp
-            GTest::gmock_main
+            googletest
             ${module}
     )
     # 打破控制权限
@@ -194,48 +204,35 @@ macro(add_ut module)
     gtest_discover_tests(${UT_BINARY} PROPERTIES LABELS "${module}")
 endmacro()
 
+macro(add_independent_exec_ut executable_name)
+    set(GTEST_BRIEF "--gtest_brief=0")
+    set(GTEST_OUTPUT "--gtest_output=xml:${CMAKE_BINARY_DIR}/coverage/ut/${executable_name}_detail.xml")
 
-# 主函数：检查依赖是否存在，返回 TRUE/FALSE，并打印依赖链
-function(check_target_dependency target required_lib result_var)
-    set(all_chains)
-    _find_dependency_chains(${target} "${required_lib}" "" all_chains)
-    if(all_chains)
-        message(STATUS "Target ${target} depends on ${required_lib}")
-        foreach(chain IN LISTS all_chains)
-            message(STATUS "Dependency chain: ${chain}")
-        endforeach()
-        set(${result_var} TRUE PARENT_SCOPE)  # 返回 TRUE
-    else()
-        message(STATUS "No dependency found for ${required_lib}")
-        set(${result_var} FALSE PARENT_SCOPE)  # 返回 FALSE
-    endif()
-endfunction()
+    if (FORCE_COLORED_OUTPUT)
+        set(GTEST_COLOR "--gtest_color=yes")
+    else ()
+        set(GTEST_COLOR "--gtest_color=auto")
+    endif ()
 
-# 递归查找依赖链（保持不变）
-function(_find_dependency_chains current_target required_lib current_path result_list)
-    # 循环依赖检测
-    if(${current_target} IN_LIST current_path)
-#        message(WARNING "Cyclic dependency detected: ${current_path} -> ${current_target}")
-        return()
-    endif()
-    list(APPEND current_path ${current_target})
+    set(RUN_TEST "${CMAKE_BINARY_DIR}/bin/${executable_name} ${GTEST_COLOR} ${GTEST_BRIEF} ${GTEST_OUTPUT}")
 
-    # 命中目标库时记录路径
-    if(${current_target} STREQUAL ${required_lib})
-        list(APPEND ${result_list} "${current_path}")
-    endif()
+    # 处理透传参数
+    set(TRANS_PARAMS $ENV{TRANS_PARAMS})
+    if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
+        set(RUN_TEST "${RUN_TEST} ${TRANS_PARAMS}")
+    endif ()
 
-    # 解析依赖项（含生成器表达式）
-    get_target_property(deps ${current_target} INTERFACE_LINK_LIBRARIES)
-    foreach(dep IN LISTS deps)
-        # 处理 LINK_ONLY 表达式
-        if(dep MATCHES "\\$<LINK_ONLY:(.*)>")
-            set(dep ${CMAKE_MATCH_1})
-        endif()
-        if(TARGET ${dep})
-            _find_dependency_chains(${dep} ${required_lib} "${current_path}" ${result_list})
-        endif()
-    endforeach()
+    if (SKIP_RUN_TESTS)
+        set(RUN_TEST "echo 'Skip run test, only build binary ${CMAKE_BINARY_DIR}/bin/${executable_name}'")
+    endif ()
 
-    set(${result_list} ${${result_list}} PARENT_SCOPE)
-endfunction()
+    set(preface_target "${executable_name}_independent_ut")
+    message(STATUS "new target ${preface_target}")
+    add_custom_target(${preface_target}
+            COMMAND sudo setcap cap_chown,cap_dac_override,cap_fowner,cap_sys_ptrace,cap_sys_nice,cap_audit_write,cap_net_admin=ep "${CMAKE_BINARY_DIR}/bin/${executable_name}"
+            COMMAND bash -c "${RUN_TEST}"
+            COMMENT "Run UT Tests: ${RUN_TEST}"
+    )
+    add_dependencies(${preface_target} ${executable_name})
+    add_dependencies(ut ${preface_target})
+endmacro()

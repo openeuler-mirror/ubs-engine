@@ -1,6 +1,6 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
- */
+* Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+*/
 
 #include "ubse_mem_controller_ledger_filter.h"
 
@@ -10,7 +10,7 @@
 
 namespace ubse::mem::controller {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 std::string TransState(UbseMemState state)
 {
@@ -49,8 +49,8 @@ void PrintFdExportObj(std::string module, std::vector<UbseMemFdBorrowExportObj> 
             continue;
         }
         UBSE_LOG_INFO << module << ", node= " << obj.algoResult.exportNumaInfos[0].nodeId
-                    << ", fd export name=" << obj.req.name << ", state=" << TransState(obj.status.state)
-                    << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+                      << ", fd export name=" << obj.req.name << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
     }
 }
 
@@ -61,8 +61,8 @@ void PrintFdImportObj(std::string module, std::vector<UbseMemFdBorrowImportObj> 
             continue;
         }
         UBSE_LOG_INFO << module << ", node= " << obj.algoResult.importNumaInfos[0].nodeId
-                    << ", fd import name=" << obj.req.name << ", state=" << TransState(obj.status.state)
-                    << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+                      << ", fd import name=" << obj.req.name << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
     }
 }
 
@@ -73,8 +73,8 @@ void PrintNumaExportObj(std::string module, std::vector<UbseMemNumaBorrowExportO
             continue;
         }
         UBSE_LOG_INFO << module << ", node= " << obj.algoResult.exportNumaInfos[0].nodeId
-                    << ", numa export name=" << obj.req.name << ", state=" << TransState(obj.status.state)
-                    << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+                      << ", numa export name=" << obj.req.name << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
     }
 }
 
@@ -85,8 +85,53 @@ void PrintNumaImportObj(std::string module, std::vector<UbseMemNumaBorrowImportO
             continue;
         }
         UBSE_LOG_INFO << module << ", node= " << obj.algoResult.importNumaInfos[0].nodeId
-                    << ", numa import name=" << obj.req.name << ", state=" << TransState(obj.status.state)
-                    << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+                      << ", numa import name=" << obj.req.name << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+    }
+}
+
+void PrintAddrExportObj(std::string module, std::vector<UbseMemAddrBorrowExportObj> exportObjs)
+{
+    for (auto obj : exportObjs) {
+        if (obj.algoResult.exportNumaInfos.empty()) {
+            continue;
+        }
+        UBSE_LOG_INFO << module << ", node= " << obj.req.exportNodeId << ", addr export name=" << obj.req.name
+                      << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+    }
+}
+
+void PrintAddrImportObj(std::string module, std::vector<UbseMemAddrBorrowImportObj> importObjs)
+{
+    for (auto obj : importObjs) {
+        if (obj.algoResult.importNumaInfos.empty()) {
+            continue;
+        }
+        UBSE_LOG_INFO << module << ", node= " << obj.req.importNodeId << ", addr import name=" << obj.req.name
+                      << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+    }
+}
+
+void PrintShareExportObj(std::string module, std::vector<UbseMemShareBorrowExportObj> exportObjs)
+{
+    for (auto obj : exportObjs) {
+        if (obj.algoResult.exportNumaInfos.empty()) {
+            continue;
+        }
+        UBSE_LOG_INFO << module << ", node= " << obj.algoResult.exportNumaInfos[0].nodeId
+                      << ", share export name=" << obj.req.name << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+    }
+}
+
+void PrintShareImportObj(std::string module, std::vector<UbseMemShareBorrowImportObj> importObjs)
+{
+    for (auto obj : importObjs) {
+        UBSE_LOG_INFO << module << ", node= " << obj.importNodeId << ", share import name=" << obj.req.name
+                      << ", state=" << TransState(obj.status.state)
+                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
     }
 }
 
@@ -141,6 +186,9 @@ void FilterRunningFdImport(std::vector<UbseMemFdBorrowImportObj> masterImportObj
     std::unordered_set<std::string> masterRunningObj{};
     for (auto obj : masterImportObjs) {
         if (obj.status.state == UbseMemState::UBSE_MEM_SCHEDULING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING_WAIT ||
             obj.status.state == UbseMemState::UBSE_MEM_IMPORT_RUNNING ||
             obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING ||
             obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING_WAIT) {
@@ -219,6 +267,9 @@ void FilterRunningNumaImport(std::vector<UbseMemNumaBorrowImportObj> masterImpor
     std::unordered_set<std::string> masterRunningObj{};
     for (auto obj : masterImportObjs) {
         if (obj.status.state == UbseMemState::UBSE_MEM_SCHEDULING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING_WAIT ||
             obj.status.state == UbseMemState::UBSE_MEM_IMPORT_RUNNING ||
             obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING ||
             obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING_WAIT) {
@@ -246,6 +297,168 @@ void FilterRunningNumaImport(std::vector<UbseMemNumaBorrowImportObj> masterImpor
     PrintNumaImportObj("print agent not running numa import obj", agentFilterRunningImportObjs);
 }
 
+void FilterRunningAddrExport(std::vector<UbseMemAddrBorrowExportObj> masterExportObjs,
+                             std::vector<UbseMemAddrBorrowExportObj> agentExportObjs,
+                             std::vector<UbseMemAddrBorrowExportObj> &masterRunningExportObjs,
+                             std::vector<UbseMemAddrBorrowExportObj> &masterFilterRunningExportObjs,
+                             std::vector<UbseMemAddrBorrowExportObj> &agentFilterRunningExportObjs)
+{
+    PrintAddrExportObj("print master all addr export obj", masterExportObjs);
+    PrintAddrExportObj("print agent all addr export obj", agentExportObjs);
+
+    std::unordered_set<std::string> masterRunningObj{};
+    for (auto obj : masterExportObjs) {
+        if (obj.status.state == UbseMemState::UBSE_MEM_SCHEDULING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING_WAIT) {
+            masterRunningObj.insert(obj.req.name);
+            masterRunningExportObjs.push_back(obj);
+        }
+    }
+
+    PrintAddrExportObj("print master running addr export obj", masterRunningExportObjs);
+
+    auto findDiff = [](const std::vector<UbseMemAddrBorrowExportObj> &source,
+                       const std::unordered_set<std::string> &runningSet) {
+        std::vector<UbseMemAddrBorrowExportObj> result;
+        for (const auto &elem : source) {
+            if (runningSet.find(elem.req.name) == runningSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    masterFilterRunningExportObjs = findDiff(masterExportObjs, masterRunningObj);
+    agentFilterRunningExportObjs = findDiff(agentExportObjs, masterRunningObj);
+
+    PrintAddrExportObj("print master not running addr export obj", masterFilterRunningExportObjs);
+    PrintAddrExportObj("print agent not running addr export obj", agentFilterRunningExportObjs);
+}
+
+void FilterRunningAddrImport(std::vector<UbseMemAddrBorrowImportObj> masterImportObjs,
+                             std::vector<UbseMemAddrBorrowImportObj> agentImportObjs,
+                             std::vector<UbseMemAddrBorrowImportObj> &masterRunningImportObjs,
+                             std::vector<UbseMemAddrBorrowImportObj> &masterFilterRunningImportObjs,
+                             std::vector<UbseMemAddrBorrowImportObj> &agentFilterRunningImportObjs)
+{
+    PrintAddrImportObj("print master all addr import obj", masterImportObjs);
+    PrintAddrImportObj("print agent all addr import obj", agentImportObjs);
+
+    std::unordered_set<std::string> masterRunningObj{};
+    for (auto obj : masterImportObjs) {
+        if (obj.status.state == UbseMemState::UBSE_MEM_SCHEDULING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING_WAIT ||
+            obj.status.state == UbseMemState::UBSE_MEM_IMPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING_WAIT) {
+            masterRunningObj.insert(obj.req.name);
+            masterRunningImportObjs.push_back(obj);
+        }
+    }
+
+    PrintAddrImportObj("print master running addr import obj", masterRunningImportObjs);
+
+    auto findDiff = [](const std::vector<UbseMemAddrBorrowImportObj> &source,
+                       const std::unordered_set<std::string> &runningSet) {
+        std::vector<UbseMemAddrBorrowImportObj> result;
+        for (const auto &elem : source) {
+            if (runningSet.find(elem.req.name) == runningSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    masterFilterRunningImportObjs = findDiff(masterImportObjs, masterRunningObj);
+    agentFilterRunningImportObjs = findDiff(agentImportObjs, masterRunningObj);
+
+    PrintAddrImportObj("print master not running addr import obj", masterFilterRunningImportObjs);
+    PrintAddrImportObj("print agent not running addr import obj", agentFilterRunningImportObjs);
+}
+
+void FilterRunningShareExport(std::vector<UbseMemShareBorrowExportObj> masterExportObjs,
+                              std::vector<UbseMemShareBorrowExportObj> agentExportObjs,
+                              std::vector<UbseMemShareBorrowExportObj> &masterRunningExportObjs,
+                              std::vector<UbseMemShareBorrowExportObj> &masterFilterRunningExportObjs,
+                              std::vector<UbseMemShareBorrowExportObj> &agentFilterRunningExportObjs)
+{
+    PrintShareExportObj("print master all share export obj", masterExportObjs);
+    PrintShareExportObj("print agent all share export obj", agentExportObjs);
+
+    std::unordered_set<std::string> masterRunningObj{};
+    for (auto obj : masterExportObjs) {
+        if (obj.status.state == UbseMemState::UBSE_MEM_SCHEDULING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING_WAIT) {
+            masterRunningObj.insert(obj.req.name);
+            masterRunningExportObjs.push_back(obj);
+        }
+    }
+
+    PrintShareExportObj("print master running share export obj", masterRunningExportObjs);
+
+    auto findDiff = [](const std::vector<UbseMemShareBorrowExportObj> &source,
+                       const std::unordered_set<std::string> &runningSet) {
+        std::vector<UbseMemShareBorrowExportObj> result;
+        for (const auto &elem : source) {
+            if (runningSet.find(elem.req.name) == runningSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    masterFilterRunningExportObjs = findDiff(masterExportObjs, masterRunningObj);
+    agentFilterRunningExportObjs = findDiff(agentExportObjs, masterRunningObj);
+
+    PrintShareExportObj("print master not running share export obj", masterFilterRunningExportObjs);
+    PrintShareExportObj("print agent not running share export obj", agentFilterRunningExportObjs);
+}
+
+void FilterRunningShareImport(std::vector<UbseMemShareBorrowImportObj> masterImportObjs,
+                              std::vector<UbseMemShareBorrowImportObj> agentImportObjs,
+                              std::vector<UbseMemShareBorrowImportObj> &masterRunningImportObjs,
+                              std::vector<UbseMemShareBorrowImportObj> &masterFilterRunningImportObjs,
+                              std::vector<UbseMemShareBorrowImportObj> &agentFilterRunningImportObjs)
+{
+    PrintShareImportObj("print master all share import obj", masterImportObjs);
+    PrintShareImportObj("print agent all share import obj", agentImportObjs);
+
+    std::unordered_set<std::string> masterRunningObj{};
+    for (auto obj : masterImportObjs) {
+        if (obj.status.state == UbseMemState::UBSE_MEM_SCHEDULING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYING_WAIT ||
+            obj.status.state == UbseMemState::UBSE_MEM_IMPORT_RUNNING ||
+            obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING ||
+            obj.status.state == UbseMemState::UBSE_MEM_IMPORT_DESTROYING_WAIT) {
+            masterRunningObj.insert(obj.req.name);
+            masterRunningImportObjs.push_back(obj);
+        }
+    }
+
+    PrintShareImportObj("print master running share import obj", masterRunningImportObjs);
+
+    auto findDiff = [](const std::vector<UbseMemShareBorrowImportObj> &source,
+                       const std::unordered_set<std::string> &runningSet) {
+        std::vector<UbseMemShareBorrowImportObj> result;
+        for (const auto &elem : source) {
+            if (runningSet.find(elem.req.name) == runningSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    masterFilterRunningImportObjs = findDiff(masterImportObjs, masterRunningObj);
+    agentFilterRunningImportObjs = findDiff(agentImportObjs, masterRunningObj);
+
+    PrintShareImportObj("print master not running share import obj", masterFilterRunningImportObjs);
+    PrintShareImportObj("print agent not running share import obj", agentFilterRunningImportObjs);
+}
+
 std::vector<UbseMemFdBorrowExportObj> FilterBothExistsFdExport(std::vector<UbseMemFdBorrowExportObj> masterExportObjs,
                                                                std::vector<UbseMemFdBorrowExportObj> agentExportObjs)
 {
@@ -266,6 +479,22 @@ std::vector<UbseMemNumaBorrowExportObj> FilterBothExistsNumaExport(
     std::vector<UbseMemNumaBorrowExportObj> masterExportObjs, std::vector<UbseMemNumaBorrowExportObj> agentExportObjs)
 {
     std::vector<UbseMemNumaBorrowExportObj> fdExportObjs{};
+    std::unordered_set<std::string> masterNames;
+    for (const auto &obj : masterExportObjs) {
+        masterNames.insert(obj.req.name);
+    }
+    for (const auto &obj : agentExportObjs) {
+        if (masterNames.find(obj.req.name) != masterNames.end()) {
+            fdExportObjs.push_back(obj);
+        }
+    }
+    return fdExportObjs;
+}
+
+std::vector<UbseMemAddrBorrowExportObj> FilterBothExistsAddrExport(
+    std::vector<UbseMemAddrBorrowExportObj> masterExportObjs, std::vector<UbseMemAddrBorrowExportObj> agentExportObjs)
+{
+    std::vector<UbseMemAddrBorrowExportObj> fdExportObjs{};
     std::unordered_set<std::string> masterNames;
     for (const auto &obj : masterExportObjs) {
         masterNames.insert(obj.req.name);
@@ -425,6 +654,146 @@ void FilterNumaDifferentImportSet(std::vector<UbseMemNumaBorrowImportObj> master
     PrintNumaImportObj("print agent diff numa import obj", agentDiffImportObjs);
 }
 
+void FilterShareDifferentExportSet(std::vector<UbseMemShareBorrowExportObj> masterExportObjs,
+                                   std::vector<UbseMemShareBorrowExportObj> agentExportObjs,
+                                   std::vector<UbseMemShareBorrowExportObj> &masterDiffExportObjs,
+                                   std::vector<UbseMemShareBorrowExportObj> &agentDiffExportObjs)
+{
+    PrintShareExportObj("print master not running share export obj when diff", masterExportObjs);
+    PrintShareExportObj("print agent not running share export obj when diff", agentExportObjs);
+
+    std::unordered_set<std::string> masterExportObjsSet;
+    for (const auto &elem : masterExportObjs) {
+        masterExportObjsSet.insert(elem.req.name);
+    }
+    std::unordered_set<std::string> agentExportObjsSet;
+    for (const auto &elem : agentExportObjs) {
+        agentExportObjsSet.insert(elem.req.name);
+    }
+    auto find_diff = [](const std::vector<UbseMemShareBorrowExportObj> &source,
+                        const std::unordered_set<std::string> &targetSet) {
+        std::vector<UbseMemShareBorrowExportObj> result;
+        for (const auto &elem : source) {
+            if (targetSet.find(elem.req.name) == targetSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    // master中有，但是agent没有
+    masterDiffExportObjs = find_diff(masterExportObjs, agentExportObjsSet);
+    // agent中有，但是master没有
+    agentDiffExportObjs = find_diff(agentExportObjs, masterExportObjsSet);
+
+    PrintShareExportObj("print master diff share export obj", masterDiffExportObjs);
+    PrintShareExportObj("print agent diff share export obj", agentDiffExportObjs);
+}
+
+void FilterShareDifferentImportSet(std::vector<UbseMemShareBorrowImportObj> masterImportObjs,
+                                   std::vector<UbseMemShareBorrowImportObj> agentImportObjs,
+                                   std::vector<UbseMemShareBorrowImportObj> &masterDiffImportObjs,
+                                   std::vector<UbseMemShareBorrowImportObj> &agentDiffImportObjs)
+{
+    PrintShareImportObj("print master not running share import obj when diff", masterImportObjs);
+    PrintShareImportObj("print agent not running share import obj when diff", agentImportObjs);
+
+    std::unordered_set<std::string> masterImportObjsSet;
+    for (const auto &elem : masterImportObjs) {
+        masterImportObjsSet.insert(elem.req.name);
+    }
+    std::unordered_set<std::string> agentImportObjsSet;
+    for (const auto &elem : agentImportObjs) {
+        agentImportObjsSet.insert(elem.req.name);
+    }
+    auto find_diff = [](const std::vector<UbseMemShareBorrowImportObj> &source,
+                        const std::unordered_set<std::string> &targetSet) {
+        std::vector<UbseMemShareBorrowImportObj> result;
+        for (const auto &elem : source) {
+            if (targetSet.find(elem.req.name) == targetSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    // master中有，但是agent没有
+    masterDiffImportObjs = find_diff(masterImportObjs, agentImportObjsSet);
+    // agent中有，但是master没有
+    agentDiffImportObjs = find_diff(agentImportObjs, masterImportObjsSet);
+
+    PrintShareImportObj("print master diff share import obj", masterDiffImportObjs);
+    PrintShareImportObj("print agent diff share import obj", agentDiffImportObjs);
+}
+
+void FilterAddrDifferentExportSet(std::vector<UbseMemAddrBorrowExportObj> masterExportObjs,
+                                  std::vector<UbseMemAddrBorrowExportObj> agentExportObjs,
+                                  std::vector<UbseMemAddrBorrowExportObj> &masterDiffExportObjs,
+                                  std::vector<UbseMemAddrBorrowExportObj> &agentDiffExportObjs)
+{
+    PrintAddrExportObj("print master not running addr export obj when diff", masterExportObjs);
+    PrintAddrExportObj("print agent not running addr export obj when diff", agentExportObjs);
+
+    std::unordered_set<std::string> masterExportObjsSet;
+    for (const auto &elem : masterExportObjs) {
+        masterExportObjsSet.insert(elem.req.name);
+    }
+    std::unordered_set<std::string> agentExportObjsSet;
+    for (const auto &elem : agentExportObjs) {
+        agentExportObjsSet.insert(elem.req.name);
+    }
+    auto find_diff = [](const std::vector<UbseMemAddrBorrowExportObj> &source,
+                        const std::unordered_set<std::string> &targetSet) {
+        std::vector<UbseMemAddrBorrowExportObj> result;
+        for (const auto &elem : source) {
+            if (targetSet.find(elem.req.name) == targetSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    // master中有，但是agent没有
+    masterDiffExportObjs = find_diff(masterExportObjs, agentExportObjsSet);
+    // agent中有，但是master没有
+    agentDiffExportObjs = find_diff(agentExportObjs, masterExportObjsSet);
+
+    PrintAddrExportObj("print master diff addr export obj", masterDiffExportObjs);
+    PrintAddrExportObj("print agent diff addr export obj", agentDiffExportObjs);
+}
+
+void FilterAddrDifferentImportSet(std::vector<UbseMemAddrBorrowImportObj> masterImportObjs,
+                                  std::vector<UbseMemAddrBorrowImportObj> agentImportObjs,
+                                  std::vector<UbseMemAddrBorrowImportObj> &masterDiffImportObjs,
+                                  std::vector<UbseMemAddrBorrowImportObj> &agentDiffImportObjs)
+{
+    PrintAddrImportObj("print master not running addr import obj when diff", masterImportObjs);
+    PrintAddrImportObj("print agent not running addr import obj when diff", agentImportObjs);
+
+    std::unordered_set<std::string> masterImportObjsSet;
+    for (const auto &elem : masterImportObjs) {
+        masterImportObjsSet.insert(elem.req.name);
+    }
+    std::unordered_set<std::string> agentImportObjsSet;
+    for (const auto &elem : agentImportObjs) {
+        agentImportObjsSet.insert(elem.req.name);
+    }
+    auto find_diff = [](const std::vector<UbseMemAddrBorrowImportObj> &source,
+                        const std::unordered_set<std::string> &targetSet) {
+        std::vector<UbseMemAddrBorrowImportObj> result;
+        for (const auto &elem : source) {
+            if (targetSet.find(elem.req.name) == targetSet.end()) {
+                result.push_back(elem);
+            }
+        }
+        return result;
+    };
+    // master中有，但是agent没有
+    masterDiffImportObjs = find_diff(masterImportObjs, agentImportObjsSet);
+    // agent中有，但是master没有
+    agentDiffImportObjs = find_diff(agentImportObjs, masterImportObjsSet);
+
+    PrintAddrImportObj("print master diff addr import obj", masterDiffImportObjs);
+    PrintAddrImportObj("print agent diff addr import obj", agentDiffImportObjs);
+}
+
 std::vector<UbseMemFdBorrowExportObj> TransFdExportList(UbseMemFdExportObjMap exportObjMap)
 {
     std::vector<UbseMemFdBorrowExportObj> objs{};
@@ -455,6 +824,42 @@ std::vector<UbseMemNumaBorrowExportObj> TransNumaExportList(UbseMemNumaExportObj
 std::vector<UbseMemNumaBorrowImportObj> TransNumaImportList(UbseMemNumaImportObjMap importObjMap)
 {
     std::vector<UbseMemNumaBorrowImportObj> objs{};
+    for (const auto &obj : importObjMap) {
+        objs.push_back(obj.second);
+    }
+    return objs;
+}
+
+std::vector<UbseMemShareBorrowExportObj> TransShareExportList(UbseMemShareExportObjMap exportObjMap)
+{
+    std::vector<UbseMemShareBorrowExportObj> objs{};
+    for (const auto &obj : exportObjMap) {
+        objs.push_back(obj.second);
+    }
+    return objs;
+}
+
+std::vector<UbseMemShareBorrowImportObj> TransShareImportList(UbseMemShareImportObjMap importObjMap)
+{
+    std::vector<UbseMemShareBorrowImportObj> objs{};
+    for (const auto &obj : importObjMap) {
+        objs.push_back(obj.second);
+    }
+    return objs;
+}
+
+std::vector<UbseMemAddrBorrowExportObj> TransAddrExportList(UbseMemAddrExportObjMap exportObjMap)
+{
+    std::vector<UbseMemAddrBorrowExportObj> objs{};
+    for (const auto &obj : exportObjMap) {
+        objs.push_back(obj.second);
+    }
+    return objs;
+}
+
+std::vector<UbseMemAddrBorrowImportObj> TransAddrImportList(UbseMemAddrImportObjMap importObjMap)
+{
+    std::vector<UbseMemAddrBorrowImportObj> objs{};
     for (const auto &obj : importObjMap) {
         objs.push_back(obj.second);
     }

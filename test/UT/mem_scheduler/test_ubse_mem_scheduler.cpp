@@ -1,23 +1,25 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_ubse_mem_scheduler.h"
+
+#include <ubse_node.h>
+
+#include "ubse_mem_account_helper.h"
+#include "ubse_mem_configuration.h"
 #include "ubse_mem_scheduler.h"
-#include "ubse_mgr_configuration.h"
 #include "ubse_mem_strategy_helper.h"
 #include "ubse_mem_topology_info_manager.h"
 #include "ubse_node_controller.h"
-#include "ubse_node_topology.h"
-#include "ubse_mem_account_helper.h"
 
 namespace ubse::mem_scheduler::ut {
 using namespace ubse::mem::strategy;
@@ -118,7 +120,32 @@ TEST_F(TestUbseMemScheduler, UbseMemFdImportObjStateChangeHandlerScheduling)
         .will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::AddAlgoAccount).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbseMemFdImportObjStateChangeHandler(importObj);
+    EXPECT_EQ(ret, UBSE_OK);
+}
 
+/*
+ * 用例描述：测试fd借用
+ * fd借用
+ * 测试步骤：返回UBSE_OK
+ */
+TEST_F(TestUbseMemScheduler, UbseMemFdImportObjStateChangeHandlerSchedulingByUserReq)
+{
+    UbseMemFdBorrowImportObj importObj;
+    importObj.status.state = UBSE_MEM_SCHEDULING;
+    importObj.req.importNodeId = "1";
+    UbseMemDebtNumaInfo ubseMemDebtNumaInfo{"2", 36, 1, 128};
+    importObj.algoResult.exportNumaInfos.push_back(ubseMemDebtNumaInfo);
+    importObj.algoResult.attachSocketId = 36;
+    ubse::adapter_plugins::mmi::UbseNumaLocation numaLocation{"1", 1};
+    importObj.req.lenderLocs.push_back(numaLocation);
+
+    MOCKER_CPP(&ubse::mem::strategy::UbseMemStrategyHelper::MemoryBorrowAccordingToUserRequest<UbseMemFdBorrowReq>)
+        .stubs()
+        .with(outBound(importObj.req), outBound(importObj.algoResult))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::AddAlgoAccount).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemFdImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -127,7 +154,6 @@ TEST_F(TestUbseMemScheduler, UbseMemFdImportObjStateChangeHandlerSuccess)
 {
     UbseMemFdBorrowImportObj importObj;
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
-    MOCKER_CPP(&ubse::mem::strategy::UbseMemAccountHelper::BorrowSuccess).stubs().will(returnValue(UBSE_OK));
 
     auto ret = UbseMemFdImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -137,7 +163,7 @@ TEST_F(TestUbseMemScheduler, UbseMemFdImportObjStateChangeHandlerDestroyed)
 {
     UbseMemFdBorrowImportObj importObj;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemFdImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -147,7 +173,7 @@ TEST_F(TestUbseMemScheduler, UbseMemFdImportObjStateChangeHandlerFailed)
 {
     UbseMemFdBorrowImportObj importObj;
     importObj.status.state = UBSE_MEM_STATE_FAILED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemFdImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -157,7 +183,7 @@ TEST_F(TestUbseMemScheduler, UbseMemFdExportObjStateChangeHandlerDestroyed)
 {
     UbseMemFdBorrowExportObj exportObj;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemFdExportObjStateChangeHandler(exportObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -167,7 +193,7 @@ TEST_F(TestUbseMemScheduler, UbseMemFdExportObjStateChangeHandlerFailed)
 {
     UbseMemFdBorrowExportObj exportObj;
     exportObj.status.state = UBSE_MEM_STATE_FAILED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemFdExportObjStateChangeHandler(exportObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -193,7 +219,27 @@ TEST_F(TestUbseMemScheduler, UbseMemNumaImportObjStateChangeHandlerScheduling)
         .will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::AddAlgoAccount).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbseMemNumaImportObjStateChangeHandler(importObj);
+    EXPECT_EQ(ret, UBSE_OK);
+}
 
+TEST_F(TestUbseMemScheduler, UbseMemNumaImportObjStateChangeHandlerSchedulingByUserReq)
+{
+    UbseMemNumaBorrowImportObj importObj;
+    importObj.status.state = UBSE_MEM_SCHEDULING;
+    importObj.req.importNodeId = "1";
+    UbseMemDebtNumaInfo ubseMemDebtNumaInfo{"2", 36, 1, 128};
+    importObj.algoResult.exportNumaInfos.push_back(ubseMemDebtNumaInfo);
+    importObj.algoResult.attachSocketId = 36;
+    ubse::adapter_plugins::mmi::UbseNumaLocation numaLocation{"1", 1};
+    importObj.req.lenderLocs.push_back(numaLocation);
+
+    MOCKER_CPP(&ubse::mem::strategy::UbseMemStrategyHelper::MemoryBorrowAccordingToUserRequest<UbseMemNumaBorrowReq>)
+        .stubs()
+        .with(outBound(importObj.req), outBound(importObj.algoResult))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::AddAlgoAccount).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemNumaImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -202,7 +248,6 @@ TEST_F(TestUbseMemScheduler, UbseMemNumaImportObjStateChangeHandlerSuccess)
 {
     UbseMemNumaBorrowImportObj importObj;
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
-    MOCKER_CPP(&ubse::mem::strategy::UbseMemAccountHelper::BorrowSuccess).stubs().will(returnValue(UBSE_OK));
 
     auto ret = UbseMemNumaImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -212,7 +257,7 @@ TEST_F(TestUbseMemScheduler, UbseMemNumaImportObjStateChangeHandlerDestroyed)
 {
     UbseMemNumaBorrowImportObj importObj;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemNumaImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -222,7 +267,7 @@ TEST_F(TestUbseMemScheduler, UbseMemNumaImportObjStateChangeHandlerFailed)
 {
     UbseMemNumaBorrowImportObj importObj;
     importObj.status.state = UBSE_MEM_STATE_FAILED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemNumaImportObjStateChangeHandler(importObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -232,7 +277,7 @@ TEST_F(TestUbseMemScheduler, UbseMemNumaExportObjStateChangeHandlerDestroyed)
 {
     UbseMemNumaBorrowExportObj exportObj;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemNumaExportObjStateChangeHandler(exportObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -242,9 +287,31 @@ TEST_F(TestUbseMemScheduler, UbseMemNumaExportObjStateChangeHandlerFailed)
 {
     UbseMemNumaBorrowExportObj exportObj;
     exportObj.status.state = UBSE_MEM_STATE_FAILED;
-    std::shared_ptr<AlgoAccount> algoAccount;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
     MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
     auto ret = UbseMemNumaExportObjStateChangeHandler(exportObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
-}  // namespace ubse::mem_scheduler::ut
+
+TEST_F(TestUbseMemScheduler, UbseMemAddrImportObjStateChangeHandlerScheduling)
+{
+    UbseMemAddrBorrowImportObj importObj;
+    importObj.status.state = UBSE_MEM_SCHEDULING;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
+    MOCKER_CPP(&ubse::mem::strategy::UbseMemStrategyHelper::AddrMemoryBorrow).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
+    auto ret = UbseMemAddrImportObjStateChangeHandler(importObj);
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemScheduler, UbseMemAddrExportObjStateChangeHandlerDestroy)
+{
+    UbseMemAddrBorrowExportObj exportObj;
+    exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
+    std::shared_ptr<BaseAlgoAccount> algoAccount;
+    MOCKER_CPP(&ubse::mem::strategy::AlgoAccountManger::GetAlgoAccount).stubs().will(returnValue(algoAccount));
+    auto ret = UbseMemAddrExportObjStateChangeHandler(exportObj);
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+} // namespace ubse::mem_scheduler::ut

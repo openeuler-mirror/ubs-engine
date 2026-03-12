@@ -22,9 +22,15 @@ endif ()
 message(STATUS "cpp-httplib: REPO=${CPPHTTPLIB_REPO}, TAG=${CPPHTTPLIB_TAG}")
 
 FetchContent_Declare(
-        cpp-httplib
+        build-cpp-httplib
         GIT_REPOSITORY ${CPPHTTPLIB_REPO}
         GIT_TAG ${CPPHTTPLIB_TAG}
 )
 
-FetchContent_MakeAvailable(cpp-httplib)
+FetchContent_MakeAvailable(build-cpp-httplib)
+
+# 直接使用 FetchContent 提供的变量
+add_library(cpp-httplib INTERFACE)
+target_include_directories(cpp-httplib INTERFACE
+        ${build-cpp-httplib_SOURCE_DIR}
+)

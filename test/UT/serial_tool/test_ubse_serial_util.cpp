@@ -48,22 +48,22 @@ TEST_F(TestUbseSerialUtil, expandCapacity_less_than_max_cap)
     UbseSerialization serialization;
     serialization.expandCapacity(expandSize);
     EXPECT_TRUE(serialization.Check());
-    auto curCap = serialization.mCap;
+    auto curCap = serialization.mCap_;
     EXPECT_TRUE(curCap < MAX_CAPACITY);
 }
 
 /*
  * 用例描述
- * 扩展后的容量翻倍后超过MAX_CAPACITY，则设定为MAX_CAPACITY
+ * 扩展后的容量翻倍后超过MAX_CAPACITY，则设定为MAX_CAPACITY - 1
  */
 TEST_F(TestUbseSerialUtil, expandCapacity_greater_than_max_cap)
 {
-    uint64_t expandSize = 1 << 19 | 1 << 18; // 大于MAX_CAPACITY的一半
+    uint64_t expandSize = (MAX_CAPACITY >> 1) + 1; // 大于MAX_CAPACITY的一半
     UbseSerialization serialization;
     serialization.expandCapacity(expandSize);
     EXPECT_TRUE(serialization.Check());
-    auto curCap = serialization.mCap;
-    EXPECT_TRUE(curCap == MAX_CAPACITY);
+    auto curCap = serialization.mCap_;
+    EXPECT_EQ(curCap, MAX_CAPACITY - 1);
 }
 
 /*
@@ -72,7 +72,7 @@ TEST_F(TestUbseSerialUtil, expandCapacity_greater_than_max_cap)
  */
 TEST_F(TestUbseSerialUtil, expandCapacity_failed)
 {
-    uint64_t expandSize = 1 << 21; // 大于MAX_CAPACITY
+    uint64_t expandSize = MAX_CAPACITY + 1; // 大于MAX_CAPACITY
     UbseSerialization serialization;
     serialization.expandCapacity(expandSize);
     EXPECT_FALSE(serialization.Check());
@@ -446,7 +446,7 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
         ser << src;
 
         UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
-        const char *dst = nullptr;
+        char *dst = nullptr;
         deSer >> dst;
         ASSERT_TRUE(deSer.Check());
         EXPECT_STREQ(dst, "hello");
@@ -456,8 +456,8 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
     // Case 2: 触发 checkValid() 失败（如 pos 越界）
     {
         UbseDeSerialization deSer;
-        deSer.mPos = deSer.mBuf + deSer.mLen + 1; // 强制越界
-        const char *str = nullptr;
+        deSer.mPos_ = deSer.mBuf_ + deSer.mLen_ + 1; // 强制越界
+        char *str = nullptr;
         deSer >> str;
         EXPECT_FALSE(deSer.Check());
     }
@@ -469,7 +469,7 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
         ser << x;
 
         UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
-        const char *str = nullptr;
+        char *str = nullptr;
         deSer >> str;
         EXPECT_FALSE(deSer.Check());
     }
@@ -481,7 +481,7 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
         ser.add(reinterpret_cast<uint8_t *>(&empty), 0, GetTypePointerId<char>()); // 手动写入 len=0
 
         UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
-        const char *str = nullptr;
+        char *str = nullptr;
         deSer >> str;
         EXPECT_FALSE(deSer.Check());
     }
@@ -499,12 +499,12 @@ TEST_F(TestUbseSerialUtil, GetBuffer_deSer_with_ctrl)
     // Case 1: bGetCtrl = false -> 返回 buffer，不置空
     uint8_t *buf1 = deSer.GetBuffer(false);
     EXPECT_NE(buf1, nullptr);
-    EXPECT_NE(deSer.mBuf, nullptr); // mBuf 仍存在
+    EXPECT_NE(deSer.mBuf_, nullptr); // mBuf 仍存在
 
     // Case 2: bGetCtrl = true 且 mGetBufCtrl = true -> 返回原指针，并置 mBuf=nullptr
     uint8_t *buf2 = deSer.GetBuffer(true);
     EXPECT_EQ(buf2, buf1);
-    EXPECT_EQ(deSer.mBuf, nullptr); // 已释放控制权
+    EXPECT_EQ(deSer.mBuf_, nullptr); // 已释放控制权
 
     // Case 3: 再次调用 GetBuffer(true) -> 因 mGetBufCtrl 仍为 true，但 mBuf=nullptr，应返回 nullptr
     uint8_t *buf3 = deSer.GetBuffer(true);
@@ -527,12 +527,12 @@ TEST_F(TestUbseSerialUtil, GetBuffer_ControlTransfer)
         // bGetCtrl = false → 返回 buffer，mBuf 不变
         uint8_t* buf1 = deSer.GetBuffer(false);
         EXPECT_NE(buf1, nullptr);
-        EXPECT_NE(deSer.mBuf, nullptr);
+        EXPECT_NE(deSer.mBuf_, nullptr);
 
         // bGetCtrl = true → 返回原指针，mBuf 置空
         uint8_t* buf2 = deSer.GetBuffer(true);
         EXPECT_EQ(buf2, buf1);
-        EXPECT_EQ(deSer.mBuf, nullptr);
+        EXPECT_EQ(deSer.mBuf_, nullptr);
 
         // 再次调用 → 返回 nullptr
         uint8_t* buf3 = deSer.GetBuffer(true);
@@ -604,6 +604,29 @@ TEST(SerialUtilTest, GetTypePointerId_PointerTypes)
     EXPECT_EQ(GetTypePointerId<wchar_t>(), static_cast<uint16_t>(allowed_type::WCHAR_T_PTR));
     EXPECT_EQ(GetTypePointerId<char16_t>(), static_cast<uint16_t>(allowed_type::CHAR16_T_PTR));
     EXPECT_EQ(GetTypePointerId<char32_t>(), static_cast<uint16_t>(allowed_type::CHAR32_T_PTR));
+}
+
+// 测试vector<bool>的序列化反序列化
+TEST(SerialUtilTest, vector_bool_serial)
+{
+    std::vector<bool> vectors{};
+    vectors.emplace_back(false);
+    vectors.emplace_back(true);
+    UbseSerialization ser{ALIGN_BASE::OFFSET_BASE_8};
+    ser << vectors;
+    EXPECT_TRUE(ser.Check());
+    std::vector<bool> vectors1{};
+    UbseDeSerialization de_ser{ser.GetBuffer(), ser.GetLength()};
+    de_ser >> vectors1;
+    EXPECT_TRUE(de_ser.Check());
+    EXPECT_EQ(vectors, vectors1);
+
+    std::vector<bool> vectors2{};
+    UbseSerialization ser2{std::move(ser)};
+    UbseDeSerialization de_ser2{ser2.GetBuffer(), ser2.GetLength()};
+    de_ser2 >> vectors2;
+    EXPECT_TRUE(de_ser2.Check());
+    EXPECT_EQ(vectors, vectors2);
 }
 
 } // namespace ubse::ut::serial

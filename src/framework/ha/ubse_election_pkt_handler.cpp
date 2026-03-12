@@ -11,9 +11,9 @@
  */
 
 #include "ubse_election_pkt_handler.h"
+#include "role/ubse_election_role_mgr.h"
 #include "ubse_base_message.h"
 #include "ubse_com_module.h"
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_context.h"
 #include "ubse_election_node_mgr.h"
 #include "ubse_election_pkt_simpo.h"
@@ -25,7 +25,7 @@ using namespace ubse::message;
 using namespace message;
 using namespace ubse::log;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_ELECTION_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseElectionPktHandler::RegElectionPktHandler()
 {
@@ -51,7 +51,7 @@ UbseResult UbseElectionPktHandler::RegElectionPktHandler()
 }
 
 UbseResult UbseElectionPktHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
-    UbseComBaseMessageHandlerCtxPtr ctx)
+                                          UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UbseElectionPktSimpoPtr request = UbseBaseMessage::DeConvert<UbseElectionPktSimpo>(req);
     if (request == nullptr) {
@@ -65,6 +65,9 @@ UbseResult UbseElectionPktHandler::Handle(const UbseBaseMessagePtr &req, const U
     }
     ElectionPkt ubseRequest = request->GetElectionPkt();
     ElectionReplyPkt ubseResponse = response->GetElectionReplyPkt();
+    if (g_globalStop.load()) {
+        ubseResponse.replyResult = ELECTION_PKT_REPLY_GLOBAL_STOP;
+    }
     UbseResult ret = RoleMgr::GetInstance().RecvPkt(ubseRequest.masterId, ubseRequest, ubseResponse);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] ElectionRecvPkt deal failed.";

@@ -1,110 +1,169 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
  */
 #include "ubse_mem_algo_account.h"
 
-#include <mutex>
-
+#include "ubse_borrow_account.h"
 #include "ubse_error.h"
-#include "ubse_logger_module.h"
-#include "ubse_node_controller.h"
-#include "ubse_node_topology.h"
-
+#include "ubse_logger.h"
+#include "ubse_mem_configuration.h"
+#include "ubse_node.h"
+#include "ubse_shm_account.h"
 namespace ubse::mem::strategy {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID)
+UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::log;
 using namespace ubse::nodeController;
 
-void AlgoAccountManger::AddAlgoAccount(const std::shared_ptr<AlgoAccount> algoAccountPtr)
+const std::map<BorrowedType, std::string> borrowTypeToString = {
+    {BorrowedType::FD, "FD"}, {BorrowedType::NUMA, "NUMA"}, {BorrowedType::ADDR, "ADDR"}, {BorrowedType::SHM, "SHM"}};
+
+void AlgoAccountManger::AddAlgoAccount(const std::shared_ptr<BaseAlgoAccount> &algoAccountPtr)
 {
-    std::unique_lock<std::shared_mutex> locker(mLock);
     if (algoAccountPtr == nullptr) {
         UBSE_LOG_WARN << "add algoaccount is nullptr";
         return;
     }
-    algoAccountMap.insert({algoAccountPtr->name, algoAccountPtr});
+    UBSE_LOG_INFO << "Add Algo Account, importNodeId=" << algoAccountPtr->importNodeId
+                  << ", exportNodeId=" << algoAccountPtr->exportNodeId << ", name=" << algoAccountPtr->name;
+    algoAccountMap_[{algoAccountPtr->name, algoAccountPtr->importNodeId, algoAccountPtr->type}] = algoAccountPtr;
 }
 
-void AlgoAccountManger::DelAlgoAccount(const std::string &name)
+std::shared_ptr<BaseAlgoAccount> AlgoAccountManger::GetAlgoAccount(const AlgoAccountID &algoAccountID)
 {
-    std::unique_lock<std::shared_mutex> locker(mLock);
-    auto iterator = algoAccountMap.find(name);
-    if (iterator != algoAccountMap.end()) {
-        algoAccountMap.erase(iterator);
-    }
-}
-
-void AlgoAccountManger::ClearAlgoAccount()
-{
-    std::unique_lock<std::shared_mutex> locker(mLock);
-    algoAccountMap.clear();
-}
-
-std::shared_ptr<AlgoAccount> AlgoAccountManger::GetAlgoAccount(const std::string &name)
-{
-    std::shared_lock<std::shared_mutex> locker(mLock);
-    if (algoAccountMap.find(name) != algoAccountMap.end()) {
-        auto algoAccountPtr = algoAccountMap[name];
+    if (algoAccountMap_.find(algoAccountID) != algoAccountMap_.end()) {
+        auto algoAccountPtr = algoAccountMap_[algoAccountID];
         return algoAccountPtr;
     }
+    UBSE_LOG_WARN << "cannot find this account by name=" << algoAccountID.requestName
+                  << ", type=" << borrowTypeToString.at(algoAccountID.type);
     return nullptr;
 }
 
-std::vector<std::shared_ptr<AlgoAccount>> AlgoAccountManger::GetAllAlgoAccount()
+std::vector<std::shared_ptr<BaseAlgoAccount>> AlgoAccountManger::GetAllAlgoAccount()
 {
-    std::shared_lock<std::shared_mutex> locker(mLock);
-    std::vector<std::shared_ptr<AlgoAccount>> algoAccountPtrs{};
-    for (auto [key, value] : algoAccountMap) {
+    std::vector<std::shared_ptr<BaseAlgoAccount>> algoAccountPtrs{};
+    algoAccountPtrs.reserve(algoAccountMap_.size());
+    for (const auto &[key, value] : algoAccountMap_) {
         algoAccountPtrs.push_back(value);
     }
     return algoAccountPtrs;
 }
 
-std::vector<std::shared_ptr<AlgoAccount>> AlgoAccountManger::GetAllAlgoAccountByNode(const std::string &nodeId)
+std::vector<std::shared_ptr<BaseAlgoAccount>> AlgoAccountManger::GetAllAlgoAccountByNode(const std::string &nodeId)
 {
-    std::shared_lock<std::shared_mutex> locker(mLock);
-    std::vector<std::shared_ptr<AlgoAccount>> algoAccountPtrs{};
-    for (auto [key, value] : algoAccountMap) {
-        if (value->importNumaLocs.empty() || value->exportNumaLocs.empty()) {
-            continue;
-        }
-        if (value->importNumaLocs[0].nodeId == nodeId) {
-            algoAccountPtrs.push_back(value);
-        }
-        if (value->exportNumaLocs[0].nodeId == nodeId) {
+    std::vector<std::shared_ptr<BaseAlgoAccount>> algoAccountPtrs{};
+    for (const auto &[key, value] : algoAccountMap_) {
+        if (value->exportNodeId == nodeId || value->importNodeId == nodeId) {
             algoAccountPtrs.push_back(value);
         }
     }
     return algoAccountPtrs;
 }
 
-UbseResult AlgoAccountManger::AddAlgoAccountByLcneTopo(const std::string &name, const std::string &exportSocketId)
+std::shared_ptr<BaseAlgoAccount> AlgoAccountManger::CreateAccountByAlgoResult(
+    const std::string &name, const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, BorrowedType type)
 {
-    auto algoAccountPtr = GetAlgoAccount(name);
-    if (algoAccountPtr == nullptr || algoAccountPtr->importNumaLocs.size() < 1 ||
-        algoAccountPtr->exportNumaLocs.size() < 1) {
-        UBSE_LOG_ERROR << "Get Algo Account Failed";
-        return UBSE_ERROR_NULLPTR;
-    }
-    UbseNodeMemCnaInfoInput cnaInput{};
-    cnaInput.borrowNodeId = algoAccountPtr->importNumaLocs[0].nodeId;
-    cnaInput.exportNodeId = algoAccountPtr->exportNumaLocs[0].nodeId;
-    cnaInput.exportSocketId = exportSocketId;
-    UbseNodeMemCnaInfoOutput cnaOutput{};
-    auto ret = UbseNodeMemGetTopologyCnaInfo(cnaInput, cnaOutput);
-    if (ret != 0) {
-        UBSE_LOG_ERROR << "failed to get cna, ubse manager return=" << ret << ", exportNodeId=" << cnaInput.exportNodeId
-                     << ", exportSocketId=" << cnaInput.exportSocketId << ", importNodeId=" << cnaInput.borrowNodeId;
-        return UBSE_ERROR;
-    }
-    try {
-        algoAccountPtr->exportSocketId = std::stoi(exportSocketId);
-        algoAccountPtr->attachSocketId = std::stoi(cnaOutput.borrowSocketId);
-    } catch (...) {
-        UBSE_LOG_ERROR << "Get algoAccount socketId failed";
-        return UBSE_ERROR;
+    const auto nodeId = type == BorrowedType::SHM ? "" : algoResult.importNumaInfos[0].nodeId;
+    if (auto ptr = GetAlgoAccount({name, nodeId, type});
+        ptr != nullptr && ptr->GetAccountState() != AccountState::BOTH_NOT_EXIST) {
+        UBSE_LOG_INFO << "the algo account already exists";
+        return ptr;
     }
 
-    return UBSE_OK;
+    uint64_t totalBorrowSize = 0;
+    if (algoResult.exportNumaInfos.empty() || algoResult.blockSize == 0) {
+        return nullptr;
+    }
+    for (const auto &lenderSize : algoResult.exportNumaInfos) {
+        totalBorrowSize += lenderSize.size;
+    }
+
+    std::shared_ptr<BaseAlgoAccount> algoAccountPtr;
+    try {
+        if (type == BorrowedType::SHM) {
+            algoAccountPtr = std::make_shared<AccountImpl<account::ShareAlgoAccount>>(
+                algoResult.exportNumaInfos, totalBorrowSize, algoResult.blockSize);
+        } else {
+            algoAccountPtr = std::make_shared<AccountImpl<account::BorrowAccount>>(
+                algoResult.importNumaInfos, algoResult.exportNumaInfos, algoResult.attachSocketId,
+                algoResult.exportNumaInfos[0].socketId, totalBorrowSize, algoResult.blockSize);
+            algoAccountPtr->importNodeId = algoResult.importNumaInfos[0].nodeId;
+        }
+        algoAccountPtr->type = type;
+        algoAccountPtr->name = name;
+        algoAccountPtr->exportNodeId = algoResult.exportNumaInfos[0].nodeId;
+        strategy::AlgoAccountManger::GetInstance().AddAlgoAccount(algoAccountPtr);
+    } catch (...) {
+        UBSE_LOG_ERROR << "Name=" << name << " make_shared failed";
+        return nullptr;
+    }
+    return algoAccountPtr;
 }
-} // namespace ubse::mem::strategy
+
+bool AlgoAccountManger::CheckProviderNodeHasBorrowed(const std::string &providerNodeId)
+{
+    for (const auto &[name, accountPtr] : algoAccountMap_) {
+        if (accountPtr->type == BorrowedType::SHM) {
+            continue;
+        }
+        if (accountPtr->importNodeId == providerNodeId &&
+            (accountPtr->GetAccountState() == AccountState::IMPORT_EXPORT_EXIST ||
+             accountPtr->GetAccountState() == AccountState::ONLY_IMPORT_EXIST)) {
+            UBSE_LOG_WARN << "Provider node=" << providerNodeId << " has borrowed before, it can not lend.";
+            UBSE_LOG_WARN << accountPtr->importNodeId << "->" << accountPtr->exportNodeId;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool AlgoAccountManger::CheckBorrowNodeHasLent(const std::string &borrowNodeId)
+{
+    for (const auto &[name, accountPtr] : algoAccountMap_) {
+        if (accountPtr->type == BorrowedType::SHM) {
+            continue;
+        }
+        if (accountPtr->exportNodeId == borrowNodeId &&
+            (accountPtr->GetAccountState() == AccountState::IMPORT_EXPORT_EXIST ||
+             accountPtr->GetAccountState() == AccountState::ONLY_EXPORT_EXIST)) {
+            UBSE_LOG_ERROR << "borrowNodeId node=" << borrowNodeId << " has lent before, it can not borrow.";
+            UBSE_LOG_ERROR << accountPtr->importNodeId << "->" << accountPtr->exportNodeId
+                           << ", state=" << static_cast<int32_t>(accountPtr->GetAccountState());
+            return true;
+        }
+    }
+    return false;
+}
+
+void AlgoAccountManger::UpdateAlgoAccountState(const std::string &name, ubse::adapter_plugins::mmi::UbseMemState state,
+                                               const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
+                                               BorrowedType type)
+{
+    const auto nodeId = type == BorrowedType::SHM ? "" : algoResult.importNumaInfos[0].nodeId;
+    const AlgoAccountID algoAccountID{name, nodeId, type};
+    if (algoAccountMap_.find(algoAccountID) == algoAccountMap_.end()) {
+        return;
+    }
+
+    algoAccountMap_[algoAccountID]->UpdateAlgoAccountState(state, algoResult);
+    if (algoAccountMap_[algoAccountID]->GetAccountState() == AccountState::BOTH_NOT_EXIST) {
+        UBSE_LOG_INFO << "Erase Algo Account, importNodeId=" << algoAccountMap_[algoAccountID]->importNodeId
+                      << ", exportNodeId=" << algoAccountMap_[algoAccountID]->exportNodeId
+                      << ", name=" << algoAccountMap_[algoAccountID]->name;
+        algoAccountMap_.erase(algoAccountID);
+    }
+}
+
+void AlgoAccountManger::Clear()
+{
+    algoAccountMap_.clear();
+}
+}  // namespace ubse::mem::strategy

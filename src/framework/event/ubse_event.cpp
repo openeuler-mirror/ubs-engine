@@ -19,10 +19,9 @@
 #include "ubse_context.h"      // for UbseContext
 #include "ubse_error.h"        // for UBSE_ERROR_NULLPTR, UBSE_OK, UBSE_EVE...
 #include "ubse_logger.h"       // for FormatRetCode, UbseLoggerEntry, UBSE_...
-#include "ubse_logger_inner.h" // for RM_LOG_ERROR
 
 namespace ubse::event {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_EVENT_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::context;
 using namespace ubse::event;

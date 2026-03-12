@@ -58,7 +58,7 @@ void InitializeAuditFunctions()
     }
 
     // 尝试加载 libaudit.so
-    g_auditLibHandle = dlopen("/usr/lib64/libaudit.so", RTLD_LAZY);
+    g_auditLibHandle = dlopen("libaudit.so", RTLD_LAZY);
     if (!g_auditLibHandle) {
         const char *error = dlerror();
         std::cerr << "dlopen unable to load libaudit: " << error << std::endl;
@@ -118,25 +118,25 @@ void AuditDestroy()
         g_auditfd = -1;
     }
 }
-OperateLoggerEntry::OperateLoggerEntry(std::string interface, RecordType type) : interface(interface), type(type) {}
-RuntimeLoggerEntry::RuntimeLoggerEntry(RecordType type) : type(type) {}
-SecurityLoggerEntry::SecurityLoggerEntry(std::string interface, RecordType type) : interface(interface), type(type) {}
+OperateLoggerEntry::OperateLoggerEntry(std::string interface, RecordType type) : interface_(interface), type_(type) {}
+RuntimeLoggerEntry::RuntimeLoggerEntry(RecordType type) : type_(type) {}
+SecurityLoggerEntry::SecurityLoggerEntry(std::string interface, RecordType type) : interface_(interface), type_(type) {}
 AuditLoggerEntry::~AuditLoggerEntry() {}
 int AuditLoggerEntry::RecordToAudit(RecordType &recordType)
 {
     if (recordType == RecordType::AUDIT_OPERATE) {
-        return AuditType["AUDIT_USER_CMD"];
+        return AuditType_["AUDIT_USER_CMD"];
     }
     if (recordType == RecordType::AUDIT_RUNTIME_ALLOC) {
-        return AuditType["AUDIT_DEV_ALLOC"];
+        return AuditType_["AUDIT_DEV_ALLOC"];
     }
     if (recordType == RecordType::AUDIT_RUNTIME_DEALLOC) {
-        return AuditType["AUDIT_DEV_DEALLOC"];
+        return AuditType_["AUDIT_DEV_DEALLOC"];
     }
     if (recordType == RecordType::AUDIT_SECURITY) {
-        return AuditType["AUDIT_CRYPTO_PARAM_CHANGE_USER"];
+        return AuditType_["AUDIT_CRYPTO_PARAM_CHANGE_USER"];
     }
-    return AuditType["AUDIT_USER_CMD"];
+    return AuditType_["AUDIT_USER_CMD"];
 }
 std::string AuditLoggerEntry::RecordToString(RecordType &recordType)
 {
@@ -173,27 +173,27 @@ void AuditLoggerEntry::SendAuditMessage(RecordType type, const std::string &logM
 void OperateLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
 {
     std::ostringstream oss;
-    oss << "[" << interface << "]"
-        << "[type: " << RecordToString(type) << "]"
+    oss << "[" << interface_ << "]"
+        << "[type: " << RecordToString(type_) << "]"
         << " " << auditLoggerEntry.Str() << std::endl;
     std::string logMessage = oss.str();
-    SendAuditMessage(type, logMessage, AUDIT_RESULT_SUCCESS);
+    SendAuditMessage(type_, logMessage, AUDIT_RESULT_SUCCESS);
 }
 void RuntimeLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
 {
     std::ostringstream oss;
-    oss << " [type: " << RecordToString(type) << "]"
+    oss << " [type: " << RecordToString(type_) << "]"
         << " " << auditLoggerEntry.Str() << std::endl;
     std::string logMessage = oss.str();
-    SendAuditMessage(type, logMessage, AUDIT_RESULT_SUCCESS);
+    SendAuditMessage(type_, logMessage, AUDIT_RESULT_SUCCESS);
 }
 void SecurityLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
 {
     std::ostringstream oss;
-    oss << " [type: " << RecordToString(type) << "]"
+    oss << " [type: " << RecordToString(type_) << "]"
         << " " << auditLoggerEntry.Str() << std::endl;
     std::string logMessage = oss.str();
-    SendAuditMessage(type, logMessage, AUDIT_RESULT_SUCCESS);
+    SendAuditMessage(type_, logMessage, AUDIT_RESULT_SUCCESS);
 }
 
 bool UbseAuditlog::operator==(AuditLoggerEntry &auditloggerEntry)

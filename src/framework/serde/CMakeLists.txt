@@ -1,2 +1,3 @@
 add_library(ubse_serial STATIC ubse_serial_util.cpp ubse_type_util.cpp)
 target_include_directories(ubse_serial PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_link_libraries(ubse_serial PRIVATE boundscheck)

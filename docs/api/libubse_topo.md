@@ -2,7 +2,7 @@
 
 ## 库 LIBRARY
 
-ubse库 (libubse-client.so)
+ubse库 (libubse.so)
 
 ## 摘要 SYNOPSIS
 
@@ -41,10 +41,10 @@ typedef struct {
 | Error                      | Description          |
 | -------------------------- | -------------------- |
 | UBS_ERR_NULL_POINTER       | 空指针               |
-| UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败   |
-| UBS_ENGINE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过 |
-| UBS_ENGINE_ERR_TIMEOUT           | UBSE服务端处理超时   |
-| UBS_ENGINE_ERR_INTERNAL   | UBSE服务端内部错误   |
+| UBSE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败   |
+| UBSE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过 |
+| UBSE_ERR_TIMEOUT           | UBSE服务端处理超时   |
+| UBSE_ERR_DAEMON_INTERNEL   | UBSE服务端内部错误   |
 
 ## 约束 CONSTRAINTS
 
@@ -95,7 +95,7 @@ int main(void)
 
 ## 库 LIBRARY
 
-ubse库 (libubse-client.so)
+ubse库 (libubse.so)
 
 ## 摘要 SYNOPSIS
 
@@ -119,7 +119,7 @@ int32_t ubs_topo_node_local_get(ubs_topo_node_t *node);
 ```c
 typedef struct {
     uint32_t slot_id;
-    uint32_t socket_id[UBS_TOPO_SOCKET_NUM];
+    uint32_t socket_id[UBS_ENGINE_SOCKET_NUM];
     char host_name[HOST_NAME_MAX]; // 主机名
 } ubs_topo_node_t;
 ```
@@ -130,13 +130,13 @@ typedef struct {
 
 ## 错误 ERRORS
 
-| Error                            | Description        |
-|----------------------------------|--------------------|
-| UBS_ERR_NULL_POINTER             | 空指针              |
-| UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败    |
-| UBS_ENGINE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过  |
-| UBS_ENGINE_ERR_TIMEOUT           | UBSE服务端处理超时    |
-| UBS_ENGINE_ERR_INTERNAL          | UBSE服务端内部错误    |
+| Error                      | Description          |
+| -------------------------- | -------------------- |
+| UBS_ERR_NULL_POINTER       | 空指针               |
+| UBSE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败   |
+| UBSE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过 |
+| UBSE_ERR_TIMEOUT           | UBSE服务端处理超时   |
+| UBSE_ERR_DAEMON_INTERNEL   | UBSE服务端内部错误   |
 
 ## 约束 CONSTRAINTS
 
@@ -186,7 +186,7 @@ int main(void)
 
 ## 库 LIBRARY
 
-ubse库 (libubse-client.so)
+ubse库 (libubse.so)
 
 ## 摘要 SYNOPSIS
 
@@ -210,10 +210,12 @@ int32_t ubs_topo_link_list(ubs_topo_link_t **cpu_links, uint32_t *cpu_link_cnt);
 
 ```c
 typedef struct {
-    uint32_t slot_id;                      // 节点id
-    uint32_t socket_id;                    // socket id
-    uint32_t peer_slot_id;                 // 对端节点id
-    uint32_t peer_socket_id;               // 对端socket id
+    uint32_t slot_id;        // 节点id
+    uint32_t socket_id;      // socket id, 0xFFFFFFFF表示无效值
+    uint32_t port_id;        // 端口id
+    uint32_t peer_slot_id;   // 对端节点id
+    uint32_t peer_socket_id; // 对端socket id, 0xFFFFFFFF表示无效值
+    uint32_t peer_port_id;   // 对端端口id
 } ubs_topo_link_t;
 ```
 
@@ -223,13 +225,13 @@ typedef struct {
 
 ## 错误 ERRORS
 
-| Error                            | Description          |
-|----------------------------------| -------------------- |
-| UBS_ERR_NULL_POINTER             | 空指针               |
-| UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败   |
-| UBS_ENGINE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过 |
-| UBS_ENGINE_ERR_TIMEOUT           | UBSE服务端处理超时   |
-| UBS_ENGINE_ERR_INTERNAL          | UBSE服务端内部错误   |
+| Error                      | Description          |
+| -------------------------- | -------------------- |
+| UBS_ERR_NULL_POINTER       | 空指针               |
+| UBSE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败   |
+| UBSE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过 |
+| UBSE_ERR_TIMEOUT           | UBSE服务端处理超时   |
+| UBSE_ERR_DAEMON_INTERNEL   | UBSE服务端内部错误   |
 
 ## 约束 CONSTRAINTS
 

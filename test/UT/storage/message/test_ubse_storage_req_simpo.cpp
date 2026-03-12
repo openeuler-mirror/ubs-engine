@@ -1,0 +1,80 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#include "test_ubse_storage_req_simpo.h"
+#include "mockcpp/mockcpp.hpp"
+#include "ubse_error.h"
+#include "ubse_storage_req_simpo.h"
+
+namespace ubse::ut::storage {
+const int WRONG_CODE = 3;
+
+using namespace ubse::storage::message;
+void TestUbseStorageReqSimpo::SetUp()
+{
+    Test::SetUp();
+}
+
+void TestUbseStorageReqSimpo::TearDown()
+{
+    Test::TearDown();
+    GlobalMockObject::verify();
+}
+
+/*
+ * 用例描述：
+ * 序列化测试
+ * 测试步骤：
+ * 1.序列化req数据
+ * 2.反序列化
+ * 3.对比反序列化后的数据是否与序列化的数据一致
+ * 预期结果：
+ * 反序列化后的数据与序列化的数据一致
+ */
+TEST_F(TestUbseStorageReqSimpo, SerializeAndDeserialize)
+{
+    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
+    UbseStorageReqSimpo reqSimpo(req);
+    EXPECT_EQ(UBSE_OK, reqSimpo.Serialize());
+    UbseStorageReqSimpo newReqSimpo;
+    newReqSimpo.SetInputRawData(reqSimpo.SerializedData(), reqSimpo.SerializedDataSize());
+    EXPECT_EQ(UBSE_OK, newReqSimpo.Deserialize());
+    auto reqData = newReqSimpo.GetStorageReq();
+    EXPECT_EQ(UbseStorageReqCmdType::GET, reqData.cmdType);
+    EXPECT_EQ("/key", reqData.key);
+    EXPECT_EQ("default", reqData.dbName);
+    EXPECT_EQ("UbseStorageReqSimpo(Get,default,/key)", newReqSimpo.ToString());
+}
+
+TEST_F(TestUbseStorageReqSimpo, DeserializeFailWithVerifyStorageReqBufferFail)
+{
+    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
+    UbseStorageReqSimpo reqSimpo(req);
+    UbseStorageReqSimpo newReqSimpo;
+    newReqSimpo.SetInputRawData(reqSimpo.SerializedData(), reqSimpo.SerializedDataSize());
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, newReqSimpo.Deserialize());
+}
+
+TEST_F(TestUbseStorageReqSimpo, DeserializeFailWithGetStorageReqFail)
+{
+    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
+    UbseStorageReqSimpo reqSimpo(req);
+    UbseStorageReqSimpo newReqSimpo;
+    newReqSimpo.SetInputRawData(reqSimpo.SerializedData(), reqSimpo.SerializedDataSize());
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, newReqSimpo.Deserialize());
+}
+
+TEST_F(TestUbseStorageReqSimpo, ReqCmdTypeToStringDefault)
+{
+    EXPECT_EQ("Unknown", ReqCmdTypeToString(static_cast<UbseStorageReqCmdType>(WRONG_CODE)));
+}
+} // namespace ubse::ut::storage

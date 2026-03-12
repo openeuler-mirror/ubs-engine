@@ -13,7 +13,9 @@
 #include "test_ubse_election_node_mgr.h"
 #include "ubse_election_node_mgr.cpp"
 #include "ubse_election_node_mgr.h"
-#include "ubse_topology_interface.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "ubse_lcne_module.h"
+
 namespace ubse::ut::election {
 using namespace ubse::election;
 using namespace ubse::context;
@@ -214,7 +216,7 @@ TEST_F(TestUbseElectionNodeMgr, ParseAllNodesVector)
     node1.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
     allNodesVec.push_back(node1);
     allNodesVec.push_back(node2);
-    EXPECT_NO_THROW(nodeMgr.ParseAllNodesVector(allNodesVec));
+    EXPECT_NO_THROW(nodeMgr.ParseAllNodesVector());
 }
 TEST_F(TestUbseElectionNodeMgr, LoadConfigStatge1)
 {
@@ -229,6 +231,8 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfigStatge1)
     node1.localState = UbseNodeLocalState::UBSE_NODE_READY;
     node1.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;
     MOCKER(&UbseNodeController::GetCurNode).stubs().will(returnValue(node1));
+    std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
+    MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
     uint32_t result = nodeMgr.LoadConfig();
     EXPECT_EQ(result, UBSE_ERROR);
 }
@@ -237,9 +241,11 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfigStatge2)
 {
     std::vector<UbseNodeInfo> allNodesVec;
     UbseNodeInfo node1;
+    std::string bondingEid = "111";
     node1.nodeId = "node01";
     node1.slotId = 1;
     node1.hostName = "server01";
+    strcpy_s(node1.bondingEid, sizeof(node1.bondingEid), bondingEid.c_str());
     node1.comIp = "192.168.10.11";
     node1.ipList = {};
     node1.numaInfos = {};
@@ -249,6 +255,8 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfigStatge2)
     allNodesVec.push_back(node1);
     MOCKER(&UbseNodeController::GetCurNode).stubs().will(returnValue(node1));
     MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(allNodesVec));
+    std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
+    MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
     uint32_t result = nodeMgr.LoadConfig();
     EXPECT_EQ(result, UBSE_OK);
 }

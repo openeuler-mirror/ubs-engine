@@ -39,18 +39,18 @@ public:
 
     uint64_t GetTurnId() override
     {
-        return turnId;
+        return turnId_;
     }
 
 private:
-    uint64_t lastHeartTime;
-    UBSE_ID_TYPE masterId = INVALID_NODE_ID;
-    UBSE_ID_TYPE standbyId = INVALID_NODE_ID;
-    std::vector<UBSE_ID_TYPE> agentIds{};
-    uint64_t turnId;
-    uint64_t sequenceId = 0;
-    uint8_t masterStatus = 0;
-    uint8_t flag = 0;
+    uint64_t lastHeartTime_;
+    UBSE_ID_TYPE masterId_ = INVALID_NODE_ID;
+    UBSE_ID_TYPE standbyId_ = INVALID_NODE_ID;
+    std::vector<UBSE_ID_TYPE> agentIds_{};
+    uint64_t turnId_;
+    uint64_t sequenceId_ = 0;
+    uint8_t masterStatus_ = 0;
+    uint8_t flag_ = 0;
     void SwitchMaster();
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     bool IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) const;

@@ -266,6 +266,27 @@ uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE> &nodeIds);
  * @return 成功返回0, 失败返回非0
  */
 uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos);
+
+/**
+ * 获取当前角色
+ * @param role [OUT] 待获取角色
+ * @return UbseResult, 成功返回0, 失败返回非0
+ */
+uint32_t UbseGetRole(std::string &role);
+
+/**
+ * 获得Master角色节点ID
+ * @param masterNodeId [out] Master角色节点ID
+ * @return UbseResult, 成功返回0, 失败返回非0
+ */
+uint32_t UbseGetMasterNodeId(std::string &masterNodeId);
+
+/**
+ * 获得当前节点的NodeID
+ * @param currentNodeId [out] 获得当前节点的NodeID
+ * @return UbseResult, 成功返回0, 失败返回非0
+ */
+uint32_t UbseGetCurrentNodeId(std::string &currentNodeId);
 }
 
 #endif // UBSE_MANAGER_UBSE_ELECTION_H

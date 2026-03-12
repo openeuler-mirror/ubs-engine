@@ -12,34 +12,65 @@
 
 #include "ubse_http_module.h"
 
-#include <httplib.h>                 // for Error, Response, Request, Client
-#include <securec.h>                 // for memcpy_s, EOK, errno_t
-#include <map>                       // for map, operator!=, _Rb_tree_con...
-#include <mutex>                     // for mutex, lock_guard
+#include <httplib.h> // for Error, Response, Request, Client
+#include <securec.h> // for memcpy_s, EOK, errno_t
+#include <map>       // for map, operator!=, _Rb_tree_con...
+#include <mutex>     // for mutex, lock_guard
 
-#include "ubse_def.h"                // for UbseByteBuffer
-#include "ubse_http_common.h"        // for UbseHttpMethodToString, Chang...
-#include "ubse_http_error.h"         // for UBSE_ERROR_HTTP_GET_KEY_ERROR
-#include "ubse_http_start.h"
-#include "ubse_http_tcp_server.h"    // for UbseHttpTcpServer
+#include "ubse_conf_module.h" // for UbseConfModule
+#include "ubse_context.h"     // for UbseContext, ProcessMode, BAS...
+#include "ubse_error.h"       // for UBSE_OK, UBSE_ERROR, UBSE_ERR...
+#include "ubse_http_common.h" // for UbseHttpMethodToString, Chang...
+#include "ubse_http_server.h" // for UbseHttpServer
+#include "ubse_logger.h"      // for UbseLoggerEntry, FormatRetCode
+#include "ubse_net_util.h"
+#include "ubse_cert_def.h"
+#include "ubse_cert_validator.h"
 #include "ubse_thread_pool_module.h" // for UbseTaskExecutorModule
-#include "ubse_conf_module.h"        // for UbseConfModule
-#include "ubse_context.h"            // for UbseContext, ProcessMode, BAS...
-#include "ubse_error.h"              // for UBSE_OK, UBSE_ERROR, UBSE_ERR...
-#include "ubse_logger.h"             // for UbseLoggerEntry, FormatRetCode
-#include "ubse_logger_inner.h"       // for RM_LOG_ERROR, RM_LOG_INFO
+#include "ubse_security_module.h"
 
 namespace ubse::http {
 using namespace ubse::task_executor;
 using namespace ubse::utils;
+using namespace ubse::context;
+using namespace ubse::config;
+using namespace ubse::security;
 
 BASE_DYNAMIC_CREATE(UbseHttpModule, UbseTaskExecutorModule);
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_HTTP_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 const size_t MAX_RESPONSE_BODY_SIZE = 2 * 1024 * 1024;
+int UbseHttpModule::port = DEFAULT_UBM_SERVER_PORT;
+bool UbseHttpModule::isTcpServer = false;
 
 UbseResult UbseHttpModule::Initialize()
 {
+    auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get config module";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    uint32_t port_;
+    auto ret = module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.port", port_);
+    if (ret != UBSE_OK) {
+        isTcpServer = false;
+    } else {
+        isTcpServer = true;
+        if (!UbseNetUtil::IsPortVaLid(port_)) {
+            UBSE_LOG_ERROR << "Tcp server port=" << port_
+                           << " is invalid, will use default value: " << DEFAULT_UBM_SERVER_PORT;
+            port = DEFAULT_UBM_SERVER_PORT;
+        } else {
+            // 端口号有效，使用配置文件中的端口号
+            port = static_cast<int>(port_);
+        }
+        // 开启TCP通信时、需要对相关的证书进行校验
+        if (!cert::UbseSslValidator::ValidateAll()) {
+            UBSE_LOG_ERROR << "Init https server failed, please check cert file.";
+            return UBSE_ERROR;
+        }
+    }
+    UBSE_LOG_INFO << "http is using " << (isTcpServer ? "tcp" : "uds") << " server.";
     return UBSE_OK;
 }
 
@@ -47,34 +78,70 @@ void UbseHttpModule::UnInitialize() {}
 
 UbseResult UbseHttpModule::Start()
 {
-    if (!StartTcpServer()) {
-        UBSE_LOG_ERROR << "http tcp server start failed!";
+    UBSE_LOG_INFO << "Start HTTP server. HTTP type is " << (isTcpServer ? "TCP" : "UDS");
+    try {
+        if (UbseHttpServer::GetInstance().Start(isTcpServer)) {
+            return UBSE_OK;
+        }
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "Failed to start server, error=" << e.what();
+    }
+    UBSE_LOG_ERROR << "Failed to start server";
+    return UBSE_ERROR;
+}
+
+void UbseHttpModule::Stop()
+{
+    try {
+        UbseHttpServer::GetInstance().Stop();
+        UBSE_LOG_INFO << "http stop end";
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "Failed to stop server, error=" << e.what();
+    }
+}
+
+UbseResult UbseHttpModule::RegHttpService(UbseHttpMethod method, const std::string &url, UbseHttpHandlerFunc func)
+{
+    try {
+        UbseHttpServer::GetInstance().RegisterRoute(url, UbseHttpMethodToString(method), std::move(func));
+    } catch (const std::exception &) {
+        UBSE_LOG_ERROR << "Failed to RegisterRoute.";
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-void UbseHttpModule::Stop()
+UbseResult UbseHttpModule::MakeError(uint32_t code)
 {
-    StopTcpServer();
-    UBSE_LOG_INFO << "http stop end";
-}
-
-
-void UbseHttpModule::RegHttpTcpService(UbseHttpMethod method, const std::string &url, UbseHttpHandlerFunc func)
-{
-    try {
-        return UbseHttpTcpServer::GetInstance().RegisterRoute(url, UbseHttpMethodToString(method), func);
-    } catch (const std::exception &) {
-        UBSE_LOG_ERROR << "Failed to RegisterRoute.";
+    // 定义驱动表
+    static const std::unordered_map<uint32_t, uint32_t> errorMapping = {
+        {static_cast<uint32_t>(Error::Success), UBSE_OK},
+        {static_cast<uint32_t>(Error::Unknown), UBSE_HTTP_ERROR_UNKNOWN},
+        {static_cast<uint32_t>(Error::Connection), UBSE_HTTP_ERROR_CONNECTION},
+        {static_cast<uint32_t>(Error::BindIPAddress), UBSE_HTTP_ERROR_BIND_IP_ADDRESS},
+        {static_cast<uint32_t>(Error::Read), UBSE_HTTP_ERROR_READ},
+        {static_cast<uint32_t>(Error::Write), UBSE_HTTP_ERROR_WRITE},
+        {static_cast<uint32_t>(Error::ExceedRedirectCount), UBSE_HTTP_ERROR_EXCEED_REDIRECT_COUNT},
+        {static_cast<uint32_t>(Error::Canceled), UBSE_HTTP_ERROR_CANCELED},
+        {static_cast<uint32_t>(Error::SSLConnection), UBSE_HTTP_ERROR_SSL_CONNECTION},
+        {static_cast<uint32_t>(Error::SSLLoadingCerts), UBSE_HTTP_ERROR_SSL_LOADING_CERTS},
+        {static_cast<uint32_t>(Error::SSLServerVerification), UBSE_HTTP_ERROR_SSL_SERVER_VERIFICATION},
+        {static_cast<uint32_t>(Error::UnsupportedMultipartBoundaryChars),
+         UBSE_HTTP_ERROR_UNSUPPORTED_MULTIPART_BOUNDARY_CHARS},
+        {static_cast<uint32_t>(Error::Compression), UBSE_HTTP_ERROR_COMPRESSION},
+        {static_cast<uint32_t>(Error::ConnectionTimeout), UBSE_HTTP_ERROR_CONNECTION_TIMEOUT},
+        {static_cast<uint32_t>(Error::ProxyConnection), UBSE_HTTP_ERROR_PROXY_CONNECTION},
+    };
+    auto it = errorMapping.find(code);
+    if (it != errorMapping.end()) {
+        return it->second;
     }
+    return UBSE_HTTP_ERROR_FAILURE;
 }
 
-uint32_t UbseHttpModule::HttpSend(const std::string &host, int port, UbseHttpRequest &req, UbseHttpResponse &rsp)
+UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
 {
-    httplib::Client cli(host, port);
     httplib::Error error;
-
     httplib::Headers headerMap;
     for (auto &header : req.headers) {
         headerMap.emplace(header.first, header.second);
@@ -86,11 +153,34 @@ uint32_t UbseHttpModule::HttpSend(const std::string &host, int port, UbseHttpReq
     httpReq.headers = headerMap;
     httpReq.body = req.body;
     httplib::Response httpRsp{};
-    cli.send(httpReq, httpRsp, error);
+
+    // 目前send仅支持向UBFM服务端口发送请求
+    if (isTcpServer) {
+        // UBFM TCP服务端口为本机，端口为配置文件中读取的端口
+        SecureBuffer serverKeyPassword = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
+        if (serverKeyPassword.size() == 0) {
+            UBSE_LOG_ERROR << "ServerKeyPassword is empty!";
+            return UBSE_ERROR;
+        }
+        SSLClient cli("localhost", port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
+                      serverKeyPassword.c_str());
+        cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
+        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+        cli.set_path_encode(false);
+        cli.send(httpReq, httpRsp, error);
+    } else {
+        // UBFM UDS服务地址为 UBFM_UDS_ADDRESS
+        httplib::Client cli(UBM_UDS_ADDRESS);
+        cli.set_address_family(AF_UNIX);
+        cli.set_path_encode(false);
+        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+        cli.send(httpReq, httpRsp, error);
+    }
+
     if (httpRsp.body.size() > MAX_RESPONSE_BODY_SIZE) {
-        UBSE_LOG_ERROR << "Response body is too large, and the size is " << httpRsp.body.size() << ", " <<
-            log::FormatRetCode(UBSE_ERROR_HTTP_MSG_OVERSIZE);
-        return UBSE_ERROR_HTTP_MSG_OVERSIZE;
+        UBSE_LOG_ERROR << "Response body is too large, and the size is " << httpRsp.body.size() << ", "
+                       << log::FormatRetCode(UBSE_HTTP_ERROR_MSG_OVERSIZE);
+        return UBSE_HTTP_ERROR_MSG_OVERSIZE;
     }
 
     rsp.status = httpRsp.status;
@@ -105,31 +195,59 @@ uint32_t UbseHttpModule::HttpSend(const std::string &host, int port, UbseHttpReq
     return UBSE_OK;
 }
 
-UbseResult UbseHttpModule::MakeError(uint32_t code)
+UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, const std::string &body,
+                                                   std::string &jsonRsp)
 {
-    // 定义驱动表
-    static const std::unordered_map<uint32_t, uint32_t> errorMapping = {
-        {static_cast<uint32_t>(Error::Success), UBSE_OK},
-        {static_cast<uint32_t>(Error::Unknown), UBSE_ERROR_HTTP_UNKNOWN},
-        {static_cast<uint32_t>(Error::Connection), UBSE_ERROR_HTTP_CONNECTION},
-        {static_cast<uint32_t>(Error::BindIPAddress), UBSE_ERROR_HTTP_BIND_IP_ADDRESS},
-        {static_cast<uint32_t>(Error::Read), UBSE_ERROR_HTTP_READ},
-        {static_cast<uint32_t>(Error::Write), UBSE_ERROR_HTTP_WRITE},
-        {static_cast<uint32_t>(Error::ExceedRedirectCount), UBSE_ERROR_HTTP_EXCEED_REDIRECT_COUNT},
-        {static_cast<uint32_t>(Error::Canceled), UBSE_ERROR_HTTP_CANCELED},
-        {static_cast<uint32_t>(Error::SSLConnection), UBSE_ERROR_HTTP_SSL_CONNECTION},
-        {static_cast<uint32_t>(Error::SSLLoadingCerts), UBSE_ERROR_HTTP_SSL_LOADING_CERTS},
-        {static_cast<uint32_t>(Error::SSLServerVerification), UBSE_ERROR_HTTP_SSL_SERVER_VERIFICATION},
-        {static_cast<uint32_t>(Error::UnsupportedMultipartBoundaryChars),
-         UBSE_ERROR_HTTP_UNSUPPORTED_MULTIPART_BOUNDARY_CHARS},
-        {static_cast<uint32_t>(Error::Compression), UBSE_ERROR_HTTP_COMPRESSION},
-        {static_cast<uint32_t>(Error::ConnectionTimeout), UBSE_ERROR_HTTP_CONNECTION_TIMEOUT},
-        {static_cast<uint32_t>(Error::ProxyConnection), UBSE_ERROR_HTTP_PROXY_CONNECTION},
-    };
-    auto it = errorMapping.find(code);
-    if (it != errorMapping.end()) {
-        return it->second;
+    Request req{};
+    req.method = "POST";
+    req.path = path;
+    req.body = body;
+    req.headers.emplace("Accept", "application/json");
+    req.headers.emplace("Content-Type", "application/json");
+
+    Error error;
+    Response rsp{};
+    if (isTcpServer) {
+        // UBFM TCP服务端口为本机，端口为配置文件中读取的端口
+        SecureBuffer serverKeyPassword = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
+        if (serverKeyPassword.size() == 0) {
+            UBSE_LOG_ERROR << "ServerKeyPassword is empty!";
+            return UBSE_ERROR;
+        }
+        SSLClient cli("localhost", port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
+                      serverKeyPassword.c_str());
+        cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
+        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+        cli.send(req, rsp, error);
+    } else {
+        Client cli(UBM_UDS_ADDRESS);
+        cli.set_address_family(AF_UNIX);
+        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+        std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+        cli.send(req, rsp, error);
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     }
-    return UBSE_ERROR_HTTP_FAILURE;
+    if (error != Error::Success) {
+        return MakeError(static_cast<uint32_t>(error));
+    }
+
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
+        UBSE_LOG_ERROR << "Response failed, unexpected status " << rsp.status << ", "
+                       << log::FormatRetCode(UBSE_HTTP_ERROR_STATUS_ERROR);
+        return UBSE_HTTP_ERROR_STATUS_ERROR;
+    }
+    if (rsp.body.size() > MAX_RESPONSE_BODY_SIZE) {
+        UBSE_LOG_ERROR << "Response body is too large, and the size is " << rsp.body.size() << ", "
+                       << log::FormatRetCode(UBSE_HTTP_ERROR_MSG_OVERSIZE);
+        return UBSE_HTTP_ERROR_MSG_OVERSIZE;
+    }
+    if (rsp.body.empty()) {
+        UBSE_LOG_ERROR << "Response body is empty, " << log::FormatRetCode(UBSE_HTTP_ERROR_MSG_EMPTY);
+        return UBSE_HTTP_ERROR_MSG_EMPTY;
+    }
+
+    jsonRsp = rsp.body;
+    return UBSE_OK;
 }
 } // namespace ubse::http

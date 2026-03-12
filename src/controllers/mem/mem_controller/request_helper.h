@@ -28,7 +28,7 @@
 #include "ubse_pointer_process.h"
 
 namespace ubse::mem_controller {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID)
+#define MODULE_LOG_NAME "ubse"
 using namespace ubse::log;
 using namespace ubse::common::def;
 using RequestID = std::string;
@@ -39,7 +39,8 @@ public:
     virtual bool SetResult(const std::any &result) = 0;
 };
 
-template <typename T> class ObjPromise : public ObjPromiseBase {
+template <typename T>
+class ObjPromise : public ObjPromiseBase {
 public:
     std::promise<T> promise;
 
@@ -96,34 +97,36 @@ public:
      */
     static size_t GetSize();
 
-    explicit FutureMgr(std::string requestId) : requestIdInner(std::move(requestId)) {}
+    explicit FutureMgr(std::string requestId) : requestIdInner_(std::move(requestId)) {}
 
     ~FutureMgr();
 
-    template <typename ResultType> std::future<ResultType> GetFuture()
+    template <typename ResultType>
+    std::future<ResultType> GetFuture()
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx_);
         auto objPromise = SafeMakeShared<ObjPromise<ResultType>>();
         if (!objPromise) {
             return std::future<ResultType>{};
         }
         auto future = objPromise->promise.get_future();
-        curObjPromise = objPromise;
+        curObjPromise_ = objPromise;
         return future;
     }
 
     bool SetResult(const std::any &result);
 
 private:
-    std::mutex mtx;
-    std::string requestIdInner;
-    std::shared_ptr<ObjPromiseBase> curObjPromise;
+    std::mutex mtx_;
+    std::string requestIdInner_;
+    std::shared_ptr<ObjPromiseBase> curObjPromise_;
 
     // 全局管理
     static std::mutex mapMutex;
     static std::condition_variable waitRequestFinishedCv;
     static std::unordered_map<std::string, std::weak_ptr<FutureMgr>> mgrInstanceMap;
 };
-}
+#undef MODULE_LOG_NAME
+} // namespace ubse::mem_controller
 
 #endif // MYCPP_REQUEST_HELPER_H

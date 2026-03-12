@@ -43,23 +43,23 @@ public:
 
     static void *Worker(void *paramsData);
 
-    UbseEventQueue highPriorityQueue, mediumPriorityQueue, lowPriorityQueue;
+    UbseEventQueue highPriorityQueue_, mediumPriorityQueue_, lowPriorityQueue_;
 
 private:
-    uint32_t numHighPriorityThreads{2};
-    uint32_t numMediumPriorityThreads{2};
-    uint32_t numLowPriorityThreads{2};
+    uint32_t numHighPriorityThreads_{2};
+    uint32_t numMediumPriorityThreads_{2};
+    uint32_t numLowPriorityThreads_{2};
 
-    uint32_t threadsNums{6};
+    uint32_t threadsNums_{6};
 
-    uint32_t highPriority{};
-    uint32_t mediumPriority{};
-    uint32_t lowPriority{};
+    uint32_t highPriority_{};
+    uint32_t mediumPriority_{};
+    uint32_t lowPriority_{};
 
-    pthread_t *threads = nullptr;
-    pthread_barrier_t initBarrier{};
+    pthread_t *threads_ = nullptr;
+    pthread_barrier_t initBarrier_{};
 
-    std::atomic<bool> isThreadsRunning{false};
+    std::atomic<bool> isThreadsRunning_{false};
 };
 
 using UbseEventThreadPoolPtr = Ref<UbseEventThreadPool>;

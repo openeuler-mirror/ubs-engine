@@ -13,8 +13,8 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_OS_UTIL_H
 #define UBSE_MANAGER_TEST_UBSE_OS_UTIL_H
 
-#include <pwd.h>
 #include <grp.h>
+#include <pwd.h>
 
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
@@ -26,8 +26,10 @@ public:
     TestUbseOsUtil() = default;
     void SetUp() override;
     void TearDown() override;
-};
-}
 
+private:
+    std::vector<std::pair<uid_t, std::string>> users = {{0, "root"}, {1, "bin"}};
+};
+} // namespace ubse::ut::utils
 
 #endif // UBSE_MANAGER_TEST_UBSE_OS_UTIL_H

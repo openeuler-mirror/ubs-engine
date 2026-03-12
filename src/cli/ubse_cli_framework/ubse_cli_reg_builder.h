@@ -13,7 +13,6 @@
 #ifndef UBSE_CLI_REG_BUILDER_H
 #define UBSE_CLI_REG_BUILDER_H
 
-#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -64,7 +63,7 @@ public:
     UbseCliCommandInfo UbseCliBuild();
 
 private:
-    UbseCliCommandInfo commandInfo;
+    UbseCliCommandInfo commandInfo_;
 };
 } // namespace ubse::cli::framework
 #endif

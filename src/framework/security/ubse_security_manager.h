@@ -22,16 +22,11 @@
 namespace ubse::security {
 using namespace ubse::common::def;
 
-enum class UbseCapOperateType {
-    CAP_ADD,
-    CAP_DELETE,
-};
-
 class UbseSecurityManager {
 public:
     static UbseResult GetCapabilities();
     static UbseResult SetInitialCapabilities();
-    static UbseResult ModifyEffectiveCapabilities(std::vector<__u32> caps, UbseCapOperateType opType);
+    static UbseResult ModifyEffectiveCapabilities(const std::vector<__u32>& caps, bool isAdd);
 };
 } // namespace ubse::security
 

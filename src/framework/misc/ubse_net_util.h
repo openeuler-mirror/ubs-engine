@@ -14,6 +14,7 @@
 #define UBSE_MANAGER_UBSE_NET_UTIL_H
 #include <vector>
 #include "ubse_common_def.h"
+#include "ubse_node_controller.h"
 
 namespace ubse::utils {
 using namespace ubse::common::def;
@@ -36,7 +37,14 @@ public:
     static std::string Ipv4ArrToString(const uint8_t *arr);
 
     static std::string Ipv6ArrToString(const uint8_t *arr);
+
+    static bool IsSpecialIP(const std::string &ip);
+
+    static uint32_t GetIpInfo(std::vector<std::string> &ipInfos);
 };
+
+// 辅助函数：解析字符串IP为UbseIpAddr结构
+bool parseIpString(const std::string &ipStr, ubse::nodeController::UbseIpAddr &out);
 } // namespace ubse::utils
 
 #endif // UBSE_MANAGER_UBSE_NET_UTIL_H

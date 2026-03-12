@@ -45,7 +45,7 @@ public:
 
     uint64_t GetTurnId() override
     {
-        return turnId;
+        return turnId_;
     }
 
 private:
@@ -53,17 +53,18 @@ private:
     void RecvPktForSelect(ElectionReplyPkt &reply) const;
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     bool IsAgentHeartBeatTimeout(uint32_t heartbeatMultiplier) const;
+    void DisconnectAgents(const ElectionPkt &rcvPkt);
 private:
-    uint64_t lastHeartTime;
-    UBSE_ID_TYPE masterId;
-    UBSE_ID_TYPE standbyId;
-    std::vector<UBSE_ID_TYPE> agentIds{};
-    UBSE_ID_TYPE myselfID;
-    uint64_t turnId;
-    uint64_t sequenceId = 0;
-    uint8_t masterStatus = 0;
-    uint8_t standbyStatus = 0;
-    uint8_t flag = 0;
+    uint64_t lastHeartTime_;
+    UBSE_ID_TYPE masterId_;
+    UBSE_ID_TYPE standbyId_;
+    std::vector<UBSE_ID_TYPE> agentIds_{};
+    UBSE_ID_TYPE myselfID_;
+    uint64_t turnId_;
+    uint64_t sequenceId_ = 0;
+    uint8_t masterStatus_ = 0;
+    uint8_t standbyStatus_ = 0;
+    uint8_t flag_ = 0;
 };
 }
 #endif // UBSE_ELECTION_ROLE_AGENT_H

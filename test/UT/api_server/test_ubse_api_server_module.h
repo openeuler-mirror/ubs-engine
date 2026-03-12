@@ -13,7 +13,6 @@
 #ifndef TEST_UBSE_API_SERVER_MODULE_H
 #define TEST_UBSE_API_SERVER_MODULE_H
 
-class test_ubse_api_server {};
 #include <gtest/gtest.h>
 
 #include "ubse_api_server_module.h"

@@ -181,6 +181,6 @@ lcov_json_module = auto
 include = src/
 exclude = .h
 exclude = src/main/
-exclude = src/sdk/
+exclude = src/pro/
 exclude = test/
 exclude = cmake-build-debug/

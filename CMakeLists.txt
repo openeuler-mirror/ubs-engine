@@ -45,10 +45,11 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS NO)
 
-# 默认使用 C++17，逐步降级 C++14 后改为 14
+# 默认使用 C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS NO)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_SKIP_RPATH TRUE)
 
 message(STATUS "Build C standard: C${CMAKE_C_STANDARD}")
 message(STATUS "Build C++ standard: C++${CMAKE_CXX_STANDARD}")
@@ -84,6 +85,7 @@ message(DEBUG "CMAKE_CXX_FLAGS_RELWITHDEBINFO: ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}
 message(DEBUG "CMAKE_CXX_FLAGS_RELEASE: ${CMAKE_CXX_FLAGS_RELEASE}")
 message(DEBUG "CMAKE_CXX_FLAGS_MINSIZEREL: ${CMAKE_CXX_FLAGS_MINSIZEREL}")
 add_compile_definitions(VOS_WORDSIZE=64)
+add_compile_definitions(CPPHTTPLIB_OPENSSL_SUPPORT)
 
 option(FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." OFF)
 if (${FORCE_COLORED_OUTPUT})
@@ -112,6 +114,7 @@ include_directories(
         ${SRC_DIR}/include              # 内部共享头文件
         ${CMAKE_BINARY_DIR}/include     # 自动生成头文件
         ${PROJECT_SOURCE_DIR}           # 项目根目录（解头文件依赖）
+        ${SRC_DIR}/include/adapter_plugins/mmi            # 内部共享头文件
 )
 option(BUILD_TESTS "Build tests" OFF)
 
@@ -126,6 +129,7 @@ add_subdirectory(src)
 set(ENABLE_UBSE_TESTING 0)
 
 if (BUILD_TESTS)
+    set(CMAKE_SKIP_RPATH OFF)
     set(ENABLE_UBSE_TESTING 1)
     add_subdirectory(test)
 endif ()

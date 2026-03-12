@@ -1,12 +1,12 @@
 add_subdirectory(ubse_cert)
 add_subdirectory(ubse_cli_framework)
+add_subdirectory(ubse_cli_consumer)
 
 add_executable(ubsectl ubse_cli_main.cpp
-        ubse_cli_reg.cpp
-        ubse_cli_buffer_guard.cpp
         ubse_cli_node_cmd_reg.cpp
         ubse_cli_mem_cmd_reg.cpp
         ubse_cli_cert_cmd_reg.cpp
+        ubse_cli_urma_cmd_reg.cpp
 )
 
 target_link_libraries(ubsectl PRIVATE
@@ -15,6 +15,9 @@ target_link_libraries(ubsectl PRIVATE
         ubse_ipc_client
         ubse_serial
         boundscheck
+        ubse_utils
+        trace_context
+        ubse_cli_consumer
 )
 target_compile_options(ubsectl PRIVATE
         # C 和 C++ 编译选项
