@@ -571,9 +571,6 @@ void UbseComEngine::InitEngineOptions()
     hcomNetService_->SetDeviceIpMask(ipMasks);
     UBSHcomTlsOptions tlsOptions;
     RegisterTLSCallbacks(tlsOptions);
-    if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        tlsOptions.enableTls = false;
-    }
     hcomNetService_->SetTlsOptions(tlsOptions);
     UBSHcomHeartBeatOptions hbOption;
     hbOption.heartBeatIdleSec = engineInfo_.GetHcomHbTimeOut();
