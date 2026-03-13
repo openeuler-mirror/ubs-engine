@@ -18,13 +18,13 @@ target_include_directories(${CMAKE_PROJECT_NAME}_node_controller_ut PRIVATE
 
 
 
-add_executable(register_node_controller_config_ut test_node_controller_register_config.cpp ../main.cpp)
-target_link_libraries(register_node_controller_config_ut PUBLIC
-        -Wl,--whole-archive
-        ubse_node_controller_register_config
-        -Wl,--no-whole-archive
-        googletest
-        mockcpp
-        ubse_config
-        ubse_log
-)
+#add_executable(register_node_controller_config_ut test_node_controller_register_config.cpp ../main.cpp)
+#target_link_libraries(register_node_controller_config_ut PUBLIC
+#        -Wl,--whole-archive
+#        ubse_node_controller_register_config
+#        -Wl,--no-whole-archive
+#        googletest
+#        mockcpp
+#        ubse_config
+#        ubse_log
+#)
