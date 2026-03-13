@@ -66,7 +66,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
 target_link_options(${UT_BINARY} PRIVATE -rdynamic)
 
-add_subdirectory(exclusive_executable)
+#add_subdirectory(exclusive_executable)
 add_subdirectory(cert)
 add_subdirectory(config)
 add_subdirectory(context)

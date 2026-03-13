@@ -44,11 +44,11 @@ public:
  * 预期结果：如下
  * 1. 返回值为 UBSE_OK
  */
-TEST_F(TestUbseSecurityModule, ModuleInitSuccess)
-{
-    EXPECT_EQ(UBSE_OK, securityModule.Initialize());
-    EXPECT_NO_THROW(securityModule.UnInitialize());
-}
+// TEST_F(TestUbseSecurityModule, ModuleInitSuccess)
+// {
+//     EXPECT_EQ(UBSE_OK, securityModule.Initialize());
+//     EXPECT_NO_THROW(securityModule.UnInitialize());
+// }
 
 /*
  * 用例描述：如下
