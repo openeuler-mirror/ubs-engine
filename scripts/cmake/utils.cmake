@@ -229,7 +229,6 @@ macro(add_independent_exec_ut executable_name)
     set(preface_target "${executable_name}_independent_ut")
     message(STATUS "new target ${preface_target}")
     add_custom_target(${preface_target}
-            COMMAND sudo setcap cap_chown,cap_dac_override,cap_fowner,cap_sys_ptrace,cap_sys_nice,cap_audit_write,cap_net_admin=ep "${CMAKE_BINARY_DIR}/bin/${executable_name}"
             COMMAND bash -c "${RUN_TEST}"
             COMMENT "Run UT Tests: ${RUN_TEST}"
     )
