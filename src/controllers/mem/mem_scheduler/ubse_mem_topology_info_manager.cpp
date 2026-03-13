@@ -112,11 +112,11 @@ void UbseMemTopologyInfoManager::HandleDefault(const UbseNumaInfo &numaInfo, lon
                                                uint64_t &memUsed, uint64_t &memFree)
 {
     uint64_t totalSize = SizeKb2Byte(numaInfo.size);
-    uint64_t usedSize = SizeKb2Byte(ubse::utils::SafeSub(numaInfo.size, numaInfo.freeSize));
     uint64_t freeSize = SizeKb2Byte(numaInfo.freeSize);
     memTotal = ubse::utils::SafeAdd(memTotal, static_cast<uint64_t>(totalSize * ratio));
-    memUsed = ubse::utils::SafeSub(static_cast<uint64_t>(usedSize * ratio), memFree);
     memFree = ubse::utils::SafeAdd(memFree, static_cast<uint64_t>(freeSize * ratio));
+    memFree = memTotal < memFree ? memTotal : memFree;
+    memUsed = memTotal - memFree;
 }
 
 void UbseMemTopologyInfoManager::LogNumaInfo(const UbseNumaInfo &numaInfo, UbseAllocator allocator,
