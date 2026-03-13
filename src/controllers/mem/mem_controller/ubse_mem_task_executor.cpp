@@ -41,7 +41,7 @@ uint32_t UbseMemNumaCreateOperation::Execute(UbseMemOperationResp &resp)
 {
     req_.importNodeId = req_.requestNodeId;
     if (uint32_t ret = agent::UbseMemNumaBorrow(req_, resp) != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseMemFdBorrow failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseMemNumaBorrow failed," << FormatRetCode(ret);
         return ret;
     }
     this->resp = resp;

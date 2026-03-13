@@ -861,7 +861,7 @@ UbseResult FillFdInfoToCreateReq(const UbseIpcMessage &buffer, const UbseRequest
 
 uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage &buffer, const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "CLI numa create dispatch, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "CLI fd create dispatch, requestId: " << context.requestId;
 
     // 解序列化和构造请求体
     UbseMemFdBorrowReq req{};
