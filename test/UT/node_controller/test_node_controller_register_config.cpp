@@ -111,4 +111,4 @@
 //
 //     MOCKER_CPP(GetCmdLineResult).reset();
 // }
-}
+// }
