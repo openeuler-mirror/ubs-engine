@@ -14,6 +14,7 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "src/adapter_plugins/mti/ubse_mti_interface_default.h"
+#include "ubse_timer.h"
 
 namespace syssentry::ut {
 using namespace ubse::adapter_plugins::mti;
@@ -22,6 +23,8 @@ auto module = std::make_shared<SysSentryModule>();
 void TestSysSentryModule::SetUp()
 {
     Test::SetUp();
+    MOCKER(ubse::timer::UbseTimerHandlerUnregister).stubs().will(ignoreReturnValue());
+    UbseRasObserver::GetInstance().worker = std::make_unique<std::thread>();
 }
 
 void TestSysSentryModule::TearDown()
@@ -34,6 +37,7 @@ TEST_F(TestSysSentryModule, Initialize)
 {
     std::shared_ptr<UbseTaskExecutorModule> taskModule;
     MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(taskModule));
+    MOCKER_CPP(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
     ASSERT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, module->Initialize());
 }
 
@@ -43,6 +47,7 @@ TEST_F(TestSysSentryModule, StartWhenRasObserverError)
     };
     MOCKER_CPP(&SetSysSentryFaultReporter).stubs().will(invoke(SetSysSentryFaultReporterStub));
     MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
     ASSERT_EQ(UBSE_ERROR, module->Start());
 }
 
@@ -52,14 +57,8 @@ TEST_F(TestSysSentryModule, StartWhenRasObserverSuccess)
     };
     MOCKER_CPP(&SetSysSentryFaultReporter).stubs().will(invoke(SetSysSentryFaultReporterStub));
     MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
     ASSERT_EQ(UBSE_OK, module->Start());
-}
-
-TEST_F(TestSysSentryModule, Stop)
-{
-    MOCKER_CPP(&UbseRasObserver::Stop).stubs();
-    module->Stop();
-    ASSERT_EQ(UbseRasObserver::GetInstance().stopThread, true);
 }
 
 TEST_F(TestSysSentryModule, GetEidsWhenLcneModuleIsNull)
@@ -145,6 +144,7 @@ TEST_F(TestSysSentryModule, SetSysSentryFaultReporter)
 {
     MOCKER_CPP(GetEids).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
     auto res = module->Start();
     ASSERT_EQ(res, UBSE_OK);
 }

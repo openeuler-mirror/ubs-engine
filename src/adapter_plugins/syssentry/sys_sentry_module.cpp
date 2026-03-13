@@ -42,6 +42,7 @@ void SysSentryModule::UnInitialize()
     auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         UBSE_LOG_WARN << "TaskExecutorModule is null";
+        return;
     }
     taskExecutor->Remove(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME);
 }

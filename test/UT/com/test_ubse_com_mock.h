@@ -30,8 +30,8 @@ public:
                  const Callback *done = nullptr) override
     {
     }
-    int32_t PutV(const UBSHcomOneSideSglRequest &req, const Callback *done) override {}
-    int32_t GetV(const UBSHcomOneSideSglRequest &req, const Callback *done) override {}
+    int32_t PutV(const UBSHcomOneSideSglRequest &req, const Callback *done) {}
+    int32_t GetV(const UBSHcomOneSideSglRequest &req, const Callback *done) {}
     uint64_t GetUpCtx() {}
     void SetUpCtx(uint64_t ctx) {}
     int32_t SetFlowControlConfig(const UBSHcomFlowCtrlOptions &opt) override {}

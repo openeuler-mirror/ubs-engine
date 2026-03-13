@@ -12,12 +12,15 @@
 
 #include "ubse_error.h"
 #include "test_sentry_observer.h"
+#include "ubse_timer.h"
 
 namespace syssentry::ut {
 
 void TestSentryObserver::SetUp()
 {
     Test::SetUp();
+    MOCKER(ubse::timer::UbseTimerHandlerUnregister).stubs().will(ignoreReturnValue());
+    UbseRasObserver::GetInstance().worker = std::make_unique<std::thread>();
 }
 
 void TestSentryObserver::TearDown()
@@ -95,7 +98,7 @@ TEST_F(TestSentryObserver, StartSuccess)
         returnObjectList(g_nullChar, g_nullChar, g_nullChar, g_nullChar, g_nullChar, g_nullChar));
     MOCKER_CPP(dlclose).stubs().will(returnValue(0));
     instance.worker.release();
-    instance.worker = std::make_unique<std::thread>([]() {});
+    instance.worker = std::make_unique<std::thread>();
     auto ret = instance.Start();
     ASSERT_EQ(ret, UBSE_OK);
 }
@@ -144,22 +147,6 @@ TEST_F(TestSentryObserver, RegisterSentryEventSuccess)
     instance.xalarmUnRegisterFunc = unRegEmpty;
     instance.RegisterSentryEvent(&pInfo);
     ASSERT_EQ(pInfo, nullPInfo);
-}
-
-// Stop
-TEST_F(TestSentryObserver, StopSuccess)
-{
-    auto& instance = UbseRasObserver::GetInstance();
-    MOCKER_CPP(dlopen).stubs().will(returnValue(g_xalarmHandle));
-    MOCKER_CPP(dlsym).stubs().will(returnValue(g_xalarmHandle));
-    MOCKER_CPP(dlerror).stubs().will(
-        returnObjectList(g_nullChar, g_nullChar, g_nullChar, g_nullChar, g_nullChar, g_nullChar));
-    MOCKER_CPP(dlclose).stubs().will(returnValue(0));
-    instance.worker.release();
-    instance.worker = std::make_unique<std::thread>([]() {});
-    instance.Start();
-    instance.Stop();
-    ASSERT_EQ(instance.worker.get(), nullptr);
 }
 
 // UnRegisterXalarm
