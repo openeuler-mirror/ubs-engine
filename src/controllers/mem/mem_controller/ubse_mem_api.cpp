@@ -23,6 +23,7 @@
 #include "ubse_election.h"
 #include "ubse_logger.h"
 #include "ubse_mem_account.h"
+#include "ubse_mem_advice.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_def_serial.h"
@@ -793,6 +794,8 @@ UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage &buffer, const UbseReque
         UBSE_LOG_ERROR << "Failed to parse CLI create request, requestId: " << context.requestId;
         return UBSE_ERR_INTERNAL;
     }
+    req.name = name;
+    req.size = size;
     if (!CheckLinkInfo(linkInfo)) {
         return UBSE_ERROR_INVAL;
     }
@@ -800,8 +803,6 @@ UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage &buffer, const UbseReque
         UBSE_LOG_ERROR << "Invalid name";
         return UBSE_ERROR_INVAL;
     }
-    req.name = name;
-    req.size = size;
     if (!linkInfo.empty()) {
         req.lowWatermark = 0;
         req.highWatermark = 100; // 指定端口借用走水线，高水线填值为100
@@ -831,6 +832,10 @@ uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage &buffer, const Ub
     UbseMemNumaBorrowReq req{};
     auto ret = FillNumaInfoToCreateReq(buffer, context, req);
     if (ret != UBSE_OK) {
+        ubse::election::UbseRoleInfo currentNodeInfo;
+        auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
+        UBSE_LOG_ERROR << BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "",
+                                             currentNodeInfo.nodeId, ret, MemAdvice::CHECK_FAILED);
         return ret;
     }
 
