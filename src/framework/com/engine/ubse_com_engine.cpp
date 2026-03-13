@@ -324,6 +324,18 @@ void SetChannelTimeout(const UbseChannelType chType, UBSHcomChannelPtr channelPt
     channelPtr->SetChannelTimeOut(timeout, timeout);
 }
 
+bool GetEnableTlsValue()
+{
+    bool enableTlsValue = true;
+    auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
+                      << ", ret: " << ret << ", use default value: true";
+        enableTlsValue = true;
+    }
+    return enableTlsValue;
+}
+
 UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options,
                                     UBSHcomChannelPtr &channelPtr)
 {
@@ -332,6 +344,10 @@ UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConn
                                         options);
     }
     if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
+        if (GetEnableTlsValue()) {
+            return hcomNetService_->Connect("tcp://" + info.GetIp() + ":" + std::to_string(TCP_LISTEN_PORT), channelPtr,
+                                            options);
+        }
         return hcomNetService_->Connect("ubc://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
                                         options);
     }
@@ -577,6 +593,7 @@ void UbseComEngine::InitEngineOptions()
     hcomNetService_->SetHeartBeatOptions(hbOption);
     hcomNetService_->SetMaxConnectionCount(NO_500);
     hcomNetService_->SetEnableMrCache(true);
+    hcomNetService_->SetCtxStoreCapacity(NO_1024);
 }
 
 void UbseComEngine::RegisterEngineHandlers()
@@ -1105,9 +1122,12 @@ void UbseComEngine::AddListenOptions(UBSHcomServiceNewChannelHandler newChannelH
             newChannelHandler);
     }
     if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        hcomNetService_->Bind(
-            "ubc://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
-            newChannelHandler);
+        if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
+            std::string protocolPrefix = GetEnableTlsValue() ? "tcp://" : "ubc://";
+            uint16_t port = GetEnableTlsValue() ? TCP_LISTEN_PORT : engineInfo_.GetIpInfo().second;
+            hcomNetService_->Bind(protocolPrefix + engineInfo_.GetIpInfo().first + ":" + std::to_string(port),
+                                  newChannelHandler);
+        }
     }
 }
 
