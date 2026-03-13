@@ -593,7 +593,6 @@ void UbseComEngine::InitEngineOptions()
     hcomNetService_->SetHeartBeatOptions(hbOption);
     hcomNetService_->SetMaxConnectionCount(NO_500);
     hcomNetService_->SetEnableMrCache(true);
-    hcomNetService_->SetCtxStoreCapacity(NO_1024);
 }
 
 void UbseComEngine::RegisterEngineHandlers()
