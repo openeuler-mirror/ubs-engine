@@ -329,7 +329,7 @@ bool GetEnableTlsValue()
     bool enableTlsValue = true;
     auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
     if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
+        UBSE_LOG_ERROR << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
                       << ", ret: " << ret << ", use default value: true";
         enableTlsValue = true;
     }
@@ -649,14 +649,7 @@ bool UbseComEngine::SplitIp(const std::string ipPortStr, std::string &ip)
 
 void UbseComEngine::RegisterTLSCallbacks(UBSHcomTlsOptions &tlsOptions)
 {
-    bool enableTlsValue = true;
-    auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
-                      << ", ret: " << ret << ", use default value: true";
-        enableTlsValue = true;
-    }
-    tlsOptions.enableTls = enableTlsValue;
+    tlsOptions.enableTls = GetEnableTlsValue();
     // 注册证书回调
     tlsOptions.cfCb = std::bind(&CertCallback, std::placeholders::_1, std::placeholders::_2);
 
