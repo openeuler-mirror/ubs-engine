@@ -1121,11 +1121,13 @@ void UbseComEngine::AddListenOptions(UBSHcomServiceNewChannelHandler newChannelH
             newChannelHandler);
     }
     if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-            std::string protocolPrefix = GetEnableTlsValue() ? "tcp://" : "ubc://";
-            uint16_t port = GetEnableTlsValue() ? TCP_LISTEN_PORT : engineInfo_.GetIpInfo().second;
-            hcomNetService_->Bind(protocolPrefix + engineInfo_.GetIpInfo().first + ":" + std::to_string(port),
+        if (GetEnableTlsValue()) {
+            hcomNetService_->Bind("tcp://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(TCP_LISTEN_PORT),
                                   newChannelHandler);
+        } else {
+            hcomNetService_->Bind(
+                "ubc://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
+                newChannelHandler);
         }
     }
 }
