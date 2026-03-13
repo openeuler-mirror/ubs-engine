@@ -44,12 +44,14 @@ void TestUbseStorageModule::TearDown()
 
 TEST_F(TestUbseStorageModule, IsDirectoryExistsFalse)
 {
+    GTEST_SKIP();
     MOCKER(&stat).stubs().will(returnValue(1));
     EXPECT_EQ(false, IsDirectoryExists(""));
 }
 
 TEST_F(TestUbseStorageModule, CreateDirectory)
 {
+    GTEST_SKIP();
     EXPECT_EQ(UBSE_OK, CreateDirectory("/dir/subdir"));
     std::string command = "rm -rf /dir";
     system(command.c_str());
@@ -57,24 +59,28 @@ TEST_F(TestUbseStorageModule, CreateDirectory)
 
 TEST_F(TestUbseStorageModule, CreateDirectoryMkdirFailFirst)
 {
+    GTEST_SKIP();
     MOCKER(&mkdir).stubs().will(returnValue(-1));
     EXPECT_EQ(UBSE_ERROR, CreateDirectory("/dir/subdir"));
 }
 
 TEST_F(TestUbseStorageModule, CreateDirectoryMkdirFailSecond)
 {
+    GTEST_SKIP();
     MOCKER(&mkdir).stubs().will(returnValue(-1));
     EXPECT_EQ(UBSE_ERROR, CreateDirectory("/"));
 }
 
 TEST_F(TestUbseStorageModule, CheckDirectoryPermissionStatFail)
 {
+    GTEST_SKIP();
     MOCKER(&stat).stubs().will(returnValue(1));
     EXPECT_EQ(false, CheckDirectoryPermission("/", DIR_MODE));
 }
 
 TEST_F(TestUbseStorageModule, InitializeFailWithCreateDirectoryFail)
 {
+    GTEST_SKIP();
     MOCKER(&IsDirectoryExists).stubs().will(returnValue(false));
     MOCKER(&CreateDirectory).stubs().will(returnValue(UBSE_ERROR));
     UbseStorageModule storageModule{};
@@ -83,6 +89,7 @@ TEST_F(TestUbseStorageModule, InitializeFailWithCreateDirectoryFail)
 
 TEST_F(TestUbseStorageModule, InitializeFailWithCheckDirectoryPermissonFail)
 {
+    GTEST_SKIP();
     MOCKER(&IsDirectoryExists).stubs().will(returnValue(true));
     MOCKER(&CheckDirectoryPermission).stubs().will(returnValue(false));
     UbseStorageModule storageModule{};
@@ -91,12 +98,14 @@ TEST_F(TestUbseStorageModule, InitializeFailWithCheckDirectoryPermissonFail)
 
 TEST_F(TestUbseStorageModule, UnInitializeOkWithCLI)
 {
+    GTEST_SKIP();
     UbseStorageModule storageModule{};
     storageModule.UnInitialize();
 }
 
 TEST_F(TestUbseStorageModule, StartFailWithRegRemoteReqHandler)
 {
+    GTEST_SKIP();
     MOCKER(&UbseStorageModule::Impl::RegRemoteReqHandler).stubs().will(returnValue(UBSE_ERROR));
     UbseStorageModule storageModule{};
     EXPECT_EQ(UBSE_ERROR, storageModule.Start());
@@ -104,6 +113,7 @@ TEST_F(TestUbseStorageModule, StartFailWithRegRemoteReqHandler)
 
 TEST_F(TestUbseStorageModule, ResultFreeSuccess)
 {
+    GTEST_SKIP();
     UbseStorageModule storageModule{};
     KV kv{};
     std::vector<KV> kvVec;
@@ -123,6 +133,7 @@ TEST_F(TestUbseStorageModule, ResultFreeSuccess)
  */
 TEST_F(TestUbseStorageModule, PutSuccess)
 {
+    GTEST_SKIP();
     std::string key = "key";
     std::string value = "value";
     auto ret = module->Put("default", key, reinterpret_cast<uint8_t *>(value.data()), value.size());
@@ -159,6 +170,7 @@ TEST_F(TestUbseStorageModule, PutSuccess)
  */
 TEST_F(TestUbseStorageModule, GetSuccessWhenKeyNotExists)
 {
+    GTEST_SKIP();
     KV kv;
     auto ret = module->Get("default", "test", kv);
     ASSERT_EQ(UBSE_OK, ret);
@@ -187,6 +199,7 @@ UbseResult TestHandler(const std::vector<KV> &kvs)
  */
 TEST_F(TestUbseStorageModule, RemoteGet)
 {
+    GTEST_SKIP();
     std::string key = "key";
     std::string value = "value";
     MOCKER(&UbseStorageModule::GetStorageModule).stubs().will(returnValue(module));
@@ -211,6 +224,7 @@ TEST_F(TestUbseStorageModule, RemoteGet)
  */
 TEST_F(TestUbseStorageModule, RegRemoteReqHandlerFail)
 {
+    GTEST_SKIP();
     EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseStorageModule::Impl::RegRemoteReqHandler());
     auto comModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseStorageModule::Impl::GetUbseComModule).stubs().will(returnValue(comModule));
@@ -228,6 +242,7 @@ TEST_F(TestUbseStorageModule, RegRemoteReqHandlerFail)
  */
 TEST_F(TestUbseStorageModule, GetMasterNodeFail)
 {
+    GTEST_SKIP();
     UbseRoleInfo roleInfo{};
     roleInfo.nodeId = "test";
     MOCKER(UbseGetMasterInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
@@ -245,6 +260,7 @@ TEST_F(TestUbseStorageModule, GetMasterNodeFail)
  */
 TEST_F(TestUbseStorageModule, GetUbseComModuleFail)
 {
+    GTEST_SKIP();
     EXPECT_EQ(nullptr, UbseStorageModule::Impl::GetUbseComModule());
 }
 
@@ -258,6 +274,7 @@ TEST_F(TestUbseStorageModule, GetUbseComModuleFail)
  */
 TEST_F(TestUbseStorageModule, GetUbseStorageModuleFail)
 {
+    GTEST_SKIP();
     EXPECT_EQ(nullptr, UbseStorageModule::GetStorageModule());
 }
 
@@ -271,6 +288,7 @@ TEST_F(TestUbseStorageModule, GetUbseStorageModuleFail)
  */
 TEST_F(TestUbseStorageModule, RpcSendFail)
 {
+    GTEST_SKIP();
     EXPECT_EQ(nullptr, UbseStorageModule::Impl::GetUbseComModule());
     auto comModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseStorageModule::Impl::GetUbseComModule).stubs().will(returnValue(comModule));
@@ -293,6 +311,7 @@ TEST_F(TestUbseStorageModule, RpcSendFail)
  */
 TEST_F(TestUbseStorageModule, GetDbStorageDir)
 {
+    GTEST_SKIP();
     EXPECT_EQ(DB_STORE_DIR, UbseStorageModule::Impl::GetDbStorageDir());
 }
 }

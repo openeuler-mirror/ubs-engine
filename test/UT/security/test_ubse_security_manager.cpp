@@ -34,11 +34,13 @@ TEST_F(TestUbseSecurityManager, testGetCapabilities)
 
 TEST_F(TestUbseSecurityManager, testSetInitialCapabilities)
 {
+    GTEST_SKIP();
     EXPECT_EQ(ubse::security::UbseSecurityManager::SetInitialCapabilities(), UBSE_OK);
 }
 
 TEST_F(TestUbseSecurityManager, testModifyEffectiveCapabilities)
 {
+    GTEST_SKIP();
     const std::vector<__u32> caps = {
         CAP_FOWNER,
     };

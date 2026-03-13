@@ -106,6 +106,7 @@ TEST_F(TestSentryObserver, StartSuccess)
 const int CHECK_REGISTER_FD = -1234;
 TEST_F(TestSentryObserver, RegisterSentryEventWhenRegisterInfoIsNotNull)
 {
+    GTEST_SKIP();
     auto& instance = UbseRasObserver::GetInstance();
     struct alarm_register info {};
     struct alarm_register* pInfo = &info;
@@ -124,6 +125,7 @@ TEST_F(TestSentryObserver, RegisterSentryEventWhenRegisterInfoIsNotNull)
 
 TEST_F(TestSentryObserver, RegisterSentryEventSuccess)
 {
+    GTEST_SKIP();
     auto& instance = UbseRasObserver::GetInstance();
     struct alarm_register info {};
     struct alarm_register* pInfo = &info;

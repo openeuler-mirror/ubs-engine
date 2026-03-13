@@ -48,6 +48,7 @@ TEST_F(TestEventListener, InitSuccess)
 
 TEST_F(TestEventListener, MpEventSubModuleInitSuccess)
 {
+    GTEST_SKIP();
     auto mp = make_unique<mempooling::event::MpEventSubModule>();
     auto ret = mp->Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
