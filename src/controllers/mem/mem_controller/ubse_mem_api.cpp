@@ -255,8 +255,8 @@ bool CheckAllNodeMemoryConfigValid(const std::vector<ubse::nodeController::UbseN
     bool foundFirst = false;
     ubse::nodeController::UbseNodeInfo tempNode;
     for (const auto &node : nodeList) {
-        if (!node.nodeId.empty() && (node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING ||
-                                     node.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING)) {
+        if (!node.nodeId.empty() && (node.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
+                                     node.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING)) {
             continue;
         }
         if (node.isLender) {
