@@ -847,6 +847,8 @@ uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemNu
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        UBSE_LOG_ERROR << "NumaUnImport Failed, Failed count:" << ++g_numaUnimportFailedCount << ". advice: Caller should clear memory and retry. "
+                       << "If failures persist, migrate the workload and restart the host.";
     } else {
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
         EraseNumaImport(importObj);

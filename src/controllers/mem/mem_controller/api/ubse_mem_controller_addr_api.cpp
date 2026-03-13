@@ -690,6 +690,8 @@ uint32_t AddrImportDestroyingCallback(const std::string &requestNodeId, UbseMemA
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         AddrImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        UBSE_LOG_ERROR << "AddrUnImport Failed, Failed count:" << ++g_addrUnimportFailedCount << ". advice: Caller should clear memory and retry. "
+                       << "If failures persist, migrate the workload and restart the host.";
     } else {
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
         EraseAddrImport(importObj);
