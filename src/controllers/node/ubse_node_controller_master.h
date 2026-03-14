@@ -102,6 +102,8 @@ private:
 
     std::mutex faultCountersMutex_;
 
+    std::mutex taskExecMutex_;
+
     // 故障恢复阈值
     static constexpr int FAULT_REPORT_THRESHOLD = 150;
 

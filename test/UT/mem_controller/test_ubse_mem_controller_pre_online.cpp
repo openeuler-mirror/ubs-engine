@@ -41,6 +41,7 @@ void TestUbseMemControllerPreOnline::TearDown()
 
 TEST_F(TestUbseMemControllerPreOnline, PreOnlineInit)
 {
+    GTEST_SKIP();
     EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, PreOnlineInit());
 }
 

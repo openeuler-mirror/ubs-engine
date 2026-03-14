@@ -176,9 +176,14 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
         UBSE_LOG_ERROR << "UbsePubEvent "<< UBSE_EVENT_NODE_JOIN << " failed on master node";
         return ret;
     }
-    taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_16, NO_1024);
+    std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
-        return UBSE_ERROR_NULLPTR;
+        taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_16, NO_1024);
+        if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
+            UBSE_LOG_ERROR << "master online, current nodeId=" << nodeId << " start task thread pool failed";
+            taskExecutor_ = nullptr;
+            return UBSE_ERROR_NULLPTR;
+        }
     }
     // 本节点对账
     taskExecutor_->Execute([this]() -> void { UbseNodeLedger(UbseNodeController::GetInstance().GetCurrentNodeId()); });
@@ -233,9 +238,11 @@ void UbseNodeControllerMaster::UbseNodeLedgerTimerHandler()
     PrintAllLinkNodes(roleInfos);
     for (auto& node : roleInfos) {
         std::string nodeId = node.nodeId;
+        taskExecMutex_.lock();
         if (taskExecutor_ != nullptr) {
             taskExecutor_->Execute([this, nodeId]() -> void { UbseNodeCycleLedger(nodeId); });
         }
+        taskExecMutex_.unlock();
     }
 }
 
@@ -372,6 +379,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo& n
     UBSE_LOG_INFO << "Node " << nodeInfo.nodeId
                   << " reached 150 fault reports, switching to smoothing";
 
+    std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ == nullptr) {
         UBSE_LOG_WARN << "Task executor not available for node smoothing";
         return UBSE_OK;
@@ -457,6 +465,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeUpHandler(const std::string& nodeId
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     // taskExecutor_ 初始化完成
+    std::lock_guard<std::mutex> lock(taskExecMutex_);
     UBSE_LOG_INFO << "taskExecutor_ initialized successfully, processing node up, nodeId=" << nodeId;
     taskExecutor_->Execute([this, nodeId]() -> void {
         UbseNodeUpHandlerExec(nodeId);
@@ -510,6 +519,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasPreFaultFailHandler(const std::s
         return UBSE_OK;
     }
     UBSE_LOG_INFO << "nodeId=" << nodeId << ", pre bmc fail, start to smoothing.";
+    std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ != nullptr) {
         taskExecutor_->Execute([this, nodeId]() -> void { UbseNodeLedger(nodeId); });
     }
@@ -549,6 +559,7 @@ void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
     UBSE_LOG_INFO << "ubse node master start to stop ledger timer.";
     UbseTimerHandlerUnregister(UBSE_NODE_MASTER_LEDGER_TIMER);
     UBSE_LOG_INFO << "ubse node master start to stop executor.";
+    std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ != nullptr) {
         taskExecutor_->Stop();
     }

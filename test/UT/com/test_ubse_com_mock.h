@@ -53,7 +53,7 @@ public:
     }
 
     SerResult Initialize(std::vector<UBSHcomEndpointPtr> &ep, uintptr_t ctxMemPool, uintptr_t periodicMgr,
-                         uintptr_t pgTable) override
+                         uintptr_t pgTable, uint32_t ctxStoreCapacity = NN_NO2097152) override
     {
     }
     void UnInitialize() override {}

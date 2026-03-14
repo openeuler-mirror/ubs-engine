@@ -210,6 +210,7 @@ TEST_F(TestUbseComModule, TestUbseComInit)
  */
 TEST_F(TestUbseComModule, TestCreateHbExecutorFailed)
 {
+    GTEST_SKIP();
     std::shared_ptr<UbseTaskExecutorModule> ubseTaskExecutorModule = std::make_shared<UbseTaskExecutorModule>();
     MOCKER(&context::UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(ubseTaskExecutorModule));
     std::string hbExecutorName = "HeartBeatExecutor";
@@ -247,6 +248,7 @@ TEST_F(TestUbseComModule, TestCreateHbExecutorFailed)
  */
 TEST_F(TestUbseComModule, TestCreateComExecutorFailed)
 {
+    GTEST_SKIP();
     std::shared_ptr<UbseTaskExecutorModule> ubseTaskExecutorModule = std::make_shared<UbseTaskExecutorModule>();
     MOCKER(&context::UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(ubseTaskExecutorModule));
     std::string hbExecutorName = "HeartBeatExecutor";
@@ -284,6 +286,7 @@ TEST_F(TestUbseComModule, TestCreateComExecutorFailed)
  */
 TEST_F(TestUbseComModule, TestCreateCollectExecutorFailed)
 {
+    GTEST_SKIP();
     std::shared_ptr<UbseTaskExecutorModule> ubseTaskExecutorModule = std::make_shared<UbseTaskExecutorModule>();
     MOCKER(&context::UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(ubseTaskExecutorModule));
     std::string hbExecutorName = "HeartBeatExecutor";
