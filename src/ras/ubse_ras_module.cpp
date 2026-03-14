@@ -2,7 +2,7 @@
 #include "ubse_ras_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 #include "ubse_os_util.h"
 #include "ubse_ras_handler.h"
 
@@ -11,6 +11,7 @@ using namespace ubse::common;
 using namespace ubse::log;
 
 DYNAMIC_CREATE(UbseRasModule);
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseRasModule::Initialize()
 {

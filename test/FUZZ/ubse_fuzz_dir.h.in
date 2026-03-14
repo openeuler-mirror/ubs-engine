@@ -1,0 +1,3 @@
+#pragma once
+
+#define FUZZ_DIRECTORY "@CMAKE_CURRENT_SOURCE_DIR@"

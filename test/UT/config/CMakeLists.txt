@@ -1,7 +1,6 @@
 add_ut(ubse_config)
 target_link_libraries(${CMAKE_PROJECT_NAME}_ubse_config_ut
-        PRIVATE ubse_driver
-        ubse_rpc_client
+        PRIVATE
         ubse_http
         ubse_utils
         ubse_config_message
@@ -10,7 +9,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_ubse_config_ut
         ubse_data_sync
         ubse_data_sync_message
         ubse_parse
-        ubse_resource_mgr
         ubse_election
         ubse_security
         ubse_dev)

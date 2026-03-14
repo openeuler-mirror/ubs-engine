@@ -30,7 +30,7 @@
 
 namespace ubse::security {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_SECURITY_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 constexpr unsigned long long CAP_FULL_BIT = 64;     // 总能力位数（V3+ 标准）
 constexpr unsigned long long CAP_SEGMENT_BIT = 32;  // 单个 cap_data 结构处理的位数
@@ -39,7 +39,7 @@ constexpr unsigned long long CAP_SEGMENT_COUNT = 2; // cap_data 结构的数量
 UbseResult UbseSecurityManager::GetCapabilities()
 {
     // 初始化 cap_header_t
-    __user_cap_header_struct capHeader;
+    __user_cap_header_struct capHeader{};
     capHeader.version = _LINUX_CAPABILITY_VERSION_3; // 使用版本 3
     capHeader.pid = 0;                               // 获取当前进程的能力
 
@@ -50,8 +50,12 @@ UbseResult UbseSecurityManager::GetCapabilities()
     }
 
     // 清空数据结构
-    memset_s(data, sizeof(__user_cap_data_struct) * CAP_SEGMENT_COUNT, 0,
-        sizeof(__user_cap_data_struct) * CAP_SEGMENT_COUNT);
+    auto ret = memset_s(data, sizeof(__user_cap_data_struct) * CAP_SEGMENT_COUNT, 0,
+                        sizeof(__user_cap_data_struct) * CAP_SEGMENT_COUNT);
+    if (ret != EOK) {
+        delete[] data;
+        return ret;
+    }
 
     // 调用 syscall(SYS_capget) 获取能力
     errno = 0;
@@ -69,19 +73,20 @@ UbseResult UbseSecurityManager::GetCapabilities()
 void SetCapabilitiesData(__user_cap_data_struct *capData)
 {
     const std::vector<__u32> pCapabilities = {
-        CAP_SYS_NICE,     // 允许进程改变进程或线程的优先级和调度策略
-        CAP_FOWNER,       // 允许绕过 /dev/obmm_shmdev 的 owner 检查
+        CAP_SYS_NICE, // 允许进程改变进程或线程的优先级和调度策略
+        CAP_FOWNER,   // 允许绕过 /dev/obmm_shmdev 的 owner 检查
         CAP_DAC_OVERRIDE,
-        CAP_CHOWN,        // 允许修改 /dev/obmm_shmdev 的 owner 和 group
-        CAP_AUDIT_WRITE,  // 允许写入审计日志 日志路径 /var/log/audit
-        CAP_NET_ADMIN     // 允许访问urma文件
+        CAP_CHOWN,       // 允许修改 /dev/obmm_shmdev 的 owner 和 group
+        CAP_AUDIT_WRITE, // 允许写入审计日志 日志路径 /var/log/audit
+        CAP_NET_ADMIN,   // 允许访问urma文件
+        CAP_SYS_PTRACE,  // 允许访问其他进程的信息，如 /proc/pid/numa_maps
     };
 
     const std::vector<__u32> eCapabilities = {
-        CAP_SYS_NICE,     // 允许进程改变进程或线程的优先级和调度策略
-        CAP_AUDIT_WRITE,  // 允许写入审计日志 日志路径 /var/log/audit
-        CAP_DAC_OVERRIDE,
-        CAP_NET_ADMIN     // 允许访问urma文件
+        CAP_SYS_NICE,    // 允许进程改变进程或线程的优先级和调度策略
+        CAP_AUDIT_WRITE, // 允许写入审计日志 日志路径 /var/log/audit
+        CAP_NET_ADMIN,  // 允许访问urma文件
+        CAP_SYS_PTRACE, // 允许访问其他进程的信息，如 /proc/pid/numa_maps
     };
 
     const std::vector<__u32> iCapabilities = {
@@ -117,7 +122,7 @@ void SetCapabilitiesData(__user_cap_data_struct *capData)
 UbseResult UbseSecurityManager::SetInitialCapabilities()
 {
     // 初始化 cap_header_t 和 cap_user_data_t
-    __user_cap_header_struct capHeader;
+    __user_cap_header_struct capHeader{};
     capHeader.version = _LINUX_CAPABILITY_VERSION_3; // 使用能力版本 3
     capHeader.pid = 0;                               // 设置当前进程的能力
 
@@ -128,8 +133,12 @@ UbseResult UbseSecurityManager::SetInitialCapabilities()
     }
 
     // 清空数据结构
-    memset_s(capData, sizeof(__user_cap_data_struct) * CAP_SEGMENT_COUNT, 0,
+    auto ret = memset_s(capData, sizeof(__user_cap_data_struct) * CAP_SEGMENT_COUNT, 0,
         sizeof(__user_cap_data_struct) * CAP_SEGMENT_COUNT);
+    if (ret != EOK) {
+        delete[] capData;
+        return ret;
+    }
 
     SetCapabilitiesData(capData);
 
@@ -143,7 +152,8 @@ UbseResult UbseSecurityManager::SetInitialCapabilities()
     delete[] capData;
     return UBSE_OK;
 }
-UbseResult UbseSecurityManager::ModifyEffectiveCapabilities(std::vector<__u32> caps, UbseCapOperateType opType)
+
+UbseResult UbseSecurityManager::ModifyEffectiveCapabilities(const std::vector<__u32>& caps, bool isAdd)
 {
     __user_cap_header_struct capHeader;
     capHeader.version = _LINUX_CAPABILITY_VERSION_3; // 使用能力版本 3
@@ -163,20 +173,14 @@ UbseResult UbseSecurityManager::ModifyEffectiveCapabilities(std::vector<__u32> c
         }
     }
 
-    switch (opType) {
-        case UbseCapOperateType::CAP_ADD:
-            for (const auto cap : caps) {
-                capData[CAP_TO_INDEX(cap)].effective |= CAP_TO_MASK(cap);
-            }
-            break;
-        case UbseCapOperateType::CAP_DELETE:
-            for (const auto cap : caps) {
-                capData[CAP_TO_INDEX(cap)].effective &= ~CAP_TO_MASK(cap);
-            }
-            break;
-        default:
-            UBSE_LOG_ERROR << "Invalid operation, " << FormatRetCode(UBSE_ERROR_INVAL);
-            return UBSE_ERROR_INVAL;
+    if (isAdd) {
+        for (const auto cap : caps) {
+            capData[CAP_TO_INDEX(cap)].effective |= CAP_TO_MASK(cap);
+        }
+    } else {
+        for (const auto cap : caps) {
+            capData[CAP_TO_INDEX(cap)].effective &= ~CAP_TO_MASK(cap);
+        }
     }
 
     if (syscall(SYS_capset, &capHeader, capData) < 0) {

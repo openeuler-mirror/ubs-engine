@@ -1,0 +1,164 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ 
+ * UBS RMRS is licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *      http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <mockcpp/mockcpp.hpp>
+
+#define private public
+#include "smap_remove_send.h"
+#undef private
+
+#include "ubse_com.h"
+#include "response_info_simpo.h"
+
+using namespace mempooling::over_commit;
+using namespace ubse::com;
+using namespace ::testing;
+
+#define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
+
+namespace mempooling {
+class TestSmapRemoveSend : public ::testing::Test {
+protected:
+    outinterface::SrcMemoryBorrowParam srcParam;
+    std::vector<pid_t> pids = { 1234, 5678 };
+    UbseByteBuffer reqData;
+
+    void SetUp() override
+    {
+        std::cout << "[TestSmapRemoveSend SetUp Begin]" << std::endl;
+        srcParam.srcNid = "Node1";
+        srcParam.srcSocketId = 0;
+        srcParam.srcNumaId = 1;
+        std::cout << "[TestSmapRemoveSend SetUp End]" << std::endl;
+    }
+
+    void TearDown() override
+    {
+        std::cout << "[TestSmapRemoveSend TearDown Begin]" << std::endl;
+        GlobalMockObject::verify();
+        std::cout << "[TestSmapRemoveSend TearDown End]" << std::endl;
+    }
+};
+
+TEST_F(TestSmapRemoveSend, SendMsg_ShouldReturnError_WhenCreateRequestDataFails)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    MOCKER_CPP(&SmapRemoveSend::CreateRequestData, MpResult(*)(UbseByteBuffer & reqData))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    EXPECT_EQ(smapRemoveSend.SendMsg(), MEM_POOLING_ERROR);
+}
+
+TEST_F(TestSmapRemoveSend, SendMsg_ShouldReturnError_WhenRackRpcSendFails)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    MOCKER_CPP(&SmapRemoveSend::CreateRequestData, MpResult(*)(UbseByteBuffer & reqData))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
+        const UbseComRespHandler &handler))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    EXPECT_EQ(smapRemoveSend.SendMsg(), MEM_POOLING_ERROR);
+}
+
+TEST_F(TestSmapRemoveSend, SendMsg_ShouldReturnError_WhenHandleResponseFails)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    MOCKER_CPP(&SmapRemoveSend::CreateRequestData, MpResult(*)(UbseByteBuffer & reqData))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
+        const UbseComRespHandler &handler))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    smapRemoveSend.sendResult_ = MEM_POOLING_ERROR;
+    EXPECT_EQ(smapRemoveSend.SendMsg(), MEM_POOLING_ERROR);
+}
+
+TEST_F(TestSmapRemoveSend, SendMsg_ShouldReturnOk_WhenAllOperationsSucceed)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
+        const UbseComRespHandler &handler))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    smapRemoveSend.sendResult_ = MEM_POOLING_OK;
+    EXPECT_EQ(smapRemoveSend.SendMsg(), MEM_POOLING_OK);
+}
+
+TEST_F(TestSmapRemoveSend, RespHandlerResCodeNotOk)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    UbseByteBuffer respData = {
+        .data = reinterpret_cast<uint8_t *>(std::string("1").data()),
+        .len = 1
+    };
+    smapRemoveSend.RespHandler(static_cast<void *>(&smapRemoveSend), respData, MEM_POOLING_ERROR);
+    EXPECT_EQ(smapRemoveSend.sendResult_, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestSmapRemoveSend, CreateRequestDataError_WhenMemcpySSuccess)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+
+    MOCKER(memcpy_s).stubs().will(returnValue(MEM_POOLING_ERROR));
+
+    UbseByteBuffer reqData;
+    EXPECT_EQ(smapRemoveSend.CreateRequestData(reqData), MEM_POOLING_OK);
+}
+
+TEST_F(TestSmapRemoveSend, RespHandlerResCodeError_WhenDeserializeSuccess)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    UbseByteBuffer respData = {
+        .data = reinterpret_cast<uint8_t *>(std::string("").data()),
+        .len = 0
+    };
+    smapRemoveSend.RespHandler(static_cast<void *>(&smapRemoveSend), respData, MEM_POOLING_OK);
+    EXPECT_EQ(smapRemoveSend.sendResult_, MEM_POOLING_OK);
+}
+
+TEST_F(TestSmapRemoveSend, RespHandlerResCodeError_WhenGetErrorRetCode)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    ResponseInfo responseInfo = {
+        .code = MEM_POOLING_ERROR,
+        .message = "error"
+    };
+    ResponseInfoSimpo responseInfoSimpo = ResponseInfoSimpo(responseInfo);
+    RmrsOutStream builder;
+    builder << responseInfoSimpo;
+    UbseByteBuffer respData = {.data = builder.GetBufferPointer(),
+                               .len = builder.GetSize()};
+    smapRemoveSend.RespHandler(static_cast<void *>(&smapRemoveSend), respData, MEM_POOLING_OK);
+    EXPECT_EQ(smapRemoveSend.sendResult_, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestSmapRemoveSend, RespHandlerResCodeOk_WhenGetSuccessRetCode)
+{
+    SmapRemoveSend smapRemoveSend(std::move(srcParam), std::move(pids));
+    ResponseInfo responseInfo = {
+        .code = MEM_POOLING_OK,
+        .message = "success"
+    };
+    ResponseInfoSimpo responseInfoSimpo = ResponseInfoSimpo(responseInfo);
+    RmrsOutStream builder;
+    builder << responseInfoSimpo;
+    UbseByteBuffer respData = {.data = builder.GetBufferPointer(),
+                               .len = builder.GetSize()};
+    smapRemoveSend.RespHandler(static_cast<void *>(&smapRemoveSend), respData, MEM_POOLING_OK);
+    EXPECT_EQ(smapRemoveSend.sendResult_, MEM_POOLING_OK);
+}
+} // namespace mempooling

@@ -11,6 +11,9 @@
  */
 
 #include "test_ubse_logger_audit.h"
+#include <dlfcn.h>
+#include "ubse_logger_audit.cpp"
+
 #define UBSE_AUDIT_LOGGING_OFF
 namespace ubse::ut::log {
 using namespace ubse::log;
@@ -159,7 +162,6 @@ TEST_F(TestUbseLoggerAudit, RecordToString_ShouldReturnSecurityLog_WhenRecordTyp
     EXPECT_EQ("SecurityLog", result);
 }
 
-
 /*
  * 用例描述：
  * 测试AuditLogger的写操作日志方法
@@ -206,4 +208,153 @@ TEST_F(TestUbseLoggerAudit, sendAuditMessage5)
     std::string interface = "test_interface";
     EXPECT_NO_THROW(UBSE_AUDIT_SECURITY(interface) << "1111111111111111111111 test");
 }
+
+struct TestLibrary {};
+inline void MockFunc() {}
+bool CheckName1(const char *name)
+{
+    if (strcmp(name, "audit_open") == 0) {
+        return true;
+    } else {
+        return false;
+    }
 }
+
+bool CheckName2(const char *name)
+{
+    if (strcmp(name, "audit_close") == 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/*
+ * 用例描述：
+ * 测试初始化dlopen库
+ * 测试步骤：
+ * 1.dlopen失败
+ * 预期结果：
+ * 1.打印错误日志
+ */
+TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlopen)
+{
+    GTEST_SKIP();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::stringstream capturedOutput;
+    std::cerr.rdbuf(capturedOutput.rdbuf());
+    InitializeAuditFunctions();
+    std::cerr.rdbuf(oldCerrBuffer);
+    EXPECT_EQ(capturedOutput.str(), "dlopen unable to load libaudit: ");
+}
+
+/*
+ * 用例描述：
+ * 测试初始化dlsym函数
+ * 测试步骤：
+ * 1.dlsym audit_open失败
+ * 预期结果：
+ * 1.打印"Unable to find symbol 'audit_open'"
+ */
+TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditOpen)
+{
+    GTEST_SKIP();
+    auto testLibrary = TestLibrary();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlclose).stubs().will(returnValue(0));
+    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::stringstream capturedOutput;
+    std::cerr.rdbuf(capturedOutput.rdbuf());
+    InitializeAuditFunctions();
+    std::cerr.rdbuf(oldCerrBuffer);
+    EXPECT_EQ(capturedOutput.str(), "Unable to find symbol 'audit_open': ");
+    g_loaded = false;
+    g_isOpenAudit = false;
+}
+
+/*
+ * 用例描述：
+ * 测试初始化dlsym函数
+ * 测试步骤：
+ * 1.dlsym audit_open成功
+ * 2.dlsym audit_close失败
+ * 预期结果：
+ * 1.打印"Unable to find symbol 'audit_close'"
+ */
+TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditClose)
+{
+    auto testLibrary = TestLibrary();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
+    MOCKER(dlsym)
+        .stubs()
+        .will(returnValue(reinterpret_cast<void *>(&MockFunc)))
+        .then(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlclose).stubs().will(returnValue(0));
+    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::stringstream capturedOutput;
+    std::cerr.rdbuf(capturedOutput.rdbuf());
+    InitializeAuditFunctions();
+    std::cerr.rdbuf(oldCerrBuffer);
+    EXPECT_EQ(capturedOutput.str(), "Unable to find symbol 'audit_close': ");
+    g_loaded = false;
+    g_isOpenAudit = false;
+}
+
+/*
+ * 用例描述：
+ * 测试初始化dlsym函数
+ * 测试步骤：
+ * 1.dlsym audit_open成功
+ * 2.dlsym audit_close成功
+ * 3.dlsym audit_log_user_message失败
+ * 预期结果：
+ * 1.打印"Unable to find symbol 'audit_log_user_message'"
+ */
+TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditLog)
+{
+    auto testLibrary = TestLibrary();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
+    MOCKER(dlsym)
+        .stubs()
+        .will(returnValue(reinterpret_cast<void *>(&MockFunc)))
+        .then(returnValue(reinterpret_cast<void *>(&MockFunc)))
+        .then(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlclose).stubs().will(returnValue(0));
+    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::stringstream capturedOutput;
+    std::cerr.rdbuf(capturedOutput.rdbuf());
+    InitializeAuditFunctions();
+    std::cerr.rdbuf(oldCerrBuffer);
+    EXPECT_EQ(capturedOutput.str(), "Unable to find symbol 'audit_log_user_message': ");
+    g_loaded = false;
+    g_isOpenAudit = false;
+}
+
+/*
+ * 用例描述：
+ * 测试初始化dlsym函数
+ * 测试步骤：
+ * 1.dlsym audit_open成功
+ * 2.dlsym audit_close成功
+ * 3.dlsym audit_log_user_message成功
+ * 预期结果：
+ * 1.未打印错误日志
+ */
+TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsSuccess)
+{
+    auto testLibrary = TestLibrary();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockFunc)));
+    MOCKER(dlclose).stubs().will(returnValue(0));
+    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::stringstream capturedOutput;
+    std::cerr.rdbuf(capturedOutput.rdbuf());
+    InitializeAuditFunctions();
+    std::cerr.rdbuf(oldCerrBuffer);
+    EXPECT_EQ(capturedOutput.str(), "");
+    g_loaded = false;
+    g_isOpenAudit = false;
+}
+} // namespace ubse::ut::log

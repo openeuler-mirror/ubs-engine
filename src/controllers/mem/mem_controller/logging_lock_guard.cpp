@@ -15,7 +15,7 @@
 #include <mutex>
 #include <unordered_map>
 #include "ubse_error.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 
 namespace ubse::mem::controller {
 
@@ -24,9 +24,9 @@ std::mutex LoggingLockGuard::mapMutex;
 // 当引用数为2时(1个是mutexMap引用 + 1个是当前的LoggingLockGuard实例引用)，意味着只有一个使用方，此时LoggingLockGuard析构，可以清理mutexMap
 const uint32_t USE_COUNT_WHEN_ONLY_ONE_USER = 2;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
-std::shared_ptr<std::mutex> LoggingLockGuard::GetObjMutex(const std::string objId)
+std::shared_ptr<std::mutex> LoggingLockGuard::GetObjMutex(const std::string &objId)
 {
     std::unique_lock<std::mutex> lock(mapMutex);
     if (mutexMap.find(objId) == mutexMap.end()) {
@@ -35,7 +35,7 @@ std::shared_ptr<std::mutex> LoggingLockGuard::GetObjMutex(const std::string objI
     return mutexMap[objId];
 }
 
-void LoggingLockGuard::RemoveObjMutex(const std::string objId)
+void LoggingLockGuard::RemoveObjMutex(const std::string &objId)
 {
     std::unique_lock<std::mutex> lock(mapMutex);
     if (mutexMap.find(objId) != mutexMap.end()) {
@@ -45,17 +45,17 @@ void LoggingLockGuard::RemoveObjMutex(const std::string objId)
     }
 }
 
-LoggingLockGuard::LoggingLockGuard(const std::string &name) : mutex(GetObjMutex(name)), name(name)
+LoggingLockGuard::LoggingLockGuard(const std::string &name) : mutex_(GetObjMutex(name)), name_(name)
 {
-    (*mutex).lock();
+    (*mutex_).lock();
     UBSE_LOG_INFO << "Locked name=" << name;
 }
 
 LoggingLockGuard::~LoggingLockGuard()
 {
-    (*mutex).unlock();
-    UBSE_LOG_INFO << "UnLocked name=" << name;
-    RemoveObjMutex(name);
+    (*mutex_).unlock();
+    UBSE_LOG_INFO << "UnLocked name=" << name_;
+    RemoveObjMutex(name_);
 }
 
 } // namespace ubse::mem::controller

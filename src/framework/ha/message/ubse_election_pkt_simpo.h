@@ -30,7 +30,7 @@ public:
 
     inline ElectionPkt GetElectionPkt()
     {
-        return electionPkt;
+        return electionPkt_;
     }
 
     UbseResult Serialize() override;
@@ -40,7 +40,7 @@ public:
     std::string ToString() const override;
 
 private:
-    ElectionPkt electionPkt{};
+    ElectionPkt electionPkt_{};
 };
 using UbseElectionPktSimpoPtr = Ref<UbseElectionPktSimpo>;
 }

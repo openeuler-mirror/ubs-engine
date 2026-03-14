@@ -21,6 +21,7 @@ struct EventTask {
     std::string eventMessage;
     UbseEventPriority priority;
     UbseEventHandler registerFunc;
+    std::string traceId;
 };
 }
 

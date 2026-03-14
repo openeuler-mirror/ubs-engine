@@ -14,6 +14,7 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_thread_pool_module.h"
 
@@ -41,13 +42,15 @@ TEST_F(TestUbseApiServerModule, StartSuccessfully)
 {
     // 预注册一个处理程序
     apiServerModule.RegisterIpcHandler(1, 1,
-                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return IPC_SUCCESS; });
-    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; });
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
     // 注册一个已存在处理程序
     apiServerModule.RegisterIpcHandler(
-        1, 1, [](const UbseIpcMessage &, const UbseRequestContext &) { return IPC_ERROR_INVALID_HANDLE; });
+        1, 1, [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_ERR_DAEMON_UNREACHABLE; });
     apiServerModule.Stop();
 }
 
@@ -56,11 +59,13 @@ TEST_F(TestUbseApiServerModule, StartWithHandlerRegistrationFailed)
 {
     // 预注册一个处理程序
     apiServerModule.RegisterIpcHandler(1, 1,
-                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return IPC_SUCCESS; });
+                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; });
     // 启动服务器
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseIpcServer::RegisterHandler).stubs().will(returnValue(1));
+    MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
 }
 
@@ -68,9 +73,10 @@ TEST_F(TestUbseApiServerModule, StartWithHandlerRegistrationFailed)
 TEST_F(TestUbseApiServerModule, StartWithServerStartFailed)
 {
     // 模拟ipcServer->Start()返回错误
-    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_ERROR));
-
+    MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
     // 启动服务器
     EXPECT_EQ(apiServerModule.Start(), UBSE_ERROR);
 }
@@ -79,10 +85,11 @@ TEST_F(TestUbseApiServerModule, StartWithServerStartFailed)
 TEST_F(TestUbseApiServerModule, SendResponseSuccess)
 {
     // 模拟ipcServer->SendResponse()返回成功
-    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseIpcServer::SendResponse).stubs().will(returnValue(UBSE_OK));
-
+    MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
     // 发送响应
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
     UbseIpcMessage ipcMessage{};
@@ -94,10 +101,11 @@ TEST_F(TestUbseApiServerModule, SendResponseSuccess)
 TEST_F(TestUbseApiServerModule, SendResponseError)
 {
     // 模拟ipcServer->SendResponse()返回成功
-    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseIpcServer::SendResponse).stubs().will(returnValue(UBSE_ERROR));
-
+    MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
     // 发送响应
     MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
@@ -112,5 +120,44 @@ TEST_F(TestUbseApiServerModule, SendResponseWhenServerNotStart)
     // 发送响应
     UbseIpcMessage ipcMessage{};
     EXPECT_EQ(apiServerModule.SendResponse(0, 0, ipcMessage), UBSE_ERROR_NULLPTR);
+}
+
+// 测试AsyncSendLongLink失败
+TEST_F(TestUbseApiServerModule, AsyncSendLongLinkError)
+{
+    UbseRequestMessage message{};
+    std::vector<uint64_t> reqList;
+    EXPECT_NE(apiServerModule.AsyncSendLongLink(message, nullptr, nullptr, reqList), UBSE_OK);
+
+    // 模拟ipcServer->AsyncSendLongLink()返回失败
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
+    MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseIpcServer::AsyncSendLongLink).stubs().will(returnValue(UBSE_ERROR));
+
+    // 发送响应
+    MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
+    EXPECT_NE(apiServerModule.AsyncSendLongLink(message, nullptr, nullptr, reqList), UBSE_OK);
+}
+
+// 测试AsyncSendLongLink成功
+TEST_F(TestUbseApiServerModule, AsyncSendLongLinkSuccess)
+{
+    UbseRequestMessage message{};
+    std::vector<uint64_t> reqList;
+
+    // 模拟ipcServer->AsyncSendLongLink()返回成功
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
+    MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseIpcServer::AsyncSendLongLink).stubs().will(returnValue(UBSE_OK));
+
+    // 发送响应
+    MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
+    EXPECT_EQ(apiServerModule.AsyncSendLongLink(message, nullptr, nullptr, reqList), UBSE_OK);
 }
 } // namespace ubse::ut::api::server

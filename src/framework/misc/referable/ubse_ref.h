@@ -25,24 +25,24 @@ public:
 
     inline void IncreaseRef()
     {
-        __sync_fetch_and_add(&mRefCount, 1);
+        __sync_fetch_and_add(&mRefCount_, 1);
     }
 
     inline void DecreaseRef()
     {
         // delete itself if reference count equal to 0
-        if (__sync_sub_and_fetch(&mRefCount, 1) == 0) {
+        if (__sync_sub_and_fetch(&mRefCount_, 1) == 0) {
             delete this;
         }
     }
 
     inline int32_t GetRef()
     {
-        return __sync_fetch_and_add(&mRefCount, 0);
+        return __sync_fetch_and_add(&mRefCount_, 0);
     }
 
 protected:
-    int32_t mRefCount = 0;
+    int32_t mRefCount_ = 0;
 };
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 8 && __GNUC_PATCHLEVEL__ == 5
@@ -68,7 +68,7 @@ public:
         // else nothing need to do as mObj is nullptr by default
         if (newObj != nullptr) {
             newObj->IncreaseRef();
-            mObj = newObj;
+            mObj_ = newObj;
         }
     }
 
@@ -76,16 +76,16 @@ public:
     {
         // if other's obj is not null, increase reference count and assign to mObj
         // else nothing need to do as mObj is nullptr by default
-        if (other.mObj != nullptr) {
-            other.mObj->IncreaseRef();
-            mObj = other.mObj;
+        if (other.mObj_ != nullptr) {
+            other.mObj_->IncreaseRef();
+            mObj_ = other.mObj_;
         }
     }
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 8 && __GNUC_PATCHLEVEL__ == 5
     Ref(Ref<T> &&other) noexcept : mObj(exchangeHdagger(other.mObj, nullptr))
 #else
-    Ref(Ref<T> &&other) noexcept : mObj(std::__exchange(other.mObj, nullptr))
+    Ref(Ref<T> &&other) noexcept : mObj_(std::__exchange(other.mObj_, nullptr))
 #endif
     {
         // move constructor
@@ -95,8 +95,8 @@ public:
     // de-constructor
     ~Ref()
     {
-        if (mObj != nullptr) {
-            mObj->DecreaseRef();
+        if (mObj_ != nullptr) {
+            mObj_->DecreaseRef();
         }
     }
 
@@ -110,7 +110,7 @@ public:
     inline Ref<T> &operator=(const Ref<T> &other)
     {
         if (this != &other) {
-            this->Set(other.mObj);
+            this->Set(other.mObj_);
         }
         return *this;
     }
@@ -118,11 +118,11 @@ public:
     Ref<T> &operator=(Ref<T> &&other) noexcept
     {
         if (this != &other) {
-            auto tmp = mObj;
+            auto tmp = mObj_;
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 8 && __GNUC_PATCHLEVEL__ == 5
             mObj = exchangeHdagger(other.mObj, nullptr);
 #else
-            mObj = std::__exchange(other.mObj, nullptr);
+            mObj_ = std::__exchange(other.mObj_, nullptr);
 #endif
             if (tmp != nullptr) {
                 tmp->DecreaseRef();
@@ -134,38 +134,38 @@ public:
     // equal operator
     inline bool operator==(const Ref<T> &other) const
     {
-        return mObj == other.mObj;
+        return mObj_ == other.mObj_;
     }
 
     inline bool operator==(T *other) const
     {
-        return mObj == other;
+        return mObj_ == other;
     }
 
     inline bool operator!=(const Ref<T> &other) const
     {
-        return mObj != other.mObj;
+        return mObj_ != other.mObj_;
     }
 
     inline bool operator!=(T *other) const
     {
-        return mObj != other;
+        return mObj_ != other;
     }
 
     // get operator and set
     inline T *operator->() const
     {
-        return mObj;
+        return mObj_;
     }
 
     inline T *Get() const
     {
-        return mObj;
+        return mObj_;
     }
 
     inline void Set(T *newObj)
     {
-        if (newObj == mObj) {
+        if (newObj == mObj_) {
             return;
         }
 
@@ -173,15 +173,15 @@ public:
             newObj->IncreaseRef();
         }
 
-        if (mObj != nullptr) {
-            mObj->DecreaseRef();
+        if (mObj_ != nullptr) {
+            mObj_->DecreaseRef();
         }
 
-        mObj = newObj;
+        mObj_ = newObj;
     }
 
 private:
-    T *mObj = nullptr;
+    T *mObj_ = nullptr;
 };
 
 /*

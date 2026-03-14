@@ -10,21 +10,23 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <cstring>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "ubse_cli_reg.h"
 #include "ubse_cli_whitelist.h"
 #include "ubse_error.h"
+#include "ubse_ipc_log.h"
 
 using namespace ubse::cli::reg;
 using namespace ubse::cli::framework;
 
 constexpr size_t TIMEOUT_SECONDS = 30;
-constexpr unsigned int ROOT_USER_ID = 0;
 constexpr size_t MIN_NUM_PARAMS = 1;
 constexpr size_t MAX_NUM_PARAMS = 43;
 constexpr size_t CHECK_PARAM_NUMS = 2;
+constexpr size_t ODD_CHECK_INTERVAL = 2;
 
 namespace {
 void SignalHandler(int signum)
@@ -39,11 +41,6 @@ void SignalHandler(int signum)
 
 int ValidateStartupConditions(int argc, char *argv[])
 {
-    if (geteuid() == ROOT_USER_ID) {
-        UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-            "ERROR: The current program does not support the root user. Switch to a user in the ubse group.");
-        return UBSE_ERROR;
-    }
     if (static_cast<size_t>(argc) < MIN_NUM_PARAMS || static_cast<size_t>(argc) > MAX_NUM_PARAMS) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Unsupported number of parameters");
         return UBSE_ERROR;
@@ -68,7 +65,7 @@ int main(int argc, char *argv[])
     args.reserve(static_cast<unsigned long>(argc));
     for (size_t i = 1; i < static_cast<size_t>(argc); ++i) {
         if ((i <= CHECK_PARAM_NUMS && !whitelist.UbseCliIsAllowed(std::string(argv[i]))) ||
-            (i % 2 == 1 && !whitelist.UbseCliIsAllowed(std::string(argv[i])))) {
+            (i % ODD_CHECK_INTERVAL == 1 && !whitelist.UbseCliIsAllowed(std::string(argv[i])))) {
             UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Invalid characters in the whitelist.");
             return UBSE_ERROR;
         }
@@ -93,6 +90,8 @@ int main(int argc, char *argv[])
             std::string(strerror(errno)) + "\n");
         return UBSE_ERROR;
     }
+    // 取消ipc日志
+    ubse::ipc::UbseIpcLog::SetLogFunc([]([[maybe_unused]]uint32_t level, [[maybe_unused]]const char *message) {});
     UbseCliModuleRegistry::GetInstance()
         .UbseCliGetMatchCommand()
         .commandFunc(UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliGetInputOptionMap())

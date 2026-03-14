@@ -29,13 +29,10 @@
 #include <vector>
 
 #define TOPOLOGY_MAX_SOCKET_PER_HOST 2
-#define TOPOLOGY_MAX_NUMA_PER_SOCKET 2
+#define TOPOLOGY_MAX_NUMA_PER_SOCKET 4
 #define TOPOLOGY_MAX_NUMA_PER_HOST 4
 #define TOPOLOGY_MAX_HOST_NUM 16
 #define TOPOLOGY_MAX_TOTAL_NUMA 64
-#define INVALID_UID (4294967295)
-#define INVALID_GID (4294967295)
-#define MAX_HOSTNAME_LENGTH 48
 
 namespace ubse::mem::strategy {
 constexpr int16_t INVALID_META_ID = -1;
@@ -56,16 +53,33 @@ constexpr int IPC_RETRY_TIMES = 3;
 constexpr int RPC_RETRY_TIMES = 3;
 constexpr auto UBSE_SHM_LOCAL_ID = "";
 constexpr uint64_t INVALID_VALUE64 = 0;
+constexpr uint16_t INVALID_VALUE16 = 0xFFFF;
 constexpr uint32_t POOL_MEM_RATIO_VALID_MIN = 0;
 constexpr uint32_t POOL_MEM_RATIO_VALID_MAX = 100;
-constexpr int MAX_X_NODE_NUM = 4;
-constexpr uint64_t MAX_EXPORT_MEM_SIZE_PER_SOCKET = 256 * 1024 * 1024 * 1024L; // 单位B
+constexpr int MAX_X_NODE_NUM = 16;
+constexpr uint64_t MAX_EXPORT_MEM_SIZE_PER_SOCKET = 2 * 1024 * 1024 * 1024L * 1024L; // 单位B
 constexpr uint64_t MAX_IMPORT_MEM_SIZE_PER_SOCKET = 2 * 1024L * 1024L;               // 单位MB
-constexpr uint64_t MIN_IMPORT_MEM_SIZE_PER_SOCKET = 128L;                      // 单位MB
+constexpr uint64_t MIN_IMPORT_MEM_SIZE_PER_SOCKET = 128L;                            // 单位MB
 constexpr uint64_t MAX_OBMM_SYSTEM_POOL_MEM_RATIO = 100;
 constexpr uint64_t DEFAULT_MEM_BORROW_LIMIT = 4194304L;
 constexpr uint64_t OBMM_MEMORY_BLOCK_SIZE_CONFIG = 128L;
 constexpr uint64_t MAX_BORROW_MEM_PER_NODE = UINT64_MAX / 2;
+constexpr uint16_t API_TIME_OUT = 1800;
+constexpr uint16_t MAX_TIME_OUT = 3600;
+constexpr uint16_t THREAD_NUM = 64;
+constexpr uint16_t Queue_Capacity = 1000;
+constexpr uint32_t BLOCK_128M = 128u;
+constexpr uint32_t BLOCK_512M = 512u;
+constexpr uint32_t BLOCK_1G = 1024u;
+constexpr uint32_t BLOCK_2M = 2u;
+constexpr uint32_t MB_2M = 2;
+constexpr uint32_t MB_4M = 4;
+constexpr uint32_t MB_128M = 128;
+constexpr uint32_t MB_4096M = 4096;
+constexpr uint32_t KB_TO_B = 1024;
+constexpr uint64_t MB_TO_BYTE = 1024 * 1024;
+const std::string PAGE_SIZE_4K = "4096";
+const std::string PAGE_SIZE_64K = "65536";
 
 const std::string UBSE_METRIC_PREFIX = "/ubse.metric.";
 const std::string UBSE_MEM_TYPE = "mem";
@@ -83,7 +97,6 @@ const std::string UBSE_EVENT_XALARM_KERNEL_REBOOT_ACK = "ALARM_KERNEL_REBOOT_ACK
 constexpr auto OBMM_MEM_MANAGER_CONFIG_SECTION_NAME = "ubse.memory";
 constexpr auto OBMM_MEMORY_BLOCK_SIZE_CONFIG_KEY = "obmm.memory.block.size";
 
-
 // 数字常量宏，代表数字1，2，3，4...
 constexpr int16_t NO_0 = 0;
 constexpr int16_t NO_1 = 1;
@@ -94,6 +107,7 @@ constexpr int16_t NO_16 = 16;
 constexpr int16_t NO_32 = 32;
 constexpr int16_t NO_64 = 64;
 constexpr int16_t NO_128 = 128;
+constexpr int16_t NO_512 = 512;
 constexpr int16_t NO_1000 = 1000;
 constexpr int16_t NO_1024 = 1024;
 constexpr int16_t NO_2048 = 2048;

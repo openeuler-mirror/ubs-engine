@@ -14,6 +14,7 @@
 #define UBSE_PLUGIN_ADMISSION_H
 #include <mutex>
 #include <shared_mutex>
+#include <optional>
 
 #include "ubse_common_def.h"
 
@@ -26,11 +27,11 @@ public:
 
     // 增删改查方法
     const std::map<std::string, uint16_t> &GetAllowedPlugins() const;
-    const uint16_t *GetPluginConfig(const std::string &pluginName) const;
+    std::optional<uint16_t> GetPluginConfig(const std::string &pluginName) const;
 
 private:
-    mutable std::shared_mutex allowedPluginsMutex;
-    std::map<std::string, uint16_t> allowedPlugins; // 存储允许加载的插件
+    mutable std::shared_mutex allowedPluginsMutex_;
+    std::map<std::string, uint16_t> allowedPlugins_; // 存储允许加载的插件
 };
 } // namespace ubse::plugin
 #endif // UBSE_PLUGIN_ADMISSION_H

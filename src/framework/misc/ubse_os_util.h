@@ -20,9 +20,13 @@ namespace ubse::utils {
 using namespace ubse::common::def;
 class UbseOsUtil {
 public:
+    static UbseResult GetUserNameById(uid_t uid, std::string &userName);
+
     static UbseResult Exec(const std::string &cmd, std::string &res);
 
     static UbseResult GetUidByName(const std::string &username, uid_t &uid);
+
+    static UbseResult GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId);
 };
 } // namespace ubse::utils
 #endif // UBSE_OS_UTIL_H

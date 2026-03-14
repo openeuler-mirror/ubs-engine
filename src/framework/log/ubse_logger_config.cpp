@@ -37,18 +37,18 @@ constexpr std::string_view DEFAULT_SYSLOG_TYPE = "user";
 
 class UbseLoggerConfig::Impl {
 public:
-    std::shared_ptr<UbseConfModule> cfgRef;
+    std::shared_ptr<UbseConfModule> cfgRef_;
 };
 
-UbseLoggerConfig::UbseLoggerConfig() : pImpl(std::make_unique<Impl>()) {}
+UbseLoggerConfig::UbseLoggerConfig() : pImpl_(std::make_unique<Impl>()) {}
 UbseLoggerConfig::~UbseLoggerConfig() = default;
 
 UbseResult UbseLoggerConfig::Initialize()
 {
     // 调用配置管理接口
     auto &ctxRef = UbseContext::GetInstance();
-    pImpl->cfgRef = ctxRef.GetModule<UbseConfModule>();
-    if (pImpl->cfgRef == nullptr) {
+    pImpl_->cfgRef_ = ctxRef.GetModule<UbseConfModule>();
+    if (pImpl_->cfgRef_ == nullptr) {
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -59,11 +59,11 @@ std::string UbseLoggerConfig::GetLogCfgLevel()
 {
     std::string logCfgLevel;
     const std::unordered_set<std::string> validLogLevels = {"DEBUG", "INFO", "WARN", "ERROR", "CRIT"};
-    if (pImpl->cfgRef == nullptr) {
+    if (pImpl_->cfgRef_ == nullptr) {
         std::cerr << "Please get ubse logger instance first" << std::endl;
         return "";
     }
-    uint32_t code = pImpl->cfgRef->GetConf<std::string>("ubse.log", "log.level", logCfgLevel);
+    uint32_t code = pImpl_->cfgRef_->GetConf<std::string>("ubse.log", "log.level", logCfgLevel);
     if (code != UBSE_OK) {
         logCfgLevel = "INFO"; // INFO为manager.log.level的默认配置
         std::cerr << "Unable to read LogCfgLevel, code: " << code << ", will use default value:" << logCfgLevel
@@ -80,11 +80,11 @@ std::string UbseLoggerConfig::GetLogCfgLevel()
 uint32_t UbseLoggerConfig::GetLogCfgFileSize()
 {
     uint32_t logCfgFileSize;
-    if (pImpl->cfgRef == nullptr) {
+    if (pImpl_->cfgRef_ == nullptr) {
         std::cerr << "Please get ubse logger instance first" << std::endl;
         return UBSE_ERROR_NULLPTR;
     }
-    uint32_t code = pImpl->cfgRef->GetConf<uint32_t>("ubse.log", "log.max.fileSize", logCfgFileSize);
+    uint32_t code = pImpl_->cfgRef_->GetConf<uint32_t>("ubse.log", "log.max.fileSize", logCfgFileSize);
     if (code != UBSE_OK) {
         logCfgFileSize = DEFAULT_LOG_FILESIZE;
         std::cerr << "Unable to read LogCfgFileSize, code: " << code << ", will use default value:" << logCfgFileSize
@@ -101,11 +101,11 @@ uint32_t UbseLoggerConfig::GetLogCfgFileSize()
 uint32_t UbseLoggerConfig::GetLogCfgFileNums()
 {
     uint32_t logCfgFileNums;
-    if (pImpl->cfgRef == nullptr) {
+    if (pImpl_->cfgRef_ == nullptr) {
         std::cerr << "Please get ubse logger instance first" << std::endl;
         return UBSE_ERROR_NULLPTR;
     }
-    uint32_t code = pImpl->cfgRef->GetConf<uint32_t>("ubse.log", "log.fileNums", logCfgFileNums);
+    uint32_t code = pImpl_->cfgRef_->GetConf<uint32_t>("ubse.log", "log.fileNums", logCfgFileNums);
     if (code != UBSE_OK) {
         logCfgFileNums = DEFAULT_LOG_FILENUM;
         std::cerr << "Unable to read LogCfgFileNums, code: " << code << ", will use default value:" << logCfgFileNums
@@ -122,11 +122,11 @@ uint32_t UbseLoggerConfig::GetLogCfgFileNums()
 uint32_t UbseLoggerConfig::GetLogCfgQueueItems()
 {
     uint32_t logCfgQueueItems;
-    if (pImpl->cfgRef == nullptr) {
+    if (pImpl_->cfgRef_ == nullptr) {
         std::cerr << "Please get ubse logger instance first" << std::endl;
         return UBSE_ERROR_NULLPTR;
     }
-    uint32_t code = pImpl->cfgRef->GetConf<uint32_t>("ubse.log", "log.queue.maxItem", logCfgQueueItems);
+    uint32_t code = pImpl_->cfgRef_->GetConf<uint32_t>("ubse.log", "log.queue.maxItem", logCfgQueueItems);
     if (code != UBSE_OK) {
         logCfgQueueItems = DEFAULT_LOG_ITEM;
         std::cerr << "Unable to read LogCfgQueueItems, code: " << code
@@ -143,11 +143,11 @@ uint32_t UbseLoggerConfig::GetLogCfgQueueItems()
 bool UbseLoggerConfig::GetSyslogSwitch()
 {
     bool syslogOpen;
-    if (pImpl->cfgRef == nullptr) {
+    if (pImpl_->cfgRef_ == nullptr) {
         std::cerr << "Please get ubse logger instance first" << std::endl;
         return DEFAULT_SYSLOG_OPEN;
     }
-    uint32_t code = pImpl->cfgRef->GetConf<bool>("ubse.log", "log.sys.open", syslogOpen);
+    uint32_t code = pImpl_->cfgRef_->GetConf<bool>("ubse.log", "log.sys.open", syslogOpen);
     if (code != UBSE_OK) {
         syslogOpen = DEFAULT_SYSLOG_OPEN;
         std::cerr << "Unable to read SyslogOpen, code: " << code << ", will use default value: false" << std::endl;
@@ -164,11 +164,11 @@ uint32_t UbseLoggerConfig::GetSyslogType()
         {"uucp", LOG_UUCP},     {"cron", LOG_CRON},     {"authpriv", LOG_AUTHPRIV}, {"ftp", LOG_FTP},
         {"local0", LOG_LOCAL0}, {"local1", LOG_LOCAL1}, {"local2", LOG_LOCAL2},     {"local3", LOG_LOCAL3},
         {"local4", LOG_LOCAL4}, {"local5", LOG_LOCAL5}, {"local6", LOG_LOCAL6},     {"local7", LOG_LOCAL7}};
-    if (pImpl->cfgRef == nullptr) {
+    if (pImpl_->cfgRef_ == nullptr) {
         std::cerr << "Please get ubse logger instance first" << std::endl;
         return LOG_USER;
     }
-    uint32_t code = pImpl->cfgRef->GetConf<std::string>("ubse.log", "log.sys.type", syslogTypeStr);
+    uint32_t code = pImpl_->cfgRef_->GetConf<std::string>("ubse.log", "log.sys.type", syslogTypeStr);
     if (code != UBSE_OK) {
         syslogTypeStr = DEFAULT_SYSLOG_TYPE;
         std::cerr << "Unable to read SyslogType, code: " << code << ", will use default value:" << DEFAULT_SYSLOG_TYPE

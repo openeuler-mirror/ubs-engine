@@ -28,6 +28,7 @@
 #include "ubse_election_role_standby.h"
 
 namespace ubse::election {
+#define MODULE_LOG_NAME "ubse"
 class RoleMgr {
 public:
     RoleMgr()
@@ -35,16 +36,21 @@ public:
         UbseElectionNodeMgr &nodeMgr = UbseElectionNodeMgr::GetInstance();
         Node myself;
         nodeMgr.GetMyselfNode(myself);
-        currentRole = SafeMakeShared<Initializer>();
-        if (!currentRole) {
+        currentRole_ = SafeMakeShared<Initializer>();
+        if (!currentRole_) {
             UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared Initializer currentRole failed.";
         }
-        commMgr = SafeMakeShared<UbseElectionCommMgr>(myself.id, "UbseMasterRpcServer");
-        if (!commMgr) {
+        commMgr_ = SafeMakeShared<UbseElectionCommMgr>(myself.id, "UbseMasterRpcServer");
+        if (!commMgr_) {
             UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared Initializer commMgr failed.";
         }
-        pthread_mutex_init(&mutex, nullptr);
+        pthread_mutex_init(&mutex_, nullptr);
     };
+
+    ~RoleMgr()
+    {
+        pthread_mutex_destroy(&mutex_);
+    }
 
     static RoleMgr &GetInstance()
     {
@@ -58,7 +64,7 @@ public:
 
     std::shared_ptr<UbseElectionCommMgr> GetCommMgr()
     {
-        return commMgr;
+        return commMgr_;
     };
 
     uint32_t RoleChangeAttach(UbseElectionEventType type, UbseElectionHandler handler);
@@ -73,9 +79,9 @@ public:
     void ProcTimer();
 
 private:
-    static std::shared_ptr<RoleMgr> instance;
-    std::shared_ptr<ElectionRole> currentRole;
-    std::shared_ptr<UbseElectionCommMgr> commMgr;
+    static std::shared_ptr<RoleMgr> instance_;
+    std::shared_ptr<ElectionRole> currentRole_;
+    std::shared_ptr<UbseElectionCommMgr> commMgr_;
     // 使用 shared_ptr 存储 Handler
     using HandlerPtr = std::shared_ptr<UbseElectionHandler>;
     using HandlerWeakPtr = std::weak_ptr<UbseElectionHandler>;
@@ -106,8 +112,9 @@ private:
     };
     std::vector<HandlerPtr> active_handlers_;
     std::unordered_map<UbseElectionEventType, std::vector<std::shared_ptr<SafeHandler>>> handlers_;
-    std::recursive_mutex mProcessorLock{};
-    pthread_mutex_t mutex;
+    std::recursive_mutex mProcessorLock_{};
+    pthread_mutex_t mutex_;
 };
+#undef MODULE_LOG_NAME
 } // namespace ubse::election
 #endif // UBSE_ELECTION_ROLE_MGR_H

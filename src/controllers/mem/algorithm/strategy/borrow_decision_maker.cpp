@@ -11,13 +11,14 @@
  */
 
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <iomanip>
-#include "mem_pool_config.h"
 #include "borrow_decision_maker.h"
+#include "mem_pool_config.h"
+#include "ubse_logger.h"
 
 namespace tc::rs::mem {
+UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 BResult BorrowDecisionMaker::DetermineLenderGreedy(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
                                                    BorrowResult &borrowResult) const
 {
@@ -26,7 +27,7 @@ BResult BorrowDecisionMaker::DetermineLenderGreedy(const BorrowRequest &borrowRe
     SelectOptimalNumaGreedy(borrowRequest, sysStatus, idxMaxFree, maxNumaFreeSizeBytes);
     if ((static_cast<uint64_t>(borrowRequest.requestSize) * MB_TO_B) > maxNumaFreeSizeBytes) {
         borrowResult.lenderLength = 0;
-        return HFAIL;
+        return UBSE_ERROR;
     }
     // 保存借出方位置
     borrowResult.lenderLength = 1;
@@ -38,27 +39,25 @@ BResult BorrowDecisionMaker::DetermineLenderGreedy(const BorrowRequest &borrowRe
     } else {
         GetBorrowerNuma(borrowRequest, borrowResult);
     }
-    return HOK;
+    return UBSE_OK;
 }
 
 BResult BorrowDecisionMaker::MemoryBorrowGreedy(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
                                                 BorrowResult &borrowResult) const
 {
-    mStrategyImpl->InitSysStatus(ubseStatus);
-    DetermineLenderGreedy(borrowRequest, mStrategyImpl->memSysStatus, borrowResult);
+    mStrategyImpl_->InitSysStatus(ubseStatus);
+    DetermineLenderGreedy(borrowRequest, mStrategyImpl_->memSysStatus_, borrowResult);
     if (borrowResult.lenderLength == 0) {
-        LOG_INFO(LOG_LEVEL, "Borrow failed." << std::endl);
-        return HFAIL;
-    } else {
-        LOG_INFO(LOG_LEVEL, "Borrow succeed." << std::endl);
-        return HOK;
+        UBSE_LOG_INFO << "Borrow failed.";
+        return UBSE_ERROR;
     }
+    return UBSE_OK;
 }
 
 int BorrowDecisionMaker::GetBorrowedNum(MemLoc requestLoc, const SysStatus &sysStatus) const
 {
     int hasBorrowed = 0;
-    for (int i = 0; i < memConfig->memStaticParam.numHosts; i++) {
+    for (int i = 0; i < memConfig_->memStaticParam.numHosts; i++) {
         if (i != requestLoc.hostId && sysStatus.debtInfo.debtSize[requestLoc.hostId][i] > 0) {
             hasBorrowed++;
         }
@@ -68,7 +67,7 @@ int BorrowDecisionMaker::GetBorrowedNum(MemLoc requestLoc, const SysStatus &sysS
 
 bool BorrowDecisionMaker::IsBorrowedMax(int hasBorrowed, MemLoc requestLoc) const
 {
-    return (hasBorrowed >= memConfig->memStaticParam.maxBorrowHosts[requestLoc.hostId]);
+    return (hasBorrowed >= memConfig_->memStaticParam.maxBorrowHosts[requestLoc.hostId]);
 }
 
 bool BorrowDecisionMaker::IsNeverBorrowed(MemLoc requestLoc, MemLoc targetLoc, const SysStatus &sysStatus) const
@@ -85,40 +84,32 @@ BResult BorrowDecisionMaker::ComputeSocketCosts(const BorrowRequest &borrowReque
     const RequestUrgentLevel &urgentLevel = borrowRequest.urgentLevel;
     RequestMode mode = RequestMode::BORROW;
 
-    LOG_DEBUG(LOG_LEVEL, "## Get borrow costs ##\n");
     // 统计域内存状态, 用于计算域均衡性评分
     RegionStatus regionStatus;
-    if (!memConfig->memIsFullyConnected) {
-        mStrategyImpl->GetRegionStatus(sysStatus, regionStatus);
+    if (!memConfig_->memIsFullyConnected) {
+        mStrategyImpl_->GetRegionStatus(sysStatus, regionStatus);
     }
     // 系统所有socket计算借用代价
-    for (int i = 0; i < memConfig->memAvailSocketsCnt; i++) {
-        const MemLoc &targetLoc = memConfig->memAvailSockets[i];
-        LOG_DEBUG(LOG_LEVEL, "Host/socket: " << targetLoc.hostId << "/" << static_cast<int>(targetLoc.socketId) << ": "
-                                             << std::endl);
+    for (int i = 0; i < memConfig_->memAvailSocketsCnt; i++) {
+        const MemLoc &targetLoc = memConfig_->memAvailSockets[i];
         if (targetSockets[i].resLen == 0) {
             socketCosts[i] = MAX_DEBT_COST;
-            LOG_DEBUG(LOG_LEVEL, "\tBorrow cost = " << MAX_DEBT_COST << "\n");
         } else {
-            double latencyCost = mStrategyImpl->LatencyScore(requestLoc, requestSize, targetSockets[i], mode);
-            double regionCost = mStrategyImpl->RegionBalanceScore(targetSockets[i], mode, regionStatus);
-            double balanceCost = mStrategyImpl->BalanceScore(targetSockets[i], mode, sysStatus);
-            double reliabilityCost = mStrategyImpl->ReliabilityScore(requestLoc, targetSockets[i], mode, sysStatus);
+            double latencyCost = mStrategyImpl_->LatencyScore(requestLoc, requestSize, targetSockets[i], mode);
+            double regionCost = mStrategyImpl_->RegionBalanceScore(targetSockets[i], mode, regionStatus);
+            double balanceCost = mStrategyImpl_->BalanceScore(targetSockets[i], mode, sysStatus);
+            double reliabilityCost = mStrategyImpl_->ReliabilityScore(requestLoc, targetSockets[i], mode, sysStatus);
             double divideNumaCost = MemPoolStrategyImpl::DivideNumaScore(requestSize, targetSockets[i]);
-            double penalty = mStrategyImpl->PenaltyScore(requestSize, targetSockets[i], sysStatus);
-            socketCosts[i] = memConfig->memStaticParam.borrowParam.wLatencyCost * latencyCost +
-                             memConfig->memStaticParam.borrowParam.wRegionBalanceCost * regionCost +
-                             memConfig->memStaticParam.borrowParam.wBalanceCost * balanceCost +
-                             memConfig->memStaticParam.borrowParam.wReliabilityCost * reliabilityCost +
-                             memConfig->memStaticParam.borrowParam.wDivideNumaCost * divideNumaCost + penalty;
-            LOG_DEBUG(LOG_LEVEL, "\tBorrow cost = " << std::fixed << std::setprecision(TOOL_PRECISION) << socketCosts[i]
-                                                    << " (" << latencyCost << " + " << regionCost << " + "
-                                                    << balanceCost << " + " << reliabilityCost << " + "
-                                                    << divideNumaCost << " + " << penalty << ")" << "\n");
+            double penalty = mStrategyImpl_->PenaltyScore(requestSize, targetSockets[i], sysStatus);
+            socketCosts[i] = memConfig_->memStaticParam.borrowParam.wLatencyCost * latencyCost +
+                             memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * regionCost +
+                             memConfig_->memStaticParam.borrowParam.wBalanceCost * balanceCost +
+                             memConfig_->memStaticParam.borrowParam.wReliabilityCost * reliabilityCost +
+                             memConfig_->memStaticParam.borrowParam.wDivideNumaCost * divideNumaCost + penalty;
         }
     }
 
-    return HOK;
+    return UBSE_OK;
 }
 
 BResult BorrowDecisionMaker::GetSocketBorrowCost(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
@@ -133,25 +124,31 @@ BResult BorrowDecisionMaker::GetSocketBorrowCost(const BorrowRequest &borrowRequ
     TargetSocket numaList;
 
     // 系统所有socket初筛, 初筛通过则拆分为numa
-    LOG_DEBUG(LOG_LEVEL, "## Filter sockets ##\n");
-    std::vector<TargetSocket> targetSockets(memConfig->memAvailSocketsCnt);
-    for (int i = 0; i < memConfig->memAvailSocketsCnt; i++) {
-        const MemLoc &targetLoc = memConfig->memAvailSockets[i];
+    std::vector<TargetSocket> targetSockets(memConfig_->memAvailSocketsCnt);
+    for (int i = 0; i < memConfig_->memAvailSocketsCnt; i++) {
+        const MemLoc &targetLoc = memConfig_->memAvailSockets[i];
         // 判断目标socket是否是候选socket
-        LOG_DEBUG(LOG_LEVEL,
-                  "Host/socket: " << targetLoc.hostId << "/" << static_cast<int>(targetLoc.socketId) << ":\n");
         bool filter = LenderFilter(requestLoc, targetLoc, sysStatus);
         if (filter) {
-            filter = mStrategyImpl->MaxOutFilter(targetLoc, requestSize, mode, sysStatus);
+            filter = mStrategyImpl_->MaxOutFilter(targetLoc, requestSize, mode, sysStatus);
         }
         if (filter) {
-            filter = mStrategyImpl->MemFreeFilter(targetLoc, requestSize, urgentLevel, sysStatus, numaList);
+            filter = mStrategyImpl_->MemFreeFilter(targetLoc, requestSize, urgentLevel, sysStatus, numaList);
         }
         // 若初筛不通过, 则借出numa数量为0; 若初筛通过, 则将socket拆分为numa
+        if (numaList.resLen != 0) {
+            numaList.socketLoc.socketId = numaList.resLocs[0].socketId;
+            numaList.socketLoc.hostId = numaList.resLocs[0].hostId;
+        }
         if (!filter) {
             targetSockets[i].resLen = 0;
         } else {
-            targetSockets[i] = MemPoolStrategyImpl::TargetSocket2Numa(numaList, requestSize);
+            if (memConfig_->memStaticParam.lenderNumaMode == LenderNumaMode::BALANCE) {
+                targetSockets[i] =
+                    MemPoolStrategyImpl::TargetSocket2NumaByReliable(requestLoc, numaList, sysStatus, requestSize);
+            } else {
+                targetSockets[i] = MemPoolStrategyImpl::TargetSocket2Numa(numaList, requestSize);
+            }
         }
         // 保存numa拆分结果
         socketResults[i].lenderLength = targetSockets[i].resLen;
@@ -162,21 +159,21 @@ BResult BorrowDecisionMaker::GetSocketBorrowCost(const BorrowRequest &borrowRequ
     }
 
     // 计算系统所有socket的借用代价, TargetSocket.resLen=0时表示socket不可借
-    ComputeSocketCosts(borrowRequest, sysStatus, memConfig->memAvailSocketsCnt, targetSockets, socketCosts);
+    ComputeSocketCosts(borrowRequest, sysStatus, memConfig_->memAvailSocketsCnt, targetSockets, socketCosts);
 
-    return HOK;
+    return UBSE_OK;
 }
 
 BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus &sysStatus,
                                            BorrowResult &borrowResult) const
 {
     if (borrowResult.lenderLength <= 0) {
-        return HFAIL;
+        return UBSE_ERROR;
     }
 
     // 借出方socket
     const MemLoc &targetSocket = borrowResult.lenderLocs[0];
-    int targetSocketIdx = memConfig->GetSocketIndex(targetSocket);
+    int targetSocketIdx = memConfig_->GetSocketIndex(targetSocket);
 
     // 借入方socket. 若requestLoc是numa, 取其所在socket; 若requestLoc是host, 取剩余内存最少的socket
     MemLoc requestSocket;
@@ -187,9 +184,9 @@ BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus &s
         requestSocket = requestLoc;
     } else {
         uint64_t memFreeMax = UINT64_MAX;
-        for (int i = 0; i < memConfig->memAvailSocketsCnt; i++) {
-            MemLoc socket = memConfig->memAvailSockets[i];
-            int socketIdx = memConfig->GetSocketIndex(socket);
+        for (int i = 0; i < memConfig_->memAvailSocketsCnt; i++) {
+            MemLoc socket = memConfig_->memAvailSockets[i];
+            int socketIdx = memConfig_->GetSocketIndex(socket);
             if (socket.hostId == requestLoc.hostId && sysStatus.socketStatus[socketIdx].memFree < memFreeMax) {
                 requestSocket = socket;
                 memFreeMax = sysStatus.socketStatus[socketIdx].memFree;
@@ -198,16 +195,16 @@ BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus &s
     }
 
     // 借入方numa是借入方socket上, 与借出方socket链路时延最低的numa
-    int *numaIdx = memConfig->GetNumaListInSocket(requestSocket.hostId, requestSocket.socketId);
+    int *numaIdx = memConfig_->GetNumaListInSocket(requestSocket.hostId, requestSocket.socketId);
     int32_t latencyMax = INT32_MAX;
     MemLoc resNuma;
     for (int i = 0; i < NUM_NUMA_PER_SOCKET; i++) {
         if (numaIdx[i] < 0) {
             continue;
         }
-        MemLoc requestNuma = memConfig->memStaticParam.availNumas[numaIdx[i]];
-        int requestNumaIdx = memConfig->GetNumaIndex(requestNuma);
-        int32_t latency = memConfig->memLatencyInfo.socketToNumaLatency[targetSocketIdx][requestNumaIdx];
+        MemLoc requestNuma = memConfig_->memStaticParam.availNumas[numaIdx[i]];
+        int requestNumaIdx = memConfig_->GetNumaIndex(requestNuma);
+        int32_t latency = memConfig_->memLatencyInfo.socketToNumaLatency[targetSocketIdx][requestNumaIdx];
         if (latency < latencyMax) {
             latencyMax = latency;
             resNuma = requestNuma;
@@ -219,28 +216,28 @@ BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus &s
         borrowResult.borrowerLocs[i] = resNuma;
     }
 
-    return HOK;
+    return UBSE_OK;
 }
 
 BResult BorrowDecisionMaker::SelectTopKBorrow(const BorrowRequest &borrowRequest, const SysStatus &sysStatus, int topK,
                                               BorrowResult *borrowResults) const
 {
     // 初始化搜索结果
-    topK = std::min(topK, memConfig->memAvailSocketsCnt);
+    topK = std::min(topK, memConfig_->memAvailSocketsCnt);
 
     // 依次计算所有socket评分, 并保存socket拆分结果
-    std::vector<int> socketIndex(memConfig->memAvailSocketsCnt);              // socket数组下标
-    std::vector<double> socketCost(memConfig->memAvailSocketsCnt);            // socket的借用代价
-    std::vector<BorrowResult> socketResult(memConfig->memAvailSocketsCnt);    // socket的numa拆分结果
-    for (int i = 0; i < memConfig->memAvailSocketsCnt; i++) {
+    std::vector<int> socketIndex(memConfig_->memAvailSocketsCnt);           // socket数组下标
+    std::vector<double> socketCost(memConfig_->memAvailSocketsCnt);         // socket的借用代价
+    std::vector<BorrowResult> socketResult(memConfig_->memAvailSocketsCnt); // socket的numa拆分结果
+    for (int i = 0; i < memConfig_->memAvailSocketsCnt; i++) {
         socketIndex[i] = i;
     }
     GetSocketBorrowCost(borrowRequest, sysStatus, socketResult, socketCost);
 
     // 所有socket按借用代价排序
     int numCost = 0;
-    std::vector<int> costIndex(memConfig->memAvailSocketsCnt);
-    for (int i = 0; i < memConfig->memAvailSocketsCnt; i++) {
+    std::vector<int> costIndex(memConfig_->memAvailSocketsCnt);
+    for (int i = 0; i < memConfig_->memAvailSocketsCnt; i++) {
         if (socketCost[i] == MAX_DEBT_COST) {
             continue;
         }
@@ -261,56 +258,37 @@ BResult BorrowDecisionMaker::SelectTopKBorrow(const BorrowRequest &borrowRequest
         }
     }
 
-    if (LOG_LEVEL != OFF) {
-        LOG_DEBUG(LOG_LEVEL, "## Sort sockets with borrow cost ##\n");
-        for (int i = 0; i < numCost; i++) {
-            LOG_DEBUG(LOG_LEVEL, "Index host/socket cost: "
-                                     << costIndex[i] << "\t\t" << memConfig->memAvailSockets[costIndex[i]].hostId << "/"
-                                     << static_cast<int>(memConfig->memAvailSockets[costIndex[i]].socketId) << "\t\t"
-                                     << std::fixed << std::setprecision(PRECISION) << socketCost[costIndex[i]] << "\n");
-        }
-        LOG_DEBUG(LOG_LEVEL, "Get " << numCost << " available sockets.\n");
+    for (int i = 0; i < numCost; i++) {
+        UBSE_LOG_INFO << "Index host/socket cost: " << costIndex[i] << "\t\t"
+                       << memConfig_->memAvailSockets[costIndex[i]].hostId << "/"
+                       << static_cast<int>(memConfig_->memAvailSockets[costIndex[i]].socketId) << "\t\t"
+                       << socketCost[costIndex[i]];
     }
+    UBSE_LOG_INFO << "Get " << numCost << " available sockets.";
 
-    return HOK;
+    return UBSE_OK;
 }
 
 BResult BorrowDecisionMaker::SingleMemBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
                                              BorrowResult &borrowResult)
 {
-    LOG_DEBUG(LOG_LEVEL, "## Memory single borrow input ##\n");
-    LOG_DEBUG(LOG_LEVEL, "RequestLoc, requestSize, urgentLevel: "
-                            << borrowRequest.requestLoc.hostId << "/"
-                            << static_cast<int>(borrowRequest.requestLoc.socketId) << "/"
-                            << static_cast<int>(borrowRequest.requestLoc.numaId) << ", " << borrowRequest.requestSize
-                            << "M" << ", LEVEL" << static_cast<int>(borrowRequest.urgentLevel) << "\n");
+    UBSE_LOG_INFO << "RequestLoc, requestSize, urgentLevel: " << borrowRequest.requestLoc.hostId << "/"
+                   << static_cast<int>(borrowRequest.requestLoc.socketId) << "/"
+                   << static_cast<int>(borrowRequest.requestLoc.numaId) << ", " << borrowRequest.requestSize << "M"
+                   << ", LEVEL" << static_cast<int>(borrowRequest.urgentLevel);
 
     // 初始化所有numa, socket, host状态
-    mStrategyImpl->InitSysStatus(ubseStatus);
+    mStrategyImpl_->InitSysStatus(ubseStatus);
     // 确定最优借入方和借出方
     BorrowResult borrowResults[1];
-    SelectTopKBorrow(borrowRequest, mStrategyImpl->memSysStatus, 1, borrowResults);
-    Borrower2Numa(borrowRequest.requestLoc, mStrategyImpl->memSysStatus, borrowResults[0]);
+    SelectTopKBorrow(borrowRequest, mStrategyImpl_->memSysStatus_, 1, borrowResults);
+    Borrower2Numa(borrowRequest.requestLoc, mStrategyImpl_->memSysStatus_, borrowResults[0]);
     borrowResult = borrowResults[0];
 
     if (borrowResult.lenderLength == 0) {
-        LOG_INFO(LOG_LEVEL, "## Memory single borrow result ##\n");
-        LOG_INFO(LOG_LEVEL, "Borrow failed.\n");
-        return HFAIL;
-    } else {
-        LOG_INFO(LOG_LEVEL, "## Memory single borrow result ##\n");
-        LOG_INFO(LOG_LEVEL, "Borrow succeed.\n");
-        LOG_DEBUG(LOG_LEVEL, "Borrower <-- lender: debtSize\n");
-        for (int i = 0; i < borrowResult.lenderLength; i++) {
-            LOG_DEBUG(LOG_LEVEL, borrowResult.borrowerLocs[i].hostId
-                                    << "/" << static_cast<int>(borrowResult.borrowerLocs[i].socketId) << "/"
-                                    << static_cast<int>(borrowResult.borrowerLocs[i].numaId) << "    <-- "
-                                    << borrowResult.lenderLocs[i].hostId << "/"
-                                    << static_cast<int>(borrowResult.lenderLocs[i].socketId) << "/"
-                                    << static_cast<int>(borrowResult.lenderLocs[i].numaId) << ":  "
-                                    << borrowResult.lenderSizes[i] << "M\n");
-        }
-        return HOK;
+        UBSE_LOG_ERROR << "Borrow failed.";
+        return UBSE_ERROR;
     }
+    return UBSE_OK;
 }
 } // namespace tc::rs::mem

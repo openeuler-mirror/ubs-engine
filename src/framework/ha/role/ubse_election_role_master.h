@@ -16,9 +16,20 @@
 #include "ubse_election_role.h"
 
 namespace ubse::election {
+#define MODULE_LOG_NAME "ubse"
 class Master : public ElectionRole {
 public:
     explicit Master(RoleContext &ctx);
+
+    ~Master()
+    {
+        stopping_ = true;
+        // 等待所有回调结束
+        while (activeCount_.load() > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        UBSE_LOG_INFO <<"[ELECTION] Master destruction completed";
+    }
 
     void ProcTimer() override;
 
@@ -39,7 +50,7 @@ public:
 
     uint64_t GetTurnId() override
     {
-        return turnId;
+        return turnId_;
     }
 
     uint8_t GetMasterStatus() override;
@@ -64,18 +75,23 @@ private:
     std::vector<UBSE_ID_TYPE> GetAllAgentIDs();
     std::vector<UBSE_ID_TYPE> GetActiveNodes();
     void InitNodesStatus(const std::vector<UBSE_ID_TYPE> &allNodes);
+    UbseResult SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt);
+
 private:
-    UBSE_ID_TYPE masterId; // Master的masterId也是selfID
-    UBSE_ID_TYPE standbyId = INVALID_NODE_ID;
-    uint64_t lastTimeMs = 0;
-    uint64_t turnId;
-    uint64_t sequenceId;
-    uint8_t workStatus;
-    uint8_t standbyStatus = 0;
-    HeartBeatStatus heartBeatStatus = HeartBeatStatus::ENABLED;
+    UBSE_ID_TYPE masterId_; // Master的masterId也是selfID
+    UBSE_ID_TYPE standbyId_ = INVALID_NODE_ID;
+    uint64_t lastTimeMs_ = 0;
+    uint64_t turnId_;
+    uint64_t sequenceId_;
+    uint8_t workStatus_;
+    uint8_t standbyStatus_ = 0;
+    HeartBeatStatus heartBeatStatus_ = HeartBeatStatus::ENABLED;
     std::map<UBSE_ID_TYPE, BroadcastStatus> broadcast_;
     std::vector<UBSE_ID_TYPE> preNodes_{};
-    std::mutex mtx;  // 互斥锁
+    std::mutex mtx_;  // 互斥锁
+    std::atomic<bool> stopping_;     // Master 是否正在销毁
+    std::atomic<int> activeCount_;   // 当前活跃回调数量
 };
+#undef MODULE_LOG_NAME
 }
 #endif // UBSE_ELECTION_ROLE_MASTER_H

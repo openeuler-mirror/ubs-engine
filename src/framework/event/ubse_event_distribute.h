@@ -37,7 +37,10 @@ public:
     explicit UbseEventDistribute() = default;
 
     explicit UbseEventDistribute(uint32_t capacity, uint32_t numsHighThs, uint32_t numsMidThs, uint32_t numsLowThs)
-        : eventQueueCapacity(capacity), numsHighThs(numsHighThs), numsMidThs(numsMidThs), numsLowThs(numsLowThs){};
+        : eventQueueCapacity_(capacity),
+          numsHighThs_(numsHighThs),
+          numsMidThs_(numsMidThs),
+          numsLowThs_(numsLowThs){};
 
     void RegisterSubscribe(const std::string &eventId, UbseEventPriority priority, UbseEventHandler registerFunc);
 
@@ -45,8 +48,8 @@ public:
 
     inline bool IsRegisteredSubscribe(const std::string &eventId)
     {
-        std::shared_lock<std::shared_mutex> readLock(eventSubMutex);
-        return subscribes.find(eventId) != subscribes.end();
+        std::shared_lock<std::shared_mutex> readLock(eventSubMutex_);
+        return subscribes_.find(eventId) != subscribes_.end();
     }
 
     void PubEvent(const std::string &eventId, const std::string &eventMsg);
@@ -64,21 +67,21 @@ public:
     void Stop();
 
 private:
-    UbseEventThreadPoolPtr poolPtr = nullptr;
-    uint32_t eventQueueCapacity;
-    uint32_t numsHighThs;
-    uint32_t numsMidThs;
-    uint32_t numsLowThs;
-    std::map<std::string, std::vector<EventTask>> subscribes;
-    std::deque<std::pair<std::string, std::string>> events;
-    std::atomic<bool> threadRunning;
-    std::mutex eventPubMutex;
-    std::shared_mutex eventSubMutex;
-    std::condition_variable notEmpty;
-    std::thread distributeThread;
+    UbseEventThreadPoolPtr poolPtr_ = nullptr;
+    uint32_t eventQueueCapacity_;
+    uint32_t numsHighThs_;
+    uint32_t numsMidThs_;
+    uint32_t numsLowThs_;
+    std::map<std::string, std::vector<EventTask>> subscribes_;
+    std::deque<std::tuple<std::string, std::string, std::string>> events_;
+    std::atomic<bool> threadRunning_{false};
+    std::mutex eventPubMutex_;
+    std::shared_mutex eventSubMutex_;
+    std::condition_variable notEmpty_;
+    std::thread distributeThread_;
 
 private:
-    std::map<std::string, uint32_t> congestCntMap;
+    std::map<std::string, uint32_t> congestCntMap_;
 
     void MonitorCongestion(const std::string &eventId, const std::string &eventMsg);
 };

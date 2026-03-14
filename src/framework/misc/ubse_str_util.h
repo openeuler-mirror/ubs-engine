@@ -22,28 +22,34 @@
 #include "ubse_error.h"
 
 namespace ubse::utils {
+using namespace common::def;
+
 void Split(const std::string &src, const std::string &sep, std::vector<std::string> &out);
 
 void Split(const std::string &src, const std::string &sep, std::set<std::string> &out);
 
-common::def::UbseResult SplitSysSentryMsg(const std::string &faultInfo, uint32_t &msgId, std::string &cna,
-                                          std::string &eid);
+UbseResult SplitSysSentryMsg(const std::string &faultInfo, uint64_t &msgId, std::string &cna,
+                             std::string &eid);
 
-common::def::UbseResult ConvertStrToInt(const std::string &str, int &outValue);
+UbseResult ConvertStrToInt(const std::string &str, int &outValue);
+
+UbseResult ConvertStrToLong(const std::string &str, long &outValue);
+
+UbseResult ConvertStrToUint16(const std::string &str, uint16_t &outValue, const int base = 10);
 
 // 默认10进制, 使用其他进制时需要传入base
-common::def::UbseResult ConvertStrToUint32(const std::string &str, uint32_t &outValue, int base = 10);
-
-uint32_t StrToUint32(const std::string &str);
-
-uint64_t StrToUint64(const std::string &str);
+UbseResult ConvertStrToUint32(const std::string &str, uint32_t &outValue, int base = 10);
 
 std::string Trim(const std::string &str, const std::locale &loc = std::locale{"C"});
 
-common::def::UbseResult CopyStringToCharArray(const std::string &src, char *dest, size_t size);
+UbseResult ConvertStrToUint64(const std::string &str, uint64_t &outValue);
 
-common::def::UbseResult CopyCharArray(char *dest, size_t destSize, const char *src);
+std::string GenerateRandomStr(uint32_t size);
 
-common::def::UbseResult ConvertStrToUint64(const std::string &str, uint64_t &outValue);
+void StrSplit(const std::string &src, const std::string &sep, std::vector<std::string> &out);
+
+bool StrToULong(const std::string &src, uint64_t &value);
+
+bool StrToUint(const std::string &src, uint32_t &value);
 } // namespace ubse::utils
 #endif // UBSE_MANAGER_UBSE_STR_UTIL_H

@@ -29,7 +29,7 @@ char *g_argv[] = {(char *)"", (char *)DASH_ARG_NAME.c_str(), (char *)ARG_VAL.c_s
 
 TEST_F(TestUbseContext, EMPTYMODULES)
 {
-    context.moduleCreatorMap.clear();
+    context.moduleCreatorMap_.clear();
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_OK);
 }
 
@@ -50,7 +50,7 @@ TEST_F(TestUbseContext, RegisterArgError)
     context.CreateModules(); // 创建模块
     auto module = context.GetModule<MockUbseModule>().get();
     EXPECT_CALL(*module, RegArgs()).WillOnce([]() { throw std::runtime_error(""); });
-    EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_ERROR_CLI_ARGS_FAILED);
+    EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_ERROR_PARSE_ARGS_FAILED);
 }
 TEST_F(TestUbseContext, ParserArgsError)
 {
@@ -59,10 +59,10 @@ TEST_F(TestUbseContext, ParserArgsError)
     context.CreateModules(); // 创建模块
     auto module = context.GetModule<MockUbseModule>().get();
     EXPECT_CALL(*module, RegArgs()).WillRepeatedly(Return());
-    EXPECT_EQ(context.Run(ARGC, errArgv, ProcessMode::MANAGER), UBSE_ERROR_CLI_ARGS_FAILED);
+    EXPECT_EQ(context.Run(ARGC, errArgv, ProcessMode::MANAGER), UBSE_ERROR_PARSE_ARGS_FAILED);
     char tmp[2] = "-";
     errArgv[1] = tmp;
-    EXPECT_EQ(context.Run(ARGC, errArgv, ProcessMode::MANAGER), UBSE_ERROR_CLI_ARGS_FAILED);
+    EXPECT_EQ(context.Run(ARGC, errArgv, ProcessMode::MANAGER), UBSE_ERROR_PARSE_ARGS_FAILED);
 }
 TEST_F(TestUbseContext, InitModuleError)
 {
@@ -117,14 +117,14 @@ TEST_F(TestUbseContext, GetModuleFailed)
 TEST_F(TestUbseContext, GetModuleSuccess)
 {
     context.Run(ARGC, g_argv, ProcessMode::MANAGER);
-    EXPECT_EQ(context.GetModule<MockUbseModule>(), context.moduleMap[typeid(MockUbseModule)]);
+    EXPECT_EQ(context.GetModule<MockUbseModule>(), context.moduleMap_[typeid(MockUbseModule)]);
 }
 TEST_F(TestUbseContext, GetArgStrFailed)
 {
     std::string noArgName = "noArgs"; // 不存在的参数
     std::string noArgValue;
     context.Run(ARGC, g_argv, ProcessMode::MANAGER); // 加载模型
-    EXPECT_EQ(context.GetArgStr(noArgName, noArgValue), UBSE_ERROR_CLI_ARGS_FAILED);
+    EXPECT_EQ(context.GetArgStr(noArgName, noArgValue), UBSE_ERROR_PARSE_ARGS_FAILED);
 }
 TEST_F(TestUbseContext, GetArgStrSuccess)
 {
@@ -144,8 +144,8 @@ TEST_F(TestUbseContext, GetProcessMode)
 }
 void TestUbseContext::SetUp()
 {
-    context.moduleCreatorMap.clear();
-    context.baseModuleCreatorMap.clear();
+    context.moduleCreatorMap_.clear();
+    context.baseModuleCreatorMap_.clear();
     context.RegisterModule<MockUbseModule>(UbseModule::CreateModule<MockUbseModule>);
     Test::SetUp();
 }

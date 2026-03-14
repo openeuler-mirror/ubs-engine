@@ -17,6 +17,9 @@
 
 namespace ubse::cli::framework {
 constexpr size_t UBSE_CLI_ASCII_NUMS = 256;
+constexpr unsigned char UBSE_CLI_CONTROL_CHARS_LOWER = 0;
+constexpr unsigned char UBSE_CLI_CONTROL_CHARS_UPPER = 31;
+constexpr unsigned char UBSE_CLI_DELETE_CHAR = 127;
 class UbseCliWhitelist {
 public:
     explicit UbseCliWhitelist()
@@ -26,7 +29,7 @@ public:
 
     void UbseCliAddChar(char c)
     {
-        whitelist[static_cast<unsigned char>(c)] = true;
+        whitelist_[static_cast<unsigned char>(c)] = true;
     }
 
     void UbseCliAddChars(const std::string &chars)
@@ -39,7 +42,7 @@ public:
     [[nodiscard]] bool UbseCliIsAllowed(const std::string &input) const
     {
         for (unsigned char c : input) {
-            if (c >= whitelist.size() || !whitelist[c]) {
+            if (c >= whitelist_.size() || !whitelist_[c]) {
                 return false;
             }
         }
@@ -73,7 +76,19 @@ public:
     // Clear the whitelist
     void UbseCliClearWhitelist()
     {
-        whitelist = std::vector<bool>(UBSE_CLI_ASCII_NUMS, false);
+        whitelist_ = std::vector<bool>(UBSE_CLI_ASCII_NUMS, false);
+    }
+
+    void UbseCliSetNoControlChars()
+    {
+        UbseCliClearWhitelist();
+
+        for (size_t i = UBSE_CLI_CONTROL_CHARS_LOWER; i < UBSE_CLI_DELETE_CHAR; ++i) {
+            if (i <= UBSE_CLI_CONTROL_CHARS_UPPER) {
+                continue;
+            }
+            whitelist_[i] = true;
+        }
     }
 
 private:
@@ -82,11 +97,11 @@ private:
         UbseCliAddChars("abcdefghijklmnopqrstuvwxyz"
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "0123456789"
-            "-._");
+            "-._/");
     }
 
 private:
-    std::vector<bool> whitelist = std::vector<bool>(UBSE_CLI_ASCII_NUMS, false);
+    std::vector<bool> whitelist_ = std::vector<bool>(UBSE_CLI_ASCII_NUMS, false);
 };
 } // namespace ubse::cli::framework
 #endif

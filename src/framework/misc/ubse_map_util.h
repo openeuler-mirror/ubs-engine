@@ -13,7 +13,6 @@
 #ifndef UBSE_MAP_UTIL_H
 #define UBSE_MAP_UTIL_H
 
-#include <cstdint>
 #include <functional>
 #include <unordered_map>
 #include <utility>

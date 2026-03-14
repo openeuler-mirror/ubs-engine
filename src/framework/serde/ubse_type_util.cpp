@@ -6,7 +6,7 @@
 
 namespace ubse::serial {
 enum class allowed_type {
-    CHAR,
+    CHAR = 0,
     BOOL,
     SHORT,
     INT,
@@ -44,179 +44,192 @@ enum class allowed_type {
     BOOL_PTR,
     FLOAT_PTR,
     DOUBLE_PTR,
+    STRING,
+    BIT_REFERENCE,
+    MAX_BASE_TYPE_NUMS = 64,
 };
 
 template <>
-uint16_t GetTypeId<short>()
+serial_type GetTypeId<short>()
 {
-    return static_cast<uint16_t>(allowed_type::SHORT);
+    return static_cast<serial_type>(allowed_type::SHORT);
 }
 
 template <>
-uint16_t GetTypeId<int>()
+serial_type GetTypeId<int>()
 {
-    return static_cast<uint16_t>(allowed_type::INT);
+    return static_cast<serial_type>(allowed_type::INT);
 }
 template <>
-uint16_t GetTypeId<long>()
+serial_type GetTypeId<long>()
 {
-    return static_cast<uint16_t>(allowed_type::LONG);
+    return static_cast<serial_type>(allowed_type::LONG);
 }
 template <>
-uint16_t GetTypeId<long long>()
+serial_type GetTypeId<long long>()
 {
-    return static_cast<uint16_t>(allowed_type::LONG_LONG);
+    return static_cast<serial_type>(allowed_type::LONG_LONG);
 }
 template <>
-uint16_t GetTypeId<unsigned short>()
+serial_type GetTypeId<unsigned short>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_SHORT);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_SHORT);
 }
 template <>
-uint16_t GetTypeId<unsigned int>()
+serial_type GetTypeId<unsigned int>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_INT);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_INT);
 }
 template <>
-uint16_t GetTypeId<unsigned long>()
+serial_type GetTypeId<unsigned long>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_LONG);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_LONG);
 }
 template <>
-uint16_t GetTypeId<unsigned long long>()
+serial_type GetTypeId<unsigned long long>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_LONG_LONG);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_LONG_LONG);
 }
 template <>
-uint16_t GetTypeId<char>()
+serial_type GetTypeId<char>()
 {
-    return static_cast<uint16_t>(allowed_type::CHAR);
+    return static_cast<serial_type>(allowed_type::CHAR);
 }
 template <>
-uint16_t GetTypeId<signed char>()
+serial_type GetTypeId<signed char>()
 {
-    return static_cast<uint16_t>(allowed_type::SIGNED_CHAR);
+    return static_cast<serial_type>(allowed_type::SIGNED_CHAR);
 }
 template <>
-uint16_t GetTypeId<unsigned char>()
+serial_type GetTypeId<unsigned char>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_CHAR);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_CHAR);
 }
 template <>
-uint16_t GetTypeId<wchar_t>()
+serial_type GetTypeId<wchar_t>()
 {
-    return static_cast<uint16_t>(allowed_type::WCHAR_T);
+    return static_cast<serial_type>(allowed_type::WCHAR_T);
 }
 template <>
-uint16_t GetTypeId<char16_t>()
+serial_type GetTypeId<char16_t>()
 {
-    return static_cast<uint16_t>(allowed_type::CHAR16_T);
+    return static_cast<serial_type>(allowed_type::CHAR16_T);
 }
 template <>
-uint16_t GetTypeId<char32_t>()
+serial_type GetTypeId<char32_t>()
 {
-    return static_cast<uint16_t>(allowed_type::CHAR32_T);
+    return static_cast<serial_type>(allowed_type::CHAR32_T);
 }
 template <>
-uint16_t GetTypeId<bool>()
+serial_type GetTypeId<bool>()
 {
-    return static_cast<uint16_t>(allowed_type::BOOL);
+    return static_cast<serial_type>(allowed_type::BOOL);
 }
 template <>
-uint16_t GetTypeId<float>()
+serial_type GetTypeId<float>()
 {
-    return static_cast<uint16_t>(allowed_type::FLOAT);
+    return static_cast<serial_type>(allowed_type::FLOAT);
 }
 template <>
-uint16_t GetTypeId<double>()
+serial_type GetTypeId<double>()
 {
-    return static_cast<uint16_t>(allowed_type::DOUBLE);
-}
-
-template <>
-uint16_t GetTypePointerId<short>()
-{
-    return static_cast<uint16_t>(allowed_type::SHORT_PTR);
+    return static_cast<serial_type>(allowed_type::DOUBLE);
 }
 
 template <>
-uint16_t GetTypePointerId<int>()
+serial_type GetTypePointerId<short>()
 {
-    return static_cast<uint16_t>(allowed_type::INT_PTR);
+    return static_cast<serial_type>(allowed_type::SHORT_PTR);
+}
+
+template <>
+serial_type GetTypePointerId<int>()
+{
+    return static_cast<serial_type>(allowed_type::INT_PTR);
 }
 template <>
-uint16_t GetTypePointerId<long>()
+serial_type GetTypePointerId<long>()
 {
-    return static_cast<uint16_t>(allowed_type::LONG_PTR);
+    return static_cast<serial_type>(allowed_type::LONG_PTR);
 }
 template <>
-uint16_t GetTypePointerId<long long>()
+serial_type GetTypePointerId<long long>()
 {
-    return static_cast<uint16_t>(allowed_type::LONG_LONG_PTR);
+    return static_cast<serial_type>(allowed_type::LONG_LONG_PTR);
 }
 template <>
-uint16_t GetTypePointerId<unsigned short>()
+serial_type GetTypePointerId<unsigned short>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_SHORT_PTR);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_SHORT_PTR);
 }
 template <>
-uint16_t GetTypePointerId<unsigned int>()
+serial_type GetTypePointerId<unsigned int>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_INT_PTR);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_INT_PTR);
 }
 template <>
-uint16_t GetTypePointerId<unsigned long>()
+serial_type GetTypePointerId<unsigned long>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_LONG_PTR);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_LONG_PTR);
 }
 template <>
-uint16_t GetTypePointerId<unsigned long long>()
+serial_type GetTypePointerId<unsigned long long>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_LONG_LONG_PTR);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_LONG_LONG_PTR);
 }
 template <>
-uint16_t GetTypePointerId<char>()
+serial_type GetTypePointerId<char>()
 {
-    return static_cast<uint16_t>(allowed_type::CHAR_PTR);
+    return static_cast<serial_type>(allowed_type::CHAR_PTR);
 }
 template <>
-uint16_t GetTypePointerId<signed char>()
+serial_type GetTypePointerId<signed char>()
 {
-    return static_cast<uint16_t>(allowed_type::SIGNED_CHAR_PTR);
+    return static_cast<serial_type>(allowed_type::SIGNED_CHAR_PTR);
 }
 template <>
-uint16_t GetTypePointerId<unsigned char>()
+serial_type GetTypePointerId<unsigned char>()
 {
-    return static_cast<uint16_t>(allowed_type::UNSIGNED_CHAR_PTR);
+    return static_cast<serial_type>(allowed_type::UNSIGNED_CHAR_PTR);
 }
 template <>
-uint16_t GetTypePointerId<wchar_t>()
+serial_type GetTypePointerId<wchar_t>()
 {
-    return static_cast<uint16_t>(allowed_type::WCHAR_T_PTR);
+    return static_cast<serial_type>(allowed_type::WCHAR_T_PTR);
 }
 template <>
-uint16_t GetTypePointerId<char16_t>()
+serial_type GetTypePointerId<char16_t>()
 {
-    return static_cast<uint16_t>(allowed_type::CHAR16_T_PTR);
+    return static_cast<serial_type>(allowed_type::CHAR16_T_PTR);
 }
 template <>
-uint16_t GetTypePointerId<char32_t>()
+serial_type GetTypePointerId<char32_t>()
 {
-    return static_cast<uint16_t>(allowed_type::CHAR32_T_PTR);
+    return static_cast<serial_type>(allowed_type::CHAR32_T_PTR);
 }
 template <>
-uint16_t GetTypePointerId<bool>()
+serial_type GetTypePointerId<bool>()
 {
-    return static_cast<uint16_t>(allowed_type::BOOL_PTR);
+    return static_cast<serial_type>(allowed_type::BOOL_PTR);
 }
 template <>
-uint16_t GetTypePointerId<float>()
+serial_type GetTypePointerId<float>()
 {
-    return static_cast<uint16_t>(allowed_type::FLOAT_PTR);
+    return static_cast<serial_type>(allowed_type::FLOAT_PTR);
 }
 template <>
-uint16_t GetTypePointerId<double>()
+serial_type GetTypePointerId<double>()
 {
-    return static_cast<uint16_t>(allowed_type::DOUBLE_PTR);
+    return static_cast<serial_type>(allowed_type::DOUBLE_PTR);
+}
+template <>
+serial_type GetTypePointerId<std::_Bit_reference>()
+{
+    return static_cast<serial_type>(allowed_type::BIT_REFERENCE);
+}
+template <>
+serial_type GetTypePointerId<std::string>()
+{
+    return static_cast<serial_type>(allowed_type::STRING);
 }
 }  // namespace ubse::utils

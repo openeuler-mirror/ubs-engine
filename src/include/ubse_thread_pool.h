@@ -12,16 +12,18 @@
 
 #ifndef UBSE_TASK_EXECUTOR_H
 #define UBSE_TASK_EXECUTOR_H
-#include <container/ubse_ring_buffer.h>
-#include <lock/ubse_lock.h>
-#include <referable/ubse_ref.h>
-#include <atomic>     // for atomic
+
+#include <atomic> // for atomic
 #include <condition_variable>
 #include <cstdint>    // for uint16_t, int16_t, uint...
 #include <functional> // for function
 #include <string>     // for string, basic_string
 #include <thread>     // for thread
 #include <vector>     // for vector
+
+#include "src/framework/misc/container/ubse_ring_buffer.h" // for RingBufferBlockingQueue
+#include "src/framework/misc/lock/ubse_lock.h"
+#include "src/framework/misc/referable/ubse_ref.h"
 
 namespace ubse::task_executor {
 using namespace ubse::utils;
@@ -99,7 +101,9 @@ private:
     std::mutex mtx;
     std::mutex cvMtx;
     std::condition_variable done;
-    std::atomic<int> pending{0}; // Number of threads currently working + Number of tasks waiting in the queue
+    std::atomic<size_t> pending{0}; // Number of threads currently working + Number of tasks waiting in the queue
+    std::atomic<uint64_t> totalSubmitted{0}; // Number of total Submitted.
+    std::atomic<uint64_t> totalCompleted{0};  // Number of total Completed.
 };
 using UbseTaskExecutorPtr = Ref<UbseTaskExecutor>;
 } // namespace ubse::task_executor

@@ -12,14 +12,12 @@
 
 #include "ubse_election_module.h"
 #include <chrono>
-#include <thread>
-#include "ubse_common_def.h"
 #include "config.h"
 #include "role/ubse_election_role_mgr.h"
+#include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_pkt_handler.h"
-#include "ubse_node_controller_module.h"
 
 namespace ubse::election {
 using namespace ubse::context;
@@ -27,23 +25,24 @@ using namespace ubse::com;
 using namespace ubse::config;
 using namespace ubse::nodeController;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_ELECTION_MID);
-DYNAMIC_CREATE(UbseElectionModule, UbseNodeControllerModule);
+UBSE_DEFINE_THIS_MODULE("ubse");
+BASE_DYNAMIC_CREATE(UbseElectionModule, UbseComModule);
 
 UbseResult UbseElectionModule::Initialize()
 {
     return UBSE_OK;
 }
 
+UbseResult UbseElectionModule::GetNodeIpInfoById(const std::string &id, std::string &ip)
+{
+    return UbseElectionNodeMgr::GetInstance().GetNodeIpById(id, ip);
+}
+
 void UbseElectionModule::TimerTaskElection()
 {
     while (!g_globalStop.load()) {
-        std::unique_lock<std::mutex> lock(timerTaskElectionMtx_, std::defer_lock);
-        if (lock.try_lock()) {
-            RoleMgr::GetInstance().ProcTimer();
-        } else {
-            break;
-        }
+        std::unique_lock<std::mutex> lock(timerTaskElectionMtx_);
+        RoleMgr::GetInstance().ProcTimer();
         if (g_globalCv.wait_for(lock, std::chrono::milliseconds(NO_500), [] { return g_globalStop.load(); })) {
             std::cout << "[ELECTION] Stopped during the waiting period for ProcTimer." << std::endl;
             break;
@@ -54,43 +53,25 @@ void UbseElectionModule::TimerTaskElection()
 void UbseElectionModule::TimerTaskCom()
 {
     while (!g_globalStop.load()) {
-        std::unique_lock<std::mutex> lock(timerTaskComMtx_, std::defer_lock);
-        if (lock.try_lock()) {
+        std::unique_lock<std::mutex> lock(timerTaskComMtx_);
+        auto role = RoleMgr::GetInstance().GetRole()->GetRoleType();
+        if (role != RoleType::AGENT) {
             ConnectAllNodes();
-        } else {
-            break;
         }
         if (g_globalCv.wait_for(lock, std::chrono::seconds(NO_1), [] { return g_globalStop.load(); })) {
             std::cout << "[ELECTION] Stopped the interval while waiting to establish a heartbeat." << std::endl;
             break;
         }
     }
-    UBSE_LOG_INFO << "[ELECTION] TimerTaskCom over";
 }
 
 UbseResult UbseElectionModule::Start()
 {
     UBSE_LOG_INFO << "[ELECTION] UbseElectionModule::Start().";
-
-    // 注册接受处理函数
-    auto ret = UbseElectionPktHandler::RegElectionPktHandler();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] UbseElectionModule handler error";
-    }
-
-    // 初始化加载 LCNE 配置
-    UbseElectionNodeMgr::GetInstance().LoadConfig();
-
     // 加载单例，并判断是否加载成功
     auto commMgr = RoleMgr::GetInstance().GetCommMgr();
     if (!commMgr) {
         UBSE_LOG_ERROR << "[ELECTION] CommMgr is null";
-        return UBSE_ERROR;
-    }
-
-    auto currentRole = RoleMgr::GetInstance().GetRole();
-    if (!currentRole) {
-        UBSE_LOG_ERROR << "[ELECTION] currentRole is null";
         return UBSE_ERROR;
     }
     // 开启事件订阅通知
@@ -99,24 +80,33 @@ UbseResult UbseElectionModule::Start()
         UBSE_LOG_ERROR << "[ELECTION] election CommMgr Start failed";
         return UBSE_ERROR;
     }
-
+    // 注册接受处理函数
+    auto ret = UbseElectionPktHandler::RegElectionPktHandler();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] UbseElectionModule handler error";
+        return UBSE_ERROR;
+    }
+    // 初始化加载 LCNE 配置
+    UbseElectionNodeMgr::GetInstance().LoadConfig();
+    auto currentRole = RoleMgr::GetInstance().GetRole();
+    if (!currentRole) {
+        UBSE_LOG_ERROR << "[ELECTION] currentRole is null";
+        return UBSE_ERROR;
+    }
     auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
     if (taskExecutorModule == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-
     ret = taskExecutorModule->Create(ELECTION_TASK_EXECUTOR_NAME, 7, 7); // 创建线程数为7的线程池
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Create election task executor failed";
         return ret;
     }
-
     // UT 场景下，启用下面两个线程，会导致 UT 程序无法正常退出
 #if !defined(ENABLE_UBSE_TESTING) || ENABLE_UBSE_TESTING != 1
     ConnectAllNodes();
     threads_.emplace_back(&UbseElectionModule::TimerTaskElection, this);
     threads_.emplace_back(&UbseElectionModule::TimerTaskCom, this);
-
 #endif
     return UBSE_OK;
 }
@@ -133,6 +123,10 @@ void UbseElectionModule::Stop()
     if (taskExecutorModule != nullptr) {
         taskExecutorModule->Remove(ELECTION_TASK_EXECUTOR_NAME);
     }
+    auto ubseComModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (ubseComModule != nullptr) {
+        ubseComModule->StopComService();
+    }
     UBSE_LOG_DEBUG << "[ELECTION] UbseElectionModule::Stop - end.";
 }
 
@@ -147,10 +141,15 @@ UbseResult UbseElectionModule::UbseGetMasterNode(Node &masterNode)
         return UBSE_ERROR;
     }
     masterNode.id = role->GetMasterNode();
+    if (masterNode.id.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] masterNode Id is Empty";
+        return UBSE_ERROR;
+    }
     auto ret = ubseElectionNodeMgr.GetNodeInfoByID(masterNode.id, masterNode.ip, masterNode.port);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] Failed to get nodeInfo by master nodeID: " << masterNode.id;
-        return ret;
+        UBSE_LOG_ERROR << "[ELECTION] master nodeId =" << masterNode.id << " not in currentAllNodes.";
+        masterNode.ip = NODE_IP_NULL;
+        masterNode.port = NODE_PORT_NULL;
     }
     return UBSE_OK;
 }
@@ -164,10 +163,15 @@ UbseResult UbseElectionModule::UbseGetStandbyNode(Node &standbyNode)
         return UBSE_ERROR;
     }
     standbyNode.id = role->GetStandbyNode();
+    if (standbyNode.id.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] standbyNode Id is Empty";
+        return UBSE_ERROR;
+    }
     auto ret = ubseElectionNodeMgr.GetNodeInfoByID(standbyNode.id, standbyNode.ip, standbyNode.port);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] Failed to get nodeInfo by standby nodeID: " << standbyNode.id;
-        return ret;
+        UBSE_LOG_ERROR << "[ELECTION] standby nodeId =" << standbyNode.id << " not in currentAllNodes.";
+        standbyNode.ip = NODE_IP_NULL;
+        standbyNode.port = NODE_PORT_NULL;
     }
     return UBSE_OK;
 }
@@ -190,7 +194,6 @@ UbseResult UbseElectionModule::UbseGetAllNodes(Node &master, Node &standby, std:
         UBSE_LOG_ERROR << "[ELECTION] Failed to get nodeInfo by master nodeID: " << master.id;
         return ret;
     }
-    // 没有备是正常的，不判断结果
     ubseElectionNodeMgr.GetNodeInfoByID(standby.id, standby.ip, standby.port);
 
     for (auto &node : allNodes) {
@@ -263,6 +266,10 @@ void UbseElectionModule::SwitchMasterFromStandby()
         UBSE_LOG_INFO << "[ELECTION] Current node role is not standby.";
         return;
     }
+    if (!GetElectionCandidate()) {
+        UBSE_LOG_INFO << "[ELECTION] Current node does not participate in the master election.";
+        return;
+    }
     RoleContext ctx;
     ctx.masterId = role->GetStandbyNode();
     ctx.standbyId = INVALID_NODE_ID;
@@ -270,5 +277,23 @@ void UbseElectionModule::SwitchMasterFromStandby()
     ubse::context::UbseContext::GetInstance().SetWorkReadiness(NOT_READY);
     RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
     RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::STANDBY_CHANGE_TO_MASTER, ctx.masterId);
+}
+
+void UbseElectionModule::SwitchAgentFromMaster()
+{
+    auto role = RoleMgr::GetInstance().GetRole();
+    if (!role) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
+        return;
+    }
+    if (role->GetRoleType() != RoleType::MASTER) {
+        UBSE_LOG_INFO << "[ELECTION] Current node role is not master.";
+        return;
+    }
+    RoleContext ctx;
+    ctx.masterId = role->GetStandbyNode();
+    ctx.standbyId = INVALID_NODE_ID;
+    ctx.turnId = role->GetTurnId();
+    RoleMgr::GetInstance().SwitchRole(RoleType::AGENT, ctx);
 }
 } // namespace ubse::election

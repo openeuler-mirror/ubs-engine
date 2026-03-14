@@ -14,12 +14,9 @@
 #define UBSE_HTTP_MODULE_H
 
 #include <httplib.h>
-#include <cstdint>            // for uint32_t, uint8_t
-#include <cstring>            // for size_t
-#include <shared_mutex>
-#include <string>             // for string, allocator, basic_string
-#include <unordered_map>      // for hash, unordered_map
-#include <utility>            // for pair
+#include <cstdint> // for uint32_t, uint8_t
+#include <cstring> // for size_t
+#include <string>        // for string, allocator, basic_string
 
 #include "ubse_common_def.h"  // for UbseResult
 #include "ubse_http_common.h" // for UbseHttpResponse (ptr only), UbseHttpRe...
@@ -38,12 +35,16 @@ public:
 
     void Stop() override;
 
-    static void RegHttpTcpService(UbseHttpMethod method, const std::string &url, UbseHttpHandlerFunc func);
+    static UbseResult RegHttpService(UbseHttpMethod method, const std::string &url, UbseHttpHandlerFunc func);
 
-    static uint32_t HttpSend(const std::string &host, int port, UbseHttpRequest &req, UbseHttpResponse &rsp);
+    static UbseResult HttpSend(UbseHttpRequest &request, UbseHttpResponse &response);
+
+    static UbseResult UbseHttpPostJsonRequest(const std::string &path, const std::string &body, std::string &jsonRsp);
 
 private:
     static UbseResult MakeError(uint32_t code);
+    static bool isTcpServer;
+    static int port;
 };
 } // namespace ubse::http
 

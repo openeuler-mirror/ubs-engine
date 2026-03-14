@@ -18,11 +18,19 @@
 #include "role/ubse_election_role_mgr.h"
 #include "ubse_election_def.h"
 
+namespace ubse::election {
+extern void UpdateBroadcastStatus(const std::string &nodeId, const ElectionReplyPkt &reply,
+                                  std::map<UBSE_ID_TYPE, BroadcastStatus> &broad, uint8_t &status, std::mutex &mtx);
+}
+
 namespace ubse::event::election {
 using namespace ubse::election;
 class TestUbseElectionRoleMaster : public ::testing::Test {
 public:
-    void SetUp() override {}
+    void SetUp() override
+    {
+        context::g_globalStop.store(false);
+    }
 
     void TearDown() override;
 private:

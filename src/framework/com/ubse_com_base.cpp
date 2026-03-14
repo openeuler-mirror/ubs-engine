@@ -16,7 +16,7 @@
 #include <fstream>
 #include <regex>
 
-#include <chrono>    // for duration_cast, duration, high_resol...
+#include <bits/chrono.h>    // for duration_cast, duration, high_resol...
 #include <lock/ubse_lock.h> // for ReadWriteLock, WriteLocker, ReadLocker
 #include <securec.h>        // for memcpy_s, EOK
 #include <algorithm>        // for max
@@ -25,66 +25,65 @@
 #include "crc/ubse_crc.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
-#include "ubse_lcne_module.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 #include "ubse_net_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_str_util.h"
-#include "ubse_topology_interface.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::com {
-std::map<std::string, UbseComBaseMessageHandlerPtr> UbseComBaseMessageHandlerManager::gHandlerMap;
-std::mutex UbseComBaseMessageHandlerManager::gLock;
-ReadWriteLock UbseComBase::g_lock;
-LinkStateMap UbseComBase::g_linkStateMap{};
-LinkNotifyFunctionMap UbseComBase::g_notifyFuncMap{};
-HandlerExecutor UbseComBase::gHandlerExecutor = DefaultHandlerExecutor;
-HandlerExecutor UbseComBase::gIpcHandlerExecutor = DefaultHandlerExecutor;
-LinkEventHandler UbseComBase::gLinkEventHandler = DefaultLinkEventHandler;
-SdkLinkDownEventHandler UbseComBase::gSdkLinkDownEventHandler = DefaultSdkLinkDownEventHandler;
-int16_t UbseComBase::timeout = 60;
-int16_t UbseComBase::heartBeatTimeout = 1;
+UBSE_DEFINE_THIS_MODULE("ubse");
+std::map<std::string, UbseComBaseMessageHandlerPtr> UbseComBaseMessageHandlerManager::gHandlerMap_;
+std::mutex UbseComBaseMessageHandlerManager::gLock_;
+ReadWriteLock UbseComBase::g_lock_;
+LinkStateMap UbseComBase::g_linkStateMap_{};
+LinkNotifyFunctionMap UbseComBase::g_notifyFuncMap_{};
+HandlerExecutor UbseComBase::gHandlerExecutor_ = DefaultHandlerExecutor;
+HandlerExecutor UbseComBase::gIpcHandlerExecutor_ = DefaultHandlerExecutor;
+LinkEventHandler UbseComBase::gLinkEventHandler_ = DefaultLinkEventHandler;
+int16_t UbseComBase::timeout_ = 60;
+int16_t UbseComBase::heartBeatTimeout_ = 1;
 
 const std::string KEY_SEP = "-";
 
 const std::string &SendParam::GetRemoteId() const
 {
-    return remoteId;
+    return remoteId_;
 }
 
 void SendParam::SetRemoteId(const std::string &remoteIdSet)
 {
-    SendParam::remoteId = remoteIdSet;
+    SendParam::remoteId_ = remoteIdSet;
 }
 
 uint16_t SendParam::GetModuleCode() const
 {
-    return moduleCode;
+    return moduleCode_;
 }
 
 void SendParam::SetModuleCode(uint16_t moduleCodeSet)
 {
-    SendParam::moduleCode = moduleCodeSet;
+    SendParam::moduleCode_ = moduleCodeSet;
 }
 
 uint16_t SendParam::GetOpCode() const
 {
-    return opCode;
+    return opCode_;
 }
 
 void SendParam::SetOpCode(uint16_t opCodeSet)
 {
-    SendParam::opCode = opCodeSet;
+    SendParam::opCode_ = opCodeSet;
 }
 
 UbseChannelType SendParam::GetChannelType() const
 {
-    return channelType;
+    return channelType_;
 }
 
 void SendParam::SetChannelType(UbseChannelType chType)
 {
-    channelType = chType;
+    channelType_ = chType;
 }
 
 void UbseComBaseMessageHandlerManager::AddHandler(UbseComBaseMessageHandlerPtr handler, const std::string &engineName)
@@ -93,31 +92,31 @@ void UbseComBaseMessageHandlerManager::AddHandler(UbseComBaseMessageHandlerPtr h
         UBSE_LOG_ERROR << "ubse com base handle is nullptr";
         return;
     }
-    std::lock_guard<std::mutex> lock(gLock);
+    std::lock_guard<std::mutex> lock(gLock_);
     std::string key = engineName + KEY_SEP + std::to_string(handler->GetModuleCode()) + KEY_SEP +
-                      std::to_string(handler->GetOpCode());
-    gHandlerMap.emplace(key, handler);
+        std::to_string(handler->GetOpCode());
+    gHandlerMap_.emplace(key, handler);
 }
 
 void UbseComBaseMessageHandlerManager::RemoveHandler(uint16_t moduleCode, uint16_t opCode,
                                                      const std::string &engineName)
 {
-    std::lock_guard<std::mutex> lock(gLock);
+    std::lock_guard<std::mutex> lock(gLock_);
     std::string key = engineName + KEY_SEP + std::to_string(moduleCode) + KEY_SEP + std::to_string(opCode);
-    auto iter = gHandlerMap.find(key);
-    if (iter == gHandlerMap.end()) {
+    auto iter = gHandlerMap_.find(key);
+    if (iter == gHandlerMap_.end()) {
         return;
     }
-    gHandlerMap.erase(key);
+    gHandlerMap_.erase(key);
 }
 
 UbseComBaseMessageHandlerPtr UbseComBaseMessageHandlerManager::GetHandler(uint16_t moduleCode, uint16_t opCode,
                                                                           const std::string &engineName)
 {
-    std::lock_guard<std::mutex> lock(gLock);
+    std::lock_guard<std::mutex> lock(gLock_);
     std::string key = engineName + KEY_SEP + std::to_string(moduleCode) + KEY_SEP + std::to_string(opCode);
-    auto iter = gHandlerMap.find(key);
-    if (iter == gHandlerMap.end()) {
+    auto iter = gHandlerMap_.find(key);
+    if (iter == gHandlerMap_.end()) {
         UBSE_LOG_ERROR << "Handler is not registered, module code: " << moduleCode << ",op code: " << opCode;
         return nullptr;
     }
@@ -126,7 +125,7 @@ UbseComBaseMessageHandlerPtr UbseComBaseMessageHandlerManager::GetHandler(uint16
 
 void Log(int level, const char *str)
 {
-    UbseLogOutput(gModuleName, static_cast<UbseLogLevel>(level), str);
+    UbseLogOutput(MODULE_LOG_NAME, static_cast<UbseLogLevel>(level), str);
 }
 
 std::string GetChannelType(const UBSHcomChannelPtr &ch)
@@ -141,8 +140,8 @@ std::string GetChannelType(const UBSHcomChannelPtr &ch)
 std::vector<UbseLinkInfo> UbseComBase::GetLinkInfoFromMap(const std::string &engineName)
 {
     std::vector<UbseLinkInfo> info;
-    auto iter = g_linkStateMap.find(engineName);
-    if (iter == g_linkStateMap.end()) {
+    auto iter = g_linkStateMap_.find(engineName);
+    if (iter == g_linkStateMap_.end()) {
         return info;
     }
     for (const auto &kv : iter->second) {
@@ -162,13 +161,13 @@ std::vector<UbseLinkInfo> UbseComBase::QueryLinkInfo(const std::string &engineNa
                                                      const UBSHcomChannelPtr &ch)
 {
     std::vector<UbseLinkInfo> info;
-    auto iter = g_linkStateMap.find(engineName);
-    if (iter == g_linkStateMap.end()) {
+    auto iter = g_linkStateMap_.find(engineName);
+    if (iter == g_linkStateMap_.end()) {
         return info;
     }
     for (const auto &kv : iter->second) {
         std::string chType = "UnChangedLink";
-        auto timeStamp = static_cast<uint>(std::chrono::duration_cast<std::chrono::microseconds>(
+        auto timeStamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
                                                std::chrono::high_resolution_clock::now().time_since_epoch())
                                                .count());
         if (kv.first == changeNodeId) {
@@ -183,11 +182,6 @@ std::vector<UbseLinkInfo> UbseComBase::QueryLinkInfo(const std::string &engineNa
     return info;
 }
 
-void UbseComBase::TlsOn()
-{
-    return;
-}
-
 void UbseComBase::CheckSdkEventAndNotify(const std::string &engineName, const std::string &curNodeId,
                                          const UBSHcomChannelPtr &ch, UbseLinkState state)
 {
@@ -196,22 +190,21 @@ void UbseComBase::CheckSdkEventAndNotify(const std::string &engineName, const st
     }
     UBSHcomNetUdsIdInfo idInfo;
     ch->GetRemoteUdsIdInfo(idInfo);
-    gSdkLinkDownEventHandler(idInfo, state);
     if (state == UbseLinkState::LINK_DOWN) {
-        g_linkStateMap.erase(engineName);
+        g_linkStateMap_.erase(engineName);
     }
 }
 
 void UbseComBase::LinkNotify(const UbseComEngineInfo &info, const std::string &curNodeId, const UBSHcomChannelPtr &ch,
                              UbseLinkState state)
 {
-    WriteLocker<ReadWriteLock> lock(&g_lock);
+    WriteLocker<ReadWriteLock> lock(&g_lock_);
     auto engineName = info.GetName();
-    auto iter = g_linkStateMap.find(engineName);
-    if (iter == g_linkStateMap.end()) {
-        g_linkStateMap.emplace(engineName, std::map<std::string, uint32_t>());
+    auto iter = g_linkStateMap_.find(engineName);
+    if (iter == g_linkStateMap_.end()) {
+        g_linkStateMap_.emplace(engineName, std::map<std::string, uint32_t>());
     }
-    iter = g_linkStateMap.find(engineName);
+    iter = g_linkStateMap_.find(engineName);
     auto stateIter = iter->second.find(curNodeId);
     if (stateIter == iter->second.end()) {
         iter->second.emplace(curNodeId, 0);
@@ -220,21 +213,21 @@ void UbseComBase::LinkNotify(const UbseComEngineInfo &info, const std::string &c
     switch (state) {
         case UbseLinkState::LINK_UP:
             stateIter->second++;
-            gLinkEventHandler(QueryLinkInfo(engineName, curNodeId, ch));
+            gLinkEventHandler_(QueryLinkInfo(engineName, curNodeId, ch));
             CheckSdkEventAndNotify(engineName, curNodeId, ch, state);
             break;
         case UbseLinkState::LINK_DOWN:
             stateIter->second = 0;
-            gLinkEventHandler(QueryLinkInfo(engineName, curNodeId, ch));
+            gLinkEventHandler_(QueryLinkInfo(engineName, curNodeId, ch));
             CheckSdkEventAndNotify(engineName, curNodeId, ch, state);
             break;
         case UbseLinkState::LINK_STATE_UNKNOWN:
-            gLinkEventHandler(QueryLinkInfo(engineName, curNodeId, ch));
+            gLinkEventHandler_(QueryLinkInfo(engineName, curNodeId, ch));
             break;
     }
     UBSE_LOG_INFO << "node=" << curNodeId << ", state=" << static_cast<uint32_t>(state);
-    auto notifyIter = g_notifyFuncMap.find(engineName);
-    if (notifyIter == g_notifyFuncMap.end()) {
+    auto notifyIter = g_notifyFuncMap_.find(engineName);
+    if (notifyIter == g_notifyFuncMap_.end()) {
         return;
     }
     auto linkInfo = QueryLinkInfo(engineName, curNodeId, ch);
@@ -271,7 +264,7 @@ void Reply(UbseComMessageCtx &message, UbseBaseMessagePtr response)
 
 std::string UbseLinkInfo::GetChType() const
 {
-    return UbseLinkInfo::changeChType;
+    return UbseLinkInfo::changeChType_;
 }
 
 UbseResult UbseComBase::ReplyMsg(UbseComMessageCtx &message, const UbseComDataDesc &response)
@@ -282,104 +275,121 @@ UbseResult UbseComBase::ReplyMsg(UbseComMessageCtx &message, const UbseComDataDe
 
 void UbseComBase::SetHandlerExecutor(const HandlerExecutor &handlerExecutor)
 {
-    gHandlerExecutor = handlerExecutor;
-}
-
-void UbseComBase::SetIpcHandlerExecutor(const HandlerExecutor &handlerExecutor)
-{
-    gIpcHandlerExecutor = handlerExecutor;
+    gHandlerExecutor_ = handlerExecutor;
 }
 
 void UbseComBase::SetLinkEventHandler(const LinkEventHandler &handler)
 {
-    gLinkEventHandler = handler;
+    gLinkEventHandler_ = handler;
 }
 
-void UbseComBase::SetSdkLinkDownEventHandler(const SdkLinkDownEventHandler &handler)
-{
-    gSdkLinkDownEventHandler = handler;
-}
 
 std::vector<UbseLinkInfo> UbseComBase::GetAllLinkInfo()
 {
-    ReadLocker<ReadWriteLock> lock(&g_lock);
-    return GetLinkInfoFromMap(name);
+    ReadLocker<ReadWriteLock> lock(&g_lock_);
+    return GetLinkInfoFromMap(name_);
 }
 
 void UbseComBase::AddLinkNotifyFunc(const LinkNotifyFunction &func)
 {
-    WriteLocker<ReadWriteLock> lock(&g_lock);
-    auto iter = g_notifyFuncMap.find(name);
-    if (iter == g_notifyFuncMap.end()) {
-        g_notifyFuncMap.emplace(name, std::vector<LinkNotifyFunction>());
+    WriteLocker<ReadWriteLock> lock(&g_lock_);
+    auto iter = g_notifyFuncMap_.find(name_);
+    if (iter == g_notifyFuncMap_.end()) {
+        g_notifyFuncMap_.emplace(name_, std::vector<LinkNotifyFunction>());
     }
-    iter = g_notifyFuncMap.find(name);
+    iter = g_notifyFuncMap_.find(name_);
     iter->second.emplace_back(func);
+}
+
+std::string UbseComBase::GetNodeIdByIp(const std::string &ip)
+{
+    return UbseCommunication::GetNodeIdByIp(name_, ip);
 }
 
 uint64_t UbseComBaseMessageHandlerCtx::GetChannelId() const
 {
-    return channelId;
+    return channelId_;
 }
 
 uintptr_t UbseComBaseMessageHandlerCtx::GetResponseCtx()
 {
-    return rspCtx;
+    return rspCtx_;
 }
 
-UbseComBaseMessageHandlerCtx::UbseComBaseMessageHandlerCtx(std::string engineName, uint64_t channelId, uintptr_t rspCtx)
-    : engineName(std::move(engineName)),
-      channelId(channelId),
-      rspCtx(rspCtx),
-      crc(0)
+void UbseComBaseMessageHandlerCtx::SetRemoteCall(bool callOrNot)
 {
+    isRemoteCall_ = callOrNot;
 }
+
+bool UbseComBaseMessageHandlerCtx::IsRemoteCall() const
+{
+    return isRemoteCall_;
+}
+
+UbseComBaseMessageHandlerCtx::UbseComBaseMessageHandlerCtx(std::string engineName, uint64_t channelId, uintptr_t rspCtx, std::string dstId_)
+    : engineName_(std::move(engineName)), channelId_(channelId), rspCtx_(rspCtx), crc_(0), dstId_(dstId_)
+{}
 
 const std::string &UbseComBaseMessageHandlerCtx::GetEngineName() const
 {
-    return engineName;
+    return engineName_;
 }
 
 const UbseUdsIdInfo &UbseComBaseMessageHandlerCtx::GetUdsIdInfo() const
 {
-    return udsIdInfo;
+    return udsIdInfo_;
+}
+
+const UBSHcomChannelPtr &UbseComBaseMessageHandlerCtx::GetChannelPtr() const
+{
+    return channelPtr_;
+}
+
+const std::string &UbseComBaseMessageHandlerCtx::GetDstId() const
+{
+    return dstId_;
+}
+
+void UbseComBaseMessageHandlerCtx::SetChannelPtr(const UBSHcomChannelPtr &chPtr)
+{
+    channelPtr_ = chPtr;
 }
 
 void UbseComBaseMessageHandlerCtx::SetUdsIdInfo(const UbseUdsIdInfo &uds)
 {
-    UbseComBaseMessageHandlerCtx::udsIdInfo = uds;
+    UbseComBaseMessageHandlerCtx::udsIdInfo_ = uds;
 }
 
 uint32_t UbseComBaseMessageHandlerCtx::GetCrc() const
 {
-    return crc;
+    return crc_;
 }
 
 void UbseComBaseMessageHandlerCtx::SetCrc(uint32_t dataCrc)
 {
-    crc = dataCrc;
+    crc_ = dataCrc;
 }
 
-UbseLinkInfo::UbseLinkInfo(std::string nodeId, UbseLinkState state) : nodeId(std::move(nodeId)), state(state) {}
+UbseLinkInfo::UbseLinkInfo(std::string nodeId, UbseLinkState state) : nodeId_(std::move(nodeId)), state_(state) {}
 
 const std::string &UbseLinkInfo::GetNodeId() const
 {
-    return nodeId;
+    return nodeId_;
 }
 
 UbseLinkState UbseLinkInfo::GetState() const
 {
-    return state;
+    return state_;
 }
 
-void UbseLinkInfo::SetTimeStamp(uint nowTime)
+void UbseLinkInfo::SetTimeStamp(uint64_t nowTime)
 {
-    timeStamp = nowTime;
+    timeStamp_ = nowTime;
 }
 
-uint UbseLinkInfo::GetTimeStamp() const
+uint64_t UbseLinkInfo::GetTimeStamp() const
 {
-    return timeStamp;
+    return timeStamp_;
 }
 
 void DefaultHandlerExecutor(const std::function<void()> &task, const executorType &type)
@@ -393,67 +403,64 @@ void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &
 
 void UbseComBase::SetTimeOut(int16_t time, int16_t hbTime)
 {
-    timeout = time;
-    heartBeatTimeout = hbTime;
+    timeout_ = time;
+    heartBeatTimeout_ = hbTime;
 }
 
 int16_t UbseComBase::GetTimeOut()
 {
-    return timeout;
+    return timeout_;
 }
 
 int16_t UbseComBase::GetHeartBeatTimeOut()
 {
-    return heartBeatTimeout;
+    return heartBeatTimeout_;
 }
 
 ShouldDoReconnectCb UbseComBase::GetShouldDoReconnectCb()
 {
-    return reconnectCb;
+    return reconnectCb_;
 }
 
 void UbseComBase::SetShouldDoReconnectCb(ShouldDoReconnectCb cb)
 {
-    UbseComBase::reconnectCb = cb;
+    UbseComBase::reconnectCb_ = cb;
 }
 
 QueryEidByNodeIdCb UbseComBase::GetQueryEidByNodeIdCb()
 {
-    return queryCb;
+    return queryCb_;
 }
 
 void UbseComBase::SetQueryEidByNodeIdCb(QueryEidByNodeIdCb cb)
 {
-    UbseComBase::queryCb = cb;
+    UbseComBase::queryCb_ = cb;
 }
 
-UbseLinkInfo::UbseLinkInfo(std::string nodeId, UbseLinkState state, uint timeStamp)
-    : nodeId(std::move(nodeId)),
-      state(state),
-      timeStamp(timeStamp)
-{
-}
+UbseLinkInfo::UbseLinkInfo(std::string nodeId, UbseLinkState state, uint64_t timeStamp)
+    : nodeId_(std::move(nodeId)), state_(state), timeStamp_(timeStamp)
+{}
 
-UbseComBaseBufferMessage::UbseComBaseBufferMessage(uint8_t *data, uint32_t len) : data(data), len(len)
+UbseComBaseBufferMessage::UbseComBaseBufferMessage(uint8_t *data, uint32_t len) : data_(data), len_(len)
 {
-    isNeedFreeData = false;
+    isNeedFreeData_ = false;
 }
 
 UbseComBaseBufferMessage::~UbseComBaseBufferMessage()
 {
-    if (isNeedFreeData) {
-        SafeDeleteArray(data, len);
+    if (isNeedFreeData_) {
+        SafeDeleteArray(data_, len_);
     }
 }
 
 UbseResult UbseComBaseBufferMessage::Serialize()
 {
-    if (len == 0) {
+    if (len_ == 0) {
         return UBSE_OK;
     }
-    mOutputRawDataSize = len;
+    mOutputRawDataSize = len_;
     mOutputRawData = SafeMakeUnique(mOutputRawDataSize);
-    auto ret = memcpy_s(mOutputRawData.get(), mOutputRawDataSize, data, len);
+    auto ret = memcpy_s(mOutputRawData.get(), mOutputRawDataSize, data_, len_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Serialize failed. ret: " << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -463,20 +470,20 @@ UbseResult UbseComBaseBufferMessage::Serialize()
 
 UbseResult UbseComBaseBufferMessage::Deserialize()
 {
-    if (data != nullptr) {
-        SafeDeleteArray(data, len);
-        len = 0;
+    if (data_ != nullptr) {
+        SafeDeleteArray(data_, len_);
+        len_ = 0;
     }
-    data = new (std::nothrow) uint8_t[mInputRawDataSize];
-    if (data == nullptr) {
+    data_ = new (std::nothrow) uint8_t[mInputRawDataSize];
+    if (data_ == nullptr) {
         return UBSE_ERROR_NOMEM;
     }
-    len = mInputRawDataSize;
+    len_ = mInputRawDataSize;
     if (UBSE_LIKELY((mInputRawDataSize != 0) && mInputRawData != nullptr)) {
-        auto ret = memcpy_s(data, mInputRawDataSize, mInputRawData.get(), mInputRawDataSize);
+        auto ret = memcpy_s(data_, mInputRawDataSize, mInputRawData.get(), mInputRawDataSize);
         if (UBSE_UNLIKELY(ret != EOK)) {
-            SafeDeleteArray(data, len);
-            len = 0;
+            SafeDeleteArray(data_, len_);
+            len_ = 0;
             return ret;
         }
         return UBSE_OK;
@@ -486,16 +493,16 @@ UbseResult UbseComBaseBufferMessage::Deserialize()
 
 uint8_t *UbseComBaseBufferMessage::GetData() const
 {
-    return data;
+    return data_;
 }
 
 uint32_t UbseComBaseBufferMessage::GetDataLen() const
 {
-    return len;
+    return len_;
 }
 
 void UbseComBaseBufferMessage::SetIsNeedFreeData(bool needFree)
 {
-    isNeedFreeData = needFree;
+    isNeedFreeData_ = needFree;
 }
 } // namespace ubse::com

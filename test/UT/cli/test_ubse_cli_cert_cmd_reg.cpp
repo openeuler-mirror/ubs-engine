@@ -31,9 +31,9 @@ TEST_F(TestUbseCliCertCmdReg, RegisterCertModule)
 {
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UBSE_CLI_REGISTER_MODULE("CLI_CERT_MODULE", UbseCliRegCertModule);
-    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators.size(), 1);
+    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators_.size(), 1);
     UbseCliModuleRegistry::GetInstance().UbseCliCallAllModuleSignUp();
-    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators.size(), 0);
+    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators_.size(), 0);
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
 }
 

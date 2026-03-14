@@ -42,8 +42,8 @@ public:
     void Remove(const std::string &name);
 
 private:
-    std::map<std::string, UbseTaskExecutorPtr> executors;
-    ReadWriteLock rwLock;
+    std::map<std::string, UbseTaskExecutorPtr> executors_;
+    ReadWriteLock rwLock_;
 };
 } // namespace ubse::task_executor
 #endif // UBSE_TASK_EXECUTOR_MODULE_H

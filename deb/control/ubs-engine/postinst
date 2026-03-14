@@ -1,0 +1,55 @@
+#!/bin/bash
+set -e
+
+# $1 = "configure" (always for postinst)
+
+ensure_directory_owner() {
+    local dir="$1"
+    local create="$2"
+    if [ "$create" = "true" ]; then
+        mkdir -p "$dir"
+    fi
+    chown ubse:ubse "$dir"
+}
+
+modify_udev_rule() {
+    # 如果你有 udev 规则，放这里；否则留空或注释
+    # udevadm control --reload-rules || true
+    # udevadm trigger || true
+    :
+}
+
+deleted_semaphore() {
+    # 清理信号量或锁文件（如有）
+    :
+}
+
+update_config() {
+    local conf="$1"
+    if [ -f "$conf" ]; then
+        # 可以做备份或模板填充
+        :
+    fi
+}
+
+# 设置目录权限
+ensure_directory_owner "/var/log/ubse" true
+ensure_directory_owner "/var/lib/ubse" true
+ensure_directory_owner "/var/lib/ubse/data" true
+ensure_directory_owner "/var/lib/ubse/sync" true
+ensure_directory_owner "/etc/ubse/certs" true
+ensure_directory_owner "/run/ubse" true
+
+chmod 750 /var/log/ubse /var/lib/ubse /var/lib/ubse/data /var/lib/ubse/sync /run/ubse
+chmod 700 /etc/ubse/certs
+
+# systemd
+systemctl daemon-reload
+systemctl enable ubse.service
+
+# 场景配置
+if [ "${MXE_SCENE:-}" = "vm" ]; then
+    update_config /etc/ubse/ubse_plugin_admission.conf
+fi
+
+deleted_semaphore

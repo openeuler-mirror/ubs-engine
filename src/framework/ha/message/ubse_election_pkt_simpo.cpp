@@ -19,17 +19,17 @@ namespace ubse::election::message {
 using namespace ubse::log;
 using namespace ubse::election::data::conversion;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_ELECTION_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseElectionPktSimpo::UbseElectionPktSimpo(const ElectionPkt &pkt)
 {
-    electionPkt = pkt;
+    electionPkt_ = pkt;
 }
 
 UbseResult UbseElectionPktSimpo::Serialize()
 {
     UbseSerialization out;
-    ElectionPktSerialize(out, electionPkt);
+    ElectionPktSerialize(out, electionPkt_);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize failed.";
         return UBSE_ERROR;
@@ -46,7 +46,7 @@ UbseResult UbseElectionPktSimpo::Deserialize()
         return UBSE_ERROR;
     }
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    ElectionPktDeserialize(in, electionPkt);
+    ElectionPktDeserialize(in, electionPkt_);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Deserialize failed.";
         return UBSE_ERROR;

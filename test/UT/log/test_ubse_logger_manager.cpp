@@ -14,6 +14,7 @@
 #include "gtest/gtest.h"
 #include "sys/syslog.h"
 #include "ubse_logger.h"
+#include "ubse_error.h"
 
 namespace ubse::ut::log {
 using namespace ubse::log;
@@ -85,7 +86,7 @@ TEST_F(TestUbseLoggerManager, testInit)
 {
     LoggerOptions options;
     UbseLoggerManager ubseLoggerManager;
-    UbseLoggerManager::gInited = true;
+    UbseLoggerManager::gInited_ = true;
     UbseLoggerWriter *writer = new (std::nothrow) UbseDefaultLoggerWriter();
     EXPECT_EQ(ubseLoggerManager.Init(options, writer), UBSE_OK);
     delete writer;
@@ -174,7 +175,7 @@ TEST_F(TestUbseLoggerManager, Push)
 {
     UbseLoggerManager ubseLoggerManager;
     uint32_t size = 10;
-    ubseLoggerManager.logBuffer = std::make_unique<LogBuffer>(size);
+    ubseLoggerManager.logBuffer_ = std::make_unique<LogBuffer>(size);
     MOCKER(&LogBuffer::Push).stubs().will(ignoreReturnValue());
     UbseLoggerEntry loggerEntry(nullptr, UbseLogLevel::INFO, nullptr, nullptr, 0);
     EXPECT_NO_THROW(ubseLoggerManager.Push(std::move(loggerEntry)));

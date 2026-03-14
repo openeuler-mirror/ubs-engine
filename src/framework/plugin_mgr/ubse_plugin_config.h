@@ -13,7 +13,9 @@
 #ifndef UBSE_PLUGIN_CONFIG_H
 #define UBSE_PLUGIN_CONFIG_H
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
+
 #include "ubse_common_def.h"
 
 namespace ubse::plugin {
@@ -41,13 +43,11 @@ public:
     ;
     // 增删改查方法
     const std::map<std::string, UbsePluginInfo> &GetAllPluginConfigs() const;
-    const UbsePluginInfo *GetPluginConfig(const std::string &pluginName) const;
-
-    UbseResult VerifyConfig(const UbsePluginInfo &pluginInfo, const std::string &fileName);
 
 private:
-    mutable std::shared_mutex pluginConfigsMutex;
-    std::map<std::string, UbsePluginInfo> pluginConfigs; // 存储所有插件的配置信息
+    UbseResult VerifyConfig(const UbsePluginInfo &pluginInfo, const std::string &fileName);
+    mutable std::shared_mutex pluginConfigsMutex_;
+    std::map<std::string, UbsePluginInfo> pluginConfigs_; // 存储所有插件的配置信息
 };
 } // namespace ubse::plugin
 #endif // UBSE_PLUGIN_CONFIG_H

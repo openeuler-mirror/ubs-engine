@@ -1,35 +1,75 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "ubse_mem_controller_serial.h"
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
-#include "ubse_mem_obj.h"
+#include "ubse_mmi_interface.h"
 
-using namespace ubse::mem::obj;
+using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::common;
 using namespace ubse::log;
 
 namespace ubse::mem::serial {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
-constexpr int MAX_SIZE = 800; // 校验obmm数组最大值, 800=100G(max size) / 128M(min block size)
+UBSE_DEFINE_THIS_MODULE("ubse");
+constexpr int MAX_SIZE = 1024; // 一个cpu上ummu最多支持1024个导出，一次借用只允许从1个cpu借用。
+
+// 假设128T内存池，分布在4个节点，最小借用128M，平均借用512M。单个节点的最大的借用账本数为: 128T/4/512M = 2^16 = 65536
+constexpr int MAX_DEBT_MAP_SIZE = 65536;
+
+// 借出地址段  最大段数=CPU核数，取个可能的短期上线，1024核
+constexpr int MAX_EXPORT_ADDR_LIST_SIZE = 1024;
+
+// 目前感知集群最大规模是128
+constexpr int MAX_NODE_LIST_SIZE = 128;
+
+// 定义位掩码和位移常量
+constexpr uint16_t BIT0_MASK = 0x1;
+constexpr uint16_t BIT1_MASK = 0x1;
+constexpr uint16_t BIT2_MASK = 0x1;
+constexpr uint16_t BIT3_MASK = 0x1;
+constexpr uint16_t BIT4_MASK = 0x1;
+constexpr uint16_t BIT5_MASK = 0x1;
+constexpr uint16_t BIT6_MASK = 0x1;
+constexpr uint16_t BIT7_9_MASK = 0x7;
+constexpr uint16_t BIT10_15_MASK = 0x3F;
+
+// 定义字段的位移量
+constexpr uint16_t BIT0_SHIFT = 0;
+constexpr uint16_t BIT1_SHIFT = 1;
+constexpr uint16_t BIT2_SHIFT = 2;
+constexpr uint16_t BIT3_SHIFT = 3;
+constexpr uint16_t BIT4_SHIFT = 4;
+constexpr uint16_t BIT5_SHIFT = 5;
+constexpr uint16_t BIT6_SHIFT = 6;
+constexpr uint16_t BIT7_SHIFT = 7;
+constexpr uint16_t BIT10_SHIFT = 10;
 void UbseMemDebtNumaInfoSerialization(UbseSerialization &out, const UbseMemDebtNumaInfo &debtNumaInfo)
 {
-    out << debtNumaInfo.nodeId << debtNumaInfo.socketId << debtNumaInfo.numaId << debtNumaInfo.size;
-    return;
+    out << debtNumaInfo.nodeId << debtNumaInfo.socketId << debtNumaInfo.numaId << debtNumaInfo.size
+        << debtNumaInfo.chipId << debtNumaInfo.portId;
 }
 
-UbseResult UbseMemDebtNumaInfoDeserialization(UbseDeSerialization &in, UbseMemDebtNumaInfo &debtNumaInfo)
+bool UbseMemDebtNumaInfoDeserialization(UbseDeSerialization &in, UbseMemDebtNumaInfo &debtNumaInfo)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemDebtNumaInfo during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    in >> debtNumaInfo.nodeId >> debtNumaInfo.socketId >> debtNumaInfo.numaId >> debtNumaInfo.size;
-    return UBSE_OK;
+    in >> debtNumaInfo.nodeId >> debtNumaInfo.socketId >> debtNumaInfo.numaId >> debtNumaInfo.size >>
+        debtNumaInfo.chipId >> debtNumaInfo.portId;
+    return in.Check();
 }
 
 void UbseMemAlgoResultSerialization(UbseSerialization &out, const UbseMemAlgoResult &algoResult)
@@ -42,42 +82,51 @@ void UbseMemAlgoResultSerialization(UbseSerialization &out, const UbseMemAlgoRes
     for (auto &importNumaInfo : algoResult.importNumaInfos) {
         UbseMemDebtNumaInfoSerialization(out, importNumaInfo);
     }
+    out << algoResult.blockSize;
     out << algoResult.attachSocketId;
-    return;
 }
 
-UbseResult UbseMemAlgoResultDeserialization(UbseDeSerialization &in, UbseMemAlgoResult &algoResult)
+bool UbseMemAlgoResultDeserialization(UbseDeSerialization &in, UbseMemAlgoResult &algoResult)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemAlgoResult during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     size_t exportNumaInfoSize{};
     in >> exportNumaInfoSize;
+    if (!in.Check()) {return false;}
     if (exportNumaInfoSize > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid exportNumaInfoSize during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     algoResult.exportNumaInfos.resize(exportNumaInfoSize);
     for (size_t i = 0; i < exportNumaInfoSize; ++i) {
-        if (UbseMemDebtNumaInfoDeserialization(in, algoResult.exportNumaInfos[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemDebtNumaInfoDeserialization(in, algoResult.exportNumaInfos[i])) {
+            UBSE_LOG_ERROR << "UbseMemDebtNumaInfoDeserialization failed;";
+            return false;
         }
     }
     size_t importNumaInfoSize{};
     in >> importNumaInfoSize;
+    if (!in.Check()) {return false;}
     if (importNumaInfoSize > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid importNumaInfoSize during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     algoResult.importNumaInfos.resize(importNumaInfoSize);
     for (size_t i = 0; i < importNumaInfoSize; ++i) {
-        if (UbseMemDebtNumaInfoDeserialization(in, algoResult.importNumaInfos[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemDebtNumaInfoDeserialization(in, algoResult.importNumaInfos[i])) {
+            UBSE_LOG_ERROR << "UbseMemDebtNumaInfoDeserialization failed;";
+            return false;
         }
     }
+    in >> algoResult.blockSize;
     in >> algoResult.attachSocketId;
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemAlgoResult during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemObmmMemDescSerialization(UbseSerialization &out, const ubse_mem_obmm_mem_desc &ubseMemObmmMemDesc)
@@ -86,38 +135,46 @@ void UbseMemObmmMemDescSerialization(UbseSerialization &out, const ubse_mem_obmm
     addrLen.ptr = (unsigned char *)&ubseMemObmmMemDesc;
     addrLen.len = sizeof(ubseMemObmmMemDesc);
     out << addrLen;
-    return;
 }
 
-UbseResult UbseMemObmmMemDescDeserialization(UbseDeSerialization &in, ubse_mem_obmm_mem_desc &ubseMemObmmMemDesc)
+bool UbseMemObmmMemDescDeserialization(UbseDeSerialization &in, ubse_mem_obmm_mem_desc &ubseMemObmmMemDesc)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemObmmMemDesc during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     addr_len<uint8_t> addrLen;
     addrLen.ptr = (unsigned char *)&ubseMemObmmMemDesc;
     addrLen.len = sizeof(ubseMemObmmMemDesc);
     in >> addrLen;
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemObmmMemDesc during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemObmmInfoSerialization(UbseSerialization &out, const UbseMemObmmInfo &ubseMemObmmInfo)
 {
     out << ubseMemObmmInfo.memId;
     UbseMemObmmMemDescSerialization(out, ubseMemObmmInfo.desc);
-    return;
+    out << enum_v(ubseMemObmmInfo.memIdStatus);
 }
 
-UbseResult UbseMemObmmInfoDeserialization(UbseDeSerialization &in, UbseMemObmmInfo &ubseMemObmmInfo)
+bool UbseMemObmmInfoDeserialization(UbseDeSerialization &in, UbseMemObmmInfo &ubseMemObmmInfo)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemObmmInfo during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     in >> ubseMemObmmInfo.memId;
     UbseMemObmmMemDescDeserialization(in, ubseMemObmmInfo.desc);
-    return UBSE_OK;
+    in >> enum_v(ubseMemObmmInfo.memIdStatus);
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemObmmInfo during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemExportStatusSerialization(UbseSerialization &out, const UbseMemExportStatus &ubseMemExportStatus)
@@ -127,79 +184,141 @@ void UbseMemExportStatusSerialization(UbseSerialization &out, const UbseMemExpor
         UbseMemObmmInfoSerialization(out, exportObmmInfo);
     }
     out << enum_v(ubseMemExportStatus.expectState) << enum_v(ubseMemExportStatus.state);
-    return;
 }
 
-UbseResult UbseMemExportStatusDeserialization(UbseDeSerialization &in, UbseMemExportStatus &ubseMemExportStatus)
+bool UbseMemExportStatusDeserialization(UbseDeSerialization &in, UbseMemExportStatus &ubseMemExportStatus)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemExportStatus during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     size_t exportObmmInfosize{};
     in >> ubseMemExportStatus.errCode >> exportObmmInfosize;
     if (exportObmmInfosize > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid exportObmmInfosize during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     ubseMemExportStatus.exportObmmInfo.resize(exportObmmInfosize);
     for (size_t i = 0; i < exportObmmInfosize; ++i) {
-        if (UbseMemObmmInfoDeserialization(in, ubseMemExportStatus.exportObmmInfo[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemObmmInfoDeserialization(in, ubseMemExportStatus.exportObmmInfo[i])) {
+            UBSE_LOG_ERROR << "UbseMemObmmInfoDeserialization Failed ";
+            return false;
         }
     }
     in >> enum_v(ubseMemExportStatus.expectState) >> enum_v(ubseMemExportStatus.state);
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemExportStatus during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseUdsInfoSerialization(UbseSerialization &out, const UbseUdsInfo &udsInfo)
 {
-    out << udsInfo.uid << udsInfo.gid << udsInfo.pid;
-    return;
+    out << udsInfo.uid << udsInfo.gid << udsInfo.pid << udsInfo.username;
 }
 
-void UbseFdOwnerSerialization(UbseSerialization& out, const FdOwner& owner)
+void UbseTrustChainDataSerialization(UbseSerialization &out, const UbseTrustRingData &chainData)
 {
-    out << owner.uid << owner.gid << owner.pid << owner.mode;
+    out << chainData.trustRingId << chainData.reqSignedData;
+    out << right_v<size_t>(chainData.lendSignedDatas.size());
+    for (const auto lendSignedData : chainData.lendSignedDatas) {
+        out << lendSignedData;
+    }
 }
-UbseResult UbseUdsInfoDeserialization(UbseDeSerialization &in, UbseUdsInfo &udsInfo)
+
+void UbseFdOwnerSerialization(UbseSerialization &out, const FdOwner &fdOwner)
+{
+    out << fdOwner.uid << fdOwner.gid << fdOwner.pid << fdOwner.mode;
+}
+
+bool UbseUdsInfoDeserialization(UbseDeSerialization &in, UbseUdsInfo &udsInfo)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseUdsInfo during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    in >> udsInfo.uid >> udsInfo.gid >> udsInfo.pid;
-    return UBSE_OK;
-}
-UbseResult UbseFdOwnerDeserialization(UbseDeSerialization& in, FdOwner& owner)
-{
+    in >> udsInfo.uid >> udsInfo.gid >> udsInfo.pid >> udsInfo.username;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseUdsInfo during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    in >> owner.uid >> owner.gid >> owner.pid >> owner.mode;
-    return UBSE_OK;
+    return true;
 }
+
+bool UbseTrustChainDataDeserialization(UbseDeSerialization &in, UbseTrustRingData &ringData)
+{
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseTrustChainData during deserialization";
+        return false;
+    }
+
+    in >> ringData.trustRingId >> ringData.reqSignedData;
+    size_t lendSignedDatasSize;
+    in >> lendSignedDatasSize;
+    if (lendSignedDatasSize > MAX_SIZE) {
+        UBSE_LOG_ERROR << "Invalid lendSignedDatasSize during deserialization";
+        return false;
+    }
+    for (size_t i = 0; i < lendSignedDatasSize; i++) {
+        std::string lendSignedData{};
+        in >> lendSignedData;
+        ringData.lendSignedDatas.emplace_back(lendSignedData);
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseTrustChainData during deserialization";
+        return false;
+    }
+    return true;
+}
+
+bool UbseFdOwnerDeserialization(UbseDeSerialization &in, FdOwner &fdOwner)
+{
+    in >> fdOwner.uid >> fdOwner.gid >> fdOwner.pid >> fdOwner.mode;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check FdOwner during deserialization";
+        return false;
+    }
+    return true;
+}
+
 void UbseNumaLocationSerialization(UbseSerialization &out, const UbseNumaLocation &ubseNumaLocation)
 {
     out << ubseNumaLocation.nodeId << ubseNumaLocation.numaId;
-    return;
 }
 
-UbseResult UbseNumaLocationDeserialization(UbseDeSerialization &in, UbseNumaLocation &ubseNumaLocation)
+bool UbseNumaLocationDeserialization(UbseDeSerialization &in, UbseNumaLocation &ubseNumaLocation)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseNumaLocation during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     in >> ubseNumaLocation.nodeId >> ubseNumaLocation.numaId;
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseNumaLocation during deserialization";
+        return false;
+    }
+    return true;
 }
 
-void UbseMemFdBorrowReqSerialization(UbseSerialization &out, const UbseMemFdBorrowReq &req)
+inline void UbseMemBaseBorrowReqSerialize(UbseSerialization &out, const UbseMemBaseBorrowReq &data)
 {
-    out << req.name << req.requestNodeId << req.importNodeId << req.size << enum_v(req.distance) << req.timestamp;
-    UbseFdOwnerSerialization(out, req.owner);
+    out << data.name << data.requestId << data.requestNodeId;
+    UbseUdsInfoSerialization(out, data.udsInfo);
+    UbseTrustChainDataSerialization(out, data.trustRingData);
+}
+
+inline void UbseMemBaseBorrowReqDeserialize(UbseDeSerialization &in, UbseMemBaseBorrowReq &data)
+{
+    in >> data.name >> data.requestId >> data.requestNodeId;
+    UbseUdsInfoDeserialization(in, data.udsInfo);
+    UbseTrustChainDataDeserialization(in, data.trustRingData);
+}
+
+bool UbseMemFdBorrowReqSerialization(UbseSerialization &out, const UbseMemFdBorrowReq &req)
+{
+    UbseMemBaseBorrowReqSerialize(out, req);
+    out << req.importNodeId << req.size << enum_v(req.distance);
     out << (right_v<size_t>(req.lenderLocs.size()));
     for (auto &lenderLoc : req.lenderLocs) {
         UbseNumaLocationSerialization(out, lenderLoc);
@@ -208,84 +327,116 @@ void UbseMemFdBorrowReqSerialization(UbseSerialization &out, const UbseMemFdBorr
     for (auto lenderSize : req.lenderSizes) {
         out << lenderSize;
     }
-    return;
+    out << (right_v<size_t>(req.candidateNodeList.size()));
+    for (const auto &candidateNode : req.candidateNodeList) {
+        out << candidateNode;
+    }
+    UbseFdOwnerSerialization(out, req.owner);
+    return out.Check();
 }
 
-UbseResult UbseMemFdBorrowReqDeserialization(UbseDeSerialization &in, UbseMemFdBorrowReq &req)
+bool UbseMemFdBorrowReqDeserialization(UbseDeSerialization &in, UbseMemFdBorrowReq &req)
 {
+    UbseMemBaseBorrowReqDeserialize(in, req);
     if (!in.Check()) {
-        UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowReq during deserialization";
-        return UBSE_ERROR;
+        UBSE_LOG_ERROR << "Failed to check UbseMemBaseBorrowReqDeserialize during deserialization";
+        return false;
     }
-    in >> req.name >> req.requestNodeId >> req.importNodeId >> req.size >> enum_v(req.distance) >> req.timestamp;
-    UbseFdOwnerDeserialization(in, req.owner);
+    in >> req.importNodeId >> req.size >> enum_v(req.distance);
     size_t lenderLocsSize{};
     in >> lenderLocsSize;
     if (lenderLocsSize > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid lenderLocsSize during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     req.lenderLocs.resize(lenderLocsSize);
     for (size_t i = 0; i < lenderLocsSize; ++i) {
-        if (UbseNumaLocationDeserialization(in, req.lenderLocs[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseNumaLocationDeserialization(in, req.lenderLocs[i])) {
+            UBSE_LOG_ERROR << "UbseNumaLocationDeserialization failed;";
+            return false;
         }
     }
     size_t lenderSizesSize{};
     in >> lenderSizesSize;
     if (lenderSizesSize > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid lenderSizesSize during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     req.lenderSizes.resize(lenderSizesSize);
     for (size_t i = 0; i < lenderSizesSize; ++i) {
         in >> req.lenderSizes[i];
     }
-    return UBSE_OK;
+    size_t candidateNodeListSize{};
+    in >> candidateNodeListSize;
+    if (candidateNodeListSize > MAX_NODE_LIST_SIZE) {
+        UBSE_LOG_ERROR << "Invalid candidateNodeListSize during deserialization, size=" << candidateNodeListSize;
+        return false;
+    }
+    req.candidateNodeList.resize(candidateNodeListSize);
+    for (size_t i = 0; i < candidateNodeListSize; ++i) {
+        in >> req.candidateNodeList[i];
+    }
+    UbseFdOwnerDeserialization(in, req.owner);
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowReq during deserialization";
+        return false;
+    }
+    return true;
 }
 
-void UbseMemFdBorrowExportObjSerialization(UbseSerialization &out, const UbseMemFdBorrowExportObj &fdBorrowExportObj)
+bool UbseMemFdBorrowExportObjSerialization(UbseSerialization &out, const UbseMemFdBorrowExportObj &fdBorrowExportObj)
 {
     out << fdBorrowExportObj.errorCode;
     UbseMemAlgoResultSerialization(out, fdBorrowExportObj.algoResult);
     UbseMemExportStatusSerialization(out, fdBorrowExportObj.status);
     UbseMemFdBorrowReqSerialization(out, fdBorrowExportObj.req);
-    return;
+    UbseMemReturnReqSerialize(out, fdBorrowExportObj.returnReq);
+    return out.Check();
 }
 
-UbseResult UbseMemFdBorrowExportObjDeserialization(UbseDeSerialization &in, UbseMemFdBorrowExportObj &fdBorrowExportObj)
+bool UbseMemFdBorrowExportObjDeserialization(UbseDeSerialization &in, UbseMemFdBorrowExportObj &fdBorrowExportObj)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowExportObj during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     in >> fdBorrowExportObj.errorCode;
-    if (UbseMemAlgoResultDeserialization(in, fdBorrowExportObj.algoResult) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemAlgoResultDeserialization(in, fdBorrowExportObj.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
     }
-    if (UbseMemExportStatusDeserialization(in, fdBorrowExportObj.status) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemExportStatusDeserialization(in, fdBorrowExportObj.status)) {
+        UBSE_LOG_ERROR << "UbseMemExportStatusDeserialization failed;";
+        return false;
     }
-    if (UbseMemFdBorrowReqDeserialization(in, fdBorrowExportObj.req) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemFdBorrowReqDeserialization(in, fdBorrowExportObj.req)) {
+        UBSE_LOG_ERROR << "UbseMemFdBorrowReqDeserialization failed;";
+        return false;
     }
-    return UBSE_OK;
+    if (!UbseMemReturnReqDeserialize(in, fdBorrowExportObj.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowExportObj during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemImportResultSerialization(UbseSerialization &out, const UbseMemImportResult &ubseMemImportResult)
 {
     out << ubseMemImportResult.memId << ubseMemImportResult.numaId;
-    return;
 }
 
-UbseResult UbseMemImportResultDeserialization(UbseDeSerialization &in, UbseMemImportResult &ubseMemImportResult)
+bool UbseMemImportResultDeserialization(UbseDeSerialization &in, UbseMemImportResult &ubseMemImportResult)
 {
+    in >> ubseMemImportResult.memId >> ubseMemImportResult.numaId;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowExportObj during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    in >> ubseMemImportResult.memId >> ubseMemImportResult.numaId;
-    return UBSE_OK;
+    return true;
 }
 
 void UbseMemImportStatusSerialization(UbseSerialization &out, const UbseMemImportStatus &ubseMemImportStatus)
@@ -295,49 +446,54 @@ void UbseMemImportStatusSerialization(UbseSerialization &out, const UbseMemImpor
     for (auto &importResult : ubseMemImportStatus.importResults) {
         UbseMemImportResultSerialization(out, importResult);
     }
-
     out << (right_v<size_t>(ubseMemImportStatus.decoderResult.size()));
-    for(auto &decoderResult : ubseMemImportStatus.decoderResult) {
+    for (auto &decoderResult : ubseMemImportStatus.decoderResult) {
         out << decoderResult.marId << decoderResult.hpa << decoderResult.handle;
     }
     out << enum_v(ubseMemImportStatus.expectState) << enum_v(ubseMemImportStatus.state);
-    return;
 }
 
-UbseResult UbseMemImportStatusDeserialization(UbseDeSerialization &in, UbseMemImportStatus &ubseMemImportStatus)
+bool UbseMemImportStatusDeserialization(UbseDeSerialization &in, UbseMemImportStatus &ubseMemImportStatus)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemImportStatus during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     size_t size{};
     in >> ubseMemImportStatus.errCode >> ubseMemImportStatus.scna >> size;
+    if (!in.Check()) {return false;}
     if (size > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid UbseMemImportStatus during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     ubseMemImportStatus.importResults.resize(size);
     for (size_t i = 0; i < size; ++i) {
-        if (UbseMemImportResultDeserialization(in, ubseMemImportStatus.importResults[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemImportResultDeserialization(in, ubseMemImportStatus.importResults[i])) {
+            UBSE_LOG_ERROR << "UbseMemImportResultDeserialization failed;";
+            return false;
         }
     }
-
     in >> size;
+    if (!in.Check()) {return false;}
     ubseMemImportStatus.decoderResult.resize(size);
     for (size_t i = 0; i < size; ++i) {
-        if (!in.Check()) {
-            UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowExportObj during deserialization";
-            return UBSE_ERROR;
-        }
         in >> ubseMemImportStatus.decoderResult[i].marId >> ubseMemImportStatus.decoderResult[i].hpa >>
             ubseMemImportStatus.decoderResult[i].handle;
+        if (!in.Check()) {
+            UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowExportObj during deserialization";
+            return false;
+        }
     }
+
     in >> enum_v(ubseMemImportStatus.expectState) >> enum_v(ubseMemImportStatus.state);
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemImportStatus during deserialization";
+        return false;
+    }
+    return true;
 }
 
-void UbseMemFdBorrowImportObjSerialization(UbseSerialization &out,
+bool UbseMemFdBorrowImportObjSerialization(UbseSerialization &out,
                                            const UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj)
 {
     out << ubseMemFdBorrowImportObj.errorCode;
@@ -348,109 +504,157 @@ void UbseMemFdBorrowImportObjSerialization(UbseSerialization &out,
     }
     UbseMemImportStatusSerialization(out, ubseMemFdBorrowImportObj.status);
     UbseMemFdBorrowReqSerialization(out, ubseMemFdBorrowImportObj.req);
+    UbseMemReturnReqSerialize(out, ubseMemFdBorrowImportObj.returnReq);
+    return out.Check();
 }
 
-UbseResult UbseMemFdBorrowImportObjDeserialization(UbseDeSerialization &in,
-                                                   UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj)
+bool UbseMemFdBorrowImportObjDeserialization(UbseDeSerialization &in,
+                                             UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowImportObj during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     in >> ubseMemFdBorrowImportObj.errorCode;
-    if (UbseMemAlgoResultDeserialization(in, ubseMemFdBorrowImportObj.algoResult) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemAlgoResultDeserialization(in, ubseMemFdBorrowImportObj.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
     }
     size_t size{};
     in >> size;
-    if (size > MAX_SIZE) {
+    if (!in.Check() || size > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid size during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     ubseMemFdBorrowImportObj.exportObmmInfo.resize(size);
     for (size_t i = 0; i < size; ++i) {
-        if (UbseMemObmmInfoDeserialization(in, ubseMemFdBorrowImportObj.exportObmmInfo[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemObmmInfoDeserialization(in, ubseMemFdBorrowImportObj.exportObmmInfo[i])) {
+            UBSE_LOG_ERROR << "UbseMemObmmInfoDeserialization failed;";
+            return false;
         }
     }
-    if (UbseMemImportStatusDeserialization(in, ubseMemFdBorrowImportObj.status) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemImportStatusDeserialization(in, ubseMemFdBorrowImportObj.status)) {
+        UBSE_LOG_ERROR << "UbseMemImportStatusDeserialization failed;";
+        return false;
     }
-    if (UbseMemFdBorrowReqDeserialization(in, ubseMemFdBorrowImportObj.req) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemFdBorrowReqDeserialization(in, ubseMemFdBorrowImportObj.req)) {
+        UBSE_LOG_ERROR << "UbseMemFdBorrowReqDeserialization failed;";
+        return false;
     }
-    return UBSE_OK;
+    if (!UbseMemReturnReqDeserialize(in, ubseMemFdBorrowImportObj.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowImportObj during deserialization";
+        return false;
+    }
+    return true;
+}
+bool UbseMemLenderLinkInfoSerialization(UbseSerialization &out, const UbseMemLenderLinkInfo &linkInfo)
+{
+    out << linkInfo.lenderNode << linkInfo.lenderSocketId << linkInfo.lenderPort;
+    return out.Check();
 }
 
-void UbseMemNumaBorrowReqSerialization(UbseSerialization &out, const UbseMemNumaBorrowReq &req)
+bool UbseMemLenderLinkInfoDeSerialization(UbseDeSerialization &in, UbseMemLenderLinkInfo &linkInfo)
+{
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemLenderLinkInfo during deserialization";
+        return false;
+    }
+    in >> linkInfo.lenderNode >> linkInfo.lenderSocketId >> linkInfo.lenderPort;
+    return true;
+}
+
+inline void SerializeUsrInfo(UbseSerialization &out, const uint8_t *usrInfo, size_t len)
+{
+    for (size_t i = 0; i < len; ++i) {
+        out << usrInfo[i];
+    }
+}
+
+bool UbseMemNumaBorrowReqSerialization(UbseSerialization &out, const UbseMemNumaBorrowReq &req)
 {
     UbseMemFdBorrowReq fdBorrowReq;
-    fdBorrowReq.name = req.name;
-    fdBorrowReq.requestNodeId = req.requestNodeId;
-    fdBorrowReq.importNodeId = req.importNodeId;
-    fdBorrowReq.size = req.size;
-    fdBorrowReq.distance = req.distance;
-    fdBorrowReq.udsInfo = req.udsInfo;
-    fdBorrowReq.lenderLocs = req.lenderLocs;
-    fdBorrowReq.lenderSizes = req.lenderSizes;
-    UbseMemFdBorrowReqSerialization(out, fdBorrowReq);
-    out << req.srcSocket << req.srcNuma << req.highWatermark << req.lowWatermark;
-    return;
+    UbseMemFdBorrowReqSerialization(out, req);
+    out << req.srcSocket << req.srcNuma << req.highWatermark << req.lowWatermark << req.requestId;
+    UbseMemLenderLinkInfoSerialization(out, req.linkInfo);
+    // 新增字段：usrInfo
+    SerializeUsrInfo(out, req.usrInfo, UBSE_MAX_USR_INFO_LEN);
+    return out.Check();
 }
 
-UbseResult UbseMemNumaBorrowReqDeserialization(UbseDeSerialization &in, UbseMemNumaBorrowReq &req)
+inline bool UbseUsrInfoDeserialize(UbseDeSerialization &in, uint8_t *usrInfo, size_t length)
+{
+    for (size_t i = 0; i < length; ++i) {
+        in >> usrInfo[i];
+    }
+    return in.Check();
+}
+
+bool UbseMemNumaBorrowReqDeserialization(UbseDeSerialization &in, UbseMemNumaBorrowReq &req)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemNumaBorrowReq during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    UbseMemFdBorrowReq fdBorrowReq;
-    if (UbseMemFdBorrowReqDeserialization(in, fdBorrowReq) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemFdBorrowReqDeserialization(in, req)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
     }
-    req.name = fdBorrowReq.name;
-    req.requestNodeId = fdBorrowReq.requestNodeId;
-    req.importNodeId = fdBorrowReq.importNodeId;
-    req.size = fdBorrowReq.size;
-    req.distance = fdBorrowReq.distance;
-    req.udsInfo = fdBorrowReq.udsInfo;
-    req.lenderLocs = fdBorrowReq.lenderLocs;
-    req.lenderSizes = fdBorrowReq.lenderSizes;
-    in >> req.srcSocket >> req.srcNuma >> req.highWatermark >> req.lowWatermark;
-    return UBSE_OK;
+    in >> req.srcSocket >> req.srcNuma >> req.highWatermark >> req.lowWatermark >> req.requestId;
+    if (!UbseMemLenderLinkInfoDeSerialization(in, req.linkInfo)) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemNumaBorrowReq during deserialization";
+        return false;
+    }
+    // 读取usrInfo
+    if (!UbseUsrInfoDeserialize(in, req.usrInfo, UBSE_MAX_USR_INFO_LEN)) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemNumaBorrowReq during deserialization";
+        return false;
+    }
+    return true;
 }
 
-void UbseMemNumaBorrowExportObjSerialization(UbseSerialization &out,
+bool UbseMemNumaBorrowExportObjSerialization(UbseSerialization &out,
                                              const UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj)
 {
     out << ubseMemNumaBorrowExportObj.errorCode;
     UbseMemAlgoResultSerialization(out, ubseMemNumaBorrowExportObj.algoResult);
     UbseMemExportStatusSerialization(out, ubseMemNumaBorrowExportObj.status);
     UbseMemNumaBorrowReqSerialization(out, ubseMemNumaBorrowExportObj.req);
-    return;
+    UbseMemReturnReqSerialize(out, ubseMemNumaBorrowExportObj.returnReq);
+    return out.Check();
 }
 
-UbseResult UbseMemNumaBorrowExportObjDeserialization(UbseDeSerialization &in,
-                                                     UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj)
+bool UbseMemNumaBorrowExportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemNumaBorrowExportObj during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     in >> ubseMemNumaBorrowExportObj.errorCode;
-    if (UbseMemAlgoResultDeserialization(in, ubseMemNumaBorrowExportObj.algoResult) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemAlgoResultDeserialization(in, ubseMemNumaBorrowExportObj.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
     }
-    if (UbseMemExportStatusDeserialization(in, ubseMemNumaBorrowExportObj.status) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemExportStatusDeserialization(in, ubseMemNumaBorrowExportObj.status)) {
+        UBSE_LOG_ERROR << "UbseMemExportStatusDeserialization failed;";
+        return false;
     }
-    if (UbseMemNumaBorrowReqDeserialization(in, ubseMemNumaBorrowExportObj.req) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemNumaBorrowReqDeserialization(in, ubseMemNumaBorrowExportObj.req)) {
+        UBSE_LOG_ERROR << "UbseMemNumaBorrowReqDeserialization failed;";
+        return false;
     }
-    return UBSE_OK;
+    if (!UbseMemReturnReqDeserialize(in, ubseMemNumaBorrowExportObj.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    return true;
 }
 
-void UbseMemNumaBorrowImportObjSerialization(UbseSerialization &out,
+bool UbseMemNumaBorrowImportObjSerialization(UbseSerialization &out,
                                              const UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj)
 {
     out << ubseMemNumaBorrowImportObj.errorCode;
@@ -461,93 +665,535 @@ void UbseMemNumaBorrowImportObjSerialization(UbseSerialization &out,
     }
     UbseMemImportStatusSerialization(out, ubseMemNumaBorrowImportObj.status);
     UbseMemNumaBorrowReqSerialization(out, ubseMemNumaBorrowImportObj.req);
-    return;
+    UbseMemReturnReqSerialize(out, ubseMemNumaBorrowImportObj.returnReq);
+    return out.Check();
 }
 
-UbseResult UbseMemNumaBorrowImportObjDeserialization(UbseDeSerialization &in,
-                                                     UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj)
+bool UbseMemNumaBorrowImportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemNumaBorrowImportObj during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     in >> ubseMemNumaBorrowImportObj.errorCode;
-    if (UbseMemAlgoResultDeserialization(in, ubseMemNumaBorrowImportObj.algoResult) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemAlgoResultDeserialization(in, ubseMemNumaBorrowImportObj.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
     }
     size_t size{};
     in >> size;
     if (size > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid size during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     ubseMemNumaBorrowImportObj.exportObmmInfo.resize(size);
     for (size_t i = 0; i < size; ++i) {
-        if (UbseMemObmmInfoDeserialization(in, ubseMemNumaBorrowImportObj.exportObmmInfo[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemObmmInfoDeserialization(in, ubseMemNumaBorrowImportObj.exportObmmInfo[i])) {
+            UBSE_LOG_ERROR << "UbseMemObmmInfoDeserialization failed;";
+            return false;
         }
     }
-    if (UbseMemImportStatusDeserialization(in, ubseMemNumaBorrowImportObj.status) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemImportStatusDeserialization(in, ubseMemNumaBorrowImportObj.status)) {
+        UBSE_LOG_ERROR << "UbseMemImportStatusDeserialization failed;";
+        return false;
     }
-    if (UbseMemNumaBorrowReqDeserialization(in, ubseMemNumaBorrowImportObj.req) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemNumaBorrowReqDeserialization(in, ubseMemNumaBorrowImportObj.req)) {
+        UBSE_LOG_ERROR << "UbseMemNumaBorrowReqDeserialization failed;";
+        return false;
     }
-    return UBSE_OK;
+    if (!UbseMemReturnReqDeserialize(in, ubseMemNumaBorrowImportObj.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemNumaBorrowImportObj during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemAddrInfoSerialization(UbseSerialization &out, const UbseMemAddrInfo &ubseMemAddrInfo)
 {
     out << ubseMemAddrInfo.addr << ubseMemAddrInfo.size;
-    return;
 }
 
-UbseResult UbseMemAddrInfoDeserialization(UbseDeSerialization &in, UbseMemAddrInfo &ubseMemAddrInfo)
+bool UbseMemAddrInfoDeserialization(UbseDeSerialization &in, UbseMemAddrInfo &ubseMemAddrInfo)
 {
+    in >> ubseMemAddrInfo.addr >> ubseMemAddrInfo.size;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemAddrInfo during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    in >> ubseMemAddrInfo.addr >> ubseMemAddrInfo.size;
-    return UBSE_OK;
+    return true;
+}
+
+void UbseMemAddrBorrowReqSerialization(UbseSerialization &out, const UbseMemAddrBorrowReq &req)
+{
+    out << req.importNodeId << req.importPid << req.exportNodeId << req.exportPid << req.srcSocket << req.srcNuma
+        << req.dstSocket << req.dstNuma << req.wrDelayComp;
+    out << (right_v<size_t>(req.exportAddrList.size()));
+    for (auto addrInfo : req.exportAddrList) {
+        UbseMemAddrInfoSerialization(out, addrInfo);
+    }
+    UbseMemBaseBorrowReqSerialize(out, req);
+}
+
+bool UbseMemAddrBorrowReqDeserialization(UbseDeSerialization &in, UbseMemAddrBorrowReq &req)
+{
+    in >> req.importNodeId >> req.importPid >> req.exportNodeId >> req.exportPid >> req.srcSocket >> req.srcNuma >>
+        req.dstSocket >> req.dstNuma >> req.wrDelayComp;
+    size_t size{};
+    in >> size;
+    if (!in.Check()) {return false;}
+    if (size > MAX_EXPORT_ADDR_LIST_SIZE) {
+        UBSE_LOG_ERROR << "Invalid exportAddrListSize during deserialization, size=" << size;
+        return false;
+    }
+    req.exportAddrList.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        if (!UbseMemAddrInfoDeserialization(in, req.exportAddrList[i])) {
+            UBSE_LOG_ERROR << "UbseMemAddrBorrowImportObjDeserialization failed;";
+            return false;
+        }
+    }
+    UbseMemBaseBorrowReqDeserialize(in, req);
+    return in.Check();
+}
+
+bool UbseMemAddrBorrowExportObjSerialization(UbseSerialization &out,
+                                             const UbseMemAddrBorrowExportObj &ubseMemAddrBorrowExportObj)
+{
+    out << ubseMemAddrBorrowExportObj.errorCode;
+    UbseMemAddrBorrowReqSerialization(out, ubseMemAddrBorrowExportObj.req);
+    UbseMemReturnReqSerialize(out, ubseMemAddrBorrowExportObj.returnReq);
+    UbseMemAlgoResultSerialization(out, ubseMemAddrBorrowExportObj.algoResult);
+    UbseMemExportStatusSerialization(out, ubseMemAddrBorrowExportObj.status);
+    return true;
+}
+
+bool UbseMemAddrBorrowExportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemAddrBorrowExportObj &ubseMemAddrBorrowExportObj)
+{
+    in >> ubseMemAddrBorrowExportObj.errorCode;
+    if (!UbseMemAddrBorrowReqDeserialization(in, ubseMemAddrBorrowExportObj.req)) {
+        UBSE_LOG_ERROR << "UbseMemAddrBorrowReqDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemReturnReqDeserialize(in, ubseMemAddrBorrowExportObj.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    if (!UbseMemAlgoResultDeserialization(in, ubseMemAddrBorrowExportObj.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemExportStatusDeserialization(in, ubseMemAddrBorrowExportObj.status)) {
+        UBSE_LOG_ERROR << "UbseMemExportStatusDeserialization failed;";
+        return false;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemAddrBorrowExportObj during deserialization";
+        return false;
+    }
+    return true;
+}
+
+bool UbseMemAddrBorrowImportObjSerialization(UbseSerialization &out,
+                                             const UbseMemAddrBorrowImportObj &ubseMemAddrBorrowImportObj)
+{
+    out << ubseMemAddrBorrowImportObj.errorCode;
+    UbseMemAddrBorrowReqSerialization(out, ubseMemAddrBorrowImportObj.req);
+    UbseMemReturnReqSerialize(out, ubseMemAddrBorrowImportObj.returnReq);
+    UbseMemAlgoResultSerialization(out, ubseMemAddrBorrowImportObj.algoResult);
+    out << (right_v<size_t>(ubseMemAddrBorrowImportObj.exportObmmInfo.size()));
+    for (const auto &i : ubseMemAddrBorrowImportObj.exportObmmInfo) {
+        UbseMemObmmInfoSerialization(out, i);
+    }
+    UbseMemImportStatusSerialization(out, ubseMemAddrBorrowImportObj.status);
+    return out.Check();
+}
+
+bool UbseMemAddrBorrowImportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemAddrBorrowImportObj &ubseMemAddrBorrowImportObj)
+{
+    in >> ubseMemAddrBorrowImportObj.errorCode;
+    if (!UbseMemAddrBorrowReqDeserialization(in, ubseMemAddrBorrowImportObj.req)) {
+        UBSE_LOG_ERROR << "UbseMemAddrBorrowImportObjDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemReturnReqDeserialize(in, ubseMemAddrBorrowImportObj.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    if (!UbseMemAlgoResultDeserialization(in, ubseMemAddrBorrowImportObj.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAddrBorrowImportObjDeserialization failed;";
+        return false;
+    }
+    size_t size{};
+    in >> size;
+    if (!in.Check()) {return false;}
+    ubseMemAddrBorrowImportObj.exportObmmInfo.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        if (!UbseMemObmmInfoDeserialization(in, ubseMemAddrBorrowImportObj.exportObmmInfo[i])) {
+            UBSE_LOG_ERROR << "UbseMemAddrBorrowImportObjDeserialization failed;";
+            return false;
+        }
+    }
+    if (!UbseMemImportStatusDeserialization(in, ubseMemAddrBorrowImportObj.status)) {
+        UBSE_LOG_ERROR << "UbseMemAddrBorrowImportObjDeserialization failed;";
+        return false;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemAddrBorrowImportObj during deserialization";
+        return false;
+    }
+    return true;
+}
+
+void UbseMemAttachResourceShareAttrSerialization(UbseSerialization &out, const UbseMemAttachResourceShareAttr &data)
+{
+    out << data.uid << data.gid << data.size << data.owner.uid << data.owner.gid << data.owner.pid << data.owner.mode;
+}
+
+bool UbseMemAttachResourceShareAttrDeserialization(UbseDeSerialization &in, UbseMemAttachResourceShareAttr &data)
+{
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemAttachResourceShareAttr during deserialization";
+        return false;
+    }
+    in >> data.uid >> data.gid >> data.size >> data.owner.uid >> data.owner.gid >> data.owner.pid >> data.owner.mode;
+    return true;
 }
 
 void UbseMemBorrowExportBaseObjSerialization(UbseSerialization &out, const UbseMemBorrowExportBaseObj &data)
 {
     UbseMemAlgoResultSerialization(out, data.algoResult);
     UbseMemExportStatusSerialization(out, data.status);
-    return;
 }
 
-UbseResult UbseMemBorrowExportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowExportBaseObj &data)
+bool UbseMemBorrowExportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowExportBaseObj &data)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemBorrowExportBaseObj during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    if (UbseMemAlgoResultDeserialization(in, data.algoResult) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemAlgoResultDeserialization(in, data.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
     }
-    if (UbseMemExportStatusDeserialization(in, data.status) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemExportStatusDeserialization(in, data.status)) {
+        UBSE_LOG_ERROR << "UbseMemExportStatusDeserialization failed;";
+        return false;
     }
-    return UBSE_OK;
+    return true;
 }
 
 void UbseNodeInfoSerialization(UbseSerialization &out, const UbseNodeInfo &data)
 {
     out << data.index << data.nodeId << data.hostName << enum_v(data.status);
-    return;
 }
 
-UbseResult UbseNodeInfoDeserialization(UbseDeSerialization &in, UbseNodeInfo &data)
+bool UbseNodeInfoDeserialization(UbseDeSerialization &in, UbseNodeInfo &data)
 {
+    in >> data.index >> data.nodeId >> data.hostName >> enum_v(data.status);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseNodeInfo during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
+    return true;
+}
+
+void UbseShmRegionDescSerialization(UbseSerialization &out, const UbseShmRegionDesc &data)
+{
+    out << data.nodeNum;
+    out << ubse::serial::array_len_insert(data.nodelist.size());
+    for (auto &item : data.nodelist) {
+        UbseNodeInfoSerialization(out, item);
+    }
+}
+
+bool UbseShmRegionDescDeserialization(UbseDeSerialization &in, UbseShmRegionDesc &data)
+{
+    in >> data.nodeNum;
+    uint64_t vectorSize;
+    in >> ubse::serial::array_len_capture(vectorSize);
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Check failed;";
+        return false;
+    }
+    for (size_t i = 0; i < vectorSize; i++) {
+        UbseNodeInfo nodeInfo;
+        if (!UbseNodeInfoDeserialization(in, nodeInfo)) {
+            UBSE_LOG_ERROR << "UbseNodeInfoDeserialization failed;";
+            return false;
+        }
+        data.nodelist.push_back(nodeInfo);
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseShmRegionDesc during deserialization";
+        return false;
+    }
+    return true;
+}
+inline void UbseUdsInfoSerialize(UbseSerialization &out, const UbseUdsInfo &data)
+{
+    out << data.uid << data.gid << data.pid;
+}
+
+inline void UbseNodeInfoSerialize(UbseSerialization &out, const UbseNodeInfo &data)
+{
+    out << data.index << data.nodeId << data.hostName << enum_v(data.status);
+}
+inline void UbseShmRegionDescSerialize(UbseSerialization &out, const UbseShmRegionDesc &data)
+{
+    out << data.nodeNum;
+    out << ubse::serial::array_len_insert(data.nodelist.size());
+    for (auto &item : data.nodelist) {
+        UbseNodeInfoSerialize(out, item);
+    }
+}
+
+inline void UbseShmProvierSerialize(UbseSerialization &out, const std::vector<std::string> &providerList)
+{
+    out << ubse::serial::array_len_insert(providerList.size());
+    for (auto &item : providerList) {
+        out << item;
+    }
+}
+
+inline void SerializeWithAffinity(UbseSerialization &out, const UbseMemShmAffinitySocketInfo &data)
+{
+    out << data.affinitySocketId << data.createReqNodeId << data.enableCreateWithAffinity;
+}
+
+inline uint16_t UbseMemPrivDataToUint16(const UbseMemPrivData &data)
+{
+    uint16_t val = 0;
+    val |= static_cast<uint16_t>(data.onePth) << BIT0_SHIFT;
+    val |= static_cast<uint16_t>(data.wrDelayComp) << BIT1_SHIFT;
+    val |= static_cast<uint16_t>(data.reduceDelayComp) << BIT2_SHIFT;
+    val |= static_cast<uint16_t>(data.cmoDelayComp) << BIT3_SHIFT;
+    val |= static_cast<uint16_t>(data.so) << BIT4_SHIFT;
+    val |= static_cast<uint16_t>(data.adTrOchip) << BIT5_SHIFT;
+    val |= static_cast<uint16_t>(data.cacheableFlag) << BIT6_SHIFT;
+    val |= static_cast<uint16_t>(data.marId) << BIT7_SHIFT;
+    val |= static_cast<uint16_t>(data.rsv0) << BIT10_SHIFT;
+    return val;
+}
+
+inline void UbseMemPrivDataFromUint16(uint16_t val, UbseMemPrivData &data)
+{
+    data.onePth = (val >> BIT0_SHIFT) & BIT0_MASK;          // 第0位：onePth
+    data.wrDelayComp = (val >> BIT1_SHIFT) & BIT1_MASK;     // 第1位：wrDelayComp
+    data.reduceDelayComp = (val >> BIT2_SHIFT) & BIT2_MASK; // 第2位：reduceDelayComp
+    data.cmoDelayComp = (val >> BIT3_SHIFT) & BIT3_MASK;    // 第3位：cmoDelayComp
+    data.so = (val >> BIT4_SHIFT) & BIT4_MASK;              // 第4位：so
+    data.adTrOchip = (val >> BIT5_SHIFT) & BIT5_MASK;       // 第5位：adTrOchip
+    data.cacheableFlag = (val >> BIT6_SHIFT) & BIT6_MASK;   // 第6位：cacheableFlag
+    data.marId = (val >> BIT7_SHIFT) & BIT7_9_MASK;         // 第7-9位：marId
+    data.rsv0 = (val >> BIT10_SHIFT) & BIT10_15_MASK;       // 第10-15位：保留字段rsv0
+}
+
+bool UbseMemShareBorrowReqSerialization(UbseSerialization &out, const UbseMemShareBorrowReq &data)
+{
+    UbseMemBaseBorrowReqSerialize(out, data);
+    out << data.baseNodeId << data.size << enum_v(data.distance);
+    UbseShmRegionDescSerialize(out, data.shmRegion);
+
+    UbseShmProvierSerialize(out, data.providerList);
+    SerializeUsrInfo(out, data.usrInfo, UBSE_MAX_USR_INFO_LEN);
+
+    uint16_t privDataVal = UbseMemPrivDataToUint16(data.ubseMemPrivData);
+    out << privDataVal;
+    out << data.shmAnonymous;
+
+    SerializeWithAffinity(out, data.withAffinity);
+    out << data.lenderInfo.lender_size << data.lenderInfo.nodeId << data.lenderInfo.socketId << data.lenderInfo.numaId
+        << data.lenderInfo.portId;
+    return out.Check();
+}
+inline bool UbseUdsInfoDeserialize(UbseDeSerialization &in, UbseUdsInfo &data)
+{
+    in >> data.uid >> data.gid >> data.pid;
+    return in.Check();
+}
+
+inline bool UbseNodeInfoDeserialize(UbseDeSerialization &in, UbseNodeInfo &data)
+{
     in >> data.index >> data.nodeId >> data.hostName >> enum_v(data.status);
-    return UBSE_OK;
+    return in.Check();
+}
+inline bool UbseShmRegionDescDeserialize(UbseDeSerialization &in, UbseShmRegionDesc &data)
+{
+    in >> data.nodeNum;
+    uint64_t vectorSize;
+    in >> ubse::serial::array_len_capture(vectorSize);
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Check failed;";
+        return false;
+    }
+    for (size_t i = 0; i < vectorSize; i++) {
+        UbseNodeInfo nodeInfo;
+        if (!UbseNodeInfoDeserialize(in, nodeInfo)) {
+            UBSE_LOG_ERROR << "UbseNodeInfoDeserialize failed;";
+            return false;
+        }
+        data.nodelist.push_back(nodeInfo);
+    }
+    return true;
+}
+
+inline bool UbseShmProvierDeSerialize(UbseDeSerialization &in, std::vector<std::string> &providerList)
+{
+    uint64_t vectorSize;
+    in >> ubse::serial::array_len_capture(vectorSize);
+    for (auto i = 0; i < vectorSize; i++) {
+        std::string nodeId;
+        in >> nodeId;
+        if (!in.Check()) {
+            UBSE_LOG_ERROR << "Check failed;";
+            return false;
+        }
+        providerList.push_back(nodeId);
+    }
+    return in.Check();
+}
+
+inline bool UbseWithAffinityDeserialize(UbseDeSerialization &in, UbseMemShmAffinitySocketInfo &withAffinity)
+{
+    in >> withAffinity.affinitySocketId;
+    in >> withAffinity.createReqNodeId;
+    in >> withAffinity.enableCreateWithAffinity;
+    return in.Check();
+}
+
+inline bool UbseLenderDeserialize(UbseDeSerialization &in, std::vector<UbseNumaLocation> &lenderLocs,
+                                  std::vector<uint64_t> &lenderSizes)
+{
+    size_t lenderLocsSize{};
+    in >> lenderLocsSize;
+    if (lenderLocsSize > MAX_SIZE) {
+        UBSE_LOG_ERROR << "Invalid lenderLocsSize during deserialization";
+        return false;
+    }
+    lenderLocs.resize(lenderLocsSize);
+    for (size_t i = 0; i < lenderLocsSize; ++i) {
+        if (!UbseNumaLocationDeserialization(in, lenderLocs[i])) {
+            UBSE_LOG_ERROR << "UbseNumaLocationDeserialization failed;";
+            return false;
+        }
+    }
+    size_t lenderSizesSize{};
+    in >> lenderSizesSize;
+    if (lenderSizesSize > MAX_SIZE) {
+        UBSE_LOG_ERROR << "Invalid lenderSizesSize during deserialization";
+        return false;
+    }
+    lenderSizes.resize(lenderSizesSize);
+    for (size_t i = 0; i < lenderSizesSize; ++i) {
+        in >> lenderSizes[i];
+    }
+    return in.Check();
+}
+
+bool UbseMemShareBorrowReqDeserialization(UbseDeSerialization &in, UbseMemShareBorrowReq &data)
+{
+    UbseMemBaseBorrowReqDeserialize(in, data);
+    in >> data.baseNodeId >> data.size >> enum_v(data.distance);
+    // 读取 udsInfo 和 shmRegion
+    if (!UbseShmRegionDescDeserialize(in, data.shmRegion)) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowReq during deserialization";
+        return false;
+    }
+    if (!UbseShmProvierDeSerialize(in, data.providerList)) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowReq during deserialization";
+        return false;
+    }
+    // 读取usrInfo
+    if (!UbseUsrInfoDeserialize(in, data.usrInfo, UBSE_MAX_USR_INFO_LEN)) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowReq during deserialization";
+        return false;
+    }
+
+    // 读取 ubseMemPrivData
+    uint16_t privDataVal;
+    in >> privDataVal;
+    UbseMemPrivDataFromUint16(privDataVal, data.ubseMemPrivData);
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowReq during deserialization";
+        return false;
+    }
+    // 读取 flag
+    in >> data.shmAnonymous;
+    // 读取withAffinity
+    if (!UbseWithAffinityDeserialize(in, data.withAffinity)) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowReq during deserialization";
+        return false;
+    }
+    in >> data.lenderInfo.lender_size >> data.lenderInfo.nodeId >> data.lenderInfo.socketId >> data.lenderInfo.numaId >>
+        data.lenderInfo.portId;
+    return in.Check();
+}
+
+bool UbseMemShareAttachReqSerialization(UbseSerialization &out, const UbseMemShareAttachReq &data)
+{
+    UbseMemBaseBorrowReqSerialize(out, data);
+    out << data.importNodeId << data.size;
+    UbseFdOwnerSerialization(out, data.owner);
+    return out.Check();
+}
+
+bool UbseMemShareAttachReqDeserialization(UbseDeSerialization &in, UbseMemShareAttachReq &data)
+{
+    UbseMemBaseBorrowReqDeserialize(in, data);
+    in >> data.importNodeId >> data.size;
+    return UbseFdOwnerDeserialization(in, data.owner);
+}
+
+bool UbseMemShareDetachReqSerialization(UbseSerialization &out, UbseMemShareDetachReq &data)
+{
+    UbseMemBaseBorrowReqSerialize(out, data);
+    out << data.unImportNodeId;
+    return out.Check();
+}
+
+bool UbseMemShareDetachReqDeserialization(UbseDeSerialization &in, UbseMemShareDetachReq &data)
+{
+    UbseMemBaseBorrowReqDeserialize(in, data);
+    in >> data.unImportNodeId;
+    return in.Check();
+}
+
+bool UbseMemShareBorrowExportObjSerialization(UbseSerialization &out, const UbseMemShareBorrowExportObj &data)
+{
+    out << data.errorCode;
+    UbseMemShareBorrowReqSerialization(out, data.req);
+    UbseMemReturnReqSerialize(out, data.returnReq);
+    UbseMemBorrowExportBaseObjSerialization(out, data);
+    return out.Check();
+}
+
+bool UbseMemShareBorrowExportObjDeserialization(UbseDeSerialization &in, UbseMemShareBorrowExportObj &data)
+{
+    in >> data.errorCode;
+    if (!UbseMemShareBorrowReqDeserialization(in, data.req)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemShareBorrowReqDeserialization";
+        return false;
+    }
+    if (!UbseMemReturnReqDeserialize(in, data.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    if (!UbseMemBorrowExportBaseObjDeserialization(in, data)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemBorrowExportBaseObjDeserialization";
+        return false;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowExportObj during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemBorrowImportBaseObjSerialization(UbseSerialization &out, const UbseMemBorrowImportBaseObj &data)
@@ -559,160 +1205,372 @@ void UbseMemBorrowImportBaseObjSerialization(UbseSerialization &out, const UbseM
         UbseMemObmmInfoSerialization(out, item);
     }
     UbseMemImportStatusSerialization(out, data.status);
-    return;
 }
 
-UbseResult UbseMemBorrowImportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowImportBaseObj &data)
+bool UbseMemBorrowImportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowImportBaseObj &data)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemBorrowImportBaseObj during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     in >> data.errorCode;
-    size_t size{};
-    if (UbseMemAlgoResultDeserialization(in, data.algoResult) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemAlgoResultDeserialization(in, data.algoResult)) {
+        UBSE_LOG_ERROR << "UbseMemAlgoResultDeserialization failed;";
+        return false;
     }
     uint64_t obmmInfoSize;
     in >> array_len_capture(obmmInfoSize);
     if (obmmInfoSize > MAX_SIZE) {
         UBSE_LOG_ERROR << "Invalid obmmInfoSize during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     data.exportObmmInfo.resize(obmmInfoSize);
     for (size_t i = 0; i < obmmInfoSize; ++i) {
-        if (UbseMemObmmInfoDeserialization(in, data.exportObmmInfo[i]) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemObmmInfoDeserialization(in, data.exportObmmInfo[i])) {
+            UBSE_LOG_ERROR << "UbseMemObmmInfoDeserialization failed;";
+            return false;
         }
     }
-    if (UbseMemImportStatusDeserialization(in, data.status) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemImportStatusDeserialization(in, data.status)) {
+        UBSE_LOG_ERROR << "UbseMemImportStatusDeserialization failed;";
+        return false;
     }
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemBorrowImportBaseObj during deserialization";
+        return false;
+    }
+    return true;
+}
+
+bool UbseMemShareBorrowImportObjSerialization(UbseSerialization &out, const UbseMemShareBorrowImportObj &data)
+{
+    out << data.realExe << data.importNodeId;
+    UbseMemAttachResourceShareAttrSerialization(out, data.shareAttr);
+    UbseMemShareBorrowReqSerialization(out, data.req);
+    UbseMemReturnReqSerialize(out, data.returnReq);
+    UbseMemBorrowImportBaseObjSerialization(out, data);
+    return out.Check();
+}
+
+bool UbseMemShareBorrowImportObjDeserialization(UbseDeSerialization &in, UbseMemShareBorrowImportObj &data)
+{
+    in >> data.realExe >> data.importNodeId;
+    if (!UbseMemAttachResourceShareAttrDeserialization(in, data.shareAttr)) {
+        UBSE_LOG_ERROR << "UbseMemAttachResourceShareAttrDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemShareBorrowReqDeserialization(in, data.req)) {
+        UBSE_LOG_ERROR << "UbseMemShareBorrowReqDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemReturnReqDeserialize(in, data.returnReq)) {
+        UBSE_LOG_ERROR << "Failed to UbseMemReturnReqDeserialize";
+        return false;
+    }
+    if (!UbseMemBorrowImportBaseObjDeserialization(in, data)) {
+        UBSE_LOG_ERROR << "UbseMemBorrowImportBaseObjDeserialization failed;";
+        return false;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowImportObj during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemFdImportObjMapSerialization(UbseSerialization &out, const UbseMemFdImportObjMap &data)
 {
     out << (right_v<size_t>(data.size()));
-    for (const auto kv : data) {
+    for (const auto &kv : data) {
         out << kv.first;
         UbseMemFdBorrowImportObjSerialization(out, kv.second);
     }
-    return;
 }
 
-UbseResult UbseMemFdImportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdImportObjMap &data)
+bool UbseMemFdImportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdImportObjMap &data)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemFdImportObjMap during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     size_t size{};
     in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
     data.reserve(size);
     for (size_t i = 0; i < size; i++) {
         std::string key{};
         in >> key;
         UbseMemFdBorrowImportObj importObj{};
-        if (UbseMemFdBorrowImportObjDeserialization(in, importObj) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemFdBorrowImportObjDeserialization(in, importObj)) {
+            return false;
         }
         data[key] = importObj;
     }
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemFdImportObjMap during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemFdExportObjMapSerialization(UbseSerialization &out, const UbseMemFdExportObjMap &data)
 {
     out << (right_v<size_t>(data.size()));
-    for (const auto kv : data) {
+    for (const auto &kv : data) {
         out << kv.first;
         UbseMemFdBorrowExportObjSerialization(out, kv.second);
     }
-    return;
 }
 
-UbseResult UbseMemFdExportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdExportObjMap &data)
+bool UbseMemFdExportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdExportObjMap &data)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check FdExportObjMap during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     size_t size{};
     in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
     data.reserve(size);
     for (size_t i = 0; i < size; i++) {
         std::string key{};
         in >> key;
         UbseMemFdBorrowExportObj exportObj{};
-        if (UbseMemFdBorrowExportObjDeserialization(in, exportObj) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemFdBorrowExportObjDeserialization(in, exportObj)) {
+            UBSE_LOG_ERROR << "UbseMemFdBorrowExportObjDeserialization failed;";
+            return false;
         }
         data[key] = exportObj;
     }
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check FdExportObjMap during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemNumaImportObjMapSerialization(UbseSerialization &out, const UbseMemNumaImportObjMap &data)
 {
     out << (right_v<size_t>(data.size()));
-    for (const auto kv : data) {
+    for (const auto &kv : data) {
         out << kv.first;
         UbseMemNumaBorrowImportObjSerialization(out, kv.second);
     }
-    return;
 }
 
-UbseResult UbseMemNumaImportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaImportObjMap &data)
+bool UbseMemNumaImportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaImportObjMap &data)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemNumaImportObjMap during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     size_t size{};
     in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
     data.reserve(size);
     for (size_t i = 0; i < size; i++) {
         std::string key{};
         in >> key;
         UbseMemNumaBorrowImportObj importObj{};
-        if (UbseMemNumaBorrowImportObjDeserialization(in, importObj) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemNumaBorrowImportObjDeserialization(in, importObj)) {
+            UBSE_LOG_ERROR << "UbseMemNumaBorrowImportObjDeserialization failed;";
+            return false;
         }
         data[key] = importObj;
     }
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemNumaImportObjMap during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void UbseMemNumaExportObjMapSerialization(UbseSerialization &out, const UbseMemNumaExportObjMap &data)
 {
     out << (right_v<size_t>(data.size()));
-    for (const auto kv : data) {
+    for (const auto &kv : data) {
         out << kv.first;
         UbseMemNumaBorrowExportObjSerialization(out, kv.second);
     }
-    return;
 }
 
-UbseResult UbseMemNumaExportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaExportObjMap &data)
+bool UbseMemNumaExportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaExportObjMap &data)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemNumaExportObjMap during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
     size_t size{};
     in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
     data.reserve(size);
     for (size_t i = 0; i < size; i++) {
         std::string key{};
         in >> key;
         UbseMemNumaBorrowExportObj exportObj{};
-        if (UbseMemNumaBorrowExportObjDeserialization(in, exportObj) != UBSE_OK) {
-            return UBSE_ERROR;
+        if (!UbseMemNumaBorrowExportObjDeserialization(in, exportObj)) {
+            UBSE_LOG_ERROR << "UbseMemNumaBorrowExportObjDeserialization failed;";
+            return false;
         }
         data[key] = exportObj;
     }
-    return UBSE_OK;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemNumaExportObjMap during deserialization";
+        return false;
+    }
+    return true;
+}
+
+void UbseMemShareImportObjMapSerialization(UbseSerialization &out, const UbseMemShareImportObjMap &data)
+{
+    out << (right_v<size_t>(data.size()));
+    for (const auto &kv : data) {
+        out << kv.first;
+        UbseMemShareBorrowImportObjSerialization(out, kv.second);
+    }
+}
+
+bool UbseMemShareImportObjMapDeserialization(UbseDeSerialization &in, UbseMemShareImportObjMap &data)
+{
+    size_t size{};
+    in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
+    data.reserve(size);
+    for (size_t i = 0; i < size; i++) {
+        std::string key{};
+        in >> key;
+        UbseMemShareBorrowImportObj importObj{};
+        if (!UbseMemShareBorrowImportObjDeserialization(in, importObj)) {
+            UBSE_LOG_ERROR << "UbseMemShareBorrowImportObjDeserialization failed;";
+            return false;
+        }
+        data[key] = importObj;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareImportObjMap during deserialization";
+        return false;
+    }
+    return true;
+}
+
+void UbseMemShareExportObjMapSerialization(UbseSerialization &out, const UbseMemShareExportObjMap &data)
+{
+    out << (right_v<size_t>(data.size()));
+    for (const auto &kv : data) {
+        out << kv.first;
+        UbseMemShareBorrowExportObjSerialization(out, kv.second);
+    }
+}
+
+bool UbseMemShareExportObjMapDeserialization(UbseDeSerialization &in, UbseMemShareExportObjMap &data)
+{
+    size_t size{};
+    in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
+    data.reserve(size);
+    for (size_t i = 0; i < size; i++) {
+        std::string key{};
+        in >> key;
+        UbseMemShareBorrowExportObj exportObj{};
+        if (!UbseMemShareBorrowExportObjDeserialization(in, exportObj)) {
+            UBSE_LOG_ERROR << "UbseMemShareBorrowExportObjDeserialization failed;";
+            return false;
+        }
+        data[key] = exportObj;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check UbseMemShareExportObj during deserialization";
+        return false;
+    }
+    return true;
+}
+
+void UbseMemAddrImportObjMapSerialization(UbseSerialization &out, const UbseMemAddrImportObjMap &data)
+{
+    out << (right_v<size_t>(data.size()));
+    for (const auto &kv : data) {
+        out << kv.first;
+        UbseMemAddrBorrowImportObjSerialization(out, kv.second);
+    }
+}
+
+bool UbseMemAddrImportObjMapDeserialization(UbseDeSerialization &in, UbseMemAddrImportObjMap &data)
+{
+    size_t size{};
+    in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
+    data.reserve(size);
+    for (size_t i = 0; i < size; i++) {
+        std::string key{};
+        in >> key;
+        UbseMemAddrBorrowImportObj importObj{};
+        if (!UbseMemAddrBorrowImportObjDeserialization(in, importObj)) {
+            UBSE_LOG_ERROR << "UbseMemAddrBorrowImportObjDeserialization failed;";
+            return false;
+        }
+        data[key] = importObj;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check  UbseMemAddrImportObjMap during deserialization";
+        return false;
+    }
+    return true;
+}
+
+void UbseMemAddrExportObjMapSerialization(UbseSerialization &out, const UbseMemAddrExportObjMap &data)
+{
+    out << (right_v<size_t>(data.size()));
+    for (const auto &kv : data) {
+        out << kv.first;
+        UbseMemAddrBorrowExportObjSerialization(out, kv.second);
+    }
+}
+
+bool UbseMemAddrExportObjMapDeserialization(UbseDeSerialization &in, UbseMemAddrExportObjMap &data)
+{
+    size_t size{};
+    in >> size;
+    if (size > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during deserialization, size=" << size;
+        return false;
+    }
+    data.reserve(size);
+    for (size_t i = 0; i < size; i++) {
+        std::string key{};
+        in >> key;
+        UbseMemAddrBorrowExportObj exportObj{};
+        if (!UbseMemAddrBorrowExportObjDeserialization(in, exportObj)) {
+            UBSE_LOG_ERROR << "UbseMemAddrBorrowImportObjDeserialization failed;";
+            return false;
+        }
+        data[key] = exportObj;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to check  UbseMemAddrExportObjMap during deserialization";
+        return false;
+    }
+    return true;
 }
 
 void NodeMemDebtInfoSerialization(UbseSerialization &out, const NodeMemDebtInfo &data)
@@ -721,27 +1579,117 @@ void NodeMemDebtInfoSerialization(UbseSerialization &out, const NodeMemDebtInfo 
     UbseMemFdExportObjMapSerialization(out, data.fdExportObjMap);
     UbseMemNumaImportObjMapSerialization(out, data.numaImportObjMap);
     UbseMemNumaExportObjMapSerialization(out, data.numaExportObjMap);
-    return;
+    UbseMemShareImportObjMapSerialization(out, data.shareImportObjMap);
+    UbseMemShareExportObjMapSerialization(out, data.shareExportObjMap);
+    UbseMemAddrImportObjMapSerialization(out, data.addrImportObjMap);
+    UbseMemAddrExportObjMapSerialization(out, data.addrExportObjMap);
 }
 
-UbseResult NodeMemDebtInfoDeserialization(UbseDeSerialization &in, NodeMemDebtInfo &data)
+bool NodeMemDebtInfoDeserialization(UbseDeSerialization &in, NodeMemDebtInfo &data)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check  NodeMemDebtInfo during deserialization";
-        return UBSE_ERROR;
+        return false;
     }
-    if (UbseMemFdImportObjMapDeserialization(in, data.fdImportObjMap) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemFdImportObjMapDeserialization(in, data.fdImportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemFdImportObjMapDeserialization failed;";
+        return false;
     }
-    if (UbseMemFdExportObjMapDeserialization(in, data.fdExportObjMap) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemFdExportObjMapDeserialization(in, data.fdExportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemFdExportObjMapDeserialization failed;";
+        return false;
     }
-    if (UbseMemNumaImportObjMapDeserialization(in, data.numaImportObjMap) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemNumaImportObjMapDeserialization(in, data.numaImportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemNumaImportObjMapDeserialization failed;";
+        return false;
     }
-    if (UbseMemNumaExportObjMapDeserialization(in, data.numaExportObjMap) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!UbseMemNumaExportObjMapDeserialization(in, data.numaExportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemNumaExportObjMapDeserialization failed;";
+        return false;
     }
-    return UBSE_OK;
+    if (!UbseMemShareImportObjMapDeserialization(in, data.shareImportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemShareImportObjMapDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemShareExportObjMapDeserialization(in, data.shareExportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemShareExportObjMapDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemAddrImportObjMapDeserialization(in, data.addrImportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemAddrImportObjMapDeserialization failed;";
+        return false;
+    }
+    if (!UbseMemAddrExportObjMapDeserialization(in, data.addrExportObjMap)) {
+        UBSE_LOG_ERROR << "UbseMemAddrExportObjMapDeserializatifailed;";
+        return false;
+    }
+    return true;
+}
+
+bool UbseMemFdPermissionReqSerialize(UbseSerialization &out, const UbseMemFdPermissionReq &req)
+{
+    UbseMemBaseBorrowReqSerialize(out, req);
+    serial::UbseFdOwnerSerialization(out, req.fdOwner);
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize UbseMemFdPermissionReq.";
+        return false;
+    }
+    return true;
+}
+
+bool UbseMemFdPermissionReqDeserialize(UbseDeSerialization &in, UbseMemFdPermissionReq &req)
+{
+    UbseMemBaseBorrowReqDeserialize(in, req);
+    serial::UbseFdOwnerDeserialization(in, req.fdOwner);
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserialize UbseMemFdPermissionReq.";
+        return false;
+    }
+    return true;
+}
+
+bool UbseMemReturnReqSerialize(UbseSerialization &out, const UbseMemReturnReq &data)
+{
+    UbseMemBaseBorrowReqSerialize(out, data);
+    out << data.uid << data.gid << data.importNodeId;
+    return out.Check();
+}
+
+bool UbseMemReturnReqDeserialize(UbseDeSerialization &in, UbseMemReturnReq &data)
+{
+    UbseMemBaseBorrowReqDeserialize(in, data);
+    in >> data.uid >> data.gid >> data.importNodeId;
+    return in.Check();
+}
+
+bool UbseMemOperationRespSerialize(UbseSerialization &out, UbseMemOperationResp &data)
+{
+    out << data.name << data.requestNodeId << data.errorCode << data.errMsg << data.realSize;
+    out << ubse::serial::array_len_insert(data.memIdList.size());
+    for (const auto &item : data.memIdList) {
+        out << item;
+    }
+    out << data.remoteNumaId << data.requestId;
+    return out.Check();
+}
+
+bool UbseMemOperationRespDeserialize(UbseDeSerialization &in, UbseMemOperationResp &data)
+{
+    in >> data.name >> data.requestNodeId >> data.errorCode >> data.errMsg >> data.realSize;
+    uint64_t vectorSize;
+    in >> ubse::serial::array_len_capture(vectorSize);
+    if (!in.Check()) {
+        return false;
+    }
+    for (size_t i = 0; i < vectorSize; i++) {
+        uint64_t item;
+        in >> item;
+        if (!in.Check()) {
+            return false;
+        }
+        data.memIdList.push_back(item);
+    }
+    in >> data.remoteNumaId >> data.requestId;
+    return in.Check();
 }
 } // namespace ubse::mem::serial

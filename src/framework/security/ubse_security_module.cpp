@@ -18,10 +18,12 @@
 #include "ubse_context.h"          // for DYNAMIC_CREATE
 #include "ubse_env_util.h"         // for GetEnv
 #include "ubse_error.h"            // for UBSE_OK, UBSE_ERROR
+#include "ubse_logger.h"
 
 namespace ubse::security {
 BASE_DYNAMIC_CREATE(UbseSecurityModule);
-
+UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::log;
 UbseResult SetMinCapabilities()
 {
     // 必须先获取一次 Capabilities，不然无法成功设置 Capabilities
@@ -53,8 +55,9 @@ void UbseSecurityModule::Stop()
 {
     // Do Nothing
 }
-UbseResult UbseSecurityModule::ModifyEffectiveCapabilities(std::vector<__u32> &caps, UbseCapOperateType opType)
+
+UbseResult UbseSecurityModule::ModifyEffectiveCapabilities(std::vector<__u32> &caps, bool isAdd)
 {
-    return UbseSecurityManager::ModifyEffectiveCapabilities(caps, opType);
+    return UbseSecurityManager::ModifyEffectiveCapabilities(caps, isAdd);
 }
 } // namespace ubse::security

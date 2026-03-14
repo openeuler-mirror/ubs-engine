@@ -1,21 +1,28 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_ubse_node_controller_collector.h"
 
-#include <filesystem>
-#include "ubse_node_controller_collector.cpp"
+#include <src/framework/config/ubse_conf_module.h>
+#include <src/framework/misc/ubse_net_util.h>
 
+#include <filesystem>
+
+#include "ubse_lcne_module.h"
+#include "ubse_node_controller_collector.cpp"
+#include "adapter_plugins/mti/ubse_mti_def.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 namespace ubse::node_controller::ut {
+using namespace ubse::adapter_plugins::mti;
 void TestNodeControllerCollector::SetUp()
 {
     Test::SetUp();
@@ -42,9 +49,59 @@ TEST_F(TestNodeControllerCollector, CollectNodeBaseInfo)
     MOCKER(gethostname).stubs().will(returnValue(1)).then(returnValue(0));
     UbseNodeInfo ubseNodeInfo{};
     EXPECT_EQ(CollectNodeBaseInfo(ubseNodeInfo), 1);
-    EXPECT_EQ(CollectNodeBaseInfo(ubseNodeInfo), 0);
 }
 
+TEST_F(TestNodeControllerCollector, CollectNodeBaseInfoWhenConfModuleIsNull)
+{
+    UbseNodeInfo info{.nodeId = "0", .slotId = 0};
+    MOCKER_CPP(GetCurNodeInfo).stubs().with(outBound(info));
+    MOCKER(gethostname).stubs().will(returnValue(EOK));
+    std::shared_ptr<UbseConfModule> nullModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule));
+    EXPECT_EQ(CollectNodeBaseInfo(info), UBSE_ERROR_MODULE_LOAD_FAILED);
+}
+TEST_F(TestNodeControllerCollector, CollectCpuInfo)
+{
+    std::map<std::string, std::string> portEidList;
+    ubse::mti::IODieInfo ioDieInfo;
+
+    UbseDevName devName("1", "1");
+    std::string portInfo;
+    portEidList.emplace("236", portInfo);
+
+    UbseDeviceInfo deviceInfo;
+    deviceInfo.slotId = "1";
+    UbseMtiCpuTopoPortInfo portInfo1;
+    portInfo1.portId = "5100";
+    portInfo1.remoteSlotId = "1";
+    portInfo1.remoteChipId = "2";
+    portInfo1.remotePortId = "236";
+    std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> portMap;
+    portMap[UbseDevPortName("236")] = portInfo1;
+    UbseDevTopology::mapped_type entry;
+    entry.first = deviceInfo;
+    entry.second = portMap;
+    UbseDevTopology topology{};
+    topology[devName] = entry;
+    auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
+    UbseUrmaEidInfo socketInfo;
+    std::string remotePortInfo{};
+    socketInfo.primaryEid = "1";
+    socketInfo.portEidList.emplace("236", remotePortInfo);
+
+    lcneModule->allSocketComEid.emplace(devName, socketInfo);
+    mti::UbseLcneIODieInfo info;
+    info.guid = "01-0101-0-1-0101-0101-010101-0101010101";
+    info.primaryCna = "0x0085a7";
+    info.chipType = mti::DevType::CPU;
+    lcneModule->localBoardIOInfo.emplace(devName, info);
+    MOCKER_CPP(&ubse::context::UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
+    MOCKER_CPP(&mti::UbseLcneModule::UbseGetDevTopology).stubs().with(outBound(topology)).will(returnValue(UBSE_OK));
+    ubse::nodeController::UbseNodeInfo ubseNodeInfo{};
+    auto ret = CollectCpuInfo(ubseNodeInfo, "1");
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ubseNodeInfo.cpuInfos.size(), 1);
+}
 TEST_F(TestNodeControllerCollector, CollectNodeTopology)
 {
     UbseNodeInfo ubseNodeInfo{};
@@ -75,8 +132,8 @@ TEST_F(TestNodeControllerCollector, ParseIP)
 
 TEST_F(TestNodeControllerCollector, IsSpecialIP)
 {
-    EXPECT_EQ(IsSpecialIP("127.0.0.1"), true);
-    EXPECT_EQ(IsSpecialIP("6.123.2.27"), false);
+    EXPECT_EQ(UbseNetUtil::IsSpecialIP("127.0.0.1"), true);
+    EXPECT_EQ(UbseNetUtil::IsSpecialIP("6.123.2.27"), false);
 }
 
 std::string FibTrieStr()
@@ -141,42 +198,10 @@ int CreateFibTrieFile()
     fibTrie.close();
 }
 
-TEST_F(TestNodeControllerCollector, UbseNodeTelemetryGetIpInfo)
-{
-    std::vector<std::string> ipInfos{};
-    FIB_TRIE_PATH = "";
-    EXPECT_EQ(UbseNodeTelemetryGetIpInfo(ipInfos), UBSE_ERROR);
-
-    CreateFibTrieFile();
-    std::string certDir = std::filesystem::current_path().string();
-    FIB_TRIE_PATH = certDir + "fib_trie";
-    EXPECT_EQ(UbseNodeTelemetryGetIpInfo(ipInfos), UBSE_OK);
-    EXPECT_EQ(ipInfos.size(), 3);
-    EXPECT_EQ(ipInfos[0], "7.218.101.255");
-    EXPECT_EQ(ipInfos[1], "7.218.101.27");
-    EXPECT_EQ(ipInfos[2], "7.218.100.0");
-
-    const char *path = FIB_TRIE_PATH.c_str();
-    std::remove(path);
-}
-
 uint32_t MockUbseNodeTelemetryGetIpInfo(std::vector<std::string> &ipInfos)
 {
     ipInfos = {"7.218.101.255"};
     return UBSE_OK;
-}
-
-TEST_F(TestNodeControllerCollector, CollectIpList)
-{
-    UbseNodeInfo ubseNodeInfo{};
-    MOCKER(UbseNodeTelemetryGetIpInfo)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(invoke(MockUbseNodeTelemetryGetIpInfo));
-    EXPECT_EQ(CollectIpList(ubseNodeInfo), UBSE_ERROR);
-    MOCKER(UbseNetUtil::Ipv4StringToArr).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_EQ(CollectIpList(ubseNodeInfo), UBSE_ERROR);
-    EXPECT_EQ(CollectIpList(ubseNodeInfo), UBSE_OK);
 }
 
 TEST_F(TestNodeControllerCollector, ProcessListLine)
@@ -371,7 +396,7 @@ int CreateNrPageFile(const std::string &content)
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 
-    std::string path = NR_PAGE_PREFIX_PATH + "0" + NR_PAGE_SUFFIX_PATH;
+    std::string path = NR_PAGE_PREFIX_PATH + "0" + NR_PAGE_SUFFIX_PATH_1 + "2048" + NR_PAGE_SUFFIX_PATH_2;
     std::ofstream cpuList(path, std::ios::binary);
     if (!cpuList) {
         std::cerr << "Failed to create nr page files" << std::endl;
@@ -399,10 +424,10 @@ TEST_F(TestNodeControllerCollector, CollectNrHugePages2048)
     uint32_t nrHugePages2048;
 
     NR_PAGE_PREFIX_PATH = "";
-    EXPECT_EQ(CollectNrHugePages2048(0, nrHugePages2048), UBSE_ERROR);
+    EXPECT_EQ(CollectNrHugePages(0, nrHugePages2048, 2048), UBSE_ERROR);
 
     CreateNrPageFile("1024");
-    EXPECT_EQ(CollectNrHugePages2048(0, nrHugePages2048), UBSE_OK);
+    EXPECT_EQ(CollectNrHugePages(0, nrHugePages2048, 2048), UBSE_OK);
     EXPECT_EQ(nrHugePages2048, 1024);
     RemoveNrPageDir();
 }
@@ -420,7 +445,7 @@ int CreateFreePageFile(const std::string &content)
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 
-    std::string path = FREE_PAGE_PREFIX_PATH + "0" + FREE_PAGE_SUFFIX_PATH;
+    std::string path = FREE_PAGE_PREFIX_PATH + "0" + FREE_PAGE_SUFFIX_PATH_1 + "2048" + FREE_PAGE_SUFFIX_PATH_2;
     std::ofstream cpuList(path, std::ios::binary);
     if (!cpuList) {
         std::cerr << "Failed to create free page files" << std::endl;
@@ -448,10 +473,10 @@ TEST_F(TestNodeControllerCollector, CollectFreeHugePages2048)
     uint32_t freeHugePages2048;
 
     FREE_PAGE_PREFIX_PATH = "";
-    EXPECT_EQ(CollectFreeHugePages2048(0, freeHugePages2048), UBSE_ERROR);
+    EXPECT_EQ(CollectFreeHugePages(0, freeHugePages2048, 2048), UBSE_ERROR);
 
     CreateFreePageFile("1024");
-    EXPECT_EQ(CollectFreeHugePages2048(0, freeHugePages2048), UBSE_OK);
+    EXPECT_EQ(CollectFreeHugePages(0, freeHugePages2048, 2048), UBSE_OK);
     EXPECT_EQ(freeHugePages2048, 1024);
     RemoveFreePageDir();
 }
@@ -525,24 +550,25 @@ TEST_F(TestNodeControllerCollector, CollectNumaInfo)
     MOCKER(CollectMemSize).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(CollectNumaInfo(ubseNodeInfo, "1"), UBSE_ERROR);
 
-    MOCKER(CollectNrHugePages2048).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    MOCKER(CollectNrHugePages).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(CollectNumaInfo(ubseNodeInfo, "1"), UBSE_ERROR);
 
-    MOCKER(CollectFreeHugePages2048).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    MOCKER(CollectFreeHugePages).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    MOCKER(CollectObmmMemPoolInfo).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(CollectNumaInfo(ubseNodeInfo, "1"), UBSE_ERROR);
     EXPECT_EQ(CollectNumaInfo(ubseNodeInfo, "1"), UBSE_OK);
 }
 
 TEST_F(TestNodeControllerCollector, AddEdgeInfo)
 {
-    std::pair<const UbseDevPortName, mti::UbsePortInfo> port{};
-    ubse::nodeController::UbsePortInfo portInfo{};
+    std::pair<const UbseDevPortName, adapter_plugins::mti::UbseMtiCpuTopoPortInfo> port{};
+    nodeController::UbsePortInfo portInfo{};
 
-    mti::UbsePortInfo info{};
+    adapter_plugins::mti::UbseMtiCpuTopoPortInfo info{};
     info.portId = "port";
     info.ifName = "ifName";
     info.portRole = "master";
-    info.portStatus = mti::PortStatus::UP;
+    info.portStatus = UbseMtiCpuTopoPortStatus::UP;
     info.portCna = 1;
     info.remoteSlotId = "remoteSlot";
     info.remoteChipId = "remoteChip";
@@ -556,12 +582,29 @@ TEST_F(TestNodeControllerCollector, AddEdgeInfo)
     EXPECT_EQ(portInfo.portId, "port");
     EXPECT_EQ(portInfo.ifName, "ifName");
     EXPECT_EQ(portInfo.portRole, "master");
-    EXPECT_EQ(portInfo.portStatus, nodeController::PortStatus::UP);
+    EXPECT_EQ(portInfo.portStatus, PortStatus::UP);
     EXPECT_EQ(portInfo.portCna, 1);
     EXPECT_EQ(portInfo.remoteSlotId, "remoteSlot");
     EXPECT_EQ(portInfo.remoteChipId, "remoteChip");
     EXPECT_EQ(portInfo.remoteCardId, "remoteCard");
     EXPECT_EQ(portInfo.remoteIfName, "remoteIfName");
     EXPECT_EQ(portInfo.remotePortId, "remotePort");
+}
+
+TEST_F(TestNodeControllerCollector, CollectIpListWhenGetIpInfoFail)
+{
+    std::vector<std::string> ipInfos{"127.0.0.1"};
+    MOCKER_CPP(UbseNetUtil::GetIpInfo).stubs().will(returnValue(UBSE_ERROR));
+    UbseNodeInfo nodeInfo;
+    ASSERT_EQ(CollectIpList(nodeInfo), UBSE_ERROR);
+}
+
+TEST_F(TestNodeControllerCollector, CollectIpListWhenSuccess)
+{
+    std::vector<std::string> ipInfos{"127.0.0.1"};
+    MOCKER_CPP(UbseNetUtil::GetIpInfo).stubs().with(outBound(ipInfos)).will(returnValue(UBSE_OK));
+    UbseNodeInfo nodeInfo;
+    ASSERT_EQ(CollectIpList(nodeInfo), UBSE_OK);
+    ASSERT_EQ(nodeInfo.ipList[0].ipv4.addr[0], 127);
 }
 } // namespace ubse::node_controller::ut

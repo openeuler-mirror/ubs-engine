@@ -16,6 +16,7 @@
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 namespace ubse::ut::election {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::election;
 using namespace ubse::context;
 

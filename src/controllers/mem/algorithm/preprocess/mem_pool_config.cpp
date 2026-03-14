@@ -10,20 +10,22 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "mem_pool_config.h"
 #include <cstring>
 #include <iomanip>
 #include <set>
 #include "mem_pool_strategy_impl.h"
-#include "mem_pool_config.h"
+#include "ubse_logger.h"
 
 namespace tc::rs::mem {
+UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 MemPoolConfig::MemPoolConfig(const StrategyParam &param)
 {
+    CheckNodeParameters(param);
     // 初始化静态配置参数, 算法权重参数归一化
     memStaticParam = param;
     NormalizeStrategy(memStaticParam);
     const BorrowAlgoParam &borrowParam = memStaticParam.borrowParam;
-    PrintDebug(param, borrowParam);
 
     // 开启自定义时延, 表示填写了numaLatencies, 未填写hostMeshLoc.
     if (memStaticParam.enableCustomLatencies) {
@@ -35,13 +37,13 @@ MemPoolConfig::MemPoolConfig(const StrategyParam &param)
         }
         // 基于链路时延信息, 确保所有host全连接, 保证算法不会基于hostMeshLoc开展计算.
         if (!CheckFullConnectivity()) {
-            LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "Invalid enableCustomLatencies." << std::endl);
+            UBSE_LOG_ERROR << "Invalid enableCustomLatencies.";
             throw std::invalid_argument("Error! enableCustomLatencies is true while hosts are not fully connected.");
         }
     } else { // 没有开启自定义时延, 表示填写了hostMeshLoc, 自动计算时延信息. 检查hostMeshLoc的正确性.
         // 确保hostMeshLoc信息正确性
         if (!IsHostMeshLocValid()) {
-            LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "Invalid hostMeshLocs." << std::endl);
+            UBSE_LOG_ERROR << "Invalid hostMeshLocs.";
             throw std::invalid_argument("Error! enableCustomLatencies is false while hostMeshLocs is invalid.");
         }
         // 基于hostMeshLoc生成链路时延信息
@@ -73,7 +75,7 @@ bool MemPoolConfig::IsHostMeshLocValid() const
     for (int i = 0; i < NUM_HOSTS; i++) {
         if ((hostSet.find(i) == hostSet.end() && IsNonNegative(memStaticParam.hostMeshLocs[i])) ||
             (hostSet.find(i) != hostSet.end() && IsNonPositive(memStaticParam.hostMeshLocs[i]))) {
-            LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "Error! hostMeshLocs[" << i << "] is invalid.");
+            UBSE_LOG_ERROR << "Error! hostMeshLocs[" << i << "] is invalid.";
             return false;
         }
     }
@@ -123,14 +125,14 @@ BResult MemPoolConfig::RefreshNumaDelays()
             } else if (iSocketId == jSocketId) {
                 // 直连邻居, 同一个P
                 int8_t xAxisConnect = (iHostMeshLoc.x != jHostMeshLoc.x) ? 1 : 0; /* numa-i和numa-j是否通过x轴连接 */
-                int8_t iNumaAtXAxis = (iNumaIdxInHost % 2);                       /* numa-i是否为x轴连接上的numa */
-                int8_t jNumaAtXAxis = (jNumaIdxInHost % 2);                       /* numa-j是否为x轴连接上的numa */
+                int8_t iNumaAtXAxis = (iNumaIdxInHost % 2); /* numa-i是否为x轴连接上的numa */
+                int8_t jNumaAtXAxis = (jNumaIdxInHost % 2); /* numa-j是否为x轴连接上的numa */
                 memLatencyInfo.numaToNumaLatency[i][j] =
                     numaLatenciesAcrossHost[xAxisConnect][iNumaAtXAxis][jNumaAtXAxis];
             } else {
                 // 直连邻居, 不是同一个P
                 int8_t xAxisConnect = (iHostMeshLoc.x != jHostMeshLoc.x) ? 1 : 0; /* numa-i和numa-j是否通过x轴连接 */
-                int8_t iNumaAtXAxis = (iNumaIdxInHost % 2);                       /* numa-i是否为x轴连接上的numa */
+                int8_t iNumaAtXAxis = (iNumaIdxInHost % 2); /* numa-i是否为x轴连接上的numa */
                 // 访问方numa，位于numa-i和numa-j之间的连接轴上  |  访问方numa，不在numa-i和numa-j之间的连接轴上
                 memLatencyInfo.numaToNumaLatency[i][j] = (xAxisConnect == iNumaAtXAxis) ?
                                                              latBase + latNbr + latSocket :
@@ -139,7 +141,7 @@ BResult MemPoolConfig::RefreshNumaDelays()
         }
     }
 
-    return HOK;
+    return UBSE_OK;
 }
 
 bool MemPoolConfig::CheckFullConnectivity() const
@@ -179,7 +181,7 @@ BResult MemPoolConfig::BuildIndexMatrix()
             socketIndex++;
         }
     }
-    return HOK;
+    return UBSE_OK;
 }
 
 BResult MemPoolConfig::GetSockets()
@@ -195,15 +197,14 @@ BResult MemPoolConfig::GetSockets()
         }
     }
 
-    return HOK;
+    return UBSE_OK;
 }
 
 BResult MemPoolConfig::SysLatencyProcess()
 {
     std::vector<std::vector<int>> socketNumaLatencyNum(memAvailSocketsCnt,
                                                        std::vector<int>(memStaticParam.numAvailNumas, 0));
-    std::vector<std::vector<int>> socketSocketLatencyNum(memAvailSocketsCnt,
-                                                         std::vector<int>(memAvailSocketsCnt, 0));
+    std::vector<std::vector<int>> socketSocketLatencyNum(memAvailSocketsCnt, std::vector<int>(memAvailSocketsCnt, 0));
     std::vector<std::vector<int>> socketHostLatencyNum(memAvailSocketsCnt,
                                                        std::vector<int>(memStaticParam.numHosts, 0));
 
@@ -237,13 +238,13 @@ BResult MemPoolConfig::SysLatencyProcess()
         }
     }
 
-    return HOK;
+    return UBSE_OK;
 }
 
 void MemPoolConfig::CalculateLatency(int32_t &latency, int num)
 {
     if (num == 0) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "SysLatencyProcess division by zero.");
+        UBSE_LOG_ERROR << "SysLatencyProcess division by zero.";
         throw std::invalid_argument("Error! CalculateLatency is false while num is zero.");
     }
     latency = latency / num;
@@ -267,21 +268,21 @@ BResult MemPoolConfig::GetBorrowedMaxMem()
     for (int i = 0; i < memStaticParam.numHosts; i++) {
         memMaxBorrowed = std::max(memMaxBorrowed, memStaticParam.maxMemBorrowed[i]);
     }
-    return HOK;
+    return UBSE_OK;
 }
 
 int MemPoolConfig::GetSocketIndex(MemLoc loc)
 {
     if (loc.hostId < 0 || loc.hostId >= NUM_HOSTS || loc.socketId < 0 || loc.socketId >= NUM_SOCKET_PER_HOST) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "Get socket index error! Array out of bounds!\n");
+        UBSE_LOG_ERROR << "Get socket index error! Array out of bounds!";
         throw std::out_of_range("Array out of bounds in MemPoolConfig::GetSocketIdx! Please check whether requestLoc "
                                 "or StrategyParam.availNuma is valid!");
     }
 
-    if (memSocketLoc2Idx[loc.hostId][loc.socketId] == -1) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel,
-                  "Socket is not available! hostId = " << loc.hostId << ", socketId = "
-                                                       << static_cast<int>(loc.socketId) << "!" << std::endl);
+    if (memSocketLoc2Idx[loc.hostId][loc.socketId] == -1 ||
+        memSocketLoc2Idx[loc.hostId][loc.socketId] >= NUM_TOTAL_SOCKET) {
+        UBSE_LOG_ERROR << "Socket is not available! hostId = " << loc.hostId
+                       << ", socketId = " << static_cast<int>(loc.socketId) << "!";
         throw std::out_of_range("Socket does not exist in MemPoolConfig::GetSocketIdx! Please check whether "
                                 "requestLoc or StrategyParam.availNuma is valid!");
     }
@@ -291,14 +292,13 @@ int MemPoolConfig::GetSocketIndex(MemLoc loc)
 int MemPoolConfig::GetNumaIndex(MemLoc loc)
 {
     if (loc.hostId < 0 || loc.hostId >= NUM_HOSTS || loc.numaId < 0 || loc.numaId >= NUM_TOTAL_NUMA / NUM_HOSTS) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "Get numa index error! Array out of bounds!" << std::endl);
+        UBSE_LOG_ERROR << "Get numa index error! Array out of bounds!";
         throw std::out_of_range("Array out of bounds in MemPoolConfig::GetNumaIdx! "
                                 "Please check whether requestLoc or StrategyParam.availNuma is valid!");
     }
-    if (memNumaLoc2Idx[loc.hostId][loc.numaId] == -1) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel,
-                  "Numa is not available! hostId = " << loc.hostId << ", numaId = " << static_cast<int>(loc.numaId)
-                                                     << "!" << std::endl);
+    if (memNumaLoc2Idx[loc.hostId][loc.numaId] == -1 || memNumaLoc2Idx[loc.hostId][loc.numaId] >= NUM_TOTAL_NUMA) {
+        UBSE_LOG_ERROR << "Numa is not available! hostId = " << loc.hostId
+                       << ", numaId = " << static_cast<int>(loc.numaId) << "!";
         throw std::out_of_range("Numa does not exist in MemPoolConfig::GetNumaIdx! Please check whether requestLoc or "
                                 "StrategyParam.availNuma is valid!");
     }
@@ -308,7 +308,7 @@ int MemPoolConfig::GetNumaIndex(MemLoc loc)
 int *MemPoolConfig::GetNumaListInSocket(int32_t hostId, int32_t socketId)
 {
     if (hostId < 0 || hostId >= NUM_HOSTS || socketId < 0 || socketId >= NUM_SOCKET_PER_HOST) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "Get numa list in socket error! Array out of bounds!\n");
+        UBSE_LOG_ERROR << "Get numa list in socket error! Array out of bounds!";
         throw std::out_of_range("Array out of bounds in MemPoolConfig::GetNumaListInSocket! Please check whether "
                                 "requestLoc or StrategyParam.availNuma is valid!");
     }
@@ -318,7 +318,7 @@ int *MemPoolConfig::GetNumaListInSocket(int32_t hostId, int32_t socketId)
 int *MemPoolConfig::GetNumaListInHost(int32_t hostId)
 {
     if (hostId < 0 || hostId >= NUM_HOSTS) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "Get numa list in host error! Array out of bounds!\n");
+        UBSE_LOG_ERROR << "Get numa list in host error! Array out of bounds!";
         throw std::out_of_range("Array out of bounds in MemPoolConfig::GetNumaListInHost! Please check whether "
                                 "requestLoc or StrategyParam.availNuma is valid!");
     }
@@ -334,4 +334,22 @@ bool MemPoolConfig::IsNonPositive(MeshLoc cord) const
 {
     return (cord.x < 0 || cord.y < 0);
 }
+
+void MemPoolConfig::CheckNodeParameters(const StrategyParam &param)
+{
+    if (param.numHosts > NUM_HOSTS) {
+        UBSE_LOG_ERROR << "Error! Number of hosts exceeds the maximum limit. Current value=" << param.numHosts
+                       << ", Maximum allowed=" << NUM_HOSTS;
+        throw std::invalid_argument("Error! The number of hosts is out of bound. Current value=" +
+                                    std::to_string(param.numHosts) + ", Maximum allowed=" + std::to_string(NUM_HOSTS));
+    }
+    if (param.numAvailNumas > NUM_TOTAL_NUMA) {
+        UBSE_LOG_ERROR << "Error! Number of available NUMAs exceeds the maximum limit. Current value="
+                       << param.numAvailNumas << ", Maximum allowed=" << NUM_TOTAL_NUMA;
+        throw std::invalid_argument("Error! The number of available NUMAs is out of bound. Current value=" +
+                                    std::to_string(param.numAvailNumas) +
+                                    ", Maximum allowed=" + std::to_string(NUM_TOTAL_NUMA));
+    }
+}
+
 } // namespace tc::rs::mem

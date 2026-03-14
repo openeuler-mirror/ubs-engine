@@ -17,8 +17,10 @@
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
 #include "mem_pool_strategy_impl.h"
+#include "ubse_logger.h"
 
 namespace tc::rs::mem {
+UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 BResult MemPoolConfig::NormalizeStrategy(StrategyParam &param)
 {
     // 借用决策参数归一化
@@ -30,7 +32,7 @@ BResult MemPoolConfig::NormalizeStrategy(StrategyParam &param)
                      param.shareParam.wBalanceCost + param.shareParam.wReliabilityCost +
                      param.shareParam.wDivideNumaCost;
     if (std::fabs(borrowSum) < 1e-9 || std::fabs(shareSum) < 1e-9) {
-        LOG_ERROR(MemPoolStrategy::GetInstance().mLogLevel, "BorrowSum or shareSum is zero, division by zero.");
+        UBSE_LOG_ERROR << "BorrowSum or shareSum is zero, division by zero.";
         throw std::invalid_argument("Error! NormalizeStrategy is false while borrowSum or shareSum is zero.");
     }
 
@@ -46,23 +48,7 @@ BResult MemPoolConfig::NormalizeStrategy(StrategyParam &param)
     param.shareParam.wReliabilityCost /= shareSum;
     param.shareParam.wDivideNumaCost /= shareSum;
 
-    return HOK;
-}
-
-void MemPoolConfig::PrintDebug(const StrategyParam &param, const BorrowAlgoParam &borrowParam)
-{
-    LOG_DEBUG(MemPoolStrategy::GetInstance().mLogLevel,
-              "ParamTool Get Cost Param: " << borrowParam.wLatencyCost << " , " << borrowParam.wRegionBalanceCost
-                                           << " , " << borrowParam.wBalanceCost << " , " << borrowParam.wReliabilityCost
-                                           << " , " << borrowParam.wDivideNumaCost << "\n");
-    LOG_DEBUG(MemPoolStrategy::GetInstance().mLogLevel,
-              "algoMode(0: Greedy; 1: Self): " << static_cast<int>(param.algoMode) << "\n");
-    LOG_DEBUG(MemPoolStrategy::GetInstance().mLogLevel,
-              std::fixed << std::setprecision(PRECISION) << "share param: latency{" << param.shareParam.wLatencyCost
-                         << "}, balance{" << param.shareParam.wBalanceCost << "}, RegionBalance{"
-                         << param.shareParam.wRegionBalanceCost << "}, reliability{"
-                         << param.shareParam.wReliabilityCost << "}, divide{" << param.shareParam.wDivideNumaCost
-                         << "}\n");
+    return UBSE_OK;
 }
 
 void MemPoolConfig::MapTopologyToIndices()

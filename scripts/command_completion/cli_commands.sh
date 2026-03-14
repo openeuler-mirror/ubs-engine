@@ -11,8 +11,8 @@ function _ubse_commond_completion() {
     local cmd=${COMP_WORDS[COMP_CWORD-1]}
     local prev=${COMP_WORDS[COMP_CWORD-2]}
 
-    commands='display import delete check'
-    display_types='topo memory cluster'
+    commands='create display import delete check change remove detach attach urma'
+    display_types='topo memory cluster cert node urma'
     check_types='memory'
 
     case "${cmd}" in
@@ -31,11 +31,7 @@ function _ubse_commond_completion() {
                 COMPREPLY=( $(compgen -W "${display_types}" -- ${cur}) )
                 return 0
             ;;
-            'import')
-                COMPREPLY=( $(compgen -W 'cert crl' -- ${cur}) )
-                return 0
-            ;;
-            'delete')
+            'import'|'change'|'remove')
                 COMPREPLY=( $(compgen -W 'cert' -- ${cur}) )
                 return 0
             ;;
@@ -43,6 +39,14 @@ function _ubse_commond_completion() {
                 COMPREPLY=( $(compgen -W "${check_types}" -- ${cur}) )
                 return 0
             ;;
+            'delete'|'create'|'detach'|'attach')
+                COMPREPLY=( $(compgen -W 'memory' -- ${cur}) )
+                return 0
+            ;;
+            'urma')
+                COMPREPLY=( $(compgen -W '--node -n --dev -d' -- ${cur}) )
+                return 0
+           	;;
             '*')
                 return 0
             ;;
@@ -54,7 +58,19 @@ function _ubse_commond_completion() {
             'display')
                 case ${COMP_WORDS[2]} in
                     'memory')
+                        COMPREPLY=( $(compgen -W '--type --borrow-type --name' -- ${cur}) )
+                        return 0
+                    ;;
+                    'topo')
                         COMPREPLY=( $(compgen -W '--type' -- ${cur}) )
+                        return 0
+                    ;;
+                    'node')
+                        COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
+                        return 0
+                    ;;
+                    'urma')
+                        COMPREPLY=( $(compgen -W '--node --dev' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -69,7 +85,15 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '--server-cert-file --ca-cert-file --server-key-file --ca-crl-file' -- ${cur}) )
                         return 0
                     ;;
-                    'crl')
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'change')
+                case ${COMP_WORDS[2]} in
+                    'cert')
                         COMPREPLY=( $(compgen -W '--ca-crl-file' -- ${cur}) )
                         return 0
                     ;;
@@ -79,6 +103,53 @@ function _ubse_commond_completion() {
                 esac
             ;;
 
+            'create')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '--type --link --size --name --region' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'delete')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '--name --type' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'attach')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '--name' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'detach')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '--name' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
             '*')
                 return 0
             ;;
@@ -90,7 +161,19 @@ function _ubse_commond_completion() {
             'display')
                 case ${COMP_WORDS[2]} in
                     'memory')
+                        COMPREPLY=( $(compgen -W '-t -n -bt' -- ${cur}) )
+                        return 0
+                    ;;
+                    'topo')
                         COMPREPLY=( $(compgen -W '-t' -- ${cur}) )
+                        return 0
+                    ;;
+                    'node')
+                        COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
+                        return 0
+                    ;;
+                    'urma')
+                        COMPREPLY=( $(compgen -W '-n -d' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -105,7 +188,15 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-s -c -k -l' -- ${cur}) )
                         return 0
                     ;;
-                    'crl')
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'change')
+                case ${COMP_WORDS[2]} in
+                    'cert')
                         COMPREPLY=( $(compgen -W '-l' -- ${cur}) )
                         return 0
                     ;;
@@ -115,6 +206,52 @@ function _ubse_commond_completion() {
                 esac
             ;;
 
+            'create')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '-t -l -s -n -r' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'delete')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '-n -t' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+            'attach')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'detach')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
             '*')
                 return 0
             ;;
@@ -127,9 +264,46 @@ function _ubse_commond_completion() {
            [[ ${COMP_WORDS[2]} == memory ]] && \
            [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
 
-            COMPREPLY=( $(compgen -W 'node_borrow borrow_detail' -- ${cur}) )
+            COMPREPLY=( $(compgen -W 'node_borrow borrow_detail node_lend numa_status config' -- ${cur}) )
             return 0
     fi
+
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == display ]] && \
+           [[ ${COMP_WORDS[2]} == memory ]] && \
+           [[ "${cmd}" == '--borrow-type' || "${cmd}" == '-bt' ]]; then
+
+            COMPREPLY=( $(compgen -W 'fd numa share' -- ${cur}) )
+            return 0
+    fi
+
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == display ]] && \
+           [[ ${COMP_WORDS[2]} == topo ]] && \
+           [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
+
+            COMPREPLY=( $(compgen -W 'cpu' -- ${cur}) )
+            return 0
+    fi
+
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == delete ]] && \
+           [[ ${COMP_WORDS[2]} == memory ]] && \
+           [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
+
+            COMPREPLY=( $(compgen -W 'fd numa share addr' -- ${cur}) )
+            return 0
+    fi
+
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == create ]] && \
+           [[ ${COMP_WORDS[2]} == memory ]] && \
+           [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
+
+            COMPREPLY=( $(compgen -W 'numa fd share' -- ${cur}) )
+            return 0
+    fi
+
 
 }
 

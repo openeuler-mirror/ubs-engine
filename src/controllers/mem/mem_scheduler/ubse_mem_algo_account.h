@@ -9,43 +9,91 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#ifndef UBSE_MEM_ALGO_ACCOUNT_H
-#define UBSE_MEM_ALGO_ACCOUNT_H
-
+#ifndef MXE_MEM_ALGO_ACCOUNT_H
+#define MXE_MEM_ALGO_ACCOUNT_H
 #include <cstdint>
+#include <memory>
 #include <shared_mutex>
 #include <vector>
 
-#include <memory>
 #include "ubse_common_def.h"
-#include "ubse_mem_obj.h"
-#include "ubse_mem_resource.h"
-
+#include "ubse_mmi_interface.h"
 namespace ubse::mem::strategy {
 using namespace ubse::common::def;
-struct AlgoAccount {
-    std::string name{};
-    // 借入借出关系
-    std::vector<ubse::mem::obj::UbseMemDebtNumaInfo> importNumaLocs{};
-    std::vector<ubse::mem::obj::UbseMemDebtNumaInfo> exportNumaLocs{};
-    // 实际的物理连线socketId
-    int64_t attachSocketId{};
-    int64_t exportSocketId{};
-    uint64_t totalBorrowSize{}; // 记录借用大小
+enum class AccountState {
+    IMPORT_EXPORT_EXIST,
+    ONLY_EXPORT_EXIST,
+    ONLY_IMPORT_EXIST,
+    BOTH_NOT_EXIST,
+};
 
-    AlgoAccount() = default;
-    AlgoAccount(const std::string &name, const std::vector<ubse::mem::obj::UbseMemDebtNumaInfo> &importNumaLocs,
-                const std::vector<ubse::mem::obj::UbseMemDebtNumaInfo> &exportNumaLocs, const int64_t &attachSocketId,
-                const int64_t &exportSocketId, const uint64_t &totalBorrowSize)
+enum class BorrowedType {
+    FD,   // Fd借用
+    NUMA, // Numa借用
+    ADDR, // 指定地址借用
+    SHM,  // 共享内存借用
+};
+
+struct AlgoAccountID {
+    std::string requestName{};
+    std::string nodeId{};
+    BorrowedType type;
+
+    bool operator < (const AlgoAccountID &other) const
     {
-        this->name = name;
-        this->importNumaLocs = importNumaLocs;
-        this->exportNumaLocs = exportNumaLocs;
-        this->attachSocketId = attachSocketId;
-        this->exportSocketId = exportSocketId;
-        this->totalBorrowSize = totalBorrowSize;
+        if (requestName != other.requestName) {
+            return requestName < other.requestName;
+        }
+        if (nodeId != other.nodeId) {
+            return nodeId < other.nodeId;
+        }
+        return type < other.type;
     }
+};
+
+class BaseAlgoAccount {
+public:
+    BaseAlgoAccount() = default;
+    virtual void UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
+                                        const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult) = 0;
+
+    virtual AccountState GetAccountState() = 0;
+
+    virtual ubse::adapter_plugins::mmi::UbseMemAlgoResult GetAlgoResult() = 0;
+
+public:
+    std::string name{};
+    BorrowedType type{};
+    std::string exportNodeId{};
+    std::string importNodeId{};
+};
+
+template <class T>
+class AccountImpl : public BaseAlgoAccount {
+public:
+    template <class... Ts>
+    explicit AccountImpl(Ts &&...ts)  : account_{std::forward<Ts>(ts)...}
+    {
+    }
+
+    void UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
+                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult) override
+    {
+        account_.UpdateAlgoAccountState(memState, algoResult);
+    }
+
+    AccountState GetAccountState() override
+    {
+        return account_.GetAccountState();
+    }
+
+    ubse::adapter_plugins::mmi::UbseMemAlgoResult GetAlgoResult() override
+    {
+        return account_.GetAlgoResult();
+    }
+
+private:
+    T account_;
 };
 
 class AlgoAccountManger {
@@ -59,19 +107,34 @@ public:
     AlgoAccountManger(AlgoAccountManger &&other) = delete;
     AlgoAccountManger &operator=(const AlgoAccountManger &other) = delete;
     AlgoAccountManger &operator=(AlgoAccountManger &&other) noexcept = delete;
-    void AddAlgoAccount(const std::shared_ptr<AlgoAccount> algoAccount);
-    void DelAlgoAccount(const std::string &name);
-    UbseResult AddAlgoAccountByLcneTopo(const std::string &algoAccount, const std::string &exportSocketId);
-    std::shared_ptr<AlgoAccount> GetAlgoAccount(const std::string &name);
-    void ClearAlgoAccount();
-    std::vector<std::shared_ptr<AlgoAccount>> GetAllAlgoAccount();
-    std::vector<std::shared_ptr<AlgoAccount>> GetAllAlgoAccountByNode(const std::string &nodeId);
+
+    void AddAlgoAccount(const std::shared_ptr<BaseAlgoAccount>& algoAccountPtr);
+
+    std::shared_ptr<BaseAlgoAccount> GetAlgoAccount(const AlgoAccountID &algoAccountID);
+
+    std::vector<std::shared_ptr<BaseAlgoAccount>> GetAllAlgoAccount();
+
+    std::vector<std::shared_ptr<BaseAlgoAccount>> GetAllAlgoAccountByNode(const std::string &nodeId);
+
+    std::shared_ptr<BaseAlgoAccount> CreateAccountByAlgoResult(
+        const std::string &name, const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, BorrowedType type);
+
+    bool CheckProviderNodeHasBorrowed(const std::string &providerNodeId);
+
+    bool CheckBorrowNodeHasLent(const std::string &borrowNodeId);
+
+    void UpdateAlgoAccountState(const std::string &name, ubse::adapter_plugins::mmi::UbseMemState state,
+                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, BorrowedType type);
+
+    void Clear();
+
+private:
+    std::map<AlgoAccountID, std::shared_ptr<BaseAlgoAccount>> algoAccountMap_{};
 
 private:
     AlgoAccountManger() = default;
-    std::unordered_map<std::string, std::shared_ptr<AlgoAccount>> algoAccountMap{};
-    std::shared_mutex mLock;
 };
+
 } // namespace ubse::mem::strategy
 
 #endif
