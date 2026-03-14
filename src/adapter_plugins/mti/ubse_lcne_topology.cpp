@@ -23,7 +23,6 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_logger.h"
-#include "ubse_security_module.h"
 
 namespace ubse::mti {
 using namespace ubse::log;
@@ -32,7 +31,6 @@ using namespace ubse::http;
 using namespace ubse::config;
 using namespace ubse::lcne;
 using namespace ubse::adapter_plugins::mti;
-using namespace ubse::security;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -299,19 +297,14 @@ UbseResult UbseLcneTopology::CreateDevTopology()
     std::unique_lock<std::shared_mutex> lock(mtx); // mti模块获取信息
     UBSE_LOG_DEBUG << "[MTI] CreateDevTopology execution.";
     ClearUbseTopologyInfo();
-    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
     // 获取拓扑
     if (UbseDevGetTopology() != UBSE_OK) {
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_ERROR;
     }
     // 获取CNA
     if (UbseDevGetCna() != UBSE_OK) {
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_ERROR;
     }
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
 
     return UBSE_OK;
 }

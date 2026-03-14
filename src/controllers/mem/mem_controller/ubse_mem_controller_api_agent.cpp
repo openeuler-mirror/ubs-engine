@@ -31,6 +31,7 @@
 #include "ubse_ipc_common.h"
 #include "ubse_logger_audit.h"
 #include "ubse_logger.h"
+#include "ubse_mem_advice.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_handler.h"
 #include "ubse_mem_rpc_processor.h"
@@ -536,6 +537,8 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
+        UBSE_LOG_ERROR << BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "",
+                                             req.requestNodeId, ret, MemAdvice::COMM_FAILED);
         return ret;
     }
     UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
@@ -545,6 +548,8 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
+        UBSE_LOG_ERROR << BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "",
+                                             req.requestNodeId, ret, MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }

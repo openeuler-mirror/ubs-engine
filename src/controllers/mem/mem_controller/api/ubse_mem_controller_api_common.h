@@ -19,6 +19,8 @@
 #include <shared_mutex>
 #include <sstream>
 #include <string>
+#include <atomic>
+
 #include "lock/ubse_lock.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
@@ -37,6 +39,10 @@ const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SLEEP_TIME = 200;
 const uint32_t ALLOCATE_RETRY_TIME = 25;
 const uint32_t RETURN_RETRY_TIME = 25;
+extern std::atomic<uint64_t> g_fdUnimportFailedCount;
+extern std::atomic<uint64_t> g_numaUnimportFailedCount;
+extern std::atomic<uint64_t> g_shareUnimportFailedCount;
+extern std::atomic<uint64_t> g_addrUnimportFailedCount;
 
 
 uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::string &name,

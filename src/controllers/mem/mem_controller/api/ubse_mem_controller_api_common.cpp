@@ -39,6 +39,10 @@ using namespace message;
 using namespace ubse::mem::strategy;
 using namespace adapter_plugins::mti::mami;
 static uint32_t MAX_WAIT_TIME(ubse::mem::strategy::API_TIME_OUT); // 单位:second
+std::atomic<uint64_t> g_fdUnimportFailedCount{0};
+std::atomic<uint64_t> g_numaUnimportFailedCount{0};
+std::atomic<uint64_t> g_shareUnimportFailedCount{0};
+std::atomic<uint64_t> g_addrUnimportFailedCount{0};
 bool IsSdkRequest(uint64_t requestId)
 {
     return UbseRequestIdUtil::ParseRequestType(requestId) == ubse::utils::UbseRequestType::SDK_REQUEST;

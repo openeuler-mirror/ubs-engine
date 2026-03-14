@@ -324,6 +324,18 @@ void SetChannelTimeout(const UbseChannelType chType, UBSHcomChannelPtr channelPt
     channelPtr->SetChannelTimeOut(timeout, timeout);
 }
 
+bool GetEnableTlsValue()
+{
+    bool enableTlsValue = true;
+    auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
+                      << ", ret: " << ret << ", use default value: true";
+        enableTlsValue = true;
+    }
+    return enableTlsValue;
+}
+
 UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options,
                                     UBSHcomChannelPtr &channelPtr)
 {
@@ -332,6 +344,10 @@ UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConn
                                         options);
     }
     if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
+        if (GetEnableTlsValue()) {
+            return hcomNetService_->Connect("tcp://" + info.GetIp() + ":" + std::to_string(TCP_LISTEN_PORT), channelPtr,
+                                            options);
+        }
         return hcomNetService_->Connect("ubc://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
                                         options);
     }
@@ -571,9 +587,6 @@ void UbseComEngine::InitEngineOptions()
     hcomNetService_->SetDeviceIpMask(ipMasks);
     UBSHcomTlsOptions tlsOptions;
     RegisterTLSCallbacks(tlsOptions);
-    if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        tlsOptions.enableTls = false;
-    }
     hcomNetService_->SetTlsOptions(tlsOptions);
     UBSHcomHeartBeatOptions hbOption;
     hbOption.heartBeatIdleSec = engineInfo_.GetHcomHbTimeOut();
@@ -636,14 +649,7 @@ bool UbseComEngine::SplitIp(const std::string ipPortStr, std::string &ip)
 
 void UbseComEngine::RegisterTLSCallbacks(UBSHcomTlsOptions &tlsOptions)
 {
-    bool enableTlsValue = true;
-    auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
-                      << ", ret: " << ret << ", use default value: true";
-        enableTlsValue = true;
-    }
-    tlsOptions.enableTls = enableTlsValue;
+    tlsOptions.enableTls = GetEnableTlsValue();
     // 注册证书回调
     tlsOptions.cfCb = std::bind(&CertCallback, std::placeholders::_1, std::placeholders::_2);
 
@@ -1108,9 +1114,14 @@ void UbseComEngine::AddListenOptions(UBSHcomServiceNewChannelHandler newChannelH
             newChannelHandler);
     }
     if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        hcomNetService_->Bind(
-            "ubc://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
-            newChannelHandler);
+        if (GetEnableTlsValue()) {
+            hcomNetService_->Bind("tcp://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(TCP_LISTEN_PORT),
+                                  newChannelHandler);
+        } else {
+            hcomNetService_->Bind(
+                "ubc://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
+                newChannelHandler);
+        }
     }
 }
 

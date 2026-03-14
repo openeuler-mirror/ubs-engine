@@ -42,15 +42,11 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImpo
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Init numaBorrowRemoteNumaId failed.";
         return ret;
     }
-    auto nodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
-    std::string lendNodeChipPortStr;
-    // slotId 与 nodeId相等
-    RmCommonUtils::GetInstance().GenerateNodeChipPortStr(nodeId, importObj.algoResult.exportNumaInfos[0].chipId,
-                                                         importObj.algoResult.exportNumaInfos[0].portId,
-                                                         lendNodeChipPortStr);
-    int numa = MemInstanceInnerCommon::GetInstance().GetNuma(lendNodeChipPortStr);
+    auto importField = importObj.algoResult.importNumaInfos[0];
+    std::string chipPortStr = std::to_string(importField.socketId) + "-" + std::to_string(importField.portId);
+    int numa = MemInstanceInnerCommon::GetInstance().GetNuma(chipPortStr);
     if (numa == INVALID_NUMAID) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get remote numaid failed, lendNodeChipStr= " << lendNodeChipPortStr;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get remote numaid failed, lendNodeChipStr= " << chipPortStr;
         return UBSE_ERROR_INVAL;
     }
     UbseMemLocalObmmCustomMeta customMeta{};
@@ -654,8 +650,7 @@ UbseResult MemInstanceInnerCommon::RemoteNumaIdInit()
     for (const auto &cpuInfo : nodeInfo.cpuInfos) {
         for (const auto &portInfo : cpuInfo.second.portInfos) {
             std::ostringstream str;
-            str << portInfo.second.remoteSlotId << "-" << portInfo.second.remoteChipId << "-"
-                << portInfo.second.remotePortId;
+            str << cpuInfo.second.socketId << "-" << portInfo.second.portId;
             socketPair.insert(str.str());
         }
     }
@@ -769,16 +764,14 @@ UbseResult MemPreImport(BasicPreImportInfo &basicPreImportInfo,
 UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
                    std::vector<obmm_preimport_info> &obmmPreImportInfos, uint64_t preImportSize, const bool isPoc)
 {
-    std::string lendNodeSocketStr;
     uint32_t portId;
     auto ret = ConvertStrToUint32(portInfo.portId, portId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to convert portId form string to int. PortId is " << portInfo.portId;
         return UBSE_ERROR;
     }
-    RmCommonUtils::GetInstance().GenerateNodeChipPortStr(cnaTopoInfo.exportNodeId, cnaTopoInfo.exportSocketId, portId,
-                                                         lendNodeSocketStr);
-    int numaId = MemInstanceInnerCommon::GetInstance().GetNuma(lendNodeSocketStr);
+    std::string chipPortStr = std::to_string(cnaTopoInfo.importSocketId) + "-" + std::to_string(portId);
+    int numaId = MemInstanceInnerCommon::GetInstance().GetNuma(chipPortStr);
     uint32_t portCna = portInfo.portCna;
     BasicPreImportInfo basicPreImportInfo{0,      cnaTopoInfo.scna, portCna,          cnaTopoInfo.marId,
                                           numaId, preImportSize,    cnaTopoInfo.seid, cnaTopoInfo.deid};

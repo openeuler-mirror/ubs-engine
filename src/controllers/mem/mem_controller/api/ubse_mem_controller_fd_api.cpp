@@ -765,6 +765,8 @@ uint32_t FdImportDestroyingAgentCallback(UbseMemFdBorrowImportObj &importObj, co
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+        UBSE_LOG_ERROR << "FdUnImport Failed, Failed count:" << ++g_fdUnimportFailedCount << ". advice: Caller should clear memory and retry. "
+                       << "If failures persist, migrate the workload and restart the host.";
     } else {
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
         EraseFdImport(importObj);
