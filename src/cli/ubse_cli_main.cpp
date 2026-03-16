@@ -11,6 +11,7 @@
  */
 #include <cstring>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "ubse_cli_reg.h"

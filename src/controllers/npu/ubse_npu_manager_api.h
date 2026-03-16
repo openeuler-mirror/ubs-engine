@@ -10,8 +10,8 @@
 * See the Mulan PSL v2 for more details.
 */
 
-#ifndef UBSE_NPU_MANAGE_API_H
-#define UBSE_NPU_MANAGE_API_H
+#ifndef UBSE_NPU_MANAGER_API_H
+#define UBSE_NPU_MANAGER_API_H
 
 #include "ubse_common_def.h"
 #include "ubse_npu_source_def.h"
@@ -30,4 +30,4 @@ UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>> &devList)
 
 } // namespace ubse::npu::controller
 
-#endif // UBSE_NPU_MANAGE_API_H
+#endif // UBSE_NPU_MANAGER_API_H

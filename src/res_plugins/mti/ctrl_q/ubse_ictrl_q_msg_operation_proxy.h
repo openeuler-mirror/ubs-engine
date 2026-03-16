@@ -16,6 +16,7 @@
 #include "ubse_ctrl_q_message.h"
 #include "ubse_error.h"
 #include "ubse_ictrl_q_req_msg.h"
+#include "ubse_pointer_process.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace ubse::common::def;
