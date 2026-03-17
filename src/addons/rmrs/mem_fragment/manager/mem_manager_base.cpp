@@ -76,28 +76,6 @@ uint32_t GetNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBu
     return MEM_POOLING_OK;
 }
 
-void PersistAntiNodeData(const MpUpdateAntiNodeParam &antiParam)
-{
-    std::string tempNodeAntiMapStr = antiParam.ToJson();
-    UbseByteBuffer buffer;
-    buffer.len = tempNodeAntiMapStr.length();
-    buffer.data = new (std::nothrow) uint8_t[buffer.len];
-    buffer.freeFunc = [](uint8_t *data) {
-        delete[] data;
-    };
-    errno_t err = memcpy_s(buffer.data, buffer.len, tempNodeAntiMapStr.c_str(), tempNodeAntiMapStr.length());
-    if (err != EOK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] Memcpy_s anti buffer failed";
-    }
-    // 更新数据库
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] Update antinode base start.";
-    uint32_t ret = ubse::storage::UbseStoragePutData("mempooling", "_antiNode", &buffer);
-    if (ret != 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] Failed to store base antidata";
-    }
-    delete[] buffer.data;
-}
-
 uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] SyncAntiDataRecvHandler start.";

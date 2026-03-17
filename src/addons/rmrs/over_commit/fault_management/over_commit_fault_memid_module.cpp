@@ -319,7 +319,6 @@ MpResult OverCommitFaultMemIdModule::PrepareParamForBorrowMem(outinterface::SrcM
     if (allVmNumaInfoSocOnRemoteNuma.empty()) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << TAG << "No VM is using memory on remoteNumaId=" << preRemoteNumaId << ", return directly.";
-        mem_return_direct = true;
         return MEM_POOLING_OK;
     }
     // uds获取水线
@@ -478,6 +477,12 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
         return MEM_POOLING_ERROR;
     }
 
+    bool directly_return_mem = false;
+    if (allVmNumaInfoOnBoth.empty()) {
+        directly_return_mem = true;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "No VM on remoteNuma, return directly.";
+    }
+
     // 调用碎片接口获取虚拟机列表 pids 和 要借用的内存大小
     FMVmInfoResult fMVmInfoResult;
     if (GetSelectPids(fMVmInfoResult, faultSize, allVmNumaInfoOnBoth) != MEM_POOLING_OK) {
@@ -491,7 +496,7 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     uint64_t preRemoteSize{0};
     struct GetNumaSizePara preRemoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, preRemoteNumaId, preRemoteNumaId};
 
-    if (!mem_return_direct) { // 故障节点所借出的远端numa上有内存使用，不能直接将其归还
+    if (!directly_return_mem) { // 故障节点所借出的远端numa上有内存使用，不能直接将其归还
         MemBorrowExecuteResult borrowExecResult;
         if (MemBorrowExecute(srcParam, fMVmInfoResult.totalNeedBorrowMem, waterMark, borrowExecResult) !=
             MEM_POOLING_OK) {

@@ -1526,6 +1526,7 @@ bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
     uint16_t localNumaId = vmParam.localNumaId;
     std::string srcNid = vmParam.srcNid;
     uint16_t srcSocketId;
+    bool found = false;
 
     std::string dstNid = "";
     uint16_t dstSocketId;
@@ -1537,10 +1538,16 @@ bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
                   << ", numaId=" << numaInfo.metaData.numaId << ", srcSocketId=" << numaInfo.metaData.socketId;
         if (numaInfo.metaData.numaId == localNumaId) {
             srcSocketId = numaInfo.metaData.socketId;
+            found = true;
             break;
         }
     }
-    LOG_DEBUG << "[MemMigrate][Strategy] Compare same plane, pid=" << pid << ", srcNid=" << srcNid
+    if (!found) {
+        LOG_ERROR << "[MemMigrate][Strategy][Plane] Cannot find local numaId=" << localNumaId;
+        return false;
+    }
+    found = false;
+    LOG_DEBUG << "[MemMigrate][Strategy][Plane] Compare same plane, pid=" << pid << ", srcNid=" << srcNid
               << ", srcSocketId=" << srcSocketId;
 
     // 从内存账本中获取远端NUMA对应的socket
@@ -1548,10 +1555,16 @@ bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
         if (socketInfo.borrowRemoteNuma == remoteNumaId) {
             dstNid = socketInfo.lentNode;
             dstSocketId = socketInfo.lentSocketId;
+            found = true;
             break;
         }
     }
-    LOG_DEBUG << "[MemMigrate][Strategy] Compare same plane, remoteNumaId=" << remoteNumaId << ", dstNid=" << dstNid
+    if (!found) {
+        LOG_ERROR << "[MemMigrate][Strategy][Plane] Cannot find remote numaId=" << remoteNumaId;
+        return false;
+    }
+
+    LOG_DEBUG << "[MemMigrate][Strategy][Plane] Compare same plane, remoteNumaId=" << remoteNumaId << ", dstNid=" << dstNid
               << ", dstSocketId=" << dstSocketId;
 
     // 从拓扑信息中获取，是否属于直连节点
@@ -1577,7 +1590,6 @@ bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
     }
     LOG_DEBUG << "[MemMigrate][Strategy] The pid=" << pid << ", remoteNumaId=" << remoteNumaId
               << ", Not a same-plane memory borrow.";
-    LOG_ERROR << "[MemMigrate][Strategy] Not a same-plane memory borrow.";
     return false;
 }
 

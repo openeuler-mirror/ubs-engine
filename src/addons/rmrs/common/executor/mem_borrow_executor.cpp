@@ -47,6 +47,13 @@ MpResult MemBorrowExecutor::PrepareMemNumaCreateParams(const std::string attachN
                                                        std::vector<UbseMemNumaLender> &lenders,
                                                        uint8_t usrInfo[ubse::mem::controller::UBSE_MAX_USR_INFO_LEN])
 {
+    if (attr.waterMallocAttr.lenderLocs.size() != attr.waterMallocAttr.lenderSizes.size()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow][MemBorrowExecute] lenderLocs and lenderSizes size mismatch: "
+            << attr.waterMallocAttr.lenderLocs.size() << " vs " << attr.waterMallocAttr.lenderSizes.size();
+        return MEM_POOLING_ERROR;
+    }
+
     // ubse: 借入方
     borrower.nodeId = attachNode;
     borrower.affinitySocketId = attr.waterMallocAttr.srcSocket;
@@ -300,6 +307,10 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
     // 持久化SmapEnable数据
     if (migrateBackMsg.count > 0) {
         PersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
+    } else {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] Smap migrate back count=" << migrateBackMsg.count << " invalid.";
+        return MEM_POOLING_ERROR;
     }
     retSmap = SmapMigrateBackProcess(migrateBackMsg);
     if (retSmap != MEM_POOLING_OK) {

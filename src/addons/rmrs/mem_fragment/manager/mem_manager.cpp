@@ -2403,6 +2403,8 @@ void LoadDataBase(const std::string &keyPrefix, const std::string &key, const Ub
     }
     if (memcpy_s(value.data, value.len, buff.data, value.len) != 0) {
         LOG_ERROR << "Memcpy_s failed.";
+        delete[] value.data;
+        value.data = nullptr;
         return;
     }
     return;
@@ -2455,6 +2457,12 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer &buffer)
         ResetAndDeleteBuffer(buffer);
         return MEM_POOLING_ERROR;
     }
+
+    if (buffer.len == 0 || buffer.data == nullptr) {
+        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
     ret = mempooling::SmapEnableCompleted::Instance().PutRawData(buffer);
     ResetAndDeleteBuffer(buffer);
     if (ret != MEM_POOLING_OK) {
@@ -2507,6 +2515,12 @@ uint32_t RemovePidCompletedInit(UbseByteBuffer &buffer)
         LOG_ERROR << "[PluginInit][RemovePidCompleted] Failed to query database.";
         return MEM_POOLING_ERROR;
     }
+
+    if (buffer.len == 0 || buffer.data == nullptr) {
+        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
     ret = mempooling::RemovePidCompleted::Instance().PutRawData(buffer);
     ResetAndDeleteBuffer(buffer);
     if (ret != MEM_POOLING_OK) {
@@ -2545,6 +2559,12 @@ uint32_t Name2VmInfoInit(UbseByteBuffer &buffer)
         ResetAndDeleteBuffer(buffer);
         return MEM_POOLING_ERROR;
     }
+
+    if (buffer.len == 0 || buffer.data == nullptr) {
+        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
     ret = mempooling::Name2VmInfo::Instance().PutRawData(buffer);
     ResetAndDeleteBuffer(buffer);
     if (ret != MEM_POOLING_OK) {
@@ -2563,6 +2583,12 @@ uint32_t BorrowIdRedirectionInit(UbseByteBuffer &buffer)
         ResetAndDeleteBuffer(buffer);
         return MEM_POOLING_ERROR;
     }
+
+    if (buffer.len == 0 || buffer.data == nullptr) {
+        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
     ret = mempooling::BorrowIdRedirection::Instance().PutRawData(buffer);
     ResetAndDeleteBuffer(buffer);
     if (ret != MEM_POOLING_OK) {
@@ -2607,6 +2633,12 @@ uint32_t DataReloadInit()
         ResetAndDeleteBuffer(buffer);
         return MEM_POOLING_ERROR;
     }
+
+    if (buffer.len == 0 || buffer.data == nullptr) {
+        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
     ret = mempooling::MemReturnManager::Instance().PutRawData(buffer);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit] Failed to init borrowCache.";
@@ -2615,6 +2647,7 @@ uint32_t DataReloadInit()
     }
     if (buffer.len != 0 && !mempooling::MemReturnScanner::Instance().start()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit] Failed to start return scanner.";
+        ResetAndDeleteBuffer(buffer);
         return MEM_POOLING_ERROR;
     }
     ResetAndDeleteBuffer(buffer);

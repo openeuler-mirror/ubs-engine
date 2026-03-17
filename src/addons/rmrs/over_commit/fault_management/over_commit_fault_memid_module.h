@@ -154,7 +154,6 @@ private:
     FaultMemIdModule &baseInstance = FaultMemIdModule::Instance();
     MpSceneType mSceneType{MpSceneType::VIRTUAL_SCENE};
     NumaBindType mBindType{NumaBindType::BIND_INVALID};
-    bool mem_return_direct{false};
 };
 } // namespace mempooling
 #endif // MEMPOOLING_OVER_COMMIT_FAULT_MEMID_MODULE_H

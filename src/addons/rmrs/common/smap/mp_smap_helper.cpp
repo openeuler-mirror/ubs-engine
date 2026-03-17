@@ -16,10 +16,12 @@
 #include "ubse_def.h"
 #include "ubse_logger.h"
 #include "ubse_storage.h"
+#include "ubse_security.h"
 
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
 constexpr int SMAP_ERROR = 1;
+constexpr int MAX_RETRY = 100;
 
 using namespace ubse::log;
 using namespace mempooling::smap;
@@ -247,7 +249,13 @@ MpResult MpSmapHelper::GetHugePageCanonicalPath(const std::string &remoteNumaId,
 
 MpResult MpSmapHelper::TryAllocateHugePagesOnce(const std::string &filePath, uint64_t targetHugePages)
 {
+    auto res = ubse::security::ChangeOverrideCapability(true);
+    if (res != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Change override capability failed.";
+        return MEM_POOLING_ERROR;
+    }
     MpResult ret = RewriteHugePages(filePath, targetHugePages);
+    (void)ubse::security::ChangeOverrideCapability(false);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpSmapHelper] RewriteHugePages failed, target=" << targetHugePages << ", ret=" << ret << ".";
