@@ -215,6 +215,13 @@ UbseResult UbseElectionCommMgr::ElectionFaultHandler(std::string &eventId, std::
     return UBSE_OK;
 }
 
+UbseResult UbseElectionCommMgr::ElectionTopoChangeHandler(std::string &eventId, std::string &eventMessage)
+{
+    UBSE_LOG_INFO << "[ELECTION] start to exec TopoChangeHandler, eventId = " << eventId;
+    UbseElectionNodeMgr::GetInstance().ParseAllNodesVector();
+    return UBSE_OK;
+}
+
 UbseResult UbseElectionCommMgr::NewChannelCB(const std::string &remoteIp, const std::string &remoteNodeId)
 {
     // remoteInfo为对端IP
@@ -240,15 +247,14 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
         UBSE_LOG_ERROR << "[ELECTION] Failed to get UbseEventModule";
         return UBSE_ERROR;
     }
-    std::string subId = "ubse.node.state";
     auto ret = eventModule->UbseSubEvent(
-        subId,
+        UBSE_EVENT_NODE_STATE,
         [this](std::string &eventId, std::string &eventMessage) -> u_int32_t {
             return ElectionResponseHandler(eventId, eventMessage);
         },
         HIGH);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << subId << "," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << UBSE_EVENT_NODE_STATE << "," << FormatRetCode(ret);
         return ret;
     }
     std::string panicAndRebootFaultEventId = "UbsePanicAndRebootFaultEvent";
@@ -260,6 +266,17 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
         HIGH);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << panicAndRebootFaultEventId << "," << FormatRetCode(ret);
+        return ret;
+    }
+    ret = eventModule->UbseSubEvent(
+        UBSE_EVENT_NODE_TOPO_LINK_CHANGE,
+        [this](std::string &eventId, std::string &eventMessage) -> u_int32_t {
+            return ElectionTopoChangeHandler(eventId, eventMessage);
+        },
+        HIGH);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << UBSE_EVENT_NODE_TOPO_LINK_CHANGE << ","
+                       << FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;

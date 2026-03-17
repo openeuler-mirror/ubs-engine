@@ -53,6 +53,8 @@ public:
 
     UbseResult ElectionFaultHandler(std::string &eventId, std::string &eventMessage);
 
+    UbseResult ElectionTopoChangeHandler(std::string &eventId, std::string &eventMessage);
+
     UbseResult RegNewChannelCb([[maybe_unused]] UbseComCallBackForHA func) override
     {
         return UBSE_OK;

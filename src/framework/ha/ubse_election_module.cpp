@@ -86,8 +86,6 @@ UbseResult UbseElectionModule::Start()
         UBSE_LOG_ERROR << "[ELECTION] UbseElectionModule handler error";
         return UBSE_ERROR;
     }
-    // 初始化加载 LCNE 配置
-    UbseElectionNodeMgr::GetInstance().LoadConfig();
     auto currentRole = RoleMgr::GetInstance().GetRole();
     if (!currentRole) {
         UBSE_LOG_ERROR << "[ELECTION] currentRole is null";
