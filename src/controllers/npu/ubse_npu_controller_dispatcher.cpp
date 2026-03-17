@@ -61,8 +61,7 @@ static UbseResult ExecuteDispatcher(const UbseIpcMessage &req, const UbseRequest
     return ret;
 }
 
-UbseResult QueryLocalUbDevices(const UbseIpcMessage &req,
-                                                            const UbseRequestContext &context)
+UbseResult QueryLocalUbDevices(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     UBSE_LOG_INFO << "Received QueryLocalUbDevices request";
     auto ret = ExecuteDispatcher(req, context, QueryDeviceExecute);
