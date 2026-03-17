@@ -216,7 +216,6 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &re
     UbseIpcMessage response = {responseSerial.GetBuffer(), static_cast<uint32_t>(responseSerial.GetLength())};
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
-    delete[] response.buffer;
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << " UbseUrmaBandWidthCliGet response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -249,7 +248,6 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage &req
     }
     UbseIpcMessage response = {nullptr, 0};
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
-    delete[] response.buffer;
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << " UbseUrmaBandWidthReset response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -368,7 +366,6 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     }
     UbseIpcMessage response = {ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
-    delete[] response.buffer;
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << " TopologyInfoQuery response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -404,7 +401,6 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage &req
     }
     UbseIpcMessage response = {ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
-    delete[] response.buffer;
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << " Send activate response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
