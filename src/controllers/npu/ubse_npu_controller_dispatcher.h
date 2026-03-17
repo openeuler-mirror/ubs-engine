@@ -16,6 +16,11 @@
 #include "ubse_ipc_server.h"
 
 namespace ubse::npu::controller {
+
+/**
+ * 注册npu-sdk服务端接口
+ * @return 注册结果
+ */
 common::def::UbseResult RegisterSdkDispatcher();
 } // namespace ubse::npu::controller
 #endif // UBSE_NPU_CONTROLLER_DISPATCHER_H
