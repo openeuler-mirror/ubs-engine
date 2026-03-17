@@ -87,8 +87,6 @@ struct RackCreateResourceWaterBorrowAttr {
     MemMallocAttr waterMallocAttr{};    // 水线借用必填
 };
 
-MpResult ExtractMemIdAndNumaId(const std::string &jsonStr, uint64_t &memId, int16_t &PresentNumaId);
-
 } // namespace mempooling
 
 #endif // MEM_JSON_DEF_H

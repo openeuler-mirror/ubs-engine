@@ -224,31 +224,4 @@ bool RackCreateResourceWaterBorrowAttr::FromJson(const std::string &jsonString)
     return true;
 }
 
-MpResult ExtractMemIdAndNumaId(const std::string &jsonStr, uint64_t &memId, int16_t &presentNumaId)
-{
-    // 正则表达式匹配整数
-    std::regex memIdRegex("\"memId\":\\s*(\\d+)");
-    std::regex numaIdRegex("\"numaId\":\\s*(\\d+)");
-
-    std::smatch match;
-
-    // 匹配 memId
-    if (!std::regex_search(jsonStr, match, memIdRegex)) {
-        std::cerr << "Error: memId not found!" << std::endl;
-        return 1;
-    }
-    std::stringstream ssMemId(match[1].str());
-    ssMemId >> memId;
-
-    // 匹配 numaId
-    if (!std::regex_search(jsonStr, match, numaIdRegex)) {
-        std::cerr << "Error: numaId not found!" << std::endl;
-        return 1;
-    }
-    std::stringstream ssNumaId(match[1].str());
-    ssNumaId >> presentNumaId;
-
-    return MEM_POOLING_OK;
-}
-
 } // namespace mempooling

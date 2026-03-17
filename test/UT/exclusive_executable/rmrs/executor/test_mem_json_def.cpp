@@ -264,44 +264,4 @@ TEST_F(TestMemJsonDef, RackCreateResourceWaterBorrowAttr_From_Json_JsonStr2Vec_S
     bool ret = attr.FromJson(json_str);
     ASSERT_EQ(false, ret);
 }
-
-TEST_F(TestMemJsonDef, ExtractMemIdAndNumaId)
-{
-    std::string json_str = R"({
-        "ctx": {
-            "response": {
-                "memId": 3,
-                "shmSize": 1073741824,
-                "numaId": 5,
-                "mErrCode": 0
-            },
-            "type": "ATTACH",
-            "export_type": "WATER_BORROW",
-            "requestAttr": {
-                "waterMallocAttr": {
-                    "dstNodeNum": 1,
-                    "srcNuma": 0,
-                    "srcSocket": 0,
-                    "srcNid": "Node0"
-                },
-                "perfLevel": 0,
-                "size": 1073741824,
-                "name": "watername",
-                "type": "WATER_BORROW",
-                "numaPresentId": 5
-            },
-            "exeNodeId": "Node0",
-            "realExe": ""
-        },
-        "condition": "Success"
-    })";
-
-    uint64_t memId;
-    int16_t presentNumaId;
-
-    ExtractMemIdAndNumaId(json_str, memId, presentNumaId);
-
-    ASSERT_EQ(3, memId);
-    ASSERT_EQ(5, presentNumaId);
-}
 } // namespace mempooling

@@ -52,7 +52,9 @@ MpResult LibvirtModule::Init()
 
 void LibvirtModule::CloseLibvirtHandle()
 {
-    if (dlclose(libvirtHandle) != 0) {
+    if (libvirtHandle == nullptr) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "libvirtHandle is null, no need to close.";
+    } else if (dlclose(libvirtHandle) != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Close libvirtHandle failed," << dlerror() << ".";
     }
     virConnectOpenFunc = nullptr;
@@ -97,7 +99,7 @@ VirConnectCloseFunc LibvirtModule::VirConnectClose()
     virConnectCloseFunc = reinterpret_cast<VirConnectCloseFunc>(dlsym(libvirtHandle, "virConnectClose"));
     if (virConnectCloseFunc == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "Get VirConnectListAllDomains ptr failed. " << strerror(errno) << ".";
+            << "Get virConnectClose ptr failed. " << strerror(errno) << ".";
         return nullptr;
     }
     return virConnectCloseFunc;

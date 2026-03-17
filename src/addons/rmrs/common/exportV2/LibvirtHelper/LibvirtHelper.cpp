@@ -14,6 +14,7 @@
 #include <map>
 #include "mp_configuration.h"
 #include "ubse_logger.h"
+#include "ubse_security.h"
 
 namespace mempooling::exportV2 {
 using namespace libvirt;
@@ -77,12 +78,18 @@ MpResult LibvirtHelper::Connect()
 {
     try {
         LOG_INFO << "Start to get libvirt connection.";
+        auto ret = ubse::security::ChangeOverrideCapability(true);
+        if (ret != MEM_POOLING_OK) {
+            LOG_ERROR << "Change override capability failed.";
+            return MEM_POOLING_ERROR;
+        }
         virConnect = LibvirtModule::VirConnectOpen()("qemu:///system");
+        (void)ubse::security::ChangeOverrideCapability(false);
         if (virConnect == nullptr) {
             LOG_ERROR << "Libvirt conn failed, please check the virsh environment. error is " << strerror(errno) << ".";
             return MEM_POOLING_ERROR;
         }
-        auto ret = ConnectSetKeepAlive();
+        ret = ConnectSetKeepAlive();
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "ConnectSetKeepAlive failed.";
             return MEM_POOLING_ERROR;
@@ -91,6 +98,7 @@ MpResult LibvirtHelper::Connect()
         return MEM_POOLING_OK;
     } catch (std::exception &e) {
         LOG_ERROR << "Connect libvirt failed. err: " << e.what() << ".";
+        (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
     }
 }

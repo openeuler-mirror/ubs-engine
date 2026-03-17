@@ -11,6 +11,7 @@
  */
 
 #include "page_file_helper.h"
+#include "ubse_security.h"
 
 namespace mempooling::over_commit {
 using namespace ubse::log;
@@ -37,17 +38,24 @@ MpResult PageFileHelper::RewriteHugePagesWithRetry(const std::string& filePath, 
                                                    const uint16_t fst, const uint64_t snd, const int retryCount)
 {
     int count = 0;
+    auto res = ubse::security::ChangeOverrideCapability(true);
+    if (res != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit] Change override capability failed.";
+        return MEM_POOLING_ERROR;
+    }
     do {
         auto ret = RewriteHugePages(filePath, snd);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[OverCommit] RewriteHugePages failed, ret=" << ret << ".";
+            (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_ERROR;
         }
         ret = GetOriginalHugePages(filePath, originalHugePages);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[OverCommit] GetOriginalHugePages After RewriteHugePages failed, ret=" << ret << ".";
+            (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_ERROR;
         }
         count++;
@@ -58,8 +66,10 @@ MpResult PageFileHelper::RewriteHugePagesWithRetry(const std::string& filePath, 
     if (count >= retryCount && originalHugePages != snd / KB22MB) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit] SetHugePage do not match GetHugePage after retry=" << retryCount << ".";
+        (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
     }
+    (void)ubse::security::ChangeOverrideCapability(false);
     return MEM_POOLING_OK;
 }
 
