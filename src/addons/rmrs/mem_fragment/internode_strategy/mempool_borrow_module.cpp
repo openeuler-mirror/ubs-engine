@@ -1564,8 +1564,8 @@ bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
         return false;
     }
 
-    LOG_DEBUG << "[MemMigrate][Strategy][Plane] Compare same plane, remoteNumaId=" << remoteNumaId << ", dstNid=" << dstNid
-              << ", dstSocketId=" << dstSocketId;
+    LOG_DEBUG << "[MemMigrate][Strategy][Plane] Compare same plane, remoteNumaId=" << remoteNumaId << ", dstNid=" 
+              << dstNid << ", dstSocketId=" << dstSocketId;
 
     // 从拓扑信息中获取，是否属于直连节点
     std::string key = srcNid + "-" + std::to_string(srcSocketId);

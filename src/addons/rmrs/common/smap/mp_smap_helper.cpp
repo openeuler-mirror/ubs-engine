@@ -21,7 +21,6 @@
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
 constexpr int SMAP_ERROR = 1;
-constexpr int MAX_RETRY = 100;
 
 using namespace ubse::log;
 using namespace mempooling::smap;
