@@ -1,6 +1,6 @@
 file(GLOB_RECURSE RMRS_SRCS *.cpp *.h)
-add_library(rmrs_plugin SHARED ${RMRS_SRCS})
-add_library(rmrs_plugin_static EXCLUDE_FROM_ALL STATIC ${RMRS_SRCS})
+add_library(mempooling SHARED ${RMRS_SRCS})
+add_library(mempooling_static EXCLUDE_FROM_ALL STATIC ${RMRS_SRCS})
 
 add_library(rmrs_deps INTERFACE)
 target_include_directories(
@@ -47,10 +47,10 @@ target_include_directories(
 
 target_link_libraries(rmrs_deps INTERFACE rapidjson ubse_utils)
 
-target_link_libraries(rmrs_plugin PUBLIC rmrs_deps)
-target_link_libraries(rmrs_plugin_static PUBLIC rmrs_deps)
+target_link_libraries(mempooling PUBLIC rmrs_deps)
+target_link_libraries(mempooling_static PUBLIC rmrs_deps)
 
-set_target_properties(rmrs_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY
+set_target_properties(mempooling PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                                              ${CMAKE_BINARY_DIR}/lib)
-set_target_properties(rmrs_plugin_static PROPERTIES LIBRARY_OUTPUT_DIRECTORY
+set_target_properties(mempooling_static PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                                                     ${CMAKE_BINARY_DIR}/lib)

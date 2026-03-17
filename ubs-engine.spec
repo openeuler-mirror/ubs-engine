@@ -241,9 +241,13 @@ cp -r %{_builddir}/%{project_dir}/src/include/* %{buildroot}/usr/include/ubse
 
 #install ucache
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libucache_plugin.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/src/addons/ucache/conf/plugin_ucache.conf %{buildroot}/etc/ubse/plugins/
 
 #install rmrs
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/librmrs_plugin.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libmempooling.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/src/addons/rmrs/conf/plugin_mempooling.conf %{buildroot}/etc/ubse/plugins/
+mkdir -p %{buildroot}/usr/local/mempooling/include/mempooling/
+cp %{_builddir}/%{project_dir}/src/addons/rmrs/interface/mempooling_interface.h %{buildroot}/usr/local/mempooling/include/mempooling/
 
 #install python-sdk
 %py3_install
@@ -443,9 +447,15 @@ fi
 /usr/include/virtagent/
 
 %files ucache
+%defattr(644,root,root,-)
+%config(noreplace) /etc/ubse/plugins/plugin_ucache.conf
 %defattr(755,root,root,-)
 /usr/lib64/libucache_plugin.so
 
 %files rmrs
+%defattr(644,root,root,-)
+%config(noreplace) /etc/ubse/plugins/plugin_mempooling.conf
 %defattr(755,root,root,-)
-/usr/lib64/librmrs_plugin.so
+/usr/lib64/libmempooling.so
+%defattr(644,root,root,755)
+/usr/local/mempooling/include/mempooling/

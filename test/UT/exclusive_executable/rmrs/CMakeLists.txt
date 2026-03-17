@@ -76,7 +76,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME}_rmrs_plugin_ut
 
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}_rmrs_plugin_ut
-  PUBLIC test_exclusive_main rmrs_plugin_static rapidjson GTest::gmock_main
+  PUBLIC test_exclusive_main mempooling_static rapidjson GTest::gmock_main
          mockcpp boundscheck)
 
 add_independent_exec_ut(${CMAKE_PROJECT_NAME}_rmrs_plugin_ut)
