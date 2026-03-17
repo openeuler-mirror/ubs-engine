@@ -72,7 +72,7 @@ static UbseResult AddPfe(uint8_t pfeNum, const UbseMtiUbController &ubController
         UbseMtiIdevVfe vfe(ubController, pfeId, vfeId);
         UbseCtrlQGetIdevVfeGuidReqMsg getVfeGuidReq(vfe);
         if (GetGuid(getVfeGuidReq, vfe.guid) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Get pfe guid failed, chipId=  " << ubController.chipId
+            UBSE_LOG_ERROR << "Get vfe guid failed, chipId=  " << ubController.chipId
                            << ", dieId= " << ubController.dieId << ", pfeId=" << pfeId << ", vfeId=" << vfeId;
             return UBSE_ERROR;
         }
@@ -138,7 +138,7 @@ UbseResult UbseCtrlQGetIdevFeProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg 
     try {
         return GetRespResult(pfeSet, resp_, readHelper);
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Read get idev fe opt resp failed";
+        UBSE_LOG_ERROR << "Read get idev fe opt resp failed: " << e.what();
         return UBSE_ERROR;
     }
 }
