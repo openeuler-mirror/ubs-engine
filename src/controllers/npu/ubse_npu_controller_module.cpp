@@ -45,7 +45,7 @@ UbseResult UbseNpuControllerModule::Start()
 {
     StartCollect();
     UBSE_LOG_INFO << "[NPU] Start to register sdk dispatcher";
-    UbseResult ret = UbseNpuControllerDispatcher::RegisterSdkDispatcher();
+    UbseResult ret = RegisterSdkDispatcher();
     ret |= vm_monitor::StartVMMonitor();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to start npu controller.";
