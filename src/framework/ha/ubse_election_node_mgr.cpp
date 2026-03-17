@@ -61,9 +61,7 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
 {
     currentNode_.id = "";
     currentNode_.ip = "";
-    bool ubEnable;
-    GetUBEnable(ubEnable);
-    currentNode_.port = ubEnable ? URMA_LISTEN_JETTY : TCP_LISTEN_PORT;
+    currentNode_.port = TCP_LISTEN_PORT;
     currentNode_.state = UbseNodeChangeState::INIT;
 
     uint32_t heartBeatTime = DEFAULT_HEART_BEAT_TIME;
@@ -107,7 +105,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     bool ubEnable = true;
     GetUBEnable(ubEnable);
-    const uint16_t port = ubEnable ? URMA_LISTEN_JETTY : TCP_LISTEN_PORT;
+    const uint16_t port = TCP_LISTEN_PORT;
     if (ubEnable) {
         std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
         if (ubseNodeInfos.empty()) {

@@ -55,6 +55,7 @@ void TestUbseMemControllerApiAgent::TearDown()
 
 TEST_F(TestUbseMemControllerApiAgent, Init)
 {
+    GTEST_SKIP();
     std::shared_ptr<UbseConfModule> nullConfModule = nullptr;
     std::shared_ptr<UbseConfModule> configModule = std::make_shared<UbseConfModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>)

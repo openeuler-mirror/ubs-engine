@@ -342,7 +342,7 @@ UbseResult GetNodeInfoFromMti(IpAddress &address, std::string &nodeId)
     nodeId = ubseNodeInfo.nodeId;
     if (ubEnable) {
         address.first = ubseNodeInfo.eid;
-        address.second = URMA_LISTEN_JETTY;
+        address.second = TCP_LISTEN_PORT;
     } else {
         adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(address.first);
         address.second = TCP_LISTEN_PORT;
@@ -374,13 +374,7 @@ UbseResult UbseComModule::InitUbseCom(const std::string &localNodeId, const std:
 {
     // 从lcne获取网络信息
     uint16_t port = 0;
-    bool ubEnable;
-    GetUBEnable(ubEnable);
-    if (ubEnable) {
-        port = URMA_LISTEN_JETTY;
-    } else {
-        port = TCP_LISTEN_PORT;
-    };
+    port = TCP_LISTEN_PORT;
     IpAddress address{localIp, port};
     // 初始化rpc server
     rpcServer_ = new (std::nothrow) UbseRpcServer(address.first, address.second, MASTER_RPC_SERVER_NAME, localNodeId);

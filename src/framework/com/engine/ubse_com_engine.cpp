@@ -339,19 +339,8 @@ bool GetEnableTlsValue()
 UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options,
                                     UBSHcomChannelPtr &channelPtr)
 {
-    if (engineInfo_.GetProtocol() == UbseProtocol::TCP) {
-        return hcomNetService_->Connect("tcp://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
-                                        options);
-    }
-    if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        if (GetEnableTlsValue()) {
-            return hcomNetService_->Connect("tcp://" + info.GetIp() + ":" + std::to_string(TCP_LISTEN_PORT), channelPtr,
-                                            options);
-        }
-        return hcomNetService_->Connect("ubc://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
-                                        options);
-    }
-    return UBSE_ERROR_INVAL;
+    return hcomNetService_->Connect("tcp://" + info.GetIp() + ":" + std::to_string(info.GetPort()), channelPtr,
+                                    options);
 }
 
 UbseResult GetRemoteNodeIdByCall(const std::string &remoteIP, const UBSHcomChannelPtr &channelPtr,
@@ -828,7 +817,7 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     }
     if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
         getIpRes = queryCb_(payLoadPair.first, ip);
-        port = URMA_LISTEN_JETTY;
+        port = TCP_LISTEN_PORT;
     }
     if (engineInfo_.GetNewChannelCb() != nullptr) {
         if (engineInfo_.GetNewChannelCb()(ip, payLoadPair.first) != UBSE_OK) {
@@ -928,12 +917,7 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext &context)
     std::string ip;
     UbseComChannelConnectInfo connectInfo;
     queryCb_(payLoadPair.first, ip);
-    if (engineInfo_.GetProtocol() == UbseProtocol::TCP) {
-        connectInfo.SetPort(TCP_LISTEN_PORT);
-    }
-    if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        connectInfo.SetPort(URMA_LISTEN_JETTY);
-    }
+    connectInfo.SetPort(TCP_LISTEN_PORT);
     connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
     connectInfo.SetRemoteNodeId(payLoadPair.first);
     connectInfo.SetIp(ip);
@@ -1108,21 +1092,9 @@ UbseResult UbseComEngine::OneSideDoneRequest(const UBSHcomServiceContext &contex
 }
 void UbseComEngine::AddListenOptions(UBSHcomServiceNewChannelHandler newChannelHandler)
 {
-    if (engineInfo_.GetProtocol() == UbseProtocol::TCP) {
-        hcomNetService_->Bind(
-            "tcp://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
-            newChannelHandler);
-    }
-    if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        if (GetEnableTlsValue()) {
-            hcomNetService_->Bind("tcp://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(TCP_LISTEN_PORT),
-                                  newChannelHandler);
-        } else {
-            hcomNetService_->Bind(
-                "ubc://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
-                newChannelHandler);
-        }
-    }
+    hcomNetService_->Bind(
+        "tcp://" + engineInfo_.GetIpInfo().first + ":" + std::to_string(engineInfo_.GetIpInfo().second),
+        newChannelHandler);
 }
 
 bool UbseComEngine::AddConnectingNode(const std::string &remoteNodeIp, UbseChannelType channelType)
