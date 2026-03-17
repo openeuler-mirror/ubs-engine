@@ -38,6 +38,7 @@ using namespace ubse::com;
 using namespace message;
 using namespace ubse::mem::strategy;
 using namespace adapter_plugins::mti::mami;
+using namespace adapter_plugins::mti;
 static uint32_t MAX_WAIT_TIME(ubse::mem::strategy::API_TIME_OUT); // 单位:second
 std::atomic<uint64_t> g_fdUnimportFailedCount{0};
 std::atomic<uint64_t> g_numaUnimportFailedCount{0};
@@ -266,9 +267,15 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDieP
             trustRingData.signedData = importDecoderParam.trustRingData.lendSignedDatas[i];
             trustRingData.type = importDecoderParam.type;
         }
-
-        auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().AddDecoderEntry(mamiImportInfo, importResult,
-                                                                                         trustRingData);
+        int retry = 3;
+        uint32_t res = UBSE_OK;
+        while (retry > 0) {
+            res = UbseMtiInterface::GetInstance().AddDecoderEntry(mamiImportInfo, importResult, trustRingData);
+            if (res == UBSE_OK) {
+                break;
+            }
+            retry --;
+        }
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed";
             return res;
