@@ -317,13 +317,17 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_1)
     attr.highWatermark = 90;
     attr.lowWatermark = 10;
     attr.waterMallocAttr = MemMallocAttr{
-        .srcNid = "node01",                   // 源节点ID
+        .srcNid = "1",                   // 源节点ID
         .srcSocket = 0,                       // 源节点Socket ID（-1表示无效）
         .srcNuma = 0,                         // 源节点NUMA ID（-1表示无效）
         .uid = getuid(),                      // 当前用户UID
         .username = "admin",                  // 用户名
         .dstNodeNum = 1,                      // 从多个节点借用（0=单节点，1=多节点）
         .lenderNumaSize = 2,                  // 最多从2个NUMA借出
+        .lenderLocs = {
+            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 0},
+            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 1}
+        },
         .lenderSizes = {                     // 对应位置的内存大小（字节）
             512 * 1024 * 1024,                // 512MB
             256 * 1024 * 1024                 // 256MB
@@ -331,7 +335,7 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_1)
     }; // 需填充具体属性
 
     UbseMemBorrower borrower;
-    borrower.nodeId = "node04";
+    borrower.nodeId = "4";
     borrower.affinitySocketId = 0;
     borrower.uid = getuid();
     borrower.username = "admin";
@@ -354,7 +358,7 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_1)
     uint8_t usrInfo[ubse::mem::controller::UBSE_MAX_USR_INFO_LEN] = {0};
 
     MpResult ret = mempooling::MemBorrowExecutor::Instance().PrepareMemNumaCreateParams(
-        "node01", attr, borrower, lenders, usrInfo);
+        "1", attr, borrower, lenders, usrInfo);
 
     EXPECT_EQ(ret, MEM_POOLING_OK); // state: running
 }
@@ -374,6 +378,10 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_2)
         .username = "admin",                  // 用户名
         .dstNodeNum = 1,                      // 从多个节点借用（0=单节点，1=多节点）
         .lenderNumaSize = 2,                  // 最多从2个NUMA借出
+        .lenderLocs = {
+            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 0},
+            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 1}
+        },
         .lenderSizes = {                     // 对应位置的内存大小（字节）
             512 * 1024 * 1024,                // 512MB
             256 * 1024 * 1024                 // 256MB

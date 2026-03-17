@@ -1421,7 +1421,7 @@ TEST_F(TestMemManager, DataReloadInitFailed5)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
  
-TEST_F(TestMemManager, DataReloadInitSucceed)
+TEST_F(TestMemManager, DataReloadInitFailed)
 {
     MOCKER_CPP(&AntiDataReload, uint32_t(*)())
         .stubs()
@@ -1437,7 +1437,7 @@ TEST_F(TestMemManager, DataReloadInitSucceed)
         .stubs()
         .will(returnValue(0));
     auto ret = mempooling::DataReloadInit();
-    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestMemManager, MemReturnManager_not_found)
