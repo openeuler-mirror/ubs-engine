@@ -855,6 +855,13 @@ MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t &ret)
     std::string fileHead = "/sys/kernel/debug/smap/mb_";
     std::string fileEnd = std::to_string(taskId);
     std::string result = fileHead + fileEnd;
+
+    auto res = ubse::security::ChangeOverrideCapability(true);
+    if (res != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Change override capability failed.";
+        return MEM_POOLING_ERROR;
+    }
+
     std::ifstream file(result);
 
     if (!file.is_open()) {
@@ -867,16 +874,19 @@ MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t &ret)
         if (std::stoul(line) >= MB_TASK_BUTT) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Get smap back result is invaild.";
             file.close();
+            (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_ERROR;
         } else {
             ret = std::stoul(line);
             file.close();
+            (void)ubse::security::ChangeOverrideCapability(false);
             return MEM_POOLING_OK;
         }
     } else {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpSmapHelper] Get file result fail, file name: " << result;
         file.close();
+        (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
     }
 }
