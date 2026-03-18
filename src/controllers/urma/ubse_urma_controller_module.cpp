@@ -117,7 +117,7 @@ UbseResult UbseUrmaControllerModule::Initialize()
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = taskExecutor->Create("UrmaExecutor", NO_8, NO_128);
+    auto ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
         return UBSE_ERROR_CONF_INVALID;
