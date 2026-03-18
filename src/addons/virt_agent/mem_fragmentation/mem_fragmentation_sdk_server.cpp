@@ -18,6 +18,8 @@
 #include <ubse_api_server.h>
 #include <ubse_logger.h>
 #include <ubse_node.h>
+#include <ubse_security.h>
+
 #include "hugepage_handler.h"
 #include "mem_task_manager.h"
 #include "mem_fragmentation_msg.h"
@@ -37,6 +39,7 @@ using std::string;
 using std::vector;
 using namespace ubse::log;
 using namespace ubse::nodeController;
+using namespace ubse::security;
 using namespace api::server;
 using namespace vm::mempooling;
 
@@ -567,6 +570,12 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult &borrow
         UBSE_LOG_ERROR << "Failed to get memInfo from mem, " << FormatRetCode(ret);
         return ret;
     }
+    ret = ChangeOverrideCapability(true);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to call ChangeOverrideCapability.";
+        (void)ChangeOverrideCapability(false);
+        return VM_ERROR;
+    }
     // Set source node remote hugepage memory
     for (const auto &[key, value] : numaBorrowedSizeMap) {
         // When value is 0, no need to set hugePage.
@@ -576,9 +585,11 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult &borrow
         ret = HugePageHandler::SetHugePages(key, value);
         if (ret != VM_OK) {
             UBSE_LOG_ERROR << "Failed to set hugepages" << ", remoteNumaId=" << key << FormatRetCode(ret);
+            (void)ChangeOverrideCapability(false);
             return ret;
         }
     }
+    (void)ChangeOverrideCapability(false);
     return ret;
 }
 
