@@ -95,6 +95,14 @@ Summary: rmrs plugin
 Requires: %{name} = %{version}-%{release}
 %description rmrs
 Development package for rmrs plugin
+%post rmrs
+if id "ubse" > /dev/null 2>&1; then
+    usermod -aG ubturbo ubse
+    usermod -aG libvirt ubse
+    echo "Success: ubse user added to ubturbo and libvirt groups"
+else
+    echo "Warning: ubse user does not exist, skip group addition" >&2
+fi
 
 %define project_dir %{name}
 %define cmake_build_dir cmake-build-relwithdebinfo

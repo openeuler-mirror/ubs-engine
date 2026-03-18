@@ -2458,11 +2458,6 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer &buffer)
         return MEM_POOLING_ERROR;
     }
 
-    if (buffer.len == 0 || buffer.data == nullptr) {
-        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
-        return MEM_POOLING_ERROR;
-    }
-
     ret = mempooling::SmapEnableCompleted::Instance().PutRawData(buffer);
     ResetAndDeleteBuffer(buffer);
     if (ret != MEM_POOLING_OK) {
@@ -2516,11 +2511,6 @@ uint32_t RemovePidCompletedInit(UbseByteBuffer &buffer)
         return MEM_POOLING_ERROR;
     }
 
-    if (buffer.len == 0 || buffer.data == nullptr) {
-        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
-        return MEM_POOLING_ERROR;
-    }
-
     ret = mempooling::RemovePidCompleted::Instance().PutRawData(buffer);
     ResetAndDeleteBuffer(buffer);
     if (ret != MEM_POOLING_OK) {
@@ -2560,11 +2550,6 @@ uint32_t Name2VmInfoInit(UbseByteBuffer &buffer)
         return MEM_POOLING_ERROR;
     }
 
-    if (buffer.len == 0 || buffer.data == nullptr) {
-        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
-        return MEM_POOLING_ERROR;
-    }
-
     ret = mempooling::Name2VmInfo::Instance().PutRawData(buffer);
     ResetAndDeleteBuffer(buffer);
     if (ret != MEM_POOLING_OK) {
@@ -2581,11 +2566,6 @@ uint32_t BorrowIdRedirectionInit(UbseByteBuffer &buffer)
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[PluginInit] Failed to query database.";
         ResetAndDeleteBuffer(buffer);
-        return MEM_POOLING_ERROR;
-    }
-
-    if (buffer.len == 0 || buffer.data == nullptr) {
-        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
         return MEM_POOLING_ERROR;
     }
 
@@ -2631,11 +2611,6 @@ uint32_t DataReloadInit()
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit] Failed to query database.";
         ResetAndDeleteBuffer(buffer);
-        return MEM_POOLING_ERROR;
-    }
-
-    if (buffer.len == 0 || buffer.data == nullptr) {
-        LOG_ERROR << "[PluginInit][SmapEnableCompleted] The data of buffer is nullptr.";
         return MEM_POOLING_ERROR;
     }
 
