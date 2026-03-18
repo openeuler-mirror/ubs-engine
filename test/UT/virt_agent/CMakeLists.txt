@@ -10,7 +10,7 @@ target_compile_options(${CMAKE_PROJECT_NAME}_vm_ut PRIVATE
 )
 target_link_libraries(${CMAKE_PROJECT_NAME}_vm_ut PRIVATE
         ubse_log ubse_com ubse_event ubse_config ubse_storage ubse_message ubse_plugin
-        ubse_ipc_client ubs_virt_agent_sdk
+        ubse_ipc_client ubs_virt_agent_sdk ubse_node_controller syssentry
 )
 
 set(GTEST_BRIEF "--gtest_brief=0")
