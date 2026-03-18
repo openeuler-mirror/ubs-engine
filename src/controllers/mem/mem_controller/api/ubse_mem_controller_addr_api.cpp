@@ -773,6 +773,7 @@ uint32_t AddrImportExpectDestroyedMasterCallBack(UbseMemOperationResp &resp, con
     auto req = importObj.returnReq;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseAddrImport(importObj);
+        UbseMemAddrImportObjStateChangeHandler(importObj);
         auto waitResult = WaitNodeStateWork(exportNodeId);
         if (waitResult != UBSE_OK) {
             return BuildOperationRespWhenFail(resp, name, req.requestNodeId, "exportNode is not working.", UBSE_ERR_UNIMPORT_SUCCESS,
@@ -787,7 +788,6 @@ uint32_t AddrImportExpectDestroyedMasterCallBack(UbseMemOperationResp &resp, con
             exportObj.returnReq = req;
             nodeMemDebtInfoMap[exportNodeId].addrExportObjMap[exportKey] = exportObj;
             mapLock.UnLock();
-            UbseMemAddrImportObjStateChangeHandler(importObj);
             if (auto ret = SendAddrExportObj(exportNodeId, exportObj, true); ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to send addr export. name is " << name;
                 return DealSendAddrUnExportObjFailed(resp, name, exportObj);
@@ -796,7 +796,6 @@ uint32_t AddrImportExpectDestroyedMasterCallBack(UbseMemOperationResp &resp, con
         } else {
             mapLock.UnLock();
             UBSE_LOG_INFO << "Success to delete single export.";
-            UbseMemAddrImportObjStateChangeHandler(importObj);
             resp.requestNodeId = req.requestNodeId;
             return BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::ADDR_BORROW);
         }

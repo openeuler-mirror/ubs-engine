@@ -905,6 +905,7 @@ uint32_t FdImportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
     UBSE_LOG_INFO << "Fd import expect destroy callback, name is " << name << ";requestId: " << req.requestId;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseFdImport(importObj);
+        UbseMemFdImportObjStateChangeHandler(importObj);
         auto exportKey = GenerateExportObjKey(name, importNodeId);
         auto waitResult = WaitNodeStateWork(exportNodeId);
         if (waitResult != UBSE_OK) {
@@ -921,7 +922,6 @@ uint32_t FdImportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
             exportObj.returnReq = req;
             nodeMemDebtInfoMap[exportNodeId].fdExportObjMap[exportKey] = exportObj;
             mapLock.UnLock();
-            UbseMemFdImportObjStateChangeHandler(importObj);
             if (auto ret = SendFdExportObj(exportNodeId, exportObj, true); ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to send export, name is " << name
                                << ";requestId: " << importObj.req.requestId;
@@ -933,7 +933,6 @@ uint32_t FdImportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
             // 删除单导入
             UBSE_LOG_INFO << "Success to delete single import."
                           << ";requestId: " << importObj.req.requestId;
-            UbseMemFdImportObjStateChangeHandler(importObj);
             resp.name = name;
             resp.requestNodeId = req.requestNodeId;
             return BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::FD_RETURN);
