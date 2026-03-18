@@ -166,7 +166,6 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
         for (const auto &[portId, portInfo] : cpuInfo.portInfos) {
             if (portInfo.remoteSlotId != "-") {
                 topoLinkedNodes.insert(portInfo.remoteSlotId);
-                UBSE_LOG_INFO << "[ELECTION] Added linked node: " << portInfo.remoteSlotId;
             }
         }
     }
