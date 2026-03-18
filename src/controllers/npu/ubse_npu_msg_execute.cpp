@@ -246,7 +246,7 @@ uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &req
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
     }
-    requestInfo.busInstanceGuid = std::string(reinterpret_cast<const char *>(tmpGuid), UBSE_UB_DEVICE_GUID_SIZE);
+    requestInfo.busInstanceGuid.assign(tmpGuid, tmpGuid + UBSE_UB_DEVICE_GUID_SIZE);
     auto validGuidLen = strlen(requestInfo.busInstanceGuid.c_str());
     if (validGuidLen < requestInfo.busInstanceGuid.size()) {
         requestInfo.busInstanceGuid.resize(validGuidLen);
