@@ -962,6 +962,7 @@ uint32_t NumaImportExpectDestroyedMasterCallBack(UbseMemOperationResp &resp, con
     auto req = importObj.returnReq;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseNumaImport(importObj);
+        UbseMemNumaImportObjStateChangeHandler(importObj);
         auto waitResult = WaitNodeStateWork(exportNodeId);
         if (waitResult != UBSE_OK) {
             return BuildOperationRespWhenFail(resp, name, req.requestNodeId, "exportNode is not working.", UBSE_ERR_UNIMPORT_SUCCESS,
@@ -977,7 +978,6 @@ uint32_t NumaImportExpectDestroyedMasterCallBack(UbseMemOperationResp &resp, con
             exportObj.returnReq = req;
             nodeMemDebtInfoMap[exportNodeId].numaExportObjMap[exportKey] = exportObj;
             mapLock.UnLock();
-            UbseMemNumaImportObjStateChangeHandler(importObj);
             if (SendNumaExportObj(exportNodeId, exportObj, true) != UBSE_OK) {
                 return DealSendNumaUnExportObjFailed(resp, name, exportObj);
             }
@@ -986,7 +986,6 @@ uint32_t NumaImportExpectDestroyedMasterCallBack(UbseMemOperationResp &resp, con
             mapLock.UnLock();
             UBSE_LOG_INFO << "Success to delete single import."
                           << ";requestId: " << importObj.req.requestId;
-            UbseMemNumaImportObjStateChangeHandler(importObj);
             resp.name = name;
             resp.requestNodeId = req.requestNodeId;
             return BuildOperationRespWhenSuccess(resp, UBSE_OK,
