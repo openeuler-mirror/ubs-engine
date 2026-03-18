@@ -97,7 +97,7 @@ UbseResult UbseElectionModule::Start()
     if (taskExecutorModule == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    ret = taskExecutorModule->Create(ELECTION_TASK_EXECUTOR_NAME, 4, 7);
+    ret = taskExecutorModule->Create(ELECTION_TASK_EXECUTOR_NAME, NO_4, NO_7);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Create election task executor failed";
         return ret;
