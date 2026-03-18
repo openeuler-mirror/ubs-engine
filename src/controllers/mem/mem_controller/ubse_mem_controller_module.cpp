@@ -140,7 +140,7 @@ UbseResult UbseMemControllerModule::Initialize()
             return CycleCheckDecoderHandle();
         },
         CYCLE_CHECK_TIME_MS);
-    return PreOnlineInit();
+    return UBSE_OK;
 }
 
 void UbseMemControllerModule::UnInitialize()

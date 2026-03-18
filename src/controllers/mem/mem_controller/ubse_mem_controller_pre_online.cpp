@@ -59,15 +59,6 @@ static std::shared_mutex preOnLineOpreateMutex{};
 static std::map<std::string, PreOnLineTask> preOnLineTask{};
 static std::shared_mutex preOnLineTaskMutexMap{};
 
-UbseResult PreOnlineInit()
-{
-    auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-    if (taskExecutor == nullptr) {
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    return taskExecutor->Create(PRE_ONLINE_TASK_NAME, NO_10, NO_16);
-}
-
 bool IsClusterPreOnLineReady()
 {
     preOnLineMutexMap.lock_shared();
@@ -394,12 +385,7 @@ UbseTaskExecutorPtr GenerateTask(const std::string &taskName)
         UBSE_LOG_ERROR << "task executor not load";
         return nullptr;
     }
-    UbseResult ret = taskExecutor->Create(taskName, NO_10, NO_10); // 16P环境基线场景可能需要上线7个节点。
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "create task=" << taskName << " failed.";
-        return nullptr;
-    }
-    return taskExecutor->Get(taskName);
+    return taskExecutor->Get("ubseMemController");
 }
 
 void RemoveTask(const std::string &taskName)
@@ -506,7 +492,7 @@ UbseTaskExecutorPtr GetPreOnlineTask()
         UBSE_LOG_WARN << "task module not load when pre online";
         return nullptr;
     }
-    return taskModule->Get(PRE_ONLINE_TASK_NAME);
+    return taskModule->Get("ubseMemController");
 }
 
 void OperatePreOnLine(PreOnLineReq req)

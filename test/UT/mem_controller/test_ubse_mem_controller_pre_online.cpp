@@ -39,12 +39,6 @@ void TestUbseMemControllerPreOnline::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseMemControllerPreOnline, PreOnlineInit)
-{
-    GTEST_SKIP();
-    EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, PreOnlineInit());
-}
-
 TEST_F(TestUbseMemControllerPreOnline, IsClusterPreOnLineReady)
 {
     EXPECT_EQ(false, IsClusterPreOnLineReady());
