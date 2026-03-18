@@ -492,7 +492,7 @@ UbseTaskExecutorPtr GetPreOnlineTask()
         UBSE_LOG_WARN << "task module not load when pre online";
         return nullptr;
     }
-    return taskModule->Get(ubseMemController);
+    return taskModule->Get("ubseMemController");
 }
 
 void OperatePreOnLine(PreOnLineReq req)
