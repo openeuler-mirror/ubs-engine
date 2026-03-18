@@ -39,8 +39,7 @@ const uint32_t MIN_SEND_RECEIVE_SEG_COUNT = 4;
 
 enum class executorType {
     HEARTBEAT = 0,
-    COM = 1,
-    COLLECTION = 2
+    COM = 1
 };
 
 enum class UbseEngineType {

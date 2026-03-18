@@ -386,13 +386,6 @@ TEST_F(TestUbseComModule, TestUbseComHandlerExecutor)
     isExec = false;
 
     // 步骤4
-    type = executorType::COLLECTION;
-    UbseComHandlerExecutor(task, type);
-    usleep(100000);
-    EXPECT_EQ(true, isExec);
-    isExec = false;
-
-    // 步骤5
     type = executorType::COM;
     UbseComHandlerExecutor(task, type);
     usleep(100000);

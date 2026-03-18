@@ -53,19 +53,14 @@ UbseResult CreateRpcExecutor()
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_CONF_INVALID;
     }
-    auto ret = taskExecutor->Create("HeartBeatExecutor", NO_8, NO_1000);
+    auto ret = taskExecutor->Create("HeartBeatExecutor", NO_2, NO_1000);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
         return UBSE_ERROR_CONF_INVALID;
     }
-    ret = taskExecutor->Create("ComExecutor", NO_16, NO_1000);
+    ret = taskExecutor->Create("ComExecutor", NO_4, NO_1000);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create com Executor";
-        return UBSE_ERROR_CONF_INVALID;
-    }
-    ret = taskExecutor->Create("CollectionExecutor", NO_16, NO_1000);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Fail to create collection Executor";
         return UBSE_ERROR_CONF_INVALID;
     }
     return UBSE_OK;
@@ -81,8 +76,6 @@ static void UbseComHandlerExecutor(const std::function<void()> &task, const exec
     UbseTaskExecutorPtr executor;
     if (type == executorType::HEARTBEAT) {
         executor = taskExecutor->Get("HeartBeatExecutor");
-    } else if (type == executorType::COLLECTION) {
-        executor = taskExecutor->Get("CollectionExecutor");
     } else {
         executor = taskExecutor->Get("ComExecutor");
     }
