@@ -54,3 +54,4 @@ uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp);
 uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg &resp);
 } // namespace ubse::npu::controller
 #endif // UBSE_NPU_MSG_EXECUTE_H
+
