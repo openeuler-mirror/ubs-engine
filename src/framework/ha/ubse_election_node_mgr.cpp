@@ -101,7 +101,7 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
     }
 }
 
-void AddEdgeInfo(
+void BuildEdgeInfo(
     std::pair<const adapter_plugins::mti::UbseDevPortName, adapter_plugins::mti::UbseMtiCpuTopoPortInfo>& port,
     UbsePortInfo& portInfo)
 {
@@ -149,7 +149,7 @@ UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
         info.guid = cpuTopoInfo.guid;  // LCNE获取时能保证key存在
         for (auto& port : cpuTopoInfo.portInfos) {
             nodeController::UbsePortInfo portInfo{};
-            AddEdgeInfo(port, portInfo);
+            BuildEdgeInfo(port, portInfo);
             info.portInfos[portInfo.portId] = portInfo;
         }
         ubseNodeInfo.cpuInfos[location] = info;
