@@ -381,11 +381,6 @@ uint32_t Init()
         UBSE_LOG_ERROR << "Failed to get executor module.";
         return UBSE_ERROR_NULLPTR;
     }
-    ret = executorModule->Create("MemBorrowWaitTimeOutExecutor", THREAD_NUM, Queue_Capacity);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to create executor:MemBorrowWaitTimeOutExecutor," << FormatRetCode(ret);
-        return UBSE_ERROR;
-    }
     RegSpecifyLinkInfoCreateHandler();
     return UbseMemOperationRespHandler::RegUbseMemOperationRespHandlerToServer();
 }
@@ -427,7 +422,10 @@ static UbseResult SendRpcRequestForFdBorrow(const UbseMemFdBorrowReq &req)
 void DealBorrowWaitTimeOut(const std::string &name, const std::string &requestNodeId, const std::string &importNodeId,
                            const MemOperationType &type)
 {
-    auto memBorrowWaitTimeOutExecutor = GetExecutor("MemBorrowWaitTimeOutExecutor");
+    auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
+    if (memBorrowWaitTimeOutExecutor == nullptr) {
+        return;
+    }
     UbseMemReturnReq returnReq;
     returnReq.name = name;
     returnReq.requestNodeId = requestNodeId;
@@ -815,7 +813,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        auto memBorrowWaitTimeOutExecutor = GetExecutor("MemBorrowWaitTimeOutExecutor");
+        auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
         memBorrowWaitTimeOutExecutor->Execute([req, resp] { SendRpcRequestForShareDetach(req); });
         return UBSE_ERROR;
     }
@@ -901,7 +899,7 @@ uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        auto memBorrowWaitTimeOutExecutor = GetExecutor("MemBorrowWaitTimeOutExecutor");
+        auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
         if (memBorrowWaitTimeOutExecutor == nullptr) {
             UBSE_LOG_ERROR << "Get memBorrowWaitTimeOutExecutor is nullptr";
             return UBSE_ERROR_NULLPTR;

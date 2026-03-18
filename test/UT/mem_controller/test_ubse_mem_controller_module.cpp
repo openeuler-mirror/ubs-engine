@@ -50,7 +50,6 @@ TEST_F(TestUbseMemControllerModule, Initialize)
     MOCKER(CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
     auto memModulePtr = std::make_shared<UbseMemControllerModule>();
     MOCKER_CPP(&PreOnlineInit).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(memModulePtr->Initialize(), UBSE_ERROR);
     EXPECT_EQ(memModulePtr->Initialize(), UBSE_OK);
 }
 

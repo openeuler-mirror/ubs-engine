@@ -86,12 +86,12 @@ void RegisterNodeCtlNotify()
 
 uint32_t CreateTaskExecutor()
 {
-    auto excutorModule = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-    if (excutorModule == nullptr) {
+    auto executorModule = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (executorModule == nullptr) {
         UBSE_LOG_ERROR << "Failed to get executor module.";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = excutorModule->Create("ubseMemController", 64, 1000);
+    auto ret = executorModule->Create("ubseMemController", 18, 1000);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to create executor.";
         return UBSE_ERROR;
