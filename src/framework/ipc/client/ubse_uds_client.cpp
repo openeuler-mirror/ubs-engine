@@ -120,13 +120,27 @@ uint32_t UbseUDSClient::HandleInProgressConnection()
     pollfd pfd{};
     pfd.fd = sockFd_;
     pfd.events = POLLOUT; // 监听可写事件（连接完成）
-
-    // 调用 poll
-    int result = poll(&pfd, 1, DEFAULT_CONNECT_TIMEOUT);
-    if (result <= 0) {
-        IPC_LOG_ERROR << "Connection timed out or failed: " << (result == 0 ? "Timeout" : strerror(errno));
-        Disconnect();
-        return UBSE_ERR_IPC_CONNECTION_FAILED;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(DEFAULT_CONNECT_TIMEOUT);
+    int timeoutMs = DEFAULT_CONNECT_TIMEOUT;
+    while (true) {
+        // 调用 poll
+        int result = poll(&pfd, 1, timeoutMs);
+        if (result < 0 && errno == EINTR) {
+            auto remaining = deadline - std::chrono::steady_clock::now();
+            if (remaining.count() <= 0) {
+                IPC_LOG_ERROR << "Connection timed out";
+                Disconnect();
+                return UBSE_ERR_IPC_CONNECTION_FAILED;
+            }
+            timeoutMs = remaining.count();
+            continue;
+        }
+        if (result <= 0) {
+            IPC_LOG_ERROR << "Connection timed out or failed: " << (result == 0 ? "Timeout" : strerror(errno));
+            Disconnect();
+            return UBSE_ERR_IPC_CONNECTION_FAILED;
+        }
+        break;
     }
 
     // Check if the connection is successful
@@ -206,24 +220,32 @@ uint32_t UbseUDSClient::Send(const UbseRequestMessage &request, UbseResponseMess
 
 uint32_t UbseUDSClient::WaitForDataReadable(uint32_t timeoutMs)
 {
-    SetNonBlocking(true);
     struct pollfd fds[1];   // 因为只监控一个socket，所以数组大小为1
     fds[0].fd = sockFd_;    // 设置要监控的socket
     fds[0].events = POLLIN; // 监控数据可读事件
     fds[0].revents = 0;     // 初始化返回的事件
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
 
-    // 调用poll，超时时间设为 remainingTime (毫秒)
-    int ready = poll(fds, 1, static_cast<int>(timeoutMs));
-    SetNonBlocking(false);
-
-    if (ready == 0) {
-        // 超时
-        IPC_LOG_WARN << "Timeout occurred while waiting for response";
-        return UBSE_ERR_TIMED_OUT;
-    } else if (ready < 0) {
-        // 出错
-        IPC_LOG_ERROR << "Error occurred in poll: " << strerror(errno);
-        return UBSE_IPC_ERROR_RECV_FAILED;
+    while (true) {
+        int ready = poll(fds, 1, static_cast<int>(timeoutMs));
+        if (ready < 0 && errno == EINTR) {
+            auto remaining = deadline - std::chrono::steady_clock::now();
+            if (remaining.count() <= 0) {
+                ready = 0; // 超时处理
+            } else {
+                timeoutMs = remaining.count();
+                IPC_LOG_INFO << "poll interrupted, remaining time: " << timeoutMs << "ms";
+                continue;
+            }
+        }
+        if (ready == 0) {
+            IPC_LOG_WARN << "Timeout occurred while waiting for response";
+            return UBSE_ERR_TIMED_OUT;
+        } else if (ready < 0) {
+            IPC_LOG_ERROR << "Error occurred in poll: " << strerror(errno);
+            return UBSE_IPC_ERROR_RECV_FAILED;
+        }
+        break;
     }
 
     // 检查是否是POLLIN事件
