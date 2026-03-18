@@ -278,7 +278,7 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
     }
 
     sslServer->new_task_queue = []() -> httplib::ThreadPool* {
-        return new httplib::ThreadPool(NO_4, NO_4);
+        return new httplib::ThreadPool(NO_1, NO_8);
     };
     return sslServer;
 }
@@ -332,6 +332,9 @@ void UbseHttpServer::UdsRun()
 {
     try {
         server_ = std::make_unique<Server>();
+        server_->new_task_queue = []() -> httplib::ThreadPool* {
+            return new httplib::ThreadPool(NO_1, NO_8);
+        };
         if (!server_) {
             throw std::runtime_error("Failed to create SSL server.");
         }
