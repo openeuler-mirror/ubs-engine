@@ -89,8 +89,8 @@ private:
     std::map<UBSE_ID_TYPE, BroadcastStatus> broadcast_;
     std::vector<UBSE_ID_TYPE> preNodes_{};
     std::mutex mtx_;  // 互斥锁
-    std::atomic<bool> stopping_;     // Master 是否正在销毁
-    std::atomic<int> activeCount_;   // 当前活跃回调数量
+    std::atomic<bool> stopping_{};     // Master 是否正在销毁
+    std::atomic<int> activeCount_{};   // 当前活跃回调数量
 };
 #undef MODULE_LOG_NAME
 }

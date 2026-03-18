@@ -165,6 +165,7 @@ void Master::ReplaceStandbyNode(ElectionPkt &pkt)
         UBSE_ID_TYPE smallestId = FindSmallestIdExcludingMasterAndAgent(GetActiveNodes(), masterId_, standbyId_);
         standbyId_ = smallestId;
         pkt.standbyId = standbyId_;
+        UBSE_LOG_INFO << "[ELECTION] Master Appoint the new standby nodeId = " << standbyId_;
         if (standbyId_ != INVALID_NODE_ID) {
             SwitchStandbyNode(standbyId_);
         }

@@ -101,23 +101,100 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
     }
 }
 
+void BuildEdgeInfo(
+    std::pair<const adapter_plugins::mti::UbseDevPortName, adapter_plugins::mti::UbseMtiCpuTopoPortInfo>& port,
+    UbsePortInfo& portInfo)
+{
+    portInfo.portId = port.second.portId;
+    portInfo.ifName = port.second.ifName;
+    portInfo.portRole = port.second.portRole;
+    portInfo.portStatus = static_cast<PortStatus>(port.second.portStatus);
+    portInfo.portCna = port.second.portCna;
+    portInfo.urmaEid = port.second.urmaEid;
+    portInfo.remoteSlotId = port.second.remoteSlotId;
+    portInfo.remoteChipId = port.second.remoteChipId;
+    portInfo.remoteCardId = port.second.remoteCardId;
+    portInfo.remoteIfName = port.second.remoteIfName;
+    portInfo.remotePortId = port.second.remotePortId;
+}
+
+UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
+{
+    adapter_plugins::mti::UbseDevTopology devTopology{};
+    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfosGroupByDevName{};
+    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterCpuTopo(cpuTopoInfosGroupByDevName);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] get cpuTopoInfo not successful, ret: " << FormatRetCode(ret);
+        return ret;
+    }
+    for (auto& [devName, cpuTopoInfo] : cpuTopoInfosGroupByDevName) {
+        std::string devNodeId, socketId;
+        devName.SplitDevName(devNodeId, socketId);
+        if (devNodeId != nodeId) {
+            continue;
+        }
+        UbseCpuInfo info{};
+        info.slotId = cpuTopoInfo.slotId;
+        info.socketId = cpuTopoInfo.socketId;
+        UbseCpuLocation location{nodeId, info.socketId};
+        auto cpyRet = strcpy_s(info.primaryEid, sizeof(info.primaryEid), cpuTopoInfo.primaryEid.c_str());
+        if (cpyRet != EOK) {
+            UBSE_LOG_ERROR << "copy primaryEid failed, ErrorCode=" << cpyRet;
+            return cpyRet;
+        }
+        info.chipId = cpuTopoInfo.chipId;
+        info.cardId = cpuTopoInfo.cardId;
+        info.busNodeCna = cpuTopoInfo.busNodeCna;
+        info.eid = cpuTopoInfo.eid;  // LCNE获取时能保证key存在
+        info.guid = cpuTopoInfo.guid;  // LCNE获取时能保证key存在
+        for (auto& port : cpuTopoInfo.portInfos) {
+            nodeController::UbsePortInfo portInfo{};
+            BuildEdgeInfo(port, portInfo);
+            info.portInfos[portInfo.portId] = portInfo;
+        }
+        ubseNodeInfo.cpuInfos[location] = info;
+    }
+    return UBSE_OK;
+}
+
+std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
+{
+    UbseNodeInfo curNodeInfo{};
+    std::unordered_set<UBSE_ID_TYPE> topoLinkedNodes{};
+    CollectCpuInfo(curNodeInfo, currentNode_.id);
+    for (const auto &[cpuLocation, cpuInfo] : curNodeInfo.cpuInfos) {
+        for (const auto &[portId, portInfo] : cpuInfo.portInfos) {
+            if (portInfo.remoteSlotId != "-") {
+                topoLinkedNodes.insert(portInfo.remoteSlotId);
+            }
+        }
+    }
+    return topoLinkedNodes;
+}
+
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     bool ubEnable = true;
     GetUBEnable(ubEnable);
     const uint16_t port = TCP_LISTEN_PORT;
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    currentAllNodes_.clear();
     if (ubEnable) {
         std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
         if (ubseNodeInfos.empty()) {
             UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
             return;
         }
+        auto topoLinkedNodes = GetTopoLinkedNodes();
         for (const auto &node : ubseNodeInfos) {
             Node tempNode;
+            tempNode.id = node.nodeId;
             tempNode.ip = std::string(node.bondingEid);
             tempNode.port = port;
-            currentAllNodes_.push_back(tempNode);
-            nodeIpMap_.emplace(tempNode.ip, "");
+            if (topoLinkedNodes.find(node.nodeId) != topoLinkedNodes.end() || currentNode_.id == node.nodeId) {
+                currentAllNodes_.push_back(tempNode);
+                nodeIpMap_.emplace(tempNode.ip, node.nodeId);
+            }
         }
     } else {
         std::vector<std::string> ipList{};
@@ -126,8 +203,12 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
             Node tempNode;
             tempNode.ip = ip;
             tempNode.port = port;
+            if (currentNode_.ip == ip) {
+                tempNode.id = currentNode_.id;
+                UBSE_LOG_INFO << "[ELECTION] current id =" << currentNode_.id << " current ip =" << currentNode_.ip;
+            }
             currentAllNodes_.push_back(tempNode);
-            nodeIpMap_.emplace(tempNode.ip, "");
+            nodeIpMap_.emplace(tempNode.ip, tempNode.id);
         }
     }
 }
@@ -152,16 +233,9 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
         UBSE_LOG_ERROR << "[ELECTION] LoadConfig nodeId empty.";
         return UBSE_ERROR;
     }
-
-    lastAllNodes_.clear();
-    lastAllNodes_ = std::move(currentAllNodes_);
-    currentAllNodes_.clear();
-
     ParseAllNodesVector();
-    UpdateCurrentNode();
-
     // 校验
-    if (currentNode_.id == "" || currentNode_.ip == "" || currentAllNodes_.empty()) {
+    if (currentNode_.id.empty() || currentNode_.ip.empty() || currentAllNodes_.empty()) {
         UBSE_LOG_WARN << "[ELECTION] LoadConfig: invalid local config, please check.";
         return UBSE_ERROR;
     }
@@ -171,7 +245,8 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
 
 UbseResult UbseElectionNodeMgr::GetMyselfNode(Node &myself)
 {
-    if (currentNode_.id == "" || currentNode_.ip == "" || currentNode_.port == 0) {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+    if (currentNode_.id.empty() || currentNode_.ip.empty() || currentNode_.port == 0) {
         // 节点无效返回 error
         UBSE_LOG_WARN << "[ELECTION] GetMyselfNode: invalid local node.";
         return UBSE_ERROR;
@@ -182,6 +257,7 @@ UbseResult UbseElectionNodeMgr::GetMyselfNode(Node &myself)
 
 UbseResult UbseElectionNodeMgr::GetAllNode(std::vector<Node> &allNodes)
 {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
     // 判断当前所有节点是否为空
     if (currentAllNodes_.empty()) {
         UBSE_LOG_WARN << "[ELECTION] GetAllNode: no node found.";
@@ -219,6 +295,7 @@ UbseResult UbseElectionNodeMgr::GetNodeInfoByID(const UBSE_ID_TYPE &id, std::str
         UBSE_LOG_DEBUG << "[ELECTION] GetNodeInfoByID: id is empty.";
         return UBSE_ERROR;
     }
+    std::shared_lock<std::shared_mutex> lock(mtx_);
     if (currentAllNodes_.empty()) {
         UBSE_LOG_WARN << "[ELECTION] GetNodeInfoByID: currentAllNodes_ is empty.";
         return UBSE_ERROR;
@@ -240,6 +317,7 @@ UbseResult UbseElectionNodeMgr::GetPortByIp(const std::string &ip, uint16_t &por
         UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: id is empty.";
         return UBSE_ERROR;
     }
+    std::shared_lock<std::shared_mutex> lock(mtx_);
     if (currentAllNodes_.empty()) {
         UBSE_LOG_WARN << "[ELECTION] GetPortByIp: currentAllNodes_ is empty.";
         return UBSE_ERROR;
@@ -264,6 +342,7 @@ UbseResult UbseElectionNodeMgr::UpdateNodeIdWithConnect(const std::string &ip, c
         UBSE_LOG_ERROR << "[ELECTION] id is empty.";
         return UBSE_ERROR;
     }
+    std::unique_lock<std::shared_mutex> lock(mtx_);
     if (currentAllNodes_.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] currentAllNodes_ is empty.";
         return UBSE_ERROR;
@@ -288,6 +367,7 @@ UbseResult UbseElectionNodeMgr::GetNodeIdByIp(const std::string &ip, std::string
         UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
         return UBSE_ERROR;
     }
+    std::shared_lock<std::shared_mutex> lock(mtx_);
     if (nodeIpMap_.find(ip) != nodeIpMap_.end()) {
         id = nodeIpMap_[ip];
         return UBSE_OK;
@@ -302,6 +382,7 @@ UbseResult UbseElectionNodeMgr::GetNodeIpById(const std::string &id, std::string
         UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
         return UBSE_ERROR;
     }
+    std::shared_lock<std::shared_mutex> lock(mtx_);
     for (auto info : nodeIpMap_) {
         if (std::get<1>(info) == id) {
             ip = std::get<0>(info);
@@ -314,6 +395,7 @@ UbseResult UbseElectionNodeMgr::GetNodeIpById(const std::string &id, std::string
 
 UbseResult UbseElectionNodeMgr::GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE> &nodeIpMap)
 {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
     // 判断当前所有节点是否为空
     if (nodeIpMap_.empty()) {
         UBSE_LOG_WARN << "[ELECTION] nodeIpMap_ is empty.";
@@ -321,27 +403,6 @@ UbseResult UbseElectionNodeMgr::GetNodeIpMap(std::unordered_map<std::string, UBS
     }
     nodeIpMap = nodeIpMap_;
     return UBSE_OK;
-}
-
-void UbseElectionNodeMgr::UpdateCurrentNode()
-{
-    Node currentNode;
-    if (GetMyselfNode(currentNode) != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] failed to get current node";
-        return;
-    }
-    if (currentAllNodes_.empty()) {
-        UBSE_LOG_ERROR << "[ELECTION] currentAllNodes_ is empty.";
-        return;
-    }
-    auto it = std::find_if(currentAllNodes_.begin(), currentAllNodes_.end(),
-                           [&currentNode](const Node &node) { return node.ip == currentNode.ip; });
-    if (it != currentAllNodes_.end()) {
-        it->id = currentNode.id;
-        UBSE_LOG_INFO << "[ELECTION] current id =" << currentNode.id << " current ip =" << currentNode.ip;
-        nodeIpMap_[currentNode.ip] = currentNode.id;
-    }
-    return;
 }
 
 uint32_t UbseElectionNodeMgr::GetHeartBeatTime() const
