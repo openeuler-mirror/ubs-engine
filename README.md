@@ -107,9 +107,6 @@ git clone https://gitcode.com/openeuler/ubs-engine.git
 **推荐**：在 openEuler Linux (ARM64) 下执行项目构建
 
 ```shell
-# 下载项目依赖的三方包（目前只支持 ARM64 版本的三方包）
-bash build.sh 3rdparty
-
 # 执行 Release 构建（没有调试信息，-O2 优化）
 bash build.sh
 
@@ -134,23 +131,8 @@ bash build.sh package
 
 #### 4.开发项目 
 
-#### 4.1 开发常见问题 
-
-1. 未下载安装第三方库，导致构建失败
-
-```shell
-# 构建前确认 deps 目录是否存在，以及对应的三方库是否存在
-bash build.sh 3rdparty
-```
-
-2. 第三方库未更新，导致构建失败
-
-```shell
-# 清空 deps 目录，重新下载最新的第三方库
-bash build.sh 3rdparty -c
-```
-
-3. 搞不懂构建类型，找不准构建产物
+#### 4.1 开发常见问题
+1. 搞不懂构建类型，找不准构建产物
 
 <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">参考上节的《构建项目》，清楚不同构建类型的差别：</p>
 
@@ -165,7 +147,7 @@ bash build.sh 3rdparty -c
 <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">RelWithDebInfo 主要用于 Release 与 Debug 包存在差异导致无法调试时使用该构建调试优化后的代码。
 MinSizeRel 主要用于特殊场景，如要求生产包足够小的时候考虑的构建类型。</p>
 
-4. 测试代码都爆红，找不到头文件
+2. 测试代码都爆红，找不到头文件
 
 <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">项目默认构建不会包含测试代码，方便项目构建出包，推荐开发时自己打开构建选项 BUILD_TESTS。</p>
 
@@ -213,8 +195,6 @@ bash build.sh ubse_http_ut -C
 # 后台启动 HTTP 服务器，将打印覆盖率报告的 URL
 bash build.sh ut -C -H
 ```
-
-![image-20251013114548044](docs/images/image-20251013114548044.png)
 
 ### 
 
