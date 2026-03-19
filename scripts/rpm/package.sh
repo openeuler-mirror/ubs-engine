@@ -11,14 +11,11 @@ mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 cd "$(dirname "$PROJECT_DIR")"
 tar -czf $PACKAGE_NAME.tar.gz \
     --exclude="$PROJECT_BASENAME/cmake-build-*" \
-    --exclude="$PROJECT_BASENAME/.deps" \
     "$PROJECT_BASENAME"
 mv $PACKAGE_NAME.tar.gz ~/rpmbuild/SOURCES/
 cp "$PROJECT_DIR"/$PACKAGE_NAME.spec ~/rpmbuild/SPECS/
-sed -i "s/%define project_dir %{name}/%define project_dir $PROJECT_BASENAME/" ~/rpmbuild/SPECS/$PACKAGE_NAME.spec
+sed -i "s/%define project_dir %{name}-%{version}/%define project_dir $PROJECT_BASENAME/" ~/rpmbuild/SPECS/$PACKAGE_NAME.spec
 sed -i "s/BuildRequires/#BuildRequires/" ~/rpmbuild/SPECS/$PACKAGE_NAME.spec
-sed -i "s/Requires: bash glibc libgcc libstdc++ obmm/Requires: bash glibc libgcc libstdc++/" ~/rpmbuild/SPECS/$PACKAGE_NAME.spec
-sed -i '/bash build.sh 3rdparty/d' ~/rpmbuild/SPECS/$PACKAGE_NAME.spec
 if [[ "$1" == '-D' ]]; then
     sed -i 's/bash build.sh -T RelWithDebInfo/bash build.sh -D/' ~/rpmbuild/SPECS/$PACKAGE_NAME.spec
     sed -i '3a\%global debug_package %{nil}' ~/rpmbuild/SPECS/$PACKAGE_NAME.spec
