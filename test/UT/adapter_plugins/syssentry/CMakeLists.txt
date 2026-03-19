@@ -1,0 +1,12 @@
+add_ut(syssentry)
+target_link_libraries(ubs-engine_syssentry_ut
+        PRIVATE
+        syssentry
+        ubse_utils
+        ubse_mti
+        ubse_ras
+        ubse_com
+        ubse_context
+        ubse_http
+        ubse_config
+)

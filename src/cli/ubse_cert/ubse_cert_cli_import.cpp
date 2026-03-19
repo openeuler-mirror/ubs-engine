@@ -10,8 +10,13 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_cert_cli_import.h"
+#include <fcntl.h>
+#include <pwd.h>
 #include <sys/stat.h>
 #include <termios.h>
+#include <unistd.h>
+#include <cstring>
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -26,6 +31,8 @@ static const std::string CA_CRL_FILENAME = CERT_DIR + "ca.crl";
 static const std::string SERVER_KEY_FILENAME = CERT_DIR + "server_key.pem";
 static const std::string PASSWORD_FILENAME = CERT_DIR + "key_pwd.txt";
 static const std::string TYPE_IN_PASS_TIPS = "Enter certificate password: ";
+const mode_t OWNER_READ_WRITE = 0600;
+constexpr uint32_t FILE_MAX_SIZE = 2 * 1024 * 1024; // 2 * 1024 * 1024: 文件支持2M文件
 
 /**
  * @brief 导入证书集合，包括可选的证书吊销列表(CRL)
@@ -38,53 +45,147 @@ static const std::string TYPE_IN_PASS_TIPS = "Enter certificate password: ";
  * @param trustCertPath 信任证书路径
  * @param serverKeyPath 身份证书密钥路径
  * @param caCrlPath 证书吊销列表路径（可为nullptr）
+ * @param errMsg 错误信息
  *
- * @return int8_t
- * @retval UBSE_OK 所有证书和CRL导入成功
- * @retval UBSE_ERROR 导入过程中出现任何错误
+ * @return bool
+ * @retval true 所有证书和CRL导入成功
+ * @retval false 导入过程中出现任何错误
  *
  * @note
  * - 如果存在CRL并导入失败，整个操作将中止
  * - 依赖于 ImportCaCrl() 和 ImportCert() 两个函数
  */
-int8_t ImportCertSet(const char *serverCertPath, const char *trustCertPath, const char *serverKeyPath,
-    const char *caCrlPath)
+bool ImportCertSet(const std::string &serverCertPath, const std::string &trustCertPath,
+                   const std::string &serverKeyPath, const std::string &caCrlPath, std::string &errMsg)
 {
-    if (caCrlPath != nullptr) {
-        std::cerr << "CRL detected, importing Certificate Revocation List." << std::endl;
-        if (ImportCaCrl(caCrlPath) != UBSE_OK) {
-            return UBSE_ERROR;
+    if (!caCrlPath.empty()) {
+        if (!ImportCaCrl(caCrlPath, errMsg)) {
+            return false;
         }
     }
 
-    if (ImportCert(serverCertPath, trustCertPath, serverKeyPath) != UBSE_OK) {
-        return UBSE_ERROR;
+    if (!ImportCert(serverCertPath, trustCertPath, serverKeyPath, errMsg)) {
+        return false;
     }
-    return UBSE_OK;
+    return true;
 }
 
-int CopyFileContents(const std::string &sourcePath, const std::string &destinationPath)
+bool SetEgidAndEuid(uid_t &gid, uid_t &uid, std::string &errMsg)
+{
+    if (setegid(gid) != 0) {
+        errMsg = "Set egid failed, gid=" + std::to_string(gid) + ", error_info=" + std::strerror(errno);
+        return false;
+    }
+
+    if (seteuid(uid) != 0) {
+        errMsg = "Set euid failed, uid=" + std::to_string(uid) + ", error_info=" + std::strerror(errno);
+        return false;
+    }
+    return true;
+}
+
+bool CopyFileContents(const std::string &sourcePath, const std::string &destinationPath, std::string &errMsg)
 {
     std::ifstream sourceFile(sourcePath, std::ios::binary);
     if (!sourceFile) {
-        std::cerr << "Failed to open source file: " << sourcePath << std::endl;
-        return UBSE_ERROR;
+        errMsg = "Failed to open source file: " + sourcePath;
+        return false;
     }
 
-    std::ofstream destFile(destinationPath, std::ios::binary);
-    if (!destFile) {
-        std::cerr << "Failed to create destination file: " << destinationPath << std::endl;
+    uid_t original_euid = geteuid();
+    uid_t original_egid = getegid();
+
+    struct passwd *pw = getpwnam("ubse");
+    if (pw == nullptr) {
+        errMsg = "user ubse does not exists.";
         sourceFile.close();
-        return UBSE_ERROR;
+        return false;
     }
 
-    destFile << sourceFile.rdbuf();
-    destFile.close();
+    if (!SetEgidAndEuid(pw->pw_gid, pw->pw_uid, errMsg)) {
+        sourceFile.close();
+        return false;
+    }
+
+    int destFd = open(destinationPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (destFd == -1) {
+        errMsg = "Failed to create destination file: " + destinationPath;
+        sourceFile.close();
+        return false;
+    }
+
+    std::string buffer((std::istreambuf_iterator<char>(sourceFile)), std::istreambuf_iterator<char>());
+    if (write(destFd, buffer.c_str(), buffer.size()) == -1) {
+        errMsg = "Failed to write to destination file: " + destinationPath;
+        close(destFd);
+        sourceFile.close();
+        return false;
+    }
+
+    close(destFd);
     sourceFile.close();
-    return UBSE_OK;
+    return SetEgidAndEuid(original_egid, original_euid, errMsg);
 }
 
-/* *
+bool EnterPassword(std::string &errMsg)
+{
+    uid_t original_euid = geteuid();
+    uid_t original_egid = getegid();
+
+    struct passwd *pw = getpwnam("ubse");
+    if (pw == nullptr) {
+        errMsg = "user ubse does not exists.";
+        return false;
+    }
+
+    if (!SetEgidAndEuid(pw->pw_gid, pw->pw_uid, errMsg)) {
+        return false;
+    }
+
+    int fd = open(PASSWORD_FILENAME.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd == -1) {
+        errMsg = "Failed to create password file";
+        return false;
+    }
+
+    if (!SetEgidAndEuid(original_egid, original_euid, errMsg)) {
+        close(fd);
+        return false;
+    }
+
+    std::string passphrase = GetInteractiveInput(TYPE_IN_PASS_TIPS);
+    if (passphrase.empty()) {
+        errMsg = "Password is invalid";
+        close(fd);
+        return false;
+    }
+
+    if (write(fd, passphrase.c_str(), passphrase.size()) == -1) {
+        errMsg = "Failed to write to password file";
+        close(fd);
+        return false;
+    }
+
+    std::fill(passphrase.begin(), passphrase.end(), '\0');
+    close(fd);
+    return true;
+}
+
+bool CheckCertPath(std::string &errMsg)
+{
+    std::error_code ec;
+    if (!std::filesystem::exists(CERT_DIR, ec)) {
+        if (ec) {
+            errMsg = "Failed to access cert directory, only the root and ubse users are supported.";
+            return false;
+        }
+        errMsg = "Failed to get cert directory, please check whether ubs engine already installed.";
+        return false;
+    }
+    return true;
+}
+
+/**
  * @brief 导入服务器证书、信任证书和服务器密钥
  *
  * 此函数执行以下主要操作：
@@ -99,50 +200,26 @@ int CopyFileContents(const std::string &sourcePath, const std::string &destinati
  * @param trustCertPath 信任证书源文件路径
  * @param serverKeyPath 身份证书密钥源文件路径
  *
- * @return int8_t
- * @retval UBSE_OK 导入成功
- * @retval UBSE_ERROR 导入失败（文件操作错误、路径无效等）
+ * @return bool
+ * @retval true 导入成功
+ * @retval false 导入失败（文件操作错误、路径无效等）
  *
  * @note
  * - 使用二进制模式读写文件
  * - 所有目标文件权限均设置为0600
  * - 异常情况下会输出错误信息到标准错误流
  */
-int8_t ImportCert(const char *serverCertPath, const char *trustCertPath, const char *serverKeyPath)
+bool ImportCert(const std::string &serverCertPath, const std::string &trustCertPath, const std::string &serverKeyPath,
+                std::string &errMsg)
 {
-    if (!std::filesystem::exists(CERT_DIR)) {
-        std::cerr << "Failed to get cert directory, please check weather ubs engine already installed." << std::endl;
-        return UBSE_ERROR;
-    }
-
-    if (!CheckFilePathValid(serverCertPath, true) || !CheckFilePathValid(trustCertPath, true) ||
-        !CheckFilePathValid(serverKeyPath, true)) {
-        std::cerr << "ERROR: Input parameters do not conform to the expected format or constraints." << std::endl;
-        return UBSE_ERROR;
-    }
-
-    if (CopyFileContents(serverCertPath, SERVER_CERT_FILENAME) != UBSE_OK ||
-        CopyFileContents(trustCertPath, TRUST_CERT_FILENAME) != UBSE_OK ||
-        CopyFileContents(serverKeyPath, SERVER_KEY_FILENAME) != UBSE_OK) {
-        return UBSE_ERROR;
-    }
-
-    std::ofstream destPasswordFile(PASSWORD_FILENAME, std::ios::binary);
-    if (!destPasswordFile) {
-        std::cerr << "Failed to create password file" << std::endl;
-        return UBSE_ERROR;
-    }
-    std::string Passphrase = GetInteractiveInput(TYPE_IN_PASS_TIPS);
-    destPasswordFile << Passphrase;
-    std::fill(Passphrase.begin(), Passphrase.end(), '\0');
-    destPasswordFile.close();
-
-    chmod(SERVER_CERT_FILENAME.c_str(), 0600);
-    chmod(TRUST_CERT_FILENAME.c_str(), 0600);
-    chmod(SERVER_KEY_FILENAME.c_str(), 0600);
-    chmod(PASSWORD_FILENAME.c_str(), 0600);
-
-    return UBSE_OK;
+    return CheckCertPath(errMsg) &&
+           CheckFilePathValid(serverCertPath, true, errMsg) &&
+           CheckFilePathValid(trustCertPath, true, errMsg) &&
+           CheckFilePathValid(serverKeyPath, true, errMsg) &&
+           CopyFileContents(serverCertPath, SERVER_CERT_FILENAME, errMsg) &&
+           CopyFileContents(trustCertPath, TRUST_CERT_FILENAME, errMsg) &&
+           CopyFileContents(serverKeyPath, SERVER_KEY_FILENAME, errMsg) &&
+           EnterPassword(errMsg);
 }
 
 /**
@@ -165,68 +242,35 @@ int8_t ImportCert(const char *serverCertPath, const char *trustCertPath, const c
  * - 目标文件权限设置为0600
  * - 捕获并记录可能的文件操作异常
  */
-int8_t ImportCaCrl(const char *caCrlPath)
+bool ImportCaCrl(const std::string &caCrlPath, std::string &errMsg)
 {
-    if (!CheckFilePathValid(caCrlPath, true)) {
-        std::cerr << "ERROR: Input parameters do not conform to the expected format or constraints." << std::endl;
-        return UBSE_ERROR;
-    }
-
-    try {
-        std::ifstream caCrlFile(caCrlPath, std::ios::binary);
-
-        if (!caCrlFile) {
-            std::cerr << "Failed to open source certificate files" << std::endl;
-            return UBSE_ERROR;
-        }
-
-        std::ofstream destCaCrlFile(CA_CRL_FILENAME, std::ios::binary);
-        if (!destCaCrlFile) {
-            std::cerr << "Failed to create destination Crl files" << std::endl;
-            return UBSE_ERROR;
-        }
-
-        destCaCrlFile << caCrlFile.rdbuf();
-
-        caCrlFile.close();
-        destCaCrlFile.close();
-
-        chmod(CA_CRL_FILENAME.c_str(), 0600); // CA证吊销列表书权限
-        return UBSE_OK;
-    } catch (const std::exception &e) {
-        std::cerr << "ERROR: importing certificates: " << e.what() << std::endl;
-        return UBSE_ERROR;
-    }
+    return CheckCertPath(errMsg) &&
+           CheckFilePathValid(caCrlPath, true, errMsg) &&
+           CopyFileContents(caCrlPath, CA_CRL_FILENAME, errMsg);
 }
 
-bool DeleteSingleFile(const std::filesystem::path &filePath)
-{
-    try {
-        if (std::filesystem::is_regular_file(filePath)) {
-            std::filesystem::remove(filePath);
-            return true;
-        }
-        return false;
-    } catch (const std::filesystem::filesystem_error &e) {
-        std::cerr << "Error deleting file " << filePath << ": " << e.what() << std::endl;
-        return false;
-    }
-}
-
-int DeleteCertificateFiles()
+int DeleteCertificateFiles(std::string &errMsg)
 {
     int deletedFiles = 0;
-    try {
-        for (const auto &entry : std::filesystem::directory_iterator(CERT_DIR)) {
-            if (DeleteSingleFile(entry.path())) {
-                deletedFiles++;
-            }
+    std::error_code ec;
+
+    for (const auto &entry : std::filesystem::directory_iterator(CERT_DIR, ec)) {
+        if (ec) {
+            errMsg = "Failed to iterate certificate directory, " + ec.message();
+            return -1;
         }
-        return deletedFiles;
-    } catch (const std::filesystem::filesystem_error &e) {
-        std::cerr << "Error iterating certificate directory: " << e.what() << std::endl;
+        if (std::filesystem::is_regular_file(entry.path(), ec) && !ec) {
+            if (std::filesystem::remove(entry.path(), ec) && !ec) {
+                deletedFiles++;
+                continue;
+            }
+            errMsg = "Failed to delete file, " + ec.message();
+            return -1;
+        }
+        errMsg = "Failed to delete file, " + ec.message();
         return -1;
     }
+    return deletedFiles;
 }
 
 /**
@@ -249,14 +293,19 @@ int DeleteCertificateFiles()
  * - 此操作会永久删除证书目录下的所有文件
  * - 请谨慎使用，确保不会意外删除重要证书
  */
-int8_t DeleteCertSet()
+UbseResult DeleteCertSet(std::string &errMsg)
 {
-    if (!CheckFilePathValid(CERT_DIR, false)) {
-        std::cerr << "ERROR: Input parameters do not conform to the expected format or constraints." << std::endl;
+    if (access(CERT_DIR.c_str(), F_OK) != 0) {
+        return UBSE_ERROR_FILE_NOT_EXIST;
+    }
+    if (access(CERT_DIR.c_str(), R_OK | W_OK | X_OK) != 0) {
         return UBSE_ERROR;
     }
-    int deletedFiles = DeleteCertificateFiles();
-    if (deletedFiles >= 0) {
+    int deletedFiles = DeleteCertificateFiles(errMsg);
+    if (deletedFiles == 0) {
+        return UBSE_ERROR_FILE_NOT_EXIST;
+    }
+    if (deletedFiles > 0) {
         return UBSE_OK;
     }
     return UBSE_ERROR;
@@ -286,12 +335,35 @@ int8_t DeleteCertSet()
  * @example
  * std::string password = GetInteractiveInput("请输入密码: ");
  */
+constexpr uint32_t MAX_KEY_LEN = 1000;
+
+void CheckInput(int &ch, std::string &inputData)
+{
+    // 逐字符读取密码
+    while ((ch = getchar()) != '\n' && ch != EOF) {
+        if (ch == '\b') { // 处理退格键
+            if (inputData.empty()) {
+                continue;
+            }
+            inputData.pop_back();
+            continue;
+        }
+        inputData += static_cast<char>(ch);
+        if (inputData.size() > MAX_KEY_LEN) {
+            std::cout << std::endl << "The password length exceeds " << MAX_KEY_LEN
+                << " characters, please try again." << std::endl;
+            inputData.clear();
+            break;
+        }
+    }
+}
+
 std::string GetInteractiveInput(const std::string &prompt)
 {
-    struct termios oldt;
-    struct termios newt;
-    std::string inputData;
-    char ch;
+    termios oldt{};
+    termios newt{};
+    std::string inputData{};
+    int ch;
 
     // 获取当前终端属性
     tcgetattr(STDIN_FILENO, &oldt);
@@ -301,24 +373,14 @@ std::string GetInteractiveInput(const std::string &prompt)
     newt.c_lflag &= ~(ECHO | ICANON);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
-    // 显示提示信息
-    std::cout << prompt;
-
-    // 逐字符读取密码
-    while ((ch = getchar()) != '\n' && ch != EOF) {
-        if (ch == 127 || ch == '\b') { // 处理退格键
-            if (!inputData.empty()) {
-                std::cout << "\b \b";
-                inputData.pop_back();
-            }
-        } else {
-            inputData += ch;
-        }
-    }
-
+    do {
+        // 显示提示信息
+        std::cout << prompt;
+        CheckInput(ch, inputData);
+    } while (ch != '\n' && ch != EOF);
+    std::cout << std::endl;
     // 恢复终端属性
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    std::cout << std::endl;
 
     return inputData;
 }
@@ -341,20 +403,35 @@ std::string GetInteractiveInput(const std::string &prompt)
  * 3. 检查路径是否存在且具有读取权限
  *
  * @note
- * - 使用 FileUtil 工具类进行路径验证
+ * - 使用 FileUtils 工具类进行路径验证
  * - 支持文件和目录路径检查
  */
-bool CheckFilePathValid(std::string filePath, bool isFile)
+bool CheckFilePathValid(const std::string &filePath, bool isFile, std::string &errMsg)
 {
-    if (!FileUtil::CanonicalPath(filePath)) {
+    if (access(filePath.c_str(), F_OK | R_OK) != 0) {
+        errMsg = filePath + " not exist or unreadable.";
         return false;
     }
-    if (isFile && !FileUtil::CheckFileStat(filePath)) {
+
+    if (!FileUtils::IsCanonicalPath(filePath, errMsg)) {
         return false;
     }
-    if (!FileUtil::Exist(filePath, F_OK | R_OK)) {
+
+    struct stat st{};
+    if (stat(filePath.c_str(), &st) != 0) {
+        errMsg = filePath +  " access failed.";
+        return false;
+    }
+
+    if (isFile && !S_ISREG(st.st_mode)) {
+        errMsg = filePath +  " is not regular file.";
+        return false;
+    }
+
+    if (st.st_size > FILE_MAX_SIZE) {
+        errMsg = filePath +  " exceeds the maximum size of " + std::to_string(FILE_MAX_SIZE) + " bytes";
         return false;
     }
     return true;
 }
-}
+} // namespace ubse::cli::cert

@@ -1,14 +1,14 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_share_decision_maker.h"
 #include <mockcpp/mockcpp.hpp>
@@ -116,19 +116,19 @@ TEST_F(TestShareDecisionMaker, TestShareDecisionMaker)
     shareRequest.region.nodeId[2] = 2;
     shareRequest.region.nodeId[3] = 3;
 
-    UbseStatus rackStatus;
+    UbseStatus ubseStatus;
     for (int i = 0; i < NUM_TOTAL_NUMA; i++) {
-        rackStatus.numaStatus[i].numa = param.availNumas[i];
-        rackStatus.numaLedgerStatus[i].numa = param.availNumas[i];
-        rackStatus.numaStatus[i].memTotal = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 1024);
-        rackStatus.numaStatus[i].memUsed = 0L;
-        rackStatus.numaStatus[i].memFree = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 1024);
-        rackStatus.numaLedgerStatus[i].memBorrowed = 0L;
-        rackStatus.numaLedgerStatus[i].memLent = 0L;
-        rackStatus.numaLedgerStatus[i].memShared = 0L;
+        ubseStatus.numaStatus[i].numa = param.availNumas[i];
+        ubseStatus.numaLedgerStatus[i].numa = param.availNumas[i];
+        ubseStatus.numaStatus[i].memTotal = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 1024);
+        ubseStatus.numaStatus[i].memUsed = 0L;
+        ubseStatus.numaStatus[i].memFree = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 1024);
+        ubseStatus.numaLedgerStatus[i].memBorrowed = 0L;
+        ubseStatus.numaLedgerStatus[i].memLent = 0L;
+        ubseStatus.numaLedgerStatus[i].memShared = 0L;
     }
     ShareResult shareResult;
 
-    EXPECT_EQ(HOK, strategy.MemoryShare(shareRequest, rackStatus, shareResult));
+    EXPECT_EQ(UBSE_OK, strategy.MemoryShare(shareRequest, ubseStatus, shareResult));
 }
 } // namespace ubse::ut::algorithm

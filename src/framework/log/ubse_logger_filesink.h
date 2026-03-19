@@ -106,11 +106,11 @@ private:
     void ManageFileRotation(const std::string &fileName);
 
 private:
-    const std::string filenameSuffixPattern = R"(_\d{8}_\d{6}_\d{3}\.tar\.gz)";
-    std::unordered_map<std::string, UbseLogFile> fileMap;
-    std::string basePath;
-    uint32_t maxFileSize;
-    uint32_t maxFileCount;
+    const std::string filenameSuffixPattern_ = R"(_\d{8}_\d{6}_\d{3}\.tar\.gz)";
+    std::unordered_map<std::string, UbseLogFile> fileMap_;
+    std::string basePath_;
+    uint32_t maxFileSize_;
+    uint32_t maxFileCount_;
 };
 }
 

@@ -8,3 +8,4 @@ else ()
     target_include_directories(mockcpp SYSTEM INTERFACE ${DEPS_DIR}/mockcpp/include)
     target_link_libraries(mockcpp INTERFACE ${DEPS_DIR}/mockcpp/lib/libmockcpp.a)
 endif ()
+

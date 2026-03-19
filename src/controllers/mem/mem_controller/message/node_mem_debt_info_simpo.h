@@ -13,9 +13,10 @@
 #ifndef UBSE_MANAGER_NODE_MEM_DEBT_INFO_SIMPO_H
 #define UBSE_MANAGER_NODE_MEM_DEBT_INFO_SIMPO_H
 #include "ubse_base_message.h"
-#include "ubse_mem_resource.h"
+#include "ubse_mmi_interface.h"
 namespace ubse::mem::controller::message {
 using namespace ubse::message;
+using namespace ubse::adapter_plugins::mmi;
 
 class NodeMemDebtInfoSimpo : public UbseBaseMessage {
 public:
@@ -24,23 +25,22 @@ public:
     {
         SetInputRawData(data, size);
     }
-    inline void SetNodeMemDebtInfoSimpo(ubse::resource::mem::NodeMemDebtInfoMap &sourceData)
+    inline void SetNodeMemDebtInfoSimpo(NodeMemDebtInfoMap &sourceData)
     {
-        data = std::move(sourceData);
+        data_ = std::move(sourceData);
     }
-    inline ubse::resource::mem::NodeMemDebtInfoMap GetNodeMemDebtInfoMap()
+    inline NodeMemDebtInfoMap GetNodeMemDebtInfoMap()
     {
-        return data;
+        return data_;
     }
     UbseResult Serialize() override;
 
     UbseResult Deserialize() override;
 
 private:
-    ubse::resource::mem::NodeMemDebtInfoMap data;
+    NodeMemDebtInfoMap data_;
 };
 using NodeMemDebtInfoSimpoPtr = Ref<NodeMemDebtInfoSimpo>;
-}
-
+} // namespace ubse::mem::controller::message
 
 #endif // UBSE_MANAGER_NODE_MEM_DEBT_INFO_SIMPO_H

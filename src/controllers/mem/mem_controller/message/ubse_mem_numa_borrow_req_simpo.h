@@ -13,10 +13,10 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_NUMA_BORROW_REQ_SIMPO_H
 #define UBSE_MANAGER_UBSE_MEM_NUMA_BORROW_REQ_SIMPO_H
 #include "ubse_base_message.h"
-#include "ubse_mem_obj.h"
+#include "ubse_mmi_interface.h"
 namespace ubse::mem::controller::message {
 using namespace ubse::message;
-using namespace ubse::mem::obj;
+using namespace ubse::adapter_plugins::mmi;
 class UbseMemNumaBorrowReqSimpo : public UbseBaseMessage {
 public:
     UbseMemNumaBorrowReqSimpo() = default;
@@ -26,11 +26,11 @@ public:
     }
     inline void SetUbseMemNumaBorrowReq(UbseMemNumaBorrowReq request)
     {
-        req = std::move(request);
+        req_ = std::move(request);
     }
     inline UbseMemNumaBorrowReq GetUbseMemNumaBorrowReq()
     {
-        return req;
+        return req_;
     }
 
     UbseResult Serialize() override;
@@ -38,9 +38,9 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    UbseMemNumaBorrowReq req;
+    UbseMemNumaBorrowReq req_;
 };
 using UbseMemNumaBorrowReqSimpoPtr = Ref<UbseMemNumaBorrowReqSimpo>;
-}
+} // namespace ubse::mem::controller::message
 
 #endif // UBSE_MANAGER_UBSE_MEM_NUMA_BORROW_REQ_SIMPO_H

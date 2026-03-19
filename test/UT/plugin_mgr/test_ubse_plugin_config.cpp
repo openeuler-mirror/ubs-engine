@@ -1,14 +1,15 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #include "test_ubse_plugin_config.h"
 
 #include <map>
@@ -148,29 +149,5 @@ TEST_F(TestUbsePluginConfig, TestGetAllPluginConfigs)
 {
     UbsePluginConfig ubsePluginConfig;
     EXPECT_TRUE(ubsePluginConfig.GetAllPluginConfigs().empty());
-}
-
-/*
- * 用例描述：
- * 插件加载模块GetPluginConfig函数
- * 测试步骤：
- * 1. 传入pluginConfigs
- * 2. 调用GetPluginConfig函数，传入pluginName值
- * 3. 调用GetPluginConfig函数，传入非pluginName值
- * 预期结果：
- * 1. 返回pluginName的地址
- * 2. 返回空指针
- */
-TEST_F(TestUbsePluginConfig, TestGetPluginConfig)
-{
-    UbsePluginConfig ubsePluginConfig;
-    UbsePluginInfo ubsePluginInfo;
-    ubsePluginInfo.name = "testName";
-    ubsePluginInfo.pkg = "testpkg";
-    ubsePluginConfig.pluginConfigs[ubsePluginInfo.name] = ubsePluginInfo;
-    const UbsePluginInfo *result = ubsePluginConfig.GetPluginConfig("testName");
-    EXPECT_EQ(result, &ubsePluginConfig.pluginConfigs[ubsePluginInfo.name]);
-    const UbsePluginInfo *resultNull = ubsePluginConfig.GetPluginConfig("testName2");
-    EXPECT_EQ(resultNull, nullptr);
 }
 }

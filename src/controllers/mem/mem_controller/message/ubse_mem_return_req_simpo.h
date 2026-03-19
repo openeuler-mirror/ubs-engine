@@ -13,10 +13,10 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_RETURN_REQ_SIMPO_H
 #define UBSE_MANAGER_UBSE_MEM_RETURN_REQ_SIMPO_H
 #include "ubse_base_message.h"
-#include "ubse_mem_obj.h"
+#include "ubse_mmi_interface.h"
 namespace ubse::mem::controller::message {
 using namespace ubse::message;
-using namespace ubse::mem::obj;
+using namespace ubse::adapter_plugins::mmi;
 class UbseMemReturnReqSimpo : public UbseBaseMessage {
 public:
     UbseMemReturnReqSimpo() = default;
@@ -26,19 +26,19 @@ public:
     }
     inline void SetUbseMemReturnReq(UbseMemReturnReq request)
     {
-        req = std::move(request);
+        req_ = std::move(request);
     }
     inline UbseMemReturnReq GetUbseMemReturnReq()
     {
-        return req;
+        return req_;
     }
     UbseResult Serialize() override;
 
     UbseResult Deserialize() override;
 
 private:
-    UbseMemReturnReq req;
+    UbseMemReturnReq req_;
 };
 using UbseMemReturnReqSimpoPtr = Ref<UbseMemReturnReqSimpo>;
-}
+} // namespace ubse::mem::controller::message
 #endif // UBSE_MANAGER_UBSE_MEM_RETURN_REQ_SIMPO_H

@@ -11,7 +11,7 @@
 #include <regex>
 
 #include "ubse_conf_common_def.h"
-#include "ubse_conf_error.h"
+#include "ubse_error.h"
 #include "ubse_context.h"
 #include "ubse_logger_audit.h"
 #include "ubse_logger_module.h"
@@ -21,13 +21,15 @@ namespace ubse::config {
 using namespace ubse::log;
 using namespace ubse::utils;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONF_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint8_t SUFFIX_SIZE = 5;  // .conf后缀长度
 const std::string DELIMITER = "/";
-const std::regex SECTION_CHARS(R"(\[\s*(.*?)\s*\])");
 const std::regex NON_VAL_CHARS(R"(^[a-zA-Z0-9\.\_\-]+$)");
 const std::regex VAL_CHARS(R"(^[a-zA-Z0-9\.\_\-\:\,\/\;]+$)");
+const uint32_t MAX_GROUP_SIZE = 64 * 64 + 64; // hostname最大长度64字节，最多支持64个节点，包含64个间隔符
+const uint32_t MAX_PROVIDER_SIZE = 64 * 64 + 64; // hostname最大长度64字节，最多支持64个节点，包含64个间隔符
+const std::map<std::string, uint32_t> whiteList = { { "group", MAX_GROUP_SIZE }, { "provider", MAX_PROVIDER_SIZE } };
 
 UbseResult TravelDepthLimitedFiles(std::vector<std::string>& filePaths, const std::string& path, int depth);
 
@@ -45,7 +47,7 @@ bool CheckNoIllegalChars(const std::string& str, bool isConfigVal = false);
 std::string FormatErrorMessage(const std::string& message, size_t lineCount, const std::string& section = "",
                                const std::string& configKey = "", const std::string& configVal = "");
 
-UbseConfigManager::UbseConfigManager() : format()
+UbseConfigManager::UbseConfigManager() : format_()
 {
 }
 
@@ -57,11 +59,11 @@ UbseResult UbseConfigManager::Init(const std::string& confDir, const std::string
         return ret;
     }
 
-    std::unique_lock<std::shared_mutex> guard(rwLock);
+    std::unique_lock<std::shared_mutex> guard(rwLock_);
     for (const auto& filePath : filePaths) {
         // 文件已加载, 不可重复加载
-        if (fileSet.count(filePath)) {
-            std::cerr << "Warning: File: " << filePath << "has already been loaded." << std::endl;
+        if (fileSet_.count(filePath)) {
+            std::cerr << "Warning: File=" << filePath << "has already been loaded." << std::endl;
             continue;
         }
         // 文件前缀非空且与文件名不匹配
@@ -71,31 +73,31 @@ UbseResult UbseConfigManager::Init(const std::string& confDir, const std::string
         ret = ParseFile(filePath);
         // 解析文件失败
         if (ret != UBSE_OK) {
-            std::cerr << "Warning: Unable to parse file: " << filePath << "." << std::endl;
+            std::cerr << "Warning: Unable to parse file=" << filePath << "." << std::endl;
         } else {
-            fileSet.emplace(filePath);
+            fileSet_.emplace(filePath);
         }
     }
-    if (!parseErrors.empty()) {
+    if (!parseErrors_.empty()) {
         std::cerr << "Unable to parse the configuration." << std::endl;
-        for (const auto& pair : parseErrors) {
-            std::cerr << "fileName: " << pair.first << ",warnings:\n" << CatString(pair.second, "\n") << std::endl;
+        for (const auto& pair : parseErrors_) {
+            std::cerr << "fileName=" << pair.first << ",warnings:\n" << CatString(pair.second, "\n") << std::endl;
         }
     }
-    parseErrors.clear();
+    parseErrors_.clear();
     return ret;
 }
 
-UbseResult UbseConfigManager::ParseFile(const std::string& filePath)
+UbseResult UbseConfigManager::ParseFile(const std::string &filePath)
 {
-    char* canonicalPath = new (std::nothrow) char[PATH_MAX];
+    char *canonicalPath = new (std::nothrow) char[PATH_MAX];
     if (canonicalPath == nullptr) {
         std::cerr << "Warning: Memory allocation failed for canonicalPath" << std::endl;
         return UBSE_CONF_ERROR_KEY_OFFSETMEMORY_ALLOCATION_FAILED;
     }
     if (realpath(filePath.c_str(), canonicalPath) == nullptr) {
-        std::cerr << "Warning: Could not canonicalize file path " << filePath << " ,err: " << std::strerror(errno)
-                  << std::endl;
+        std::cerr << "Warning: Could not canonicalize file path " << filePath << " ,err=" << std::strerror(errno) <<
+            std::endl;
         delete[] canonicalPath;
         return UBSE_CONF_ERROR_KEY_OFFSETPATH_CANONICALIZATION_FAILED;
     }
@@ -108,7 +110,7 @@ UbseResult UbseConfigManager::ReadConfFile(const std::string &filePath)
     std::ifstream fileStream(filePath);
     // 文件无法打开
     if (!fileStream.is_open()) {
-        std::cerr << "Warning: Can not open file: " << filePath << " to read." << std::endl;
+        std::cerr << "Warning: Can not open file=" << filePath << " to read." << std::endl;
         return UBSE_CONF_ERROR_KEY_OFFSETFILE_OPEN_ERROR;
     }
     std::string defaultSection = filePath.substr(filePath.find_last_of("/\\") + 1,
@@ -129,47 +131,50 @@ void UbseConfigManager::ParseLine(const std::string& filePath, std::string line,
                                   std::string& tempSection)
 {
     if (lineCount > CONFIG_MAX_LINES) {
-        parseErrors[filePath].emplace_back("Warning: Maximum line count exceeded.");
+        parseErrors_[filePath].emplace_back("Warning: Maximum line count exceeded.");
         return;
     }
 
     line = Trim(line);
     size_t equalPos = line.find('=');
     // 处理注释
-    if (line.empty() || format.IsComment(std::string(1, line.front()))) {
+    if (line.empty() || format_.IsComment(std::string(1, line.front()))) {
         return;
     }
-    if (format.IsSectionStart(std::string(1, line.front())) && format.IsSectionEnd(std::string(1, line.back()))) {
+    if (format_.IsSectionStart(std::string(1, line.front())) && format_.IsSectionEnd(std::string(1, line.back()))) {
         ParseSection(filePath, line, lineCount, tempSection);
     } else if (equalPos != std::string::npos && equalPos > 0 && equalPos < line.size() - 1) {
         ParseConf(filePath, line, lineCount, tempSection);
     } else {
-        parseErrors[filePath].emplace_back("Warning: Invalid line content. Line: " + std::to_string(lineCount) + ".");
+        parseErrors_[filePath].emplace_back("Warning: Invalid line content. Line=" + std::to_string(lineCount) + ".");
     }
 }
 
 void UbseConfigManager::ParseSection(const std::string& filePath, const std::string& line, const size_t& lineCount,
                                      std::string& tempSection)
 {
-    std::string section = std::regex_replace(line, SECTION_CHARS, R"($1)");
+    std::string section = line;
+    section.erase(section.length() - 1, 1);
+    section.erase(0, 1);
+    section = Trim(section, std::locale{"C"});
     // 长度不合法
     if (section.size() < CONFIG_MIN_FIELD_LENGTH || section.size() > CONFIG_SECTION_MAX_FIELD_LENGTH) {
         std::string message = "Warning: The length of section is out of range( " +
                               std::to_string(CONFIG_MIN_FIELD_LENGTH) + " to " +
                               std::to_string(CONFIG_SECTION_MAX_FIELD_LENGTH) + ").";
-        parseErrors[filePath].emplace_back(FormatErrorMessage(message, lineCount, section));
+        parseErrors_[filePath].emplace_back(FormatErrorMessage(message, lineCount, section));
         return;
     }
     // 含有非法字符
     if (!CheckNoIllegalChars(section)) {
         std::string message = "Warning: Section has illegal character.";
-        parseErrors[filePath].emplace_back(FormatErrorMessage(message, lineCount, section));
+        parseErrors_[filePath].emplace_back(FormatErrorMessage(message, lineCount, section));
         return;
     }
     tempSection = section;
     // 首次遇到该section
-    if (configMap.find(tempSection) == configMap.end()) {
-        configMap[tempSection];
+    if (configMap_.find(tempSection) == configMap_.end()) {
+        configMap_[tempSection];
     }
 }
 
@@ -184,31 +189,36 @@ void UbseConfigManager::ParseConf(const std::string& filePath, const std::string
     // 长度不合法
     if (key.size() > CONFIG_KEY_MAX_FIELD_LENGTH || key.size() < CONFIG_MIN_FIELD_LENGTH ||
         value.size() > CONFIG_VALUE_MAX_FIELD_LENGTH) {
-        std::string message =
-            "Warning: The length of key is out of range(key: " + std::to_string(CONFIG_MIN_FIELD_LENGTH) + " to " +
-            std::to_string(CONFIG_KEY_MAX_FIELD_LENGTH) + " ,value:" + std::to_string(CONFIG_MIN_FIELD_LENGTH) +
-            " to " + std::to_string(CONFIG_VALUE_MAX_FIELD_LENGTH) + ").";
-        parseErrors[filePath].emplace_back(FormatErrorMessage(message, lineCount, "", key, value));
-        return;
+        bool flag = false;
+        auto it = whiteList.find(key);
+        flag = (it == whiteList.end()) ? true : (value.size() >= it->second);
+        if (flag) {
+            std::string message =
+                "Warning: The length of key is out of range(key=" + std::to_string(CONFIG_MIN_FIELD_LENGTH) + " to " +
+                std::to_string(CONFIG_KEY_MAX_FIELD_LENGTH) + " ,value=" + std::to_string(CONFIG_MIN_FIELD_LENGTH) +
+                " to " + std::to_string(CONFIG_VALUE_MAX_FIELD_LENGTH) + ").";
+            parseErrors_[filePath].emplace_back(FormatErrorMessage(message, lineCount, "", key, value));
+            return;
+        }
     }
     // 含有非法字符
     if (!CheckNoIllegalChars(key)) {
         std::string message = "Warning: Section's key has illegal character.";
-        parseErrors[filePath].emplace_back(FormatErrorMessage(message, lineCount, tempSection, key));
+        parseErrors_[filePath].emplace_back(FormatErrorMessage(message, lineCount, tempSection, key));
         return;
     }
     if (!CheckNoIllegalChars(value, true)) {
         std::string message = "Warning: The configuration value contains illegal chars.";
-        parseErrors[filePath].emplace_back(FormatErrorMessage(message, lineCount, tempSection, key, value));
+        parseErrors_[filePath].emplace_back(FormatErrorMessage(message, lineCount, tempSection, key, value));
         return;
     }
     // 重复配置项
-    if (configMap[tempSection].find(key) != configMap[tempSection].end()) {
+    if (configMap_[tempSection].find(key) != configMap_[tempSection].end()) {
         std::string message = "Warning: Duplicate key in section.";
-        parseErrors[filePath].emplace_back(FormatErrorMessage(message, lineCount, tempSection, key));
+        parseErrors_[filePath].emplace_back(FormatErrorMessage(message, lineCount, tempSection, key));
         return;
     }
-    configMap[tempSection][key] = value;
+    configMap_[tempSection][key] = value;
 }
 
 UbseResult UbseConfigManager::Start()
@@ -218,10 +228,10 @@ UbseResult UbseConfigManager::Start()
 
 void UbseConfigManager::Stop()
 {
-    std::unique_lock<std::shared_mutex> guard(rwLock);
-    parseErrors.clear();
-    configMap.clear();
-    fileSet.clear();
+    std::unique_lock<std::shared_mutex> guard(rwLock_);
+    parseErrors_.clear();
+    configMap_.clear();
+    fileSet_.clear();
 }
 
 UbseResult UbseConfigManager::GetConf(const std::string& section, const std::string& configKey, std::string& configVal)
@@ -232,19 +242,19 @@ UbseResult UbseConfigManager::GetConf(const std::string& section, const std::str
     }
 
     // 不存在该section
-    if (configMap.find(section) == configMap.end()) {
-        UBSE_LOG_WARN << "Unable to find section: " << section << ", "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_SECTION);
+    if (configMap_.find(section) == configMap_.end()) {
+        UBSE_LOG_WARN << "Unable to find section=" << section << ", "
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_SECTION);
         return UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_SECTION;
     }
 
     // section中不存在该key
-    if (configMap[section].find(configKey) == configMap[section].end()) {
-        UBSE_LOG_WARN << "Unable to find key: " << configKey << " in section: " << section << ", "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_KEY);
+    if (configMap_[section].find(configKey) == configMap_[section].end()) {
+        UBSE_LOG_WARN << "Unable to find key=" << configKey << " in section=" << section << ", "
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_KEY);
         return UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_KEY;
     }
-    configVal = configMap[section][configKey];
+    configVal = configMap_[section][configKey];
     return UBSE_OK;
 }
 
@@ -262,14 +272,14 @@ UbseResult UbseConfigManager::GetAllConf(const std::string& seactionPrefix,
     }
 
     configVals.clear();
-    if (configMap.empty()) {
+    if (configMap_.empty()) {
         UBSE_LOG_WARN << "Config Module has not been loaded, "
                     << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL);
         return UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL;
     }
 
     size_t configNum = 0;
-    for (const auto& pair : configMap) {
+    for (const auto& pair : configMap_) {
         // 前缀不符
         if (pair.first.find(seactionPrefix) != 0) {
             continue;
@@ -292,6 +302,32 @@ UbseResult UbseConfigManager::GetAllConf(const std::string& seactionPrefix,
     }
 
     return UBSE_OK;
+}
+
+void UbseConfigManager::AddConfig(const std::string &section, const std::string &key, const std::string &value)
+{
+    if (section.size() < CONFIG_MIN_FIELD_LENGTH || section.size() > CONFIG_SECTION_MAX_FIELD_LENGTH) {
+        return;
+    }
+
+    if (key.size() > CONFIG_KEY_MAX_FIELD_LENGTH || key.size() < CONFIG_MIN_FIELD_LENGTH || value.empty() ||
+        value.size() > CONFIG_VALUE_MAX_FIELD_LENGTH) {
+        return;
+    }
+
+    if (!CheckNoIllegalChars(section) || !CheckNoIllegalChars(key) || !CheckNoIllegalChars(value, true)) {
+        return;
+    }
+
+    auto it_section = configMap_.find(section);
+    if (it_section == configMap_.end()) {
+        configMap_[section][key] = value;
+        return;
+    }
+    auto it_key = it_section->second.find(key);
+    if (it_key == it_section->second.end()) {
+        it_section->second[key] = value;
+    }
 }
 
 UbseResult CheckParamValidation(const std::string& section, const std::string& configKey, const std::string& configVal,
@@ -324,9 +360,14 @@ UbseResult CheckParamValidation(const std::string& section, const std::string& c
         return UBSE_CONF_ERROR_KEY_OFFSETKEY_ILLEGAL_LENGTH;
     }
     if ((configVal.empty() || configVal.size() > CONFIG_VALUE_MAX_FIELD_LENGTH) && checkValue) {
-        UBSE_LOG_WARN << "Value length too long or too short, "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH);
-        return UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH;
+        bool flag = false;
+        auto it = whiteList.find(configKey);
+        flag = (it == whiteList.end()) ? true : (configVal.size() >= it->second);
+        if (flag) {
+            UBSE_LOG_WARN << "Value length too long or too short, "
+                << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH);
+            return UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH;
+        }
     }
     return UBSE_OK;
 }
@@ -414,15 +455,15 @@ std::string FormatErrorMessage(const std::string& message, size_t lineCount, con
                                const std::string& configKey, const std::string& configVal)
 {
     std::ostringstream oss;
-    oss << message << " Line: " << std::to_string(lineCount) << ".";
+    oss << message << " Line=" << std::to_string(lineCount) << ".";
     if (!section.empty()) {
-        oss << " Section: " << section << ".";
+        oss << " Section=" << section << ".";
     }
     if (!configKey.empty()) {
-        oss << " Key: " << configKey << ".";
+        oss << " Key=" << configKey << ".";
     }
     if (!configVal.empty()) {
-        oss << " Value: " << configVal << ".";
+        oss << " Value=" << configVal << ".";
     }
     return oss.str();
 }

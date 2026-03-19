@@ -25,4 +25,4 @@ public:
     void TearDown() override;
 };
 }
-#endif //UBS_ENGINE_TEST_UBSE_CERT_H
+#endif // UBS_ENGINE_TEST_UBSE_CERT_H

@@ -17,6 +17,7 @@
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
 #include "mem_pool_strategy_impl.h"
+#include "ubse_error.h"
 
 namespace tc::rs::mem {
 
@@ -34,12 +35,12 @@ class BorrowDecisionMaker {
 public:
     explicit BorrowDecisionMaker(MemPoolStrategyImpl *strategyImpl)
     {
-        mStrategyImpl = strategyImpl;
+        mStrategyImpl_ = strategyImpl;
     };
-    MemPoolStrategyImpl *mStrategyImpl = nullptr;
-    MemPoolConfig *memConfig = nullptr;
-    BorrowTreeNodeStatus *mParentStat = nullptr;
-    BorrowTreeNodeStatus *mChildStat = nullptr;
+    MemPoolStrategyImpl *mStrategyImpl_ = nullptr;
+    MemPoolConfig *memConfig_ = nullptr;
+    BorrowTreeNodeStatus *mParentStat_ = nullptr;
+    BorrowTreeNodeStatus *mChildStat_ = nullptr;
 
     /**
     * @brief 贪心策略, 筛选满足借用约束的剩余内存最多的numa

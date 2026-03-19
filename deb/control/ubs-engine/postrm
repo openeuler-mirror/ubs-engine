@@ -1,0 +1,35 @@
+#!/bin/bash
+set -e
+
+# $1 = "remove" or "purge" (Debian 用 purge 表示彻底删除)
+
+deleted_semaphore() { :; }
+remove_directory() {
+    if [ -d "$1" ]; then
+        rmdir "$1" 2>/dev/null || true
+    fi
+}
+
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    deleted_semaphore
+    remove_directory /var/log/ubse
+    remove_directory /etc/ubse/certs
+    remove_directory /run/ubse
+    remove_directory /var/lib/ubse/sync
+
+    # 删除用户/组（谨慎：只在 purge 时删？但 RPM 是卸载就删，这里保持一致）
+    if id "ubse" &>/dev/null; then
+        userdel -r ubse || true
+    fi
+    if getent group "ubse" &>/dev/null; then
+        groupdel ubse || true
+    fi
+fi
+
+# 必须调用这个（Debian policy）
+if [ "$1" = "purge" ]; then
+    # 清理 conffiles（如果有）
+    :
+fi
+
+systemctl daemon-reload || true

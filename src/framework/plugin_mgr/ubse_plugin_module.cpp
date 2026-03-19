@@ -11,58 +11,50 @@
  */
 
 #include "ubse_http_module.h"
-#include "ubse_node_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_plugin_module.h"
 
 namespace ubse::plugin {
-DYNAMIC_CREATE(UbsePluginModule, ubse::node::UbseNodeModule);
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_PLUGIN_MID)
+DYNAMIC_CREATE(UbsePluginModule);
+UBSE_DEFINE_THIS_MODULE("ubse");
+
 UbseResult UbsePluginModule::Initialize()
 {
     return UBSE_OK;
 }
 
-void UbsePluginModule::UnInitialize() {}
+void UbsePluginModule::UnInitialize() {
+}
 
 UbseResult UbsePluginModule::Start()
 {
-    return ubsePluginManager.Start();
+    return ubsePluginManager_.Start();
 }
 
 void UbsePluginModule::Stop()
 {
-    ubsePluginManager.DeInitializePlugins();
-}
-
-void *UbsePluginModule::GetLoadedPlugin(const std::string &pluginName)
-{
-    return ubsePluginManager.GetLoadedPlugin(pluginName);
+    ubsePluginManager_.DeInitializePlugins();
 }
 
 bool UbsePluginModule::GetPluginLoaded(const std::string &pluginName)
 {
-    return ubsePluginManager.GetLoadedPlugin(pluginName) != nullptr;
-}
-void UbsePluginModule::GetLoadedPluginsName(std::vector<std::string> &plugins)
-{
-    ubsePluginManager.GetLoadedPlugins(plugins);
+    return ubsePluginManager_.GetLoadedPlugin(pluginName) != nullptr;
 }
 bool UbsePluginModule::GetPluginReadyStatus(const std::string &pluginName)
 {
-    std::shared_lock<std::shared_mutex> lock(pluginReadyMapMutex);
-    auto item = pluginReadyMap.find(pluginName);
-    if (item == pluginReadyMap.end()) {
+    std::shared_lock<std::shared_mutex> lock(pluginReadyMapMutex_);
+    auto item = pluginReadyMap_.find(pluginName);
+    if (item == pluginReadyMap_.end()) {
         return false;
     }
     return item->second;
 }
 void UbsePluginModule::NotifyPluginReadyStatus(const std::string &pluginName, bool flag)
 {
-    std::unique_lock<std::shared_mutex> lock(pluginReadyMapMutex);
+    std::unique_lock<std::shared_mutex> lock(pluginReadyMapMutex_);
     UBSE_LOG_DEBUG << "plugin: " << pluginName << " notify ready flag: " << flag;
-    pluginReadyMap[pluginName] = flag;
+    pluginReadyMap_[pluginName] = flag;
 }
 } // namespace ubse::plugin

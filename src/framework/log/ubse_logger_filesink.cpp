@@ -17,29 +17,39 @@
 #include <sstream>
 #include <utility>
 #include "ubse_common_def.h"
+#include "ubse_error.h"
+#include "ubse_os_util.h"
+#include "ubse_security_module.h"
 
 namespace ubse::log {
 using namespace ubse::common::def;
+using namespace ubse::security;
 UbseLoggerFilesink::UbseLoggerFilesink(std::string basePath, uint32_t maxFileSize, uint32_t maxFileCount)
-    : basePath(std::move(basePath)), maxFileSize(maxFileSize), maxFileCount(maxFileCount)
+    : basePath_(std::move(basePath)), maxFileSize_(maxFileSize), maxFileCount_(maxFileCount)
 {
-    auto canonicalPath = realpath(this->basePath.c_str(), nullptr);
+    auto canonicalPath = realpath(this->basePath_.c_str(), nullptr);
     if (canonicalPath == nullptr) {
-        std::cerr << "FilePath does not exist: " << this->basePath << std::endl;
-        auto result = mkdir(this->basePath.c_str(), 0700); // 权限0700
+        std::cerr << "FilePath does not exist: " << this->basePath_ << std::endl;
+        std::vector<__u32> caps{CAP_DAC_OVERRIDE};
+        auto result = UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+        if (result != UBSE_OK) {
+            std::cerr << "Add capabilities failed." << std::endl;
+        }
+        result = mkdir(this->basePath_.c_str(), 0750); // 权限0750
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         if (result == -1) {
             perror("mkdir"); // Print error message
             std::cerr << "Failed to create directory: " << std::endl;
         }
     } else {
-        this->basePath = canonicalPath;
+        this->basePath_ = canonicalPath;
     }
     free(canonicalPath);
 }
 
 UbseLoggerFilesink::~UbseLoggerFilesink()
 {
-    for (auto &it : fileMap) {
+    for (auto &it : fileMap_) {
         if (it.second.logFile.is_open()) {
             it.second.logFile.close();
         }
@@ -48,11 +58,11 @@ UbseLoggerFilesink::~UbseLoggerFilesink()
 
 bool UbseLoggerFilesink::Initialize() const
 {
-    if (maxFileSize == 0 || maxFileCount == 0) {
+    if (maxFileSize_ == 0 || maxFileCount_ == 0) {
         return false;
     }
 
-    fs::path dir = fs::path(basePath);
+    fs::path dir = fs::path(basePath_);
     if (!fs::exists(dir) && !fs::create_directories(dir)) {
         std::cerr << "Failed to create directory: " << dir << std::endl;
         return false;
@@ -63,30 +73,30 @@ bool UbseLoggerFilesink::Initialize() const
 bool UbseLoggerFilesink::Write(UbseLoggerEntry &loggerEntry)
 {
     std::string fileName = loggerEntry.GetModuleName();
-    if (!fileMap[fileName].isInitialized) {
-        fileMap[fileName].filePath = basePath + "/" + fileName + ".log";
-        fileMap[fileName].isInitialized = true;
+    if (!fileMap_[fileName].isInitialized) {
+        fileMap_[fileName].filePath = basePath_ + "/" + fileName + ".log";
+        fileMap_[fileName].isInitialized = true;
     }
 
-    bool needOpen = !fileMap[fileName].logFile.is_open() || IsFileStatusChanged(fileName) ||
-                    !fileMap[fileName].logFile.good();
+    bool needOpen = !fileMap_[fileName].logFile.is_open() || IsFileStatusChanged(fileName) ||
+                    !fileMap_[fileName].logFile.good();
     if (needOpen) {
-        fileMap[fileName].logFile.close();
+        fileMap_[fileName].logFile.close();
         if (!OpenFile(fileName)) {
             std::cerr << "Open file failed" << std::endl;
             return false;
         }
     }
 
-    loggerEntry.OutPutLog(fileMap[fileName].logFile);
+    loggerEntry.OutPutLog(fileMap_[fileName].logFile);
 
-    uint32_t currentFileSize = 0;
+    uintmax_t currentFileSize = 0;
     try {
-        currentFileSize = fs::file_size(fileMap[fileName].filePath);
+        currentFileSize = fs::file_size(fileMap_[fileName].filePath);
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
-    if (currentFileSize > maxFileSize) {
+    if (currentFileSize > maxFileSize_) {
         if (!RollFile(fileName)) {
             std::cerr << "Failed rolling file" << std::endl;
             return false;
@@ -98,10 +108,10 @@ bool UbseLoggerFilesink::Write(UbseLoggerEntry &loggerEntry)
 bool UbseLoggerFilesink::IsFileStatusChanged(const std::string &fileName)
 {
     struct stat fileStat {};
-    if (stat(fileMap[fileName].filePath.c_str(), &fileStat) != 0) {
+    if (stat(fileMap_[fileName].filePath.c_str(), &fileStat) != 0) {
         return true; // 文件不存在或无法访问
     }
-    bool isChanged = (fileMap[fileName].inode != fileStat.st_ino);
+    bool isChanged = (fileMap_[fileName].inode != fileStat.st_ino);
     return isChanged;
 }
 
@@ -109,8 +119,8 @@ bool UbseLoggerFilesink::RollFile(const std::string &fileName)
 {
     ManageFileRotation(fileName);
     time_t currentTime = std::time(nullptr);
-    std::string compressedFilename = GenerateCompressedFilename(fileName, fileMap[fileName].fileIndex, currentTime);
-    if (!CompressFile(fileName, fileMap[fileName].filePath, compressedFilename)) {
+    std::string compressedFilename = GenerateCompressedFilename(fileName, fileMap_[fileName].fileIndex, currentTime);
+    if (!CompressFile(fileName, fileMap_[fileName].filePath, compressedFilename)) {
         std::cerr << "Failed compressing file" << std::endl;
         return false;
     }
@@ -123,10 +133,12 @@ std::string UbseLoggerFilesink::GenerateCompressedFilename(const std::string &fi
     std::ostringstream oss;
 
     // 获取当前时间信息
-    struct tm *ptimeinfo = localtime(&timeStamp);
+    struct tm timeinfo{};
+    localtime_r(&timeStamp, &timeinfo);
+    struct tm *ptimeinfo = &timeinfo;
 
     // 生成文件名
-    oss << basePath << "/" << fileName << "_" << std::setw(4) << std::setfill('0') << // 年份格式占4位
+    oss << basePath_ << "/" << fileName << "_" << std::setw(4) << std::setfill('0') << // 年份格式占4位
         (ptimeinfo->tm_year + 1900) << std::setw(2) << std::setfill('0') << // 月份格式占2位 起始年份1900
         (ptimeinfo->tm_mon + 1) << std::setw(2) << std::setfill('0') << ptimeinfo->tm_mday // 日期格式占2位
         << "_" << std::setw(2) << std::setfill('0') << ptimeinfo->tm_hour                  // 小时格式占2位
@@ -140,20 +152,21 @@ std::string UbseLoggerFilesink::GenerateCompressedFilename(const std::string &fi
 
 bool UbseLoggerFilesink::OpenFile(const std::string &fileName)
 {
-    fs::path filePath = fileMap[fileName].filePath;
+    fs::path filePath = fileMap_[fileName].filePath;
     try {
-        fileMap[fileName].logFile.open(filePath, std::ios::out | std::ios::app);
+        fileMap_[fileName].logFile.open(filePath, std::ios::out | std::ios::app);
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return false;
     }
 
-    if (fileMap[fileName].logFile.is_open()) {
+    if (fileMap_[fileName].logFile.is_open()) {
         struct stat fileStat{};
-        stat(fileMap[fileName].filePath.c_str(), &fileStat);
-        fileMap[fileName].inode = fileStat.st_ino;
+        stat(fileMap_[fileName].filePath.c_str(), &fileStat);
+        fileMap_[fileName].inode = fileStat.st_ino;
         try {
-            fs::permissions(filePath, fs::perms::owner_read | fs::perms::owner_write | fs::perms::group_read); // 设置权限为640
+            // 设置权限为640
+            fs::permissions(filePath, fs::perms::owner_read | fs::perms::owner_write | fs::perms::group_read);
         } catch (const std::exception &e) {
             std::cerr << "Error: " << e.what() << std::endl;
             return false;
@@ -165,19 +178,39 @@ bool UbseLoggerFilesink::OpenFile(const std::string &fileName)
     }
 }
 
-bool UbseLoggerFilesink::CompressFile(const std::string &fileName, const std::string &sourceFilename,
-    const std::string &destFilename)
+std::string ShellEscape(const std::string &str)
 {
-    std::string command = "tar -czf " + destFilename + " -C " + basePath + " " + fileName + ".log";
-    int result = system(command.c_str());
-    if (result != 0) {
-        std::cerr << "Failed to compress file using system command" << std::endl;
+    if (str.empty()) {
+        return "''";
+    }
+    std::string result;
+    result += '\'';
+    for (char c : str) {
+        if (c == '\'') {
+            result += "'\\''";
+        } else {
+            result += c;
+        }
+    }
+    result += '\'';
+    return result;
+}
+
+bool UbseLoggerFilesink::CompressFile(const std::string &fileName, const std::string &sourceFilename,
+                                      const std::string &destFilename)
+{
+    std::string command = "tar -czf " + ShellEscape(destFilename) + " -C " + ShellEscape(basePath_) + " " +
+        ShellEscape(fileName + ".log");
+    std::string result;
+    auto ret = ubse::utils::UbseOsUtil::Exec(command, result);
+    if (ret != UBSE_OK) {
+        std::cerr << "Failed to compress file using system command, " << result << std::endl;
         return false;
     }
     try {
         fs::permissions(destFilename, fs::perms::owner_read | fs::perms::group_read); // 设置权限为440
         fs::remove(sourceFilename);
-        fileMap[fileName].logFile.close();
+        fileMap_[fileName].logFile.close();
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
@@ -212,10 +245,10 @@ void UbseLoggerFilesink::ManageFileRotation(const std::string &fileName)
 {
     // 存储匹配到的文件
     std::vector<std::string> compressedFiles;
-    fs::path filePath = fs::path(basePath + "/" + fileName);
+    fs::path filePath = fs::path(basePath_ + "/" + fileName);
     fs::path dir = filePath.parent_path();
 
-    std::regex filenamePattern(filePath.string() + filenameSuffixPattern);
+    std::regex filenamePattern(filePath.string() + filenameSuffixPattern_);
 
     for (const auto &entry : fs::directory_iterator(dir)) {
         if (fs::is_regular_file(entry) && std::regex_match(entry.path().string(), filenamePattern)) {
@@ -226,13 +259,13 @@ void UbseLoggerFilesink::ManageFileRotation(const std::string &fileName)
     // 按照文件名中的序号进行排序
     std::sort(compressedFiles.begin(), compressedFiles.end());
 
-    fileMap[fileName].fileIndex = RenameCompressedFile(compressedFiles) + 1;
+    fileMap_[fileName].fileIndex = RenameCompressedFile(compressedFiles) + 1;
 
-    if (compressedFiles.size() < maxFileCount) {
+    if (compressedFiles.size() < maxFileCount_) {
         return;
     }
     uint32_t currentFilecount = compressedFiles.size();
-    for (uint32_t i = 0; i < currentFilecount - maxFileCount + 1; i++) {
+    for (uint32_t i = 0; i < currentFilecount - maxFileCount_ + 1; i++) {
         std::string oldestFile = compressedFiles.front();
         fs::remove(oldestFile);
         compressedFiles.erase(compressedFiles.begin());
@@ -242,6 +275,6 @@ void UbseLoggerFilesink::ManageFileRotation(const std::string &fileName)
     RenameCompressedFile(compressedFiles);
 
     // 将新文件的索引设置为最大
-    fileMap[fileName].fileIndex = maxFileCount;
+    fileMap_[fileName].fileIndex = maxFileCount_;
 }
 }

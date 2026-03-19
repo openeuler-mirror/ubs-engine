@@ -3,7 +3,7 @@
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
+ * http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -24,17 +24,38 @@ public:
     void UbseCliSignUp() override;
 
 private:
-    UbseCliCommandInfo UbseCliQueryMem();
-    UbseCliCommandInfo UbseCliCheckMemoryStatus();
+    static UbseCliCommandInfo UbseCliQueryMem();
     static std::shared_ptr<UbseCliResultEcho> UbseCliMemQueryFunc([
         [maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliQueryBorrowDetailInfo();
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessBorrowDetailData(UbseDeSerialization &ubse_de_serial,
-        size_t node_borrow_detail_size);
+
+    static UbseCliCommandInfo UbseCliCheckMemoryStatus();
+    static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeLendInfo();
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeBorrowInfo();
     static std::shared_ptr<UbseCliResultEcho> UbseCliCheckMemoryStatusFunc([
         [maybe_unused]] const std::map<std::string, std::string> &params);
+
     static std::shared_ptr<UbseCliResultEcho> UbseCliMemoryStatusData(UbseDeSerialization &ubse_de_serial, size_t size);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessNumaStatusData(UbseDeSerialization &deSerialization,
+        size_t numaInfoSize);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNumaStatus();
+    static std::shared_ptr<UbseCliResultEcho> QueryMemConfig();
+
+    UbseCliCommandInfo CreateMemory();
+
+    UbseCliCommandInfo DeleteMemory();
+
+    UbseCliCommandInfo ShmMemoryDetach();
+
+    UbseCliCommandInfo ShmMemoryAttach();
+
+    static std::shared_ptr<UbseCliResultEcho> DeleteMemoryFunc(const std::map<std::string, std::string> &params);
+
+    static std::shared_ptr<UbseCliResultEcho> ShmMemoryAttachFunc(const std::map<std::string, std::string> &params);
+
+    static std::shared_ptr<UbseCliResultEcho> ShmMemoryDetachFunc(const std::map<std::string, std::string> &params);
+
+    static std::shared_ptr<UbseCliResultEcho> CreateMemoryFunc(const std::map<std::string, std::string> &params);
 };
-}
+bool CheckName(const std::string &name);
+} // namespace ubse::cli::reg
 #endif

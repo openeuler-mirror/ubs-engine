@@ -1,5 +1,13 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
  */
 
 #include "ubse_serial_util.h"
@@ -7,244 +15,331 @@
 #include "securec.h"
 
 namespace ubse::serial {
-int SafeCopy(void *dst, uint64_t des_len, const void *src, uint64_t src_len)
+enum class HeadBlockIndex { CTRL_CODE_IDX = 0, ALIGN_CODE_IDX, LEN_CODE_ID, MAX_CODE_NUMS };
+constexpr common_len HEAD_BLOCK_NUMS = static_cast<common_len>(HeadBlockIndex::MAX_CODE_NUMS);
+
+// 由调用方控制安全性
+void SetCode(base_ptr_type* buf, HeadBlockIndex idx, serial_head value)
 {
-    return memcpy_s(dst, des_len, src, src_len);
+    auto offset = static_cast<serial_head>(idx) * sizeof(serial_head);
+    *reinterpret_cast<serial_head*>(buf + offset) = value;
 }
 
-UbseSerialization::UbseSerialization() : mBuf(nullptr), mCap(INIT_CAPACITY), mLen(sizeof(uint64_t)), mFlag(true)
+// 由调用方控制安全性
+serial_head GetCode(base_ptr_type* buf, HeadBlockIndex idx)
 {
-    mBuf = new (std::nothrow) uint8_t[mCap];
-    if (Unlikely(mBuf == nullptr)) {
-        mFlag = false;
+    auto offset = static_cast<serial_head>(idx) * sizeof(serial_head);
+    return *reinterpret_cast<serial_head*>(buf + offset);
+}
+
+inline bool isValidAlign(ALIGN_BASE align)
+{
+    return align == ALIGN_BASE::OFFSET_BASE_1 || align == ALIGN_BASE::OFFSET_BASE_2 ||
+           align == ALIGN_BASE::OFFSET_BASE_4 || align == ALIGN_BASE::OFFSET_BASE_8;
+}
+
+UbseSerialization::UbseSerialization()
+    : mBuf_(nullptr),
+      mAlignOffset_(sizeof(serial_head) - 1),
+      mLen_(AlignTo(sizeof(serial_head) * HEAD_BLOCK_NUMS)),
+      mCap_(std::max(AlignTo(INIT_CAPACITY), mLen_)),
+      mFlag_(true)
+{
+    mBuf_ = new (std::nothrow) base_ptr_type[mCap_];
+    if (Unlikely(mBuf_ == nullptr)) {
+        mFlag_ = false;
         return;
     }
-    *reinterpret_cast<uint32_t *>(mBuf) = HEAD_CTRL_CODE;
-};
+}
+
+UbseSerialization::UbseSerialization(ALIGN_BASE align)
+    : mBuf_(nullptr),
+      mAlignOffset_(static_cast<common_len>(align) - 1),
+      mLen_(AlignTo(sizeof(serial_head) * HEAD_BLOCK_NUMS)),
+      mCap_(std::max(AlignTo(INIT_CAPACITY), mLen_)),
+      mFlag_(true)
+{
+    if (!isValidAlign(align)) {
+        mFlag_ = false;
+        return;
+    }
+    mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
+    if (Unlikely(mBuf_ == nullptr)) {
+        mFlag_ = false;
+        return;
+    }
+}
 
 UbseSerialization::~UbseSerialization()
 {
-    if (mBuf != nullptr) {
-        delete[] mBuf;
-        mBuf = nullptr;
+    if (mBuf_ != nullptr) {
+        delete[] mBuf_;
+        mBuf_ = nullptr;
     }
 }
 
-UbseSerialization::UbseSerialization(uint64_t cap)
-    : mBuf(nullptr),
-      mCap(AlignTo8(cap) + sizeof(uint64_t)),
-      mLen(sizeof(uint64_t)),
-      mFlag(true)
+UbseSerialization::UbseSerialization(common_len cap, ALIGN_BASE align)
+    : mBuf_(nullptr),
+      mAlignOffset_(static_cast<common_len>(align) - 1),
+      mLen_(AlignTo(sizeof(serial_head) * HEAD_BLOCK_NUMS)),
+      mCap_(AlignTo(cap) + mLen_),
+      mFlag_(true)
 {
-    if (mCap >= MAX_CAPACITY) {
-        mFlag = false;
+    if (!isValidAlign(align)) {
+        mFlag_ = false;
         return;
     }
-    mBuf = new (std::nothrow) uint8_t[mCap];
-    if (Unlikely(mBuf == nullptr)) {
-        mFlag = false;
-
+    if (mCap_ >= MAX_CAPACITY) {
+        mFlag_ = false;
         return;
     }
-    *reinterpret_cast<uint32_t *>(mBuf) = HEAD_CTRL_CODE;
-};
+    mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
+    if (Unlikely(mBuf_ == nullptr)) {
+        mFlag_ = false;
+        return;
+    }
+}
 
 UbseSerialization::UbseSerialization(UbseSerialization &&other) noexcept
-    : mBuf(other.mBuf),
-      mCap(other.mCap),
-      mLen(other.mLen),
-      mFlag(other.mFlag)
+    : mBuf_(other.mBuf_),
+      mAlignOffset_(other.mAlignOffset_),
+      mCap_(other.mCap_),
+      mLen_(other.mLen_),
+      mFlag_(other.mFlag_)
 {
-    other.mBuf = nullptr;
-    other.mLen = 0;
-    other.mFlag = true;
+    other.mBuf_ = nullptr;
+    other.mLen_ = 0;
+    other.mFlag_ = true;
 }
 
-uint8_t *UbseSerialization::GetBuffer(bool bGetCtrl)
+base_ptr_type *UbseSerialization::GetBuffer(bool bGetCtrl)
 {
-    *reinterpret_cast<uint32_t *>(mBuf + sizeof(uint32_t)) = mLen;
-    auto tmp = mBuf;
+    if (Unlikely(mBuf_ == nullptr)) {
+        return nullptr;
+    }
+    SetCode(mBuf_, HeadBlockIndex::CTRL_CODE_IDX, static_cast<serial_head>(CTRL_TYPE::HEAD_CTRL_CODE));
+    SetCode(mBuf_, HeadBlockIndex::ALIGN_CODE_IDX, static_cast<serial_head>(mAlignOffset_));
+    SetCode(mBuf_, HeadBlockIndex::LEN_CODE_ID, static_cast<serial_head>(mLen_));
+    auto tmp = mBuf_;
     if (bGetCtrl) {
-        mFlag = false;
-        mBuf = nullptr;
+        mFlag_ = false;
+        mBuf_ = nullptr;
     }
     return tmp;
 }
 
 UbseSerialization &UbseSerialization::operator=(UbseSerialization &&other) noexcept
 {
-    mBuf = other.mBuf;
-    other.mBuf = nullptr;
-    mCap = other.mCap;
-    mLen = other.mLen;
-    other.mLen = 0;
-    mFlag = other.mFlag;
-    other.mFlag = true;
+    mBuf_ = other.mBuf_;
+    other.mBuf_ = nullptr;
+    mCap_ = other.mCap_;
+    mLen_ = other.mLen_;
+    other.mLen_ = 0;
+    mFlag_ = other.mFlag_;
+    other.mFlag_ = true;
     return *this;
 }
 
 UbseSerialization &UbseSerialization::operator<<(array_len_insert arrayLenInsert)
 {
-    if (Unlikely(!mFlag)) {
+    if (Unlikely(!mFlag_)) {
         return *this;
     }
-    if (!expandCapacity(sizeof(uint64_t))) {
+    if (Unlikely(arrayLenInsert.len >= ONCE_LIMIT_LEN)) {
+        mFlag_ = false;
         return *this;
     }
-    writeTypeAndLen(ARRAY_CTRL_CODE, arrayLenInsert.len);
+    auto alignedHeadLen = AlignTo(sizeof(serial_head));
+    if (!expandCapacity(alignedHeadLen)) {
+        return *this;
+    }
+    writeTypeAndLen(mBuf_ + mLen_, static_cast<serial_type>(CTRL_TYPE::ARRAY_CTRL_CODE),
+        static_cast<serial_len>(arrayLenInsert.len));
+    mLen_ += alignedHeadLen;
+    return *this;
+}
+
+template <>
+UbseSerialization& UbseSerialization::operator<< <bool>(const std::vector<bool>& vec)
+{
+    *this << array_len_insert(vec.size());
+    if (vec.empty()) {
+        return *this;
+    }
+    std::vector<base_ptr_type> bytes(vec.size());
+    for (size_t i = 0; i < bytes.size(); i++) {
+        bytes[i] = vec[i] ? 1 : 0;
+    }
+    add(reinterpret_cast<const base_ptr_type*>(bytes.data()), bytes.size(), GetTypePointerId<std::_Bit_reference>());
     return *this;
 }
 
 UbseSerialization &UbseSerialization::operator<<(const std::string &str)
 {
-    add(reinterpret_cast<uint8_t *>(const_cast<char *>(str.c_str())), str.size() + 1, GetTypePointerId<char>());
+    add(reinterpret_cast<const base_ptr_type *>(str.c_str()), str.size() + 1,
+        GetTypePointerId<std::string>());
     return *this;
 }
 
 UbseSerialization &UbseSerialization::operator<<(std::string &&str)
 {
-    add(reinterpret_cast<uint8_t *>(const_cast<char *>(str.c_str())), str.size() + 1, GetTypePointerId<char>());
-    return *this;
+    return *this << str;
 }
 
 UbseSerialization &UbseSerialization::operator<<(const char *str)
 {
-    if (Unlikely(!mFlag || str == nullptr)) {
-        mFlag = false;
+    if (str == nullptr) {
+        mFlag_ = false;
         return *this;
     }
-    add(reinterpret_cast<uint8_t *>(const_cast<char *>(str)), strlen(str) + 1, GetTypePointerId<char>());
+    add(reinterpret_cast<const base_ptr_type *>(str), strlen(str) + 1, GetTypePointerId<std::string>());
     return *this;
 }
 
 UbseSerialization &UbseSerialization::operator<<(UbseSerialization &kid)
 {
     if (!kid.Check()) {
-        mFlag = false;
+        mFlag_ = false;
         return *this;
     }
     auto len = kid.GetLength();
-    if (!expandCapacity(sizeof(uint64_t) + len)) {
+    if (Unlikely(len >= ONCE_LIMIT_LEN)) {
+        mFlag_ = false;
         return *this;
     }
-    writeTypeAndLen(NEST_CTRL_CODE, len);
-    if (Unlikely(SafeCopy(mBuf + mLen, len, kid.GetBuffer(), len) != 0)) {
-        mFlag = false;
+    auto alignedHeadLen = AlignTo(sizeof(serial_head));
+    auto alignedParamLen = AlignTo(len);
+    if (!expandCapacity(alignedHeadLen + alignedParamLen)) {
         return *this;
     }
-    mLen += AlignTo8(len);
+    writeTypeAndLen(mBuf_ + mLen_, static_cast<serial_type>(CTRL_TYPE::NEST_CTRL_CODE), static_cast<serial_len>(len));
+    mLen_ += alignedHeadLen;
+    if (Unlikely(memcpy_s(mBuf_ + mLen_, len, kid.GetBuffer(), len) != EOK)) {
+        mFlag_ = false;
+        return *this;
+    }
+    mLen_ += alignedParamLen;
     return *this;
 }
 
-bool UbseSerialization::expandCapacity(uint64_t len)
+bool UbseSerialization::expandCapacity(common_len len)
 {
-    if (mLen + len >= MAX_CAPACITY) {
-        mFlag = false;
+    if (mLen_ + len >= MAX_CAPACITY) {
+        mFlag_ = false;
         return false;
     }
     bool bNeedExpand = false;
-    while (mCap < mLen + len) {
-        (mCap << 1 >= MAX_CAPACITY) ? mCap = MAX_CAPACITY : mCap <<= 1;
+    while (mCap_ < mLen_ + len) {
+        ((mCap_ << 1) >= MAX_CAPACITY) ? mCap_ = MAX_CAPACITY - 1 : mCap_ <<= 1;
         bNeedExpand = true;
     }
     if (!bNeedExpand) {
         return true;
     }
-    auto newBuf = new (std::nothrow) uint8_t[mCap];
+    auto newBuf = new (std::nothrow) base_ptr_type[mCap_]();
     if (Unlikely(newBuf == nullptr)) {
-        mFlag = false;
+        mFlag_ = false;
         return false;
     }
-    if (Unlikely(SafeCopy(newBuf, mLen, mBuf, mLen) != 0)) {
-        mFlag = false;
+    if (Unlikely(memcpy_s(newBuf, mCap_, mBuf_, mLen_) != EOK)) {
+        mFlag_ = false;
         delete[] newBuf;
         return false;
     }
-    delete[] mBuf;
-    mBuf = newBuf;
+    delete[] mBuf_;
+    mBuf_ = newBuf;
     return true;
 }
 
-void UbseSerialization::add(uint8_t *addr, uint64_t len, uint32_t type)
+void UbseSerialization::add(const base_ptr_type *addr, common_len len, serial_type type)
 {
-    if (Unlikely(!mFlag)) {
+    if (Unlikely(!mFlag_)) {
         return;
     }
-    if (Unlikely(addr == nullptr || len == 0 || AlignTo8(len) > LIMIT_LEN)) {
-        mFlag = false;
+    if (Unlikely(addr == nullptr || len == 0 || len >= ONCE_LIMIT_LEN - mAlignOffset_)) {
+        mFlag_ = false;
         return;
     }
-    if (!expandCapacity(sizeof(uint64_t) + AlignTo8(len))) {
+    auto alignedHeadLen = AlignTo(sizeof(serial_head));
+    auto alignedParamLen = AlignTo(len);
+    if (!expandCapacity(alignedHeadLen + alignedParamLen)) {
         return;
     }
-    writeTypeAndLen(type, len);
-    if (Unlikely(SafeCopy(mBuf + mLen, len, addr, len) != 0)) {
-        mFlag = false;
+    writeTypeAndLen(mBuf_ + mLen_, type, static_cast<serial_len>(len));
+    mLen_ += alignedHeadLen;
+    if (Unlikely(memcpy_s(mBuf_ + mLen_, len, addr, len) != EOK)) {
+        mFlag_ = false;
         return;
     }
-    mLen += AlignTo8(len);
+    mLen_ += alignedParamLen;
 }
 
-bool UbseDeSerialization::Set(uint8_t *buf, uint64_t len, bool bNew)
+bool UbseDeSerialization::Set(base_ptr_type *buf, common_len len, bool bNew)
 {
-    if (mBuf != nullptr || buf == nullptr || len == 0 || len % sizeof(uint64_t) != 0 || len >= MAX_CAPACITY) {
-        mFlag = false;
+    if (mBuf_ != nullptr || buf == nullptr || len < sizeof(serial_head) * HEAD_BLOCK_NUMS || len >= MAX_CAPACITY) {
+        mFlag_ = false;
         return false;
     }
-    if (*reinterpret_cast<uint32_t *>(buf) != HEAD_CTRL_CODE) { // 头部控制块校验
-        mFlag = false;
+    // 头部控制块校验
+    if (GetCode(buf, HeadBlockIndex::CTRL_CODE_IDX) != static_cast<serial_head>(CTRL_TYPE::HEAD_CTRL_CODE)) {
+        mFlag_ = false;
         return false;
     }
-    if (*reinterpret_cast<uint32_t *>(buf + sizeof(uint32_t)) != len) { // 长度校验
-        mFlag = false;
+    mAlignOffset_ = GetCode(buf, HeadBlockIndex::ALIGN_CODE_IDX);
+    auto alignBase = mAlignOffset_ + 1;
+    if (!isValidAlign(static_cast<ALIGN_BASE>(alignBase))) {
+        mFlag_ = false;
+        return false;
+    }
+    auto l = GetCode(buf, HeadBlockIndex::LEN_CODE_ID);
+    if (l != len || l % (alignBase) != 0) {
+        mFlag_ = false;
         return false;
     }
     if (bNew) {
-        mBuf = new (std::nothrow) uint8_t[len];
-        if (Unlikely(mBuf == nullptr)) {
-            mFlag = false;
+        mBuf_ = new (std::nothrow) base_ptr_type[len]();
+        if (Unlikely(mBuf_ == nullptr)) {
+            mFlag_ = false;
             return false;
         }
-        if (Unlikely(SafeCopy(mBuf, len, buf, len) != 0)) {
-            mFlag = false;
-            delete[] mBuf;
-            mBuf = nullptr;
+        if (Unlikely(memcpy_s(mBuf_, len, buf, len) != EOK)) {
+            mFlag_ = false;
+            delete[] mBuf_;
+            mBuf_ = nullptr;
             return false;
         }
     } else {
-        mBuf = buf;
+        mBuf_ = buf;
     }
-    mPos = mBuf + sizeof(uint64_t);
-    mLen = len;
-    mGetBufCtrl = bNew;
+    mPos_ = mBuf_ + AlignTo(sizeof(serial_head) * HEAD_BLOCK_NUMS);
+    mLen_ = len;
+    mGetBufCtrl_ = bNew;
     return true;
 }
 
-UbseDeSerialization::UbseDeSerialization() : mBuf(nullptr), mPos(mBuf), mLen(0), mFlag(true), mGetBufCtrl(false) {}
+UbseDeSerialization::UbseDeSerialization()
+    : mBuf_(nullptr), mPos_(mBuf_), mLen_(0), mFlag_(true), mGetBufCtrl_(false), mAlignOffset_(sizeof(serial_len) - 1)
+{}
 
-UbseDeSerialization::UbseDeSerialization(const uint8_t *buf, uint64_t len, bool bNew)
-    : mBuf(nullptr),
-      mPos(mBuf),
-      mLen(0),
-      mFlag(true),
-      mGetBufCtrl(false)
+UbseDeSerialization::UbseDeSerialization(const base_ptr_type *buf, common_len len, bool bNew)
+    : mBuf_(nullptr), mPos_(mBuf_), mLen_(0), mFlag_(true), mGetBufCtrl_(false), mAlignOffset_(sizeof(serial_len) - 1)
 {
-    Set(const_cast<uint8_t *>(buf), len, bNew);
+    Set(const_cast<base_ptr_type *>(buf), len, bNew);
 }
 
 UbseDeSerialization::~UbseDeSerialization()
 {
-    if (mGetBufCtrl) {
-        UbseSerialFreeFunc(mBuf);
+    if (mGetBufCtrl_) {
+        UbseSerialFreeFunc(mBuf_);
     }
 }
 
 uint8_t *UbseDeSerialization::GetBuffer(bool bGetCtrl)
 {
-    auto tmp = mBuf;
+    auto tmp = mBuf_;
     if (bGetCtrl) {
-        if (mGetBufCtrl) {
-            mBuf = nullptr;
+        if (mGetBufCtrl_) {
+            mBuf_ = nullptr;
         } else {
             return nullptr;
         }
@@ -252,119 +347,116 @@ uint8_t *UbseDeSerialization::GetBuffer(bool bGetCtrl)
     return tmp;
 }
 
-bool UbseDeSerialization::checkValid()
+bool UbseDeSerialization::checkValid(common_len expectLen)
 {
-    if (Unlikely(!mFlag)) {
+    if (Unlikely(!mFlag_)) {
         return false;
     }
-    if (Unlikely(mPos >= mBuf + mLen)) {
-        mFlag = false;
+    if (Unlikely(expectLen == 0 || mPos_ + expectLen > mBuf_ + mLen_)) {
+        mFlag_ = false;
         return false;
     }
     return true;
 }
 
+template <>
+UbseDeSerialization& UbseDeSerialization::operator>><bool>(std::vector<bool>& vec)
+{
+    common_len bit_len;
+    *this >> array_len_capture(bit_len);
+    if (bit_len == 0) {
+        vec.clear();
+        return *this;
+    }
+    base_ptr_type* addr;
+    common_len len;
+    if (!get(addr, len, GetTypePointerId<std::_Bit_reference>())) {
+        return *this;
+    }
+    if (len == 0 || bit_len != len) {
+        mFlag_ = false;
+        return *this;
+    }
+    vec.resize(bit_len);
+    for (size_t i = 0; i < vec.size(); i++) {
+        vec[i] = (addr[i] != 0);
+    }
+    return *this;
+}
+
 UbseDeSerialization &UbseDeSerialization::operator>>(std::string &str)
 {
-    if (!checkValid()) {
+    base_ptr_type* addr;
+    common_len len;
+    if (!get(addr, len, GetTypePointerId<std::string>())) {
         return *this;
     }
-    uint8_t *addr;
-    uint64_t len;
-    if (!get(addr, len, GetTypePointerId<char>())) {
+    if (Unlikely(len == 0)) {
+        mFlag_ = false;
         return *this;
     }
-    if (len == 0) {
-        mFlag = false;
-        return *this;
-    }
-    str = std::string(reinterpret_cast<char *>(addr), len - 1);
+    str = std::string(reinterpret_cast<char*>(addr), len - 1);
     return *this;
 }
 
 UbseDeSerialization &UbseDeSerialization::operator>>(char *&str)
 {
-    if (!checkValid()) {
+    base_ptr_type* addr;
+    common_len len;
+    if (!get(addr, len, GetTypePointerId<std::string>())) {
         return *this;
     }
-    uint8_t *addr;
-    uint64_t len;
-    if (!get(addr, len, GetTypePointerId<char>())) {
-        return *this;
-    }
-    if (len == 0) {
-        mFlag = false;
+    if (Unlikely(len == 0)) {
+        mFlag_ = false;
         return *this;
     }
     str = new (std::nothrow) char[len];
     if (Unlikely(str == nullptr)) {
-        mFlag = false;
+        mFlag_ = false;
         return *this;
     }
-    if (Unlikely(SafeCopy(str, len, addr, len) != 0)) {
-        mFlag = false;
+    if (Unlikely(memcpy_s(str, len, addr, len) != EOK)) {
+        mFlag_ = false;
         delete[] str;
         str = nullptr;
     }
     return *this;
 }
 
-UbseDeSerialization &UbseDeSerialization::operator>>(const char *&str)
-{
-    if (!checkValid()) {
-        return *this;
-    }
-    uint8_t *addr;
-    uint64_t len;
-    if (!get(addr, len, GetTypePointerId<char>())) {
-        return *this;
-    }
-    if (len == 0) {
-        mFlag = false;
-        return *this;
-    }
-    auto tmp = new (std::nothrow) char[len];
-    if (Unlikely(tmp == nullptr)) {
-        mFlag = false;
-        return *this;
-    }
-    if (Unlikely(SafeCopy(tmp, len, addr, len) != 0)) {
-        mFlag = false;
-        delete[] tmp;
-        return *this;
-    }
-    str = tmp;
-    return *this;
-}
-
 UbseDeSerialization &UbseDeSerialization::operator>>(UbseDeSerialization &kid)
 {
-    if (!checkValid()) {
-        return *this;
-    }
-    uint8_t *addr;
-    uint64_t len;
-    if (!get(addr, len, NEST_CTRL_CODE)) {
+    base_ptr_type* addr;
+    common_len len;
+    if (!get(addr, len, static_cast<uint32_t>(CTRL_TYPE::NEST_CTRL_CODE))) {
         return *this;
     }
     kid.Set(addr, len, true);
+    if (!kid.Check()) {
+        mFlag_ = false;
+        return *this;
+    }
     return *this;
 }
 
-bool UbseDeSerialization::get(uint8_t *&addr, uint64_t &len, uint32_t type)
+bool UbseDeSerialization::get(base_ptr_type *&addr, common_len &len, serial_type type)
 {
-    auto t = *(reinterpret_cast<uint32_t *>(mPos));
-    if (t != type) {
-        mFlag = false;
+    auto expectReadLen = AlignTo(sizeof(serial_head));
+    if (!checkValid(expectReadLen)) {
+        mFlag_ = false;
         return false;
     }
-    mPos += sizeof(uint32_t);
-    len = *(reinterpret_cast<uint32_t *>(mPos));
-    mPos += sizeof(uint32_t);
-    addr = mPos;
-    mPos += AlignTo8(len);
-    if (mPos > mBuf + mLen) { // 防错误长度溢出场景
-        mFlag = false;
+    auto o = readLenByType(mPos_, type);
+    if (o.has_value()) {
+        len = o.value();
+        mPos_ += expectReadLen;
+    } else {
+        mFlag_ = false;
+        return false;
+    }
+    addr = mPos_;
+    mPos_ += AlignTo(len);
+    if (mPos_ > mBuf_ + mLen_) { // 防错误长度溢出场景
+        mFlag_ = false;
         return false;
     }
     return true;

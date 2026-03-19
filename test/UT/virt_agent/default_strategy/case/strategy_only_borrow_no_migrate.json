@@ -1,0 +1,117 @@
+{
+	"description": "no borrow migration",
+	"input": {
+		"alarmNumaInfo":{
+			"isMemReturn": false,
+			"oomEventFlag": 0,
+			"numaLoc": ["191",0,0],
+			"vmBasicInfos": [
+				{
+					"uuid":"xxxxxxx-001",
+					"maxMem": 17179869184,
+					"localUsedMem": 14087492730,
+					"remoteUsedMem": 0,
+					"vmCreateTime": 0,
+					"vmMigrateInTime": 0,
+					"vmMigrateCount": 0,
+					"vmMigrateStatus":"MIGRATEABLE"
+				}
+			],
+			"borrowItemInfo": {
+				"borrowItem":[]
+		}
+		},
+		"globalNumaInfoMap":[
+			{
+				"numaLoc": ["190",0,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["190",0,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["190",1,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["190",1,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["191",0,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 225399883694,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["191",0,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["191",1,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["191",1,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			}
+			
+		]
+	},
+	"output": {
+		"escapeActionType":"BORROW",
+		"migrations": [],
+		"returnMemNames": [],
+		"borrowSizes": [4294967296,4294967296,4294967296]
+	},
+	"conf": {
+		"memReturnLine": "60",
+		"memFirstLine": "80",
+		"memSecondLine": "80",
+		"minMemOverageRecovery": 0.02,
+		"maxMemBorrow": 0.25,
+		"maxMemPerBorrowBytes": 4294967296,
+		"minMemPerBorrowBytes": 1073741824,
+		"memBorrowAlignBytes": 1073741824,
+		"maxPerTotalMemBorrowBytes": 17179869184,
+		"minMemPerMigrationBytes": 2147483648,
+		"oomEventBorrowBytes": 1073741824,
+		"minSecondsOfVmMigrateInterval": 160,
+		"minSecondsOfNumaMigrateInterval": 90,
+		"minSecondsOfNonMigratableVmInterval": 300,
+		"maxOneCopyMigrationBytes": 4294967296,
+		"maxIterativeCopyMigrationBytes": 17179869184
+	}
+}

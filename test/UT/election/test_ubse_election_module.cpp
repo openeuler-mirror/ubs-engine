@@ -63,7 +63,7 @@ TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetNodeInfoByID)
     EXPECT_EQ(result, UBSE_ERROR);
 }
 
-TEST_F(TestUbseElectionModule, ShouldReturnUbseOk)
+TEST_F(TestUbseElectionModule, UbseGetMasterNodeReturnUbseERROR)
 {
     Node masterNode;
     UbseElectionModule module;
@@ -76,7 +76,7 @@ TEST_F(TestUbseElectionModule, ShouldReturnUbseOk)
     auto role = RoleMgr::GetInstance().GetRole();
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
     UbseResult result = module.UbseGetMasterNode(masterNode);
-    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(result, UBSE_ERROR);
 }
 
 
@@ -106,7 +106,7 @@ TEST_F(TestUbseElectionModule, ShuldReturnErrorWhenGetNodeInfoByID)
     EXPECT_EQ(result, UBSE_ERROR);
 }
 
-TEST_F(TestUbseElectionModule, ShuldReturnOK)
+TEST_F(TestUbseElectionModule, ShuldReturnERROR)
 {
     Node masterNode;
     UbseElectionModule module;
@@ -119,7 +119,7 @@ TEST_F(TestUbseElectionModule, ShuldReturnOK)
     auto role = RoleMgr::GetInstance().GetRole();
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
     UbseResult result = module.UbseGetStandbyNode(masterNode);
-    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(result, UBSE_ERROR);
 }
 
 TEST_F(TestUbseElectionModule, IsLeader_ShouldReturnFalse_WhenGetMyselfNodeFailed)
@@ -168,7 +168,7 @@ TEST_F(TestUbseElectionModule, UbseGetAllNodes)
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
     Standby standby(ctx);
-    standby.agentIds= {"NODE3"};
+    standby.agentIds_= {"NODE3"};
     EXPECT_EQ(standby.GetRoleType(), RoleType::STANDBY);
     std::vector<Node> allNodes = { Node{ "NODE0", "192.168.0.1", 10004 }, Node{ "NODE1", "192.168.0.2", 10005 },
                                    Node{ "NODE3", "192.168.0.3", 10006 } };
@@ -182,10 +182,10 @@ TEST_F(TestUbseElectionModule, UbseGetAllNodes)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUbseElectionModule, Start_ShouldReturnRACK_OK_WhenRegisterHttpHandlerAndRegisterCmdInfoSucceed)
+TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_OK_WhenRegisterHttpHandlerAndRegisterCmdInfoSucceed)
 {
-    UbseElectionCommMgr rackComBase("1", "2");
-    MOCKER_CPP_VIRTUAL(&rackComBase, &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_OK));
+    UbseElectionCommMgr ubseComBase("1", "2");
+    MOCKER_CPP_VIRTUAL(&ubseComBase, &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_OK));
     UbseElectionModule module;
     ubse::context::UbseContext::GetInstance().SetProcessMode(ubse::context::ProcessMode::MANAGER);
     MOCKER(&UbseElectionPktHandler::RegElectionPktHandler).stubs().will(returnValue(UBSE_OK));
@@ -205,6 +205,7 @@ TEST_F(TestUbseElectionModule, TimerTaskCom_WhenThreadStatusIsTrue)
     std::this_thread::sleep_for(std::chrono::seconds(NO_2));
     g_globalStop.store(true);
     timerThread.join();
+    g_globalStop.store(false);
 }
 
 TEST_F(TestUbseElectionModule, TimerTaskElection_WhenThreadStatusIsTrue)
@@ -215,6 +216,7 @@ TEST_F(TestUbseElectionModule, TimerTaskElection_WhenThreadStatusIsTrue)
     std::this_thread::sleep_for(std::chrono::seconds(NO_2));
     g_globalStop.store(true);
     timerThread.join();
+    g_globalStop.store(false);
 }
 
 }

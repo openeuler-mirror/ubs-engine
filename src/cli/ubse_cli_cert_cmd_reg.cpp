@@ -19,12 +19,13 @@ UBSE_CLI_REGISTER_MODULE("CLI_CERT_MODULE", UbseCliRegCertModule);
 using namespace ubse::cli::cert;
 using namespace ubse::cli::framework;
 using namespace ubse::common::def;
-static const std::string SUCCESS_IMPORT = "Success to Import cert set";
-static const std::string SUCCESS_DELETE = "Success to Delete cert set";
-static const std::string SUCCESS_IMPORT_CRL = "Success to Import cert crl";
-static const std::string FAILED_IMPORT = "failed import cert set";
-static const std::string FAILED_DELETE = "Failed to Delete cert set";
-static const std::string FAILED_IMPORT_CRL = "failed import cert crl";
+static const std::string SUCCESS_IMPORT = "Certificates imported successfully";
+static const std::string SUCCESS_REMOVE = "Certificates removed successfully";
+static const std::string SUCCESS_CHANGE_CRL = "Certificate Revocation List changed successfully";
+static const std::string FAILED_IMPORT = "Certificates import failed: ";
+static const std::string FAILED_REMOVE = "Certificates removed failed: ";
+static const std::string FAILED_NOT_EXIST = "Certificates do not exist";
+static const std::string FAILED_CHANGE_CRL = "Certificate Revocation List change failed: ";
 static const std::string SERVER_CERT_DES =
     "A digital document that verifies the identity of an entity and binds a public key to it.";
 static const std::string CA_CERT_DES = "A certificate issued by a trusted authority to validate authenticity and "
@@ -58,7 +59,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertImportFunc([
     auto trust_cert_path = params.find(CA_CERT_PATH);
     auto server_key_path = params.find(SERVER_KEY_PATH);
     auto ca_crl_path = params.find(CA_CRL_PATH);
-    char *ca_crl_path_value = nullptr;
+    std::string ca_crl_path_value{};
     if (server_cert_path == params.end()) {
         return UbseCliStringPromptReply(NO_SERVER_CERT_PATH);
     }
@@ -69,13 +70,12 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertImportFunc([
         return UbseCliStringPromptReply(NO_SERVER_KEY_PATH);
     }
     if (ca_crl_path != params.end()) {
-        ca_crl_path_value = const_cast<char *>(ca_crl_path->second.c_str());
+        ca_crl_path_value = ca_crl_path->second;
     }
-    UbseResult ret = UBSE_OK;
-    ret = ImportCertSet(server_cert_path->second.c_str(), trust_cert_path->second.c_str(),
-        server_key_path->second.c_str(), ca_crl_path_value);
-    if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(FAILED_IMPORT);
+    std::string errMsg{};
+    if (!ImportCertSet(server_cert_path->second, trust_cert_path->second, server_key_path->second, ca_crl_path_value,
+                       errMsg)) {
+        return UbseCliStringPromptReply(FAILED_IMPORT + errMsg);
     }
     return UbseCliStringPromptReply(SUCCESS_IMPORT);
 }
@@ -87,23 +87,26 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCaCrlImportFunc(
     if (ca_crl_path == params.end()) {
         return UbseCliStringPromptReply(NO_CA_CRL);
     }
-    UbseResult ret = UBSE_OK;
-    ret = ImportCaCrl(ca_crl_path->second.c_str());
-    if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(FAILED_IMPORT_CRL);
+    std::string errMsg{};
+    if (!ImportCaCrl(ca_crl_path->second, errMsg)) {
+        return UbseCliStringPromptReply(FAILED_CHANGE_CRL + errMsg);
     }
-    return UbseCliStringPromptReply(SUCCESS_IMPORT_CRL);
+    return UbseCliStringPromptReply(SUCCESS_CHANGE_CRL);
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertDeleteFunc([
     [maybe_unused]] const std::map<std::string, std::string> &params)
 {
     UbseResult ret = UBSE_OK;
-    ret = DeleteCertSet();
-    if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(FAILED_DELETE);
+    std::string errMsg{};
+    ret = DeleteCertSet(errMsg);
+    if (ret == UBSE_ERROR_FILE_NOT_EXIST) {
+        return UbseCliStringPromptReply(FAILED_NOT_EXIST);
     }
-    return UbseCliStringPromptReply(SUCCESS_DELETE);
+    if (ret != UBSE_OK) {
+        return UbseCliStringPromptReply(FAILED_REMOVE + errMsg);
+    }
+    return UbseCliStringPromptReply(SUCCESS_REMOVE);
 }
 
 UbseCliCommandInfo UbseCliRegCertModule::UbseCliCreateCert()
@@ -119,18 +122,18 @@ UbseCliCommandInfo UbseCliRegCertModule::UbseCliCreateCert()
     return builder.UbseCliBuild();
 }
 
-UbseCliCommandInfo UbseCliRegCertModule::UbseCliDeleteCert()
+UbseCliCommandInfo UbseCliRegCertModule::UbseCliRemoveCert()
 {
     UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("delete").UbseCliSetType("cert").UbseCliSetFunc(UbseCliCertDeleteFunc);
+    builder.UbseCliSetCommand("remove").UbseCliSetType("cert").UbseCliSetFunc(UbseCliCertDeleteFunc);
     return builder.UbseCliBuild();
 }
 
-UbseCliCommandInfo UbseCliRegCertModule::UbseCliImportCaCrl()
+UbseCliCommandInfo UbseCliRegCertModule::UbseCliChangeCaCrl()
 {
     UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("import")
-        .UbseCliSetType("crl")
+    builder.UbseCliSetCommand("change")
+        .UbseCliSetType("cert")
         .UbseCliAddOption("l", CA_CRL_PATH, CA_CRL_DES)
         .UbseCliSetFunc(UbseCliCaCrlImportFunc);
     return builder.UbseCliBuild();
@@ -138,8 +141,8 @@ UbseCliCommandInfo UbseCliRegCertModule::UbseCliImportCaCrl()
 
 void UbseCliRegCertModule::UbseCliSignUp()
 {
-    this->cmd.emplace_back(UbseCliCreateCert());
-    this->cmd.emplace_back(UbseCliImportCaCrl());
-    this->cmd.emplace_back(UbseCliDeleteCert());
+    this->cmd_.emplace_back(UbseCliCreateCert());
+    this->cmd_.emplace_back(UbseCliChangeCaCrl());
+    this->cmd_.emplace_back(UbseCliRemoveCert());
 }
 } // namespace ubse::cli::reg

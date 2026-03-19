@@ -14,123 +14,221 @@
 #define UBSE_ERROR_H
 #include <cstdint>
 
-/**
- * 描述:生成模块内的私有错误码。(模块ID + 模块内具体错误码 = 完整的错误码)
- * MID（高两个字节）＋ERRNO（低两个字节）
- * 如错误码：0x10081000
- * 高字节0x1008表示模块ID：即0x1000 + 8，表示communication子系统的net模块，可在本头文件找到UBSE_COMMUNICATION_MID_NET
- * 低字节0x1000表示错误类型：0x1000 + 0，表示模块内的私有错误码基础值 + 错误码，可在头文件ubse_net_error.h中找到错误类型
+/*
+ * UBSE错误码转换规则：
+ * 小于10000的错误码为对外暴露的错误码，新增需同步至ubs_error.h
+ * 内部错误码从10000起始，对外统一返回内部错误。
  */
-#define UBSE_ERROR_BEGIN_USER 0X1000                                 /* 模块内的私有错误码基础值 */
-#define UBSE_ERROR_USERNO(n) (uint32_t(UBSE_ERROR_BEGIN_USER + (n))) /* 计算模块内的私有错误码加基础值 */
-#define UBSE_MID_HI16(MID) (uint32_t((MID) << 16))                   /* 模块ID左移到高字节 */
+#define UBSE_INTERNAL_ERROR_BASE 10000
+#define UBSE_ERROR_DEF(n) (uint32_t(n))
+#define UBSE_INTERNAL_ERROR_DEF(n) (uint32_t(UBSE_INTERNAL_ERROR_BASE + (n)))
 
-/* 各个子系统，MID分段起始ID定义，各个模块定义时选择相应的起始ID */
-#define UBSE_MID_BEGIN0 0x0000      /* common     */
-#define UBSE_MID_BEGIN1 0x1000      /* Ubs_Engine */
-#define UBSE_MID_BEGIN2 0x2000      /* Ubse CLI   */
-#define UBSE_MID_BEGIN3 0x3000      /* Plugin     */
+/* ************************************************************* */
+/*                  成功场景统一返回UBSE_OK，值为0                   */
+/* ************************************************************* */
+#define UBSE_OK UBSE_ERROR_DEF(0)                        /* 正确 */
 
-/* 宏定义各个子模块MID计算方法 */
-#define UBSE_COMMON_ERROR(n) (uint32_t(UBSE_MID_BEGIN0 + (n)))       /* common     */
-#define UBSE_MID_MAKE_MANAGER(n) (uint32_t(UBSE_MID_BEGIN1 + (n)))   /* Ubs_Engine */
-#define UBSE_MID_MAKE_CLI(n) (uint32_t(UBSE_MID_BEGIN2 + (n)))       /* Ubse CLI   */
-#define UBSE_MID_PLUGIN(n) (uint32_t(UBSE_MID_BEGIN3 + (n)))         /* Plugin     */
 
-/* ********************************************** */
-/* common错误码定义，全局唯一，记录系统的标准错误返回 */
-/* ********************************************** */
-#define UBSE_OK UBSE_COMMON_ERROR(0)                         /* 正确 */
-#define UBSE_ERROR UBSE_COMMON_ERROR(1)                      /* 错误 */
-#define UBSE_ERROR_NOENT UBSE_COMMON_ERROR(2)                /* No such file or directory */
-#define UBSE_ERROR_NOMEM UBSE_COMMON_ERROR(3)                /* Out of memory */
-#define UBSE_ERROR_ACCES UBSE_COMMON_ERROR(4)                /* Permission denied */
-#define UBSE_ERROR_SRCH UBSE_COMMON_ERROR(5)                 /* No such process */
-#define UBSE_ERROR_EXIST UBSE_COMMON_ERROR(6)                /* File exists */
-#define UBSE_ERROR_NOSPC UBSE_COMMON_ERROR(7)                /* No space left on device */
-#define UBSE_ERROR_AGAIN UBSE_COMMON_ERROR(8)                /* Try again */
-#define UBSE_ERROR_IO UBSE_COMMON_ERROR(9)                   /* I/O error */
-#define UBSE_ERROR_BADF UBSE_COMMON_ERROR(10)                /* Bad file descriptor */
-#define UBSE_ERROR_CONF_INVALID UBSE_COMMON_ERROR(11)        /* 非法的配置文件 */
-#define UBSE_ERROR_NULLPTR UBSE_COMMON_ERROR(12)             /* 空指针 */
-#define UBSE_MASTER_EMPTY_VECTOR_ERROR UBSE_COMMON_ERROR(13) /* 空数组 */
-#define UBSE_ERROR_INVAL UBSE_COMMON_ERROR(14)               /* Invalid argument */
-#define UBSE_ERROR_MODULE_LOAD_FAILED UBSE_COMMON_ERROR(15)  /* 模块加载失败 */
-#define UBSE_ERROR_CLI_ARGS_FAILED UBSE_COMMON_ERROR(16)     /* 解析参数失败 */
-#define UBSE_ERROR_SERIALIZE_FAILED UBSE_COMMON_ERROR(17)    /* 序列化失败 */
-#define UBSE_ERROR_DESERIALIZE_FAILED UBSE_COMMON_ERROR(18)  /* 反序列化失败 */
-#define UBSE_ERROR_NULL_INFO UBSE_COMMON_ERROR(19)           /* 业务信息为空 */
+/* ************************************************************* */
+/* 对外暴露的错误码定义，全局唯一，范围1~9999，需要暴露给sdk时使用以下错误码 */
+/* ************************************************************* */
 
-/* *************************************** */
-/* 各个模块MID定义                          */
-/* 0:基础模块                               */
-/* 1:com模块                                */
-/* 2:config模块                             */
-/* 3:event模块                              */
-/* 4:http模块                               */
-/* 5:log模块                                */
-/* 6:message模块                            */
-/* 7:plugin模块                             */
-/* 8:role模块                               */
-/* 9:storage模块                            */
-/* 11:资源管理框架                           */
-/* 30:kmc加解密模块                          */
-/* **************************************** */
-#define UBSE_MANAGER_MID_BASE UBSE_MID_MAKE_MANAGER(0)       /* 0X1000 基础模块 */
+/* ====================== 参数错误 (1-9) ====================== */
+#define UBSE_ERR_INVALID_ARG UBSE_ERROR_DEF(1)      /* 无效参数 */
+#define UBSE_ERR_BUFFER_TOO_SMALL UBSE_ERROR_DEF(4) /* 缓冲区不足 */
 
-#define UBSE_COM_MID UBSE_MID_MAKE_MANAGER(1)                /* 0X1001 */
-#define UBSE_CONF_MID UBSE_MID_MAKE_MANAGER(2)               /* 0X1002 */
-#define UBSE_EVENT_MID UBSE_MID_MAKE_MANAGER(3)              /* 0X1003 */
-#define UBSE_HTTP_MID UBSE_MID_MAKE_MANAGER(4)               /* 0X1004 */
-#define UBSE_LOG_MID UBSE_MID_MAKE_MANAGER(5)                /* 0X1005 */
-#define UBSE_MESSAGE_MID UBSE_MID_MAKE_MANAGER(6)            /* 0X1006 */
-#define UBSE_PLUGIN_MID UBSE_MID_MAKE_MANAGER(7)             /* 0X1007 */
-#define UBSE_ROLE_MID UBSE_MID_MAKE_MANAGER(8)               /* 0X1008 */
-#define UBSE_STORAGE_MID UBSE_MID_MAKE_MANAGER(9)            /* 0X1009 */
-#define UBSE_RESOURCE_MGR_MID UBSE_MID_MAKE_MANAGER(11)      /* 0X100B */
-#define UBSE_DEV_MID UBSE_MID_MAKE_MANAGER(12)               /* 0X100C */
-#define UBSE_UTILS_MID UBSE_MID_MAKE_MANAGER(13)             /* 0X100D */
-#define UBSE_PARSE_MID UBSE_MID_MAKE_MANAGER(14)             /* 0X100E */
-#define UBSE_SYSTEM_MID UBSE_MID_MAKE_MANAGER(15)            /* 0X100F */
-#define UBSE_TASK_EXECUTOR_MID UBSE_MID_MAKE_MANAGER(16)     /* 0X1010 */
-#define UBSE_DBG_DEADLOOP_MID UBSE_MID_MAKE_MANAGER(17)      /* 0X1011 */
-#define UBSE_SDK_REGISTER_MID UBSE_MID_MAKE_MANAGER(18)      /* 0X1012 */
+/* ====================== 资源错误 (10-19) ====================== */
+#define UBSE_ERR_OUT_OF_MEMORY UBSE_ERROR_DEF(10)       /* 内存不足 */
+#define UBSE_ERR_RESOURCE_BUSY UBSE_ERROR_DEF(11)       /* 资源忙 */
+#define UBSE_ERR_RESOURCE_EXHAUSTED UBSE_ERROR_DEF(12)  /* 资源耗尽 */
+#define UBSE_ERR_QUOTA_EXCEEDED UBSE_ERROR_DEF(13)      /* 配额超出 */
 
-#define UBSE_DBG_TRACE_MID UBSE_MID_MAKE_MANAGER(18)         /* 0X1012 */
-#define UBSE_NODE_MID UBSE_MID_MAKE_MANAGER(19)              /* 0X1013 */
-#define UBSE_DBG_EXCEPTION_MID UBSE_MID_MAKE_MANAGER(20)     /* 0X1014 */
-#define UBSE_DBG_MEMORY_MID UBSE_MID_MAKE_MANAGER(21)        /* 0X1015 */
-#define UBSE_FAULT_COLLECTION_MID UBSE_MID_MAKE_MANAGER(22)  /* 0X1016 */
-#define UBSE_REMOTE_MID UBSE_MID_MAKE_MANAGER(23)            /* 0X1017 */
-#define UBSE_LCNE_MID UBSE_MID_MAKE_MANAGER(24)              /* 0X1018 */
-#define UBSE_RPC_MID UBSE_MID_MAKE_MANAGER(25)               /* 0X1019 */
-#define UBSE_DRIVER_MID UBSE_MID_MAKE_MANAGER(26)            /* 0X101A */
-#define UBSEK_PLUGIN_PROXY_MID UBSE_MID_MAKE_MANAGER(27)     /* 0X101B */
-#define UBSE_ELECTION_MID UBSE_MID_MAKE_MANAGER(28)          /* 0X101C */
-#define UBSE_DATA_SYNC_MID UBSE_MID_MAKE_MANAGER(29)         /* 0X101D */
-#define UBSE_KMC_CRYPT_MID UBSE_MID_MAKE_MANAGER(30)         /* 0X101E */
-#define UBSE_PSK_MID UBSE_MID_MAKE_MANAGER(30)               /* 0X101F */
-#define UBSE_OBJ_MID UBSE_MID_MAKE_MANAGER(31)               /* 0X1020 */
-#define UBSE_JOB_MID UBSE_MID_MAKE_MANAGER(32)               /* 0X1021 */
-#define UBSE_MMI_MID UBSE_MID_MAKE_MANAGER(33)               /* 0X1022 */
-#define UBSE_MTI_MID UBSE_MID_MAKE_MANAGER(34)               /* 0X1023 */
-#define UBSE_CONTROLLER_MID UBSE_MID_MAKE_MANAGER(35)        /* 0X1024 */
-#define UBSE_RAS UBSE_MID_MAKE_MANAGER(36)                   /* 0X1025 */
-#define SYS_SENTRY UBSE_MID_MAKE_MANAGER(37)                 /* 0X1024 */
-#define UBSE_NODE_CONTROLLER_MID UBSE_MID_MAKE_MANAGER(38)   /* 0X1027 */
-#define UBSE_API_SERVER_MID UBSE_MID_MAKE_MANAGER(39)        /* 0X1027 */
-#define UBSE_MMI_MID UBSE_MID_MAKE_MANAGER(33)               /* 0X1028 */
-#define UBSE_SECURITY_MID UBSE_MID_MAKE_MANAGER(40)          /* 0X1028 */
+/* ====================== IPC通信错误 (20-29) ====================== */
+#define UBSE_ERR_IPC_CONNECTION_FAILED UBSE_ERROR_DEF(20)               /* IPC连接失败 */
+#define UBSE_ERR_IPC_TIMEOUT UBSE_ERROR_DEF(21)                         /* IPC超时 */
+#define UBSE_ERR_IPC_SERVICE_UNAVAILABLE UBSE_ERROR_DEF(22)             /* 服务不可用 */
+#define UBSE_ERR_IPC_CONNECTION_FAILED_PATH_LENGTH UBSE_ERROR_DEF(23)   /* 由于socket path长度导致IPC连接失败 */
 
-/* Ubse CLI */
-#define UBSE_CLI_MID_BASE UBSE_MID_MAKE_CLI(0)               /* 0X2000 基础模块 */
-#define UBSE_CLI_MID_PARSE UBSE_MID_MAKE_CLI(1)              /* 0X2001 */
-#define UBSE_CLI_MID_SDK UBSE_MID_MAKE_CLI(2)                /* 0X2002 */
-#define UBSE_CLI_MID_REG UBSE_MID_MAKE_CLI(3)                /* 0X2003 */
-#define UBSE_CLI_MID_ECHO UBSE_MID_MAKE_CLI(4)               /* 0X2004 */
+/* ====================== 权限错误 (30-39) ====================== */
+#define UBSE_ERR_PERMISSION_DENIED UBSE_ERROR_DEF(30)       /* 权限不足 */
+#define UBSE_ERR_AUTHENTICATION_FAILED UBSE_ERROR_DEF(31)   /* 认证失败 */
+#define UBSE_ERR_ACCESS_DENIED UBSE_ERROR_DEF(32)           /* 访问被拒 */
 
-/* Plugin */
-#define VM_MID_BASE UBSE_PLUGIN_MID(1)                       /* 0x3001 虚拟化插件 */
+/* ====================== 操作错误 (40-49) ====================== */
+#define UBSE_ERR_NOT_IMPLEMENTED UBSE_ERROR_DEF(40)     /* 功能未实现 */
+#define UBSE_ERR_NOT_SUPPORTED UBSE_ERROR_DEF(41)       /* 不支持的操作 */
+#define UBSE_ERR_OPERATION_FAILED UBSE_ERROR_DEF(42)    /* 操作失败 */
+#define UBSE_ERR_TIMED_OUT UBSE_ERROR_DEF(43)           /* 操作超时 */
+
+/* ====================== 守护进程错误 (50-59) ====================== */
+#define UBSE_ERR_DAEMON_UNREACHABLE UBSE_ERROR_DEF(50)  /* 守护进程不可达 */
+#define UBSE_ERR_DAEMON_BUSY UBSE_ERROR_DEF(51)         /* 守护进程忙 */
+#define UBSE_ERR_DAEMON_CRASHED UBSE_ERROR_DEF(52)      /* 守护进程崩溃 */
+#define UBSE_ERR_DAEMON_INTERNEL UBSE_ERROR_DEF(53)     /* 守护进程内部错误 */
+
+/* ====================== UBSE错误码 (1000-1099) ====================== */
+#define UBSE_ERR_OUT_OF_RANGE UBSE_ERROR_DEF(1000)                  /* 参数超范围 */
+#define UBSE_ERR_RESOURCE UBSE_ERROR_DEF(1001)                      /* 资源申请错误 */
+#define UBSE_ERR_CONNECTION_FAILED UBSE_ERROR_DEF(1002)             /* 连接UBSE服务端错误 */
+#define UBSE_ERR_AUTH_FAILED UBSE_ERROR_DEF(1003)                   /* UBSE服务端认证鉴权不通过 */
+#define UBSE_ERR_TIMEOUT UBSE_ERROR_DEF(1004)                       /* UBSE服务端处理超时 */
+#define UBSE_ERR_INTERNAL UBSE_ERROR_DEF(1005)                      /* UBSE服务端内部错误 */
+#define UBSE_ERR_EXISTED UBSE_ERROR_DEF(1006)                       /* 实例已存在 */
+#define UBSE_ERR_NOT_EXIST UBSE_ERROR_DEF(1007)                     /* 实例不存在 */
+#define UBSE_ERR_UDSINFO_MISMATCH UBSE_ERROR_DEF(1008)              /* UDS INFO信息不匹配 */
+#define UBSE_ERR_IMPORT_ABSENT UBSE_ERROR_DEF(1009)                 /* IMPORT不在位 */
+#define UBSE_ERR_CREATING UBSE_ERROR_DEF(1010)                      /* 正在创建过程中 */
+#define UBSE_ERR_DELETING UBSE_ERROR_DEF(1011)                      /* 正在删除过程中 */
+#define UBSE_ERR_UNIMPORT_SUCCESS UBSE_ERROR_DEF(1012)              /* unimport已经成功, unexport失败, 资源没有释放完全, 后续对账能自动回收 */
+#define UBSE_ERR_ALLOCATE UBSE_ERROR_DEF(1013)                      /* 算法分配失败 */
+#define UBSE_ERR_SHM_NO_CREATE UBSE_ERROR_DEF(1014)                 /* 共享内存未创建 */
+#define UBSE_ERR_SHM_NO_ATTACH UBSE_ERROR_DEF(1015)                 /* 共享内存未导入 */
+#define UBSE_ERR_SHM_ATTACHING UBSE_ERROR_DEF(1016)                 /* 正在导入共享内存过程中 */
+#define UBSE_ERR_SHM_DETACHING UBSE_ERROR_DEF(1017)                 /* 正在删除导入共享内存过程中 */
+#define UBSE_ERR_LINK_NOT_ALLOWED UBSE_ERROR_DEF(1018)              /* 非poc组网不允许指定链路;poc组网必须指定链路 */
+#define UBSE_ERR_LINK_NOT_EXIST UBSE_ERROR_DEF(1019)                /* 链路不存在 */
+#define UBSE_ERR_SHM_NODE_EMPTY UBSE_ERROR_DEF(1020)                /* 参数节点信息为空 */
+#define UBSE_ERR_COM_FAILED UBSE_ERROR_DEF(1021)                    /* Ubse通信失败 */
+#define UBSE_ERR_FIND_SRC_NUMA UBSE_ERROR_DEF(1022)                 /* 指定链路借用无法填充srcNuma */
+#define UBSE_ERR_SHM_DESTROYED UBSE_ERROR_DEF(1023)                 /* 共享内存被主动清理 */
+#define UBSE_ERR_SHM_ATTACH_USING UBSE_ERROR_DEF(1024)              /* 共享内存正在被使用无法被删除 */
+#define UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL UBSE_ERROR_DEF(1025)  /* 指定CPU平面参数异常 */
+#define UBSE_ERR_NUMA_ID_IS_NOT_IN_SOCKET UBSE_ERROR_DEF(1026)      /* 当前的numaId不在socketId中 */
+#define UBSE_ERR_NODE_NOT_EXIST UBSE_ERROR_DEF(1027)               /* 节点不存在 */
+#define UBSE_ERR_NODE_FAULT UBSE_ERROR_DEF(1028)                    /* 节点故障 */
+
+/* ****************************************************** */
+/* Node Controller模块错误码定义，全局唯一，范围1100~1199，记录系统的标准错误返回 */
+/* ****************************************************** */
+#define UBSE_ERR_NODE_NOT_FOUND UBSE_ERROR_DEF(1100)           /* 节点不存在 */
+#define UBSE_ERR_NODE_UNREACHABLE UBSE_ERROR_DEF(1101)         /* 节点不可达 */
+#define UBSE_ERR_NODE_NOT_ACTIVE UBSE_ERROR_DEF(1102)          /* 节点不活跃 */
+#define UBSE_ERR_NODE_NOT_RESPONDING UBSE_ERROR_DEF(1103)      /* 节点无响应 */
+
+/* ************************************************************* */
+/*      内部错误码定义，范围[10000,+∞)，以下错误码对外统一返回内部错误     */
+/* ************************************************************* */
+
+/* ====================== COMMON错误码 (10000~10199) ====================== */
+#define UBSE_ERROR UBSE_INTERNAL_ERROR_DEF(0)                       /* 错误 */
+#define UBSE_ERROR_NULLPTR UBSE_INTERNAL_ERROR_DEF(1)               /* 空指针 */
+#define UBSE_ERROR_EMPTY UBSE_INTERNAL_ERROR_DEF(2)                 /* 空值 */
+#define UBSE_ERROR_INVAL UBSE_INTERNAL_ERROR_DEF(3)                 /* 无效参数 */
+#define UBSE_ERROR_NOMEM UBSE_INTERNAL_ERROR_DEF(4)                 /* 内存不足 */
+#define UBSE_ERROR_ACCES UBSE_INTERNAL_ERROR_DEF(5)                 /* 权限被拒绝 */
+#define UBSE_ERROR_FILE_EXIST UBSE_INTERNAL_ERROR_DEF(6)            /* 文件存在 */
+#define UBSE_ERROR_FILE_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(7)        /* 文件不存在 */
+#define UBSE_ERROR_NO_ENOUGH_SPACE UBSE_INTERNAL_ERROR_DEF(8)       /* 设备上无剩余空间 */
+#define UBSE_ERROR_AGAIN UBSE_INTERNAL_ERROR_DEF(9)                 /* 重试 */
+#define UBSE_ERROR_IO UBSE_INTERNAL_ERROR_DEF(10)                   /* I/O错误 */
+#define UBSE_ERROR_CONF_INVALID UBSE_INTERNAL_ERROR_DEF(11)         /* 非法的配置文件 */
+#define UBSE_ERROR_MODULE_LOAD_FAILED UBSE_INTERNAL_ERROR_DEF(12)   /* 模块加载失败 */
+#define UBSE_ERROR_PARSE_ARGS_FAILED UBSE_INTERNAL_ERROR_DEF(13)    /* 解析参数失败 */
+#define UBSE_ERROR_SERIALIZE_FAILED UBSE_INTERNAL_ERROR_DEF(14)     /* 序列化失败 */
+#define UBSE_ERROR_DESERIALIZE_FAILED UBSE_INTERNAL_ERROR_DEF(15)   /* 反序列化失败 */
+
+/* ====================== COM错误码 (10200~10299) ====================== */
+#define UBSE_COM_ERROR_CHANNEL_NULL UBSE_INTERNAL_ERROR_DEF(200)                        /* Hcom channel 空指针 */
+#define UBSE_COM_ERROR_MESSAGE_INVALID UBSE_INTERNAL_ERROR_DEF(201)                     /* 非法的消息 */
+#define UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL UBSE_INTERNAL_ERROR_DEF(202)             /* 消息长度校验失败 */
+#define UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE UBSE_INTERNAL_ERROR_DEF(203)             /* 非法的操作码 */
+#define UBSE_COM_ERROR_ENGINE_CREATE_FAIL UBSE_INTERNAL_ERROR_DEF(204)                  /* 创建引擎失败 */
+#define UBSE_COM_ERROR_CHANNEL_NOT_FOUND UBSE_INTERNAL_ERROR_DEF(205)                   /* channel不存在 */
+#define UBSE_COM_ERROR_GET_PEER_IP_PORT_FAIL UBSE_INTERNAL_ERROR_DEF(206)               /* 获取对端Ip端口失败 */
+#define UBSE_COM_ERROR_ENGINE_NOT_INIT UBSE_INTERNAL_ERROR_DEF(207)                     /* 引擎未初始化 */
+#define UBSE_COM_ERROR_SYNC_CALL_FAIL UBSE_INTERNAL_ERROR_DEF(208)                      /* 同步发消息失败 */
+#define UBSE_COM_ERROR_ASYNC_CALL_FAIL UBSE_INTERNAL_ERROR_DEF(209)                     /* 异步发消息失败 */
+#define UBSE_COM_ERROR_REPLY_FAIL UBSE_INTERNAL_ERROR_DEF(210)                          /* 回复发消息失败 */
+#define UBSE_COM_ERROR_NEW_NET_CALLBACK_FAIL UBSE_INTERNAL_ERROR_DEF(211)               /* callback创建失败 */
+#define UBSE_COM_ERROR_GET_ENGINE_FAIL UBSE_INTERNAL_ERROR_DEF(212)                     /* 引擎获取失败 */
+#define UBSE_COM_ERROR_RESOURCE_TEMPORARILY_UNAVAILABLE UBSE_INTERNAL_ERROR_DEF(213)    /* 发送消息失败：资源临时不可用 */
+
+/* ====================== CONF错误码 (10300~10399) ====================== */
+#define UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR UBSE_INTERNAL_ERROR_DEF(300)               /* 目录打不开 */
+#define UBSE_CONF_ERROR_KEY_OFFSETFILE_OPEN_ERROR UBSE_INTERNAL_ERROR_DEF(301)              /* 文件打不开 */
+#define UBSE_CONF_ERROR_KEY_OFFSETDIR_TOO_DEEP UBSE_INTERNAL_ERROR_DEF(302)                 /* 配置目录深度超过最大限制 */
+#define UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL UBSE_INTERNAL_ERROR_DEF(303)      /* 配置管理模块未加载 */
+#define UBSE_CONF_ERROR_KEY_OFFSETPATH_CANONICALIZATION_FAILED UBSE_INTERNAL_ERROR_DEF(304) /* 路径规范化失败 */
+#define UBSE_CONF_ERROR_KEY_OFFSETMEMORY_ALLOCATION_FAILED UBSE_INTERNAL_ERROR_DEF(305)     /* 内存分配失败 */
+#define UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_SECTION UBSE_INTERNAL_ERROR_DEF(306)            /* section不存在 */
+#define UBSE_CONF_ERROR_KEY_OFFSETSECTION_ILLEGAL_LENGTH UBSE_INTERNAL_ERROR_DEF(307)       /* section超长或超短 */
+#define UBSE_CONF_ERROR_KEY_OFFSETSECTION_HAVE_ILLEGAL_CHAR UBSE_INTERNAL_ERROR_DEF(308)    /* section存在非法字符 */
+#define UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_PREFIX UBSE_INTERNAL_ERROR_DEF(309)             /* prefix不存在 */
+#define UBSE_CONF_ERROR_KEY_OFFSETPREFIX_ILLEGAL_CHAR UBSE_INTERNAL_ERROR_DEF(310)          /* prefix含有非法字符 */
+#define UBSE_CONF_ERROR_KEY_OFFSETPREFIX_TOO_LONG UBSE_INTERNAL_ERROR_DEF(311)              /* prefix超长 */
+#define UBSE_CONF_ERROR_KEY_OFFSETCONFIG_PREFIX_NO_CONTENT UBSE_INTERNAL_ERROR_DEF(312)     /* prefix中无内容 */
+#define UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_KEY UBSE_INTERNAL_ERROR_DEF(313)                /* key不存在 */
+#define UBSE_CONF_ERROR_KEY_OFFSETKEY_ILLEGAL_LENGTH UBSE_INTERNAL_ERROR_DEF(314)           /* key超长或超短 */
+#define UBSE_CONF_ERROR_KEY_OFFSETKEY_HAVE_ILLEGAL_CHAR UBSE_INTERNAL_ERROR_DEF(315)        /* key存在非法字符 */
+#define UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH UBSE_INTERNAL_ERROR_DEF(316)         /* value超长或空 */
+#define UBSE_CONF_ERROR_KEY_OFFSETUNSUPPORTED_TYPE UBSE_INTERNAL_ERROR_DEF(317)             /* 不支持的类型 */
+#define UBSE_CONF_ERROR_KEY_OFFSETVALUE_OUT_OF_RANGE UBSE_INTERNAL_ERROR_DEF(318)           /* 查询的值超过类型的最大值 */
+#define UBSE_CONF_ERROR_KEY_OFFSETCONVERT_ERROR UBSE_INTERNAL_ERROR_DEF(319)                /* 类型无法转化 */
+#define UBSE_CONF_ERROR_KEY_OFFSETVALUE_HAVE_ILLEGAL_CHAR UBSE_INTERNAL_ERROR_DEF(320)      /* 含有非法字符 */
+
+/* ====================== HTTP错误码 (10400~10499) ====================== */
+#define UBSE_HTTP_ERROR_FAILURE UBSE_INTERNAL_ERROR_DEF(400)                                /* HTTP公共错误 */
+#define UBSE_HTTP_ERROR_MSG_OVERSIZE UBSE_INTERNAL_ERROR_DEF(401)                           /* HTTP消息大小错误（超出大小限制） */
+#define UBSE_HTTP_ERROR_UNKNOWN UBSE_INTERNAL_ERROR_DEF(402)                                /* HTTP未知错误 */
+#define UBSE_HTTP_ERROR_CONNECTION UBSE_INTERNAL_ERROR_DEF(403)                             /* HTTP连接错误 */
+#define UBSE_HTTP_ERROR_BIND_IP_ADDRESS UBSE_INTERNAL_ERROR_DEF(404)                        /* HTTP绑定IP地址错误 */
+#define UBSE_HTTP_ERROR_READ UBSE_INTERNAL_ERROR_DEF(405)                                   /* HTTP读取错误 */
+#define UBSE_HTTP_ERROR_WRITE UBSE_INTERNAL_ERROR_DEF(406)                                  /* HTTP写入错误 */
+#define UBSE_HTTP_ERROR_EXCEED_REDIRECT_COUNT UBSE_INTERNAL_ERROR_DEF(407)                  /* HTTP重定向次数超出限制 */
+#define UBSE_HTTP_ERROR_CANCELED UBSE_INTERNAL_ERROR_DEF(408)                               /* HTTP操作取消 */
+#define UBSE_HTTP_ERROR_SSL_CONNECTION UBSE_INTERNAL_ERROR_DEF(409)                         /* HTTP SSL连接错误 */
+#define UBSE_HTTP_ERROR_SSL_LOADING_CERTS UBSE_INTERNAL_ERROR_DEF(410)                      /* HTTP SSL加载证书错误 */
+#define UBSE_HTTP_ERROR_SSL_SERVER_VERIFICATION UBSE_INTERNAL_ERROR_DEF(411)                /* HTTP SSL服务器验证错误 */
+#define UBSE_HTTP_ERROR_UNSUPPORTED_MULTIPART_BOUNDARY_CHARS UBSE_INTERNAL_ERROR_DEF(412)   /* HTTP不支持的多部分边界字符 */
+#define UBSE_HTTP_ERROR_COMPRESSION UBSE_INTERNAL_ERROR_DEF(413)                            /* HTTP压缩错误 */
+#define UBSE_HTTP_ERROR_CONNECTION_TIMEOUT UBSE_INTERNAL_ERROR_DEF(414)                     /* HTTP连接超时 */
+#define UBSE_HTTP_ERROR_PROXY_CONNECTION UBSE_INTERNAL_ERROR_DEF(415)                       /* HTTP代理连接错误 */
+#define UBSE_HTTP_ERROR_MSG_EMPTY UBSE_INTERNAL_ERROR_DEF(416)                              /* HTTP消息为空 */
+#define UBSE_HTTP_ERROR_STATUS_ERROR UBSE_INTERNAL_ERROR_DEF(417)                           /* HTTP响应状态非200 */
+
+/* ====================== PLUGIN错误码 (10500~10599) ====================== */
+#define UBSE_PLUGIN_ERROR_FILE_LOADED_ERROR UBSE_INTERNAL_ERROR_DEF(500)    /* 配置文件加载失败 */
+#define UBSE_PLUGIN_ERROR_CONFIG_NOT_FOUND UBSE_INTERNAL_ERROR_DEF(501)     /* 插件配置不存在 */
+#define UBSE_PLUGIN_ERROR_ADMISSION_DENIED UBSE_INTERNAL_ERROR_DEF(502)     /* 插件不准入 */
+#define UBSE_PLUGIN_ERROR_PLUGIN_INIT_FAILED UBSE_INTERNAL_ERROR_DEF(503)   /* 插件初始化失败 */
+#define UBSE_PLUGIN_ERROR_LOAD_AGAIN UBSE_INTERNAL_ERROR_DEF(504)           /* 插件已加载 */
+
+/* ====================== RAS错误码 (10600~10699) ====================== */
+#define UBSE_RAS_ERROR_MSG_DUPLICATION UBSE_INTERNAL_ERROR_DEF(600)              /* 消息重复 */
+#define UBSE_RAS_IS_NOT_MASTER_OR_MEM_IS_NOT_INIT UBSE_INTERNAL_ERROR_DEF(601)   /* 该节点不是master或mem未就绪 */
+#define UBSE_RAS_PANIC_REBOOT_MSG_INVALID UBSE_INTERNAL_ERROR_DEF(602)           /* 处理msgId/eid/cna消息失败 */
+#define UBSE_RAS_ERROR_QUERY_NODE_BY_EID UBSE_INTERNAL_ERROR_DEF(603)            /* 未根据eid查询到NodeId */
+#define UBSE_RAS_ERROR_DLOPEN_XALARMD UBSE_INTERNAL_ERROR_DEF(604)               /* dlopen失败 */
+#define UBSE_RAS_ERROR_DLSYM_XALARMD UBSE_INTERNAL_ERROR_DEF(605)                /* dlsym失败 */
+#define UBSE_RAS_ERROR_REPORT_TO_XALARMD UBSE_INTERNAL_ERROR_DEF(606)            /* 上报xalarm失败 */
+#define UBSE_RAS_ERROR_SWITCH_ROLE UBSE_INTERNAL_ERROR_DEF(607)                  /* 主备倒换 */
+#define UBSE_RAS_ERROR_SWITCHING_ROLE UBSE_INTERNAL_ERROR_DEF(608)               /* 主备倒换中 */
+#define UBSE_RAS_ERROR_SET_FAULT_EVENT_ON UBSE_INTERNAL_ERROR_DEF(609)           /* 打开故障事件开关失败 */
+#define UBSE_RAS_ERROR_SET_SENTRY_REPORTER UBSE_INTERNAL_ERROR_DEF(610)          /* 向sysSentry配置EID失败 */
+
+/* ====================== MMI错误码 (10700~10799) ====================== */
+#define UBSE_MMI_OBMM_OP_FAILED UBSE_INTERNAL_ERROR_DEF(700)                    /* OBMM 接口调用失败 */
+#define UBSE_MMI_DAEMON_FAILED UBSE_INTERNAL_ERROR_DEF(701)                     /* UBSE 接口调用失败 */
+#define UBSE_MMI_OPEN_FAILED UBSE_INTERNAL_ERROR_DEF(702)                       /* 文件打不开 */
+
+/* ====================== Mem Scheduler错误码 (10800~10899) ====================== */
+#define UBSE_SCHEDULER_ERROR_INVAL UBSE_INTERNAL_ERROR_DEF(800)             /* 借用参数不合法错误 */
+#define UBSE_SCHEDULER_ERROR_NO_NODE_CAN_LEND UBSE_INTERNAL_ERROR_DEF(801)  /* 无可用借出节点 */
+#define UBSE_SCHEDULER_ERROR_NODE_RECONCILE UBSE_INTERNAL_ERROR_DEF(802)    /* 存在对账节点，触发重试 */
+
+/* ====================== IPC错误码 (10900~10999) ====================== */
+#define UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED UBSE_INTERNAL_ERROR_DEF(900)    /* 监听socket失败 */
+#define UBSE_IPC_ERROR_SEND_FAILED UBSE_INTERNAL_ERROR_DEF(901)             /* 发送失败 */
+#define UBSE_IPC_ERROR_RECV_FAILED UBSE_INTERNAL_ERROR_DEF(902)             /* 接收失败 */
+#define UBSE_IPC_ERROR_RESP_NOT_FOUND UBSE_INTERNAL_ERROR_DEF(903)          /* 未找到响应 */
+#define UBSE_IPC_ERROR_QUERY_STATE_FAILED UBSE_INTERNAL_ERROR_DEF(904)      /* 查询状态失败 */
+#define UBSE_IPC_ERROR_QUERY_NUMA_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(905)    /* numa不存在 */
+
+/* ====================== Mem Controller错误码 (11000~11099) ====================== */
+#define UBSE_MEMCONTROLLER_ERROR_UNIMPORT_FAILED UBSE_INTERNAL_ERROR_DEF(1000)    /* 归还时导入归还失败 */
+#define UBSE_MEMCONTROLLER_ERROR_COMP_ERROR UBSE_INTERNAL_ERROR_DEF(1001)         /* 确定性迁移模式参数错误 */
+#define UBSE_MEMCONTROLLER_ERROR_GET_INFO_FAIL  UBSE_INTERNAL_ERROR_DEF(1002)     /* 从内部获取数据失败 */
+#define UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS  UBSE_INTERNAL_ERROR_DEF(1003)       /* 对账未完成，查询账本返回部分成功 */
 
 /* 公共方法判断错误码 */
 #define UBSE_RESULT_FAIL(ret) (static_cast<UbseResult>(ret) != UBSE_OK)

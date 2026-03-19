@@ -48,10 +48,10 @@ inline long CountDuration(const std::chrono::time_point<std::chrono::system_cloc
 
 UbseResult UbseContext::Run(int argc, char *argv[], ProcessMode mode)
 {
-    std::cout << "UbseContext::Run-start ProcessMode: " << mode << std::endl;
+    std::cout << "UbseContext::Run-start ProcessMode: " << static_cast<int>(mode) << std::endl;
     auto startTime = std::chrono::system_clock::now();
-    this->cmdArgc = argc;
-    this->cmdArgv = argv;
+    this->cmdArgc_ = argc;
+    this->cmdArgv_ = argv;
     // 获取运行路径
     UbseResult ret = GetExecutablePath();
     if (ret != UBSE_OK) {
@@ -87,7 +87,7 @@ UbseResult UbseContext::Run(int argc, char *argv[], ProcessMode mode)
     if (ret != UBSE_OK) {
         return ret;
     }
-    allModulesReady.store(true);
+    allModulesReady_.store(true);
     auto endTime = std::chrono::system_clock::now();
     std::cout << "UbseContext::Run-end. Total time: " << CountDuration(startTime, endTime) << "ms" << std::endl;
     return UBSE_OK;
@@ -127,23 +127,23 @@ UbseResult StartModule(const std::string &moduleName, std::shared_ptr<UbseModule
 
 UbseResult UbseContext::InitAndStartModule()
 {
-    auto ret = InitModule(sortedBaseModules);
+    auto ret = InitModule(sortedBaseModules_);
     if (ret != UBSE_OK) {
         std::cerr << "UbseContext::InitBaseModule-Error: initializing base module failed." << std::endl;
         return ret;
     }
-    ret = StartModule(sortedBaseModules);
+    ret = StartModule(sortedBaseModules_);
     if (ret != UBSE_OK) {
         std::cerr << "UbseContext::StartBaseModule-Error: starting base module failed." << std::endl;
         return ret;
     }
 
-    ret = InitModule(sortedModules);
+    ret = InitModule(sortedModules_);
     if (ret != UBSE_OK) {
         std::cerr << "UbseContext::InitModule-Error: initializing module failed." << std::endl;
         return ret;
     }
-    ret = StartModule(sortedModules);
+    ret = StartModule(sortedModules_);
     if (ret != UBSE_OK) {
         std::cerr << "UbseContext::StartModule-Error: starting module failed." << std::endl;
         return ret;
@@ -183,7 +183,7 @@ UbseResult UbseContext::StartModule(
             if (ret != UBSE_OK) {
                 return ret;
             }
-            moduleMap[it.first] = it.second;
+            moduleMap_[it.first] = it.second;
         }
     }
     auto endTime = std::chrono::system_clock::now();
@@ -198,7 +198,7 @@ UbseResult UbseContext::StopModule(
     std::cout << "UbseContext::StopModule-start" << std::endl;
     for (auto it = sortedModuleVec.rbegin(); it != sortedModuleVec.rend(); ++it) {
         try {
-            moduleMap.erase(it->first);
+            moduleMap_.erase(it->first);
             it->second->Stop();
         } catch (const std::exception &e) {
             std::cerr << "UbseContext::StopModule-Error: stopping module " << Demangle(it->first.name()) << ": "
@@ -230,26 +230,30 @@ UbseResult UbseContext::DestroyModule(
 
 void UbseContext::Stop()
 {
-    allModulesReady.store(false);
+    allModulesReady_.store(false);
+    g_globalStop.store(true);
+    std::cout << "UbseContext::Stop-start, allModulesReady=" << allModulesReady_.load()
+              << ", globalStop=" << g_globalStop.load() << std::endl;
     // 停止业务模块
-    (void)StopModule(sortedModules);
-    (void)DestroyModule(sortedModules);
+    (void)StopModule(sortedModules_);
+    (void)DestroyModule(sortedModules_);
 
     // 停止基础模块
-    (void)StopModule(sortedBaseModules);
-    (void)DestroyModule(sortedBaseModules);
+    (void)StopModule(sortedBaseModules_);
+    (void)DestroyModule(sortedBaseModules_);
+    std::cout << "UbseContext::Stop-end" << std::endl;
 }
 
 UbseResult UbseContext::RegisterArg()
 {
     std::cout << "UbseContext::RegisterArg-start" << std::endl;
-    for (const auto &it : moduleMap) {
+    for (const auto &it : moduleMap_) {
         try {
             it.second->RegArgs();
         } catch (const std::exception &e) {
             std::cerr << "UbseContext::RegisterArg-Error: registering arguments for module "
                       << Demangle(it.first.name()) << ": " << e.what() << std::endl;
-            return UBSE_ERROR_CLI_ARGS_FAILED;
+            return UBSE_ERROR_PARSE_ARGS_FAILED;
         }
     }
     std::cout << "UbseContext::RegisterArg-end" << std::endl;
@@ -262,22 +266,22 @@ UbseResult UbseContext::ParserArgs(int argc, char *argv[])
         std::string arg = argv[i];
         if (arg[0] != '-') {
             std::cerr << "UbseContext::ParserArgs-Error: parsing arguments: " << arg << std::endl;
-            return UBSE_ERROR_CLI_ARGS_FAILED;
+            return UBSE_ERROR_PARSE_ARGS_FAILED;
         }
 
         std::string key = arg.substr(1); // 去掉'-'，得到参数名
         if (key.empty()) {
             std::cerr << "UbseContext::ParserArgs-Error: parsing arguments " << arg << std::endl;
-            return UBSE_ERROR_CLI_ARGS_FAILED;
+            return UBSE_ERROR_PARSE_ARGS_FAILED;
         }
         std::string value;
         if (i + 1 < argc && argv[i + 1][0] != '-') {
             value = argv[++i]; // 获取下一个非'-'的值
         }
-        argMap[key] = value;
+        argMap_[key] = value;
     }
     std::cout << "UbseContext::ParserArgs-Args: ";
-    for (const auto &it : argMap) {
+    for (const auto &it : argMap_) {
         std::cout << "[" << it.first << ": " << it.second << "] ";
     }
     std::cout << std::endl;
@@ -286,19 +290,19 @@ UbseResult UbseContext::ParserArgs(int argc, char *argv[])
 
 UbseResult UbseContext::GetArgStr(const std::string &argName, std::string &argValue)
 {
-    auto it = argMap.find(argName);
-    if (it != argMap.end()) {
+    auto it = argMap_.find(argName);
+    if (it != argMap_.end()) {
         argValue = it->second;
         return UBSE_OK;
     }
-    return UBSE_ERROR_CLI_ARGS_FAILED;
+    return UBSE_ERROR_PARSE_ARGS_FAILED;
 }
 
 UbseResult UbseContext::CreateModules()
 {
     // 创建基础模块
     std::cout << "UbseContext::CreateBaseModules-start" << std::endl;
-    UbseResult res = CreateModules(baseModuleCreatorMap, sortedBaseModules);
+    UbseResult res = CreateModules(baseModuleCreatorMap_, sortedBaseModules_);
     if (res != UBSE_OK) {
         return res;
     }
@@ -306,7 +310,7 @@ UbseResult UbseContext::CreateModules()
 
     // 创建业务模块
     std::cout << "UbseContext::CreateModules-start" << std::endl;
-    res = CreateModules(moduleCreatorMap, sortedModules);
+    res = CreateModules(moduleCreatorMap_, sortedModules_);
     if (res != UBSE_OK) {
         return res;
     }
@@ -337,7 +341,7 @@ UbseResult UbseContext::CreateModules(
         try {
             auto module = creatorIt->second.creator();
             sortedModuleVec.emplace_back(moduleName, module);
-            moduleMap[moduleName] = module;
+            moduleMap_[moduleName] = module;
         } catch (const std::exception &e) {
             std::cerr << "UbseContext::CreateModules-Error: creating module " << Demangle(moduleName.name()) << ": "
                       << e.what() << std::endl;
@@ -406,18 +410,18 @@ bool UbseContext::TopologicalSortUtil(const std::unordered_map<std::type_index, 
 
 ProcessMode UbseContext::GetProcessMode() const
 {
-    if (processMode == DEFAULT) {
+    if (processMode_ == ProcessMode::DEFAULT) {
         return ProcessMode::MANAGER;
     }
-    return processMode;
+    return processMode_;
 }
 
 void UbseContext::SetProcessMode(ProcessMode mode)
 {
-    if (processMode != DEFAULT) {
+    if (processMode_ != ProcessMode::DEFAULT) {
         return;
     }
-    processMode = mode;
+    processMode_ = mode;
 }
 
 UbseResult UbseContext::GetExecutablePath()
@@ -444,23 +448,23 @@ UbseResult UbseContext::GetExecutablePath()
     }
     auto parentPath = canonPath.parent_path();
     if (parentPath.empty()) { // 处理根目录情况
-        ubseRunPath = "/";
+        ubseRunPath_ = "/";
     } else {
-        ubseRunPath = parentPath.string();
+        ubseRunPath_ = parentPath.string();
     }
 
-    std::cout << "UbseContext::GetExecutablePath-RunPath: " << ubseRunPath << std::endl;
+    std::cout << "UbseContext::GetExecutablePath-RunPath: " << ubseRunPath_ << std::endl;
     return UBSE_OK;
 }
 
 std::string UbseContext::GetUbseRunPath() const
 {
-    return ubseRunPath;
+    return ubseRunPath_;
 }
 
 uint8_t UbseContext::GetWorkReadiness() const
 {
-    return workReadiness;
+    return workReadiness_;
 }
 
 UbseResult UbseContext::SetWorkReadiness(uint8_t currentStatus)
@@ -469,12 +473,12 @@ UbseResult UbseContext::SetWorkReadiness(uint8_t currentStatus)
         std::cerr << "UbseContext::SetWorkReadiness-Error: invalid status: " << currentStatus << std::endl;
         return UBSE_ERROR;
     }
-    workReadiness = currentStatus;
+    workReadiness_ = currentStatus;
     return UBSE_OK;
 }
 
 bool UbseContext::IsAllModulesReady() const
 {
-    return allModulesReady.load();
+    return allModulesReady_.load();
 }
 } // namespace ubse::context

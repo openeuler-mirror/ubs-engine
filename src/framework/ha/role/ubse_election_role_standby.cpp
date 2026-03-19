@@ -15,8 +15,9 @@
 #include "ubse_election_role_mgr.h"
 #include "ubse_logger_audit.h"
 namespace ubse::election {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
-Standby::Standby(RoleContext &ctx) : turnId(0), lastHeartTime()
+Standby::Standby(RoleContext &ctx) : turnId_(0), lastHeartTime_()
 {
     Node myself;
     if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself)) {
@@ -24,32 +25,36 @@ Standby::Standby(RoleContext &ctx) : turnId(0), lastHeartTime()
         return;
     }
 
-    standbyId = myself.id;
-    masterId = ctx.masterId;
-    turnId = ctx.turnId;
-    auto result = GetBootTime(lastHeartTime);
+    standbyId_ = myself.id;
+    masterId_ = ctx.masterId;
+    turnId_ = ctx.turnId;
+    auto result = GetBootTime(lastHeartTime_);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
     }
-    UBSE_LOG_INFO << "[ELECTION] Standby start ProcTimer: " << standbyId << ".";
+    UBSE_LOG_INFO << "[ELECTION] Standby start ProcTimer: " << standbyId_ << ".";
 }
 
 void Standby::ProcTimer()
 {
     // 备节点丢失心跳次数阈值
     uint32_t standbyLostHbSwitchThreshold = ElectionRole::GetHbLostTimes();
-    if (IsStandbyHeartBeatTimeout(standbyLostHbSwitchThreshold)) {
+    if (IsStandbyHeartBeatTimeout(standbyLostHbSwitchThreshold) && GetElectionCandidate()) {
         UBSE_LOG_INFO << "[ELECTION] Standby ProcTimer: switch Master";
-        UBSE_AUDIT_RUNTIME_ALLOC << "Current node switched from standby to master, node ID: " << standbyId;
+        UBSE_AUDIT_RUNTIME_ALLOC << "Current node switched from standby to master, node ID: " << standbyId_;
         SwitchMaster();
+    } else if (IsStandbyHeartBeatTimeout(standbyLostHbSwitchThreshold) && !GetElectionCandidate()) {
+        RoleContext ctx;
+        UBSE_LOG_INFO << "[ELECTION] Standby ProcTimer: switch Initializer";
+        RoleMgr::GetInstance().SwitchRole(RoleType::INITIALIZER, ctx);
     }
 }
 void Standby::SwitchMaster()
 {
     RoleContext ctx;
-    ctx.masterId = standbyId;
+    ctx.masterId = standbyId_;
     ctx.standbyId = INVALID_NODE_ID;
-    ctx.turnId = turnId + 1;
+    ctx.turnId = turnId_ + 1;
     UbseContext::GetInstance().SetWorkReadiness(NOT_READY);
     RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
     RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::STANDBY_CHANGE_TO_MASTER, ctx.masterId);
@@ -69,8 +74,8 @@ uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Election
 {
     if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         // 备节点拒绝所有选主报文，不管主如何，备优先会成为主
-        reply.replyId = standbyId;
-        reply.masterId = masterId;
+        reply.replyId = standbyId_;
+        reply.masterId = masterId_;
         reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         RecvPktForHeart(rcvPkt, reply);
@@ -79,20 +84,20 @@ uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Election
 }
 void Standby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
 {
-    if (rcvPkt.masterId == masterId) {
-        if (rcvPkt.standbyId == standbyId) {
-            turnId = rcvPkt.turnId;
-            sequenceId = rcvPkt.sequenceId;
-            auto ret = GetBootTime(lastHeartTime);
+    if (rcvPkt.masterId == masterId_) {
+        if (rcvPkt.standbyId == standbyId_) {
+            turnId_ = rcvPkt.turnId;
+            sequenceId_ = rcvPkt.sequenceId;
+            auto ret = GetBootTime(lastHeartTime_);
             if (ret != UBSE_OK) {
                 UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
             }
-            masterStatus = rcvPkt.masterStatus;
+            masterStatus_ = rcvPkt.masterStatus;
             auto currentStatus = UbseContext::GetInstance().GetWorkReadiness();
             reply.standbyStatus = currentStatus;
-            reply.replyId = standbyId;
+            reply.replyId = standbyId_;
             reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
-            agentIds = rcvPkt.agentIds;
+            agentIds_ = rcvPkt.agentIds;
             HandleMasterOnlineNotification(rcvPkt, reply);
         } else {
             RoleContext ctx;
@@ -114,7 +119,7 @@ void Standby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply
             ctx.turnId = rcvPkt.turnId;
             RoleMgr::GetInstance().SwitchRole(RoleType::AGENT, ctx);
         } else {
-            reply.replyId = standbyId;
+            reply.replyId = standbyId_;
             reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
         }
     }
@@ -122,22 +127,22 @@ void Standby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply
 
 UBSE_ID_TYPE Standby::GetMasterNode()
 {
-    return masterId;
+    return masterId_;
 }
 
 UBSE_ID_TYPE Standby::GetStandbyNode()
 {
-    return standbyId;
+    return standbyId_;
 }
 
 std::vector<UBSE_ID_TYPE> Standby::GetAgentNodes()
 {
-    return agentIds;
+    return agentIds_;
 }
 
 uint8_t Standby::GetMasterStatus()
 {
-    return masterStatus;
+    return masterStatus_;
 }
 
 uint8_t Standby::GetStandbyStatus()
@@ -154,12 +159,12 @@ bool Standby::IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) const
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
         return false;
     }
-    if (bootTime < lastHeartTime) {
+    if (bootTime < lastHeartTime_) {
         UBSE_LOG_WARN << "[ELECTION] Current boot time is earlier than last heart time.";
         return false;
     }
     // 计算从上次收到心跳信号到现在的时间差（单位：毫秒）
-    uint64_t timeSinceLastHeartbeat = bootTime - lastHeartTime;
+    uint64_t timeSinceLastHeartbeat = bootTime - lastHeartTime_;
     // 计算允许的最大心跳间隔时间 = 心跳丢失的倍数 * 心跳间隔时间（单位：毫秒）
     uint32_t maxAllowedHeartbeatInterval = heartbeatMultiplier * GetHeartTimeInterval();
     // 判断时间差是否超过了允许的最大间隔时间

@@ -17,20 +17,19 @@
 #include <functional>
 #include <mutex>
 #include "ubse_base_message.h"
-#include "ubse_module.h"
 #include "ubse_election.h"
 #include "ubse_election_def.h"
 #include "ubse_election_pkt_handler.h"
+#include "ubse_module.h"
 
 namespace ubse::election {
 using namespace ubse::module;
 using namespace ubse::message;
 
-
 class UbseElectionModule : public UbseModule {
 public:
     // 构造函数
-    UbseElectionModule()= default;
+    UbseElectionModule() = default;
 
     UbseResult Initialize() override;
 
@@ -78,6 +77,8 @@ public:
      */
     UbseResult GetStandbyStatus(uint8_t &status);
 
+    UbseResult GetNodeIpInfoById(const std::string &id, std::string &ip);
+
     /* *
      * @brief 查询lcne里的所有节点
      * @param[out]  所有物理节点
@@ -93,6 +94,11 @@ public:
      * @brief 主节点OS Panic之后，立即触发备节点升主流程的调用接口
      */
     void SwitchMasterFromStandby();
+
+    /* *
+     * @brief 主节点故障之后，立即触发降为agent
+     */
+    void SwitchAgentFromMaster();
 
 private:
     std::vector<std::thread> threads_;

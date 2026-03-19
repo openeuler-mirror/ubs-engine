@@ -13,37 +13,37 @@
 #include "ubse_event_queue.h"
 namespace ubse::event {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_EVENT_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 void UbseEventQueue::AddEventTask(EventTask &eventTask)
 {
-    std::unique_lock<std::mutex> lock(eventQueueMutex);
-    notFull.wait(lock, [this]() { return queue.size() < capacity || !isQueueRunning.load(); });
-    if (!isQueueRunning.load()) {
+    std::unique_lock<std::mutex> lock(eventQueueMutex_);
+    notFull_.wait(lock, [this]() { return queue_.size() < capacity_ || !isQueueRunning_.load(); });
+    if (!isQueueRunning_.load()) {
         UBSE_LOG_INFO << "event thread queue stop";
         return;
     }
-    queue.push_back(std::move(eventTask));
-    notEmpty.notify_one();
+    queue_.push_back(std::move(eventTask));
+    notEmpty_.notify_one();
 }
 
 EventTask UbseEventQueue::GetTask()
 {
-    std::unique_lock<std::mutex> lock(eventQueueMutex);
+    std::unique_lock<std::mutex> lock(eventQueueMutex_);
     // 等待队列不为空，队列为空时，线程休眠
-    notEmpty.wait(lock, [this]() { return !queue.empty() || !isQueueRunning.load(); });
-    if (!isQueueRunning.load()) {
+    notEmpty_.wait(lock, [this]() { return !queue_.empty() || !isQueueRunning_.load(); });
+    if (!isQueueRunning_.load()) {
         UBSE_LOG_INFO << "event thread queue stop";
         return {};
     }
-    EventTask eventTask = std::move(queue.front());
-    queue.pop_front();
-    notFull.notify_one();
+    EventTask eventTask = std::move(queue_.front());
+    queue_.pop_front();
+    notFull_.notify_one();
     return eventTask;
 }
 void UbseEventQueue::StopQueue()
 {
-    isQueueRunning.store(false);
-    notFull.notify_all();
-    notEmpty.notify_all();
+    isQueueRunning_.store(false);
+    notFull_.notify_all();
+    notEmpty_.notify_all();
 }
 }

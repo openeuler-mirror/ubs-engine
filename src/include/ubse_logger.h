@@ -29,11 +29,7 @@ namespace ubse::log {
  * @param mn [in] Module名，如ubse
  */
 #ifndef UBSE_DEFINE_THIS_MODULE
-#define UBSE_DEFINE_THIS_MODULE(mn, mid)                                                           \
-    static const char *gModuleName = (mn);                                                         \
-    _Pragma("GCC diagnostic push")                                                                 \
-        _Pragma("GCC diagnostic ignored \"-Wunused-variable\"") static uint32_t gModuleId = (mid); \
-    _Pragma("GCC diagnostic pop")
+#define UBSE_DEFINE_THIS_MODULE(mn) constexpr const char *MODULE_LOG_NAME = (mn)
 #endif
 
 /**
@@ -44,49 +40,55 @@ namespace ubse::log {
 #endif
 
 /**
- * @brief 创建单条日志，写到终端或写入文件
- * @param gModuleName [in] Module名，为调试日志写入的文件名
- * @param LEVEL [in] 单条日志级别
- */
-#define UBSE_LOG_INTERNAL(gModuleName, LEVEL) \
-    ubse::log::UbseLog() == ubse::log::UbseLoggerEntry(gModuleName, LEVEL, FILENAME, __func__, __LINE__)
-
-/**
  * @brief 创建单条CRIT级别日志，写到终端或写入文件
- * @param gModuleName [in] Module名，为调试日志写入的文件名
+ * @param MODULE_LOG_NAME [in] Module名，为调试日志写入的文件名
  */
-#define UBSE_LOGGER_CRIT(gModuleName, gModuleId) \
-    ubse::log::UbseIsLog(ubse::log::UbseLogLevel::CRIT) && UBSE_LOG_INTERNAL(gModuleName, ubse::log::UbseLogLevel::CRIT)
+#define UBSE_LOGGER_CRIT(MODULE_LOG_NAME, gModuleId)       \
+    ubse::log::UbseIsLog(ubse::log::UbseLogLevel::CRIT) && \
+        ubse::log::UbseLog() ==                            \
+            ubse::log::UbseLoggerEntry(MODULE_LOG_NAME, ubse::log::UbseLogLevel::CRIT, FILENAME, __func__, __LINE__)
 
 /**
  * @brief 创建单条ERROR级别日志，写到终端或写入文件
- * @param gModuleName [in] Module名，为调试日志写入的文件名
+ * @param MODULE_LOG_NAME [in] Module名，为调试日志写入的文件名
  */
-#define UBSE_LOGGER_ERROR(gModuleName, gModuleId)              \
+#define UBSE_LOGGER_ERROR(MODULE_LOG_NAME, gModuleId)       \
     ubse::log::UbseIsLog(ubse::log::UbseLogLevel::ERROR) && \
-        UBSE_LOG_INTERNAL(gModuleName, ubse::log::UbseLogLevel::ERROR)
+        ubse::log::UbseLog() ==                             \
+            ubse::log::UbseLoggerEntry(MODULE_LOG_NAME, ubse::log::UbseLogLevel::ERROR, FILENAME, __func__, __LINE__)
 
 /**
  * @brief 创建单条WARN级别日志，写到终端或写入文件
- * @param gModuleName [in] Module名，为调试日志写入的文件名
+ * @param MODULE_LOG_NAME [in] Module名，为调试日志写入的文件名
  */
-#define UBSE_LOGGER_WARN(gModuleName, gModuleId) \
-    ubse::log::UbseIsLog(ubse::log::UbseLogLevel::WARN) && UBSE_LOG_INTERNAL(gModuleName, ubse::log::UbseLogLevel::WARN)
+#define UBSE_LOGGER_WARN(MODULE_LOG_NAME, gModuleId)       \
+    ubse::log::UbseIsLog(ubse::log::UbseLogLevel::WARN) && \
+        ubse::log::UbseLog() ==                            \
+            ubse::log::UbseLoggerEntry(MODULE_LOG_NAME, ubse::log::UbseLogLevel::WARN, FILENAME, __func__, __LINE__)
 
 /**
  * @brief 创建单条INFO级别日志，写到终端或写入文件
- * @param gModuleName [in] Module名，为调试日志写入的文件名
+ * @param MODULE_LOG_NAME [in] Module名，为调试日志写入的文件名
  */
-#define UBSE_LOGGER_INFO(gModuleName, gModuleId) \
-    ubse::log::UbseIsLog(ubse::log::UbseLogLevel::INFO) && UBSE_LOG_INTERNAL(gModuleName, ubse::log::UbseLogLevel::INFO)
+#define UBSE_LOGGER_INFO(MODULE_LOG_NAME, gModuleId)       \
+    ubse::log::UbseIsLog(ubse::log::UbseLogLevel::INFO) && \
+        ubse::log::UbseLog() ==                            \
+            ubse::log::UbseLoggerEntry(MODULE_LOG_NAME, ubse::log::UbseLogLevel::INFO, FILENAME, __func__, __LINE__)
 
 /**
  * @brief 创建单条DEBUG级别日志，写到终端或写入文件
- * @param gModuleName [in] Module名，为调试日志写入的文件名
+ * @param MODULE_LOG_NAME [in] Module名，为调试日志写入的文件名
  */
-#define UBSE_LOGGER_DEBUG(gModuleName, gModuleId)              \
+#define UBSE_LOGGER_DEBUG(MODULE_LOG_NAME, gModuleId)       \
     ubse::log::UbseIsLog(ubse::log::UbseLogLevel::DEBUG) && \
-        UBSE_LOG_INTERNAL(gModuleName, ubse::log::UbseLogLevel::DEBUG)
+        ubse::log::UbseLog() ==                             \
+            ubse::log::UbseLoggerEntry(MODULE_LOG_NAME, ubse::log::UbseLogLevel::DEBUG, FILENAME, __func__, __LINE__)
+
+#define UBSE_LOG_CRIT UBSE_LOGGER_CRIT(MODULE_LOG_NAME, gModuleId)
+#define UBSE_LOG_ERROR UBSE_LOGGER_ERROR(MODULE_LOG_NAME, gModuleId)
+#define UBSE_LOG_WARN UBSE_LOGGER_WARN(MODULE_LOG_NAME, gModuleId)
+#define UBSE_LOG_INFO UBSE_LOGGER_INFO(MODULE_LOG_NAME, gModuleId)
+#define UBSE_LOG_DEBUG UBSE_LOGGER_DEBUG(MODULE_LOG_NAME, gModuleId)
 
 enum class UbseLogLevel : uint32_t {
     DEBUG = 0,
@@ -191,6 +193,7 @@ private:
     pid_t pid;
     std::thread::id tid;
     UbseLogLevel level;
+    std::string traceId;
     const char *file;
     const char *func;
     uint32_t line;

@@ -19,14 +19,13 @@
 #include "ubse_context.h"       // for context
 #include "ubse_error.h"         // for UBSE_OK, UBSE_ERROR, UBSE_TASK_...
 #include "ubse_logger.h"        // for UbseLoggerEntry, UBSE_DEFINE_TH...
-#include "ubse_logger_inner.h"  // for RM_LOG_ERROR
 #include "ubse_logger_module.h" // for UbseLoggerModule
 
 namespace ubse::task_executor {
 using namespace ubse::log;
 
 BASE_DYNAMIC_CREATE(UbseTaskExecutorModule, ubse::log::UbseLoggerModule);
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_TASK_EXECUTOR_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseTaskExecutorModule::Initialize()
 {
@@ -42,16 +41,16 @@ UbseResult UbseTaskExecutorModule::Start()
 
 void UbseTaskExecutorModule::Stop()
 {
-    WriteLocker<ReadWriteLock> lock(&rwLock);
-    for (const auto &executor : executors) {
+    WriteLocker<ReadWriteLock> lock(&rwLock_);
+    for (const auto &executor : executors_) {
         executor.second->Stop();
     }
-    executors.clear();
+    executors_.clear();
 }
 
 UbseResult UbseTaskExecutorModule::Create(const std::string &name, uint16_t threadNum, uint32_t queueCapacity)
 {
-    WriteLocker<ReadWriteLock> lock(&rwLock);
+    WriteLocker<ReadWriteLock> lock(&rwLock_);
     auto executor = UbseTaskExecutor::Create(name, threadNum, queueCapacity);
     if (executor == nullptr) {
         UBSE_LOG_ERROR << "Create executor " << name << " fail";
@@ -62,15 +61,15 @@ UbseResult UbseTaskExecutorModule::Create(const std::string &name, uint16_t thre
         UBSE_LOG_ERROR << "Start executor " << name << " fail";
         return UBSE_ERROR;
     }
-    executors.emplace(name, executor);
+    executors_.emplace(name, executor);
     return UBSE_OK;
 }
 
 UbseTaskExecutorPtr UbseTaskExecutorModule::Get(const std::string &name)
 {
-    ReadLocker<ReadWriteLock> lock(&rwLock);
-    auto iter = executors.find(name);
-    if (iter == executors.end()) {
+    ReadLocker<ReadWriteLock> lock(&rwLock_);
+    auto iter = executors_.find(name);
+    if (iter == executors_.end()) {
         return nullptr;
     }
     return iter->second;
@@ -78,12 +77,12 @@ UbseTaskExecutorPtr UbseTaskExecutorModule::Get(const std::string &name)
 
 void UbseTaskExecutorModule::Remove(const std::string &name)
 {
-    ReadLocker<ReadWriteLock> lock(&rwLock);
-    auto iter = executors.find(name);
-    if (iter == executors.end()) {
+    WriteLocker<ReadWriteLock> lock(&rwLock_);
+    auto iter = executors_.find(name);
+    if (iter == executors_.end()) {
         return;
     }
     iter->second->Stop();
-    executors.erase(name);
+    executors_.erase(name);
 }
 } // namespace ubse::task_executor

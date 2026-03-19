@@ -1,16 +1,17 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include <gtest/gtest.h>
+#include "ubse_error.h"
 #include "ubse_net_util.h"
 namespace ubse::ut::utils {
 using namespace ubse::utils;
@@ -132,5 +133,13 @@ TEST(UbseNetUtilTest, Ipv6ArrToString_AllZero)
     uint8_t arr[16] = {0};
     std::string expected = "::";
     ASSERT_EQ(UbseNetUtil::Ipv6ArrToString(arr), expected);
+}
+
+// 测试获取地址
+TEST(UbseNetUtilTest, GetIpInfo)
+{
+    std::vector<std::string> ips{};
+    EXPECT_EQ(UbseNetUtil::GetIpInfo(ips), UBSE_OK);
+    EXPECT_TRUE(!ips.empty());
 }
 } // namespace ubse::ut::utils

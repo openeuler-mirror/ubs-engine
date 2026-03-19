@@ -12,19 +12,19 @@
 
 #include "ubse_request_id_util.h"
 
-namespace rack::utils {
+namespace ubse::utils {
 const std::chrono::steady_clock::time_point UbseRequestIdUtil::PROGRAM_START_TIME = std::chrono::steady_clock::now();
 
-UbseRequestIdUtil::UbseRequestIdUtil(UbseRequestType requestType) : requestType(requestType), counter(0) {}
+UbseRequestIdUtil::UbseRequestIdUtil(UbseRequestType requestType) : requestType_(requestType), counter_(0) {}
 uint64_t UbseRequestIdUtil::GenerateRequestId(uint8_t slotId)
 {
     // 使用时间戳和计数器的组合
     uint32_t currentTs = GetCurrentTimestamp();
-    uint32_t lastTs = lastTimestamp.load(std::memory_order_relaxed);
+    uint32_t lastTs = lastTimestamp_.load(std::memory_order_relaxed);
     uint16_t currentCounter;
     if (currentTs == lastTs) {
         // 同一毫秒内，递增计数器
-        currentCounter = ++counter;
+        currentCounter = ++counter_;
 
         // 检查计数器是否溢出
         if (currentCounter == 0) {
@@ -33,19 +33,19 @@ uint64_t UbseRequestIdUtil::GenerateRequestId(uint8_t slotId)
                 std::this_thread::yield();
             }
             currentTs = GetCurrentTimestamp();
-            counter.store(1, std::memory_order_relaxed);
-            lastTimestamp.store(currentTs, std::memory_order_relaxed);
+            counter_.store(1, std::memory_order_relaxed);
+            lastTimestamp_.store(currentTs, std::memory_order_relaxed);
             currentCounter = 1;
         }
     } else {
         // 新的毫秒，重置计数器
-        lastTimestamp.store(currentTs, std::memory_order_relaxed);
-        counter.store(1, std::memory_order_relaxed);
+        lastTimestamp_.store(currentTs, std::memory_order_relaxed);
+        counter_.store(1, std::memory_order_relaxed);
         currentCounter = 1;
     }
 
     // 组合所有部分形成最终ID
-    return (static_cast<uint64_t>(requestType) << REQUEST_TYPE_SHIFT) |
+    return (static_cast<uint64_t>(requestType_) << REQUEST_TYPE_SHIFT) |
            (static_cast<uint64_t>(slotId) << SLOT_ID_SHIFT) | (static_cast<uint64_t>(currentTs) << TIME_STAMP_SHIFT) |
            currentCounter;
 }
@@ -63,4 +63,4 @@ uint32_t UbseRequestIdUtil::GetCurrentTimestamp()
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - PROGRAM_START_TIME);
     return static_cast<uint32_t>(elapsed.count());
 }
-} // namespace rack::utils
+} // namespace ubse::utils

@@ -95,6 +95,7 @@ generator="Unix Makefiles"
 
 enable_coverage="OFF"
 enable_test="OFF"
+enable_fuzz="OFF"
 skip_run_tests="OFF"
 force_colored_output="OFF" # 强制启用ANSI颜色输出
 deploy_version="2.0.0.B098" # 发布版本，B098 为稳定日构建版本（OS包会取上个稳定迭代版本）
@@ -316,9 +317,12 @@ function clean() {
 # 执行 CMake 构建
 function build_cmake() {
     # 启用测试
-    if [[ "$build_target" == 'test' || "$build_target" == 'ut' || "$build_target" =~ _ut$ || "$build_target" == 'it' || $build_target == 'pt' ]]; then
+    if [[ "$build_target" == 'test' || "$build_target" == 'ut' ||  "$build_target" == 'fuzz' || "$build_target" =~ _ut$ || "$build_target" == 'it' || "$build_target" == 'pt' ]]; then
         enable_test='ON'
         build_type='Debug'
+    fi
+    if [["$build_target" == 'fuzz']]; then
+        enable_fuzz='ON'
     fi
 
     # 根据构建类型选择不同构建目录
@@ -336,20 +340,19 @@ function build_cmake() {
     # 确保构建目录已创建
     [ ! -d "${build_dir}" ] && mkdir -p "${build_dir}"
 
-    if [[ "$build_target" == 'package' ]]; then
-        # 流水线构建，安全考虑只保留 commit id
-        version_cmd=("$PROJECT_ROOT_DIR/scripts/build/update_version.sh" "$build_dir/VERSION")
-        [[ "$build_in_ci" == true ]] && version_cmd+=(--pure)
-        [[ "$enable_ub" == 'OFF' ]] && version_cmd+=(--hccs)
-        # 执行命令
-        bash "${version_cmd[@]}"
-    fi
+
+    # 流水线构建，安全考虑只保留 commit id
+    version_cmd=("$PROJECT_ROOT_DIR/scripts/build/update_version.sh" "$build_dir/VERSION")
+    version_cmd+=(--pure)
+    [[ "$enable_ub" == 'OFF' ]] && version_cmd+=(--hccs)
+    # 执行命令
+    bash "${version_cmd[@]}"
 
     log_info "***** start build_cmake *****"
 
     log_info "building target ${build_target}."
 
-    if [[ $generator == 'Ninja' ]]; then
+    if [[ "$generator" == 'Ninja' ]]; then
         force_colored_output='ON'
     fi
 
@@ -359,6 +362,10 @@ function build_cmake() {
     cmake --no-warn-unused-cli -S . -B ${build_dir} -G "${generator}" \
         -DCMAKE_BUILD_TYPE=${build_type} \
         -DCMAKE_CXX_STANDARD="${std}" \
+        -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
+        -DCMAKE_RPM_INSTALL_PREFIX=/usr/local/softbus \
+        -DRPM_PACKAGE_VERSION="1.0.0" \
+        -DRPM_PACKAGE_RELEASE=1 \
         -DBUILD_TESTS=${enable_test} \
         -DENABLE_COVERAGE=${enable_coverage} \
         -DSOURCE_COMPILING=${enable_source_compiling} \
@@ -368,7 +375,8 @@ function build_cmake() {
         -DFORCE_COLORED_OUTPUT=${force_colored_output} \
         -DBUILD_IN_CI=${build_in_ci} \
         -DB_VERSION="${deploy_version}" \
-        -DENABLE_UB="${enable_ub}"
+        -DENABLE_UB="${enable_ub}" \
+        -DENABLE_FUZZ="${enable_fuzz}"
 
     # 确保先构建 Debug 版本的所有代码，生成全面覆盖率报告
     if [[ "$enable_coverage" == 'ON' && "$build_type" == 'Debug' && "$build_target" != 'all' ]]; then
@@ -394,10 +402,6 @@ function build_cmake() {
         echo_failure
         exit 1
     fi
-}
-
-function install_dependency() {
-    bash "$PROJECT_ROOT_DIR"/scripts/build/install_dep.sh
 }
 
 echo $(date +"[%Y-%m-%d %H:%M]"): "$0" "$@"

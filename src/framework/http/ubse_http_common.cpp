@@ -3,7 +3,7 @@
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
+ * http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -13,12 +13,11 @@
 #include "ubse_http_common.h"
 
 #include <unordered_map>
-#include "ubse_error.h"
 #include "ubse_logger_module.h"
 
 namespace ubse::http {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_HTTP_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 std::string UbseHttpMethodToString(UbseHttpMethod method)
 {

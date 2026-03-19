@@ -12,7 +12,21 @@
 
 #include "test_ubse_node_api.h"
 
+#include <src/api_server/ubse_api_server_module.h>
+#include <src/framework/context/ubse_context.h>
+#include <src/framework/ha/ubse_election_module.h>
+#include <src/framework/ipc/include/ubse_ipc_common.h>
+#include <src/framework/ipc/include/ubse_ipc_server.h>
+#include <src/framework/serde/ubse_serial_util.h>
+#include <ubse_error.h>
+#include <ubse_node.h>
+
+#include "src/include/ubse_api_server_def.h"
+
 namespace ubse::node::api::ut {
+using namespace ubse::serial;
+using namespace ubse::context;
+
 void TestUbseNodeApi::SetUp()
 {
     Test::SetUp();
@@ -23,143 +37,28 @@ void TestUbseNodeApi::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseNodeApi, UbseSplitStringByHyphenWhenNodeSocketIdIsInvalid)
-{
-    std::string nodeSocketId = "UbseSplitStringByHyphenWhenSocketIdIsInvalid";
-    UbseSerialization ubseSerial;
-    auto ret = UbseSplitStringByHyphen(nodeSocketId, ubseSerial);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNodeApi, UbseSplitStringByHyphenWhenSocketIdIsEmpty)
-{
-    std::string nodeSocketId = "UbseSplitStringByHyphenWhenSocketIdIsInvalid-";
-    UbseSerialization ubseSerial;
-    auto ret = UbseSplitStringByHyphen(nodeSocketId, ubseSerial);
-    ASSERT_EQ(ret, UBSE_ERROR_NULL_INFO);
-}
-
-TEST_F(TestUbseNodeApi, UbseSplitStringByHyphenSuccess)
-{
-    std::string nodeSocketId = "UbseSplitStringByHyphenWhenSocketIdIsInvalid-1";
-    UbseSerialization ubseSerial;
-    auto ret = UbseSplitStringByHyphen(nodeSocketId, ubseSerial);
-    ASSERT_EQ(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseNodeApi, UbseQueryTopologyInfoHandleWhenGetTopologyInfoFail)
-{
-    UbseIpcMessage req{};
-    UbseRequestContext ctx{};
-    req.buffer = nullptr;
-    auto ret = UbseNodeApi::UbseQueryTopologyInfoHandle(req, ctx);
-    ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
-}
-
-TEST_F(TestUbseNodeApi, UbseQueryTopologyInfoHandleWhenReqBufferIsNull)
-{
-    uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopoInfo;
-    MOCKER_CPP(ubse::nodeController::UbseMemGetTopologyInfo)
-        .stubs()
-        .with(outBound(nodeTopoInfo))
-        .will(returnValue(UBSE_ERROR));
-    auto ret = UbseNodeApi::UbseQueryTopologyInfoHandle(req, ctx);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseNodeApi, UbseQueryTopologyInfoHandleWhenSplitStringFail)
-{
-    uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    std::unordered_map<std::string, std::vector<ubse::nodeController::MemNodeData>> nodeTopology;
-    auto data1 = MemNodeData();
-    auto data2 = MemNodeData();
-    auto data3 = MemNodeData();
-    nodeTopology["1-2-3"].emplace_back(data1);
-    nodeTopology["1-2"].emplace_back(data2);
-    nodeTopology["1-"].emplace_back(data3);
-    MOCKER_CPP(ubse::nodeController::UbseMemGetTopologyInfo)
-        .stubs()
-        .with(outBound(nodeTopology))
-        .will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseSplitStringByHyphen).stubs().will(returnObjectList(UBSE_OK, UBSE_ERROR_NULL_INFO));
-    auto ret = UbseNodeApi::UbseQueryTopologyInfoHandle(req, ctx);
-    ASSERT_EQ(ret, UBSE_ERROR_NULL_INFO);
-}
-
-TEST_F(TestUbseNodeApi, UbseQueryTopologyInfoHandleWhenApiServerModuleIsNull)
-{
-    auto &ubseCtx = UbseContext::GetInstance();
-    auto backupModuleMap = ubseCtx.moduleMap;
-    ubseCtx.moduleMap.clear();
-    uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    std::unordered_map<std::string, std::vector<ubse::nodeController::MemNodeData>> nodeTopology;
-    auto data = MemNodeData();
-    nodeTopology["1-2"].emplace_back(data);
-    MOCKER_CPP(ubse::nodeController::UbseMemGetTopologyInfo)
-        .stubs()
-        .with(outBound(nodeTopology))
-        .will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseSplitStringByHyphen).stubs().will(returnValue(UBSE_OK));
-    auto ret = UbseNodeApi::UbseQueryTopologyInfoHandle(req, ctx);
-    ubseCtx.moduleMap.swap(backupModuleMap);
-    ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
-}
-
-TEST_F(TestUbseNodeApi, UbseQueryTopologyInfoHandleWhenSendResponseFail)
-{
-    auto &ubseCtx = UbseContext::GetInstance();
-    uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    std::unordered_map<std::string, std::vector<ubse::nodeController::MemNodeData>> nodeTopology;
-    auto data = MemNodeData();
-    nodeTopology["1-2"].emplace_back(data);
-    MOCKER_CPP(ubse::nodeController::UbseMemGetTopologyInfo)
-        .stubs()
-        .with(outBound(nodeTopology))
-        .will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseSplitStringByHyphen).stubs().will(returnValue(UBSE_OK));
-    auto backupModuleMap = ubseCtx.moduleMap;
-    ubseCtx.moduleMap[typeid(::api::server::UbseApiServerModule)] =
-        std::make_shared<::api::server::UbseApiServerModule>();
-    auto apiServerModule = UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
-    std::unique_ptr<ubse::ipc::UbseIpcServer> nullPtr = nullptr;
-    apiServerModule->ipcServer.swap(nullPtr);
-    auto ret = UbseNodeApi::UbseQueryTopologyInfoHandle(req, ctx);
-    apiServerModule->ipcServer.swap(nullPtr);
-    ubseCtx.moduleMap.swap(backupModuleMap);
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
 TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenNodePackFail)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    MOCKER_CPP(UbseNodePack).stubs().will(returnValue(static_cast<uint32_t>(IPC_ERROR_SERIALIZATION_FAILED)));
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    MOCKER_CPP(UbseNodePack).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
     auto ret = UbseNodeApi::UbseServerNodeGet(req, ctx);
-    ASSERT_EQ(ret, IPC_ERROR_SERIALIZATION_FAILED);
+    ASSERT_EQ(ret, UBSE_ERROR_SERIALIZE_FAILED);
 }
 
 TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenApiServerModuleIsNull)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    auto backupModuleMap = ubseCtx.moduleMap;
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<::api::server::UbseApiServerModule> nullModule = nullptr;
-    ubseCtx.moduleMap[typeid(::api::server::UbseApiServerModule)] = nullModule;
+    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] = nullModule;
     auto ret = UbseNodeApi::UbseServerNodeGet(req, ctx);
-    ubseCtx.moduleMap.swap(backupModuleMap);
+    ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
@@ -167,15 +66,15 @@ TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenSendResponseFail)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    auto backupModuleMap = ubseCtx.moduleMap;
-    ubseCtx.moduleMap[typeid(::api::server::UbseApiServerModule)] =
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto backupModuleMap = ubseCtx.moduleMap_;
+    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] =
         std::make_shared<::api::server::UbseApiServerModule>();
     auto apiServerModule = UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
-    apiServerModule->ipcServer = nullptr;
+    apiServerModule->ipcServer_ = nullptr;
     auto ret = UbseNodeApi::UbseServerNodeGet(req, ctx);
-    ubseCtx.moduleMap.swap(backupModuleMap);
+    ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
@@ -183,24 +82,24 @@ TEST_F(TestUbseNodeApi, UbseServerNodeListWhenNodeListPackFail)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    MOCKER_CPP(UbseNodeListPack).stubs().will(returnValue(static_cast<uint32_t>(IPC_ERROR_SERIALIZATION_FAILED)));
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    MOCKER_CPP(UbseNodeListPack).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
     auto ret = UbseNodeApi::UbseServerNodeList(req, ctx);
-    ASSERT_EQ(ret, IPC_ERROR_SERIALIZATION_FAILED);
+    ASSERT_EQ(ret, UBSE_ERROR_SERIALIZE_FAILED);
 }
 
 TEST_F(TestUbseNodeApi, UbseServerNodeListWhenApiServerModuleIsNull)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    auto backupModuleMap = ubseCtx.moduleMap;
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<::api::server::UbseApiServerModule> nullModule = nullptr;
-    ubseCtx.moduleMap[typeid(::api::server::UbseApiServerModule)] = nullModule;
+    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] = nullModule;
     auto ret = UbseNodeApi::UbseServerNodeList(req, ctx);
-    ubseCtx.moduleMap.swap(backupModuleMap);
+    ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
@@ -208,15 +107,15 @@ TEST_F(TestUbseNodeApi, UbseServerNodeListWhenSendResponseFail)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    auto backupModuleMap = ubseCtx.moduleMap;
-    ubseCtx.moduleMap[typeid(::api::server::UbseApiServerModule)] =
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto backupModuleMap = ubseCtx.moduleMap_;
+    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] =
         std::make_shared<::api::server::UbseApiServerModule>();
     auto apiServerModule = UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
-    apiServerModule->ipcServer = nullptr;
+    apiServerModule->ipcServer_ = nullptr;
     auto ret = UbseNodeApi::UbseServerNodeList(req, ctx);
-    ubseCtx.moduleMap.swap(backupModuleMap);
+    ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
@@ -224,24 +123,24 @@ TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenCpuLinkListPack)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    MOCKER_CPP(UbseCpuLinkListPack).stubs().will(returnValue(static_cast<uint32_t>(IPC_ERROR_SERIALIZATION_FAILED)));
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    MOCKER_CPP(UbseCpuLinkListPack).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
     auto ret = UbseNodeApi::UbseServerCpuTopoList(req, ctx);
-    ASSERT_EQ(ret, IPC_ERROR_SERIALIZATION_FAILED);
+    ASSERT_EQ(ret, UBSE_ERROR_SERIALIZE_FAILED);
 }
 
 TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenApiServerModuleIsNull)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    auto backupModuleMap = ubseCtx.moduleMap;
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<::api::server::UbseApiServerModule> nullModule = nullptr;
-    ubseCtx.moduleMap[typeid(::api::server::UbseApiServerModule)] = nullModule;
+    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] = nullModule;
     auto ret = UbseNodeApi::UbseServerCpuTopoList(req, ctx);
-    ubseCtx.moduleMap.swap(backupModuleMap);
+    ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
@@ -249,15 +148,15 @@ TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenSendResponseFail)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
-    UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
-    UbseRequestContext ctx{};
-    auto backupModuleMap = ubseCtx.moduleMap;
-    ubseCtx.moduleMap[typeid(::api::server::UbseApiServerModule)] =
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto backupModuleMap = ubseCtx.moduleMap_;
+    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] =
         std::make_shared<::api::server::UbseApiServerModule>();
     auto apiServerModule = UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
-    apiServerModule->ipcServer = nullptr;
+    apiServerModule->ipcServer_ = nullptr;
     auto ret = UbseNodeApi::UbseServerCpuTopoList(req, ctx);
-    ubseCtx.moduleMap.swap(backupModuleMap);
+    ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
@@ -265,11 +164,204 @@ TEST_F(TestUbseNodeApi, UbseClusterListWhenNodeInfoIsEmpty)
 {
     auto &ubseCtx = UbseContext::GetInstance();
     std::vector<UbseNodeInfo> nodeList;
-    auto backupModuleMap = ubseCtx.moduleMap;
-    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
-    ubseCtx.moduleMap[typeid(UbseElectionModule)] = nullModule;
+    auto backupModuleMap = ubseCtx.moduleMap_;
+    std::shared_ptr<UbseModule> nullModule = nullptr;
+    ubseCtx.moduleMap_[typeid(UbseElectionModule)] = nullModule;
     UbseClusterList(nodeList);
-    ubseCtx.moduleMap.swap(backupModuleMap);
+    ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(nodeList.empty(), true);
+}
+
+TEST_F(TestUbseNodeApi, UbseClusterListWhenSuccess)
+{
+    std::vector<UbseNodeInfo> nodeList;
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1};
+    std::unordered_map<std::string, UbseNodeInfo> allNodeInfoMap;
+    std::vector<UbseNodeInfo> staticNodeInfo;
+    allNodeInfoMap.emplace("0", info1);
+    staticNodeInfo.push_back(info2);
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(allNodeInfoMap));
+    MOCKER_CPP(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodeInfo));
+    UbseClusterList(nodeList);
+    ASSERT_EQ(nodeList.size(), 2);
+}
+
+TEST_F(TestUbseNodeApi, UbseGetRoleMapWhenElectionModuleIsNull)
+{
+    std::shared_ptr<UbseElectionModule> nullModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    ::api::server::UbseRequestContext ctx{};
+    auto roleMap = UbseGetRoleMap(ctx);
+    ASSERT_EQ(roleMap.size(), 0);
+}
+
+TEST_F(TestUbseNodeApi, UbseGetRoleMapWhenSuccess)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    Node master{.id = "0"};
+    Node standby{.id = "1"};
+    MOCKER_CPP(&UbseElectionModule::UbseGetMasterNode).stubs().with(outBound(master)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseElectionModule::UbseGetStandbyNode).stubs().with(outBound(standby)).will(returnValue(UBSE_OK));
+    ::api::server::UbseRequestContext ctx{};
+    auto roleMap = UbseGetRoleMap(ctx);
+    ASSERT_EQ(roleMap[master.id], UBSE_ROLE_MASTER);
+    ASSERT_EQ(roleMap[standby.id], UBSE_ROLE_SLAVE);
+}
+
+TEST_F(TestUbseNodeApi, UbseQueryClusterInfoWhenReqBufferIsNull)
+{
+    ::api::server::UbseIpcMessage req{.buffer = nullptr, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto ret = UbseNodeApi::UbseQueryClusterInfo(req, ctx);
+    ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseNodeApi, UbseQueryClusterInfoWhenSerialCheckFail)
+{
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1};
+    std::vector<UbseNodeInfo> nodeList{info1, info2};
+    MOCKER_CPP(UbseClusterList).stubs().with(outBound(nodeList));
+    std::unordered_map<std::string, std::string> roleMap;
+    roleMap["0"] = UBSE_ROLE_MASTER;
+    roleMap["1"] = UBSE_ROLE_SLAVE;
+    MOCKER_CPP(UbseGetRoleMap).stubs().will(returnValue(roleMap));
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
+    ::api::server::UbseIpcMessage req{.buffer = new uint8_t, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto ret = UbseNodeApi::UbseQueryClusterInfo(req, ctx);
+    delete req.buffer;
+    ASSERT_EQ(ret, UBSE_ERROR_SERIALIZE_FAILED);
+}
+
+TEST_F(TestUbseNodeApi, UbseQueryClusterInfoWhenApiServerIsNull)
+{
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1};
+    std::vector<UbseNodeInfo> nodeList{info1, info2};
+    MOCKER_CPP(UbseClusterList).stubs().with(outBound(nodeList));
+    std::unordered_map<std::string, std::string> roleMap;
+    roleMap["0"] = UBSE_ROLE_MASTER;
+    roleMap["1"] = UBSE_ROLE_SLAVE;
+    MOCKER_CPP(UbseGetRoleMap).stubs().will(returnValue(roleMap));
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
+    ::api::server::UbseIpcMessage req{.buffer = new uint8_t, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    std::shared_ptr<UbseApiServerModule> nullApiModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullApiModule));
+    auto ret = UbseNodeApi::UbseQueryClusterInfo(req, ctx);
+    delete req.buffer;
+    ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseNodeApi, UbseQueryClusterInfoWhenSendResponseFail)
+{
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1};
+    std::vector<UbseNodeInfo> nodeList{info1, info2};
+    MOCKER_CPP(UbseClusterList).stubs().with(outBound(nodeList));
+    std::unordered_map<std::string, std::string> roleMap;
+    roleMap["0"] = UBSE_ROLE_MASTER;
+    roleMap["1"] = UBSE_ROLE_SLAVE;
+    MOCKER_CPP(UbseGetRoleMap).stubs().will(returnValue(roleMap));
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
+    ::api::server::UbseIpcMessage req{.buffer = new uint8_t, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto apiModule = std::make_shared<UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = UbseNodeApi::UbseQueryClusterInfo(req, ctx);
+    delete req.buffer;
+    ASSERT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNodeApi, UbseQueryClusterInfoWhenSuccess)
+{
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1};
+    std::vector<UbseNodeInfo> nodeList{info1, info2};
+    MOCKER_CPP(UbseClusterList).stubs().with(outBound(nodeList));
+    std::unordered_map<std::string, std::string> roleMap;
+    roleMap["0"] = UBSE_ROLE_MASTER;
+    roleMap["1"] = UBSE_ROLE_SLAVE;
+    MOCKER_CPP(UbseGetRoleMap).stubs().will(returnValue(roleMap));
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
+    ::api::server::UbseIpcMessage req{.buffer = new uint8_t, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto apiModule = std::make_shared<UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbseNodeApi::UbseQueryClusterInfo(req, ctx);
+    delete req.buffer;
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseNodeApi, RegisterWhenApiServerIsNull)
+{
+    std::shared_ptr<UbseApiServerModule> nullApiModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullApiModule));
+    auto ret = UbseNodeApi::Register();
+    ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseNodeApi, RegisterWhenRegisterIpcHandlerFail)
+{
+    auto apiModule = std::make_shared<::api::server::UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER_CPP(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = UbseNodeApi::Register();
+    ASSERT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNodeApi, RegisterWhenSuccess)
+{
+    auto apiModule = std::make_shared<::api::server::UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER_CPP(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbseNodeApi::Register();
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenListPackFail)
+{
+    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseNodeNumaMemGet).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t) UBSE_ERROR_INVAL));
+    uint8_t dummyVal = 0;
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto ret = UbseNodeApi::UbseServerNodeNumaMemGet(req, ctx);
+    ASSERT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenServerModuleIsNull)
+{
+    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseNodeNumaMemGet).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    std::shared_ptr<UbseApiServerModule> nullModule = nullptr;
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullModule));
+    uint8_t dummyVal = 0;
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto ret = UbseNodeApi::UbseServerNodeNumaMemGet(req, ctx);
+    ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenSuccess)
+{
+    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseNodeNumaMemGet).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseApiServerModule> module = std::make_shared<UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(module));
+    uint8_t dummyVal = 0;
+    ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
+    ::api::server::UbseRequestContext ctx{};
+    auto ret = UbseNodeApi::UbseServerNodeNumaMemGet(req, ctx);
+    ASSERT_EQ(ret, UBSE_OK);
 }
 }  // namespace ubse::mem_controller::ut

@@ -120,9 +120,9 @@ add_subdirectory(IT)
 add_subdirectory(UT)
 
 add_custom_target(
-    test
-    COMMAND python3 scripts/build/merge_gtest.py ${CMAKE_BINARY_DIR}/coverage
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Merge coverage data to test_detail.xml"
+        test
+        COMMAND python3 scripts/build/merge_gtest.py ${CMAKE_BINARY_DIR}/coverage
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        COMMENT "Merge coverage data to test_detail.xml"
 )
 add_dependencies(test ut it)

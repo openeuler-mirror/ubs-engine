@@ -15,10 +15,10 @@
 
 #include <memory>
 #include <shared_mutex>
-#include "ubse_event_module.h"
 #include "ubse_com_base.h"
 #include "ubse_election.h"
 #include "ubse_election_def.h"
+#include "ubse_event_module.h"
 
 namespace ubse::election {
 using namespace ubse::com;
@@ -41,7 +41,7 @@ public:
      */
     UbseElectionCommMgr() = default;
     explicit UbseElectionCommMgr(const std::string &nodeId, const std::string &name) : UbseComBase(nodeId, name) {}
-    uint32_t Connect(const UBSE_ID_TYPE &dstId);
+    uint32_t Connect(const UBSE_ID_TYPE &dstIp);
 
     UbseResult DisConnect(const UBSE_ID_TYPE &dstId);
 
@@ -51,15 +51,32 @@ public:
 
     UbseResult ElectionResponseHandler(std::string &eventId, std::string &eventMessage);
 
+    UbseResult ElectionFaultHandler(std::string &eventId, std::string &eventMessage);
+
+    UbseResult ElectionTopoChangeHandler(std::string &eventId, std::string &eventMessage);
+
+    UbseResult RegNewChannelCb([[maybe_unused]] UbseComCallBackForHA func) override
+    {
+        return UBSE_OK;
+    };
+
+    UbseResult RegBrokenChannelCb([[maybe_unused]] UbseComCallBackForHA func) override
+    {
+        return UBSE_OK;
+    };
+
+    UbseResult NewChannelCB(const std::string &remoteIp, const std::string &remoteNodeId);
+
+    UbseResult ElectionSubEvent();
+
     UbseResult Start() override;
 
     void Stop() override {}
 
 private:
-    void ElectionNodeDownNotify(const NodeLinkInfo &info);
-    void NodeShouldReconnect(const NodeLinkInfo &info);
+    void ElectionNodeDownNotify(const std::string &nodeId);
     std::vector<UBSE_ID_TYPE> connectSuccessNodes_;
-    mutable std::shared_mutex mtx{};
+    mutable std::shared_mutex mtx_{};
 };
 } // namespace ubse::election
 #endif // UBSE_ELECTION_COMM_MGR_H

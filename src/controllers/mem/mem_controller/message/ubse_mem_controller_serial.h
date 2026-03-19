@@ -13,124 +13,191 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_CONTROLLER_SERIAL_H
 #define UBSE_MANAGER_UBSE_MEM_CONTROLLER_SERIAL_H
 #include "ubse_common_def.h"
-#include "ubse_mem_resource.h"
-#include "ubse_mem_obj.h"
+#include "ubse_mmi_interface.h"
 #include "ubse_serial_util.h"
 
 namespace ubse::mem::serial {
 using namespace ubse::common::def;
 using namespace ubse::serial;
-using namespace ubse::mem::obj;
-using namespace ubse::resource::mem;
+using namespace ubse::adapter_plugins::mmi;
 
 void UbseMemDebtNumaInfoSerialization(UbseSerialization &out, const UbseMemDebtNumaInfo &debtNumaInfo);
 
-UbseResult UbseMemDebtNumaInfoDeserialization(UbseDeSerialization &in, UbseMemDebtNumaInfo &debtNumaInfo);
+bool UbseMemDebtNumaInfoDeserialization(UbseDeSerialization &in, UbseMemDebtNumaInfo &debtNumaInfo);
 
 void UbseMemAlgoResultSerialization(UbseSerialization &out, const UbseMemAlgoResult &algoResult);
 
-UbseResult UbseMemAlgoResultDeserialization(UbseDeSerialization &in, UbseMemAlgoResult &algoResult);
+bool UbseMemAlgoResultDeserialization(UbseDeSerialization &in, UbseMemAlgoResult &algoResult);
 
 void UbseMemObmmMemDescSerialization(UbseSerialization &out, const ubse_mem_obmm_mem_desc &ubseMemObmmMemDesc);
 
-UbseResult UbseMemObmmMemDescDeserialization(UbseDeSerialization &in, ubse_mem_obmm_mem_desc &ubseMemObmmMemDesc);
+bool UbseMemObmmMemDescDeserialization(UbseDeSerialization &in, ubse_mem_obmm_mem_desc &ubseMemObmmMemDesc);
 
 void UbseMemObmmInfoSerialization(UbseSerialization &out, const UbseMemObmmInfo &ubseMemObmmInfo);
 
-UbseResult UbseMemObmmInfoDeserialization(UbseDeSerialization &in, UbseMemObmmInfo &ubseMemObmmInfo);
+bool UbseMemObmmInfoDeserialization(UbseDeSerialization &in, UbseMemObmmInfo &ubseMemObmmInfo);
 
 void UbseMemExportStatusSerialization(UbseSerialization &out, const UbseMemExportStatus &ubseMemExportStatus);
 
-UbseResult UbseMemExportStatusDeserialization(UbseDeSerialization &in, UbseMemExportStatus &ubseMemExportStatus);
+bool UbseMemExportStatusDeserialization(UbseDeSerialization &in, UbseMemExportStatus &ubseMemExportStatus);
 
 void UbseUdsInfoSerialization(UbseSerialization &out, const UbseUdsInfo &udsInfo);
-void UbseFdOwnerSerialization(UbseSerialization& out, const FdOwner& owner);
-UbseResult UbseUdsInfoDeserialization(UbseDeSerialization& in, UbseUdsInfo& udsInfo);
-UbseResult UbseFdOwnerDeserialization(UbseDeSerialization& in, FdOwner& owner);
+
+void UbseFdOwnerSerialization(UbseSerialization &out, const FdOwner &fdOwner);
+
+bool UbseUdsInfoDeserialization(UbseDeSerialization &in, UbseUdsInfo &udsInfo);
+
+bool UbseFdOwnerDeserialization(UbseDeSerialization &in, FdOwner &fdOwner);
+
 void UbseNumaLocationSerialization(UbseSerialization &out, const UbseNumaLocation &ubseNumaLocation);
 
-UbseResult UbseNumaLocationDeserialization(UbseDeSerialization &in, UbseNumaLocation &ubseNumaLocation);
+bool UbseNumaLocationDeserialization(UbseDeSerialization &in, UbseNumaLocation &ubseNumaLocation);
 
-void UbseMemFdBorrowReqSerialization(UbseSerialization &out, const UbseMemFdBorrowReq &req);
+bool UbseMemFdBorrowReqSerialization(UbseSerialization &out, const UbseMemFdBorrowReq &req);
 
-UbseResult UbseMemFdBorrowReqDeserialization(UbseDeSerialization &in, UbseMemFdBorrowReq &req);
+bool UbseMemFdBorrowReqDeserialization(UbseDeSerialization &in, UbseMemFdBorrowReq &req);
 
-void UbseMemFdBorrowExportObjSerialization(UbseSerialization &out, const UbseMemFdBorrowExportObj &fdBorrowExportObj);
+bool UbseMemFdBorrowExportObjSerialization(UbseSerialization &out, const UbseMemFdBorrowExportObj &fdBorrowExportObj);
 
-UbseResult UbseMemFdBorrowExportObjDeserialization(UbseDeSerialization &in,
-                                                   UbseMemFdBorrowExportObj &fdBorrowExportObj);
+bool UbseMemFdBorrowExportObjDeserialization(UbseDeSerialization &in, UbseMemFdBorrowExportObj &fdBorrowExportObj);
 
 void UbseMemImportResultSerialization(UbseSerialization &out, const UbseMemImportResult &ubseMemImportResult);
 
-UbseResult UbseMemImportResultDeserialization(UbseDeSerialization &in, UbseMemImportResult &ubseMemImportResult);
+bool UbseMemImportResultDeserialization(UbseDeSerialization &in, UbseMemImportResult &ubseMemImportResult);
 
 void UbseMemImportStatusSerialization(UbseSerialization &out, const UbseMemImportStatus &ubseMemImportStatus);
 
-UbseResult UbseMemImportStatusDeserialization(UbseDeSerialization &in, UbseMemImportStatus &ubseMemImportStatus);
+bool UbseMemImportStatusDeserialization(UbseDeSerialization &in, UbseMemImportStatus &ubseMemImportStatus);
 
-void UbseMemFdBorrowImportObjSerialization(UbseSerialization &out,
+bool UbseMemFdBorrowImportObjSerialization(UbseSerialization &out,
                                            const UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj);
 
-UbseResult UbseMemFdBorrowImportObjDeserialization(UbseDeSerialization &in,
-                                                   UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj);
+bool UbseMemFdBorrowImportObjDeserialization(UbseDeSerialization &in,
+                                             UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj);
 
-void UbseMemNumaBorrowReqSerialization(UbseSerialization &out, const UbseMemNumaBorrowReq &req);
+bool UbseMemNumaBorrowReqSerialization(UbseSerialization &out, const UbseMemNumaBorrowReq &req);
 
-UbseResult UbseMemNumaBorrowReqDeserialization(UbseDeSerialization &in, UbseMemNumaBorrowReq &req);
+bool UbseMemNumaBorrowReqDeserialization(UbseDeSerialization &in, UbseMemNumaBorrowReq &req);
 
-void UbseMemNumaBorrowExportObjSerialization(UbseSerialization &out,
+bool UbseMemNumaBorrowExportObjSerialization(UbseSerialization &out,
                                              const UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj);
 
-UbseResult UbseMemNumaBorrowExportObjDeserialization(UbseDeSerialization &in,
-                                                     UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj);
+bool UbseMemNumaBorrowExportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj);
 
-void UbseMemNumaBorrowImportObjSerialization(UbseSerialization &out,
+bool UbseMemNumaBorrowImportObjSerialization(UbseSerialization &out,
                                              const UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj);
 
-UbseResult UbseMemNumaBorrowImportObjDeserialization(UbseDeSerialization &in,
-                                                     UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj);
+bool UbseMemNumaBorrowImportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj);
 
 void UbseMemAddrInfoSerialization(UbseSerialization &out, const UbseMemAddrInfo &ubseMemAddrInfo);
 
-UbseResult UbseMemAddrInfoDeserialization(UbseDeSerialization &in, UbseMemAddrInfo &ubseMemAddrInfo);
+bool UbseMemAddrInfoDeserialization(UbseDeSerialization &in, UbseMemAddrInfo &ubseMemAddrInfo);
+
+void UbseMemAddrBorrowReqSerialization(UbseSerialization &out, const UbseMemAddrBorrowReq &req);
+
+bool UbseMemAddrBorrowReqDeserialization(UbseDeSerialization &in, UbseMemAddrBorrowReq &req);
+
+bool UbseMemAddrBorrowExportObjSerialization(UbseSerialization &out,
+                                             const UbseMemAddrBorrowExportObj &ubseMemAddrBorrowExportObj);
+
+bool UbseMemAddrBorrowExportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemAddrBorrowExportObj &ubseMemAddrBorrowExportObj);
+
+bool UbseMemAddrBorrowImportObjSerialization(UbseSerialization &out,
+                                             const UbseMemAddrBorrowImportObj &ubseMemAddrBorrowImportObj);
+
+bool UbseMemAddrBorrowImportObjDeserialization(UbseDeSerialization &in,
+                                               UbseMemAddrBorrowImportObj &ubseMemAddrBorrowImportObj);
+
+void UbseMemAttachResourceShareAttrSerialization(UbseSerialization &out, const UbseMemAttachResourceShareAttr &data);
+
+bool UbseMemAttachResourceShareAttrDeserialization(UbseDeSerialization &in, UbseMemAttachResourceShareAttr &data);
 
 void UbseMemBorrowExportBaseObjSerialization(UbseSerialization &out, const UbseMemBorrowExportBaseObj &data);
 
-UbseResult UbseMemBorrowExportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowExportBaseObj &data);
+bool UbseMemBorrowExportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowExportBaseObj &data);
 
 void UbseNodeInfoSerialization(UbseSerialization &out, const UbseNodeInfo &data);
 
-UbseResult UbseNodeInfoDeserialization(UbseDeSerialization &in, UbseNodeInfo &data);
+bool UbseNodeInfoDeserialization(UbseDeSerialization &in, UbseNodeInfo &data);
 
 void UbseShmRegionDescSerialization(UbseSerialization &out, const UbseShmRegionDesc &data);
 
-UbseResult UbseShmRegionDescDeserialization(UbseDeSerialization &in, UbseShmRegionDesc &data);
+bool UbseShmRegionDescDeserialization(UbseDeSerialization &in, UbseShmRegionDesc &data);
+
+bool UbseMemShareBorrowReqSerialization(UbseSerialization &out, const UbseMemShareBorrowReq &data);
+
+bool UbseMemShareBorrowReqDeserialization(UbseDeSerialization &in, UbseMemShareBorrowReq &data);
+
+bool UbseMemShareAttachReqSerialization(UbseSerialization &out, const UbseMemShareAttachReq &data);
+
+bool UbseMemShareAttachReqDeserialization(UbseDeSerialization &in, UbseMemShareAttachReq &data);
+
+bool UbseMemShareDetachReqSerialization(UbseSerialization &out, UbseMemShareDetachReq &data);
+
+bool UbseMemShareDetachReqDeserialization(UbseDeSerialization &in, UbseMemShareDetachReq &data);
+
+bool UbseMemShareBorrowExportObjSerialization(UbseSerialization &out, const UbseMemShareBorrowExportObj &data);
+
+bool UbseMemShareBorrowExportObjDeserialization(UbseDeSerialization &in, UbseMemShareBorrowExportObj &data);
 
 void UbseMemBorrowImportBaseObjSerialization(UbseSerialization &out, const UbseMemBorrowImportBaseObj &data);
 
-UbseResult UbseMemBorrowImportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowImportBaseObj &data);
+bool UbseMemBorrowImportBaseObjDeserialization(UbseDeSerialization &in, UbseMemBorrowImportBaseObj &data);
+
+bool UbseMemShareBorrowImportObjSerialization(UbseSerialization &out, const UbseMemShareBorrowImportObj &data);
+
+bool UbseMemShareBorrowImportObjDeserialization(UbseDeSerialization &in, UbseMemShareBorrowImportObj &data);
 
 void UbseMemFdImportObjMapSerialization(UbseSerialization &out, const UbseMemFdImportObjMap &data);
 
-void UbseMemFdImportObjMapSerialization(UbseSerialization &out, const UbseMemFdImportObjMap &data);
-
-UbseResult UbseMemFdImportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdImportObjMap &data);
+bool UbseMemFdImportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdImportObjMap &data);
 
 void UbseMemFdExportObjMapSerialization(UbseSerialization &out, const UbseMemFdExportObjMap &data);
 
-UbseResult UbseMemFdExportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdExportObjMap &data);
+bool UbseMemFdExportObjMapDeserialization(UbseDeSerialization &in, UbseMemFdExportObjMap &data);
 
 void UbseMemNumaImportObjMapSerialization(UbseSerialization &out, const UbseMemNumaImportObjMap &data);
 
-UbseResult UbseMemNumaImportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaImportObjMap &data);
+bool UbseMemNumaImportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaImportObjMap &data);
 
 void UbseMemNumaExportObjMapSerialization(UbseSerialization &out, const UbseMemNumaExportObjMap &data);
 
-UbseResult UbseMemNumaExportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaExportObjMap &data);
+bool UbseMemNumaExportObjMapDeserialization(UbseDeSerialization &in, UbseMemNumaExportObjMap &data);
+
+void UbseMemShareImportObjMapSerialization(UbseSerialization &out, const UbseMemShareImportObjMap &data);
+
+bool UbseMemShareImportObjMapDeserialization(UbseDeSerialization &in, UbseMemShareImportObjMap &data);
+
+void UbseMemShareExportObjMapSerialization(UbseSerialization &out, const UbseMemShareExportObjMap &data);
+
+bool UbseMemShareExportObjMapDeserialization(UbseDeSerialization &in, UbseMemShareExportObjMap &data);
+
+void UbseMemAddrImportObjMapSerialization(UbseSerialization &out, const UbseMemAddrImportObjMap &data);
+
+bool UbseMemAddrImportObjMapDeserialization(UbseDeSerialization &in, UbseMemAddrImportObjMap &data);
+
+void UbseMemAddrExportObjMapSerialization(UbseSerialization &out, const UbseMemAddrExportObjMap &data);
+
+bool UbseMemAddrExportObjMapDeserialization(UbseDeSerialization &in, UbseMemAddrExportObjMap &data);
 
 void NodeMemDebtInfoSerialization(UbseSerialization &out, const NodeMemDebtInfo &data);
 
-UbseResult NodeMemDebtInfoDeserialization(UbseDeSerialization &in, NodeMemDebtInfo &data);
+bool NodeMemDebtInfoDeserialization(UbseDeSerialization &in, NodeMemDebtInfo &data);
+
+bool UbseMemFdPermissionReqSerialize(UbseSerialization &out, const UbseMemFdPermissionReq &req);
+
+bool UbseMemFdPermissionReqDeserialize(UbseDeSerialization &in, UbseMemFdPermissionReq &req);
+
+bool UbseMemReturnReqSerialize(UbseSerialization &out, const UbseMemReturnReq &data);
+
+bool UbseMemReturnReqDeserialize(UbseDeSerialization &in, UbseMemReturnReq &data);
+
+bool UbseMemOperationRespSerialize(UbseSerialization &out, UbseMemOperationResp &data);
+
+bool UbseMemOperationRespDeserialize(UbseDeSerialization &in, UbseMemOperationResp &data);
 } // namespace ubse::mem::serial
 
 #endif // UBSE_MANAGER_UBSE_MEM_CONTROLLER_SERIAL_H

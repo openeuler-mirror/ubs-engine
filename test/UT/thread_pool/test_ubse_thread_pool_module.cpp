@@ -44,7 +44,7 @@ TEST_F(TestUbseTaskExecutorModule, testCreateTaskExecutorSucess)
     auto ret = executorModulePtr->Create(EXECUTOR_NAME, THREAD_NUM, QUEUE_CAPACITY);
     EXPECT_EQ(ret, UBSE_OK);
 
-    EXPECT_EQ(executorModulePtr->executors.size(), 1);
+    EXPECT_EQ(executorModulePtr->executors_.size(), 1);
 }
 
 /*
@@ -62,7 +62,7 @@ TEST_F(TestUbseTaskExecutorModule, testStopTaskExecutorModule)
     EXPECT_EQ(ret, UBSE_OK);
     executorModulePtr->Stop();
 
-    EXPECT_EQ(executorModulePtr->executors.size(), 0);
+    EXPECT_EQ(executorModulePtr->executors_.size(), 0);
 }
 
 /*

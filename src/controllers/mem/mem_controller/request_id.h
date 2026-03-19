@@ -13,8 +13,6 @@
 #ifndef REQUEST_ID_H
 #define REQUEST_ID_H
 
-#include "ubse_mem_resource.h"
-
 /* *
 ### 组装唯一且正确的RequestID
 非Delete：RequestID = name(资源唯一标识) + requestNodeId
@@ -51,7 +49,6 @@ UbseMemImportObj处理：
 */
 
 namespace ubse::mem_controller {
-using namespace ubse::resource::mem;
 
 inline std::string GetRequestIdNew(const std::string &name, const std::string &requestNodeId)
 {

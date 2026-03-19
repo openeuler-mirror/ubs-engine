@@ -15,6 +15,7 @@
 
 #ifndef REGISTER_XALARM_H
 #define REGISTER_XALARM_H
+#include <sys/time.h>
 
 constexpr int ALARM_INFO_MAX_PARAS_LEN = 8192;
 constexpr int ALARM_REBOOT_EVENT = 1003;
@@ -26,15 +27,6 @@ constexpr int ALARM_PANIC_ACK_EVENT = 1008;
 constexpr int ALARM_KERNEL_REBOOT_EVENT = 1009;
 constexpr int ALARM_KERNEL_REBOOT_ACK_EVENT = 1010;
 constexpr int MAX_NUM_OF_ALARM_ID = 128;
-
-const std::string NODE0_EID = "1.2.3.4";
-const std::string NODE1_EID = "1.2.3.5";
-const std::string NODE2_EID = "1.2.3.6";
-const std::string NODE3_EID = "1.2.3.7";
-const std::string NODE0_EID2 = "1.2.4.4";
-const std::string NODE1_EID2 = "1.2.4.5";
-const std::string NODE2_EID2 = "1.2.4.6";
-const std::string NODE3_EID2 = "1.2.4.7";
 
 #ifdef __cplusplus
 extern "C" {

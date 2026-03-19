@@ -12,21 +12,18 @@
 
 #include "ubse_thread_pool.h"
 
-#include <container/ubse_ring_buffer.h> // for RingBufferBlockingQueue
-#include <pthread.h>                    // for pthread_self, pthread_s...
-#include <referable/ubse_ref.h>         // for Ref, MakeRef
-#include <sched.h>                      // for CPU_SET, CPU_ZERO, cpu_...
-#include <ubse_error.h>                 // for UBSE_TASK_EXECUTOR_MID
-#include <unistd.h>                     // for sleep, usleep
-#include <new>                          // for nothrow
-#include <stdexcept>                    // for runtime_error
+#include <pthread.h> // for pthread_self, pthread_s...
+#include <sched.h>   // for CPU_SET, CPU_ZERO, cpu_...
+#include <unistd.h>  // for sleep, usleep
+#include <new>       // for nothrow
+#include <stdexcept> // for runtime_error
 
-#include "ubse_common_def.h"            // for NO_2, UBSE_UNLIKELY
-#include "ubse_logger.h"                // for UbseLoggerEntry, UBSE_D...
-#include "ubse_logger_inner.h"          // for RM_LOG_ERROR, RM_LOG_INFO
+#include "ubse_common_def.h"   // for NO_2, UBSE_UNLIKELY
+#include "ubse_error.h"        // for UBSE_TASK_EXECUTOR_MID
+#include "ubse_logger.h"       // for UbseLoggerEntry, UBSE_D...
 
 namespace ubse::task_executor {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_TASK_EXECUTOR_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 void UbseRunnable::Run()
 {
@@ -70,19 +67,16 @@ bool UbseTaskExecutor::Execute(const UbseRunnablePtr &runnable)
     }
 
     tmp->IncreaseRef();
+    totalSubmitted++;
     if (mRunnableQueue.Enqueue(tmp)) { // The queue is full; it returns false without blocking.
-        if (pending == 0) {
-            // Prevent pending from being altered before the condition variable check predicate.
-            std::unique_lock<std::mutex> lockCv(cvMtx);
-            ++pending;
-        } else {
-            ++pending;
-        }
+        ++pending;
         return true;
     } else {
         UBSE_LOG_WARN << "This executor is full." << " The executor mThreadName is " << mThreadName
-                    << " and The mThreadNum of this executor is " << mThreadNum
-                    << " and The mCapacity of this executor is " << mCapacity;
+                      << " and The mThreadNum of this executor is " << mThreadNum
+                      << " and The mCapacity of this executor is " << mCapacity
+                      << " .Now The Number of total Submitted is " << totalSubmitted << " Number of total Completed is "
+                      << totalCompleted;
         return false;
     }
 }
@@ -181,7 +175,7 @@ void UbseTaskExecutor::Stop()
 
     UBSE_LOG_INFO << "Start waiting for the thread to exit. ";
     for (auto &thr : mThreads) {
-        if (thr != nullptr) {
+        if (thr != nullptr && thr->joinable()) {
             thr->join();
         }
     }
@@ -213,11 +207,10 @@ void UbseTaskExecutor::DoRunnable(bool &flag)
         task->DecreaseRef();
         if (runnable->Type() == UbseRunnableType::NORMAL) {
             runnable->Run();
-            {
+            totalCompleted++;
+            if (pending.fetch_sub(1) == 1) { // 注意，比较操作过程也要注意竞争，fetch_sub返回之前的值，这个之前的值不会出问题
                 std::unique_lock<std::mutex> lock(cvMtx);
-                if (pending.fetch_sub(1) == 1) {
-                    done.notify_all();
-                }
+                done.notify_all();
             }
         } else if (runnable->Type() == UbseRunnableType::STOP) {
             flag = false; // stop thread
@@ -252,6 +245,6 @@ void UbseTaskExecutor::RunInThread(int16_t cpuId)
     while (runFlag) {
         DoRunnable(runFlag);
     }
-    UBSE_LOG_DEBUG << "Thread for executor service <" << threadName << "> cpuId " << cpuId << " exiting";
+    UBSE_LOG_DEBUG << "Thread for executor service <" << threadName << "> cpuId= " << cpuId << " exiting";
 }
 } // namespace ubse::task_executor

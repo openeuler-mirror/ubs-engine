@@ -12,15 +12,44 @@
 
 #include "ubse_os_util.h"
 
+#include <grp.h>
 #include <pwd.h>
-#include <memory>
-#include <array>
 #include <securec.h>
+#include <ubse_logger.h>
+#include <ubse_str_util.h>
+#include <array>
+#include <csignal>
+#include <fstream>
+#include <memory>
+#include <regex>
 
 #include "ubse_error.h"
+#include "ubse_logger.h"
 
 namespace ubse::utils {
+UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::log;
 using namespace ubse::common::def;
+
+UbseResult UbseOsUtil::GetUserNameById(uid_t uid, std::string &userName)
+{
+    struct passwd pwd;
+    struct passwd *result = nullptr;
+
+    // 获取推荐的缓冲区大小
+    long bufSize = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (bufSize == -1) {
+        bufSize = 16384; // 兜底值16384
+    }
+    std::vector<char> buffer(static_cast<size_t>(bufSize));
+
+    auto ret = getpwuid_r(uid, &pwd, buffer.data(), buffer.size(), &result);
+    if (ret != 0 || result == nullptr) {
+        return UBSE_ERROR;
+    }
+    userName = std::string(pwd.pw_name);
+    return UBSE_OK;
+}
 
 UbseResult UbseOsUtil::Exec(const std::string &cmd, std::string &res)
 {
@@ -43,15 +72,56 @@ UbseResult UbseOsUtil::Exec(const std::string &cmd, std::string &res)
 
 UbseResult UbseOsUtil::GetUidByName(const std::string &username, uid_t &uid)
 {
-    struct passwd *pwd = getpwnam(username.c_str());
-    if (pwd == nullptr) {
+    // 参数校验
+    if (username.empty()) {
+        return UBSE_ERROR_INVAL;
+    }
+
+    struct passwd pwd;
+    struct passwd *result = nullptr;
+
+    // 获取推荐 buffer 大小
+    long bufSize = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (bufSize == -1) {
+        bufSize = 16384; // 兜底值16384
+    }
+    std::vector<char> buffer(static_cast<size_t>(bufSize));
+
+    int ret = getpwnam_r(username.c_str(), &pwd, buffer.data(), buffer.size(), &result);
+    if (ret != 0 || result == nullptr) {
         return UBSE_ERROR;
     }
-    uid = pwd->pw_uid;
-    // 清空密码
-    if (pwd->pw_passwd != nullptr) {
-        memset_s(pwd->pw_passwd, strlen(pwd->pw_passwd), 0, strlen(pwd->pw_passwd));
-    }
+    uid = pwd.pw_uid;
     return UBSE_OK;
+}
+
+UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId)
+{
+    auto path = "/proc/" + std::to_string(pid) + "/numa_maps";
+    std::string line;
+    std::regex keywordRegex("(/qemu.*N(\\d+)=(\\d+))"); // 正则表达式匹配关键词
+    // 操作系统5.10.0-136.12.0.86.x1.eulerx_a2
+    // 数据在同一行: N0=15232 N5=669 表示numa=0使用了15232个2M大页,numa=5使用了669个2M大页
+    // 操作系统openEuler22版本 N0=15232和N5=669 数据不在同一行
+    std::regex n1Regex("N(\\d+)=(\\d+)");
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        UBSE_LOG_ERROR << "open " << path << " failed, " << std::strerror(errno);
+        return UBSE_ERROR;
+    }
+    while (std::getline(file, line)) {
+        std::smatch n1Match;
+        if (std::regex_search(line, keywordRegex) && std::regex_search(line, n1Match, n1Regex)) {
+            auto ret = ConvertStrToUint32(n1Match[1], numaId);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Convert numaId=" << n1Match[1] << "failed";
+                return UBSE_ERROR;
+            }
+            UBSE_LOG_INFO << "get numaId=" << numaId << ", by pid=" << pid;
+            return UBSE_OK;
+        }
+    }
+    file.close();
+    return UBSE_ERROR;
 }
 } // namespace ubse::utils

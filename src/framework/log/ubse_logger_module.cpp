@@ -22,6 +22,7 @@
 #include "ubse_logger_filesink.h" // for UbseLoggerFilesink
 #include "ubse_logger_manager.h"  // for UbseLoggerManager
 #include "ubse_logger_writer.h"   // for LoggerOptions, UbseLoggerWriter
+#include "trace_context.h"
 
 namespace ubse::log {
 BASE_DYNAMIC_CREATE(UbseLoggerModule, ubse::config::UbseConfModule);
@@ -29,6 +30,7 @@ UbseLoggerWriter *g_writer = nullptr;
 
 UbseResult UbseLoggerModule::Initialize()
 {
+    TraceContext::InitUuid();
     UbseLoggerConfig config;
     auto ret = config.Initialize();
     if (ret != UBSE_OK) {

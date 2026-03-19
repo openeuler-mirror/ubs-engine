@@ -22,7 +22,9 @@
 #include <utility>               // for move
 
 #include "securec.h"             // for memcpy_s, EOK, errno_t
+#include "ubse_error.h"          // for UBSE_OK, UBSE_ERROR
 #include "ubse_logger_manager.h" // for UbseLoggerManager
+#include "trace_context.h"
 
 namespace ubse::log {
 static uint64_t GetTimeStamp()
@@ -52,7 +54,7 @@ static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
     char buffer[32]; // 设置缓冲区大小为32
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %T.", &time);
     uint64_t milliseconds = (timestamp % 1000000) / 1000; // timestamp % 1000000提取时间戳微秒部分
-    oss << '[' << buffer << std::setw(3) << std::setfill('0') << milliseconds << " +0800]"; // 毫秒格式化3位
+    oss << '[' << buffer << std::setw(3) << std::setfill('0') << milliseconds << "+08:00]"; // 毫秒格式化3位
 }
 
 static const char *LogLevelToString(UbseLogLevel level)
@@ -97,6 +99,7 @@ UbseLoggerEntry::UbseLoggerEntry(const char *gModuleName, UbseLogLevel level, co
     timeStamp = GetTimeStamp();
     pid = GetProcessId();
     tid = GetThreadId();
+    traceId = TraceContext::GetTraceId();
 }
 
 UbseLoggerEntry::UbseLoggerEntry(const UbseLoggerEntry &other)
@@ -111,6 +114,7 @@ UbseLoggerEntry::UbseLoggerEntry(const UbseLoggerEntry &other)
       maxSize(other.maxSize),
       currentSize(other.currentSize)
 {
+    traceId = other.traceId;
     if (other.heapBuffer) {
         heapBuffer = std::make_unique<char[]>(maxSize);
         errno_t ret = memcpy_s(heapBuffer.get(), currentSize, other.heapBuffer.get(), currentSize);
@@ -142,6 +146,7 @@ UbseLoggerEntry &UbseLoggerEntry::operator=(const UbseLoggerEntry &other)
     line = other.line;
     maxSize = other.maxSize;
     currentSize = other.currentSize;
+    traceId = other.traceId;
 
     if (other.heapBuffer) {
         heapBuffer = std::make_unique<char[]>(maxSize);
@@ -168,7 +173,8 @@ void UbseLoggerEntry::OutPutLog(std::ostream &os)
     const char *const end = start + currentSize;
 
     FormatTimestamp(oss, timeStamp);
-    oss << '[' << LogLevelToString(level) << "][" << pid << "][" << tid << "]";
+    std::string traceIdStr(traceId);
+    oss << '[' << LogLevelToString(level) << "][" << pid << "][" << tid << "][" << traceIdStr << "]";
     if (func) {
         oss << "[" << file << ':' << func << ':' << line << "] ";
     }
@@ -277,14 +283,19 @@ uint32_t UbseLoggerEntry::ResizeBuffer(size_t addSize)
         if (heapBuffer == nullptr) {
             return UBSE_ERROR;
         }
-        memcpy_s(heapBuffer.get(), currentSize, logEntryBuffer, currentSize);
+        auto err = memcpy_s(heapBuffer.get(), maxSize, logEntryBuffer, currentSize);
+        if (err != EOK) {
+            return UBSE_ERROR;
+        }
         return UBSE_OK;
     } else {
         std::unique_ptr<char[]> newHeapBuffer = std::make_unique<char[]>(maxSize);
         if (newHeapBuffer == nullptr) {
             return UBSE_ERROR;
         }
-        memcpy_s(newHeapBuffer.get(), currentSize, heapBuffer.get(), currentSize);
+        if (memcpy_s(newHeapBuffer.get(), maxSize, heapBuffer.get(), currentSize) != EOK) {
+            return UBSE_ERROR;
+        }
         heapBuffer.swap(newHeapBuffer);
         return UBSE_OK;
     }
@@ -309,7 +320,9 @@ void UbseLoggerEntry::EncodeString(const char *data, size_t length)
     }
     char *buffer = GetBuffer();
     *reinterpret_cast<UbseLoggerTypeId *>(buffer++) = UbseLoggerTypeId::STRING;
-    memcpy_s(buffer, length + 1, data, length + 1);
+    if (memcpy_s(buffer, length + 1, data, length + 1) != EOK) {
+        return;
+    }
     currentSize += sizeof(UbseLoggerTypeId) + length + 1;
 }
 

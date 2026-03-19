@@ -1,0 +1,7 @@
+Package: python3-ubs-engine
+Version: 1.0.0-1
+Architecture: all
+Maintainer: UB System Software
+Depends: python3, ubs-engine-client-libs
+Description: Python 3 bindings for UBSE
+ Python SDK to interact with UBSE services.

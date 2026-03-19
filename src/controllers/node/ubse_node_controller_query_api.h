@@ -14,15 +14,17 @@
 #define UBSE_NODE_CONTROLLER_QUERY_API_H
 #include <cstdint>
 #include <vector>
+#include "ubse_mem_account.h"
 #include "ubse_node_controller_def.h"
 
 namespace ubse::nodeController {
+using namespace ubse::mem::account;
 /**
  * @brief 查询所有CPU类型节点的拓扑信息
  *
  * @param cpu_links [OUT] cpu连接信息数组, 调用方需要使用free接口主动释放内存
  * @param cpu_link_cnt [OUT] cpu连接信息个数
- * @return UBS_SUCCESS:操作成功;
+ * @return UBSE_OK:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBSE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBSE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
@@ -36,7 +38,7 @@ void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink> &linkList);
  *
  * @param node_list [OUT] 节点信息数组, 调用方需要使用free主动释放内存
  * @param cnt [OUT] 节点信息个数
- * @return UBS_SUCCESS:操作成功;
+ * @return UBSE_OK:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBSE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBSE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
@@ -46,5 +48,16 @@ void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink> &linkList);
 void UbseNodeList(std::vector<def::UbseNode> &nodeList);
 
 void UbseNodeGet(def::UbseNode &node);
+/**
+ * 主节点侧根据节点id查询节点信息
+ * @param nodeId [IN]节点id
+ * @param node [OUT]对应节点信息
+ */
+void UbseNodeGetByNodeIdInMaster(const std::string &nodeId, def::UbseNode &node);
+void UbseNodeGetByNodeId(const std::string &nodeId, def::UbseNode &node);
+
+uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<UbseNumaNodeInfo> &nodeNumaMemList);
+
+size_t UbseGetUnitSize();
 } // namespace ubse::nodeController
 #endif

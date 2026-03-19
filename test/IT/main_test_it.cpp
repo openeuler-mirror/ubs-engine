@@ -22,8 +22,8 @@
 #include <iostream>
 #include <mockcpp/mockcpp.hpp>
 
-#include "ubse_it_dir.h"
 #include "test_it_utils.h"
+#include "ubse_it_dir.h"
 #include "ubse_lcne_dev.h"
 
 namespace ubse::it {
@@ -86,7 +86,7 @@ void ReplaceConfigItem(std::string &content, const std::string &key, const std::
 }
 
 void InsertConfigItem(std::string &content, const std::string &section, const std::string &key,
-    const std::string &value)
+                      const std::string &value)
 {
     size_t pos = content.find("[" + section + "]");
     if (pos == std::string::npos) {
@@ -102,7 +102,7 @@ void InsertConfigItem(std::string &content, const std::string &section, const st
 }
 
 void ReplaceSectionConfigItem(std::string &content, const std::string &section, const std::string &key,
-    const std::string &newValue)
+                              const std::string &newValue)
 {
     size_t pos = content.find("[" + section + "]");
     if (pos == std::string::npos) {
@@ -274,7 +274,7 @@ ProcessMmap *MemoryMapping()
         std::cout << "Set mmap failed, errno " << errno << std::endl;
         return nullptr;
     }
-    new (pMmap)ProcessMmap();
+    new (pMmap) ProcessMmap();
     return pMmap;
 }
 
@@ -287,8 +287,8 @@ void ITestResourceInit()
     }
 
     // 申请内存，代用一个大数组存放cmd和对应的处理函数func
-    g_pstCmdFuncCli = new UbseCmdAndFunc[CMD_MAX];
-    g_pstCmdFuncServer = new UbseCmdAndFunc[CMD_MAX];
+    g_pstCmdFuncCli = new UbseCmdAndFunc[TagTestCmdInfo::CMD_MAX];
+    g_pstCmdFuncServer = new UbseCmdAndFunc[TagTestCmdInfo::CMD_MAX];
 
     // 配置文件备份
     std::string absolutePath = GetArgv()[0];
@@ -351,7 +351,7 @@ void ITestServerStart(ProcessMmap *pMmap)
     if (pMmap->stServerInfo.acProcName[0] != 0) {
         std::cout << "ServerInfo.acProcName:" << pMmap->stServerInfo.acProcName << std::endl;
         execl(pMmap->stServerInfo.acProcName, pMmap->stServerInfo.acProcName, "child", "suite_UbseServer_start",
-            nullptr);
+              nullptr);
     }
 
     (void)prctl(PR_SET_NAME, "UbseServer");
@@ -361,17 +361,18 @@ void ITestServerStart(ProcessMmap *pMmap)
     }
     while (pMmap->bFlag && pMmap->stServerInfo.bFlag) {
         uiMsgDeal = 1;
-        if (pMmap->stServerInfo.uiCmd != CMD_MAX && pMmap->stServerInfo.uiCmd != CMD_INIT &&
-            g_pstCmdFuncServer[pMmap->stServerInfo.uiCmd].enCmd == pMmap->stServerInfo.uiCmd) {
+        if (pMmap->stServerInfo.uiCmd != TagTestCmdInfo::CMD_MAX &&
+            pMmap->stServerInfo.uiCmd != TagTestCmdInfo::CMD_INIT &&
+            g_pstCmdFuncServer[static_cast<uint32_t>(pMmap->stServerInfo.uiCmd)].enCmd == pMmap->stServerInfo.uiCmd) {
             std::cout << "ServerStart running" << std::endl;
-            iRet = g_pstCmdFuncServer[pMmap->stServerInfo.uiCmd].pFunc(pMmap);
+            iRet = g_pstCmdFuncServer[static_cast<uint32_t>(pMmap->stServerInfo.uiCmd)].pFunc(pMmap);
             std::cout << "ServeriRet=" << iRet << std::endl;
         } else {
             sleep(1);
             uiMsgDeal = 0;
         }
         if (uiMsgDeal) {
-            pMmap->stServerInfo.uiCmd = CMD_MAX;
+            pMmap->stServerInfo.uiCmd = TagTestCmdInfo::CMD_MAX;
             pMmap->iStatus = iRet;
             pMmap->stServerInfo.iStatus = iRet;
         }
@@ -400,10 +401,10 @@ void ITestCliStart(ProcessMmap *pMmap)
     }
     while (pMmap->bFlag && pMmap->stCliInfo.bFlag) {
         uiMsgDeal = 1;
-        if (pMmap->stCliInfo.uiCmd != CMD_MAX && pMmap->stCliInfo.uiCmd != CMD_INIT &&
-            g_pstCmdFuncCli[pMmap->stCliInfo.uiCmd].enCmd == pMmap->stCliInfo.uiCmd) {
+        if (pMmap->stCliInfo.uiCmd != TagTestCmdInfo::CMD_MAX && pMmap->stCliInfo.uiCmd != TagTestCmdInfo::CMD_INIT &&
+            g_pstCmdFuncCli[static_cast<uint32_t>(pMmap->stCliInfo.uiCmd)].enCmd == pMmap->stCliInfo.uiCmd) {
             std::cout << "CliStart running" << std::endl;
-            iRet = g_pstCmdFuncCli[pMmap->stCliInfo.uiCmd].pFunc(pMmap);
+            iRet = g_pstCmdFuncCli[static_cast<uint32_t>(pMmap->stCliInfo.uiCmd)].pFunc(pMmap);
             std::cout << "CliiRet=" << iRet << std::endl;
         } else {
             sleep(1);
@@ -411,7 +412,7 @@ void ITestCliStart(ProcessMmap *pMmap)
         }
 
         if (uiMsgDeal) {
-            pMmap->stCliInfo.uiCmd = CMD_MAX;
+            pMmap->stCliInfo.uiCmd = TagTestCmdInfo::CMD_MAX;
             pMmap->iStatus = iRet;
             pMmap->stCliInfo.iStatus = iRet;
         }
@@ -471,8 +472,8 @@ uint32_t ITestSetProcess(ProcessMmap *pMmap)
 
     signal(SIGCHLD, SignalHandler);
 
-    pMmap->stServerInfo.uiCmd = CMD_MAX;
-    pMmap->stCliInfo.uiCmd = CMD_MAX;
+    pMmap->stServerInfo.uiCmd = TagTestCmdInfo::CMD_MAX;
+    pMmap->stCliInfo.uiCmd = TagTestCmdInfo::CMD_MAX;
     pMmap->bFlag = true;
     /* 循环调用ITest_SetSubProcess函数创建服务器进程和客户端进程，并将创建的进程ID存储在pMmap->fpid数组中 */
     for (i = 0; i < NO_2; i++) {
@@ -503,12 +504,12 @@ void ITestCmdAndFuncRegister(TagTestCmdInfo enCmd, FuncPtrp pFunc, ProcessMode p
 {
     /* 注册类型为Cli，将函数（pFunc）注册到客户端命令函数数组（g_pstCmdFuncCli） */
     if (ProcessMode::CLI == processMode) {
-        g_pstCmdFuncCli[enCmd].enCmd = enCmd;
-        g_pstCmdFuncCli[enCmd].pFunc = pFunc;
+        g_pstCmdFuncCli[static_cast<uint32_t>(enCmd)].enCmd = enCmd;
+        g_pstCmdFuncCli[static_cast<uint32_t>(enCmd)].pFunc = pFunc;
     } else {
         /* 注册类型为Server，将函数（pFunc）注册到服务器命令函数数组（g_pstCmdFuncServer） */
-        g_pstCmdFuncServer[enCmd].enCmd = enCmd;
-        g_pstCmdFuncServer[enCmd].pFunc = pFunc;
+        g_pstCmdFuncServer[static_cast<uint32_t>(enCmd)].enCmd = enCmd;
+        g_pstCmdFuncServer[static_cast<uint32_t>(enCmd)].pFunc = pFunc;
     }
 }
 
@@ -547,12 +548,12 @@ int32_t ITestCmdServerStart(ProcessMmap *pMmap)
     UpdateMasterConfig(g_configFilePath);
     // 启动Master
     auto now = std::chrono::system_clock::now();
-    ubse::mti::MtiNodeInfo ubseNodeInfo{ "Node1", "127.0.0.1" };
+    ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
     MOCKER(&lcne::UbseLcneDev::UbseGetLcneLocalNodeInfo)
         .stubs()
         .with(outBound(ubseNodeInfo))
         .will(returnValue(UBSE_OK));
-    std::vector<ubse::mti::MtiNodeInfo> ubseNodeInfos{ ubseNodeInfo };
+    std::vector<ubse::mti::MtiNodeInfo> ubseNodeInfos{ubseNodeInfo};
     MOCKER(&lcne::UbseLcneDev::UbseGetLcneAllNodeInfos)
         .stubs()
         .with(outBound(ubseNodeInfos))

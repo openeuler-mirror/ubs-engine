@@ -97,6 +97,7 @@ public:
         } catch (...) {
             // 输入无法解析为数字
             // 超出 long 范围
+            return false;
         }
         return false;
     }

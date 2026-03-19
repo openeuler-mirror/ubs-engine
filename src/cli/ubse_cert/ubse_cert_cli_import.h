@@ -12,23 +12,21 @@
 
 #ifndef UBSE_CERT_CLI_IMPORT_H
 #define UBSE_CERT_CLI_IMPORT_H
-
-#include <string>
+#include <ubse_common_def.h>
 #include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <sys/stat.h>
+#include <string>
 
 namespace ubse::cli::cert {
-int8_t ImportCertSet(const char *serverCertPath, const char *trustCertPath, const char *serverKeyPath,
-    const char *caCrlPath);
-int8_t ImportCert(const char *serverCertPath, const char *trustCertPath, const char *serverKeyPath);
-int8_t ImportCaCrl(const char *caCrlPath);
-bool DeleteSingleFile(const std::filesystem::path &filePath);
-int DeleteCertificateFiles();
-int8_t DeleteCertSet();
-int CopyFileContents(const std::string &sourcePath, const std::string &destinationPath);
+using namespace common::def;
+bool ImportCertSet(const std::string &serverCertPath, const std::string &trustCertPath,
+                   const std::string &serverKeyPath, const std::string &caCrlPath, std::string &errMsg);
+bool ImportCert(const std::string &serverCertPath, const std::string &trustCertPath, const std::string &serverKeyPath,
+                std::string &errMsg);
+bool ImportCaCrl(const std::string &caCrlPath, std::string &errMsg);
+int DeleteCertificateFiles(std::string &errMsg);
+UbseResult DeleteCertSet(std::string &errMsg);
+bool CopyFileContents(const std::string &sourcePath, const std::string &destinationPath, std::string &errMsg);
 std::string GetInteractiveInput(const std::string &prompt);
-bool CheckFilePathValid(std::string filePath, bool isFile);
-}
+bool CheckFilePathValid(const std::string &filePath, bool isFile, std::string &errMsg);
+} // namespace ubse::cli::cert
 #endif // UBSE_CERT_CLI_IMPORT_H
