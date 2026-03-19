@@ -813,7 +813,9 @@ void UbseRasHandler::AddProcessedMsgId(const std::string &msgId)
 
 void UbseRasHandler::ClearAllMsgId()
 {
+    UBSE_LOG_INFO << "Clear all processed msg id";
     processedMsgId.clear();
+    g_HANDLER_RESULT.clear();
 }
 
 bool UbseRasHandler::MsgIdHasBeenProcessed(const std::string &msgId) const
