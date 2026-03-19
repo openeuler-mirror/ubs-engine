@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+
 #include "ubse_mem_controller_numa_api.h"
 
 #include "../logging_lock_guard.h"
@@ -77,10 +78,10 @@ static UbseResult NumaAllocate(const UbseMemNumaBorrowReq &req, UbseMemNumaBorro
     return ret;
 }
 
-uint32_t GetPortId(const UbseCpuInfo &cpuInfo, UbseMemDebtNumaInfo &numaInfo, const std::string &importNodeId)
+uint32_t GetPortId(const UbseCpuInfo &cpuInfo, UbseMemDebtNumaInfo &numaInfo, const std::string &nodeId)
 {
     for (const auto &portInfo : cpuInfo.portInfos) {
-        if (portInfo.second.portStatus == PortStatus::UP && portInfo.second.remoteSlotId == importNodeId) {
+        if (portInfo.second.portStatus == PortStatus::UP && portInfo.second.remoteSlotId == nodeId) {
             UBSE_LOG_INFO << "port id is " << portInfo.second.portId;
             if (ubse::utils::ConvertStrToUint32(portInfo.second.portId, numaInfo.portId) != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to convert portId from string to int, portId is " << portInfo.second.portId;
@@ -93,8 +94,8 @@ uint32_t GetPortId(const UbseCpuInfo &cpuInfo, UbseMemDebtNumaInfo &numaInfo, co
     return UBSE_ERROR;
 }
 
-uint32_t FillChipIdAndPortIdForExport(const ubse::nodeController::UbseNodeInfo &nodeInfo, UbseMemDebtNumaInfo &numaInfo,
-                                      const std::string &importNodeId)
+uint32_t FillChipIdAndPortIdByNodeId(const ubse::nodeController::UbseNodeInfo &nodeInfo, UbseMemDebtNumaInfo &numaInfo,
+                                      const std::string &nodeId)
 {
     for (const auto &cpuInfo : nodeInfo.cpuInfos) {
         if (cpuInfo.second.socketId == numaInfo.socketId) {
@@ -105,7 +106,7 @@ uint32_t FillChipIdAndPortIdForExport(const ubse::nodeController::UbseNodeInfo &
                 return UBSE_ERROR;
             }
             UBSE_LOG_INFO << "SocketId is " << numaInfo.socketId << ", ChipId is " << numaInfo.chipId;
-            ret = GetPortId(cpuInfo.second, numaInfo, importNodeId);
+            ret = GetPortId(cpuInfo.second, numaInfo, nodeId);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to get portId, nodeId is " << numaInfo.nodeId << ", socketId is "
                                << numaInfo.socketId;
@@ -120,7 +121,7 @@ uint32_t FillChipIdAndPortIdForExport(const ubse::nodeController::UbseNodeInfo &
     return UBSE_ERROR;
 }
 
-uint32_t FillChipIdForImport(const ubse::nodeController::UbseNodeInfo &nodeInfo, UbseMemDebtNumaInfo &numaInfo)
+uint32_t FillChipIdAndPortIdForImport(const ubse::nodeController::UbseNodeInfo &nodeInfo, UbseMemDebtNumaInfo &numaInfo)
 {
     for (const auto &cpuInfo : nodeInfo.cpuInfos) {
         if (cpuInfo.second.socketId == numaInfo.socketId) {
@@ -146,7 +147,7 @@ uint32_t ConstructNumaObjs(UbseMemNumaBorrowImportObj &importObj, UbseMemNumaBor
     // 填入chipId
     for (auto &numaInfo : importObj.algoResult.exportNumaInfos) {
         auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(numaInfo.nodeId);
-        if (FillChipIdAndPortIdForExport(nodeInfo, numaInfo, importNodeId) != UBSE_OK) {
+        if (FillChipIdAndPortIdByNodeId(nodeInfo, numaInfo, importNodeId) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to fill chipId and portId";
             return UBSE_ERROR;
         }
@@ -158,9 +159,14 @@ uint32_t ConstructNumaObjs(UbseMemNumaBorrowImportObj &importObj, UbseMemNumaBor
     }
     for (auto &numaInfo : importObj.algoResult.importNumaInfos) {
         auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(numaInfo.nodeId);
-        if (FillChipIdForImport(nodeInfo, numaInfo) != UBSE_OK) {
+        if (FillChipIdAndPortIdByNodeId(nodeInfo, numaInfo, importObj.algoResult.exportNumaInfos[0].nodeId) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to fill chipId";
             return UBSE_ERROR;
+        }
+        // 指定链路借用
+        if (req.linkInfo.lenderPort != -1) {
+            numaInfo.portId = req.linkInfo.lenderPort;
+            UBSE_LOG_INFO << "Specify link to borrow. The portId is " << numaInfo.portId;
         }
     }
     exportObj.algoResult = importObj.algoResult;
