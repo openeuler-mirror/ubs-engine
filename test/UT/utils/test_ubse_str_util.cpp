@@ -90,7 +90,7 @@ TEST_F(TestUbseStrUtil, Trim)
 TEST_F(TestUbseStrUtil, TestSplitSysSentryMsg)
 {
     std::string TestStr = "1_{cna:0.0.0.1,eid:192.168.100.100}";
-    uint32_t msg;
+    uint64_t msg;
     std::string cna;
     std::string eid;
     auto ret = SplitSysSentryMsg(TestStr, msg, cna, eid);
@@ -180,5 +180,25 @@ TEST_F(TestUbseStrUtil, StrToUint64_OutOfRange)
     uint64_t value;
     common::def::UbseResult result = ConvertStrToUint64(str, value);
     EXPECT_EQ(result, UBSE_ERROR);
+}
+
+// 测试生成不一样的随机数
+TEST_F(TestUbseStrUtil, GenerateRandomStr_different)
+{
+    size_t size = 100;
+    std::set<std::string> sets{};
+    for (size_t i = 0; i < size; ++i) {
+        sets.emplace(GenerateRandomStr(32));
+    }
+    EXPECT_EQ(sets.size(), size);
+}
+
+// 测试字符串转数字
+TEST_F(TestUbseStrUtil, StrToULong_ValidInput)
+{
+    std::string str = "123456789";
+    uint64_t value{};
+    EXPECT_TRUE(StrToULong(str, value));
+    EXPECT_EQ(value, 123456789);
 }
 } // namespace ubse::ut::utils

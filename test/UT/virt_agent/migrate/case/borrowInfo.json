@@ -1,0 +1,17 @@
+{
+  "action": "borrow",
+  "srcHostname": "Node0",
+  "srcPid": 123,
+  "dstHostname": "Node1",
+  "dstPid": 456,
+  "valist": [
+    {
+      "start": 1111,
+      "length": 324
+    },
+    {
+      "start": 2222,
+      "length": 324
+    }
+  ]
+}

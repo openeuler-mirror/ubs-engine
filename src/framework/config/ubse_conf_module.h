@@ -16,11 +16,12 @@
 #include <map>               // for map
 #include <string>            // for string, basic_string, allocator, stof
 #include <type_traits>       // for is_same, remove_extent_t
+#include <optional>
+#include <functional>
 
 #include "ubse_common_def.h" // for UbseResult
 #include "ubse_error.h"      // for UBSE_OK
 #include "ubse_module.h"     // for UbseModule
-#include "ubse_conf_error.h"
 
 namespace ubse::config {
 using namespace ubse::module;
@@ -31,8 +32,18 @@ enum class ErrorType : uint16_t {
     CONFIG_UNSUPPORTED_TYPE = 2,   // 非法类型
     CONFIG_CONVERSION_FAILED = 3,  // 读取结果无法转化为指定类型
     CONFIG_OUT_RANGE = 4,          // 数值超过类型最大范围
-    CONFIG_STORE_FAILURE = 5,      // 存储失败
-    CONFIG_SET_DEFAULT_FAILED = 6, // 设置默认配置失败
+};
+
+struct ConfigItem {
+    std::string section{};
+    std::string key{};
+    std::string value{};
+};
+using register_config_func = std::function<std::optional<ConfigItem>()>;
+class RegisterConfigHelper {
+public:
+    RegisterConfigHelper() = delete;
+    explicit RegisterConfigHelper(register_config_func f);
 };
 
 class UbseConfModule : public UbseModule {
@@ -75,8 +86,8 @@ private:
 
     UbseResult GetBoolConf(const std::string& section, const std::string& configKey, bool& configVal);
 
-    std::string configDefaultDir;
-    std::string confCliDir;
+    std::string configDefaultDir_;
+    std::string confCliDir_;
 };
 
 bool IsValidNumber(const std::string& str, bool allowFloating = false);

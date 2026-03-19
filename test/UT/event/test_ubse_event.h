@@ -13,12 +13,12 @@
 #ifndef TEST_UBSE_EVENT_H
 #define TEST_UBSE_EVENT_H
 
-#include "ubse_context.h"
-#include "ubse_event.h"
-#include "ubse_event_module.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 #include "ubse_conf.h"
+#include "ubse_context.h"
+#include "ubse_event.h"
+#include "ubse_event_module.h"
 
 namespace ubse::event::ut {
 using namespace ubse::event;

@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <mockcpp/mokc.h>
-#include "ubse_context.h"
 #include "test_ubse_conf.h"
+#include <mockcpp/mokc.h>
 #include "test_ubse_conf_module.h"
+#include "ubse_context.h"
 
 using namespace ubse::config;
 
@@ -308,4 +308,4 @@ TEST_F(TestUbseConf, UbseGetULongSucess)
     uint32_t result = UbseGetULong(section, configKey, longConfigValue);
     EXPECT_EQ(result, 0);
 }
-}
+} // namespace ubse::ut::config

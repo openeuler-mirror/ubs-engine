@@ -21,17 +21,17 @@ class UbseRpcServer : public UbseComBase {
 public:
     UbseRpcServer(const std::string &ip, const uint16_t &port, const std::string &name, const std::string &nodeId)
         : UbseComBase(nodeId, name),
-          ip(std::move(ip)),
-          port(port)
+          ip_(std::move(ip)),
+          port_(port)
     {
     }
 
     UbseRpcServer(const std::string &ip, const uint16_t &port, const std::string &name, const std::string &nodeId,
                   const std::map<std::string, std::pair<std::string, uint16_t>> &serverList)
         : UbseComBase(nodeId, name),
-          ip(std::move(ip)),
-          port(port),
-          serverList(serverList)
+          ip_(std::move(ip)),
+          port_(port),
+          serverList_(serverList)
     {
     }
 
@@ -39,24 +39,28 @@ public:
 
     void Stop() override;
 
-    UbseResult ConnectWithOption(ConnectOption option) override;
+    UbseResult ConnectWithOption(ConnectOption option, std::string &remoteNodeId) override;
 
     UbseResult GetHcomHbTimeout(uint16_t &hcomHbTimeout);
 
     UbseResult Connect() override;
 
-    void TlsOn() override;
+    UbseResult RegNewChannelCb(UbseComCallBackForHA func) override;
+
+    UbseResult RegBrokenChannelCb(UbseComCallBackForHA func) override;
 
 private:
     bool IsReConnect(std::string remoteNodeId);
 
 private:
-    std::string ip;                                                     // Server监听的ip地址
-    uint16_t port;                                                      // Server监听的端口
-    std::map<std::string, std::pair<std::string, uint16_t>> serverList; // 要连接的Server 地址列表
-    bool isTls = false;                                                 // 是否采用tls安全传输默认不开启
-    bool ubEnable = false;
-    uint32_t sleepTime = DEFAULT_HCOM_HB_TIMEOUT;
+    std::string ip_;                                                     // Server监听的ip地址
+    uint16_t port_;                                                      // Server监听的端口
+    std::map<std::string, std::pair<std::string, uint16_t>> serverList_; // 要连接的Server 地址列表
+    bool isTls_ = false;                                                 // 是否采用tls安全传输默认不开启
+    bool ubEnable_ = false;
+    uint32_t sleepTime_ = DEFAULT_HCOM_HB_TIMEOUT;
+    UbseComCallBackForHA newChannelCb = nullptr;
+    UbseComCallBackForHA brokenChannelCb = nullptr;
 };
 }
 #endif // UBSE_RPC_SERVER_H

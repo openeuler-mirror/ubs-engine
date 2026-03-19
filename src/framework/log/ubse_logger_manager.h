@@ -17,7 +17,6 @@
 #include "sys/syslog.h"
 #include "ubse_logger.h"
 #include "ubse_logger_filesink.h"
-#include "ubse_logger_filter.h"
 #include "ubse_logger_ringbuffer.h"
 #include "ubse_logger_writer.h"
 
@@ -55,15 +54,14 @@ public:
     static UbseLoggerManager *gInstance;
 
 private:
-    static bool gInited;
-    UbseLogLevel minLogLevel = UbseLogLevel::INFO;
-    bool syslogOpen = false;
-    uint32_t syslogType = LOG_USER;
-    static std::atomic<bool> threadRunning;
-    std::unique_ptr<LogBuffer> logBuffer;
-    std::thread loggingThread;
-    UbseLoggerWriter *writer = nullptr;
-    UbseLoggerFilter ubseLoggerFilter;
+    static bool gInited_;
+    UbseLogLevel minLogLevel_ = UbseLogLevel::INFO;
+    bool syslogOpen_ = false;
+    uint32_t syslogType_ = LOG_USER;
+    static std::atomic<bool> threadRunning_;
+    std::unique_ptr<LogBuffer> logBuffer_;
+    std::thread loggingThread_;
+    UbseLoggerWriter *writer_ = nullptr;
 };
 } // namespace ubse::log
 

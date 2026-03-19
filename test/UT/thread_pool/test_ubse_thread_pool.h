@@ -13,10 +13,10 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_THREAD_POOL_H
 #define UBSE_MANAGER_TEST_UBSE_THREAD_POOL_H
 
-#include "ubse_thread_pool_module.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
 #include "mockcpp/mockcpp.hpp"
+#include "ubse_thread_pool_module.h"
 
 namespace ubse::ut::task_executor {
 using namespace ubse::task_executor;
@@ -46,6 +46,6 @@ public:
     }
     std::string testData;
 };
-} // namespace ubse::ut::thread_pool
+} // namespace ubse::ut::task_executor
 
 #endif // UBSE_MANAGER_TEST_UBSE_THREAD_POOL_H

@@ -16,9 +16,10 @@
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
 #include "mem_pool_strategy_impl.h"
+#include "ubse_logger.h"
 
 namespace tc::rs::mem {
-
+#define MODULE_LOG_NAME "ubse_mem_strategy"
 const double SOCKET_COST_UPPER_BOUND = 10.0;
 
 struct TmpResult {
@@ -40,11 +41,11 @@ class ShareDecisionMaker {
 public:
     explicit ShareDecisionMaker(MemPoolStrategyImpl *strategyImpl)
     {
-        mStrategyImpl = strategyImpl;
+        mStrategyImpl_ = strategyImpl;
     };
 
-    MemPoolStrategyImpl *mStrategyImpl = nullptr;
-    MemPoolConfig *memConfig{};
+    MemPoolStrategyImpl *mStrategyImpl_ = nullptr;
+    MemPoolConfig *memConfig_{};
 
     /**
     * @brief 共享决策-自研算法
@@ -97,27 +98,7 @@ public:
 
     void ShareOperator(const ShareRequest &shareRequest, const RegionStatus &regionStatus, MemLoc targetLoc,
                        TmpResult &shareCurrentResult, ShareResult &result) const;
-
-    void PrintRegion(const ShareRequest &shareRequest) const;
-
-    /** Debug日志 */
-    void MemoryShareDebugLog(const ShareRequest shareRequest, MemLoc targetLoc, TmpResult shareCurrentResult,
-                             enum DebugStep step, ShareResult result) const
-    {
-        if (step == DebugStep::STEP1) {
-            LOG_DEBUG(LOG_LEVEL, "After Filter, numa info : \n");
-            for (int i = 0; i < shareCurrentResult.targetSocket.resLen; i++) {
-                LOG_DEBUG(LOG_LEVEL, "numa " << (i + 1) << " : " << shareCurrentResult.targetSocket.resLocs[i] << "|"
-                                             << shareCurrentResult.targetSocket.resSizes[i] << "MB\n");
-            }
-        } else {
-            LOG_DEBUG(LOG_LEVEL, "After decision, current result :\n");
-            for (int i = 0; i < result.numShareLocs; i++) {
-                LOG_DEBUG(LOG_LEVEL,
-                          "numa " << (i + 1) << ": " << result.sharerLocs[i] << "|" << result.shareSizes[i] << "MB\n");
-            }
-        }
-    }
 };
+#undef MODULE_LOG_NAME
 } // namespace tc::rs::mem
 #endif // RS_MEM_ALGO_MEM_POOL_SHARE_STRATEGY_H

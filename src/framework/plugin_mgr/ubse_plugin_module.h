@@ -32,14 +32,6 @@ public:
     void Stop() override;
 
     /* *
-     * @brief 获取已加载插件句柄
-     *
-     * @param pluginName 插件名称
-     * @return void* 插件句柄
-     */
-    void *GetLoadedPlugin(const std::string &pluginName);
-
-    /* *
      * @brief 判断插件是否已加载
      *
      * @param pluginName 插件名称
@@ -48,13 +40,6 @@ public:
      */
     bool GetPluginLoaded(const std::string &pluginName);
 
-    /* *
-     * @brief 获取启动插件名称数组
-     *
-     * @param plugins [out] 插件名称数组
-     * @return 0 名称列表获取成功，非 0 获取失败
-     */
-    void GetLoadedPluginsName(std::vector<std::string> &plugins);
     /* *
      * 获取插件是否就绪，就绪代表插件已经能够向外部提供功能，标志位由插件自己向插件模块设置
      * @param pluginName[in]: 插件名
@@ -69,9 +54,9 @@ public:
     void NotifyPluginReadyStatus(const std::string &pluginName, bool flag);
 
 private:
-    UbsePluginManager ubsePluginManager;
-    mutable std::shared_mutex pluginReadyMapMutex;
-    std::map<std::string, bool> pluginReadyMap;
+    UbsePluginManager ubsePluginManager_;
+    mutable std::shared_mutex pluginReadyMapMutex_;
+    std::map<std::string, bool> pluginReadyMap_;
 };
 }
 #endif // UBSE_PLUGIN_MODULE_H

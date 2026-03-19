@@ -48,7 +48,7 @@ TEST_F(TestUbseLoggerRingbuffer, Push)
     RingBuffer ringBuffer(size);
     UbseLoggerEntry loggerEntry(nullptr, UbseLogLevel::INFO, nullptr, nullptr, 0);
     ringBuffer.Push(std::move(loggerEntry));
-    EXPECT_EQ(1, ringBuffer.right);
+    EXPECT_EQ(1, ringBuffer.right_);
 }
 
 TEST_F(TestUbseLoggerRingbuffer, LogPush)

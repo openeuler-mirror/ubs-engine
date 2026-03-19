@@ -1,17 +1,22 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_ubse_node_controller.h"
+#include "ubse_node_controller_module.h"
 #include "ubse_node_controller.cpp"
+#include "ubse_node_controller.h"
+#include "ubse_lcne_module.h"
+#include "ubse_os_util.h"
+#include "sentry_observer.h"
 
 namespace ubse::node_controller::ut {
 
@@ -37,7 +42,7 @@ void TestUbseNodeController::SetUp()
     port.portId = "1";
     port.ifName = "ifName";
     port.portRole = "master";
-    port.portStatus = nodeController::PortStatus::UP;
+    port.portStatus = PortStatus::UP;
     port.remoteSlotId = "0";
     port.remoteChipId = "0";
     port.remoteCardId = "0";
@@ -78,9 +83,6 @@ void TestUbseNodeController::TearDown()
 
 TEST_F(TestUbseNodeController, GetStaticNodeInfo)
 {
-    std::vector<UbseNodeInfo> emptyList{};
-    MOCKER(GetStaticNodeInfoFromConf).stubs().will(returnValue(emptyList));
-    MOCKER(IsUBEnable).stubs().will(returnValue(false)).then(returnValue(true));
     EXPECT_EQ(UbseNodeController::GetInstance().GetStaticNodeInfo().size(), 0);
     std::shared_ptr<UbseLcneModule> nullModule = nullptr;
     std::shared_ptr<UbseLcneModule> module = std::make_shared<UbseLcneModule>();
@@ -304,6 +306,8 @@ TEST_F(TestUbseNodeController, GetUbseIpAddrVecOffset)
     ipv6Addr.type = nodeController::UbseIpType::UBSE_IP_V6;
     ipv6Addr.ipv6.addr[0] = 2001;
     UbseSerialization outStream{};
+    ipList.push_back(ipv4Addr);
+    ipList.push_back(ipv6Addr);
     EXPECT_EQ(GetUbseIpAddrVecOffset(ipList, outStream), UBSE_OK);
 }
 
@@ -341,18 +345,19 @@ TEST_F(TestUbseNodeController, GetUbseCpuInfoOffset)
 TEST_F(TestUbseNodeController, SerializeUbseNode)
 {
     UbseNodeInfo info{};
-    uint8_t *buffer;
-    size_t size;
+    uint8_t *buffer = nullptr;
+    size_t size = 0;
     EXPECT_EQ(SerializeUbseNode(UbseNodeController::GetInstance().nodeInfos["1"], buffer, size), UBSE_OK);
     EXPECT_EQ(DeSerializeUbseNode(info, buffer, size), UBSE_OK);
     EXPECT_EQ(info.nodeId, "1");
+    delete[] buffer;
 }
 
 TEST_F(TestUbseNodeController, SerializeUbseNodeList)
 {
     std::vector<UbseNodeInfo> infos{};
-    uint8_t *buffer;
-    size_t size;
+    uint8_t *buffer = nullptr;
+    size_t size = 0;
     for (auto &info : UbseNodeController::GetInstance().nodeInfos) {
         infos.push_back(info.second);
     }
@@ -360,595 +365,370 @@ TEST_F(TestUbseNodeController, SerializeUbseNodeList)
     std::vector<UbseNodeInfo> retInfos{};
     EXPECT_EQ(DeSerializeUbseNodeList(retInfos, buffer, size), UBSE_OK);
     EXPECT_EQ(retInfos.size(), UbseNodeController::GetInstance().nodeInfos.size());
+    delete[] buffer;
 }
 
-TEST_F(TestUbseNodeController, UbseNodeGetBorrowNodeCna)
+TEST_F(TestUbseNodeController, CheckHostNameCharactersWhenNameInvalid)
 {
-    UbseNodeMemCnaInfoOutput ubseNodeMemCnaInfoOutput{};
-    ubse::mti::DevTopology devTopologyInfo{};
-    DevName exportDevName{"1-1"};
-    DevName borrowDevName{"1-1"};
-    EXPECT_EQ(UbseNodeGetBorrowNodeCna(ubseNodeMemCnaInfoOutput, devTopologyInfo, exportDevName, borrowDevName),
-              UBSE_ERROR);
-
-    DevName exportDownDevName{"3-3"};
-    DevName borrowDownDevName{"3-3"};
-    UbseDeviceInfo info{};
-    info.devName = exportDevName;
-    info.busNodeCna = 0;
-
-    std::unordered_map<UbseDevPortName, mti::UbsePortInfo, DevPortNameHash> map{};
-    UbseDevPortName portName{"1", "1", "1", "1"};
-    mti::UbsePortInfo portInfo{};
-    portInfo.portId = "1";
-    portInfo.remotePortId = "0";
-    map[portName] = portInfo;
-    UbseDevPortName port2Name{"2", "2", "2", "2"};
-    mti::UbsePortInfo port2Info{};
-    port2Info.portId = "2";
-    port2Info.remoteSlotId = "3";
-    port2Info.remoteChipId = "3";
-    port2Info.remotePortId = "3";
-    port2Info.portStatus = mti::PortStatus::DOWN;
-    map[port2Name] = port2Info;
-    UbseDevPortName port3Name{"3", "3", "3", "3"};
-    mti::UbsePortInfo port3Info{};
-    port3Info.portId = "3";
-    port3Info.remoteSlotId = "4";
-    port3Info.remoteChipId = "4";
-    port3Info.remotePortId = "4";
-    port3Info.portStatus = mti::PortStatus::UP;
-    map[port3Name] = port3Info;
-
-    devTopologyInfo[borrowDownDevName] = {info, map};
-
-    DevName exportUpDevName{"4-4"};
-    DevName borrowUpDevName{"4-4"};
-    devTopologyInfo[borrowUpDevName] = {info, map};
-
-    EXPECT_EQ(UbseNodeGetBorrowNodeCna(ubseNodeMemCnaInfoOutput, devTopologyInfo, borrowDownDevName, borrowDownDevName),
-              UBSE_ERROR);
-    EXPECT_EQ(UbseNodeGetBorrowNodeCna(ubseNodeMemCnaInfoOutput, devTopologyInfo, borrowUpDevName, borrowUpDevName),
-              UBSE_OK);
-    EXPECT_EQ(ubseNodeMemCnaInfoOutput.portGroupId, "3");
-    EXPECT_EQ(ubseNodeMemCnaInfoOutput.borrowNodeCna, 0);
+    std::string hostName{".ho"};
+    auto ret = CheckHostNameCharacters(hostName);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseNodeController, ChangeEdgeInfo)
+TEST_F(TestUbseNodeController, CheckHostNameCharactersWhenSuccess)
 {
-    std::unordered_map<ubse::mti::DevName, ubse::mti::DevName, ubse::mti::DevNameHash> socketIdMap{};
-    std::unordered_map<ubse::mti::UbseDevPortName, ubse::mti::UbsePortInfo, ubse::mti::DevPortNameHash> portInfos{};
-
-    UbseDevPortName portName{"3", "3", "3", "3"};
-    mti::UbsePortInfo portInfo{};
-    portInfo.portId = "3";
-    portInfo.remoteDevName = {"4-4"};
-    portInfo.remoteSlotId = "4";
-    portInfo.remoteChipId = "4";
-    portInfo.remotePortId = "4";
-    portInfo.portStatus = mti::PortStatus::UP;
-    portInfos[portName] = portInfo;
-    UbseDevPortName port2Name{"2", "2", "2", "2"};
-    mti::UbsePortInfo port2Info{};
-    port2Info.portId = "2";
-    port2Info.remoteDevName = {"2-2"};
-    port2Info.remoteSlotId = "3";
-    port2Info.remoteChipId = "3";
-    port2Info.remotePortId = "3";
-    port2Info.portStatus = mti::PortStatus::UP;
-    portInfos[port2Name] = port2Info;
-    socketIdMap[{"2-2"}] = {"2-2"};
-    EXPECT_NO_THROW(ChangeEdgeInfo(socketIdMap, portInfos));
-    EXPECT_EQ(portInfos[port2Name].remoteDevName.devName, "2-2");
-    EXPECT_EQ(portInfos[port2Name].remoteChipId, "2");
+    std::string hostName{"ho"};
+    auto ret = CheckHostNameCharacters(hostName);
+    ASSERT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUbseNodeController, GetSocketId)
+TEST_F(TestUbseNodeController, CheckHostNameWhenOverSize)
 {
-    EXPECT_EQ(GetSocketId("2"), "");
-    EXPECT_EQ(GetSocketId("2-2"), "2");
+    std::string hostName{"hosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthosthost"};
+    auto ret = CheckHostName(hostName);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseNodeController, AccessMapChangeFunc)
+TEST_F(TestUbseNodeController, CheckHostNameWhenNameIsEmpty)
 {
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::unordered_map<std::string, std::unordered_set<std::string>> nodeIdToDevNameMap{};
-    std::unordered_map<DevName, DevName, DevNameHash> socketIdMap{};
-    devNameToNodeIdMap["1"] = "1";
-    devNameToNodeIdMap["2"] = "2";
-    socketIdMap[{"2"}] = {"2-2"};
-    nodeIdToDevNameMap["2"] = {"2", "3-3"};
-    EXPECT_NO_THROW(AccessMapChangeFunc(devNameToNodeIdMap, nodeIdToDevNameMap, socketIdMap));
-    EXPECT_EQ(nodeIdToDevNameMap["2"].size(), 2);
+    std::string hostName{""};
+    auto ret = CheckHostName(hostName);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseNodeController, DevTopoChangeFunc)
+TEST_F(TestUbseNodeController, CheckHostNameWhenCharacterIsInvalid)
 {
-    DevTopology devTopologyInfo{};
-    std::unordered_map<DevName, DevName, DevNameHash> socketIdMap{};
-    DevName devName{"3-3"};
-    UbseDeviceInfo info{};
-    info.devName = devName;
-    info.busNodeCna = 0;
-    std::unordered_map<UbseDevPortName, mti::UbsePortInfo, DevPortNameHash> map{};
-    UbseDevPortName portName{"1", "1", "1", "1"};
-    mti::UbsePortInfo portInfo{};
-    portInfo.portId = "1";
-    portInfo.remoteDevName = {"3-3"};
-    portInfo.remotePortId = "0";
-    map[portName] = portInfo;
-    devTopologyInfo[{"2-2"}] = {info, map};
-    devTopologyInfo[{"3-3"}] = {info, map};
-    socketIdMap[{"3-3"}] = {"3-3"};
-    EXPECT_NO_THROW(DevTopoChangeFunc(devTopologyInfo, socketIdMap));
-    EXPECT_EQ(devTopologyInfo[{"2-2"}].second[portName].remoteChipId, "3");
-    EXPECT_EQ(devTopologyInfo[{"3-3"}].first.chipId, "3");
+    std::string hostName{".ho"};
+    auto ret = CheckHostName(hostName);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseNodeController, UbseSocketIdChange_)
+TEST_F(TestUbseNodeController, CheckHostNameWhenContainDashAtBeginOrEnd)
 {
-    std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};
-    DevTopology devTopologyInfo{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::unordered_map<std::string, std::unordered_set<std::string>> nodeIdToDevNameMap{};
-    devNameToNodeIdMap["1-1"] = "1-1";
-    devNameToNodeIdMap["2-2"] = "2-2";
-    TelemetryNodeData data{};
-    data.sockets = {SocketData{"3"}};
-    nodeDbMap["2-2"] = data;
-    nodeIdToDevNameMap["2-2"] = {"2-2"};
-    DevName devName{"3-3"};
-    UbseDeviceInfo info{};
-    info.devName = devName;
-    info.busNodeCna = 0;
-    std::unordered_map<UbseDevPortName, mti::UbsePortInfo, DevPortNameHash> map{};
-    UbseDevPortName portName{"1", "1", "1", "1"};
-    mti::UbsePortInfo portInfo{};
-    portInfo.portId = "1";
-    portInfo.remoteDevName = {"3-3"};
-    portInfo.remotePortId = "0";
-    map[portName] = portInfo;
-
-    devTopologyInfo[{"2-2"}] = {info, map};
-    devTopologyInfo[{"3-3"}] = {info, map};
-    EXPECT_NO_THROW(UbseSocketIdChange(nodeDbMap, devTopologyInfo, devNameToNodeIdMap, nodeIdToDevNameMap));
+    std::string hostName{"-ho"};
+    auto ret = CheckHostName(hostName);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-UbseResult MockUbseGetAllNodes(UbseElectionModule *, Node &master, Node &standby, std::vector<Node> &agent)
+TEST_F(TestUbseNodeController, CheckHostNameWhenContainDigitAtBegin)
 {
-    master = {"1"};
-    standby = {"2"};
-    agent = {{"3"}, {"4"}};
-    return UBSE_OK;
+    std::string hostName{"1ho"};
+    auto ret = CheckHostName(hostName);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseNodeController, UbseGetElectionMap)
+TEST_F(TestUbseNodeController, CheckGroupListWhenSizeNotMatch)
 {
-    std::unordered_map<std::string, ElectionNodeInfo> nodeRoleMap{};
-    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
-    std::shared_ptr<UbseElectionModule> module = std::make_shared<UbseElectionModule>();
-    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
-    EXPECT_EQ(UbseGetElectionMap(nodeRoleMap), UBSE_ERROR_MODULE_LOAD_FAILED);
-    MOCKER(&UbseElectionModule::UbseGetAllNodes)
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0, .hostName = "ho0"};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1, .hostName = "ho1"};
+    std::unordered_map<std::string, UbseNodeInfo> nodesMap;
+    nodesMap["0"] = info1;
+    nodesMap["1"] = info2;
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodesMap));
+    std::vector<std::vector<std::string>> groupListVec;
+    UbseMemGroupNodeList groupList;
+    auto ret = CheckGroupList(groupListVec, groupList);
+    ASSERT_EQ(ret, UBSE_ERROR_CONF_INVALID);
+}
+
+TEST_F(TestUbseNodeController, CheckGroupListWhenSuccess)
+{
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0, .hostName = "ho0"};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1, .hostName = "ho1"};
+    UbseNodeInfo info3{.nodeId = "2", .slotId = 1, .hostName = "ho1"};
+    UbseNodeInfo info4{.nodeId = "3", .slotId = 1, .hostName = "ho3"};
+    std::unordered_map<std::string, UbseNodeInfo> nodesMap;
+    nodesMap["0"] = info1;
+    nodesMap["1"] = info2;
+    nodesMap["2"] = info3;
+    nodesMap["3"] = info4;
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodesMap));
+    std::vector<std::vector<std::string>> groupListVec;
+    std::vector<std::string> hosts{"ho0", "ho1", "ho1", "ho3"};
+    groupListVec.push_back(hosts);
+    UbseMemGroupNodeList groupList;
+    auto ret = CheckGroupList(groupListVec, groupList);
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseNodeController, GetMemGroupNodeListWhenGetConfFail)
+{
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
+    UbseMemGroupNodeList groupList;
+    auto ret = UbseNodeController::GetInstance().GetMemGroupNodeList(groupList);
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseNodeController, GetMemGroupNodeListWhenConfIsInvalid)
+{
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
+    std::string groupListConf{"ho0:ho1:ho1:ho3"};
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_OK));
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0, .hostName = "ho0"};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1, .hostName = "ho1"};
+    UbseNodeInfo info3{.nodeId = "2", .slotId = 1, .hostName = "ho1"};
+    UbseNodeInfo info4{.nodeId = "3", .slotId = 1, .hostName = "ho3"};
+    std::unordered_map<std::string, UbseNodeInfo> nodesMap;
+    nodesMap["0"] = info1;
+    nodesMap["1"] = info2;
+    nodesMap["2"] = info3;
+    nodesMap["3"] = info4;
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodesMap));
+    UbseMemGroupNodeList groupList;
+    auto ret = UbseNodeController::GetInstance().GetMemGroupNodeList(groupList);
+    ASSERT_EQ(ret, UBSE_ERROR_CONF_INVALID);
+}
+
+TEST_F(TestUbseNodeController, CheckProviderListWhenSuccess)
+{
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
+    std::string groupListConf{"ho0:ho1:ho1:ho3"};
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_OK));
+    UbseNodeInfo info1{.nodeId = "0", .slotId = 0, .hostName = "ho0"};
+    UbseNodeInfo info2{.nodeId = "1", .slotId = 1, .hostName = "ho1"};
+    UbseNodeInfo info3{.nodeId = "2", .slotId = 1, .hostName = "1ho1"};
+    UbseNodeInfo info4{.nodeId = "3", .slotId = 1, .hostName = "ho3"};
+    UbseNodeInfo info5{.nodeId = "4", .slotId = 1, .hostName = "ho3"};
+    UbseNodeInfo info6{.nodeId = "5", .slotId = 1, .hostName = ""};
+    std::unordered_map<std::string, UbseNodeInfo> nodesMap;
+    nodesMap["0"] = info1;
+    nodesMap["1"] = info2;
+    nodesMap["2"] = info3;
+    nodesMap["3"] = info4;
+    nodesMap["4"] = info5;
+    nodesMap["5"] = info6;
+    std::vector<std::string> providerListConfVec{"ho0", "1ho1", "ho3", "ho3", "Invalid"};
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodesMap));
+    UbseMemProviderNodeList providerList;
+    auto ret = CheckProviderList(providerListConfVec, providerList);
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseNodeController, UbseGetDirConnectInfoWhenCurrentIsLeader)
+{
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(invoke(MockUbseGetAllNodes));
-    EXPECT_EQ(UbseGetElectionMap(nodeRoleMap), UBSE_ERROR);
-    EXPECT_EQ(UbseGetElectionMap(nodeRoleMap), UBSE_OK);
-    EXPECT_EQ(nodeRoleMap["1"].role, ELECTION_ROLE_MASTER);
-    EXPECT_EQ(nodeRoleMap["2"].role, ELECTION_ROLE_STANDBY);
-    EXPECT_EQ(nodeRoleMap["3"].role, ELECTION_ROLE_AGENT);
-    EXPECT_EQ(nodeRoleMap["4"].role, ELECTION_ROLE_AGENT);
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    auto connectInfoBak = UbseNodeController::GetInstance().devDirConnectInfo;
+    PhysicalLink pLink1{.slotId = 0, .chipId = 0, .portId = 0, .peerSlotId = 1, .peerChipId = 1, .peerPortId = 1};
+    UbseNodeController::GetInstance().devDirConnectInfo["test"] = pLink1;
+    auto retConnectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+    UbseNodeController::GetInstance().devDirConnectInfo = connectInfoBak;
+    ASSERT_EQ(retConnectInfo.size(), 1);
 }
 
-TEST_F(TestUbseNodeController, FillTelemetryNodeData)
+TEST_F(TestUbseNodeController, UbseGetDirConnectInfoWhenCurrentIsNotLeader)
 {
-    std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};
-    EXPECT_NO_THROW(FillTelemetryNodeData("1", UbseNodeController::GetInstance().nodeInfos["1"], nodeDbMap));
-
-    EXPECT_EQ(nodeDbMap["1"].nodeId, "1");
-    EXPECT_EQ(nodeDbMap["1"].hostname, "computer");
-    EXPECT_EQ(nodeDbMap["1"].sockets.size(), 1);
-    EXPECT_EQ(nodeDbMap["1"].sockets[0].socketId, "1");
-    EXPECT_EQ(nodeDbMap["1"].sockets[0].cpus.size(), 1);
-    EXPECT_EQ(nodeDbMap["1"].sockets[0].cpus[0].CpuId, "1");
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+            .stubs()
+            .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
+    MOCKER_CPP(&UbseElectionModule::UbseGetMasterNode).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetDirConnectInfoFromRemote).stubs().will(returnValue(UBSE_ERROR));
+    auto retConnectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+    ASSERT_EQ(retConnectInfo.size(), 0);
 }
 
-TEST_F(TestUbseNodeController, BuildDevTopologyAndMappings)
+TEST_F(TestUbseNodeController, SerializeDevDirConnectInfoWhenCheckFail)
 {
-    ubse::mti::DevTopology devTopologyInfo{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::unordered_map<std::string, std::unordered_set<std::string>> nodeIdToDevNameMap{};
-    EXPECT_NO_THROW(BuildDevTopologyAndMappings("1", UbseNodeController::GetInstance().nodeInfos["1"], devTopologyInfo,
-                                                devNameToNodeIdMap, nodeIdToDevNameMap));
-    EXPECT_EQ(devTopologyInfo.size(), 1);
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.devName.devName, "1-1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.slotId, "1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.chipId, "1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.cardId, "1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.type, ubse::mti::DevType::CPU);
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.eid, "1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.guid, "1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].first.busNodeCna, 1);
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second.size(), 1);
-    ubse::mti::UbseDevPortName devPortName("1", "1", "1", "1");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteSlotId, "0");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteChipId, "0");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteCardId, "0");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteIfName, "remoteIf");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remoteDevName.devName, "0-0");
-    EXPECT_EQ(devTopologyInfo[{"1-1"}].second[devPortName].remotePortId, "0");
-
-    EXPECT_EQ(devNameToNodeIdMap["1-1"], "1");
-    EXPECT_EQ(devNameToNodeIdMap["0-0"], "0");
-
-    EXPECT_EQ(nodeIdToDevNameMap.size(), 2);
-    std::vector<std::string> localNodes(nodeIdToDevNameMap["1"].begin(), nodeIdToDevNameMap["1"].end());
-    std::vector<std::string> remoteNodes(nodeIdToDevNameMap["0"].begin(), nodeIdToDevNameMap["0"].end());
-
-    EXPECT_EQ(localNodes[0], "1-1");
-    EXPECT_EQ(remoteNodes[0], "0-0");
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
+    PhysicalLink pLink1{.slotId = 0, .chipId = 0, .portId = 0, .peerSlotId = 1, .peerChipId = 1, .peerPortId = 1};
+    std::map<std::string, PhysicalLink> connectInfo{{"test", pLink1}};
+    uint8_t *buf;
+    size_t size;
+    auto ret = SerializeDevDirConnectInfo(connectInfo, buf, size);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseNodeController, UbseNodeTopoGetBasicData)
+TEST_F(TestUbseNodeController, SerializeDevDirConnectInfoWhenSuccess)
 {
-    std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};
-    std::unordered_map<std::string, ElectionNodeInfo> nodeRoleMap{};
-    ubse::mti::DevTopology devTopologyInfo{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::unordered_map<std::string, std::unordered_set<std::string>> nodeIdToDevNameMap{};
-
-    MOCKER(FillTelemetryNodeData).stubs().will(ignoreReturnValue());
-    MOCKER(BuildDevTopologyAndMappings).stubs().will(ignoreReturnValue());
-    MOCKER(UbseGetElectionMap).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    MOCKER(UbseSocketIdChange).stubs().will(ignoreReturnValue());
-
-    EXPECT_EQ(UbseNodeTopoGetBasicData(nodeDbMap, nodeRoleMap, devTopologyInfo, devNameToNodeIdMap, nodeIdToDevNameMap),
-              UBSE_ERROR);
-    EXPECT_EQ(UbseNodeTopoGetBasicData(nodeDbMap, nodeRoleMap, devTopologyInfo, devNameToNodeIdMap, nodeIdToDevNameMap),
-              UBSE_OK);
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
+    PhysicalLink pLink1{.slotId = 0, .chipId = 0, .portId = 0, .peerSlotId = 1, .peerChipId = 1, .peerPortId = 1};
+    std::map<std::string, PhysicalLink> connectInfo{{"test", pLink1}};
+    uint8_t *buf;
+    size_t size;
+    auto ret = SerializeDevDirConnectInfo(connectInfo, buf, size);
+    ASSERT_EQ(ret, UBSE_OK);
 }
 
-uint32_t MockUbseNodeTopoGetBasicData(
-    std::unordered_map<std::string, TelemetryNodeData> &nodeDbMap,
-    std::unordered_map<std::string, ElectionNodeInfo> &nodeRoleMap, ubse::mti::DevTopology &devTopologyInfo,
-    std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-    std::unordered_map<std::string, std::unordered_set<std::string>> &nodeIdToDevNameMap)
+TEST_F(TestUbseNodeController, SetUbseIpAddrV4)
 {
-    UbseDeviceInfo info{};
-    info.devName = {"1-1"};
-    info.busNodeCna = 0;
-    info.type = mti::DevType::SSU;
-
-    std::unordered_map<UbseDevPortName, mti::UbsePortInfo, DevPortNameHash> map{};
-    UbseDevPortName portName{"1", "1", "1", "1"};
-    mti::UbsePortInfo portInfo{};
-    portInfo.portId = "1";
-    portInfo.remotePortId = "0";
-    map[portName] = portInfo;
-    devTopologyInfo[{"1-1"}] = {info, map};
-
-    UbseDeviceInfo cpuInfo{};
-    cpuInfo.devName = {"3-3"};
-    cpuInfo.busNodeCna = 0;
-    cpuInfo.type = mti::DevType::CPU;
-
-    std::unordered_map<UbseDevPortName, mti::UbsePortInfo, DevPortNameHash> cpuMap{};
-    UbseDevPortName cpuPortName{"1", "1", "1", "1"};
-    mti::UbsePortInfo cpuPortInfo{};
-    cpuPortInfo.portId = "1";
-    cpuPortInfo.remotePortId = "0";
-    cpuPortInfo.remoteSlotId = "1";
-    cpuMap[cpuPortName] = cpuPortInfo;
-
-    UbseDevPortName cpuDownPortName{"2", "2", "2", "2"};
-    mti::UbsePortInfo cpuDownPortInfo{};
-    cpuDownPortInfo.portId = "2";
-    cpuDownPortInfo.remotePortId = "2";
-    cpuDownPortInfo.remoteSlotId = "0";
-    cpuDownPortInfo.remoteChipId = "0";
-    cpuDownPortInfo.portStatus = mti::PortStatus::DOWN;
-    cpuMap[cpuDownPortName] = cpuDownPortInfo;
-
-    UbseDevPortName cpuUpPortName{"3", "3", "3", "3"};
-    mti::UbsePortInfo cpuUpPortInfo{};
-    cpuUpPortInfo.portId = "3";
-    cpuUpPortInfo.remotePortId = "4";
-    cpuUpPortInfo.remoteSlotId = "4";
-    cpuUpPortInfo.remoteChipId = "4";
-    cpuUpPortInfo.portStatus = mti::PortStatus::UP;
-    cpuMap[cpuUpPortName] = cpuUpPortInfo;
-
-    devTopologyInfo[{"3-3"}] = {cpuInfo, cpuMap};
-    return UBSE_OK;
-}
-
-TEST_F(TestUbseNodeController, UbseNodeMemGetTopologyCnaInfo)
-{
-    UbseNodeMemCnaInfoInput nodeMemCnaInfoInput{"1", "2", "2"};
-    UbseNodeMemCnaInfoOutput nodeMemCnaInfoOutput{};
-
-    MOCKER(UbseNodeTopoGetBasicData).stubs().will(returnValue(UBSE_ERROR)).then(invoke(MockUbseNodeTopoGetBasicData));
-    // basic fail
-    EXPECT_EQ(UbseNodeMemGetTopologyCnaInfo(nodeMemCnaInfoInput, nodeMemCnaInfoOutput), UBSE_ERROR);
-    // dev not exists
-    EXPECT_EQ(UbseNodeMemGetTopologyCnaInfo(nodeMemCnaInfoInput, nodeMemCnaInfoOutput), UBSE_ERROR);
-
-    UbseNodeMemCnaInfoInput nodeSSUCnaInfoInput{"0", "1", "1"};
-    // dev not cpu
-    EXPECT_EQ(UbseNodeMemGetTopologyCnaInfo(nodeSSUCnaInfoInput, nodeMemCnaInfoOutput), UBSE_ERROR);
-
-    UbseNodeMemCnaInfoInput nodeDownCnaInfoInput{"0", "3", "3"};
-    // dev down
-    EXPECT_EQ(UbseNodeMemGetTopologyCnaInfo(nodeDownCnaInfoInput, nodeMemCnaInfoOutput), UBSE_ERROR);
-
-    UbseNodeMemCnaInfoInput nodeUpCnaInfoInput{"4", "3", "3"};
-    // dev up
-    MOCKER(UbseNodeGetBorrowNodeCna).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseNodeMemGetTopologyCnaInfo(nodeUpCnaInfoInput, nodeMemCnaInfoOutput), UBSE_ERROR);
-    EXPECT_EQ(UbseNodeMemGetTopologyCnaInfo(nodeUpCnaInfoInput, nodeMemCnaInfoOutput), UBSE_OK);
-
-    EXPECT_EQ(nodeMemCnaInfoOutput.exportSocketId, "3");
-    EXPECT_EQ(nodeMemCnaInfoOutput.exportNodeCna, 0);
-    EXPECT_EQ(nodeMemCnaInfoOutput.borrowSocketId, "4");
-}
-
-TEST_F(TestUbseNodeController, TopoBfsPerLayerPerEdge)
-{
-    std::vector<std::pair<TopologyEdgeInfo, int>> edgeData{};
-    std::queue<std::string> que{};
-    int jumpCount = 1;
-    std::unordered_set<std::string> traversedDevNameSet{};
-    std::unordered_map<ubse::mti::UbseDevPortName, ubse::mti::UbsePortInfo, ubse::mti::DevPortNameHash> edgeMap{};
-
-    UbseDevPortName cpuDownPortName{"2", "2", "2", "2"};
-    mti::UbsePortInfo cpuDownPortInfo{};
-    cpuDownPortInfo.portId = "2";
-    cpuDownPortInfo.remotePortId = "2";
-    cpuDownPortInfo.remoteSlotId = "0";
-    cpuDownPortInfo.remoteChipId = "0";
-    cpuDownPortInfo.portStatus = mti::PortStatus::DOWN;
-    edgeMap[cpuDownPortName] = cpuDownPortInfo;
-
-    UbseDevPortName portName{"3", "3", "3", "3"};
-    mti::UbsePortInfo portInfo{};
-    portInfo.portId = "3";
-    portInfo.remotePortId = "4";
-    portInfo.remoteSlotId = "4";
-    portInfo.remoteChipId = "4";
-    portInfo.remoteDevName = {"4-4"};
-    portInfo.ifName = "ifName";
-    portInfo.portStatus = mti::PortStatus::UP;
-    edgeMap[portName] = portInfo;
-
-    EXPECT_NO_THROW(TopoBfsPerLayerPerEdge(edgeData, que, jumpCount, traversedDevNameSet, edgeMap));
-    std::vector<std::string> devNames(traversedDevNameSet.begin(), traversedDevNameSet.end());
-    EXPECT_EQ(devNames.size(), 1);
-    EXPECT_EQ(devNames[0], "4-4");
-    EXPECT_EQ(que.size(), 1);
-    EXPECT_EQ(que.front(), "4-4");
-    EXPECT_EQ(edgeData.size(), 1);
-    EXPECT_EQ(edgeData[0].first.remoteDevName, "4-4");
-    EXPECT_EQ(edgeData[0].first.ifName, "ifName");
-    EXPECT_EQ(edgeData[0].second, jumpCount);
-}
-
-TEST_F(TestUbseNodeController, TopoBfsPerLayer)
-{
-    DevTopology devTopologyInfo{};
-    std::vector<std::pair<TopologyEdgeInfo, int>> edgeData{};
-    std::queue<std::string> que{};
-    que.push("1-1");
-    que.push("3-3");
-    int jumpCount = 1;
-    std::unordered_set<std::string> traversedDevNameSet{};
-    UbseDeviceInfo cpuInfo{};
-    cpuInfo.devName = {"3-3"};
-    cpuInfo.busNodeCna = 0;
-    cpuInfo.type = mti::DevType::CPU;
-    std::unordered_map<UbseDevPortName, mti::UbsePortInfo, DevPortNameHash> cpuMap{};
-    UbseDevPortName cpuUpPortName{"3", "3", "3", "3"};
-    mti::UbsePortInfo cpuUpPortInfo{};
-    cpuUpPortInfo.portId = "3";
-    cpuUpPortInfo.remotePortId = "4";
-    cpuUpPortInfo.remoteSlotId = "4";
-    cpuUpPortInfo.remoteChipId = "4";
-    cpuUpPortInfo.remoteDevName = {"4-4"};
-    cpuUpPortInfo.ifName = "ifName";
-    cpuUpPortInfo.portStatus = mti::PortStatus::UP;
-    cpuMap[cpuUpPortName] = cpuUpPortInfo;
-    devTopologyInfo[{"3-3"}] = {cpuInfo, cpuMap};
-    EXPECT_EQ(TopoBfsPerLayer(devTopologyInfo, edgeData, que, jumpCount, traversedDevNameSet), UBSE_OK);
-    EXPECT_EQ(edgeData.size(), 1);
-    EXPECT_EQ(edgeData[0].first.remoteDevName, "4-4");
-    EXPECT_EQ(edgeData[0].first.ifName, "ifName");
-    EXPECT_EQ(edgeData[0].second, jumpCount);
-}
-
-UbseResult MockTopoBfsPerLayer(const DevTopology &devTopologyInfo,
-                               std::vector<std::pair<TopologyEdgeInfo, int>> &edgeData, std::queue<std::string> &que,
-                               int jumpCount, std::unordered_set<std::string> &traversedDevNameSet)
-{
-    if (!que.empty()) {
-        que.pop();
+    UbseIpAddr ipv4Addr{};
+    ipv4Addr.type = nodeController::UbseIpType::UBSE_IP_V4;
+    ipv4Addr.ipv4.addr[0] = 127;
+    ipv4Addr.ipv4.addr[1] = 0;
+    ipv4Addr.ipv4.addr[2] = 0;
+    ipv4Addr.ipv4.addr[3] = 1;
+    std::vector<uint8_t> ipv4AddrVec;
+    UbseSerialization seri;
+    seri << enum_v(nodeController::UbseIpType::UBSE_IP_V4);
+    for (auto &&addr : ipv4Addr.ipv4.addr) {
+        ipv4AddrVec.push_back(addr);
     }
-    return UBSE_OK;
+    seri << ipv4AddrVec;
+    UbseDeSerialization inStream(seri.GetBuffer(), seri.GetLength());
+    UbseIpAddr retAddr;
+    auto ret = SetUbseIpAddr(inStream, retAddr);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(retAddr.type, nodeController::UbseIpType::UBSE_IP_V4);
+    for (int i = 0; i < NO_4; ++i) {
+        ASSERT_EQ(ipv4Addr.ipv4.addr[i], retAddr.ipv4.addr[i]);
+    }
 }
 
-TEST_F(TestUbseNodeController, UbseTopologyBfs)
+TEST_F(TestUbseNodeController, SetUbseIpAddrV6)
 {
-    int jump = 3;
-    DevTopology devTopologyInfo{};
-    std::vector<std::pair<TopologyEdgeInfo, int>> edgeData{};
-    std::string localDevName;
-    MOCKER(TopoBfsPerLayer).stubs().will(returnValue(UBSE_ERROR)).then(invoke(MockTopoBfsPerLayer));
-    EXPECT_EQ(UbseTopologyBfs(jump, devTopologyInfo, edgeData, {"1-1"}), UBSE_ERROR);
-    EXPECT_EQ(UbseTopologyBfs(jump, devTopologyInfo, edgeData, {"1-1"}), UBSE_OK);
+    UbseIpAddr ipv6Addr{};
+    ipv6Addr.type = nodeController::UbseIpType::UBSE_IP_V6;
+    ipv6Addr.ipv6.addr[0] = 2001;
+    UbseSerialization seri;
+    seri << enum_v(nodeController::UbseIpType::UBSE_IP_V6);
+    std::vector<uint8_t> ipv6AddrVec;
+    for (auto &&addr : ipv6Addr.ipv6.addr) {
+        ipv6AddrVec.push_back(addr);
+    }
+    seri << ipv6AddrVec;
+    UbseDeSerialization inStream(seri.GetBuffer(), seri.GetLength());
+    UbseIpAddr retAddr;
+    auto ret = SetUbseIpAddr(inStream, retAddr);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(retAddr.type, nodeController::UbseIpType::UBSE_IP_V6);
+    for (int i = 0; i < NO_4; ++i) {
+        ASSERT_EQ(ipv6Addr.ipv6.addr[i], retAddr.ipv6.addr[i]);
+    }
 }
 
-TEST_F(TestUbseNodeController, UbseGetTopologyInfoByJump)
-{
-    MOCKER(UbseTopologyBfs).stubs().will(returnValue(UBSE_OK));
-    DevTopology devTopologyInfo{};
-    std::vector<std::pair<TopologyEdgeInfo, int>> edgeData{};
-    EXPECT_EQ(UbseGetTopologyInfoByJump(JumpCount::One, devTopologyInfo, edgeData, {"1-1"}), UBSE_OK);
-    EXPECT_EQ(UbseGetTopologyInfoByJump(JumpCount::Two, devTopologyInfo, edgeData, {"1-1"}), UBSE_OK);
-    EXPECT_EQ(UbseGetTopologyInfoByJump(JumpCount::All, devTopologyInfo, edgeData, {"1-1"}), UBSE_OK);
-}
-
-TEST_F(TestUbseNodeController, DevNameRemoveNodeName)
-{
-    std::string remoteDevSocketNameStr;
-    EXPECT_EQ(DevNameRemoveNodeName("node1", remoteDevSocketNameStr), UBSE_ERROR);
-    EXPECT_EQ(DevNameRemoveNodeName("1-1", remoteDevSocketNameStr), UBSE_OK);
-    EXPECT_EQ(remoteDevSocketNameStr, "1");
-}
-
-TEST_F(TestUbseNodeController, UbseNodeExtractDevNameInfo)
-{
-    std::string remoteNodeName;
-    std::string remoteDevSocketNameStr;
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    devNameToNodeIdMap["1-1"] = "1-1";
-    EXPECT_EQ(UbseNodeExtractDevNameInfo(devNameToNodeIdMap, remoteNodeName, remoteDevSocketNameStr, "2-2"),
-              UBSE_ERROR);
-    devNameToNodeIdMap["node1"] = "node1";
-    EXPECT_EQ(UbseNodeExtractDevNameInfo(devNameToNodeIdMap, remoteNodeName, remoteDevSocketNameStr, "node1"),
-              UBSE_ERROR);
-    devNameToNodeIdMap["3-3"] = "node3";
-    EXPECT_EQ(UbseNodeExtractDevNameInfo(devNameToNodeIdMap, remoteNodeName, remoteDevSocketNameStr, "3-3"), UBSE_OK);
-    EXPECT_EQ(remoteNodeName, "node3");
-    EXPECT_EQ(remoteDevSocketNameStr, "3");
-}
-
-TEST_F(TestUbseNodeController, UbseNodePadSocketData)
-{
-    TelemetrySocketData telemetrySocketData{};
-    std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};
-    auto data = UbseNodePadSocketData("node2", "2", "2-2", telemetrySocketData, nodeDbMap);
-    EXPECT_EQ(data.nodeId, "node2");
-    EXPECT_EQ(data.socket.socketId, "2");
-    TelemetryNodeData telemetryNodeData{};
-    telemetryNodeData.hostname = "compute";
-    telemetryNodeData.sockets = {{"1"}};
-    nodeDbMap["node2"] = telemetryNodeData;
-    data = UbseNodePadSocketData("node2", "2", "2-2", telemetrySocketData, nodeDbMap);
-    EXPECT_EQ(data.hostname, "compute");
-    data = UbseNodePadSocketData("node2", "1", "2-2", telemetrySocketData, nodeDbMap);
-    EXPECT_EQ(data.socket.socketId, "1");
-}
-
-UbseResult MockUbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                                          std::string &remoteNodeName, std::string &remoteDevSocketNameStr,
-                                          const std::string &remoteDevNameStr)
-{
-    remoteNodeName = "2";
-    return UBSE_OK;
-}
-
-TEST_F(TestUbseNodeController, MemFillPerEdgeData)
-{
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::string localDevName = "1-1";
-    std::pair<TopologyEdgeInfo, int> edge{};
-    UbseNodeData ubseNodeData{};
-    TopologyEdgeInfo edgeInfo{"2-2", "ifName"};
-    edge.first = edgeInfo;
-    edge.second = 1;
-    MOCKER(UbseNodeExtractDevNameInfo)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(invoke(MockUbseNodeExtractDevNameInfo));
-    EXPECT_EQ(MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData), UBSE_ERROR);
-    EXPECT_EQ(MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData), UBSE_OK);
-    EXPECT_EQ(nodeTopology[localDevName][0].isRegisterRm, false);
-    nodeTopology.clear();
-    ubseNodeData.nodeRoleMap["2"] = {};
-    EXPECT_EQ(MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData), UBSE_OK);
-    EXPECT_EQ(nodeTopology[localDevName][0].isRegisterRm, true);
-}
-
-TEST_F(TestUbseNodeController, MemFillAllEdgeData)
+TEST_F(TestUbseNodeController, DeSerializeDevDirConnectInfo)
 {
     GTEST_SKIP();
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::string localDevName = "1-1";
-    std::vector<std::pair<TopologyEdgeInfo, int>> edgeData;
-    UbseNodeData ubseNodeData{};
-    TopologyEdgeInfo edgeInfo{"1-1", "ifName"};
-    edgeData.push_back({edgeInfo, 0});
-    edgeData.push_back({edgeInfo, 1});
-    MOCKER(MemFillPerEdgeData).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edgeData, ubseNodeData), UBSE_ERROR);
-    EXPECT_EQ(MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edgeData, ubseNodeData), UBSE_OK);
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
+    // 必须包含新增的2个字段
+    PhysicalLink pLink1{
+        .slotId = 0,
+        .chipId = 0,
+        .portId = 0,
+        .interfaceName = "",
+        .peerSlotId = 1,
+        .peerChipId = 1,
+        .peerPortId = 1,
+        .peerInterfaceName = "",
+        .linkStatus = LinkStatus::available
+    };
+    std::map<std::string, PhysicalLink> connectInfo{{"test", pLink1}};
+    uint8_t *buf;
+    size_t size;
+    auto ret = SerializeDevDirConnectInfo(connectInfo, buf, size);
+    ASSERT_EQ(ret, UBSE_OK);
+    std::map<std::string, PhysicalLink> deseriConnectInfo;
+    ret = DeSerializeDevDirConnectInfo(deseriConnectInfo, buf, size);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(deseriConnectInfo.size(), connectInfo.size());
+    ASSERT_EQ(deseriConnectInfo["test"].slotId, connectInfo["test"].slotId);
 }
 
-TEST_F(TestUbseNodeController, MemTopoGetResult)
+TEST_F(TestUbseNodeController, UbseNodeGetLinkUpNodesWhenElectionIsNull)
 {
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology{};
-    DevTopology devTopologyInfo{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::unordered_map<std::string, std::vector<std::pair<TopologyEdgeInfo, int>>> edgeDataMap{};
-    UbseNodeData ubseNodeData{};
-    edgeDataMap["1-1"] = {};
-    std::vector<std::pair<TopologyEdgeInfo, int>> edgeData;
-    TopologyEdgeInfo edgeInfo{"1-1", "ifName"};
-    edgeData.push_back({edgeInfo, 0});
-    edgeData.push_back({edgeInfo, 1});
-    edgeDataMap["2-2"] = edgeData;
-
-    UbseDeviceInfo cpuInfo{};
-    cpuInfo.devName = {"3-3"};
-    cpuInfo.busNodeCna = 0;
-    cpuInfo.type = mti::DevType::CPU;
-
-    std::unordered_map<UbseDevPortName, mti::UbsePortInfo, DevPortNameHash> cpuMap{};
-    UbseDevPortName cpuUpPortName{"3", "3", "3", "3"};
-    cpuMap[cpuUpPortName] = {};
-    devTopologyInfo[{"2-2"}] = {cpuInfo, cpuMap};
-
-    MOCKER(MemFillAllEdgeData).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(MemTopoGetResult(nodeTopology, devTopologyInfo, devNameToNodeIdMap, edgeDataMap, ubseNodeData),
-              UBSE_ERROR);
-    EXPECT_EQ(MemTopoGetResult(nodeTopology, devTopologyInfo, devNameToNodeIdMap, edgeDataMap, ubseNodeData), UBSE_OK);
+    GTEST_SKIP();
+    std::shared_ptr<UbseElectionModule> nullModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    std::vector<UbseRoleInfo> roleInfos;
+    auto ret = UbseNodeGetLinkUpNodes(roleInfos);
+    ASSERT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
-TEST_F(TestUbseNodeController, MemGetTopologyInfo)
+TEST_F(TestUbseNodeController, UbseGetNodeInfosWhenNodeIsEmpty)
 {
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology{};
-    MOCKER(UbseNodeTopoGetBasicData).stubs().will(returnValue(UBSE_ERROR)).then(invoke(MockUbseNodeTopoGetBasicData));
-    MOCKER(UbseGetTopologyInfoByJump).stubs().will(returnValue(UBSE_OK));
-    MOCKER(MemTopoGetResult).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(MemGetTopologyInfo(nodeTopology), UBSE_ERROR);
-    EXPECT_EQ(MemGetTopologyInfo(nodeTopology), UBSE_OK);
+    std::unordered_map<std::string, UbseNodeInfo> nodeInfoMap;
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfoMap));
+    std::vector<NodeInfo> nodeInfos;
+    auto ret = UbseGetNodeInfos(nodeInfos);
+    ASSERT_EQ(ret, UBSE_ERROR);
 }
 
-UbseResult MockMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+TEST_F(TestUbseNodeController, UbseGetNodeInfosWhenSuccess)
 {
-    nodeTopology["node1"] = {};
-    std::vector<MemNodeData> datas = {MemNodeData{}};
-    nodeTopology["node2"] = datas;
-    return UBSE_OK;
+    UbseIpAddr ipv4Addr{.type = UbseIpType::UBSE_IP_V4, .ipv4 = {.addr = {127, 0, 0, 1}}};
+    UbseIpAddr ipv6Addr{.type = UbseIpType::UBSE_IP_V6,
+                        .ipv6 = {.addr = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}}};
+    std::vector<UbseIpAddr> ipList{ipv4Addr, ipv6Addr};
+    UbseNodeInfo info1{.nodeId = "1", .slotId = 1, .hostName = "computer01", .ipList = ipList};
+    std::unordered_map<std::string, UbseNodeInfo> nodeInfoMap{{"1", info1}};
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfoMap));
+    std::vector<NodeInfo> nodeInfos;
+    auto ret = UbseGetNodeInfos(nodeInfos);
+    std::vector<std::string> experctIpList = {"127.0.0.1", "::1"};
+    ASSERT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(nodeInfos.size(), 1);
+    EXPECT_EQ(nodeInfos[0].nodeId, "1");
+    EXPECT_EQ(nodeInfos[0].hostName, "computer01");
+    EXPECT_EQ(nodeInfos[0].ipList, experctIpList);
 }
 
-TEST_F(TestUbseNodeController, UbseMemGetTopologyInfo)
+TEST_F(TestUbseNodeController, UbseNodeGetNodeIdByHostname)
 {
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology{};
-    MOCKER(MemGetTopologyInfo).stubs().will(returnValue(UBSE_ERROR)).then(invoke(MockMemGetTopologyInfo));
-    EXPECT_EQ(UbseMemGetTopologyInfo(nodeTopology), UBSE_ERROR);
-    EXPECT_EQ(UbseMemGetTopologyInfo(nodeTopology), UBSE_OK);
-    EXPECT_EQ(nodeTopology.size(), 1);
+    UbseNodeInfo info1{.nodeId = "01234", .slotId = 0, .hostName = "ho0"};
+    std::unordered_map<std::string, UbseNodeInfo> nodeInfoMap{{"0", info1}};
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfoMap));
+    std::string nodeId;
+    auto ret = UbseNodeGetNodeIdByHostname("ho0", nodeId);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(nodeId, "01234");
 }
 
-TEST_F(TestUbseNodeController, ConvertToOldTopology)
+TEST_F(TestUbseNodeController, UbseGetNodeIdByAttrValue)
 {
-    auto nodedata = ConvertToOldTopology(UbseNodeController::GetInstance().nodeInfos);
-    EXPECT_EQ(nodedata.size(), 2);
-    EXPECT_EQ(nodedata["1"][0].isRegisterRm, true);
-    EXPECT_EQ(nodedata["1"][0].socket.socketId, "1");
-    EXPECT_EQ(nodedata["1"][0].socket.numas[0].numaId, "1");
-    EXPECT_EQ(nodedata["1"][0].socket.cpus[0].CpuId, "1");
+    UbseIpAddr ipv4Addr{};
+    ipv4Addr.type = nodeController::UbseIpType::UBSE_IP_V4;
+    ipv4Addr.ipv4.addr[0] = 127;
+    ipv4Addr.ipv4.addr[1] = 0;
+    ipv4Addr.ipv4.addr[2] = 0;
+    ipv4Addr.ipv4.addr[3] = 1;
+    UbseCpuLocation location{"1", 1};
+    UbseCpuInfo cpuInfo{};
+    cpuInfo.guid = "1";
+    UbseNodeInfo info1{.nodeId = "01234", .slotId = 0, .hostName = "ho0", .ipList = {ipv4Addr},
+                       .cpuInfos = {{location, cpuInfo}, {location, cpuInfo}}};
+    std::unordered_map<std::string, UbseNodeInfo> nodeInfoMap{{"0", info1}};
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfoMap));
+    uint32_t nodeId;
+    auto ret = UbseGetNodeIdByAttrValue(NodeAttr::Ip, "127.0.0.1", nodeId);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(nodeId, 0);
+    ret = UbseGetNodeIdByAttrValue(NodeAttr::hostName, "ho0", nodeId);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(nodeId, 0);
+    ret = UbseGetNodeIdByAttrValue(NodeAttr::guid, "1", nodeId);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(nodeId, 0);
+    ret = UbseGetNodeIdByAttrValue(NodeAttr::guid, "not exist", nodeId);
+    ASSERT_EQ(ret, UBSE_ERROR);
+    ASSERT_EQ(nodeId, 0xFFFFFFFF);
 }
+
+TEST_F(TestUbseNodeController, UbseNodeGetLinkUpNodesWhenIsNotLeader)
+{
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
+    MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
+    std::vector<UbseRoleInfo> roleInfos;
+    auto ret = UbseNodeGetLinkUpNodes(roleInfos);
+    ASSERT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNodeController, CollectSysSentryState)
+{
+    MOCKER_CPP(ubse::utils::UbseOsUtil::Exec).stubs().will(returnValue(UBSE_ERROR));
+    UbseNodeInfo nodeInfo;
+    auto ret = CollectSysSentryState(nodeInfo);
+    EXPECT_EQ(nodeInfo.sysSentryState, UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_NOK);
+    GlobalMockObject::verify();
+    std::string result = "status: RUNNING";
+    MOCKER_CPP(ubse::utils::UbseOsUtil::Exec).stubs().with(_, outBound(result)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&syssentry::UbseRasObserver::IsConfigSuccess).stubs().will(returnValue(true));
+    ret = CollectSysSentryState(nodeInfo);
+    EXPECT_EQ(nodeInfo.sysSentryState, UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_OK);
+}
+
 } // namespace ubse::node_controller::ut

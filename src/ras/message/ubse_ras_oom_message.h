@@ -1,0 +1,52 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+
+#ifndef RACK_MANAGER_MXE_RAS_OOM_MESSAGE_H
+#define RACK_MANAGER_MXE_RAS_OOM_MESSAGE_H
+#include <string>
+#include "ubse_error.h"
+#include "ubse_serial_util.h"
+#include "ubse_base_message.h"
+
+namespace ubse::ras {
+using namespace ubse::message;
+using namespace ubse::utils;
+using namespace ubse::serial;
+
+class UbseRasOomMessage : public UbseBaseMessage {
+public:
+    UbseRasOomMessage() = default;
+    explicit UbseRasOomMessage(uint64_t memNeed, std::string nodeId, int64_t oomNumaId)
+        : nodeId(nodeId),
+          memNeed(memNeed),
+          oomNumaId(oomNumaId)
+    {
+    }
+
+    std::string inline GetNodeId()
+    {
+        return nodeId;
+    }
+
+    uint64_t inline GetNumaId()
+    {
+        return oomNumaId;
+    }
+
+    UbseResult Serialize() override;
+
+    UbseResult Deserialize() override;
+
+private:
+    void Serialization(UbseSerialization &out);
+
+    UbseResult Deserialization(UbseDeSerialization &in);
+
+private:
+    std::string nodeId;
+    uint64_t memNeed;
+    int64_t oomNumaId;
+};
+
+using UbseRasOomMessagePtr = Ref<UbseRasOomMessage>;
+} // namespace mxe::ras
+#endif // RACK_MANAGER_MXE_RAS_OOM_MESSAGE_H

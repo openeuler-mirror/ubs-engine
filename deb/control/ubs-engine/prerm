@@ -1,0 +1,27 @@
+#!/bin/bash
+set -e
+
+# $1 = "remove" or "upgrade"
+
+restore_udev_rule() {
+    # 如果有 udev 规则恢复逻辑
+    :
+}
+
+# 仅在卸载时执行清理（不是升级）
+if [ "$1" = "remove" ]; then
+    if systemctl cat ubse.service >/dev/null 2>&1; then
+        systemctl stop ubse.service || true
+        systemctl disable ubse.service || true
+    fi
+    if systemctl list-units --type=service | grep -q ubse.service; then
+        systemctl reset-failed ubse.service || true
+    fi
+
+    restore_udev_rule
+
+    # 清理软链接（只删我们创建的）
+    if [ -L /usr/local/softbus/ctrlbus/lib/librack_com.so ]; then
+        rm -f /usr/local/softbus/ctrlbus/lib/librack_com.so
+    fi
+fi

@@ -66,6 +66,8 @@ bool IsSmallestNode(const Node &myself, const std::vector<Node> &allNodes);
 bool IsSecondSmallestNode(const Node &myself, const std::vector<Node> &allNodes);
 uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID);
 uint32_t ForceElection(UBSE_ID_TYPE myselfID);
+bool GetElectionCandidate();
+bool GetElectionWait();
 bool IsHeartBeatEnabled(HeartBeatStatus status);
 } // namespace ubse::election
 

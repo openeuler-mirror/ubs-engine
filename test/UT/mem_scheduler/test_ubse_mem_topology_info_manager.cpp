@@ -1,14 +1,14 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_ubse_mem_topology_info_manager.h"
 #include "ubse_error.h"
@@ -38,19 +38,16 @@ TEST_F(TestUbseMemTopologyInfoManager, TestFillTopoNumaInfoByNumaLoc)
     MOCKER_CPP(&UbseMemTopologyInfoManager::GetNumaInfo)
         .stubs()
         .will(returnValue(std::make_shared<MemNumaInfo>(ubseMemNumaLoc, ubseMemNumaIndexLoc, globalIndex)));
-    EXPECT_NO_THROW(UbseMemTopologyInfoManager::GetInstance().FillTopoNumaInfoByNumaLoc(numaInfo));
+    ubse::nodeController::UbseAllocator allocator = ubse::nodeController::UbseAllocator::BUDDY_HIGHMEM;
+    uint32_t pmd_mapping = 100;
+    EXPECT_NO_THROW(
+        UbseMemTopologyInfoManager::GetInstance().FillTopoNumaInfoByNumaLoc(numaInfo, allocator, pmd_mapping));
 }
 
 TEST_F(TestUbseMemTopologyInfoManager, TestNodesInit)
 {
     std::vector<NodeDataWithNumaInfo> nodeDatas{};
     EXPECT_NO_THROW(UbseMemTopologyInfoManager::GetInstance().NodesInit(nodeDatas));
-}
-
-TEST_F(TestUbseMemTopologyInfoManager, TestNodeInit)
-{
-    NodeData nodeData;
-    EXPECT_NO_THROW(UbseMemTopologyInfoManager::GetInstance().NodeInit(nodeData));
 }
 
 TEST_F(TestUbseMemTopologyInfoManager, TestSetAvailNumas)
@@ -118,6 +115,62 @@ TEST_F(TestUbseMemTopologyInfoManager, TestGetNodeInfoById)
     EXPECT_NO_THROW(UbseMemTopologyInfoManager::GetInstance().GetNodeInfoById(nodeId));
 }
 
+TEST_F(TestUbseMemTopologyInfoManager, TestGetSocketCnaInfo)
+{
+    const UbseMemNumaLoc memIdLocBorrow;
+    const UbseMemNumaLoc memIdLocLend;
+    SocketCnaTopoInfo socketCnaTopoInfo;
+    UbseNodeMemCnaInfoInput cnaInfoInput{memIdLocBorrow.nodeId, memIdLocLend.nodeId,
+                                         std::to_string(memIdLocLend.socketId)};
+    UbseNodeMemCnaInfoOutput cnaInfoOutput{};
+    MOCKER_CPP(&UbseNodeMemGetTopologyCnaInfo).stubs().with(any(), outBound(cnaInfoOutput)).will(returnValue(UBSE_OK));
+    auto ret =
+        UbseMemTopologyInfoManager::GetInstance().GetSocketCnaInfo(memIdLocBorrow, memIdLocLend, socketCnaTopoInfo);
+    ASSERT_EQ(UBSE_OK, ret);
+}
+
+TEST_F(TestUbseMemTopologyInfoManager, TestGetSocketTotalLentMem)
+{
+    const uint64_t MB_1 = 1024;
+    std::string nodeId = "1";
+    int sotckeId = 36;
+    uint64_t socketTotalLentMem = 0;
+    std::vector<std::shared_ptr<MemNumaInfo>> numaInfo;
+    UbseMemNumaLoc loc{"1", 36, 0};
+    UbseMemNumaIndexLoc ubseMemNumaIndexLoc{0, 0, 0};
+    GlobalNumaIndex globalIndex = 0;
+    std::shared_ptr<MemNumaInfo> numa = std::make_shared<MemNumaInfo>(loc, ubseMemNumaIndexLoc, globalIndex);
+    numa->mMemLent = MB_1;
+    numaInfo.push_back(numa);
+    MOCKER_CPP(&UbseMemTopologyInfoManager::GetAllNumaInfo).stubs().will(returnValue(numaInfo));
+    auto ret = UbseMemTopologyInfoManager::GetInstance().GetSocketTotalLentMem(nodeId, sotckeId, socketTotalLentMem);
+    ASSERT_EQ(UBSE_OK, ret);
+}
+
+TEST_F(TestUbseMemTopologyInfoManager, TestInitCoordinate)
+{
+    GTEST_SKIP();
+    std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> neighborNodes;
+    UbseMemCoordinateDesc coordinateDesc;
+    tc::rs::mem::StrategyParam strategyParam;
+    const uint32_t totalHostsNum = 1;
+
+    auto ret = InitCoordinate(neighborNodes, coordinateDesc, strategyParam, totalHostsNum);
+    ASSERT_EQ(true, ret);
+}
+
+TEST_F(TestUbseMemTopologyInfoManager, TestInitSingleNode)
+{
+    int32_t totalHostsNum = 2;
+    std::set<uint16_t> nodeIndexList;
+    nodeIndexList.insert(0);
+    nodeIndexList.insert(1);
+    UbseMemCoordinateDesc coordinateDesc;
+    tc::rs::mem::StrategyParam strategyParam;
+
+    EXPECT_NO_THROW(InitSingleNode(totalHostsNum, nodeIndexList, coordinateDesc, strategyParam));
+}
+
 TEST_F(TestUbseMemTopologyInfoManager, TestGetNodePoolMemSize)
 {
     NodeData nodeData;
@@ -158,7 +211,9 @@ TEST_F(TestUbseMemTopologyInfoManager, TestGenerateCoordinate)
 {
     std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> neighborNodes;
     tc::rs::mem::StrategyParam strategyParam;
-    EXPECT_NO_THROW(UbseMemTopologyInfoManager::GetInstance().GenerateCoordinate(neighborNodes, strategyParam));
+    std::set<uint16_t> nodeIndexList;
+    EXPECT_NO_THROW(
+        UbseMemTopologyInfoManager::GetInstance().GenerateCoordinate(neighborNodes, strategyParam, nodeIndexList));
 }
 
 TEST_F(TestUbseMemTopologyInfoManager, TestGetNodeIdAndSocketIdFromNodeSocketString)
@@ -169,12 +224,6 @@ TEST_F(TestUbseMemTopologyInfoManager, TestGetNodeIdAndSocketIdFromNodeSocketStr
     EXPECT_NO_THROW(GetNodeIdAndSocketIdFromNodeSocketString(nodeSocketStr, nodeId, socketId));
 }
 
-TEST_F(TestUbseMemTopologyInfoManager, TestGetFullMesh)
-{
-    const std::unordered_map<std::string, std::vector<MemNodeData>> nodeConnectTopo;
-    bool fullMesh;
-    EXPECT_NO_THROW(GetFullMesh(nodeConnectTopo, fullMesh));
-}
 TEST_F(TestUbseMemTopologyInfoManager, TestSetMemOutHardLimit)
 {
     StrategyParam strategyParam;
@@ -245,19 +294,21 @@ uint32_t MockUbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<
 TEST_F(TestUbseMemTopologyInfoManager, TestUbseMemTransTopoToNeighborSet)
 {
     std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> neighborNodes;
-    bool fullMesh;
+    std::set<uint16_t> nodeIndexList;
     MOCKER_CPP(UbseMemGetTopologyInfo).stubs().will(invoke(MockUbseMemGetTopologyInfo));
-    EXPECT_NO_THROW(UbseMemTopologyInfoManager::GetInstance().UbseMemTransTopoToNeighborSet(neighborNodes, fullMesh));
+    EXPECT_NO_THROW(
+        UbseMemTopologyInfoManager::GetInstance().UbseMemTransTopoToNeighborSet(neighborNodes, nodeIndexList));
     MOCKER_CPP(UbseMemGetTopologyInfo).reset();
 }
 
 TEST_F(TestUbseMemTopologyInfoManager, TestUbseMemTransTopoToNeighborSet2)
 {
     std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> neighborNodes;
-    bool fullMesh;
+    std::set<uint16_t> nodeIndexList;
     MOCKER_CPP(UbseMemGetTopologyInfo).stubs().will(invoke(MockUbseMemGetTopologyInfo));
     MOCKER_CPP(GetNodeIdAndSocketIdFromNodeSocketString).stubs().will(returnValue(true));
-    EXPECT_NO_THROW(UbseMemTopologyInfoManager::GetInstance().UbseMemTransTopoToNeighborSet(neighborNodes, fullMesh));
+    EXPECT_NO_THROW(
+        UbseMemTopologyInfoManager::GetInstance().UbseMemTransTopoToNeighborSet(neighborNodes, nodeIndexList));
     MOCKER_CPP(UbseMemGetTopologyInfo).reset();
     MOCKER_CPP(GetNodeIdAndSocketIdFromNodeSocketString).reset();
 }

@@ -18,21 +18,21 @@
 namespace ubse::cli::framework {
 UbseCliResBuilder::UbseCliResBuilder(size_t cols, size_t max_width)
 {
-    this->variableCellInfo.rows = 0;
+    this->variableCellInfo_.rows = 0;
     if (cols <= 12 && max_width <= 80) { // The maximum number of columns is 12, and each column is a maximum of 80
                                          // characters. If it exceeds, it is not allowed.
-        this->variableCellInfo.cols = cols;
-        this->variableCellInfo.maxWidth = max_width;
+        this->variableCellInfo_.cols = cols;
+        this->variableCellInfo_.maxWidth = max_width;
         try {
-            this->variableCellInfo.columnWidths.resize(cols, 0);
+            this->variableCellInfo_.columnWidths.resize(cols, 0);
         } catch (const std::bad_alloc &e) {
             std::cerr << "Memory allocation failed during resize: " << e.what() << std::endl;
         }
     } else {
-        this->variableCellInfo.cols = 0;
-        this->variableCellInfo.maxWidth = 0;
+        this->variableCellInfo_.cols = 0;
+        this->variableCellInfo_.maxWidth = 0;
         try {
-            this->variableCellInfo.columnWidths.resize(0, 0);
+            this->variableCellInfo_.columnWidths.resize(0, 0);
         } catch (const std::bad_alloc &e) {
             std::cerr << "Memory allocation failed during resize: " << e.what() << std::endl;
         }
@@ -41,15 +41,15 @@ UbseCliResBuilder::UbseCliResBuilder(size_t cols, size_t max_width)
 
 size_t UbseCliResBuilder::UbseCliAddRow()
 {
-    this->variableCellInfo.rows++;
-    this->variableCellInfo.cellDatas.emplace_back(variableCellInfo.cols, "");
-    return this->variableCellInfo.rows;
+    this->variableCellInfo_.rows++;
+    this->variableCellInfo_.cellDatas.emplace_back(variableCellInfo_.cols, "");
+    return this->variableCellInfo_.rows;
 }
 
 bool UbseCliResBuilder::UbseCliSetMinColWidth(const size_t &col, const size_t &width)
 {
-    if (col > 0 && col <= this->variableCellInfo.cols && width > 0 && width <= this->variableCellInfo.maxWidth) {
-        this->variableCellInfo.columnWidths[col - UBSE_CLI_NUM_1] = width;
+    if (col > 0 && col <= this->variableCellInfo_.cols && width > 0 && width <= this->variableCellInfo_.maxWidth) {
+        this->variableCellInfo_.columnWidths[col - UBSE_CLI_NUM_1] = width;
         return true;
     }
     return false;
@@ -57,9 +57,9 @@ bool UbseCliResBuilder::UbseCliSetMinColWidth(const size_t &col, const size_t &w
 
 bool UbseCliResBuilder::UbseCliSetMinWidth(const size_t &width)
 {
-    if (width > 0 && width <= this->variableCellInfo.maxWidth) {
-        for (size_t i = 0; i < this->variableCellInfo.cols; i++) {
-            this->variableCellInfo.columnWidths[i] = width;
+    if (width > 0 && width <= this->variableCellInfo_.maxWidth) {
+        for (size_t i = 0; i < this->variableCellInfo_.cols; i++) {
+            this->variableCellInfo_.columnWidths[i] = width;
         }
         return true;
     }
@@ -69,16 +69,16 @@ bool UbseCliResBuilder::UbseCliSetMinWidth(const size_t &width)
 bool UbseCliResBuilder::UbseCliAddMergeRow(std::map<size_t, std::string> &merge_cell_data)
 {
     for (auto it = merge_cell_data.begin(); it != merge_cell_data.end();) {
-        if (it->first < UBSE_CLI_NUM_1 || it->first > this->variableCellInfo.cols) {
+        if (it->first < UBSE_CLI_NUM_1 || it->first > this->variableCellInfo_.cols) {
             it = merge_cell_data.erase(it);
         } else {
             ++it;
         }
     }
-    if (!merge_cell_data.empty() && this->variableCellInfo.cols > 0) {
-        this->variableCellInfo.mergeCellData[this->variableCellInfo.rows] = merge_cell_data;
-        this->variableCellInfo.rows++;
-        this->variableCellInfo.cellDatas.emplace_back(this->variableCellInfo.cols, "");
+    if (!merge_cell_data.empty() && this->variableCellInfo_.cols > 0) {
+        this->variableCellInfo_.mergeCellData[this->variableCellInfo_.rows] = merge_cell_data;
+        this->variableCellInfo_.rows++;
+        this->variableCellInfo_.cellDatas.emplace_back(this->variableCellInfo_.cols, "");
         return true;
     }
     return false;
@@ -88,13 +88,13 @@ bool UbseCliResBuilder::UbseCliSetCellData(size_t row, size_t col, const std::st
 {
     --row;
     --col;
-    if (row < this->variableCellInfo.rows && col < this->variableCellInfo.cols) {
+    if (row < this->variableCellInfo_.rows && col < this->variableCellInfo_.cols) {
         size_t length = value.size();
-        if (length > this->variableCellInfo.columnWidths[col]) {
-            this->variableCellInfo.columnWidths[col] =
-                length < this->variableCellInfo.maxWidth ? length : this->variableCellInfo.maxWidth;
+        if (length > this->variableCellInfo_.columnWidths[col]) {
+            this->variableCellInfo_.columnWidths[col] =
+                length < this->variableCellInfo_.maxWidth ? length : this->variableCellInfo_.maxWidth;
         }
-        this->variableCellInfo.cellDatas[row][col] = value;
+        this->variableCellInfo_.cellDatas[row][col] = value;
         return true;
     }
     return false;
@@ -102,7 +102,7 @@ bool UbseCliResBuilder::UbseCliSetCellData(size_t row, size_t col, const std::st
 
 void UbseCliResBuilder::UbseCliAddlineSeparate(size_t line_separate_index_val)
 {
-    this->variableCellInfo.lineSeparateIndex.insert(line_separate_index_val);
+    this->variableCellInfo_.lineSeparateIndex.insert(line_separate_index_val);
 }
 
 void UbseCliResBuilder::UbseCliAddBottomlineSeparate()
@@ -112,17 +112,17 @@ void UbseCliResBuilder::UbseCliAddBottomlineSeparate()
 
 void UbseCliResBuilder::UbseCliAddNolineSeparate(size_t no_line_separate_index_val)
 {
-    this->variableCellInfo.noSeparateIndex.insert(no_line_separate_index_val);
+    this->variableCellInfo_.noSeparateIndex.insert(no_line_separate_index_val);
 }
 
 size_t UbseCliResBuilder::UbseCliGetRows() const
 {
-    return this->variableCellInfo.rows;
+    return this->variableCellInfo_.rows;
 }
 
 size_t UbseCliResBuilder::UbseCliGetCols() const
 {
-    return this->variableCellInfo.cols;
+    return this->variableCellInfo_.cols;
 }
 
 void UbseCliResBuilder::UbseCliAddBottomNolineSeparate()
@@ -132,22 +132,22 @@ void UbseCliResBuilder::UbseCliAddBottomNolineSeparate()
 
 UbseCliVariableCellInfo UbseCliResBuilder::UbseCliVariableCellBuild()
 {
-    return this->variableCellInfo;
+    return this->variableCellInfo_;
 }
 
 void UbseCliStringEcho::UbseCliDisplayResult()
 {
-    UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(this->ubseStringResult);
+    UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(this->ubseStringResult_);
 }
 
 void UbseCliVariableCellEcho::UbseCliDisplayResult()
 {
-    UbseCliDisplayOnScreen::UbseCliSingleTablePresentation(this->ubseCliVariableCellInfo);
+    UbseCliDisplayOnScreen::UbseCliSingleTablePresentation(this->ubseCliVariableCellInfo_);
 }
 
 void UbseCliVariableCellsEcho::UbseCliDisplayResult()
 {
-    UbseCliDisplayOnScreen::UbseCliMultipleTablePresentation(this->ubseCliVariableCellsInfo);
+    UbseCliDisplayOnScreen::UbseCliMultipleTablePresentation(this->ubseCliVariableCellsInfo_);
 }
 
 void UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(const std::string &input)
@@ -264,6 +264,7 @@ bool UbseCliDisplayOnScreen::UbseCliCheckMapValues(std::map<size_t, std::string>
 void UbseCliDisplayOnScreen::UbseCliTableDisplayMergeLine(const std::map<size_t, std::string> &cell_data_map,
     const std::vector<size_t> &column_widths)
 {
+    const size_t CELL_GAP_WIDTH = 3;
     // Change "  " to "| " in the table development.
     std::cout << "  ";
     size_t last_data_index = 0;
@@ -274,7 +275,8 @@ void UbseCliDisplayOnScreen::UbseCliTableDisplayMergeLine(const std::map<size_t,
             if (col != last_data_index) {
                 // The gap between the two tables is 3, and when merging cells, it needs to be included in the merge.
                 width = width + column_widths[col] +
-                    3; // The builder class ensures that the data stored will not cause out-of-bounds errors.
+                        CELL_GAP_WIDTH; // The builder class ensures that the data stored will not cause
+                                        // out-of-bounds errors.
             } else {
                 width += column_widths[col]; // The builder class ensures that the data stored will not cause
                                              // out-of-bounds errors.
@@ -296,11 +298,12 @@ void UbseCliDisplayOnScreen::UbseCliTableDisplayMergeLine(const std::map<size_t,
 
 void UbseCliDisplayOnScreen::UbseCliPrintSeparator(const UbseCliVariableCellInfo &variable_cell_info, char ch)
 {
+    const size_t CELL_PADDING = 2;
     std::cout << ch;
     for (size_t col = 0; col < variable_cell_info.cols; ++col) {
         // The width of the cell will have two spaces on either side, so we use 2 to let the horizontal line cover the
         // cell.
-        std::cout << std::string(variable_cell_info.columnWidths[col] + 2, ch) << ch;
+        std::cout << std::string(variable_cell_info.columnWidths[col] + CELL_PADDING, ch) << ch;
     }
     std::cout << std::endl;
 }

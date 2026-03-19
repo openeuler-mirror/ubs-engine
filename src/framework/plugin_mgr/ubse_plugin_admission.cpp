@@ -18,26 +18,25 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_logger_module.h"
 
 namespace ubse::plugin {
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::log;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_PLUGIN_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbsePluginAdmission::ProcessPluginValue(const std::string &pkgName, const std::string &pkgValue)
 {
     try {
-        int tempValue = std::stoi(pkgValue);
+        const int tempValue = std::stoi(pkgValue);
         // 200，moduleCode需要大于200
-        if (tempValue <= 200 ||
+        if (tempValue <= 200 || tempValue > std::numeric_limits<uint16_t>::max() ||
             (!std::all_of(pkgValue.begin(), pkgValue.end(), [](char c) { return std::isdigit(c); }))) {
             UBSE_LOG_ERROR << "Invalid argument, " << pkgName << "=" << pkgValue;
             return UBSE_ERROR_INVAL;
         }
-        allowedPlugins[pkgName] = static_cast<uint16_t>(tempValue);
+        allowedPlugins_[pkgName] = static_cast<uint16_t>(tempValue);
         return UBSE_OK;
     } catch (const std::invalid_argument &ret) {
         UBSE_LOG_ERROR << "Invalid argument, " << pkgName << "=" << pkgValue;
@@ -69,17 +68,14 @@ UbseResult UbsePluginAdmission::LoadAdmissionConfig()
         UBSE_LOG_WARN << "No admission plugin configuration is read";
         return UBSE_OK;
     }
-    std::unique_lock<std::shared_mutex> lock(allowedPluginsMutex);
+    std::unique_lock<std::shared_mutex> lock(allowedPluginsMutex_);
     for (const auto &item : configVals) {
-        for (const auto &kvMap : item.second) {
-            std::string pkgName = kvMap.first;
-            std::string pkgValue = kvMap.second;
-            if (allowedPlugins.find(pkgName) != allowedPlugins.end()) {
+        for (const auto &[pkgName, pkgValue] : item.second) {
+            if (allowedPlugins_.find(pkgName) != allowedPlugins_.end()) {
                 UBSE_LOG_WARN << "The plugin name: " << pkgName << " has been configuration in admission file.";
                 continue;
             }
-            UbseResult result = ProcessPluginValue(pkgName, pkgValue);
-            if (result != UBSE_OK) {
+            if (const UbseResult result = ProcessPluginValue(pkgName, pkgValue); result != UBSE_OK) {
                 return result;
             }
         }
@@ -89,17 +85,17 @@ UbseResult UbsePluginAdmission::LoadAdmissionConfig()
 
 const std::map<std::string, uint16_t> &UbsePluginAdmission::GetAllowedPlugins() const
 {
-    std::shared_lock<std::shared_mutex> lock(allowedPluginsMutex);
-    return allowedPlugins;
+    std::shared_lock lock(allowedPluginsMutex_);
+    return allowedPlugins_;
 }
 
-const uint16_t *UbsePluginAdmission::GetPluginConfig(const std::string &pluginName) const
+std::optional<uint16_t>  UbsePluginAdmission::GetPluginConfig(const std::string &pluginName) const
 {
-    std::shared_lock<std::shared_mutex> lock(allowedPluginsMutex);
-    auto item = allowedPlugins.find(pluginName);
-    if (item == allowedPlugins.end()) {
-        return nullptr;
+    std::shared_lock lock(allowedPluginsMutex_);
+    auto item = allowedPlugins_.find(pluginName);
+    if (item == allowedPlugins_.end()) {
+        return {};
     }
-    return &item->second;
+    return item->second;
 }
 } // namespace ubse::plugin

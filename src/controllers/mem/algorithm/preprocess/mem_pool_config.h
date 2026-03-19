@@ -44,8 +44,6 @@ public:
     /** 算法权重参数归一化 */
     static BResult NormalizeStrategy(StrategyParam &param);
 
-    void PrintDebug(const StrategyParam &param, const BorrowAlgoParam &borrowParam);
-
     /** 当enableCustomLatencies==false时, 检查hostMeshLoc参数的有效性 */
     bool IsHostMeshLocValid() const;
 
@@ -96,6 +94,9 @@ public:
 
     /** 统计所有节点借出内存上限的最大值 */
     BResult GetBorrowedMaxMem();
+
+    /** 检查host和numa是否超上限 */
+    void CheckNodeParameters(const StrategyParam &param);
 
     StrategyParam memStaticParam = {};                               /* 内存池算法静态配置参数 */
     SysLatencyInfo memLatencyInfo = {};                              /* 系统链路时延信息 */

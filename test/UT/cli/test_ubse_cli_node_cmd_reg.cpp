@@ -32,48 +32,17 @@ TEST_F(TestUbseCliNodeCmdReg, RegisterNodeModule)
 {
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UBSE_CLI_REGISTER_MODULE("CLI_NODE_MODULE", UbseCliRegNodeModule);
-    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators.size(), 1);
+    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators_.size(), 1);
     UbseCliModuleRegistry::GetInstance().UbseCliCallAllModuleSignUp();
-    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators.size(), 0);
+    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().creators_.size(), 0);
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
 }
 
-TEST_F(TestUbseCliNodeCmdReg, TopoInvokeFailed)
-{
-    UbseCliRegNodeModule node_module;
-    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_failed));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryUbseTopologyFunc({})->UbseCliDisplayResult());
-    MOCKER(&ubse_invoke_call).reset();
-}
-
-TEST_F(TestUbseCliNodeCmdReg, TopoInvokeErrorSize)
-{
-    UbseCliRegNodeModule node_module;
-    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_error_size));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryUbseTopologyFunc({})->UbseCliDisplayResult());
-    MOCKER(&ubse_invoke_call).reset();
-}
-
-TEST_F(TestUbseCliNodeCmdReg, TopoInvokeEmpty)
-{
-    UbseCliRegNodeModule node_module;
-    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_empty));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryUbseTopologyFunc({})->UbseCliDisplayResult());
-    MOCKER(&ubse_invoke_call).reset();
-}
-
-TEST_F(TestUbseCliNodeCmdReg, TopoInvokeSuccess)
-{
-    UbseCliRegNodeModule node_module;
-    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_topo_ubse_invoke_call_normal));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryUbseTopologyFunc({})->UbseCliDisplayResult());
-    MOCKER(&ubse_invoke_call).reset();
-}
 TEST_F(TestUbseCliNodeCmdReg, ClusterInvokeFailed)
 {
     UbseCliRegNodeModule node_module;
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_failed));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryClusterInfoFunc({})->UbseCliDisplayResult());
+    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseCliQueryClusterInfoFunc({})->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
 }
 
@@ -81,7 +50,7 @@ TEST_F(TestUbseCliNodeCmdReg, ClusterInvokeErrorSize)
 {
     UbseCliRegNodeModule node_module;
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_error_size));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryClusterInfoFunc({})->UbseCliDisplayResult());
+    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseCliQueryClusterInfoFunc({})->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
 }
 
@@ -89,7 +58,7 @@ TEST_F(TestUbseCliNodeCmdReg, ClusterInvokeEmpty)
 {
     UbseCliRegNodeModule node_module;
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_empty));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryClusterInfoFunc({})->UbseCliDisplayResult());
+    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseCliQueryClusterInfoFunc({})->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
 }
 
@@ -97,7 +66,17 @@ TEST_F(TestUbseCliNodeCmdReg, ClusterInvokeSuccess)
 {
     UbseCliRegNodeModule node_module;
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_cluster_ubse_invoke_call_normal));
-    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseQueryClusterInfoFunc({})->UbseCliDisplayResult());
+    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseCliQueryClusterInfoFunc({})->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliNodeCmdReg, QueryCpuTopoInvokeSuccess)
+{
+    UbseCliRegNodeModule node_module;
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_cpu_topo_ubse_invoke_call_normal));
+    std::map<std::string, std::string> params = {};
+    params["type"] = "cpu";
+    EXPECT_NO_THROW(UbseCliRegNodeModule::UbseCliSDKQueryCpuTopoFunc(params)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
 }
 } // namespace ubse::ut::cli

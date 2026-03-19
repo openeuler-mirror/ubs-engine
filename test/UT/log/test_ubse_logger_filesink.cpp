@@ -10,9 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "test_ubse_logger_filesink.h"
 #include <filesystem>
 #include <thread>
-#include "test_ubse_logger_filesink.h"
 #include "ubse_context.h"
 
 namespace fs = std::filesystem;
@@ -29,7 +29,6 @@ std::string FindFirstFileMatchingPattern(const std::string &pattern, const std::
     }
     return "";
 }
-
 
 void TestUbseLoggerFileSink::SetUp()
 {
@@ -274,7 +273,7 @@ TEST_F(TestUbseLoggerFileSink, FileIndexIncrement)
     // 设置ubseLoggerEntry4的行数为4
     UbseLoggerEntry ubseLoggerEntry4("test_log", UbseLogLevel::INFO, "Test.log", "TestFunction", 4);
     ASSERT_TRUE(sink.Initialize());
-    UbseLoggerEntry* entrys[] = {&ubseLoggerEntry1, &ubseLoggerEntry2, &ubseLoggerEntry3, &ubseLoggerEntry4};
+    UbseLoggerEntry *entrys[] = {&ubseLoggerEntry1, &ubseLoggerEntry2, &ubseLoggerEntry3, &ubseLoggerEntry4};
     // 将4条日志消息写入
     for (const auto &entry : entrys) {
         ASSERT_TRUE(sink.Write(*entry));
@@ -287,7 +286,6 @@ TEST_F(TestUbseLoggerFileSink, FileIndexIncrement)
         EXPECT_TRUE(!FindFirstFileMatchingPattern(compressedFilename, currentPath + FILE_PATH).empty());
     }
 }
-
 
 /*
  * 用例描述：
@@ -360,4 +358,4 @@ TEST_F(TestUbseLoggerFileSink, TestIsFileStatusChanged)
     std::string fileName = "test_log";
     ASSERT_FALSE(sink.IsFileStatusChanged(fileName));
 }
-}
+} // namespace ubse::ut::log

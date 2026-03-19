@@ -20,7 +20,7 @@
 #include "ubse_election_def.h"
 #include "ubse_node_controller.h"
 #include "ubse_str_util.h"
-#include "ubse_topology_interface.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::election {
 class UbseElectionNodeMgr {
@@ -32,7 +32,7 @@ public:
 
     // 禁用拷贝和赋值
     UbseElectionNodeMgr(const UbseElectionNodeMgr &) = delete;
-    UbseElectionNodeMgr &operator = (const UbseElectionNodeMgr &) = delete;
+    UbseElectionNodeMgr &operator=(const UbseElectionNodeMgr &) = delete;
 
     /* *
      * @brief 构造函数
@@ -53,7 +53,7 @@ public:
      */
     UbseResult GetMyselfNode(Node &myself);
 
-    ubse::nodeController::UbseNodeLocalState GetLocalNodeState();
+    static ubse::nodeController::UbseNodeLocalState GetLocalNodeState();
     /* *
      * @brief 从 LCNE 获取所有节点的状态信息
      * @param allNodes 用于存储所有节点的信息
@@ -68,7 +68,21 @@ public:
      */
     UbseResult GetAllNeighbourNode(std::vector<Node> &neighbourNodes);
 
+    std::unordered_set<UBSE_ID_TYPE> GetTopoLinkedNodes() const;
+
+    void ParseAllNodesVector();
+
     UbseResult GetNodeInfoByID(const UBSE_ID_TYPE &id, std::string &ip, uint16_t &port);
+
+    UbseResult GetPortByIp(const std::string &ip, uint16_t &port);
+
+    UbseResult UpdateNodeIdWithConnect(const std::string &ip, const std::string &id);
+
+    UbseResult GetNodeIdByIp(const std::string &ip, std::string &id);
+
+    UbseResult GetNodeIpById(const std::string &id, std::string &ip);
+
+    UbseResult GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE> &nodeIpMap);
 
     /* *
      * 获取心跳时间
@@ -81,9 +95,6 @@ public:
      * @return uint32_t 丢失次数
      */
     uint32_t GetHeartBeatLost() const;
-
-private:
-    void ParseAllNodesVector(const std::vector<ubse::nodeController::UbseNodeInfo> &allNodesVec);
 
 private:
     // 本地节点信息
@@ -100,6 +111,8 @@ private:
     // 当前所有节点信息和上一次所有节点信息
     std::vector<Node> currentAllNodes_; // 当前所有节点
     std::vector<Node> lastAllNodes_;    // 上一次所有节点的
+    std::unordered_map<std::string, UBSE_ID_TYPE> nodeIpMap_;
+    mutable std::shared_mutex mtx_{}; // 读写锁
 };
 } // namespace ubse::election
 #endif // UBSE_ELECTION_NODE_MGR_H

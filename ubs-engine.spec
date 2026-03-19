@@ -5,12 +5,10 @@
 # -*- rpm-spec -*-
 Summary:        RPM package
 Name:           ubs-engine
-ExclusiveArch:  aarch64
 Version:        1.0.0
 Release:        1
-License:        Mulan PSL v2
-URL:            https://gitee.com/openeuler/ubs-engine
-Source0:        %{name}-%{version}.tar.gz
+License:        MIT
+Source0:        %{name}.tar.gz
 Group:          System Environment/Base
 Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
@@ -40,7 +38,6 @@ UBS Engine
 %package client-libs
 Summary: UBSE client shared library for third-party integration
 Provides: %{lib_name}.so.%{lib_soversion}
-Requires: libboundscheck, libstdc++
 Obsoletes: %{name}-client-libs < %{version}-%{release}
 Provides: %{name}-client-libs = %{version}-%{release}
 
@@ -63,7 +60,51 @@ Header files and static libraries for developing applications that use the UBSE 
 This package is required for compiling programs that link against UBSE.
 
 
-%define project_dir %{name}-%{version}
+# ========================================================
+#                   SUBPACKAGE: python3-ubs-engine
+# ========================================================
+%package -n python3-%{name}
+Summary: Development package for UBSE python SDK
+BuildArch: noarch
+%description -n python3-%{name}
+Development package for UBSE python SDK
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-virtagent
+# ========================================================
+%package virtagent
+Summary: virtagent plugin
+Requires: %{name} = %{version}-%{release}
+%description virtagent
+Development package for virtagent plugin
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-ucache
+# ========================================================
+%package ucache
+Summary: ucache plugin
+Requires: %{name} = %{version}-%{release}
+%description ucache
+Development package for ucache plugin
+
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-rmrs
+# ========================================================
+%package rmrs
+Summary: rmrs plugin
+Requires: %{name} = %{version}-%{release}
+%description rmrs
+Development package for rmrs plugin
+%post rmrs
+if id "ubse" > /dev/null 2>&1; then
+    usermod -aG ubturbo ubse
+    usermod -aG libvirt ubse
+    echo "Success: ubse user added to ubturbo and libvirt groups"
+else
+    echo "Warning: ubse user does not exist, skip group addition" >&2
+fi
+
+%define project_dir %{name}
 %define cmake_build_dir cmake-build-relwithdebinfo
 
 %define log_dir /var/log/ubse
@@ -73,6 +114,7 @@ This package is required for compiling programs that link against UBSE.
 
 %define system_user ubse
 %define system_group ubse
+%define ubm_group ubm_nuds
 %define service_name ubse.service
 
 %define ensure_directory_owner() ensure_directory_owner() { \
@@ -129,6 +171,22 @@ This package is required for compiling programs that link against UBSE.
     fi \
 }
 
+%define update_config() update_config() { \
+    config_file="$1" \
+    if grep -q '^# mempooling=777' "$config_file"; then \
+        sed -i 's/^# mempooling=777/mempooling=777/' "$config_file" \
+    fi \
+    if grep -q '^# vm=205' "$config_file"; then \
+        sed -i 's/^# vm=205/vm=205/' "$config_file" \
+    fi \
+    if ! grep -q 'mempooling=777' "$config_file"; then \
+        echo "mempooling=777" >> "$config_file" \
+    fi \
+    if ! grep -q 'vm=205' "$config_file"; then \
+        echo "vm=205" >> "$config_file" \
+    fi \
+}
+
 %define remove_directory() remove_directory() { \
     if [ -d "$1" ]; then \
         rm -rf "$1" \
@@ -141,7 +199,9 @@ This package is required for compiling programs that link against UBSE.
 
 %build
 cd %{_builddir}/%{project_dir}/
+bash build.sh 3rdparty
 bash build.sh -T RelWithDebInfo
+%py3_build
 
 %install
 #install main package
@@ -153,10 +213,28 @@ mkdir -p %{buildroot}/usr/lib/systemd/system/
 cp %{_builddir}/%{project_dir}/scripts/rpm/%{service_name} %{buildroot}/usr/lib/systemd/system/
 
 mkdir -p %{buildroot}/etc/ubse/
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/conf/*.conf %{buildroot}/etc/ubse/
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/conf/ubse*.conf %{buildroot}/etc/ubse/
+mkdir -p %{buildroot}/etc/ubse/plugins
 
 mkdir -p %{buildroot}/etc/bash_completion.d/
 cp -f %{_builddir}/%{project_dir}/scripts/command_completion/cli_commands.sh %{buildroot}/etc/bash_completion.d/
+
+mkdir -p %{buildroot}/usr/share/ubse
+cp -f %{_builddir}/%{project_dir}/%{cmake_build_dir}/VERSION %{buildroot}/usr/share/ubse/
+
+mkdir -p %{buildroot}/usr/lib64
+
+#install virtagent
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libvm.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libstrategy.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/plugin_vm.conf %{buildroot}/etc/ubse/plugins/
+cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/auth-virtagent.conf %{buildroot}/etc/ubse/plugins/
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libubs-virt-agent.so.1.0.0 %{buildroot}/usr/lib64/
+ln -sf libubs-virt-agent.so.1.0.0 %{buildroot}/usr/lib64/libubs-virt-agent.so.1
+ln -sf libubs-virt-agent.so.1 %{buildroot}/usr/lib64/libubs-virt-agent.so
+mkdir -p %{buildroot}/usr/include/virtagent
+cp -r %{_builddir}/%{project_dir}/src/addons/virt_agent/sdk/include/* %{buildroot}/usr/include/virtagent/
+
 
 #install client-libs
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
@@ -167,19 +245,102 @@ ln -sf libubse-client.so.1.0.0 %{buildroot}/usr/lib64/libubse-client.so.1
 #install client-devel
 ln -sf libubse-client.so.1 %{buildroot}/usr/lib64/libubse-client.so
 chmod 644 %{buildroot}/usr/lib64/libubse-client.a
+cp -r %{_builddir}/%{project_dir}/src/include/* %{buildroot}/usr/include/ubse
+
+#install ucache
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libucache_plugin.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/src/addons/ucache/conf/plugin_ucache.conf %{buildroot}/etc/ubse/plugins/
+
+#install rmrs
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libmempooling.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/src/addons/rmrs/conf/plugin_mempooling.conf %{buildroot}/etc/ubse/plugins/
+mkdir -p %{buildroot}/usr/local/mempooling/include/mempooling/
+cp %{_builddir}/%{project_dir}/src/addons/rmrs/interface/mempooling_interface.h %{buildroot}/usr/local/mempooling/include/mempooling/
+
+#install python-sdk
+%py3_install
 
 
 %pre
 set -e
-if ! getent group %{system_group} > /dev/null; then
-    groupadd -r %{system_group}
-fi
-if ! getent passwd %{system_user} > /dev/null; then
-    useradd -r -g %{system_group} -s /sbin/nologin %{system_user}
-fi
+print_error() {
+    echo "ERROR" "$1"
+    exit 1
+}
+
+create_user() {
+    local requested_uid=""
+    local requested_gid=""
+
+    if [ -n "${UBSE_USER_UID:-}" ]; then
+        if [[ "${UBSE_USER_UID}" =~ ^[0-9]+$ ]] && [ "$UBSE_USER_UID" -ge 0 ]; then
+            requested_uid="$UBSE_USER_UID"
+        else
+            print_error "Invalid UBSE_USER_UID: '$UBSE_USER_UID'. Must be a non-negative integer."
+        fi
+    fi
+
+    if [ -n "${UBSE_USER_GID:-}" ]; then
+        if [[ "${UBSE_USER_GID}" =~ ^[0-9]+$ ]] && [ "$UBSE_USER_GID" -ge 0 ]; then
+            requested_gid="$UBSE_USER_GID"
+        else
+            print_error "Invalid UBSE_USER_GID: '$UBSE_USER_GID'. Must be a non-negative integer."
+        fi
+    fi
+
+    local user_exists=false
+    local group_exists=false
+
+    if getent passwd %{system_user} > /dev/null; then
+        user_exists=true
+    fi
+
+    if getent group %{system_group} > /dev/null; then
+        group_exists=true
+    fi
+
+    if $user_exists || $group_exists; then
+        local current_uid=$(getent passwd %{system_user} | cut -d: -f3)
+        local current_gid=$(getent passwd %{system_user} | cut -d: -f4)
+        if [ -n "$requested_uid" ] && [ "$current_uid" != "$requested_uid" ]; then
+            print_error "User %{system_user} exists with UID $current_uid, but requested UID is $requested_uid. Cannot change UID automatically."
+        fi
+        if [ -n "$requested_gid" ] && [ "$current_gid" != "$requested_gid" ]; then
+            print_error "User %{system_user} exists with GID $current_gid, but requested GID is $requested_gid. Cannot change GID automatically."
+        fi
+        return 0
+    fi
+
+    if [ -z "$requested_gid" ]; then
+        groupadd -r %{system_group} || print_error "Failed to create group %{system_group}"
+    else
+        if getent group "$requested_gid" > /dev/null; then
+            print_error "GID $requested_gid is already in use by another group."
+        fi
+        groupadd -r -g "$requested_gid" "%{system_group}" || print_error "Failed to create group %{system_group} with GID $requested_gid"
+    fi
+
+    local user_args=("-r" "-g" "%{system_group}" "-s" "/sbin/nologin")
+
+    if [ -n "$requested_uid" ]; then
+        if getent passwd "$requested_uid" > /dev/null; then
+            print_error "UID $requested_uid is already in use by another user."
+        fi
+        user_args+=("-u" "$requested_uid")
+    fi
+    useradd "${user_args[@]}" %{system_user} || print_error "Failed to create user %{system_user}"
+}
+
 if systemctl cat %{service_name} >/dev/null 2>&1 ; then
     systemctl stop %{service_name} || true
     systemctl disable %{service_name} || true
+fi
+create_user
+
+if getent group %{ubm_group} > /dev/null; then
+    sudo usermod -aG %{ubm_group} %{system_user}
+else
+    exit 1
 fi
 
 
@@ -188,17 +349,23 @@ set -e
 %{ensure_directory_owner}
 %{modify_udev_rule}
 %{deleted_semaphore}
+%{update_config}
 systemctl daemon-reload
 ensure_directory_owner "%{log_dir}" true
 ensure_directory_owner "%{data_dir}" true
+ensure_directory_owner "%{data_dir}/data" true
+ensure_directory_owner "%{data_dir}/sync" true
 ensure_directory_owner "%{cert_dir}" true
 ensure_directory_owner "%{socket_dir}" true
-chmod 750 "%{log_dir}" "%{data_dir}" "%{socket_dir}"
+chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data" "%{data_dir}/sync"
+chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
 systemctl enable %{service_name}
 modify_udev_rule
+if [ "$MXE_SCENE" == "vm" ]; then
+    update_config /etc/ubse/ubse_plugin_admission.conf
+fi
 deleted_semaphore
-
 
 %preun
 set -e
@@ -215,6 +382,9 @@ if systemctl list-units --type=service | grep -q %{service_name}; then
     systemctl reset-failed %{service_name} || true
 fi
 restore_udev_rule
+if [ -L /usr/local/softbus/ctrlbus/lib/librack_com.so ]; then
+    rm -f /usr/local/softbus/ctrlbus/lib/librack_com.so || true
+fi
 
 
 %postun
@@ -228,27 +398,30 @@ systemctl daemon-reload
 remove_directory %{log_dir}
 remove_directory %{cert_dir}
 remove_directory %{socket_dir}
-deleted_semaphore
-if id %{system_user} &>/dev/null; then
-    userdel -r %{system_user} &>/dev/null || true
-fi
-if getent group %{system_group} &>/dev/null; then
-    groupdel %{system_group}
-fi
+remove_directory %{data_dir}/sync
 
+deleted_semaphore
+if id "%{system_user}" &>/dev/null; then
+    userdel -r "%{system_user}" &>/dev/null || true
+fi
+if getent group "%{system_group}" &>/dev/null; then
+    groupdel "%{system_group}"
+fi
 
 %files
 %defattr(755,root,root,-)
 /usr/bin/ubse
-%defattr(755,root,root,-)
 /usr/bin/ubsectl
 %defattr(644,root,root,-)
 /usr/lib/systemd/system/ubse.service
 %defattr(644,root,root,755)
 %dir /etc/ubse/
-%config(noreplace) /etc/ubse/ubse.conf
+%config(noreplace) /etc/ubse/ubse*.conf
+%dir /etc/ubse/plugins
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
+%defattr(644,root,root,-)
+/usr/share/ubse/VERSION
 
 %files client-libs
 %defattr(755,root,root,-)
@@ -262,3 +435,35 @@ fi
 /usr/lib64/libubse-client.a
 %defattr(644,root,root,755)
 /usr/include/ubse/
+
+%files -n python3-%{name}
+%{python3_sitelib}/ubse/
+%{python3_sitelib}/ubse-%{version}*.egg-info
+
+%files virtagent
+%defattr(644,root,root,-)
+%config(noreplace) /etc/ubse/plugins/plugin_vm.conf
+%config(noreplace) /etc/ubse/plugins/auth-virtagent.conf
+%defattr(755,root,root,-)
+/usr/lib64/libvm.so
+/usr/lib64/libstrategy.so
+/usr/lib64/libubs-virt-agent.so.1.0.0
+%defattr(-,root,root,-)
+/usr/lib64/libubs-virt-agent.so.1
+/usr/lib64/libubs-virt-agent.so
+%defattr(644,root,root,755)
+/usr/include/virtagent/
+
+%files ucache
+%defattr(644,root,root,-)
+%config(noreplace) /etc/ubse/plugins/plugin_ucache.conf
+%defattr(755,root,root,-)
+/usr/lib64/libucache_plugin.so
+
+%files rmrs
+%defattr(644,root,root,-)
+%config(noreplace) /etc/ubse/plugins/plugin_mempooling.conf
+%defattr(755,root,root,-)
+/usr/lib64/libmempooling.so
+%defattr(644,root,root,755)
+/usr/local/mempooling/include/mempooling/

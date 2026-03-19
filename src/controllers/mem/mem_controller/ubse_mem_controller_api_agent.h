@@ -14,27 +14,19 @@
 #define UBSE_MEM_CONTROLLER_API_AGENT_H
 
 #include <chrono>
-#include "ubse_mem_obj.h"
+#include "ubse_mmi_interface.h"
+#include "ubse_api_server.h"
+#include "ubse_election.h"
 
 namespace ubse::mem::controller::agent {
-using namespace ubse::mem::obj;
-#ifdef NDEBUG
-#ifdef UB_ENVIRONMENT
-const std::chrono::seconds WAIT_TIMEOUT(3600); // 秒
-#else
-const std::chrono::seconds WAIT_TIMEOUT(60); // 秒
-#endif
-#else
-#ifdef UBSE_MEM_CONTROLLER_UT
-const std::chrono::seconds WAIT_TIMEOUT(1); // 秒
-#else
-const std::chrono::seconds WAIT_TIMEOUT(60000000); // 秒
-#endif
-#endif
+using namespace ubse::adapter_plugins::mmi;
+using namespace api::server;
 
 const uint32_t MAX_TIMEOUT_SECONDS = 3600; // 1小时
 
 uint32_t Init();
+
+uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp);
 
 /* *
  * Fd内存借用
@@ -42,23 +34,54 @@ uint32_t Init();
  * @param resp [IN/OUT] 操作结果
  * @return 0: 成功; 非0: 失败
  */
-uint32_t UbseMemFdBorrow(const UbseMemFdBorrowReq &req, UbseMemOperationResp &resp);
+uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp);
 
 /* *
- * Numa内存借用
+ * 地址内存借用
  * @param req [IN] 请求参数
  * @param resp [IN/OUT] 操作结果
  * @return 0: 成功; 非0: 失败
  */
-uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp);
+uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp);
+
+/* *
+ * 共享内存借用
+ * @param req [IN] 请求参数
+ * @param resp [IN/OUT] 操作结果
+ * @return 0: 成功; 非0: 失败
+ */
+uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &resp);
+
+/* *
+ * 挂载内存
+ * @param req [IN] 请求参数
+ * @param resp [IN/OUT] 操作结果
+ * @return 0: 成功; 非0: 失败
+ */
+uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationResp &resp);
+
+/* *
+ * 去挂载内存
+ * @param req [IN] 请求参数
+ * @param resp [IN/OUT] 操作结果
+ * @return 0: 成功; 非0: 失败
+ */
+uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationResp &resp);
 
 /* *
  * 内存归还，适用于所有借用
  * @param req [IN] 请求参数
+ * @param type [IN] 归还类型
  * @param resp [IN/OUT] 操作结果
  * @return 0: 成功; 非0: 失败
  */
-uint32_t UbseMemReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp);
+uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type, UbseMemOperationResp &resp);
+
+UbseResult DealLinkInfo(const std::string &linkInfo, UbseMemNumaBorrowReq &numaBorrowReq,
+    const election::UbseRoleInfo &currentNodeInfo, std::string &errorMsg);
+UbseResult FillSrcNuma(UbseMemNumaBorrowReq &numaBorrowReq, const election::UbseRoleInfo &currentNodeInfo);
+
+uint32_t DeleteMemoryHandler(const UbseIpcMessage &request, const UbseRequestContext &context);
 } // namespace ubse::mem::controller::agent
 #endif
 // UBSE_MEM_CONTROLLER_API_AGENT_H

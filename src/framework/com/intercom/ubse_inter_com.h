@@ -17,10 +17,12 @@
 #include "ubse_base_message.h"
 #include "ubse_com_base.h"
 #include "ubse_thread_pool_module.h"
+#include "trace_context.h"
 
 using namespace ubse::message;
 
 namespace ubse::com {
+#define MODULE_LOG_NAME "ubse"
 struct HandlerInput {
     UbseComMessageCtx messageCtx;
     UbseComDataDesc retData;
@@ -58,13 +60,13 @@ public:
         hdl.handler = [](HandlerInput &input) {
             MqHandleRequest<TReq, TRsp>(input);
         };
-        WriteLocker<ReadWriteLock> lock(&rwLock);
+        WriteLocker<ReadWriteLock> lock(&rwLock_);
         if (hdl.moduleCode >= MODULES_SIZE || hdl.opCode >= OP_CODE_SIZE) {
             UBSE_LOG_ERROR << "Invalid module code or op code, module code is " << hdl.moduleCode << ", op code is "
                          << hdl.opCode;
             return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
         }
-        handlerMap[hdl.moduleCode][hdl.opCode] = hdl;
+        handlerMap_[hdl.moduleCode][hdl.opCode] = hdl;
         return UBSE_OK;
     }
 
@@ -116,7 +118,9 @@ public:
             UbseComMessage::FreeMessage(msg);
             return UBSE_ERROR;
         }
-        mqExecutor->Execute([transMessage, usrCb, hdl] {
+        std::string traceId = TraceContext::GetTraceId();
+        mqExecutor_->Execute([transMessage, usrCb, hdl, traceId] {
+            TraceContext::SetTraceId(traceId);
             HandlerInput localinput;
             localinput.messageCtx = transMessage;
             localinput.usrCb = usrCb;
@@ -156,7 +160,7 @@ public:
             return;
         }
         auto respPtr = UbseBaseMessage::Convert<TRsp>(response);
-        auto ctx = new (std::nothrow) com::UbseComBaseMessageHandlerCtx{"", 0, 0};
+        auto ctx = new (std::nothrow) com::UbseComBaseMessageHandlerCtx{"", 0, 0, input.messageCtx.GetDstId()};
         if (ctx == nullptr) {
             UBSE_LOG_ERROR << "mem allocation failed for com base message handler ctx, " << FormatRetCode(UBSE_ERROR);
             return;
@@ -197,7 +201,7 @@ public:
                             response->SerializedDataSize());
         if (res != EOK) {
             UBSE_LOG_ERROR << "Fail to copy response data";
-            SafeDelete(input.retData.data);
+            SafeDeleteArray(input.retData.data);
             return;
         }
         input.retData.len = response->SerializedDataSize();
@@ -208,9 +212,10 @@ public:
 
 private:
     UbseMqHandler GetHandler(uint16_t moduleCode, uint16_t opCode);
-    ReadWriteLock rwLock;
-    ubse::task_executor::UbseTaskExecutorPtr mqExecutor = nullptr;
-    UbseMqHandler handlerMap[MODULES_SIZE][OP_CODE_SIZE]{};
+    ReadWriteLock rwLock_;
+    ubse::task_executor::UbseTaskExecutorPtr mqExecutor_ = nullptr;
+    UbseMqHandler handlerMap_[MODULES_SIZE][OP_CODE_SIZE]{};
 };
+#undef MODULE_LOG_NAME
 } // namespace ubse::com
 #endif // UBSE_INTER_COM_H

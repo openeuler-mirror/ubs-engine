@@ -1,21 +1,21 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_node_mem_debtInfo_query_req_simpo.h"
 
 #include "mockcpp/mockcpp.hpp"
 
-#include "message/ubse_mem_debtInfo_query_req_simpo.h"
-#include "ubse_conf_error.h"
+#include "message/ubse_mem_debt_info_query_req_simpo.h"
+#include "ubse_error.h"
 #include "ubse_serial_util.h"
 
 namespace ubse::mem::controller::message::ut {
@@ -44,8 +44,10 @@ void TestNodeMemDebtInfoQueryReqSimpo::TearDown()
  */
 TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Serialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
     EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
+    MOCKER_CPP(&UbseSerialization::Check).reset();
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
     EXPECT_TRUE(UBSE_OK == obj->Serialize());
 }
 
@@ -69,8 +71,10 @@ TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Deserialize)
     EXPECT_NE(nullptr, buffer);
     obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
 
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false));
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    MOCKER_CPP(&UbseDeSerialization::Check).reset();
+    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(true));
     EXPECT_TRUE(UBSE_OK == obj->Deserialize());
 }
 } // namespace ubse::mem::controller::message::ut

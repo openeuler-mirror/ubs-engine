@@ -30,10 +30,7 @@ class TestMessage : public UbseBaseMessage {
 public:
     TestMessage() {}
 
-    explicit TestMessage(std::string dataRaw)
-    {
-        data = dataRaw;
-    }
+    explicit TestMessage(std::string dataRaw) : data(dataRaw) {}
 
     UbseResult Serialize() override
     {

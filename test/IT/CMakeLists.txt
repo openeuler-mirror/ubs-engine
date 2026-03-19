@@ -20,8 +20,8 @@ add_executable(${IT_BINARY} EXCLUDE_FROM_ALL ${TEST_SOURCES}
 )
 
 target_link_libraries(${IT_BINARY} PUBLIC
-        mockcpp
         GTest::gmock_main
+        mockcpp
         ubse_context
         ubse_mock
         ubse_config
@@ -32,7 +32,7 @@ target_link_libraries(${IT_BINARY} PUBLIC
         ubse_dev
         ubse_role
         ubse_deadloop
-        ubse_node
+        ubse_node_controller
         obj_mgr
         ubse_job
         ubse_mti

@@ -18,14 +18,13 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_logger_module.h"
 
 namespace ubse::plugin {
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::log;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_PLUGIN_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string PLUGIN_FILE_PREFIX = "plugin";
 
@@ -47,40 +46,34 @@ UbseResult UbsePluginConfig::LoadPluginConfigs()
     }
 
     if (configVals.empty()) {
-        UBSE_LOG_ERROR << "No plugin configuration is read";
+        UBSE_LOG_WARN << "No plugin configuration is read";
         return UBSE_OK;
     }
-    std::unique_lock<std::shared_mutex> lock(pluginConfigsMutex);
+    std::unique_lock<std::shared_mutex> lock(pluginConfigsMutex_);
     for (const auto &item : configVals) {
-        std::map<std::string, std::string> kvMap = item.second;
+        auto &kvMap = item.second;
 
-        UbsePluginInfo ubsePluginConfig;
-        ubsePluginConfig.name = kvMap["ubse.plugin.name"];
-        ubsePluginConfig.pkg = kvMap["ubse.plugin.pkg"];
+        auto it_name = kvMap.find("ubse.plugin.name");
+        auto it_pkg = kvMap.find("ubse.plugin.pkg");
+        if (it_name == kvMap.end() || it_pkg == kvMap.end()) {
+            UBSE_LOG_ERROR << "No ubse.plugin.name or ubse.plugin.pkg in config.";
+            return UBSE_ERROR;
+        }
+        UbsePluginInfo ubsePluginConfig{it_name->second, it_pkg->second};
         ret = VerifyConfig(ubsePluginConfig, item.first);
         if (ret != UBSE_OK) {
             continue;
         }
 
-        pluginConfigs[ubsePluginConfig.name] = ubsePluginConfig;
+        pluginConfigs_[ubsePluginConfig.name] = ubsePluginConfig;
     }
     return UBSE_OK;
 }
 
 const std::map<std::string, UbsePluginInfo> &UbsePluginConfig::GetAllPluginConfigs() const
 {
-    std::shared_lock<std::shared_mutex> lock(pluginConfigsMutex);
-    return pluginConfigs;
-}
-
-const UbsePluginInfo *UbsePluginConfig::GetPluginConfig(const std::string &pluginName) const
-{
-    std::shared_lock<std::shared_mutex> lock(pluginConfigsMutex);
-    auto item = pluginConfigs.find(pluginName);
-    if (item == pluginConfigs.end()) {
-        return nullptr;
-    }
-    return &item->second;
+    std::shared_lock<std::shared_mutex> lock(pluginConfigsMutex_);
+    return pluginConfigs_;
 }
 
 UbseResult UbsePluginConfig::VerifyConfig(const UbsePluginInfo &pluginInfo, const std::string &fileName)
@@ -92,7 +85,7 @@ UbseResult UbsePluginConfig::VerifyConfig(const UbsePluginInfo &pluginInfo, cons
     }
 
     // 重复配置文件
-    if (pluginConfigs.find(pluginInfo.name) != pluginConfigs.end()) {
+    if (pluginConfigs_.find(pluginInfo.name) != pluginConfigs_.end()) {
         UBSE_LOG_WARN << "The plugin name: " << pluginInfo.name
                     << " has been configuration. related file: " << fileName;
         return UBSE_ERROR;

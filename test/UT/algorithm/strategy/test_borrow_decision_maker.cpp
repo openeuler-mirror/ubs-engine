@@ -1,18 +1,20 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_borrow_decision_maker.h"
+
 #include <mockcpp/mockcpp.hpp>
 #include "share_decision_maker.h"
+#include "ubse_pointer_process.h"
 
 namespace ubse::ut::algorithm {
 using namespace tc::rs::mem;
@@ -24,6 +26,7 @@ void BorrowDecisionMakerTest::SetUp()
 void BorrowDecisionMakerTest::TearDown()
 {
     Test::TearDown();
+    SafeDelete(mBorrowDecisionMaker);
 }
 
 StrategyParam GetDefaultParam(int numHosts)
@@ -84,7 +87,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowDecisionMaker)
     strategy.SetLogLevel(DEBUG);
 
     BorrowRequest borrowRequest;
-    UbseStatus rackStatus;
+    UbseStatus ubseStatus;
     BorrowResult borrowResult;
 
     borrowRequest.requestLoc.hostId = 0;
@@ -93,19 +96,19 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowDecisionMaker)
     borrowRequest.requestSize = 2 * 1024;
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
     for (int i = 0; i < param.numAvailNumas; i++) {
-        rackStatus.numaStatus[i].numa = param.availNumas[i];
-        rackStatus.numaStatus[i].memTotal = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 1024);
-        rackStatus.numaStatus[i].memUsed = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 512);
-        rackStatus.numaStatus[i].memFree = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 512);
-        rackStatus.numaLedgerStatus[i].numa = param.availNumas[i];
-        rackStatus.numaLedgerStatus[i].memShared = 0L;
-        rackStatus.numaLedgerStatus[i].memLent = 0L;
-        rackStatus.numaLedgerStatus[i].memBorrowed = 0L;
-        rackStatus.debtDetail.numaDebts[i].clear();
+        ubseStatus.numaStatus[i].numa = param.availNumas[i];
+        ubseStatus.numaStatus[i].memTotal = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 1024);
+        ubseStatus.numaStatus[i].memUsed = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 512);
+        ubseStatus.numaStatus[i].memFree = static_cast<uint64_t>((1L + i) * 1024 * 1024 * 512);
+        ubseStatus.numaLedgerStatus[i].numa = param.availNumas[i];
+        ubseStatus.numaLedgerStatus[i].memShared = 0L;
+        ubseStatus.numaLedgerStatus[i].memLent = 0L;
+        ubseStatus.numaLedgerStatus[i].memBorrowed = 0L;
+        ubseStatus.debtDetail.numaDebts[i].clear();
     }
 
-    auto ret = strategy.MemoryBorrow(borrowRequest, rackStatus, borrowResult);
-    EXPECT_EQ(HOK, ret);
+    auto ret = strategy.MemoryBorrow(borrowRequest, ubseStatus, borrowResult);
+    EXPECT_EQ(UBSE_OK, ret);
 }
 
 /**
@@ -116,14 +119,14 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase1)
 {
     Init(false, WatermarkGrain::HOST_WATERMARK);
     NumaStatus();
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     BorrowResult borrowResult;
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
     // 各numa剩余11G内存, 借用11G, 借用成功
     borrowRequest.requestSize = 11 * 1024;
-    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                                 borrowResult);
     ASSERT_EQ(borrowResult.lenderLength, 1);
     ASSERT_EQ(borrowResult.lenderLocs[0].hostId, 1);
@@ -132,7 +135,7 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase1)
     ASSERT_EQ(borrowResult.lenderSizes[0], 11 * 1024);
     // 各numa剩余11G内存, 借用12G, 借用失败
     borrowRequest.requestSize = 12 * 1024;
-    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                                 borrowResult);
     ASSERT_EQ(borrowResult.lenderLength, 0);
 }
@@ -140,7 +143,7 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase2)
 {
     Init(false, WatermarkGrain::HOST_WATERMARK);
     NumaStatus();
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     BorrowResult borrowResult;
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
@@ -148,7 +151,7 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase2)
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
     // 各numa剩余11G内存, 借用11G, 借用成功
     borrowRequest.requestSize = 11 * 1024;
-    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                                 borrowResult);
     ASSERT_EQ(borrowResult.lenderLength, 1);
     ASSERT_EQ(borrowResult.lenderLocs[0].hostId, 1);
@@ -157,7 +160,7 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase2)
     ASSERT_EQ(borrowResult.lenderSizes[0], 11 * 1024);
     // 各numa剩余11G内存, 借用12G, 借用失败
     borrowRequest.requestSize = 12 * 1024;
-    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                                 borrowResult);
     ASSERT_EQ(borrowResult.lenderLength, 0);
 }
@@ -172,9 +175,9 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowGreedy)
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
     // 各numa剩余11G内存, 借用11G, 借用成功
     borrowRequest.requestSize = 11 * 1024;
-    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), HOK);
+    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), UBSE_OK);
     borrowRequest.requestSize = 12 * 1024;
-    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), HFAIL);
+    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), UBSE_ERROR);
 }
 
 /**
@@ -185,14 +188,14 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase1)
 {
     Init(false, WatermarkGrain::HOST_WATERMARK);
     NumaStatus();
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     MemLoc requestLoc = mRackStatus.numaStatus[0].numa;
 
     // 同节点借用, 筛选失败
     MemLoc targetLoc = mRackStatus.numaStatus[2].numa;
     targetLoc.numaId = -1;
     ASSERT_EQ(
-        mBorrowDecisionMaker->LenderFilter(requestLoc, targetLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus),
+        mBorrowDecisionMaker->LenderFilter(requestLoc, targetLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_),
         false);
 }
 TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase2)
@@ -201,14 +204,14 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase2)
     NumaStatus();
     mRackStatus.debtDetail.numaDebts[0].insert({8, (0L + 1) * GB_TO_B});
     mRackStatus.debtDetail.numaDebts[0].insert({12, (0L + 1) * GB_TO_B});
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     MemLoc requestLoc = mRackStatus.numaStatus[0].numa;
 
     // 超过借用节点数量上限, 筛选失败
     MemLoc targetLoc = mRackStatus.numaStatus[4].numa;
     targetLoc.numaId = -1;
     ASSERT_EQ(
-        mBorrowDecisionMaker->LenderFilter(requestLoc, targetLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus),
+        mBorrowDecisionMaker->LenderFilter(requestLoc, targetLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_),
         false);
 }
 TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase3)
@@ -217,7 +220,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase3)
     NumaStatus();
     mRackStatus.debtDetail.numaDebts[0].insert({8, (0L + 1) * GB_TO_B});
     mRackStatus.debtDetail.numaDebts[0].insert({12, (0L + 1) * GB_TO_B});
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     MemLoc requestLoc = mRackStatus.numaStatus[0].numa;
 
     // 超过借用节点数量上限, 筛选失败
@@ -225,7 +228,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase3)
     targetLoc.numaId = -1;
     targetLoc.socketId = -1;
     try {
-        mBorrowDecisionMaker->LenderFilter(requestLoc, targetLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus);
+        mBorrowDecisionMaker->LenderFilter(requestLoc, targetLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_);
     } catch (const std::invalid_argument &e) {
         ASSERT_STREQ(e.what(), "Please check targetLoc in BorrowDecisionMaker::LenderFilter!");
     }
@@ -239,24 +242,24 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase1)
 {
     Init(false, WatermarkGrain::HOST_WATERMARK);
     NumaStatusCase3();
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
-    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
-    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
+    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
+    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
     // 所有socket均不可借
     borrowRequest.requestSize = 17 * 1024;
-    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                               socketResults, socketCost);
-    for (int i = 0; i < mBorrowDecisionMaker->memConfig->memAvailSocketsCnt; i++) {
+    for (int i = 0; i < mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt; i++) {
         ASSERT_EQ(socketResults[i].lenderLength, 0);
         ASSERT_EQ(socketCost[i], MAX_DEBT_COST);
     }
 
     // host1, host2不可借, host3, host4可借
     borrowRequest.requestSize = 11 * 1024;
-    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                               socketResults, socketCost);
     for (int i = 0; i < 4; i++) {
         ASSERT_EQ(socketResults[i].lenderLength, 0);
@@ -268,68 +271,72 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase1)
     ASSERT_EQ(socketResults[4].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[4].lenderSizes[0], 11 * 1024);
     ASSERT_EQ(socketCost[4],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 71.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 71.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) +
+                  0);
     ASSERT_EQ(socketResults[5].lenderLength, 1);
     ASSERT_EQ(socketResults[5].lenderLocs[0].hostId, 2);
     ASSERT_EQ(socketResults[5].lenderLocs[0].socketId, 1);
     ASSERT_EQ(socketResults[5].lenderLocs[0].numaId, 2);
     ASSERT_EQ(socketResults[5].lenderSizes[0], 11 * 1024);
     ASSERT_EQ(socketCost[5],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 71.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 71.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) +
+                  0);
     ASSERT_EQ(socketResults[6].lenderLength, 1);
     ASSERT_EQ(socketResults[6].lenderLocs[0].hostId, 3);
     ASSERT_EQ(socketResults[6].lenderLocs[0].socketId, 0);
     ASSERT_EQ(socketResults[6].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[6].lenderSizes[0], 11 * 1024);
     ASSERT_EQ(socketCost[6],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 79.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 79.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) +
+                  0);
     ASSERT_EQ(socketResults[7].lenderLength, 1);
     ASSERT_EQ(socketResults[7].lenderLocs[0].hostId, 3);
     ASSERT_EQ(socketResults[7].lenderLocs[0].socketId, 1);
     ASSERT_EQ(socketResults[7].lenderLocs[0].numaId, 2);
     ASSERT_EQ(socketResults[7].lenderSizes[0], 11 * 1024);
     ASSERT_GE(socketCost[7],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 79.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 79.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (11 * 1024) +
+                  0);
 }
 TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase2)
 {
     Init(false, WatermarkGrain::NUMA_WATERMARK);
     NumaStatusCase3();
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
-    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
-    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
+    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
+    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
 
     // 所有socket均不可借
     borrowRequest.requestSize = 8 * 1024;
-    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                               socketResults, socketCost);
-    for (int i = 0; i < mBorrowDecisionMaker->memConfig->memAvailSocketsCnt; i++) {
+    for (int i = 0; i < mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt; i++) {
         ASSERT_EQ(socketResults[i].lenderLength, 0);
         ASSERT_EQ(socketCost[i], MAX_DEBT_COST);
     }
 
     // host1, host2不可借, host3, host4可借
     borrowRequest.requestSize = 5 * 1024;
-    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                               socketResults, socketCost);
     for (int i = 0; i < 4; i++) {
         ASSERT_EQ(socketResults[i].lenderLength, 0);
@@ -339,62 +346,66 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase2)
     ASSERT_EQ(socketResults[4].lenderLocs[0].hostId, 2);
     ASSERT_EQ(socketResults[4].lenderLocs[0].socketId, 0);
     ASSERT_EQ(socketResults[4].lenderLocs[0].numaId, 0);
-    ASSERT_EQ(socketResults[4].lenderSizes[0], 3 * 1024 - mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[4].lenderSizes[0], 3 * 1024 - mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketResults[4].lenderLocs[1].hostId, 2);
     ASSERT_EQ(socketResults[4].lenderLocs[1].socketId, 0);
     ASSERT_EQ(socketResults[4].lenderLocs[1].numaId, 1);
-    ASSERT_EQ(socketResults[4].lenderSizes[1], 2 * 1024 + mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[4].lenderSizes[1], 2 * 1024 + mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketCost[4],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.89) / 2 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.89) / 2 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) +
+                  0);
     ASSERT_EQ(socketResults[5].lenderLength, 2);
     ASSERT_EQ(socketResults[5].lenderLocs[0].hostId, 2);
     ASSERT_EQ(socketResults[5].lenderLocs[0].socketId, 1);
     ASSERT_EQ(socketResults[5].lenderLocs[0].numaId, 2);
-    ASSERT_EQ(socketResults[5].lenderSizes[0], 3 * 1024 - mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[5].lenderSizes[0], 3 * 1024 - mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketResults[5].lenderLocs[1].hostId, 2);
     ASSERT_EQ(socketResults[5].lenderLocs[1].socketId, 1);
     ASSERT_EQ(socketResults[5].lenderLocs[1].numaId, 3);
-    ASSERT_EQ(socketResults[5].lenderSizes[1], 2 * 1024 + mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[5].lenderSizes[1], 2 * 1024 + mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketCost[5],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.89) / 2 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.89) / 2 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) +
+                  0);
     ASSERT_EQ(socketResults[6].lenderLength, 2);
     ASSERT_EQ(socketResults[6].lenderLocs[0].hostId, 3);
     ASSERT_EQ(socketResults[6].lenderLocs[0].socketId, 0);
     ASSERT_EQ(socketResults[6].lenderLocs[0].numaId, 0);
-    ASSERT_EQ(socketResults[6].lenderSizes[0], 4 * 1024 - mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[6].lenderSizes[0], 4 * 1024 - mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketResults[6].lenderLocs[1].hostId, 3);
     ASSERT_EQ(socketResults[6].lenderLocs[1].socketId, 0);
     ASSERT_EQ(socketResults[6].lenderLocs[1].numaId, 1);
-    ASSERT_EQ(socketResults[6].lenderSizes[1], 1 * 1024 + mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[6].lenderSizes[1], 1 * 1024 + mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketCost[6],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.87) / 2 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 110.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.87) / 2 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) +
+                  0);
     ASSERT_EQ(socketResults[7].lenderLength, 2);
     ASSERT_EQ(socketResults[7].lenderLocs[0].hostId, 3);
     ASSERT_EQ(socketResults[7].lenderLocs[0].socketId, 1);
     ASSERT_EQ(socketResults[7].lenderLocs[0].numaId, 2);
-    ASSERT_EQ(socketResults[7].lenderSizes[0], 4 * 1024 - mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[7].lenderSizes[0], 4 * 1024 - mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketResults[7].lenderLocs[1].hostId, 3);
     ASSERT_EQ(socketResults[7].lenderLocs[1].socketId, 1);
     ASSERT_EQ(socketResults[7].lenderLocs[1].numaId, 3);
-    ASSERT_EQ(socketResults[7].lenderSizes[1], 1 * 1024 + mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(socketResults[7].lenderSizes[1], 1 * 1024 + mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_GE(socketCost[7],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.87) / 2 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 130.0 / 140 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.87) / 2 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (5 * 1024) +
+                  0);
 }
 
 /**
@@ -410,7 +421,7 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowTopKCase1)
     mRackStatus.debtDetail.numaDebts[0].insert({12, (0L + 1) * GB_TO_B});
     mRackStatus.numaLedgerStatus[8].memBorrowed = 2L * 1024 * 1024 * 1024;
     mRackStatus.debtDetail.numaDebts[8].insert({4, (0L + 2) * GB_TO_B});
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
     borrowRequest.requestSize = 2 * 1024;
@@ -418,7 +429,7 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowTopKCase1)
 
     int topK = 5;
     BorrowResult borrowResults[topK];
-    mBorrowDecisionMaker->SelectTopKBorrow(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, topK,
+    mBorrowDecisionMaker->SelectTopKBorrow(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, topK,
                                            borrowResults);
     ASSERT_EQ(borrowResults[0].lenderLength, 1);
     ASSERT_EQ(borrowResults[0].lenderLocs[0].hostId, 2);
@@ -451,16 +462,16 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowTopKCase2)
     mRackStatus.debtDetail.numaDebts[0].insert({12, (0L + 1) * GB_TO_B});
     mRackStatus.numaLedgerStatus[8].memBorrowed = 2L * 1024 * 1024 * 1024;
     mRackStatus.debtDetail.numaDebts[8].insert({4, (0L + 2) * GB_TO_B});
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
     borrowRequest.requestSize = 1.5 * 1024;
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
 
-    int32_t unit = mBorrowDecisionMaker->mStrategyImpl->mConfig->memStaticParam.unitMemSize;
+    int32_t unit = mBorrowDecisionMaker->mStrategyImpl_->mConfig_->memStaticParam.unitMemSize;
     int topK = 5;
     BorrowResult borrowResults[topK];
-    mBorrowDecisionMaker->SelectTopKBorrow(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, topK,
+    mBorrowDecisionMaker->SelectTopKBorrow(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, topK,
                                            borrowResults);
     ASSERT_EQ(borrowResults[0].lenderLength, 2);
     ASSERT_EQ(borrowResults[0].lenderLocs[0].hostId, 2);
@@ -512,7 +523,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNuma)
     // numa0剩余10G, numa1, numa2, numa3剩余11G. socket0剩余内存较少
     mRackStatus.numaStatus[0].memUsed = 90L * 1024 * 1024 * 1024;
     mRackStatus.numaStatus[0].memFree = 10L * 1024 * 1024 * 1024;
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     // 借出方是socket2
     BorrowResult borrowResult;
     borrowResult.lenderLength = 2;
@@ -522,7 +533,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNuma)
     borrowResult.lenderSizes[1] = 2 * 1024;
     // 请求方是numa1, 应返回numa0
     MemLoc requestLoc = mRackStatus.numaStatus[1].numa;
-    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, borrowResult);
+    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, borrowResult);
     ASSERT_EQ(borrowResult.borrowerLocs[0].hostId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].socketId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].numaId, 0);
@@ -532,7 +543,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNuma)
     // 请求方是socket1, 应返回numa2
     requestLoc = mRackStatus.numaStatus[2].numa;
     requestLoc.numaId = -1;
-    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, borrowResult);
+    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, borrowResult);
     ASSERT_EQ(borrowResult.borrowerLocs[0].hostId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].socketId, 1);
     ASSERT_EQ(borrowResult.borrowerLocs[0].numaId, 2);
@@ -543,7 +554,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNuma)
     requestLoc.hostId = 0;
     requestLoc.socketId = -1;
     requestLoc.numaId = -1;
-    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, borrowResult);
+    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, borrowResult);
     ASSERT_EQ(borrowResult.borrowerLocs[0].hostId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].socketId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].numaId, 0);
@@ -559,7 +570,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNuma)
 TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowSingleCase1)
 {
     Init(false, WatermarkGrain::NUMA_WATERMARK);
-    mBorrowDecisionMaker->mStrategyImpl->SetLogLevel(TRACE);
+    mBorrowDecisionMaker->mStrategyImpl_->SetLogLevel(TRACE);
     NumaStatus();
     // 各socket优先级为6 4 7 5, 借用时均需拆分为2个numa提供内存
     mRackStatus.debtDetail.numaDebts[0].insert({8, (0L + 1) * GB_TO_B});
@@ -570,7 +581,7 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowSingleCase1)
     // 借入方socket0剩余内存更少
     mRackStatus.numaStatus[0].memUsed = 90L * 1024 * 1024 * 1024;
     mRackStatus.numaStatus[0].memFree = 10L * 1024 * 1024 * 1024;
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     // 借用请求方
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
@@ -589,20 +600,20 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowSingleCase1)
     ASSERT_EQ(borrowResult.borrowerLocs[0].hostId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].socketId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].numaId, 0);
-    ASSERT_EQ(borrowResult.lenderSizes[0], 1024 - mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(borrowResult.lenderSizes[0], 1024 - mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(borrowResult.lenderLocs[1].hostId, 2);
     ASSERT_EQ(borrowResult.lenderLocs[1].socketId, 0);
     ASSERT_EQ(borrowResult.lenderLocs[1].numaId, 1);
     ASSERT_EQ(borrowResult.borrowerLocs[1].hostId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[1].socketId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[1].numaId, 0);
-    ASSERT_EQ(borrowResult.lenderSizes[1], 512 + mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+    ASSERT_EQ(borrowResult.lenderSizes[1], 512 + mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
 }
 TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowSingleCase2)
 {
     Init(false, WatermarkGrain::NUMA_WATERMARK);
     NumaStatus();
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     // 借用请求方
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[0].numa;
@@ -619,7 +630,7 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase3)
 {
     Init1650(4 * 4, WatermarkGrain::HOST_WATERMARK);
 
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     BorrowRequest borrowRequest;
     BorrowResult borrowResult;
     borrowRequest.requestLoc = mRackStatus.numaStatus[20].numa; // Numa 5/0/0
@@ -627,7 +638,7 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase3)
 
     // 借用10G, host1,4numa内存不足, host6,7,9,13numa内存足够, host13剩余内存最多
     borrowRequest.requestSize = 10 * 1024;
-    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                                 borrowResult);
     ASSERT_EQ(borrowResult.lenderLength, 1);
     ASSERT_EQ(borrowResult.lenderLocs[0].hostId, 13);
@@ -636,7 +647,7 @@ TEST_F(BorrowDecisionMakerTest, TestFindLenderGreedyCase3)
     ASSERT_EQ(borrowResult.lenderSizes[0], 10 * 1024);
     // 借用超过26G, 所有numa内存不足
     borrowRequest.requestSize = 26 * 1024 + 1;
-    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    mBorrowDecisionMaker->DetermineLenderGreedy(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                                 borrowResult);
     ASSERT_EQ(borrowResult.lenderLength, 0);
 }
@@ -650,9 +661,9 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowGreedyCase1)
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
 
     borrowRequest.requestSize = 10 * 1024;
-    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), HOK);
+    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), UBSE_OK);
     borrowRequest.requestSize = 26 * 1024 + 1;
-    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), HFAIL);
+    ASSERT_EQ(mBorrowDecisionMaker->MemoryBorrowGreedy(borrowRequest, mRackStatus, borrowResult), UBSE_ERROR);
 }
 
 TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase4)
@@ -660,8 +671,8 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase4)
     Init1650(4 * 4, WatermarkGrain::HOST_WATERMARK);
     mRackStatus.debtDetail.numaDebts[20].insert({4, (0L + 1) * GB_TO_B});
     mRackStatus.debtDetail.numaDebts[20].insert({28, (0L + 1) * GB_TO_B});
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
-    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl->memSysStatus;
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
+    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_;
     MemLoc requestLoc = mRackStatus.numaStatus[20].numa;
     MemLoc targetLoc;
     // targetLoc不是一个socket
@@ -688,15 +699,15 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase4)
 TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
 {
     Init1650(4 * 4, WatermarkGrain::HOST_WATERMARK);
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
-    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl->memSysStatus;
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
+    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_;
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[20].numa;
     borrowRequest.requestSize = 1 * 1024;
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
-    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
-    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
-    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
+    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
+    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                               socketResults, socketCost);
     double freeRatio_host1[16]{1100.0 / 2800 - 1.0 / 2800,
                                1012.0 / 2800 - 1.0 / 2800,
@@ -832,11 +843,12 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
     ASSERT_EQ(socketResults[2].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[2].lenderSizes[0], 1024);
     ASSERT_NEAR(socketCost[2],
-                mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 210.0 / 300 + 0 + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host1 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 85.0 / 800) + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0,
+                mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 210.0 / 300 + 0 + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host1 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 85.0 / 800) + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) +
+                    0,
                 1e-10);
     ASSERT_EQ(socketResults[3].lenderLength, 1);
     ASSERT_EQ(socketResults[3].lenderLocs[0].hostId, 1);
@@ -844,22 +856,23 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
     ASSERT_EQ(socketResults[3].lenderLocs[0].numaId, 2);
     ASSERT_EQ(socketResults[3].lenderSizes[0], 1024);
     ASSERT_EQ(socketCost[3],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 85.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 85.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
     ASSERT_EQ(socketResults[8].lenderLength, 1);
     ASSERT_EQ(socketResults[8].lenderLocs[0].hostId, 4);
     ASSERT_EQ(socketResults[8].lenderLocs[0].socketId, 0);
     ASSERT_EQ(socketResults[8].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[8].lenderSizes[0], 1024);
     ASSERT_NEAR(socketCost[8],
-                mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 230.0 / 300 + 0 + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host4 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 109.0 / 800) + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0,
+                mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 230.0 / 300 + 0 + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host4 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 109.0 / 800) + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) +
+                    0,
                 1e-10);
     ASSERT_EQ(socketResults[9].lenderLength, 1);
     ASSERT_EQ(socketResults[9].lenderLocs[0].hostId, 4);
@@ -867,11 +880,11 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
     ASSERT_EQ(socketResults[9].lenderLocs[0].numaId, 2);
     ASSERT_EQ(socketResults[9].lenderSizes[0], 1024);
     ASSERT_EQ(socketCost[9],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host4 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 109.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host4 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 109.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
 
     ASSERT_EQ(socketResults[12].lenderLength, 1);
     ASSERT_EQ(socketResults[12].lenderLocs[0].hostId, 6);
@@ -879,11 +892,12 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
     ASSERT_EQ(socketResults[12].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[12].lenderSizes[0], 1024);
     ASSERT_NEAR(socketCost[12],
-                mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 230.0 / 300 + 0 + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host6 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 125.0 / 800) + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0,
+                mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 230.0 / 300 + 0 + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host6 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 125.0 / 800) + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) +
+                    0,
                 1e-10);
     ASSERT_EQ(socketResults[13].lenderLength, 1);
     ASSERT_EQ(socketResults[13].lenderLocs[0].hostId, 6);
@@ -891,22 +905,23 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
     ASSERT_EQ(socketResults[13].lenderLocs[0].numaId, 2);
     ASSERT_EQ(socketResults[13].lenderSizes[0], 1024);
     ASSERT_EQ(socketCost[13],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host6 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 125.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host6 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 125.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
     ASSERT_EQ(socketResults[14].lenderLength, 1);
     ASSERT_EQ(socketResults[14].lenderLocs[0].hostId, 7);
     ASSERT_EQ(socketResults[14].lenderLocs[0].socketId, 0);
     ASSERT_EQ(socketResults[14].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[14].lenderSizes[0], 1024);
     ASSERT_NEAR(socketCost[14],
-                mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 230.0 / 300 + 0 + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host7 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 133.0 / 800) + 0 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                    mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0,
+                mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 230.0 / 300 + 0 + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host7 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 133.0 / 800) + 0 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                    mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) +
+                    0,
                 1e-10);
     ASSERT_EQ(socketResults[15].lenderLength, 1);
     ASSERT_EQ(socketResults[15].lenderLocs[0].hostId, 7);
@@ -914,48 +929,48 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
     ASSERT_EQ(socketResults[15].lenderLocs[0].numaId, 2);
     ASSERT_EQ(socketResults[15].lenderSizes[0], 1024);
     ASSERT_EQ(socketCost[15],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host7 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 133.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host7 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 133.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
     ASSERT_EQ(socketResults[18].lenderLength, 1);
     ASSERT_EQ(socketResults[18].lenderLocs[0].hostId, 9);
     ASSERT_EQ(socketResults[18].lenderLocs[0].socketId, 0);
     ASSERT_EQ(socketResults[18].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[18].lenderSizes[0], 1024);
     ASSERT_EQ(socketCost[18],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 210.0 / 300 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host9 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 149.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 210.0 / 300 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host9 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 149.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
     ASSERT_EQ(socketResults[19].lenderLength, 1);
     ASSERT_EQ(socketResults[19].lenderLocs[0].hostId, 9);
     ASSERT_EQ(socketResults[19].lenderLocs[0].socketId, 1);
     ASSERT_EQ(socketResults[19].lenderLocs[0].numaId, 2);
     ASSERT_EQ(socketResults[19].lenderSizes[0], 1024);
     ASSERT_EQ(socketCost[19],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost_host9 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (1 - 149.0 / 800) + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 290.0 / 300 + 0 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost_host9 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (1 - 149.0 / 800) + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 64.0 / (1 * 1024) + 0);
 }
 TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase5)
 {
     Init1650(4 * 4, WatermarkGrain::NUMA_WATERMARK);
     mRackStatus.numaLedgerStatus[4].memBorrowed = (0L + 1) * 1024 * 1024 * 1024;
     mRackStatus.debtDetail.numaDebts[4].insert({0, (0L + 1) * GB_TO_B});
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
-    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl->memSysStatus;
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
+    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_;
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[20].numa;
     borrowRequest.requestSize = 25 * 1024;
     borrowRequest.urgentLevel = RequestUrgentLevel::LEVEL0;
-    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
-    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig->memAvailSocketsCnt);
-    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl->memSysStatus,
+    std::vector<BorrowResult> socketResults(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
+    std::vector<double> socketCost(mBorrowDecisionMaker->memConfig_->memAvailSocketsCnt);
+    mBorrowDecisionMaker->GetSocketBorrowCost(borrowRequest, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_,
                                               socketResults, socketCost);
     double freeRatio[16]{1100.0 / 2800,
                          1012.0 / 2800 - 25.0 / 2800,
@@ -993,25 +1008,25 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase5)
     ASSERT_EQ(socketResults[26].lenderLocs[0].socketId, 0);
     ASSERT_EQ(socketResults[26].lenderLocs[0].numaId, 0);
     ASSERT_EQ(socketResults[26].lenderSizes[0],
-              13 * 1024 - mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+              13 * 1024 - mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketResults[26].lenderLocs[1].hostId, 13);
     ASSERT_EQ(socketResults[26].lenderLocs[1].socketId, 0);
     ASSERT_EQ(socketResults[26].lenderLocs[1].numaId, 1);
     ASSERT_EQ(socketResults[26].lenderSizes[1],
-              12 * 1024 + mBorrowDecisionMaker->memConfig->memStaticParam.unitMemSize);
+              12 * 1024 + mBorrowDecisionMaker->memConfig_->memStaticParam.unitMemSize);
     ASSERT_EQ(socketCost[26],
-              mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wLatencyCost * 210.0 / 300 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wRegionBalanceCost * cost +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.89) / 2 + 0 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wReliabilityCost * 1 +
-                  mBorrowDecisionMaker->memConfig->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (25 * 1024) +
+              mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wLatencyCost * 210.0 / 300 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wRegionBalanceCost * cost +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wBalanceCost * (0.9 + 0.89) / 2 + 0 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wReliabilityCost * 1 +
+                  mBorrowDecisionMaker->memConfig_->memStaticParam.borrowParam.wDivideNumaCost * 128.0 / (25 * 1024) +
                   0);
 }
 TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowTopKCase3)
 {
     Init1650(4 * 4, WatermarkGrain::HOST_WATERMARK);
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
-    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl->memSysStatus;
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
+    SysStatus sysStatus = mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_;
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[20].numa;
     borrowRequest.requestSize = 9 * 1024;
@@ -1035,7 +1050,7 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowTopKCase3)
 TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNumaCase1)
 {
     Init1650(4 * 4, WatermarkGrain::HOST_WATERMARK);
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     // 借出方是 5/0
     BorrowResult borrowResult;
     borrowResult.lenderLength = 2;
@@ -1046,7 +1061,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNumaCase1)
 
     // 请求方是 1/0/1, 返回1/0/0
     MemLoc requestLoc = mRackStatus.numaStatus[5].numa;
-    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, borrowResult);
+    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, borrowResult);
     ASSERT_EQ(borrowResult.borrowerLocs[0].hostId, 1);
     ASSERT_EQ(borrowResult.borrowerLocs[0].socketId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].numaId, 0);
@@ -1056,7 +1071,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNumaCase1)
     // 请求方是 4/0, 应返回4/0/0
     requestLoc = mRackStatus.numaStatus[16].numa;
     requestLoc.numaId = -1;
-    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, borrowResult);
+    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, borrowResult);
     ASSERT_EQ(borrowResult.borrowerLocs[0].hostId, 4);
     ASSERT_EQ(borrowResult.borrowerLocs[0].socketId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].numaId, 1);
@@ -1067,7 +1082,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNumaCase1)
     requestLoc = mRackStatus.numaStatus[24].numa;
     requestLoc.numaId = -1;
     requestLoc.socketId = -1;
-    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl->memSysStatus, borrowResult);
+    mBorrowDecisionMaker->Borrower2Numa(requestLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_, borrowResult);
     ASSERT_EQ(borrowResult.borrowerLocs[0].hostId, 6);
     ASSERT_EQ(borrowResult.borrowerLocs[0].socketId, 0);
     ASSERT_EQ(borrowResult.borrowerLocs[0].numaId, 1);
@@ -1078,8 +1093,8 @@ TEST_F(BorrowDecisionMakerTest, TestBorrower2UniqueNumaCase1)
 TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowSingleCase3)
 {
     Init1650(4 * 4, WatermarkGrain::HOST_WATERMARK);
-    mBorrowDecisionMaker->mStrategyImpl->SetLogLevel(OFF);
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->SetLogLevel(OFF);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     // 借用请求方
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[20].numa;
@@ -1102,8 +1117,8 @@ TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowSingleCase3)
 TEST_F(BorrowDecisionMakerTest, TestMemoryBorrowSingleCase4)
 {
     Init1650Case2(1 * 8, WatermarkGrain::HOST_WATERMARK);
-    mBorrowDecisionMaker->mStrategyImpl->SetLogLevel(OFF);
-    mBorrowDecisionMaker->mStrategyImpl->InitSysStatus(mRackStatus);
+    mBorrowDecisionMaker->mStrategyImpl_->SetLogLevel(OFF);
+    mBorrowDecisionMaker->mStrategyImpl_->InitSysStatus(mRackStatus);
     // 借用请求方
     BorrowRequest borrowRequest;
     borrowRequest.requestLoc = mRackStatus.numaStatus[20].numa;

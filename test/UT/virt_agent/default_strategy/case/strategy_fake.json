@@ -1,0 +1,45 @@
+{
+	"description": "fakeTset case",
+	"input": {
+		"alarmNumaInfo":{
+			"isMemReturn": true,
+			"oomEventFlag": 0,
+			"numaLoc": ["192",192,0],
+			"vmBasicInfos": [],
+			"borrowItemInfo": {
+				"borrowItem":[{
+					"exportLocNum": 2,
+					"exportLocInfo": [["190",0,0],["190",0,1]],
+					"requestSize": [2097152000,2098200576],
+					"importMemId": 0,
+					"name": "2000"
+				}]
+				}
+		},
+		"globalNumaInfoMap":[]
+	},
+	"output": {
+		"escapeActionType":"RETURN",
+		"migrations": [],
+		"returnMemNames": ["2000"],
+		"borrowSizes": [2147483648]
+	},
+	"conf": {
+		"memReturnLine": "80",
+		"memFirstLine": "85",
+		"memSecondLine": "92",
+		"minMemOverageRecovery": 0.02,
+		"maxMemBorrow": 0.25,
+		"maxMemPerBorrowBytes": 4294967296,
+		"minMemPerBorrowBytes": 1073741824,
+		"memBorrowAlignBytes": 1073741824,
+		"maxPerTotalMemBorrowBytes": 17179869184,
+		"minMemPerMigrationBytes": 2147483648,
+		"oomEventBorrowBytes": 1073741824,
+		"minSecondsOfVmMigrateInterval": 160,
+		"minSecondsOfNumaMigrateInterval": 90,
+		"minSecondsOfNonMigratableVmInterval": 300,
+		"maxOneCopyMigrationBytes": 4294967296,
+		"maxIterativeCopyMigrationBytes": 17179869184
+	}
+}

@@ -12,13 +12,33 @@
 
 #ifndef UBSE_MEM_DEF_H
 #define UBSE_MEM_DEF_H
-#include <cstring>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MEM_MAX_ID_LENGTH 48 // 节点id，共享内存name，最大限制1024
+#define UBSE_MEM_RESOURCE_ID_MAX_LEN 48
+#define UBSE_MEM_EXPORT_NUMA_MAX_NUM 2
+#define UBSE_MEM_NUMA_MAX_NUM 8
+#define UBSE_MEM_CUSTOM_DATA_MAX_LEN 128
+#define UBSE_MEM_NUMA_BIND_CORE_MAX_NUM 128
+#define UBSE_MEM_ID_MAX_LENGTH 48 // 节点id，共享内存name，最大限制48
+#define UBSE_MEM_MAX_TOPOLOGY_HOSTS 16
+#define UBSE_MEM_RESOURCE_KIND_LEN 16
+#define UBSE_MEM_CONFIF_EXECUTE_STATUS_LEN 16
+#define UBSE_MEM_CONFIF_EXECUTE_STATUS_TYPE_LEN 8
+#define UBSE_MEM_BORROW_TYPE_LEN 16
+#define UBSE_MEM_HIGH_WATERMARK_DEFAULT 88
+#define UBSE_MEM_LOW_WATERMARK_DEFAULT 11
+#define UBSE_MEM_APP_BORROW_REQUEST "APP_BORROW"
+#define UBSE_MEM_SHARE_REQUEST "SHARE"
+#define UBSE_MEM_WATER_BORROW_REQUEST "WATER_BORROW"
+#define UBSE_MEM_APP_PRI_REQUEST "APP_PRI_BORROW"
+#define UBSE_MEM_CREATE_TYPE "CREATE"
+#define UBSE_MEM_DELETE_TYPE "DELETE"
+#define UBSE_MEM_ATTACH_TYPE "ATTACH"
+#define UBSE_MEM_DETACH_TYPE "DETACH"
+
+#define MEM_MAX_ID_LENGTH 48            // 节点id，共享内存name，最大限制1024
 #define MEM_INVALID_NODE_ID ("")
 #define MEM_TOPOLOGY_MAX_HOSTS 16
 #define MEM_MAX_NUMA_NUM_PER_ITEM 2     // 单次请求最多导出numa位置
@@ -63,34 +83,6 @@ struct NodeBorrowMemInfo {
     uint64_t lentMemSize;        // 已经借出的内存大小，单位字节
 };
 
-// 错误码同时会设置到errno变量里面，系统的范围是0-1000，mem插件用1000-11000
-// 根据错误码，快速定位到需要看什么日志文件
-// typedef int error_t;
-typedef enum UbseMemErrorCode : int {
-    HOK = 0,
-    E_CODE_INVALID_PAR = 1000,         // 参数错误
-    E_CODE_MEMLIB_IPC = 1001,          // ipc通信
-    E_CODE_AGENT_RPC = 1002,           // rpc通信，agent发起
-    E_CODE_MASTER_RPC = 1003,          // rpc通信,主节点发起的请求
-    E_CODE_MEM_NOT_READY = 1004,       // 插件没准备好，切主，或者插件被卸载等错误.需要重试
-    E_CODE_MEMLIB = 1005,              // 应用使能库内部错误,需要看memlib日志
-    E_CODE_AGENT = 1006,               // agent mem插件内部错误，需要看mem_agent日志
-    E_CODE_MANAGER = 1007,             // master 插件内部错误，需要看mem_manager日志
-    E_CODE_RESOURCE_EXIST = 1008,      // 资源已存在，create失败
-    E_CODE_RESOURCE_NOT_CREATE = 1009, // 删除的时候，资源不存在
-    E_CODE_RESOURCE_ATTACHED = 1010,   // 删除共享内存的时候，返回还有节点在attach
-    E_CODE_STRATEGY_ERROR = 1011,      // 算法失败，可能是obmm资源使用完，.有限重试
-    E_CODE_OBMM_OP_FAILED =
-        1012, // obmm接口调用失败，大概率是设备还在使用，不能归还，或者dmesg返回-12资源不够用，有限重试
-    E_CODE_SMAP_OP_FAILED = 1013,              // SMAP接口调用失败
-    E_CODE_SCBUS_DAEMON = 1014,                // 控制面接口调用失败，有限重试
-    E_CODE_OPEN_FILE = 1015,                   // open文件失败（一般是obmm设备）
-    E_CODE_MMAP_FILE = 1016,                   // mmap文件失败（一般是obmm设备）
-    E_CODE_NULLPTR = 1017,                     // 空指针，有限重试
-    E_CODE_SERIALIZE_DESERIALIZE_ERROR = 1018, // 消息反序列化，有限重试
-    E_CODE_CRC_CHECK_ERROR = 1019              // 消息错误，有限重试
-} RmErrorCode;
-
 typedef enum UbseMemQueryType {
     QUERY_OBMM_CLEAR_CONF = 0,
     QUERY_MEM_NUMA_STATUS,   /* 查询numa状态信息，对应结构体：QueryNumaStatus */
@@ -98,7 +90,7 @@ typedef enum UbseMemQueryType {
     QUERY_MEM_ACCOUNT,       /* 查询账本信息，对应结构体：QueryMemAccount */
     QUERY_SHM_ACCOUNT,       /* 查询内存共享账本，对应结构体；QueryShmAccount */
     QUERY_MEM_NODE_INFO,     /* app查询本地节点信息，对应结构体：QueryLocalBorrowMemInfo;
-                                    RM.mem端查询所有节点借用信息接口，对应结构体：QueryAllNodeBorrowMemInfo */
+                                RM.mem端查询所有节点借用信息接口，对应结构体：QueryAllNodeBorrowMemInfo */
 } QueryType;
 
 void DestroyUbseMemLib(void);
@@ -113,5 +105,4 @@ const char *ErrCodeToStr(int errNum);
 #ifdef __cplusplus
 }
 #endif
-
-#endif
+#endif // UBSE_MEM_DEF_H

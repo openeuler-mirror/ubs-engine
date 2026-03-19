@@ -14,76 +14,76 @@
 #include "ubse_logger_ringbuffer.h"
 
 namespace ubse::log {
-RingBuffer::RingBuffer(uint32_t size) : size(size), right(0)
+RingBuffer::RingBuffer(uint32_t size) : size_(size), right_(0)
 {
-    buffer.resize(size);
+    buffer_.resize(size);
 }
 
 RingBuffer::~RingBuffer()
 {
-    buffer.clear();
+    buffer_.clear();
 }
 
 bool RingBuffer::IsEmpty() const
 {
-    return left == right;
+    return left_ == right_;
 }
 
 void RingBuffer::Push(UbseLoggerEntry &&loggerEntry)
 {
-    uint32_t writeIndex = right.fetch_add(1, std::memory_order_relaxed);
-    if (writeIndex < size) {
-        buffer[writeIndex] = std::move(loggerEntry);
+    uint32_t writeIndex = right_.fetch_add(1, std::memory_order_relaxed);
+    if (writeIndex < size_) {
+        buffer_[writeIndex] = std::move(loggerEntry);
         bool expected = true;
-        if (bufferFullWarned.compare_exchange_strong(expected, false, std::memory_order_relaxed)) {
+        if (bufferFullWarned_.compare_exchange_strong(expected, false, std::memory_order_relaxed)) {
             std::cout << "Log buffer recovered." << std::endl;
         }
     } else {
         bool expected = false;
-        if (bufferFullWarned.compare_exchange_strong(expected, true, std::memory_order_relaxed)) {
+        if (bufferFullWarned_.compare_exchange_strong(expected, true, std::memory_order_relaxed)) {
             std::cout << "Log buffer is full, dropping logs." << std::endl;
         }
-        right--;
+        right_--;
     }
 }
 
 void RingBuffer::Pop(UbseLoggerEntry &loggerEntry)
 {
-    loggerEntry = std::move(buffer[left]);
-    left++;
+    loggerEntry = std::move(buffer_[left_]);
+    left_++;
 }
 
 void LogBuffer::Push(UbseLoggerEntry &&loggerEntry)
 {
     // 需要支持多线程同时写入
-    std::shared_lock<std::shared_mutex> lock(mtx);
-    if (stop) {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+    if (stop_) {
         return;
     }
-    writeBuffer.Push(std::move(loggerEntry));
+    writeBuffer_.Push(std::move(loggerEntry));
 }
 
 bool LogBuffer::Pop(UbseLoggerEntry &loggerEntry)
 {
     // 读为单线程操作
-    if (readBuffer.IsEmpty()) {
-        if (writeBuffer.IsEmpty()) {
+    if (readBuffer_.IsEmpty()) {
+        if (writeBuffer_.IsEmpty()) {
             return false;
         } else {
             Swap();
         }
     }
-    readBuffer.Pop(loggerEntry);
+    readBuffer_.Pop(loggerEntry);
     return true;
 }
 
 void LogBuffer::Swap()
 {
-    std::unique_lock<std::shared_mutex> lock(mtx);
-    std::swap(readBuffer.buffer, writeBuffer.buffer);
-    readBuffer.left.store(0);
-    readBuffer.right.store(writeBuffer.right.load());
-    writeBuffer.left.store(0);
-    writeBuffer.right.store(0);
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    std::swap(readBuffer_.buffer_, writeBuffer_.buffer_);
+    readBuffer_.left_.store(0);
+    readBuffer_.right_.store(writeBuffer_.right_.load());
+    writeBuffer_.left_.store(0);
+    writeBuffer_.right_.store(0);
 }
 } // namespace ubse::log

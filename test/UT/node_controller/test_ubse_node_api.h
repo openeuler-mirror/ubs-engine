@@ -18,7 +18,6 @@
 #include "ubse_node_api.h"
 #include "ubse_serial_util.h"
 #include "ubse_context.h"
-#include "ubse_node_topology.h"
 #include "ubse_api_server_module.h"
 #include "ubse_node_controller_query_api.h"
 #include "ubse_node_api_convert.h"
@@ -26,9 +25,8 @@
 #include "ubse_election_module.h"
 
 namespace ubse::node::api {
-extern UbseResult UbseSplitStringByHyphen(const std::string &ubse_node_socket_id,
-                                          ubse::serial::UbseSerialization &ubse_serial);
 extern void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo> &nodeList);
+extern std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestContext &context);
 }
 namespace ubse::node::api::ut {
 using namespace ubse::node::api;

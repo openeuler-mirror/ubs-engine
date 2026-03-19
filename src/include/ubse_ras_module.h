@@ -13,7 +13,7 @@
 #ifndef UBSE_MANAGER_UBSE_RAS_MODULE_H
 #define UBSE_MANAGER_UBSE_RAS_MODULE_H
 #include "ubse_module.h"
-#include "src/res_plugins/syssentry/sentry_observer.h"
+#include "src/adapter_plugins/syssentry/sentry_observer.h"
 
 namespace ubse::ras {
 using namespace ubse::module;

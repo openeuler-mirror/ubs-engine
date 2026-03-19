@@ -13,11 +13,11 @@
 #ifndef UBSE_MANAGER_UBSE_RAS_HANDLER_H
 #define UBSE_MANAGER_UBSE_RAS_HANDLER_H
 #include <unordered_map>
-#include "ubse_common_def.h"
 #include "register_xalarm.h"
+#include "sys/time.h"
+#include "ubse_common_def.h"
 #include "ubse_ras.h"
 #include "ubse_ras_com_handler.h"
-#include "ubse_topology_interface.h"
 
 namespace ubse::ras {
 using namespace ubse::common::def;
@@ -25,7 +25,37 @@ using namespace ubse::common::def;
 using XalarmReportEventFunc = int (*)(unsigned short, char *);
 using HandlerMap = std::vector<std::pair<std::string, AlarmFaultHandler>>;
 using NodeStateHandler = std::function<void(const std::string &faultInfo)>;
+using NodeHandler = std::function<UbseResult(const std::string &nodeId)>;
 
+constexpr std::array<char, 11> SPECIAL_CHAR_WHITE_LIST {
+        '_', '{', '}', '\'', '\"', ':', '[', ']', ',', ' ', '-'
+};
+
+inline bool IsAllowedSpecialChar(char ch)
+{
+    return std::find(SPECIAL_CHAR_WHITE_LIST.begin(), SPECIAL_CHAR_WHITE_LIST.end(), ch) !=
+           SPECIAL_CHAR_WHITE_LIST.end();
+}
+
+inline bool IsDigitString(const std::string &str)
+{
+    return std::all_of(str.begin(), str.end(), [](char ch) { return std::isdigit(ch); });
+}
+
+inline bool hasInvalidChars(const std::string &str)
+{
+    // 数字、字母、白名单的特殊符号属于合法字符，其余为非法字符。函数检测是否包含非法字符，如果包含则返回false
+    return std::any_of(str.begin(), str.end(), [](char ch) {
+        return !(std::isalnum(ch) || IsAllowedSpecialChar(ch));
+    });
+}
+enum class NodeHandlerType {
+    PRE_FAULT_STATE_HANDLER_TYPE            = 0,
+    PRE_FAULT_STATE_FAIL_HANDLER_TYPE       = 1,
+    NODE_FAULT_STATE_HANDLER_TYPE           = 2,
+    NODE_FAULT_STATE_CLEAR_HANDLER_TYPE     = 3,
+    NODE_HANDLER_TYPE_NUM                   = 4
+};
 class UbseRasHandler {
 public:
     friend class UbseRasComHandler;
@@ -39,7 +69,7 @@ public:
      * 初始化RasHandler
      * @return
      */
-    UbseResult StartRasHandler();
+    static UbseResult StartRasHandler();
 
     /**
      * 删除拷贝构造函数
@@ -64,7 +94,7 @@ public:
      * @param alarmHandler
      * @return
      */
-    UbseResult RegisterAlarmFaultHandler(AlarmHandler alarmHandler);
+    UbseResult RegisterAlarmFaultHandler(const AlarmHandler &alarmHandler);
 
     /**
      * 解注册故障处理函数
@@ -75,9 +105,36 @@ public:
     uint32_t UnRegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string &name);
 
     /**
-     * 设置修改节点状态回调函数
+     * 注册node controller回调
+     * @param handlerType
+     * @param handler
+     * @return
      */
-    void SetNodeStateHandler(NodeStateHandler handler);
+    UbseResult RegisterNodeHandler(const NodeHandlerType &handlerType, const NodeHandler &handler);
+
+    /**
+    * 执行node controller回调
+    * @param handlerType
+    * @param nodeId
+    * @return
+    */
+    UbseResult CallNodeHandle(const NodeHandlerType &handlerType, const std::string &nodeId);
+
+    /**
+     * 记录成功处理故障的msgId
+     * @param msgId 故障对应的msgId
+     */
+    void AddProcessedMsgId(const std::string &msgId);
+
+    /**
+      * sysSentry内核重插时，清除所有msgId
+      */
+    void ClearAllMsgId();
+
+    /**
+       * 给定msgId，判断是否已处理过
+       */
+    bool MsgIdHasBeenProcessed(const std::string &msgId) const;
 
 private:
     /*
@@ -92,7 +149,7 @@ private:
     /*
      * 处理BMC下电故障
      */
-    UbseResult HandleBMCFault(std::string info);
+    static UbseResult HandleBMCFault(const std::string &info);
 
     /*
      * 处理Oom故障
@@ -102,23 +159,33 @@ private:
     /*
      * 处理PANIC / Kernel Reboot 故障
      */
-    UbseResult HandlePanicAndRebootFault(ALARM_FAULT_TYPE faultType, std::string info);
+    UbseResult HandlePanicAndRebootFault(ALARM_FAULT_TYPE faultType, const std::string &info);
+
+    /*
+     * 处理内存故障
+     */
+    UbseResult HandleMemoryFault(ALARM_FAULT_TYPE faultType, std::string info);
 
     /*
      * 执行故障事件回调
      */
-    UbseResult ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, std::string faultInfo);
+    UbseResult ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string &faultInfo, const std::string &msg);
+    UbseResult ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string &faultInfo);
 
 private:
     static UbseRasHandler instance;
     std::unordered_map<ALARM_FAULT_TYPE, std::map<AlarmHandlerPriority, HandlerMap>> faultHandlerMap{};
     NodeStateHandler nodeStateHandler;
+    std::unordered_map<NodeHandlerType, std::vector<NodeHandler>> nodeHandlerMap;
+    std::set<std::string> processedMsgId;  // 已成功处理故障对应的msgId
 };
 
 bool IsMemInitFinished();
-UbseResult HandleCnaAndEidMsg(const std::string faultInfo, std::string &faultNodeId);
+UbseResult HandleCnaAndEidMsg(const std::string &faultInfo, std::string &faultNodeId);
 std::string QueryNodeIdByEid(const std::string &eid);
-UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, std::string message);
+UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::string &message);
+void LogMemDebtInfoWithNode(ALARM_FAULT_TYPE faultType, const std::string &faultNode);
+void ClearFaultHandlerResult(const std::string &msgId);
 
 } // namespace ubse::ras
 #endif // UBSE_MANAGER_UBSE_RAS_HANDLER_H

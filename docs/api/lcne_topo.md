@@ -1,6 +1,6 @@
-# 1. LCNE TOPO 变化通知接口
+# 1. UBM TOPO 变化通知接口
 
-> 提供给LCNE通知UBSE，系统topo变化的通知接口
+> 提供给UBM通知UBSE，系统topo变化的通知接口
 
 ## 基础信息
 - **服务地址**：`127.0.0.1:8082`，其中端口号8082可通过配置文件修改
@@ -19,8 +19,8 @@
 - **路径**：`/topolink/change/` (例: `/users/{id}`)
 - **请求头**：
   ```http
-  Accept: application/yang-data+xml
-  Content-Type: application/yang-data+xml
+  Authorization: Bearer [token]
+  Content-Type: application/xml
   ```
 
 #### 请求参数

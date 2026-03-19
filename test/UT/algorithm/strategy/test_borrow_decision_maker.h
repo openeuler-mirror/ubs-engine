@@ -1,20 +1,21 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #ifndef UBS_ENGINE_TEST_SHARE_DECISION_MAKER_H
 #define UBS_ENGINE_TEST_SHARE_DECISION_MAKER_H
 
 #include <gtest/gtest.h>
 #include <iomanip>
+#include <mockcpp/mockcpp.hpp>
 #include "borrow_decision_maker.h"
 #include "mem_pool_config.h"
 #include "mem_pool_strategy_impl.h"
@@ -28,6 +29,7 @@ using namespace ubse::common::def;
 class BorrowDecisionMakerTest : public testing::Test {
 public:
     BorrowDecisionMakerTest() = default;
+
     void Init(bool missNuma, WatermarkGrain waterLine)
     {
         auto mStrategyImpl = new MemPoolStrategyImpl();
@@ -40,7 +42,7 @@ public:
         param.maxBorrowHosts[0] = TWO;
         param.watermarkGrain = waterLine;
         mStrategyImpl->Init(param);
-        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker.get();
+        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker_.get();
     }
     void InitTopK1(bool missNuma, WatermarkGrain waterLine)
     {
@@ -54,18 +56,18 @@ public:
         param.maxBorrowHosts[0] = TWO;
         param.watermarkGrain = waterLine;
         mStrategyImpl->Init(param);
-        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker.get();
+        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker_.get();
     }
     void NumaStatus()
     {
         // 各numa总内存100G, 借出5G, 共享5G, 借入5G
-        for (int i = 0; i < mBorrowDecisionMaker->memConfig->memStaticParam.numAvailNumas; i++) {
+        for (int i = 0; i < mBorrowDecisionMaker->memConfig_->memStaticParam.numAvailNumas; i++) {
             mRackStatus.numaStatus[i].timestamp = time_t(i);
-            mRackStatus.numaStatus[i].numa = mBorrowDecisionMaker->memConfig->memStaticParam.availNumas[i];
+            mRackStatus.numaStatus[i].numa = mBorrowDecisionMaker->memConfig_->memStaticParam.availNumas[i];
             mRackStatus.numaStatus[i].memTotal = (0L + HUNDRED) * GB_TO_B;
             mRackStatus.numaStatus[i].memUsed = (0L + HUNDRED - NO_11) * GB_TO_B;
             mRackStatus.numaStatus[i].memFree = (0L + NO_11) * GB_TO_B;
-            mRackStatus.numaLedgerStatus[i].numa = mBorrowDecisionMaker->memConfig->memStaticParam.availNumas[i];
+            mRackStatus.numaLedgerStatus[i].numa = mBorrowDecisionMaker->memConfig_->memStaticParam.availNumas[i];
             mRackStatus.numaLedgerStatus[i].memBorrowed = 0L;
             mRackStatus.numaLedgerStatus[i].memLent = 0L;
             mRackStatus.numaLedgerStatus[i].memShared = 0L;
@@ -75,13 +77,13 @@ public:
     void NumaStatusCase2()
     {
         // 各numa总内存100G, 借出5G, 共享5G, 借入5G
-        for (int i = 0; i < mBorrowDecisionMaker->memConfig->memStaticParam.numAvailNumas; i++) {
+        for (int i = 0; i < mBorrowDecisionMaker->memConfig_->memStaticParam.numAvailNumas; i++) {
             mRackStatus.numaStatus[i].timestamp = time_t(i);
-            mRackStatus.numaStatus[i].numa = mBorrowDecisionMaker->memConfig->memStaticParam.availNumas[i];
+            mRackStatus.numaStatus[i].numa = mBorrowDecisionMaker->memConfig_->memStaticParam.availNumas[i];
             mRackStatus.numaStatus[i].memTotal = (0L + HUNDRED) * GB_TO_B;
             mRackStatus.numaStatus[i].memUsed = (0L + NO_50) * GB_TO_B;
             mRackStatus.numaStatus[i].memFree = (0L + NO_50) * GB_TO_B;
-            mRackStatus.numaLedgerStatus[i].numa = mBorrowDecisionMaker->memConfig->memStaticParam.availNumas[i];
+            mRackStatus.numaLedgerStatus[i].numa = mBorrowDecisionMaker->memConfig_->memStaticParam.availNumas[i];
             mRackStatus.numaLedgerStatus[i].memBorrowed = 0L;
             mRackStatus.numaLedgerStatus[i].memLent = 0L;
             mRackStatus.numaLedgerStatus[i].memShared = 0L;
@@ -90,13 +92,13 @@ public:
     }
     void NumaStatusCase3()
     {
-        for (int i = 0; i < mBorrowDecisionMaker->memConfig->memStaticParam.numAvailNumas; i++) {
+        for (int i = 0; i < mBorrowDecisionMaker->memConfig_->memStaticParam.numAvailNumas; i++) {
             mRackStatus.numaStatus[i].timestamp = time_t(i);
-            mRackStatus.numaStatus[i].numa = mBorrowDecisionMaker->memConfig->memStaticParam.availNumas[i];
+            mRackStatus.numaStatus[i].numa = mBorrowDecisionMaker->memConfig_->memStaticParam.availNumas[i];
             mRackStatus.numaStatus[i].memTotal = (0L + HUNDRED) * GB_TO_B;
             mRackStatus.numaStatus[i].memUsed = (0L + HUNDRED - NO_10 - (i / NO_4 + 1)) * GB_TO_B;
             mRackStatus.numaStatus[i].memFree = mRackStatus.numaStatus[i].memTotal - mRackStatus.numaStatus[i].memUsed;
-            mRackStatus.numaLedgerStatus[i].numa = mBorrowDecisionMaker->memConfig->memStaticParam.availNumas[i];
+            mRackStatus.numaLedgerStatus[i].numa = mBorrowDecisionMaker->memConfig_->memStaticParam.availNumas[i];
             mRackStatus.numaLedgerStatus[i].memBorrowed = 0L;
             mRackStatus.numaLedgerStatus[i].memLent = 0L;
             mRackStatus.numaLedgerStatus[i].memShared = 0L;
@@ -110,7 +112,7 @@ public:
         param.watermarkGrain = watermarkGrain;
         param.maxBorrowHosts[NO_5] = TWO;
         mStrategyImpl->Init(param);
-        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker.get();
+        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker_.get();
 
         for (int i = 0; i < param.numAvailNumas; i++) {
             mRackStatus.numaStatus[i].timestamp = time_t(i);
@@ -147,7 +149,7 @@ public:
         param.watermarkGrain = watermarkGrain;
         param.maxBorrowHosts[NO_5] = TWO;
         mStrategyImpl->Init(param);
-        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker.get();
+        mBorrowDecisionMaker = mStrategyImpl->mBorrowDecisionMaker_.get();
 
         for (int i = 0; i < param.numAvailNumas; i++) {
             mRackStatus.numaStatus[i].timestamp = time_t(i);
@@ -169,18 +171,17 @@ public:
                 mRackStatus.numaStatus[i * NO_4 + j].memFree = (0L + NO_10 + i - 1) * GB_TO_B;
             }
         }
-        const float testData = 15.8; // 测试数据
         // 一部分直连邻居节点不满足借用条件, host7向host3借用40G内存(有借入内存)
         for (int j = 0; j < NO_4; j++) {
-            mRackStatus.numaLedgerStatus[0 * NO_4 + j].memBorrowed = (0L + testData) * GB_TO_B;
-            mRackStatus.numaLedgerStatus[NO_7 * NO_4 + j].memLent = (0L + testData) * GB_TO_B;
-            mRackStatus.debtDetail.numaDebts[0 * NO_4 + j].insert({NO_7 * NO_4 + j, (0L + testData) * GB_TO_B});
+            mRackStatus.numaLedgerStatus[0 * NO_4 + j].memBorrowed = (0L + 15.8) * GB_TO_B;
+            mRackStatus.numaLedgerStatus[NO_7 * NO_4 + j].memLent = (0L + 15.8) * GB_TO_B;
+            mRackStatus.debtDetail.numaDebts[0 * NO_4 + j].insert({NO_7 * NO_4 + j, (0L + 15.8) * GB_TO_B});
         }
 
         for (int j = 0; j < NO_4; j++) {
-            mRackStatus.numaLedgerStatus[1 * NO_4 + j].memBorrowed = (0L + testData) * GB_TO_B;
-            mRackStatus.numaLedgerStatus[NO_3 * NO_4 + j].memLent = (0L + testData) * GB_TO_B;
-            mRackStatus.debtDetail.numaDebts[1 * NO_4 + j].insert({NO_3 * NO_4 + j, (0L + testData) * GB_TO_B});
+            mRackStatus.numaLedgerStatus[1 * NO_4 + j].memBorrowed = (0L + 15.8) * GB_TO_B;
+            mRackStatus.numaLedgerStatus[NO_3 * NO_4 + j].memLent = (0L + 15.8) * GB_TO_B;
+            mRackStatus.debtDetail.numaDebts[1 * NO_4 + j].insert({NO_3 * NO_4 + j, (0L + 15.8) * GB_TO_B});
         }
     }
     BorrowDecisionMaker *mBorrowDecisionMaker = nullptr;

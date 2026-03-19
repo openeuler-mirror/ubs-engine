@@ -15,7 +15,7 @@
 
 #include <cstdint>
 
-const uint32_t UBSE_MESSAGE_SIZE = 10 * 1024; // 最大消息长度 10k
+const uint32_t UBSE_MESSAGE_SIZE = 10 * 1024 * 1024; // 最大消息长度 10M
 
 #pragma pack(push, 1) // Ensure byte-aligned packing for cross-platform compatibility
 
@@ -23,17 +23,19 @@ const uint32_t UBSE_MESSAGE_SIZE = 10 * 1024; // 最大消息长度 10k
  * @brief Request header structure for network communication
  */
 struct UbseRequestHeader {
-    uint16_t moduleCode; // Module identifier code
-    uint16_t opCode;     // Operation command code
-    uint32_t bodyLen;    // Length of request body
+    uint16_t moduleCode;      // Module identifier code
+    uint16_t opCode;          // Operation command code
+    uint32_t bodyLen;         // Length of request body
+    uint64_t clientRequestId; // request id, generate by client
 };
 
 /**
  * @brief Response header structure for network communication
  */
 struct UbseResponseHeader {
-    uint32_t statusCode; // Operation status code (0 = Success, non-zero = Error code)
-    uint32_t bodyLen;    // Length of response body in bytes (0 if no body exists)
+    uint32_t statusCode;      // Operation status code (0 = Success, non-zero = Error code)
+    uint32_t bodyLen;         // Length of response body in bytes (0 if no body exists)
+    uint64_t clientRequestId; // request id, generate by client
 };
 
 #pragma pack(pop) // Restore original packing alignment
@@ -62,17 +64,5 @@ struct UbseResponseMessage {
                                 * - Use free() for malloc/calloc
                                 * - Use delete[] for C++ new[]
                                 */
-};
-
-struct UbseClientInfo {
-    uid_t uid; // user id
-    gid_t gid; // group id
-    pid_t pid; // process id
-};
-
-struct UbseRequestContext {
-    UbseClientInfo clientInfo;
-    uint64_t requestId;
-    uint64_t timestamp;
 };
 #endif // UBSE_IPC_MESSAGE_H

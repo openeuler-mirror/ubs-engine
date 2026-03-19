@@ -22,19 +22,19 @@ MemPoolStrategy &MemPoolStrategy::GetInstance()
 
 BResult MemPoolStrategy::Init(const StrategyParam &param)
 {
-    return HFAIL;
+    return UBSE_ERROR;
 }
 
 BResult MemPoolStrategy::MemoryBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
                                       BorrowResult &result)
 {
-    return HFAIL;
+    return UBSE_ERROR;
 }
 
 BResult MemPoolStrategy::MemoryShare(const ShareRequest &shareRequest, const UbseStatus &ubseStatus,
                                      ShareResult &result)
 {
-    return HFAIL;
+    return UBSE_ERROR;
 }
 
 } // namespace tc::rs::mem

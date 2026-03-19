@@ -31,7 +31,7 @@ public:
     void UnInitialize() override;
     UbseResult Start() override;
     void Stop() override;
-    static UbseResult ModifyEffectiveCapabilities(std::vector<__u32> &caps, UbseCapOperateType opType);
+    static UbseResult ModifyEffectiveCapabilities(std::vector<__u32> &caps, bool isAdd);
 };
 
 }

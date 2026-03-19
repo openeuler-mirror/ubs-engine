@@ -24,23 +24,8 @@ const std::string IT_NODE_ID = "NodeIT";
 const std::string IT_AGENT_NODE_ID = "Node1";
 const std::string IT_MOCK_ALLNODES = "NodeIT,127.0.0.1:1901";
 
-struct SubProcessMmap {
-    bool bFlag;
-    int32_t iStatus;
-    uint32_t uiCmd;
-    char acProcName[64];
-};
-
-struct ProcessMmap {
-    bool bFlag;
-    SubProcessMmap stCliInfo;
-    SubProcessMmap stServerInfo;
-    int32_t iStatus;
-    pid_t fpid[260];
-};
-
 /* 命令类型 */
-enum TagTestCmdInfo {
+enum class TagTestCmdInfo {
     CMD_INIT = 0,
     CMD_SERVER_START,
     CMD_CLI_START,
@@ -72,6 +57,21 @@ enum TagTestCmdInfo {
     CMD_EXCEPTION_TEST,
     CMD_REMOTE_NODE_MOCK,
     CMD_MAX,
+};
+
+struct SubProcessMmap {
+    bool bFlag;
+    int32_t iStatus;
+    TagTestCmdInfo uiCmd;
+    char acProcName[64];
+};
+
+struct ProcessMmap {
+    bool bFlag;
+    SubProcessMmap stCliInfo;
+    SubProcessMmap stServerInfo;
+    int32_t iStatus;
+    pid_t fpid[260];
 };
 
 using FuncPtrp = int32_t (*)(ProcessMmap *);

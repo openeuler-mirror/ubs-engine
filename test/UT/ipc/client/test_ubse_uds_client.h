@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef RACK_MANAGER_UBSE_UDS_CLIENT_H
-#define RACK_MANAGER_UBSE_UDS_CLIENT_H
+#ifndef UBSE_MANAGER_UBSE_UDS_CLIENT_H
+#define UBSE_MANAGER_UBSE_UDS_CLIENT_H
 
 #include <gtest/gtest.h>
 
@@ -33,4 +33,4 @@ private:
     std::unique_ptr<UbseUDSClient> client;
 };
 } // namespace ubse::ut::ipc
-#endif // RACK_MANAGER_UBSE_UDS_CLIENT_H
+#endif // UBSE_MANAGER_UBSE_UDS_CLIENT_H

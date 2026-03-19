@@ -30,7 +30,7 @@ public:
 
     inline uint16_t GetOpCode() override
     {
-        return static_cast<uint16_t>(UbseOpCode::ELECTION_PKT);
+        return static_cast<uint16_t>(UbseElectionOpCode::ELECTION_PKT);
     }
 
     inline uint16_t GetModuleCode() override

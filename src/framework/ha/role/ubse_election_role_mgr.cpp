@@ -14,27 +14,28 @@
 #include <memory>
 #include "ubse_context.h"
 namespace ubse::election {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
-std::shared_ptr<RoleMgr> RoleMgr::instance = nullptr;
+std::shared_ptr<RoleMgr> RoleMgr::instance_ = nullptr;
 
 std::shared_ptr<ElectionRole> RoleMgr::GetRole()
 {
-    return currentRole;
+    return currentRole_;
 }
 
 void RoleMgr::ProcTimer()
 {
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&mutex_);
     GetRole()->ProcTimer();
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&mutex_);
     return;
 }
 
 uint32_t RoleMgr::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
 {
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&mutex_);
     auto ret = GetRole()->RecvPkt(srcID, rcvPkt, reply);
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&mutex_);
     return ret;
 }
 
@@ -48,8 +49,8 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
             if (role != RoleType::STANDBY) {
                 flag = true;
             }
-            currentRole = SafeMakeShared<Master>(ctx);
-            if (!currentRole) {
+            currentRole_ = SafeMakeShared<Master>(ctx);
+            if (!currentRole_) {
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared currentRole failed.";
                 return;
             }
@@ -57,11 +58,11 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
                 RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_TO_MASTER, ctx.masterId);
             }
             RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION, ctx.masterId);
-            UBSE_LOG_INFO << "[ELECTION] SwitchRole Master: " << ctx.masterId << ".";
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Master, node_id = " << ctx.masterId << ".";
             break;
         case RoleType::STANDBY:
-            currentRole = SafeMakeShared<Standby>(ctx);
-            if (!currentRole) {
+            currentRole_ = SafeMakeShared<Standby>(ctx);
+            if (!currentRole_) {
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared currentRole failed.";
                 return;
             }
@@ -69,17 +70,19 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
             UBSE_LOG_INFO << "[ELECTION] SwitchRole Standby: " << ctx.standbyId << ".";
             break;
         case RoleType::AGENT:
-            currentRole = SafeMakeShared<Agent>(ctx);
-            if (!currentRole) {
+            currentRole_ = SafeMakeShared<Agent>(ctx);
+            if (!currentRole_) {
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared currentRole failed.";
                 return;
             }
             RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_TO_AGENT, ctx.standbyId);
             UBSE_LOG_INFO << "[ELECTION] SwitchRole Agent.";
+            RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION, ctx.masterId);
+            UBSE_LOG_INFO << "[ELECTION] The Master is online: " << ctx.masterId << ", turnId is: " << ctx.turnId;
             break;
         case RoleType::INITIALIZER:
-            currentRole = SafeMakeShared<Initializer>();
-            if (!currentRole) {
+            currentRole_ = SafeMakeShared<Initializer>();
+            if (!currentRole_) {
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared currentRole failed.";
                 return;
             }
@@ -90,7 +93,7 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
 
 uint32_t RoleMgr::RoleChangeAttach(UbseElectionEventType type, UbseElectionHandler handler)
 {
-    std::unique_lock<std::recursive_mutex> uniqueLock(mProcessorLock);
+    std::unique_lock<std::recursive_mutex> uniqueLock(mProcessorLock_);
     // 名称查重
     auto &handlers = handlers_[type];
     if (std::any_of(handlers.begin(), handlers.end(), [&](const auto &h) { return h->name == handler.name; })) {
@@ -122,7 +125,7 @@ uint32_t RoleMgr::RoleChangeAttach(UbseElectionEventType type, UbseElectionHandl
 
 uint32_t RoleMgr::RoleChangeDeAttach(UbseElectionEventType type, UbseElectionHandler handler)
 {
-    std::unique_lock<std::recursive_mutex> uniqueLock(mProcessorLock);
+    std::unique_lock<std::recursive_mutex> uniqueLock(mProcessorLock_);
     auto it = handlers_.find(type);
     if (it == handlers_.end()) {
         return UbseElectionTypeError;
@@ -165,7 +168,7 @@ uint32_t RoleMgr::RoleChangeNotify(UbseElectionEventType type, UBSE_ID_TYPE newI
 {
     std::vector<std::shared_ptr<SafeHandler>> current_handlers;
     {
-        std::unique_lock<std::recursive_mutex> uniqueLock(mProcessorLock);
+        std::unique_lock<std::recursive_mutex> uniqueLock(mProcessorLock_);
         auto it = handlers_.find(type);
         if (it != handlers_.end()) {
             current_handlers = it->second;
@@ -173,7 +176,7 @@ uint32_t RoleMgr::RoleChangeNotify(UbseElectionEventType type, UBSE_ID_TYPE newI
     }
     uint32_t ret = UbseElectionOk;
     for (const auto &safe_h : current_handlers) {
-        UBSE_LOG_INFO << "[ELECTION] RoleChangeNotify handler - " << safe_h->name << ", type: " << int(type);
+        UBSE_LOG_INFO << "[ELECTION] RoleChangeNotify handler - " << safe_h->name << ", type=" << int(type);
         std::unique_lock<std::mutex> lock(safe_h->mutex);
         if (auto h = safe_h->weak_handler.lock()) {
             UBSE_ID_TYPE tmpId = newId;

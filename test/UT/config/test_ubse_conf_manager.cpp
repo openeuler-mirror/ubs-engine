@@ -17,7 +17,7 @@
 #include "ubse_event_module.h"
 #include "ubse_ut_dir.h"
 #include "src/framework/http/ubse_http_module.h"
-#include "ubse_conf_error.h"
+#include "ubse_error.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_conf_common_def.h"
@@ -189,5 +189,77 @@ TEST_F(TestUbseConfManager, GetAllConfWithPrefix)
     EXPECT_EQ(UBSE_OK, cfgMgr.GetAllConf("ubse", configValMap));
     cfgMgr.Stop();
     GlobalMockObject::verify();
+}
+
+TEST_F(TestUbseConfManager, AddConfig_check_param_failed)
+{
+    cfgMgr.configMap_.clear();
+    std::string test_section;
+    std::string test_key = "key";
+    std::string test_value = "value";
+
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+
+    test_section.resize(CONFIG_SECTION_MAX_FIELD_LENGTH + 1);
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+
+    test_section = "section";
+    test_key.resize(CONFIG_KEY_MAX_FIELD_LENGTH + 1);
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+
+    test_key.clear();
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+
+    test_key = "key";
+    test_value.clear();
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+
+    test_value.resize(CONFIG_VALUE_MAX_FIELD_LENGTH + 1);
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+
+    test_section = ":::";
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+
+    test_section = "section";
+    test_value = "@@@";
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_TRUE(cfgMgr.configMap_.empty());
+    cfgMgr.configMap_.clear();
+}
+
+TEST_F(TestUbseConfManager, AddConfig_repeat_failed)
+{
+    cfgMgr.configMap_.clear();
+    std::string test_section = "section";
+    std::string test_key = "key";
+    std::string test_value = "value";
+
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_FALSE(cfgMgr.configMap_.empty());
+
+    cfgMgr.AddConfig(test_section, test_key, "new_val");
+    EXPECT_EQ(cfgMgr.configMap_[test_section][test_key], test_value);
+    cfgMgr.configMap_.clear();
+}
+
+TEST_F(TestUbseConfManager, AddConfig_success)
+{
+    cfgMgr.configMap_.clear();
+    std::string test_section = "section";
+    std::string test_key = "key";
+    std::string test_value = "value";
+
+    cfgMgr.AddConfig(test_section, test_key, test_value);
+    EXPECT_FALSE(cfgMgr.configMap_.empty());
+
+    EXPECT_EQ(cfgMgr.configMap_[test_section][test_key], test_value);
+    cfgMgr.configMap_.clear();
 }
 }

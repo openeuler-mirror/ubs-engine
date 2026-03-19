@@ -16,15 +16,20 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <map>
+#include <mutex>
+#include <atomic>
 
 namespace ubse::election {
 constexpr const char *INVALID_NODE_ID = "";
-constexpr const uint32_t DEFAULT_HEART_BEAT_TIME = 5000;
+constexpr const uint32_t DEFAULT_HEART_BEAT_TIME = 2000;
 constexpr const uint32_t DEFAULT_HEART_BEAT_LOST = 3;
 const uint32_t MAX_HEART_BEAT_LOST = 20;
 constexpr const int IS_READY = 1;
 constexpr const int NOT_READY = 0;
 using UBSE_ID_TYPE = std::string;
+constexpr const char* NODE_IP_NULL = "";
+constexpr const uint16_t NODE_PORT_NULL = 0;
 enum class RoleType {
     MASTER,
     STANDBY,
@@ -123,6 +128,7 @@ struct ElectionPkt {
 constexpr int ELECTION_PKT_RESULT_ACCEPT = 0;
 constexpr int ELECTION_PKT_TYPE_REJECT = 1;
 constexpr int ELECTION_PKT_TYPE_REJECT_HAS_MASTER = 2;
+constexpr int ELECTION_PKT_REPLY_GLOBAL_STOP = 3;
 
 struct ElectionReplyPkt {
     // 0：选主报文，1：心跳报文
@@ -140,6 +146,15 @@ struct ElectionReplyPkt {
     // 保留字段
     uint16_t rsv;
     uint8_t length;
+};
+
+struct CallbackCtx {
+    std::map<UBSE_ID_TYPE, BroadcastStatus> *broadcast;
+    std::string destId{};
+    uint8_t *standbyStatus;
+    std::mutex *mtx = nullptr;
+    std::atomic<bool> *stopping;
+    std::atomic<int> *activeCount;
 };
 } // namespace ubse::election
 #endif // UBSE_MANAGER_UBSE_ELECTION_DEF_H

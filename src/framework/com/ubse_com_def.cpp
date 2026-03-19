@@ -17,347 +17,329 @@
 #include <regex>
 
 #include "crc/ubse_crc.h"
+#include "trace_context.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
-#include "ubse_lcne_module.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
+#include "ubse_net_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_str_util.h"
-#include "ubse_topology_interface.h"
-#include "ubse_net_util.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::com {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_COM_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::utils;
 using namespace ubse::log;
 UbseEngineType UbseComEngineInfo::GetEngineType() const
 {
-    return engineType;
+    return engineType_;
 }
 
 void UbseComEngineInfo::SetEngineType(UbseEngineType type)
 {
-    UbseComEngineInfo::engineType = type;
+    UbseComEngineInfo::engineType_ = type;
 }
 
 UbseProtocol UbseComEngineInfo::GetProtocol() const
 {
-    return protocol;
+    return protocol_;
 }
 
 void UbseComEngineInfo::SetProtocol(UbseProtocol proto)
 {
-    UbseComEngineInfo::protocol = proto;
+    UbseComEngineInfo::protocol_ = proto;
 }
 
 UbseWorkerMode UbseComEngineInfo::GetWorkerMode() const
 {
-    return workerMode;
+    return workerMode_;
 }
 
 void UbseComEngineInfo::SetWorkerMode(UbseWorkerMode mode)
 {
-    UbseComEngineInfo::workerMode = mode;
+    UbseComEngineInfo::workerMode_ = mode;
 }
 
 const std::string &UbseComEngineInfo::GetNodeId() const
 {
-    return nodeId;
+    return nodeId_;
 }
 
 void UbseComEngineInfo::SetNodeId(const std::string &id)
 {
-    UbseComEngineInfo::nodeId = id;
+    UbseComEngineInfo::nodeId_ = id;
 }
 
 const std::string &UbseComEngineInfo::GetWorkGroup() const
 {
-    return workGroup;
+    return workGroup_;
 }
 
 void UbseComEngineInfo::SetWorkGroup(const std::string &group)
 {
-    UbseComEngineInfo::workGroup = group;
+    UbseComEngineInfo::workGroup_ = group;
 }
 
 const std::string &UbseComEngineInfo::GetName() const
 {
-    return name;
+    return name_;
 }
 
 void UbseComEngineInfo::SetName(const std::string &engineName)
 {
-    UbseComEngineInfo::name = engineName;
+    UbseComEngineInfo::name_ = engineName;
 }
 
 void UbseComEngineInfo::SetLogFunc(UbseComLogFunc func)
 {
-    UbseComEngineInfo::logFunc = func;
+    UbseComEngineInfo::logFunc_ = func;
 }
 
 void UbseComEngineInfo::SetHeartBeatTimeOut(const int16_t time)
 {
-    UbseComEngineInfo::heartBeatTimeout = time;
+    UbseComEngineInfo::heartBeatTimeout_ = time;
 }
 
 int16_t UbseComEngineInfo::GetHeartBeatTimeOut() const
 {
-    return heartBeatTimeout;
+    return heartBeatTimeout_;
 }
 
 void UbseComEngineInfo::SetHcomHbTimeOut(uint16_t time)
 {
-    hcomHbTimeout = time;
+    hcomHbTimeout_ = time;
 }
 
 uint16_t UbseComEngineInfo::GetHcomHbTimeOut() const
 {
-    return hcomHbTimeout;
+    return hcomHbTimeout_;
 }
 
 void UbseComEngineInfo::SetTimeOut(const int16_t time)
 {
-    UbseComEngineInfo::timeout = time;
+    UbseComEngineInfo::timeout_ = time;
 }
 
 int16_t UbseComEngineInfo::GetTimeOut() const
 {
-    return timeout;
+    return timeout_;
 }
 
 UbseComLogFunc UbseComEngineInfo::GetLogFunc() const
 {
-    return logFunc;
+    return logFunc_;
 }
 
 const std::pair<std::string, uint16_t> &UbseComEngineInfo::GetIpInfo() const
 {
-    return ipInfo;
+    return ipInfo_;
 }
 
 void UbseComEngineInfo::SetIpInfo(const std::pair<std::string, uint16_t> &ipInfo)
 {
-    UbseComEngineInfo::ipInfo = ipInfo;
+    UbseComEngineInfo::ipInfo_ = ipInfo;
 }
 
 const std::pair<std::string, uint16_t> &UbseComEngineInfo::GetUdsInfo() const
 {
-    return udsInfo;
+    return udsInfo_;
 }
 
 void UbseComEngineInfo::SetUdsInfo(const std::pair<std::string, uint16_t> &udsInfo)
 {
-    UbseComEngineInfo::udsInfo = udsInfo;
+    UbseComEngineInfo::udsInfo_ = udsInfo;
 }
 
 const uint32_t &UbseComEngineInfo::GetSendReceiveSegCount() const
 {
-    return sendReceiveSegCount;
+    return sendReceiveSegCount_;
 }
 
 void UbseComEngineInfo::SetSendReceiveSegCount(uint32_t segCount)
 {
-    UbseComEngineInfo::sendReceiveSegCount = segCount;
+    UbseComEngineInfo::sendReceiveSegCount_ = segCount;
 }
 
 bool UbseComEngineInfo::IsUds() const
 {
-    return protocol == UbseProtocol::UDS;
+    return protocol_ == UbseProtocol::UDS;
 }
 
 bool UbseComEngineInfo::IsServerSide() const
 {
-    return engineType == UbseEngineType::SERVER;
+    return engineType_ == UbseEngineType::SERVER;
 }
 
 const IsReconnectHook &UbseComEngineInfo::GetReConnectHook() const
 {
-    return reconnectHook;
+    return reconnectHook_;
 }
 
 void UbseComEngineInfo::SetReconnectHook(IsReconnectHook reconnectHook)
 {
-    UbseComEngineInfo::reconnectHook = reconnectHook;
+    UbseComEngineInfo::reconnectHook_ = reconnectHook;
 }
 
 const ShouldDoReconnectCb &UbseComEngineInfo::GetShouldDoReconnectCb() const
 {
-    return shouldDoReconnectCb;
+    return shouldDoReconnectCb_;
 }
 
 void UbseComEngineInfo::SetShouldDoReconnectCb(ShouldDoReconnectCb shouldDoReconnectCb)
 {
-    UbseComEngineInfo::shouldDoReconnectCb = shouldDoReconnectCb;
+    UbseComEngineInfo::shouldDoReconnectCb_ = shouldDoReconnectCb;
 }
 
 const QueryEidByNodeIdCb &UbseComEngineInfo::GetQueryEidByNodeIdCb() const
 {
-    return queryEidByNodeIdCb;
+    return queryEidByNodeIdCb_;
 }
 
 void UbseComEngineInfo::SetQueryEidByNodeIdCb(QueryEidByNodeIdCb queryEidByNodeIdCb)
 {
-    UbseComEngineInfo::queryEidByNodeIdCb = queryEidByNodeIdCb;
+    UbseComEngineInfo::queryEidByNodeIdCb_ = queryEidByNodeIdCb;
 }
 
 const UBSHcomNetCipherSuite &UbseComEngineInfo::GetCipherSuite() const
 {
-    return cipherSuite;
+    return cipherSuite_;
 }
 
 void UbseComEngineInfo::SetCipherSuite(const UBSHcomNetCipherSuite &suite)
 {
-    cipherSuite = suite;
+    cipherSuite_ = suite;
 }
 
 const std::string &UbseComChannelConnectInfo::GetIp() const
 {
-    return ip;
+    return ip_;
 }
 
 void UbseComChannelConnectInfo::SetIp(const std::string &ipAddr)
 {
-    UbseComChannelConnectInfo::ip = ipAddr;
+    UbseComChannelConnectInfo::ip_ = ipAddr;
 }
 
 uint16_t UbseComChannelConnectInfo::GetPort() const
 {
-    return port;
+    return port_;
 }
 
 void UbseComChannelConnectInfo::SetPort(uint16_t conPort)
 {
-    UbseComChannelConnectInfo::port = conPort;
+    UbseComChannelConnectInfo::port_ = conPort;
 }
 
 uint16_t UbseComChannelConnectInfo::GetLinkNum() const
 {
-    return linkNum;
+    return linkNum_;
 }
 
 void UbseComChannelConnectInfo::SetLinkNum(uint16_t num)
 {
-    UbseComChannelConnectInfo::linkNum = num;
+    UbseComChannelConnectInfo::linkNum_ = num;
 }
 
 bool UbseComChannelConnectInfo::IsUds() const
 {
-    return isUds;
+    return isUds_;
 }
 
 void UbseComChannelConnectInfo::SetIsUds(bool uds)
 {
-    UbseComChannelConnectInfo::isUds = uds;
+    UbseComChannelConnectInfo::isUds_ = uds;
 }
 
 const std::string &UbseComChannelConnectInfo::GetRemoteNodeId() const
 {
-    return remoteNodeId;
+    return remoteNodeId_;
 }
 
 void UbseComChannelConnectInfo::SetRemoteNodeId(const std::string &remoteNodeIdSet)
 {
-    UbseComChannelConnectInfo::remoteNodeId = remoteNodeIdSet;
+    UbseComChannelConnectInfo::remoteNodeId_ = remoteNodeIdSet;
 }
 
 const std::string &UbseComChannelConnectInfo::GetCurNodeId() const
 {
-    return curNodeId;
+    return curNodeId_;
 }
 
 void UbseComChannelConnectInfo::SetCurNodeId(const std::string &nodeId)
 {
-    UbseComChannelConnectInfo::curNodeId = nodeId;
+    UbseComChannelConnectInfo::curNodeId_ = nodeId;
 }
 
 bool UbseComChannelInfo::IsServerSide() const
 {
-    return isServer;
+    return isServer_;
 }
 
 void UbseComChannelInfo::SetIsServer(bool isServerSide)
 {
-    UbseComChannelInfo::isServer = isServerSide;
+    UbseComChannelInfo::isServer_ = isServerSide;
 }
 
 const UBSHcomChannelPtr &UbseComChannelInfo::GetChannel() const
 {
-    return channel;
+    return channel_;
 }
 
 void UbseComChannelInfo::SetChannel(const UBSHcomChannelPtr &ch)
 {
-    UbseComChannelInfo::channel = ch;
+    UbseComChannelInfo::channel_ = ch;
 }
 
 const UbseComChannelConnectInfo &UbseComChannelInfo::GetConnectInfo() const
 {
-    return connectInfo;
+    return connectInfo_;
 }
 
 void UbseComChannelInfo::SetConnectInfo(const UbseComChannelConnectInfo &conInfo)
 {
-    UbseComChannelInfo::connectInfo = conInfo;
+    UbseComChannelInfo::connectInfo_ = conInfo;
 }
 
 UbseChannelType UbseComChannelInfo::GetChannelType() const
 {
-    return channelType;
+    return channelType_;
 }
 
 void UbseComChannelInfo::SetChannelType(UbseChannelType chType)
 {
-    UbseComChannelInfo::channelType = chType;
+    UbseComChannelInfo::channelType_ = chType;
 }
 
 const std::string &UbseComChannelInfo::GetEngineName() const
 {
-    return engineName;
+    return engineName_;
 }
 
 void UbseComChannelInfo::SetEngineName(const std::string &name)
 {
-    UbseComChannelInfo::engineName = name;
+    UbseComChannelInfo::engineName_ = name;
 }
 std::string UbseComChannelInfo::ConvertUbseComChannelInfoToString()
 {
-    std::string infoStr = "engine Name: " + engineName + "; ";
-    infoStr = infoStr + "channel type: " + std::to_string(static_cast<int>(channelType)) + "; ";
-    infoStr = infoStr + "channel id: " + std::to_string(channel->GetId()) + "; ";
-    infoStr = infoStr + "cur node id: " + connectInfo.GetCurNodeId() + "; ";
-    infoStr = infoStr + "remote node id: " + connectInfo.GetRemoteNodeId() + "; ";
+    std::string infoStr = "engine Name: " + engineName_ + "; ";
+    infoStr = infoStr + "channel type: " + std::to_string(static_cast<int>(channelType_)) + "; ";
+    infoStr = infoStr + "channel id: " + std::to_string(channel_->GetId()) + "; ";
+    infoStr = infoStr + "cur node id: " + connectInfo_.GetCurNodeId() + "; ";
+    infoStr = infoStr + "remote node id: " + connectInfo_.GetRemoteNodeId() + "; ";
     return infoStr;
 }
 
-const std::string PAYLOAD_SPLIT_SEP = "@";
+constexpr const char* PAYLOAD_SPLIT_SEP = "@";
 
 UbseChannelType StringToChannelType(const std::string &type)
 {
-    if (type == "Normal") {
-        return UbseChannelType::NORMAL;
-    }
-    if (type == "Emergency") {
-        return UbseChannelType::EMERGENCY;
-    }
-    if (type == "Heartbeat") {
-        return UbseChannelType::HEARTBEAT;
-    }
-    return UbseChannelType::SINGLE_SIDE;
+    return UbseChannelType::NORMAL;
 }
 
 std::string ChannelTypeToString(UbseChannelType type)
 {
-    if (type == UbseChannelType::NORMAL) {
-        return "Normal";
-    }
-    if (type == UbseChannelType::EMERGENCY) {
-        return "Emergency";
-    }
-    if (type == UbseChannelType::HEARTBEAT) {
-        return "Heartbeat";
-    }
-    return "SingleSide";
+    return std::string("Normal");
 }
 
 UbseReplyResult StringToUbseReplyResult(const std::string &result)
@@ -370,6 +352,15 @@ UbseReplyResult StringToUbseReplyResult(const std::string &result)
     }
     if (result == "ERR_NO_REPLY") {
         return UbseReplyResult::ERR_NO_REPLY;
+    }
+    if (result == "ERR_REPLY_EXCEED") {
+        return UbseReplyResult::ERR_TOO_LARGE_REPLY;
+    }
+    if (result == "ERR_CH_NOT_IN_MAP") {
+        return UbseReplyResult::ERR_CH_NOT_IN_MAP;
+    }
+    if (result == "ERR_VERIFY_FAIL") {
+        return UbseReplyResult::ERR_VERIFY_FAIL;
     }
     return UbseReplyResult::OK;
 }
@@ -388,6 +379,15 @@ std::string UbseReplyResultToString(UbseReplyResult result)
     if (result == UbseReplyResult::ERR_NO_REPLY) {
         return "ERR_NO_REPLY";
     }
+    if (result == UbseReplyResult::ERR_TOO_LARGE_REPLY) {
+        return "ERR_REPLY_EXCEED";
+    }
+    if (result == UbseReplyResult::ERR_CH_NOT_IN_MAP) {
+        return "ERR_CH_NOT_IN_MAP";
+    }
+    if (result == UbseReplyResult::ERR_VERIFY_FAIL) {
+        return "ERR_VERIFY_FAIL";
+    }
     return "OK";
 }
 
@@ -398,146 +398,186 @@ std::string ChannelTypeToPayload(const std::string &id, UbseChannelType type)
 
 uint16_t UbseComMessageHead::GetOpCode() const
 {
-    return opCode;
+    return opCode_;
 }
 
 void UbseComMessageHead::SetOpCode(uint16_t transOpCode)
 {
-    UbseComMessageHead::opCode = transOpCode;
+    UbseComMessageHead::opCode_ = transOpCode;
 }
 
 uint16_t UbseComMessageHead::GetModuleCode() const
 {
-    return moduleCode;
+    return moduleCode_;
 }
 
 void UbseComMessageHead::SetModuleCode(uint16_t transModuleCode)
 {
-    UbseComMessageHead::moduleCode = transModuleCode;
+    UbseComMessageHead::moduleCode_ = transModuleCode;
 }
 
 uint32_t UbseComMessageHead::GetBodyLen() const
 {
-    return bodyLen;
+    return bodyLen_;
 }
 
 void UbseComMessageHead::SetBodyLen(uint32_t transBodyLen)
 {
-    UbseComMessageHead::bodyLen = transBodyLen;
+    UbseComMessageHead::bodyLen_ = transBodyLen;
 }
 
 uint32_t UbseComMessageHead::GetCrc() const
 {
-    return crc;
+    return crc_;
 }
 
 void UbseComMessageHead::SetCrc(uint32_t dataCrc)
 {
-    crc = dataCrc;
+    crc_ = dataCrc;
 }
 
 UbseComMessagePtr UbseComMessageCtx::GetMessage() const
 {
-    return message;
+    return message_;
 }
 
 void UbseComMessageCtx::SetMessage(UbseComMessagePtr ubseComMessage)
 {
-    UbseComMessageCtx::message = ubseComMessage;
+    UbseComMessageCtx::message_ = ubseComMessage;
 }
 
 uintptr_t UbseComMessageCtx::GetRspCtx() const
 {
-    return rspCtx;
+    return rspCtx_;
 }
 
 void UbseComMessageCtx::SetRspCtx(uintptr_t transRspCtx)
 {
-    UbseComMessageCtx::rspCtx = transRspCtx;
+    UbseComMessageCtx::rspCtx_ = transRspCtx;
 }
 
 uint64_t UbseComMessageCtx::GetChannelId() const
 {
-    return channelId;
+    return channelId_;
 }
 
 void UbseComMessageCtx::SetChannelId(uint64_t netChannel)
 {
-    UbseComMessageCtx::channelId = netChannel;
+    UbseComMessageCtx::channelId_ = netChannel;
 }
 
 const std::string &UbseComMessageCtx::GetSrcId() const
 {
-    return srcId;
+    return srcId_;
 }
 
 void UbseComMessageCtx::SetSrcId(const std::string &msgSrcId)
 {
-    UbseComMessageCtx::srcId = msgSrcId;
+    UbseComMessageCtx::srcId_ = msgSrcId;
 }
 
 const std::string &UbseComMessageCtx::GetDstId() const
 {
-    return dstId;
+    return dstId_;
 }
 
 void UbseComMessageCtx::SetDstId(const std::string &id)
 {
-    UbseComMessageCtx::dstId = id;
+    UbseComMessageCtx::dstId_ = id;
+}
+
+void UbseComMessageCtx::SetModuleCode(const uint64_t &moduleCode)
+{
+    UbseComMessageCtx::ctxModuleCode_ = moduleCode;
+}
+
+void UbseComMessageCtx::SetOpCode(const uint64_t &opCode)
+{
+    UbseComMessageCtx::ctxOpCode_ = opCode;
+}
+
+uint64_t UbseComMessageCtx::GetModuleCode() const
+{
+    return ctxModuleCode_;
+}
+
+uint64_t UbseComMessageCtx::GetOpCode() const
+{
+    return ctxOpCode_;
+}
+
+const UBSHcomChannelPtr &UbseComMessageCtx::GetChannelPtr() const
+{
+    return channelPtr_;
+}
+
+void UbseComMessageCtx::SetChannelPtr(const UBSHcomChannelPtr &chPtr)
+{
+    channelPtr_ = chPtr;
+}
+
+bool UbseComMessageCtx::IsRemoteCall() const
+{
+    return isRemoteCall_;
+}
+
+void UbseComMessageCtx::SetRemoteCall()
+{
+    isRemoteCall_ = true;
 }
 
 UbseComMessageCtx::UbseComMessageCtx(UbseComMessagePtr message, std::string srcId, std::string dstId,
                                      UbseChannelType channelType)
-    : message(message),
-      srcId(std::move(srcId)),
-      dstId(std::move(dstId)),
-      channelType(channelType)
+    : message_(message),
+      srcId_(std::move(srcId)),
+      dstId_(std::move(dstId)),
+      channelType_(channelType)
 {
 }
 
 void UbseComMessageCtx::SetChannelType(UbseChannelType chType)
 {
-    channelType = chType;
+    channelType_ = chType;
 }
 
 UbseChannelType UbseComMessageCtx::GetChannelType()
 {
-    return channelType;
+    return channelType_;
 }
 
 const std::string &UbseComMessageCtx::GetEngineName() const
 {
-    return engineName;
+    return engineName_;
 }
 
 void UbseComMessageCtx::SetEngineName(const std::string &egName)
 {
-    engineName = egName;
+    engineName_ = egName;
 }
 
 const UbseUdsIdInfo &UbseComMessageCtx::GetUdsInfo() const
 {
-    return udsInfo;
+    return udsInfo_;
 }
 
 void UbseComMessageCtx::SetUdsInfo(const UbseUdsIdInfo &uds)
 {
-    UbseComMessageCtx::udsInfo = uds;
+    UbseComMessageCtx::udsInfo_ = uds;
 }
 
 void UbseComMessageCtx::FreeMessage()
 {
-    UbseComMessage::FreeMessage(message);
+    UbseComMessage::FreeMessage(message_);
 }
 
 void UbseComMessage::SetMessageHead(UbseComMessageHead &msgHead)
 {
-    head = msgHead;
+    head_ = msgHead;
 }
 
 const UbseComMessageHead &UbseComMessage::GetMessageHead() const
 {
-    return head;
+    return head_;
 }
 
 UbseComMessagePtr UbseComMessage::AllocMessage(uint32_t len)
@@ -561,18 +601,18 @@ UbseResult UbseComMessage::SetMessageBody(const uint8_t *data, uint32_t len)
             return ret;
         }
     }
-    head.SetBodyLen(len);
+    head_.SetBodyLen(len);
     return UBSE_OK;
 }
 
 UbseComMessagePtr UbseComMessage::GetMessageBody()
 {
-    return body;
+    return body_;
 }
 
 uint32_t UbseComMessage::GetMessageBodyLen()
 {
-    return head.GetBodyLen();
+    return head_.GetBodyLen();
 }
 
 UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const uint16_t &opCode,
@@ -598,6 +638,7 @@ UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const ui
     msgHead.SetOpCode(opCode);
     msgHead.SetModuleCode(moduleCode);
     msgHead.SetBodyLen(bodyLen);
+    msgHead.SetTraceId(TraceContext::GetTraceId());
     auto reqMsgData = requestMsg->SerializedData();
     auto crc = CrcUtil::SoftCrc32(reqMsgData, bodyLen, 1);
     msgHead.SetCrc(crc);
@@ -636,12 +677,28 @@ UbseResult TransResponse(const UbseBaseMessagePtr &respMsg, UbseComDataDesc &ret
     return UBSE_OK;
 }
 
+UbseComCallBackForHA UbseComEngineInfo::GetNewChannelCb() const
+{
+    return mNewChannelCb_;
+}
+
+UbseComCallBackForHA UbseComEngineInfo::GetBrokenChannelCb() const
+{
+    return mBrokenChannelCb_;
+}
+
+void UbseComEngineInfo::SetChannelCb(UbseComCallBackForHA newChannel, UbseComCallBackForHA brokenChannel)
+{
+    mNewChannelCb_ = std::move(newChannel);
+    mBrokenChannelCb_ = std::move(brokenChannel);
+}
+
 std::pair<std::string, UbseChannelType> SplitPayload(const std::string &payload)
 {
     std::vector<std::string> payloadPair;
     ubse::utils::Split(payload, PAYLOAD_SPLIT_SEP, payloadPair);
     if (payloadPair.size() <= 1) {
-        return std::make_pair(payload, UbseChannelType::SINGLE_SIDE);
+        return std::make_pair(payload, UbseChannelType::NORMAL);
     }
     return std::make_pair(payloadPair[0], StringToChannelType(payloadPair[1]));
 }
@@ -664,6 +721,10 @@ uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext &context)
 void GetUdsInfoFromNetServiceContext(UBSHcomServiceContext &context, UbseUdsIdInfo &udsIdInfo)
 {
     UBSHcomNetUdsIdInfo uds;
+    if (context.Channel() == nullptr) {
+        UBSE_LOG_DEBUG << "Uds channel is nullptr ";
+        return;
+    }
     auto ret = context.Channel()->GetRemoteUdsIdInfo(uds);
     if (UBSE_RESULT_OK(ret)) {
         UBSE_LOG_DEBUG << "Uds info is " << uds.pid << "," << uds.uid << "," << uds.gid;
@@ -761,7 +822,7 @@ std::unordered_map<std::string, std::string> GetClusterIpListFromConf()
     }
     std::vector<std::string> ipRangeVec;
     ubse::utils::Split(defaultVal, ",", ipRangeVec);
-    for (auto& range : ipRangeVec) {
+    for (auto &range : ipRangeVec) {
         if (range.find('-') != std::string::npos) {
             UbseNetUtil::ParseIpRangeToList(range, ips);
         } else if (UbseNetUtil::ValidIpv4Addr(range) || UbseNetUtil::ValidIpv6Addr(range)) {
@@ -771,50 +832,24 @@ std::unordered_map<std::string, std::string> GetClusterIpListFromConf()
         }
     }
     std::sort(ips.begin(), ips.end());
-    for (int i = 0; i < ips.size(); ++i) {
+    for (size_t i = 0; i < ips.size(); ++i) {
         UBSE_LOG_INFO << "Put ip " << ips[i] << ", id " << i;
         ipMap.emplace(ips[i], std::to_string(i + 1));
     }
     return ipMap;
 }
 
-void GetTcpInfo(UbseComTcpStr &info)
+UBSHcomServiceProtocol UbseProtocolToHcomProtocol(UbseProtocol LocalProtocol)
 {
-    // 获取节点信息
-    mti::MtiNodeInfo ubseNodeInfo{};
-    auto module = context::UbseContext::GetInstance().GetModule<mti::UbseLcneModule>();
-    if (module == nullptr) {
-        UBSE_LOG_ERROR << "lcne module not init";
-        return;
+    if (LocalProtocol == UbseProtocol::TCP) {
+        return UBSHcomServiceProtocol::TCP;
     }
-    auto ret = module->UbseGetLocalNodeInfo(ubseNodeInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get local node info failed, " << FormatRetCode(ret);
-        return;
+    if (LocalProtocol == UbseProtocol::UDS) {
+        return UBSHcomServiceProtocol::UDS;
     }
-    UBSE_LOG_INFO << "collect node id=" << ubseNodeInfo.nodeId;
-    info.nodeId = ubseNodeInfo.nodeId;
-    // 获取ip信息
-    std::vector<UbseIpAddr> ipList;
-    ret = CollectIpList(ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get local ip list failed, " << FormatRetCode(ret);
-        return;
+    if (LocalProtocol == UbseProtocol::UBC) {
+        return UBSHcomServiceProtocol::UBC;
     }
-    auto ipMap = GetClusterIpListFromConf();
-    for (auto ip : ipList) {
-        std::string ipStr;
-        if (ip.type == UbseIpType::UBSE_IP_V4) {
-            ipStr = UbseNetUtil::Ipv4ArrToString(ip.ipv4.addr);
-        } else {
-            ipStr = UbseNetUtil::Ipv6ArrToString(ip.ipv6.addr);
-        }
-        UBSE_LOG_INFO << "Ip str is " << ipStr;
-        auto it = ipMap.find(ipStr);
-        if (it == ipMap.end()) {
-            continue;
-        }
-        info.comIp = it->first;
-}
+    return UBSHcomServiceProtocol::UNKNOWN;
 }
 } // namespace ubse::com
