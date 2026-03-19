@@ -14,6 +14,7 @@
 #define UBSE_CLI_REG_H
 
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <atomic>
 #include <chrono>

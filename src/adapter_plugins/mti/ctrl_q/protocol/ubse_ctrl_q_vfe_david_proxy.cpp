@@ -13,10 +13,10 @@
 #include "../ubse_ctrl_q_message.h"
 #include "../ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
-#include "ubse_logger_module.h"
+#include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_MTI_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 struct CtrlQBindVfeDavidReqMsg {
     FixedHead head;
