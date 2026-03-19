@@ -45,11 +45,11 @@ public:
         if (respMsg == nullptr) {
             return UBSE_ERROR_NOMEM;
         }
-        auto res = SendMsg(msg, respMsg);
+        auto res = SendMsg(msg, *respMsg);
         if (res != UBSE_OK) {
             return res;
         }
-        return ConvertRespMsgToUserData(reqMsg, respMsg);
+        return ConvertRespMsgToUserData(reqMsg, *respMsg);
     }
 
     const Response &GetResponse() const

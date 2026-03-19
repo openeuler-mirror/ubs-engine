@@ -45,7 +45,7 @@ void ResourceCollection::ClearAllDevices()
 
 bool ValidateGuid(const std::string &guid)
 {
-    // 32
+    // guid 是长度32位, 只允许-和16进制数的字符串
     return guid.size() == NO_32 && IsValidHexString(guid, true);
 }
 
@@ -116,7 +116,6 @@ UbseResult ResourceCollection::SetDevice(std::shared_ptr<CollectionDevice> &dev)
         UBSE_LOG_ERROR << "Failed to add device to devId map";
         return ret;
     }
-    // idev vfe0guiddavidpfevfeguid
     if (type == CollectionDeviceType::P_IDEV || type == CollectionDeviceType::V_IDEV || !ValidateGuid(dev->GetGuid())) {
         UBSE_LOG_WARN << "No need to add device or guid is invalid, devId: " << dev->GetIdStr()
                       << ", guid: " << dev->GetGuid();
