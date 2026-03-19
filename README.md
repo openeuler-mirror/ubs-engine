@@ -99,7 +99,7 @@ UBSE 架构详细介绍请查看：[Architecture](./docs/design/architecture.md)
 #### 1.2 源代码下载
 
 ```shell
-git clone https://gitcode.com/openeuler/ubs-engine.git
+git clone https://atomgit.com/openeuler/ubs-engine.git
 ```
 
 #### 2.构建项目
