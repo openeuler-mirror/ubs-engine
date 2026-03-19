@@ -147,6 +147,7 @@ bool UbseTaskExecutor::Start()
     }
 
     mStarted = true;
+    mStopped = false;
     return true;
 }
 
