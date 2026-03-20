@@ -42,8 +42,9 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImpo
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Init numaBorrowRemoteNumaId failed.";
         return ret;
     }
-    auto importField = importObj.algoResult.importNumaInfos[0];
-    std::string chipPortStr = std::to_string(importField.socketId) + "-" + std::to_string(importField.portId);
+    auto portId = importObj.algoResult.importNumaInfos[0].portId;
+    auto attachSocketId = importObj.algoResult.attachSocketId;
+    std::string chipPortStr = std::to_string(attachSocketId) + "-" + std::to_string(portId);
     int numa = MemInstanceInnerCommon::GetInstance().GetNuma(chipPortStr);
     if (numa == INVALID_NUMAID) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get remote numaid failed, lendNodeChipStr= " << chipPortStr;
