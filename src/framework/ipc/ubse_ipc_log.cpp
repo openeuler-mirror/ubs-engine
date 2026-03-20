@@ -16,6 +16,7 @@
 #include <csignal>
 #include <iomanip>
 #include <iostream>
+#include <sys/time.h>
 
 namespace ubse::ipc {
 UbseIpcLogFunc UbseIpcLog::logFunc_ = nullptr;

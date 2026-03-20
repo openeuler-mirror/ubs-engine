@@ -14,6 +14,7 @@
 #define UBSE_ICTRL_Q_MSG_OPERATION_PROXY_H
 #include "ubse_common_def.h"
 #include "ubse_ctrl_q_message.h"
+#include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_ictrl_q_req_msg.h"
 #include "ubse_pointer_process.h"

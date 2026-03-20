@@ -18,14 +18,14 @@
 #include "securec.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
-#include "ubse_logger_module.h"
+#include "ubse_logger.h"
 #include "ubse_pointer_process.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace ubse::common::def;
 using namespace ubse::log;
 using namespace ubse::framework::misc;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_MTI_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 struct BandBridgeMbuf {
     int sendBufSize{0};

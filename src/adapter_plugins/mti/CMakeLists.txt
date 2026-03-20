@@ -1,3 +1,5 @@
+add_subdirectory(ctrl_q)
+
 # 首先，定义一个变量来存储源文件
 set(SOURCES "")
 
