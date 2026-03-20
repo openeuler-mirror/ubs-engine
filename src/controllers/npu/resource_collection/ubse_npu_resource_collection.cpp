@@ -506,25 +506,11 @@ UbseResult ResourceCollection::RemoveDeviceEmptyVmBusi(const std::shared_ptr<Col
     auto &subDevNics = dev->GetSubDevNic();
     if (!subDevNics.empty()) {
         UBSE_LOG_ERROR << "Sub nic device is not empty";
-        for (auto &subNic : subDevNics) {
-            if (subNic == nullptr) {
-                UBSE_LOG_ERROR << "A sub nic device is nullptr";
-                continue;
-            }
-            UBSE_LOG_ERROR << "Sub nic existed, devId: " << subNic->GetIdStr() << ", guid: " << subNic->GetGuid();
-        }
         return UBSE_ERROR;
     }
     auto &subDevIdevs = dev->GetSubDevIdev();
     if (!subDevIdevs.empty()) {
         UBSE_LOG_ERROR << "Sub idev device is not empty";
-        for (auto &subIdev : subDevIdevs) {
-            if (subIdev == nullptr) {
-                UBSE_LOG_ERROR << "A sub idev device is nullptr";
-                continue;
-            }
-            UBSE_LOG_ERROR << "Sub idev existed, devId: " << subIdev->GetIdStr() << ", guid: " << subIdev->GetGuid();
-        }
         return UBSE_ERROR;
     }
     guidToDevice_.erase(dev->GetGuid());
@@ -791,7 +777,6 @@ UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiGuid
             UBSE_LOG_ERROR << "Invalid guid: " << guid;
             return UBSE_ERROR;
         }
-        UBSE_LOG_INFO << "Get guid: " << guid;
         // 1825
         if (auto devNicBase = GetDeviceByGuid(guid);
             devNicBase != nullptr && devNicBase->GetType() == CollectionDeviceType::NIC) {
@@ -884,7 +869,6 @@ UbseResult CheckDevTopoIdevPfe(int &cnt, std::shared_ptr<CollectionDeviceIdevPfe
             UBSE_LOG_ERROR << "Check idev vfe fail";
             return UBSE_ERROR;
         }
-        UBSE_LOG_INFO << "Found a relation, pfe: " << devPfe->GetIdStr() << " to vfe: " << devVfe->GetIdStr();
         ++cnt;
     }
     auto devDavid = devPfe->GetBondingDevDavid();
@@ -914,8 +898,6 @@ UbseResult CheckDevTopoForUbCtrlSubIdev(int &cnt, std::shared_ptr<CollectionDevi
             UBSE_LOG_ERROR << "Check pfe fail";
             return UBSE_ERROR;
         }
-        UBSE_LOG_INFO << "Found a relation, ub ctrl: " << devUbCtrl->GetIdStr() << " to pfe: "
-                      << devIdevPfe->GetIdStr();
         ++cnt;
     }
     return UBSE_OK;
@@ -930,8 +912,6 @@ UbseResult CheckDevTopoForUbCtrlAffiDevNic(int &cnt, std::shared_ptr<CollectionD
             UBSE_LOG_ERROR << "No link from nic to ub ctrl";
             return UBSE_ERROR;
         }
-        std::UBSE_LOG_INFO << "Found a relation, ub ctrl: " << devUbCtrl->GetIdStr() << " to nic: "
-                           << devAffinityNic->GetIdStr();
         ++cnt;
     }
     return UBSE_OK;
@@ -966,7 +946,6 @@ UbseResult CheckDevTopoBusi(int &cnt, CollectionGuidToDevice &devBusis)
         if (devBusiBase == nullptr || !IsBusInstanceType(devBusiBase)) {
             continue;
         }
-        UBSE_LOG_INFO << "Check bus instance, guid: " << devBusiKv.first;
         auto devBusi = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(devBusiBase);
         if (devBusi == nullptr) {
             UBSE_LOG_ERROR << "UbCtrl is nullptr";
@@ -988,8 +967,6 @@ UbseResult CheckDevTopoBusi(int &cnt, CollectionGuidToDevice &devBusis)
                 return UBSE_ERROR;
             }
             ++cnt;
-            UBSE_LOG_INFO << "Found a relation, bus instance: " << devBusi->GetIdStr()
-                      << " to vfe: " << devIdevVfe->GetIdStr();
         }
         for (auto &devNic : devBusi->GetSubDevNic()) {
             if (devNic == nullptr) {
@@ -1005,8 +982,6 @@ UbseResult CheckDevTopoBusi(int &cnt, CollectionGuidToDevice &devBusis)
                 return UBSE_ERROR;
             }
             ++cnt;
-            UBSE_LOG_INFO << "Found a relation, bus instance: " << devBusi->GetIdStr() << " to nic: "
-                          << devNic->GetIdStr();
         }
     }
     return UBSE_OK;
