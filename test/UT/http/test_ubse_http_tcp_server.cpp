@@ -11,16 +11,16 @@
  */
 
 #include "test_ubse_http_tcp_server.h"
+#include <grp.h>
 #include <httplib.h>
 #include <securec.h>
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_http_common.h"
-#include "ubse_http_error.h"
-#include "ubse_http_tcp_server.h"
+#include "ubse_http_server.h"
 #include "ubse_pointer_process.h"
-#include "ubse_topology_interface.h"
 
 namespace ubse::ut::http {
 using namespace ubse::http;
@@ -58,8 +58,22 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopTcpServer)
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
     ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
     MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseHttpTcpServer::GetInstance().Start(), true);
-    EXPECT_NO_THROW(UbseHttpTcpServer::GetInstance().Stop());
+    EXPECT_EQ(UbseHttpServer::GetInstance().Start(true), false);
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
+    GlobalMockObject::verify();
+}
+
+TEST_F(TestUbseHttpTcpServer, StartAndStopUdsServer)
+{
+    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
+    ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
+    MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
+    struct group testGroup{.gr_name = "ubm_nuds"};
+    MOCKER(getgrnam).stubs().will(returnValue(&testGroup));
+
+    EXPECT_EQ(UbseHttpServer::GetInstance().Start(false), false);
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
     GlobalMockObject::verify();
 }
 
@@ -69,7 +83,7 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopTcpServer)
  * 测试步骤：如下
  * 1.设置req的params长度为httpMaxQuerySize + 1
  * 预期结果：如下
- * 1.校验返回UBSE_ERROR_HTTP_MSG_OVERSIZE
+ * 1.校验返回UBSE_HTTP_ERROR_MSG_OVERSIZE
  */
 TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidParamsSize)
 {
@@ -78,7 +92,7 @@ TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidParamsSize)
 
     std::string testString(httpMaxQuerySize + 1, 'a'); // 设置测试字符串长度为param最大值加1
     req.params.insert(std::make_pair("param1", testString));
-    EXPECT_EQ(UbseHttpTcpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_ERROR_HTTP_MSG_OVERSIZE);
+    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_HTTP_ERROR_MSG_OVERSIZE);
 }
 
 /*
@@ -87,7 +101,7 @@ TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidParamsSize)
  * 测试步骤：如下
  * 1.设置req的请求体长度为httpMaxBodySize + 1
  * 预期结果：如下
- * 1.校验返回UBSE_ERROR_HTTP_MSG_OVERSIZE
+ * 1.校验返回UBSE_HTTP_ERROR_MSG_OVERSIZE
  */
 TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidBodySize)
 {
@@ -97,7 +111,7 @@ TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidBodySize)
     std::string testBodyString(httpMaxBodySize + 1, 'a'); // 设置测试字符串长度为body最大值加1
     req.params.insert(std::make_pair("param1", "value1"));
     req.body = testBodyString;
-    EXPECT_EQ(UbseHttpTcpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_ERROR_HTTP_MSG_OVERSIZE);
+    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_HTTP_ERROR_MSG_OVERSIZE);
 }
 
 /*
@@ -119,10 +133,10 @@ TEST_F(TestUbseHttpTcpServer, ValidateHttpRequest)
     req.params.insert(std::make_pair("param1", "value1"));
     req.body = "testRequestBody";
     req.method = "INVALIDTYPE";
-    EXPECT_EQ(UbseHttpTcpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_ERROR);
+    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_ERROR);
 
     req.method = "GET";
-    EXPECT_EQ(UbseHttpTcpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_OK);
+    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_OK);
 }
 
 /*
@@ -139,7 +153,7 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfMoudleFailed)
     uint32_t port = 0;
     std::shared_ptr<UbseConfModule> nullModule = nullptr;
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule));
-    EXPECT_NO_THROW(UbseHttpTcpServer::GetInstance().GetTcpServerPort(port));
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
@@ -167,11 +181,11 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfFailed)
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
     MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_NO_THROW(UbseHttpTcpServer::GetInstance().GetTcpServerPort(port));
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 
     MOCKER(&UbseConfModule::GetConf<uint32_t>).stubs().will(invoke(GetConfMocker));
-    EXPECT_NO_THROW(UbseHttpTcpServer::GetInstance().GetTcpServerPort(port));
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
@@ -198,7 +212,7 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortSucceed)
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
     MOCKER(&UbseConfModule::GetConf<uint32_t>).stubs().will(invoke(GetConfMockerWithValidPort));
-    EXPECT_NO_THROW(UbseHttpTcpServer::GetInstance().GetTcpServerPort(port));
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
     EXPECT_EQ(port, TCP_SERVER_PORT);
 }
 
@@ -218,8 +232,8 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest400)
     req.method = "GET";
     req.path = "";
 
-    MOCKER(&UbseHttpTcpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_ERROR));
-    UbseHttpTcpServer::GetInstance().HandleRequest(req, resp);
+    MOCKER(&UbseHttpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_ERROR));
+    UbseHttpServer::GetInstance().HandleRequest(req, resp);
     EXPECT_EQ(resp.status, BadRequest_400);
 
     GlobalMockObject::verify();
@@ -235,8 +249,8 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest404)
     req.method = "GET";
     req.path = "";
 
-    MOCKER(&UbseHttpTcpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_OK));
-    UbseHttpTcpServer::GetInstance().HandleRequest(req, resp);
+    MOCKER(&UbseHttpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_OK));
+    UbseHttpServer::GetInstance().HandleRequest(req, resp);
     EXPECT_EQ(resp.status, NotFound_404);
 
     GlobalMockObject::verify();
@@ -252,10 +266,10 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest200)
     req.method = "GET";
     req.path = "";
 
-    MOCKER(&UbseHttpTcpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseHttpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_OK));
 
-    UbseHttpTcpServer::GetInstance().RegisterRoute(req.path, req.method, TestHandlerForTcpReg);
-    UbseHttpTcpServer::GetInstance().HandleRequest(req, resp);
+    UbseHttpServer::GetInstance().RegisterRoute(req.path, req.method, TestHandlerForTcpReg);
+    UbseHttpServer::GetInstance().HandleRequest(req, resp);
     EXPECT_EQ(resp.status, OK_200);
     GlobalMockObject::verify();
 }

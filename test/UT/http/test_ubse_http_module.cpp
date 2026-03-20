@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -13,16 +13,17 @@
 #include "test_ubse_http_module.h"
 
 #include "ubse_http_common.h"
-#include "ubse_http_error.h"
-#include "ubse_http_tcp_server.h"
+#include "ubse_http_server.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_pointer_process.h"
-#include "ubse_topology_interface.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "ubse_cert_validator.h"
 
 using namespace ubse::http;
 using namespace ubse::context;
+using namespace ubse::config;
 namespace ubse::ut::http {
 constexpr const uint32_t TCP_SERVER_PORT = 8088;
 
@@ -53,7 +54,9 @@ void TestUbseHttpModule::TearDown()
  */
 TEST_F(TestUbseHttpModule, ShouldReturnUBSE_OK_When_Strat_Return_True)
 {
-    MOCKER(&UbseHttpTcpServer::Start).stubs().will(returnValue(true));
+    std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
+    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, testRHM.Initialize());
     auto ret = testRHM.Start();
     EXPECT_EQ(ret, UBSE_OK);
@@ -71,23 +74,59 @@ TEST_F(TestUbseHttpModule, ShouldReturnUBSE_OK_When_Strat_Return_True)
  */
 TEST_F(TestUbseHttpModule, ShouldReturnUBSE_ERROR_When_Strat_Return_False)
 {
-    MOCKER(&UbseHttpTcpServer::Start).stubs().will(returnValue(false));
+    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(false));
     auto ret = testRHM.Start();
     EXPECT_EQ(ret, UBSE_ERROR);
     testRHM.Stop();
 }
 
-static uint32_t TestTcpHandler(const UbseHttpRequest &req, UbseHttpResponse &resp)
+static uint32_t TestHandler(const UbseHttpRequest &req, UbseHttpResponse &resp)
 {
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
     return UBSE_OK;
 }
 
-TEST_F(TestUbseHttpModule, RegHttpTcpService)
+static uint32_t TestJsonHandler(const UbseHttpRequest &req, UbseHttpResponse &resp)
+{
+    resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
+    return UBSE_OK;
+}
+
+TEST_F(TestUbseHttpModule, RegHttpService)
 {
     UbseHttpMethod method = UbseHttpMethod::UBSE_HTTP_METHOD_GET;
     const std::string url = "ubse/test/url";
-    EXPECT_NO_THROW(testRHM.RegHttpTcpService(method, url, TestTcpHandler));
+    EXPECT_NO_THROW(testRHM.RegHttpService(method, url, TestHandler));
+}
+
+TEST_F(TestUbseHttpModule, Initialize_TcpDefault)
+{
+    EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, testRHM.Initialize());
+    std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
+    MOCKER(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    EXPECT_EQ(UBSE_OK, testRHM.Initialize());
+    auto ret = testRHM.Start();
+    EXPECT_EQ(ret, UBSE_OK);
+    testRHM.Stop();
+    testRHM.UnInitialize();
+}
+
+TEST_F(TestUbseHttpModule, Initialize_Conf)
+{
+    std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
+    uint32_t port = 8082;
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(any(), any(), outBound(port)).will(returnValue(UBSE_OK));
+    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
+    MOCKER(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    EXPECT_EQ(UBSE_OK, testRHM.Initialize());
+    auto ret = testRHM.Start();
+    EXPECT_EQ(ret, UBSE_OK);
+    testRHM.Stop();
+    testRHM.UnInitialize();
 }
 
 bool TestSend(httplib::Request &req, httplib::Response &res, httplib::Error &error)
@@ -106,8 +145,41 @@ TEST_F(TestUbseHttpModule, HttpSend)
     req.path = "ubse/test/httpSend/url";
     UbseHttpMethod method = UbseHttpMethod::UBSE_HTTP_METHOD_GET;
     const std::string url = "ubse/test/httpSend/url";
-    EXPECT_NO_THROW(testRHM.RegHttpTcpService(method, url, TestTcpHandler));
-    auto ret = testRHM.HttpSend("127.0.0.1", TCP_SERVER_PORT, req, rsp);
+    EXPECT_NO_THROW(testRHM.RegHttpService(method, url, TestHandler));
+    auto ret = testRHM.HttpSend(req, rsp);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseHttpModule, HttpSend_Tcp)
+{
+    UbseHttpRequest req{};
+    UbseHttpResponse rsp{};
+    req.method = "GET";
+    req.path = "ubse/test/httpSend/url";
+    testRHM.isTcpServer = true;
+    auto ret = testRHM.HttpSend(req, rsp);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseHttpModule, UbseHttpPostJsonRequest)
+{
+    UbseHttpRequest req{};
+    std::string rsp;
+    req.path = "ubse/test/httpSend/url1";
+    req.body = "";
+    testRHM.isTcpServer = false;
+    auto ret = testRHM.UbseHttpPostJsonRequest(req.path, req.body, rsp);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseHttpModule, UbseHttpPostJsonRequest_Tcp)
+{
+    UbseHttpRequest req{};
+    std::string rsp;
+    req.path = "ubse/test/httpSend/url1";
+    req.body = "";
+    testRHM.isTcpServer = true;
+    auto ret = testRHM.UbseHttpPostJsonRequest(req.path, req.body, rsp);
     EXPECT_NE(ret, UBSE_OK);
 }
 }

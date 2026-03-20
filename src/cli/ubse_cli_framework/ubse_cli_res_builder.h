@@ -92,7 +92,7 @@ public:
     UbseCliVariableCellInfo UbseCliVariableCellBuild();
 
 private:
-    UbseCliVariableCellInfo variableCellInfo;
+    UbseCliVariableCellInfo variableCellInfo_;
 };
 
 // The virtual base class that needs to be used for the data to be displayed, below is the supported display class.
@@ -106,37 +106,37 @@ public:
 // Output a string with words separated by line breaks without splitting them.
 class UbseCliStringEcho : public UbseCliResultEcho {
 public:
-    explicit UbseCliStringEcho(std::string string_result) : ubseStringResult(std::move(string_result)) {}
+    explicit UbseCliStringEcho(std::string string_result) : ubseStringResult_(std::move(string_result)) {}
 
     void UbseCliDisplayResult() final;
 
 private:
-    std::string ubseStringResult{};
+    std::string ubseStringResult_{};
 };
 
 // Output a structured table.
 class UbseCliVariableCellEcho : public UbseCliResultEcho {
 public:
     explicit UbseCliVariableCellEcho(UbseCliVariableCellInfo &variable_cell_info)
-        : ubseCliVariableCellInfo(variable_cell_info)
+        : ubseCliVariableCellInfo_(variable_cell_info)
     {}
 
     void UbseCliDisplayResult() final;
 
 private:
-    UbseCliVariableCellInfo ubseCliVariableCellInfo{};
+    UbseCliVariableCellInfo ubseCliVariableCellInfo_{};
 };
 
 // Output multiple structured tables.
 class UbseCliVariableCellsEcho : public UbseCliResultEcho {
 public:
     explicit UbseCliVariableCellsEcho(const std::vector<UbseCliVariableCellInfo> &variable_cells_info)
-        : ubseCliVariableCellsInfo(variable_cells_info){};
+        : ubseCliVariableCellsInfo_(variable_cells_info){};
 
     void UbseCliDisplayResult() final;
 
 private:
-    std::vector<UbseCliVariableCellInfo> ubseCliVariableCellsInfo{};
+    std::vector<UbseCliVariableCellInfo> ubseCliVariableCellsInfo_{};
 };
 
 constexpr size_t UBSE_DEFAULT_SCREEN_WIDTH = 100;

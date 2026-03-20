@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef RACK_MANAGER_TEST_UBSE_IPC_CLIENT_H
-#define RACK_MANAGER_TEST_UBSE_IPC_CLIENT_H
+#ifndef UBSE_MANAGER_TEST_UBSE_IPC_CLIENT_H
+#define UBSE_MANAGER_TEST_UBSE_IPC_CLIENT_H
 
 #include <gtest/gtest.h>
 
@@ -26,4 +26,4 @@ public:
 };
 } // namespace ubse::ut::ipc
 
-#endif // RACK_MANAGER_TEST_UBSE_IPC_CLIENT_H
+#endif // UBSE_MANAGER_TEST_UBSE_IPC_CLIENT_H

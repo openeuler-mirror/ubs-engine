@@ -11,9 +11,10 @@
  */
 
 #include "rpc/ubse_rpc_server.h"
-#include "ubse_context.h"
 #include "ubse_conf_module.h"
+#include "ubse_context.h"
 namespace ubse::com {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
 using namespace ubse::context;
 const std::string WorkGroup = "server";
@@ -38,31 +39,30 @@ UbseResult GetUBEnableForRpc(bool &ubEnable)
 
 UbseResult UbseRpcServer::Start()
 {
-    auto ret = GetUBEnableForRpc(ubEnable);
+    auto ret = GetUBEnableForRpc(ubEnable_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get config ubEnable";
         return UBSE_ERROR_CONF_INVALID;
     }
-
     uint16_t hcomHbTimeout;
     ret = GetHcomHbTimeout(hcomHbTimeout);
     if (ret != UBSE_OK) {
         hcomHbTimeout = DEFAULT_HCOM_HB_TIMEOUT;
     }
-    sleepTime = hcomHbTimeout;
+    sleepTime_ = hcomHbTimeout;
 
     UbseComEngineInfo engineInfo{};
     engineInfo.SetEngineType(UbseEngineType::SERVER);
-    if (ubEnable) {
+    if (ubEnable_) {
         engineInfo.SetProtocol(UbseProtocol::UBC);
         engineInfo.SetWorkerMode(UbseWorkerMode::NET_EVENT_POLLING);
     } else {
         engineInfo.SetProtocol(UbseProtocol::TCP);
         engineInfo.SetWorkerMode(UbseWorkerMode::NET_BUSY_POLLING);
     }
-    engineInfo.SetName(name);
-    engineInfo.SetNodeId(nodeId);
-    engineInfo.SetIpInfo(std::make_pair(ip, port));
+    engineInfo.SetName(name_);
+    engineInfo.SetNodeId(nodeId_);
+    engineInfo.SetIpInfo(std::make_pair(ip_, port_));
     engineInfo.SetWorkGroup(WorkGroup);
     engineInfo.SetLogFunc(Log);
     engineInfo.SetReconnectHook(
@@ -73,6 +73,7 @@ UbseResult UbseRpcServer::Start()
     engineInfo.SetShouldDoReconnectCb(GetShouldDoReconnectCb());
     engineInfo.SetQueryEidByNodeIdCb(GetQueryEidByNodeIdCb());
     engineInfo.SetHcomHbTimeOut(hcomHbTimeout);
+    engineInfo.SetChannelCb(newChannelCb, brokenChannelCb);
     return UbseCommunication::CreateUbseComEngine(engineInfo, LinkNotify);
 }
 
@@ -84,44 +85,17 @@ bool UbseRpcServer::IsReConnect(std::string remoteNodeId)
 
 void UbseRpcServer::Stop()
 {
-    UbseCommunication::DeleteUbseComEngine(name);
+    UbseCommunication::DeleteUbseComEngine(name_);
 }
 
-void UbseRpcServer::TlsOn()
+UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string &remoteNodeId)
 {
-    isTls = true;
-}
-
-UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option)
-{
-    UbseResult ret;
-    if (option.channelType == UbseChannelType::HEARTBEAT) {
-        ret = UbseCommunication::UbseComRpcConnect(name, std::make_pair(option.ip, option.port),
-                                                   std::make_pair(nodeId, option.nodeId), option.channelType, ubEnable);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Unable to connect " << uint32_t(option.channelType) << " channel " << FormatRetCode(ret);
-        }
+    UbseResult ret = UBSE_ERROR;
+    if (option.channelType == UbseChannelType::NORMAL) {
+        ret = UbseCommunication::UbseComRpcConnect(name_, std::make_pair(option.ip, option.port),
+                                                   std::make_pair(nodeId_, option.nodeId), remoteNodeId,
+                                                   option.channelType, ubEnable_);
         return ret;
-    }
-
-    std::mutex g_mutex;
-    for (size_t i = 0; i < RETRY_TIME; i++) {
-        ret = UbseCommunication::UbseComRpcConnect(name, std::make_pair(option.ip, option.port),
-                                                   std::make_pair(nodeId, option.nodeId), option.channelType, ubEnable);
-        if (ret == UBSE_OK) {
-            break;
-        }
-        UBSE_LOG_WARN << "Engine " << name << " unable to connect server " << option.nodeId
-                    << " ," << FormatRetCode(ret);
-
-        std::unique_lock<std::mutex> lock(g_mutex);
-        if (g_globalCv.wait_for(lock, std::chrono::seconds(sleepTime), [] { return g_globalStop.load(); })) {
-            break;
-        }
-    }
-
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Unable to connect " << uint32_t(option.channelType) << " channel," << FormatRetCode(ret);
     }
     return ret;
 }
@@ -135,9 +109,12 @@ UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t &hcomHbTimeout)
     }
 
     uint32_t heartbeatTimeInterval;
+    const uint32_t minHeartBeatInterval = 1000;
+    const uint32_t maxHeartBeatInterval = 60000;
     auto ret =
         module->GetConf<uint32_t>(UBSE_ELECTION_SECTION, UBSE_ELECTION_HEARTBEAT_TIME_INTERVAL, heartbeatTimeInterval);
-    if (ret != UBSE_OK || heartbeatTimeInterval < 1000 || heartbeatTimeInterval > 60000) {
+    if (ret != UBSE_OK || heartbeatTimeInterval < minHeartBeatInterval ||
+        heartbeatTimeInterval > maxHeartBeatInterval) {
         UBSE_LOG_WARN << "Heartbeat time  is invalid.";
         return UBSE_ERROR_INVAL;
     }
@@ -150,7 +127,8 @@ UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t &hcomHbTimeout)
         return UBSE_ERROR_INVAL;
     }
 
-    hcomHbTimeout = heartbeatTimeInterval * heartbeatLostThreshold / 1000;
+    const uint32_t millsToSeconds = 1000;
+    hcomHbTimeout = heartbeatTimeInterval * heartbeatLostThreshold / millsToSeconds;
     return UBSE_OK;
 }
 
@@ -158,4 +136,17 @@ UbseResult UbseRpcServer::Connect()
 {
     return UBSE_OK;
 }
+
+UbseResult UbseRpcServer::RegNewChannelCb(UbseComCallBackForHA func)
+{
+    newChannelCb = func;
+    return UBSE_OK;
+}
+
+UbseResult UbseRpcServer::RegBrokenChannelCb(UbseComCallBackForHA func)
+{
+    brokenChannelCb = func;
+    return UBSE_OK;
+}
+
 }

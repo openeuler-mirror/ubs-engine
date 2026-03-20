@@ -1,20 +1,20 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #include "test_ubse_plugin_manager.h"
 #include <dlfcn.h>
 #include "ubse_error.h"
 #include "ubse_plugin_config.h"
 #include "ubse_plugin_manager.h"
-#include "usbe_plugin_error.h"
 
 namespace ubse::ut::plugin {
 using namespace ubse::plugin;
@@ -23,7 +23,7 @@ std::map<std::string, UbsePluginInfo> configs;
 std::map<std::string, uint16_t> addmissionConfigs;
 UbsePluginManager ubsePluginManager;
 
-const uint16_t MOCKMODULECODE = 201;
+std::optional<uint16_t> MOCKMODULECODE = 201;
 
 struct TestPluginSo {
 } g_testPluginSo;
@@ -38,6 +38,11 @@ uint32_t MockUbsePluginInitFailFunc(const uint16_t moduleCode)
     return UBSE_ERROR;
 }
 
+void MockGetLoadedPlugins(UbsePluginManager *_mockClass, std::vector<std::string> &loadedPlugins)
+{
+    loadedPlugins.emplace_back("vm");
+}
+
 void MockUbsePluginDeInitFunc() {}
 void MockGetLoaedPlugins(UbsePluginManager *fakeClass, std::vector<std::string> &loadedPlugins)
 {
@@ -50,7 +55,7 @@ void TestUbsePluginManager::SetUp()
     ubsePluginInfo.pkg = "ssu.so";
     configs.insert(std::make_pair("ubse.plugin.name", ubsePluginInfo));
 
-    addmissionConfigs[ubsePluginInfo.name] = MOCKMODULECODE;
+    addmissionConfigs[ubsePluginInfo.name] = MOCKMODULECODE.value();
 
     MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&g_testPluginSo)));
     MOCKER(dlclose).stubs().will(returnValue(1));
@@ -66,6 +71,7 @@ void TestUbsePluginManager::TearDown()
     MOCKER(dlclose).reset();
     MOCKER(realpath).reset();
     Test::TearDown();
+    GlobalMockObject::verify();
 }
 
 TEST_F(TestUbsePluginManager, TestStartLoadPluginConfigFailed)
@@ -98,6 +104,7 @@ TEST_F(TestUbsePluginManager, TestStartOk)
 {
     MOCKER(&UbsePluginConfig::LoadPluginConfigs).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbsePluginAdmission::LoadAdmissionConfig).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbsePluginManager::LoadAndInitPlugins).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(ubsePluginManager.Start(), UBSE_OK);
 
@@ -131,7 +138,7 @@ TEST_F(TestUbsePluginManager, TestStartWithAdmission)
     MOCKER(&UbsePluginAdmission::LoadAdmissionConfig).stubs().will(returnValue(UBSE_OK));
 
     MOCKER(&UbsePluginConfig::GetAllPluginConfigs).stubs().will(returnValue(configs));
-    MOCKER(&UbsePluginAdmission::GetPluginConfig).stubs().will(returnValue(&MOCKMODULECODE));
+    MOCKER(&UbsePluginAdmission::GetPluginConfig).stubs().will(returnValue(MOCKMODULECODE));
     MOCKER(dlsym).stubs().will(returnValue((void *)&MockUbsePluginInitFunc));
 
     EXPECT_EQ(ubsePluginManager.Start(), UBSE_OK);
@@ -148,7 +155,7 @@ TEST_F(TestUbsePluginManager, TestDeInitializePlugins)
     MOCKER(&UbsePluginAdmission::LoadAdmissionConfig).stubs().will(returnValue(UBSE_OK));
 
     MOCKER(&UbsePluginConfig::GetAllPluginConfigs).stubs().will(returnValue(configs));
-    MOCKER(&UbsePluginAdmission::GetPluginConfig).stubs().will(returnValue(&MOCKMODULECODE));
+    MOCKER(&UbsePluginAdmission::GetPluginConfig).stubs().will(returnValue(MOCKMODULECODE));
     MOCKER(dlsym).stubs().will(returnValue((void *)&MockUbsePluginInitFunc));
     EXPECT_EQ(ubsePluginManager.Start(), UBSE_OK);
     MOCKER(dlsym).stubs().will(returnValue(&MockUbsePluginDeInitFunc));

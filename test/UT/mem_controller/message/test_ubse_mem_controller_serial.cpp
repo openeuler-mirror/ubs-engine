@@ -1,30 +1,30 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #include "test_ubse_mem_controller_serial.h"
 
 #include "mockcpp/mockcpp.hpp"
 
 #include "message/ubse_mem_controller_serial.h"
-#include "ubse_conf_error.h"
+#include "ubse_error.h"
 #include "ubse_serial_util.h"
 
 namespace ubse::mem::serial::ut {
-void TesUbseMemControllerSerial::SetUp()
+void TestUbseMemControllerSerial::SetUp()
 {
     Test::SetUp();
 }
 
-void TesUbseMemControllerSerial::TearDown()
+void TestUbseMemControllerSerial::TearDown()
 {
     Test::TearDown();
     GlobalMockObject::verify();
@@ -35,7 +35,7 @@ void TesUbseMemControllerSerial::TearDown()
  * 测试步骤：略
  * 预期结果：方法正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemDebtNumaInfoSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemDebtNumaInfoSerialization)
 {
     UbseSerialization out;
     UbseMemDebtNumaInfo debtNumaInfo;
@@ -47,13 +47,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemDebtNumaInfoSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemDebtNumaInfoDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemDebtNumaInfoDeserialization)
 {
     UbseDeSerialization in;
     UbseMemDebtNumaInfo debtNumaInfo;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemDebtNumaInfoDeserialization(in, debtNumaInfo));
-    EXPECT_TRUE(UBSE_OK == UbseMemDebtNumaInfoDeserialization(in, debtNumaInfo));
+    EXPECT_FALSE(UbseMemDebtNumaInfoDeserialization(in, debtNumaInfo));
+    EXPECT_TRUE(UbseMemDebtNumaInfoDeserialization(in, debtNumaInfo));
 }
 
 /*
@@ -61,7 +61,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemDebtNumaInfoDeserialization)
  * 测试步骤： 略
  * 预期结果： 程序正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemAlgoResultSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemAlgoResultSerialization)
 {
     UbseSerialization out;
     UbseMemAlgoResult algoResult;
@@ -75,12 +75,12 @@ TEST_F(TesUbseMemControllerSerial, UbseMemAlgoResultSerialization)
  * 测试步骤：略
  * 预期结果：返回UBSE_ERROR
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemAlgoResultDeserialization_WhenCheckFailed)
+TEST_F(TestUbseMemControllerSerial, UbseMemAlgoResultDeserialization_WhenCheckFailed)
 {
     UbseDeSerialization in;
     UbseMemAlgoResult algoResult;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemAlgoResultDeserialization(in, algoResult));
+    EXPECT_FALSE(UbseMemAlgoResultDeserialization(in, algoResult));
 }
 
 /*
@@ -89,12 +89,12 @@ TEST_F(TesUbseMemControllerSerial, UbseMemAlgoResultDeserialization_WhenCheckFai
  * 测试步骤：略
  * 预期结果：返回UBSE_ERROR
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemAlgoResultDeserialization_WhenEverythingIsOk)
+TEST_F(TestUbseMemControllerSerial, UbseMemAlgoResultDeserialization_WhenEverythingIsOk)
 {
     UbseDeSerialization in;
     UbseMemAlgoResult algoResult;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(true));
-    EXPECT_TRUE(UBSE_OK == UbseMemAlgoResultDeserialization(in, algoResult));
+    EXPECT_TRUE(UbseMemAlgoResultDeserialization(in, algoResult));
 }
 
 /*
@@ -102,7 +102,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemAlgoResultDeserialization_WhenEverythi
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemObmmMemDescSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemObmmMemDescSerialization)
 {
     UbseSerialization out;
     ubse_mem_obmm_mem_desc ubseMemObmmMemDesc;
@@ -114,13 +114,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemObmmMemDescSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemObmmMemDescDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemObmmMemDescDeserialization)
 {
     UbseDeSerialization in;
     ubse_mem_obmm_mem_desc ubseMemObmmMemDesc;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemObmmMemDescDeserialization(in, ubseMemObmmMemDesc));
-    EXPECT_TRUE(UBSE_OK == UbseMemObmmMemDescDeserialization(in, ubseMemObmmMemDesc));
+    EXPECT_FALSE(UbseMemObmmMemDescDeserialization(in, ubseMemObmmMemDesc));
+    EXPECT_TRUE(UbseMemObmmMemDescDeserialization(in, ubseMemObmmMemDesc));
 }
 
 /*
@@ -128,7 +128,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemObmmMemDescDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemObmmInfoSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemObmmInfoSerialization)
 {
     UbseSerialization out;
     UbseMemObmmInfo ubseMemObmmInfo;
@@ -140,13 +140,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemObmmInfoSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemObmmInfoDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemObmmInfoDeserialization)
 {
     UbseDeSerialization in;
     UbseMemObmmInfo ubseMemObmmInfo;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemObmmInfoDeserialization(in, ubseMemObmmInfo));
-    EXPECT_TRUE(UBSE_OK == UbseMemObmmInfoDeserialization(in, ubseMemObmmInfo));
+    EXPECT_FALSE(UbseMemObmmInfoDeserialization(in, ubseMemObmmInfo));
+    EXPECT_TRUE(UbseMemObmmInfoDeserialization(in, ubseMemObmmInfo));
 }
 
 /*
@@ -154,7 +154,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemObmmInfoDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemExportStatusSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemExportStatusSerialization)
 {
     UbseSerialization out;
     UbseMemExportStatus ubseMemExportStatus;
@@ -167,13 +167,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemExportStatusSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemExportStatusDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemExportStatusDeserialization)
 {
     UbseDeSerialization in;
     UbseMemExportStatus ubseMemExportStatus;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemExportStatusDeserialization(in, ubseMemExportStatus));
-    EXPECT_TRUE(UBSE_OK == UbseMemExportStatusDeserialization(in, ubseMemExportStatus));
+    EXPECT_FALSE(UbseMemExportStatusDeserialization(in, ubseMemExportStatus));
+    EXPECT_TRUE(UbseMemExportStatusDeserialization(in, ubseMemExportStatus));
 }
 
 /*
@@ -181,7 +181,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemExportStatusDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseUdsInfoSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseUdsInfoSerialization)
 {
     UbseSerialization out;
     UbseUdsInfo udsInfo;
@@ -193,13 +193,13 @@ TEST_F(TesUbseMemControllerSerial, UbseUdsInfoSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseUdsInfoDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseUdsInfoDeserialization)
 {
     UbseDeSerialization in;
     UbseUdsInfo udsInfo;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseUdsInfoDeserialization(in, udsInfo));
-    EXPECT_TRUE(UBSE_OK == UbseUdsInfoDeserialization(in, udsInfo));
+    EXPECT_FALSE(UbseUdsInfoDeserialization(in, udsInfo));
+    EXPECT_TRUE(UbseUdsInfoDeserialization(in, udsInfo));
 }
 
 /*
@@ -207,7 +207,7 @@ TEST_F(TesUbseMemControllerSerial, UbseUdsInfoDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseNumaLocationSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseNumaLocationSerialization)
 {
     UbseSerialization out;
     UbseNumaLocation ubseNumaLocation;
@@ -219,13 +219,13 @@ TEST_F(TesUbseMemControllerSerial, UbseNumaLocationSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseNumaLocationDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseNumaLocationDeserialization)
 {
     UbseDeSerialization in;
     UbseNumaLocation ubseNumaLocation;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseNumaLocationDeserialization(in, ubseNumaLocation));
-    EXPECT_TRUE(UBSE_OK == UbseNumaLocationDeserialization(in, ubseNumaLocation));
+    EXPECT_FALSE(UbseNumaLocationDeserialization(in, ubseNumaLocation));
+    EXPECT_TRUE(UbseNumaLocationDeserialization(in, ubseNumaLocation));
 }
 
 /*
@@ -233,7 +233,7 @@ TEST_F(TesUbseMemControllerSerial, UbseNumaLocationDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowReqSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdBorrowReqSerialization)
 {
     UbseSerialization out;
     UbseMemFdBorrowReq req;
@@ -248,13 +248,15 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowReqSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowReqDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdBorrowReqDeserialization)
 {
     UbseDeSerialization in;
     UbseMemFdBorrowReq req;
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowReqDeserialization(in, req));
-    EXPECT_TRUE(UBSE_OK == UbseMemFdBorrowReqDeserialization(in, req));
+    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false));
+    EXPECT_FALSE(UbseMemFdBorrowReqDeserialization(in, req));
+    MOCKER_CPP(&UbseDeSerialization::Check).reset();
+    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(true));
+    EXPECT_TRUE(UbseMemFdBorrowReqDeserialization(in, req));
 }
 
 /*
@@ -262,7 +264,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowReqDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowExportObjSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdBorrowExportObjSerialization)
 {
     UbseSerialization out;
     UbseMemFdBorrowExportObj fdBorrowExportObj;
@@ -284,20 +286,20 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowExportObjSerialization)
  * 4.返回UBSE_ERROR
  * 5.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowExportObjDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdBorrowExportObjDeserialization)
 {
     UbseDeSerialization in;
     UbseMemFdBorrowExportObj fdBorrowExportObj;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
+    EXPECT_FALSE(UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
 
-    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
-    MOCKER_CPP(UbseMemExportStatusDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
-    MOCKER_CPP(UbseMemFdBorrowReqDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
-    EXPECT_TRUE(UBSE_OK == UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
+    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
+    MOCKER_CPP(UbseMemExportStatusDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
+    MOCKER_CPP(UbseMemFdBorrowReqDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
+    EXPECT_TRUE(UbseMemFdBorrowExportObjDeserialization(in, fdBorrowExportObj));
 }
 
 /*
@@ -305,7 +307,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowExportObjDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemImportResultSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemImportResultSerialization)
 {
     UbseSerialization out;
     UbseMemImportResult ubseMemImportResult;
@@ -317,13 +319,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemImportResultSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemImportResultDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemImportResultDeserialization)
 {
     UbseDeSerialization in;
     UbseMemImportResult ubseMemImportResult;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemImportResultDeserialization(in, ubseMemImportResult));
-    EXPECT_TRUE(UBSE_OK == UbseMemImportResultDeserialization(in, ubseMemImportResult));
+    EXPECT_FALSE(UbseMemImportResultDeserialization(in, ubseMemImportResult));
+    EXPECT_TRUE(UbseMemImportResultDeserialization(in, ubseMemImportResult));
 }
 
 /*
@@ -331,7 +333,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemImportResultDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemImportStatusSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemImportStatusSerialization)
 {
     UbseSerialization out;
     UbseMemImportStatus ubseMemImportStatus;
@@ -344,13 +346,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemImportStatusSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemImportStatusDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemImportStatusDeserialization)
 {
     UbseDeSerialization in;
     UbseMemImportStatus ubseMemImportStatus;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemImportStatusDeserialization(in, ubseMemImportStatus));
-    EXPECT_TRUE(UBSE_OK == UbseMemImportStatusDeserialization(in, ubseMemImportStatus));
+    EXPECT_FALSE(UbseMemImportStatusDeserialization(in, ubseMemImportStatus));
+    EXPECT_TRUE(UbseMemImportStatusDeserialization(in, ubseMemImportStatus));
 }
 
 /*
@@ -358,7 +360,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemImportStatusDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowImportObjSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdBorrowImportObjSerialization)
 {
     UbseSerialization out;
     UbseMemFdBorrowImportObj ubseMemFdBorrowImportObj;
@@ -381,20 +383,20 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowImportObjSerialization)
  * 4.返回UBSE_ERROR
  * 5.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowImportObjDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdBorrowImportObjDeserialization)
 {
     UbseDeSerialization in;
     UbseMemFdBorrowImportObj ubseMemFdBorrowImportObj;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
+    EXPECT_FALSE(UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
 
-    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
-    MOCKER_CPP(UbseMemImportStatusDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
-    MOCKER_CPP(UbseMemFdBorrowReqDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
-    EXPECT_TRUE(UBSE_OK == UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
+    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
+    MOCKER_CPP(UbseMemImportStatusDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
+    MOCKER_CPP(UbseMemFdBorrowReqDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
+    EXPECT_TRUE(UbseMemFdBorrowImportObjDeserialization(in, ubseMemFdBorrowImportObj));
 }
 
 /*
@@ -402,7 +404,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdBorrowImportObjDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowReqSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaBorrowReqSerialization)
 {
     UbseSerialization out;
     UbseMemNumaBorrowReq req;
@@ -420,15 +422,15 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowReqSerialization)
  * 2.返回UBSE_ERROR
  * 3.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowReqDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaBorrowReqDeserialization)
 {
     UbseDeSerialization in;
     UbseMemNumaBorrowReq req;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowReqDeserialization(in, req));
-    MOCKER_CPP(UbseMemFdBorrowReqDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowReqDeserialization(in, req));
-    EXPECT_TRUE(UBSE_OK == UbseMemNumaBorrowReqDeserialization(in, req));
+    EXPECT_FALSE(UbseMemNumaBorrowReqDeserialization(in, req));
+    MOCKER_CPP(UbseMemFdBorrowReqDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemNumaBorrowReqDeserialization(in, req));
+    EXPECT_TRUE(UbseMemNumaBorrowReqDeserialization(in, req));
 }
 
 /*
@@ -436,7 +438,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowReqDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowExportObjSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaBorrowExportObjSerialization)
 {
     UbseSerialization out;
     UbseMemNumaBorrowExportObj ubseMemNumaBorrowExportObj;
@@ -458,20 +460,20 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowExportObjSerialization)
  * 4.返回UBSE_ERROR
  * 5.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowExportObjDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaBorrowExportObjDeserialization)
 {
     UbseDeSerialization in;
     UbseMemNumaBorrowExportObj ubseMemNumaBorrowExportObj;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
+    EXPECT_FALSE(UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
 
-    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
-    MOCKER_CPP(UbseMemExportStatusDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
-    MOCKER_CPP(UbseMemNumaBorrowReqDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
-    EXPECT_TRUE(UBSE_OK == UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
+    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
+    MOCKER_CPP(UbseMemExportStatusDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
+    MOCKER_CPP(UbseMemNumaBorrowReqDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
+    EXPECT_TRUE(UbseMemNumaBorrowExportObjDeserialization(in, ubseMemNumaBorrowExportObj));
 }
 
 /*
@@ -479,7 +481,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowExportObjDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowImportObjSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaBorrowImportObjSerialization)
 {
     UbseSerialization out;
     UbseMemNumaBorrowImportObj ubseMemNumaBorrowImportObj;
@@ -502,20 +504,20 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowImportObjSerialization)
  * 4.返回UBSE_ERROR
  * 5.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowImportObjDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaBorrowImportObjDeserialization)
 {
     UbseDeSerialization in;
     UbseMemNumaBorrowImportObj ubseMemNumaBorrowImportObj;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
+    EXPECT_FALSE(UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
 
-    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
-    MOCKER_CPP(UbseMemImportStatusDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
-    MOCKER_CPP(UbseMemNumaBorrowReqDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
-    EXPECT_TRUE(UBSE_OK == UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
+    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
+    MOCKER_CPP(UbseMemImportStatusDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
+    MOCKER_CPP(UbseMemNumaBorrowReqDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
+    EXPECT_TRUE(UbseMemNumaBorrowImportObjDeserialization(in, ubseMemNumaBorrowImportObj));
 }
 
 /*
@@ -523,7 +525,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaBorrowImportObjDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemAddrInfoSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemAddrInfoSerialization)
 {
     UbseSerialization out;
     UbseMemAddrInfo ubseMemAddrInfo;
@@ -535,13 +537,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemAddrInfoSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemAddrInfoDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemAddrInfoDeserialization)
 {
     UbseDeSerialization in;
     UbseMemAddrInfo ubseMemAddrInfo;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemAddrInfoDeserialization(in, ubseMemAddrInfo));
-    EXPECT_TRUE(UBSE_OK == UbseMemAddrInfoDeserialization(in, ubseMemAddrInfo));
+    EXPECT_FALSE(UbseMemAddrInfoDeserialization(in, ubseMemAddrInfo));
+    EXPECT_TRUE(UbseMemAddrInfoDeserialization(in, ubseMemAddrInfo));
 }
 
 /*
@@ -549,7 +551,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemAddrInfoDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemBorrowExportBaseObjSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemBorrowExportBaseObjSerialization)
 {
     UbseSerialization out;
     UbseMemBorrowExportBaseObj data;
@@ -569,18 +571,18 @@ TEST_F(TesUbseMemControllerSerial, UbseMemBorrowExportBaseObjSerialization)
  * 3.返回UBSE_ERROR
  * 4.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemBorrowExportBaseObjDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemBorrowExportBaseObjDeserialization)
 {
     UbseDeSerialization in;
     UbseMemBorrowExportBaseObj data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemBorrowExportBaseObjDeserialization(in, data));
+    EXPECT_FALSE(UbseMemBorrowExportBaseObjDeserialization(in, data));
 
-    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemBorrowExportBaseObjDeserialization(in, data));
-    MOCKER_CPP(UbseMemExportStatusDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemBorrowExportBaseObjDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == UbseMemBorrowExportBaseObjDeserialization(in, data));
+    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemBorrowExportBaseObjDeserialization(in, data));
+    MOCKER_CPP(UbseMemExportStatusDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemBorrowExportBaseObjDeserialization(in, data));
+    EXPECT_TRUE(UbseMemBorrowExportBaseObjDeserialization(in, data));
 }
 
 /*
@@ -588,7 +590,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemBorrowExportBaseObjDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseNodeInfoSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseNodeInfoSerialization)
 {
     UbseSerialization out;
     UbseNodeInfo data;
@@ -600,13 +602,13 @@ TEST_F(TesUbseMemControllerSerial, UbseNodeInfoSerialization)
  * 测试步骤：按顺序判断Check返回false和true时函数的返回结果。
  * 预期结果：Check返回false时，函数返回UBSE_ERROR；否则返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseNodeInfoDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseNodeInfoDeserialization)
 {
     UbseDeSerialization in;
     UbseNodeInfo data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseNodeInfoDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == UbseNodeInfoDeserialization(in, data));
+    EXPECT_FALSE(UbseNodeInfoDeserialization(in, data));
+    EXPECT_TRUE(UbseNodeInfoDeserialization(in, data));
 }
 
 /*
@@ -614,7 +616,7 @@ TEST_F(TesUbseMemControllerSerial, UbseNodeInfoDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemBorrowImportBaseObjSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemBorrowImportBaseObjSerialization)
 {
     UbseSerialization out;
     UbseMemBorrowImportBaseObj data;
@@ -635,18 +637,18 @@ TEST_F(TesUbseMemControllerSerial, UbseMemBorrowImportBaseObjSerialization)
  * 3.返回UBSE_ERROR
  * 4.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemBorrowImportBaseObjDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemBorrowImportBaseObjDeserialization)
 {
     UbseDeSerialization in;
     UbseMemBorrowImportBaseObj data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemBorrowImportBaseObjDeserialization(in, data));
+    EXPECT_FALSE(UbseMemBorrowImportBaseObjDeserialization(in, data));
 
-    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemBorrowImportBaseObjDeserialization(in, data));
-    MOCKER_CPP(UbseMemImportStatusDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemBorrowImportBaseObjDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == UbseMemBorrowImportBaseObjDeserialization(in, data));
+    MOCKER_CPP(UbseMemAlgoResultDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemBorrowImportBaseObjDeserialization(in, data));
+    MOCKER_CPP(UbseMemImportStatusDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(UbseMemBorrowImportBaseObjDeserialization(in, data));
+    EXPECT_TRUE(UbseMemBorrowImportBaseObjDeserialization(in, data));
 }
 
 /*
@@ -654,7 +656,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemBorrowImportBaseObjDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdImportObjMapSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdImportObjMapSerialization)
 {
     UbseSerialization out;
     UbseMemFdImportObjMap data;
@@ -667,13 +669,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdImportObjMapSerialization)
  * 测试步骤：略
  * 预期结果：Check成功时返回UBSE_OK；失败时返回UBSE_ERROR
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdImportObjMapDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdImportObjMapDeserialization)
 {
     UbseDeSerialization in;
     UbseMemFdImportObjMap data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdImportObjMapDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == UbseMemFdImportObjMapDeserialization(in, data));
+    EXPECT_FALSE(UbseMemFdImportObjMapDeserialization(in, data));
+    EXPECT_TRUE(UbseMemFdImportObjMapDeserialization(in, data));
 }
 
 /*
@@ -681,7 +683,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdImportObjMapDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdExportObjMapSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdExportObjMapSerialization)
 {
     UbseSerialization out;
     UbseMemFdExportObjMap data;
@@ -694,13 +696,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdExportObjMapSerialization)
  * 测试步骤：略
  * 预期结果：Check成功时返回UBSE_OK；失败时返回UBSE_ERROR
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemFdExportObjMapDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemFdExportObjMapDeserialization)
 {
     UbseDeSerialization in;
     UbseMemFdExportObjMap data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemFdExportObjMapDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == UbseMemFdExportObjMapDeserialization(in, data));
+    EXPECT_FALSE(UbseMemFdExportObjMapDeserialization(in, data));
+    EXPECT_TRUE(UbseMemFdExportObjMapDeserialization(in, data));
 }
 
 /*
@@ -708,7 +710,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemFdExportObjMapDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaImportObjMapSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaImportObjMapSerialization)
 {
     UbseSerialization out;
     UbseMemNumaImportObjMap data;
@@ -721,13 +723,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaImportObjMapSerialization)
  * 测试步骤：略
  * 预期结果：Check成功时返回UBSE_OK；失败时返回UBSE_ERROR
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaImportObjMapDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaImportObjMapDeserialization)
 {
     UbseDeSerialization in;
     UbseMemNumaImportObjMap data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaImportObjMapDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == UbseMemNumaImportObjMapDeserialization(in, data));
+    EXPECT_FALSE(UbseMemNumaImportObjMapDeserialization(in, data));
+    EXPECT_TRUE(UbseMemNumaImportObjMapDeserialization(in, data));
 }
 
 /*
@@ -735,7 +737,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaImportObjMapDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaExportObjMapSerialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaExportObjMapSerialization)
 {
     UbseSerialization out;
     UbseMemNumaExportObjMap data;
@@ -748,13 +750,13 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaExportObjMapSerialization)
  * 测试步骤：略
  * 预期结果：Check成功时返回UBSE_OK；失败时返回UBSE_ERROR
  */
-TEST_F(TesUbseMemControllerSerial, UbseMemNumaExportObjMapDeserialization)
+TEST_F(TestUbseMemControllerSerial, UbseMemNumaExportObjMapDeserialization)
 {
     UbseDeSerialization in;
     UbseMemNumaExportObjMap data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == UbseMemNumaExportObjMapDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == UbseMemNumaExportObjMapDeserialization(in, data));
+    EXPECT_FALSE(UbseMemNumaExportObjMapDeserialization(in, data));
+    EXPECT_TRUE(UbseMemNumaExportObjMapDeserialization(in, data));
 }
 
 /*
@@ -762,7 +764,7 @@ TEST_F(TesUbseMemControllerSerial, UbseMemNumaExportObjMapDeserialization)
  * 测试步骤：略
  * 预期结果：函数正常执行无异常
  */
-TEST_F(TesUbseMemControllerSerial, NodeMemDebtInfoSerialization)
+TEST_F(TestUbseMemControllerSerial, NodeMemDebtInfoSerialization)
 {
     UbseSerialization out;
     NodeMemDebtInfo data;
@@ -786,20 +788,20 @@ TEST_F(TesUbseMemControllerSerial, NodeMemDebtInfoSerialization)
  * 5.返回UBSE_ERROR
  * 6.返回UBSE_OK
  */
-TEST_F(TesUbseMemControllerSerial, NodeMemDebtInfoDeserialization)
+TEST_F(TestUbseMemControllerSerial, NodeMemDebtInfoDeserialization)
 {
     UbseDeSerialization in;
     NodeMemDebtInfo data;
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == NodeMemDebtInfoDeserialization(in, data));
-    MOCKER_CPP(UbseMemFdImportObjMapDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == NodeMemDebtInfoDeserialization(in, data));
-    MOCKER_CPP(UbseMemFdExportObjMapDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == NodeMemDebtInfoDeserialization(in, data));
-    MOCKER_CPP(UbseMemNumaImportObjMapDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == NodeMemDebtInfoDeserialization(in, data));
-    MOCKER_CPP(UbseMemNumaExportObjMapDeserialization).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == NodeMemDebtInfoDeserialization(in, data));
-    EXPECT_TRUE(UBSE_OK == NodeMemDebtInfoDeserialization(in, data));
+    EXPECT_FALSE(NodeMemDebtInfoDeserialization(in, data));
+    MOCKER_CPP(UbseMemFdImportObjMapDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(NodeMemDebtInfoDeserialization(in, data));
+    MOCKER_CPP(UbseMemFdExportObjMapDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(NodeMemDebtInfoDeserialization(in, data));
+    MOCKER_CPP(UbseMemNumaImportObjMapDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(NodeMemDebtInfoDeserialization(in, data));
+    MOCKER_CPP(UbseMemNumaExportObjMapDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
+    EXPECT_FALSE(NodeMemDebtInfoDeserialization(in, data));
+    EXPECT_TRUE(NodeMemDebtInfoDeserialization(in, data));
 }
 } // namespace ubse::mem::serial::ut

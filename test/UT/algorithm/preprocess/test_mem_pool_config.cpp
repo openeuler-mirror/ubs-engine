@@ -1,14 +1,15 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #include "test_mem_pool_config.h"
 #include <mockcpp/mockcpp.h>
 #include <mockcpp/mockcpp.hpp>
@@ -43,7 +44,7 @@ TEST_F(TestMemPoolConfig, TestRefreshNumaDelays)
 {
     StrategyParam param;
     MemPoolConfig config(param);
-    EXPECT_EQ(HOK, config.RefreshNumaDelays());
+    EXPECT_EQ(UBSE_OK, config.RefreshNumaDelays());
 }
 
 TEST_F(TestMemPoolConfig, TestRefreshNuma)
@@ -51,7 +52,7 @@ TEST_F(TestMemPoolConfig, TestRefreshNuma)
     StrategyParam param;
     MemPoolConfig config(param);
     config.memStaticParam.numAvailNumas = 1;
-    EXPECT_EQ(HOK, config.RefreshNumaDelays());
+    EXPECT_EQ(UBSE_OK, config.RefreshNumaDelays());
 }
 
 TEST_F(TestMemPoolConfig, TestSysLatencyProcess)
@@ -64,7 +65,7 @@ TEST_F(TestMemPoolConfig, TestSysLatencyProcess)
     config.memSocketLoc2Idx[0][0] = 0;
     MemLoc loc{0, 0, 0};
     config.memStaticParam.availNumas[0] = loc;
-    EXPECT_EQ(HOK, config.SysLatencyProcess());
+    EXPECT_EQ(UBSE_OK, config.SysLatencyProcess());
 }
 
 TEST_F(TestMemPoolConfig, TestGetNumaIndex)

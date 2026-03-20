@@ -13,6 +13,7 @@
 #ifndef UBSE_MANAGER_UBSE_RAS_MESSAGE_H
 #define UBSE_MANAGER_UBSE_RAS_MESSAGE_H
 #include <string>
+#include <utility>
 #include "ubse_error.h"
 #include "ubse_serial_util.h"
 #include "src/include/ubse_base_message.h"
@@ -22,6 +23,7 @@ using namespace ubse::message;
 using namespace ubse::serial;
 
 struct RasData {
+    std::string msgId;
     std::string data{};
     UbseResult result = UBSE_OK;
 };
@@ -31,11 +33,15 @@ public:
     UbseRasMessage() = default;
     explicit UbseRasMessage(std::string setData)
     {
-        data.data = setData;
+        data.data = std::move(setData);
     }
     inline void SetData(std::string setData)
     {
-        data.data = setData;
+        data.data = std::move(setData);
+    }
+    inline void SetMsg(const std::string msg)
+    {
+        data.msgId = msg;
     }
     inline void SetResult(UbseResult setResult)
     {
@@ -44,6 +50,10 @@ public:
     inline std::string GetData()
     {
         return data.data;
+    }
+    inline std::string GetMsg()
+    {
+        return data.msgId;
     }
     inline UbseResult GetResult()
     {
@@ -54,9 +64,9 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    void Serialization(UbseSerialization &out, RasData &serialData);
+    static void Serialization(UbseSerialization &out, RasData &serialData);
 
-    UbseResult Deserialization(UbseDeSerialization &in, RasData &deSerialData);
+    static UbseResult Deserialization(UbseDeSerialization &in, RasData &deSerialData);
 
 private:
     RasData data;

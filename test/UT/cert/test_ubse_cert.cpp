@@ -116,11 +116,12 @@ void TestUbseCert::TearDown()
 
 TEST_F(TestUbseCert, Import_cert_valid)
 {
+    std::string errMsg{};
     std::string certDir = get_current_path();
     std::string serverPath = certDir + "server.pem";
     std::string trustPath = certDir + "trust.pem";
     std::string serverKeyPath = certDir + "server_key.pem";
-    int ret = ImportCertSet(serverPath.c_str(), trustPath.c_str(), serverKeyPath.c_str(), nullptr);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    bool ret = ImportCertSet(serverPath, trustPath, serverKeyPath, "", errMsg);
+    EXPECT_FALSE(ret);
 }
 }

@@ -18,14 +18,11 @@
 
 #include "ubse_map_util.h"
 #include "ubse_uds_server.h"
+#include "ubse_api_server.h"
 
 namespace ubse::ipc {
-struct UbseIpcMessage {
-    uint8_t *buffer;
-    uint32_t length;
-};
+using namespace api::server;
 
-using UbseIpcHandler = std::function<uint32_t(const UbseIpcMessage &, const UbseRequestContext &)>;
 using UbseIpcHandlerMap = ubse::utils::PairMap<uint16_t, uint16_t, UbseIpcHandler>;
 
 class UbseIpcServer {
@@ -61,10 +58,21 @@ public:
      */
     uint32_t SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &response);
 
+    /**
+     * 服务端发送异步消息；
+     * @param requestMessage [in] 请求
+     * @param ctx [in] 请求上下文
+     * @param handler [in] 异步回调
+     * @param reqList [out] 服务端请求列表
+     * @return
+     */
+    uint32_t AsyncSendLongLink(UbseRequestMessage requestMessage, void *ctx, UbseAsyncResponseHandler handler,
+                               std::vector<uint64_t> &reqList);
+
 private:
-    UbseUDSServer udsServer;
-    std::mutex handlersMutex{};
-    UbseIpcHandlerMap apiInterfaceMap{};
+    UbseUDSServer udsServer_;
+    std::mutex handlersMutex_{};
+    UbseIpcHandlerMap apiInterfaceMap_{};
     void HandleRequest(const UbseRequestMessage &request, const UbseRequestContext &context);
 };
 } // namespace ubse::ipc

@@ -31,12 +31,12 @@ public:
 
     inline ElectionReplyPkt GetElectionReplyPkt()
     {
-        return electionReplyPkt;
+        return electionReplyPkt_;
     }
 
     inline void SetResponse(ElectionReplyPkt &replyPkt)
     {
-        electionReplyPkt = replyPkt;
+        electionReplyPkt_ = replyPkt;
     }
 
     UbseResult Serialize() override;
@@ -46,7 +46,7 @@ public:
     std::string ToString() const override;
 
 private:
-    ElectionReplyPkt electionReplyPkt{};
+    ElectionReplyPkt electionReplyPkt_{};
 };
 using UbseElectionReplyPktSimpoPtr = Ref<UbseElectionReplyPktSimpo>;
 }

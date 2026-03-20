@@ -10,15 +10,15 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef RACK_MANAGER_UBSE_REQUEST_ID_UTIL_H
-#define RACK_MANAGER_UBSE_REQUEST_ID_UTIL_H
+#ifndef UBSE_MANAGER_UBSE_REQUEST_ID_UTIL_H
+#define UBSE_MANAGER_UBSE_REQUEST_ID_UTIL_H
 
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <thread>
 
-namespace rack::utils {
+namespace ubse::utils {
 // 定义位偏移量和掩码
 constexpr uint8_t REQUEST_TYPE_BITS = 8;
 constexpr uint8_t SLOT_ID_BITS = 8;
@@ -32,6 +32,7 @@ constexpr uint8_t TIME_STAMP_SHIFT = COUNT_BITS;
 enum class UbseRequestType : uint8_t {
     SDK_REQUEST = 1,
     INNER_REQUEST = 2,
+    CLI_REQUEST = 3,
 };
 
 class UbseRequestIdUtil {
@@ -43,13 +44,13 @@ public:
     static UbseRequestType ParseRequestType(uint64_t requestId);
 
 private:
-    const UbseRequestType requestType;
-    std::atomic<uint32_t> lastTimestamp{};
-    std::atomic<uint16_t> counter;
+    const UbseRequestType requestType_;
+    std::atomic<uint32_t> lastTimestamp_{};
+    std::atomic<uint16_t> counter_;
     static const std::chrono::steady_clock::time_point PROGRAM_START_TIME;
 
     // 获取当前时间戳（毫秒）
     static uint32_t GetCurrentTimestamp();
 };
-} // namespace rack::utils
-#endif // RACK_MANAGER_UBSE_REQUEST_ID_UTIL_H
+} // namespace ubse::utils
+#endif // UBSE_MANAGER_UBSE_REQUEST_ID_UTIL_H

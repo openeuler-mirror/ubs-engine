@@ -62,7 +62,7 @@ public:
     // 输出消息
     virtual std::string ToString() const
     {
-        return nullptr;
+        return "";
     }
 
     template <class Child>

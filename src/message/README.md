@@ -144,7 +144,7 @@ private:
 
 //函数实现
 namespace ubse::resource_mgr::message {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_RESOURCE_MGR_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResourceConfigSimpo::UbseResourceConfigSimpo(uint8_t *rawData, uint32_t size)
 {

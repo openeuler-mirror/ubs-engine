@@ -144,8 +144,8 @@ TEST_F(TestUbseElectionRoleStandby, GetAgentNodes)
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
     Standby standby(ctx);
-    standby.agentIds = {"1", "2"};
-    EXPECT_EQ(standby.GetAgentNodes(), standby.agentIds);
+    standby.agentIds_ = {"1", "2"};
+    EXPECT_EQ(standby.GetAgentNodes(), standby.agentIds_);
 }
 
 TEST_F(TestUbseElectionRoleStandby, GetMasterStatus)
@@ -155,7 +155,7 @@ TEST_F(TestUbseElectionRoleStandby, GetMasterStatus)
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
     Standby standby(ctx);
-    standby.masterStatus = 1;
+    standby.masterStatus_ = 1;
     EXPECT_EQ(standby.GetMasterStatus(), 1);
 }
 

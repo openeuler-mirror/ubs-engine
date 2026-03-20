@@ -1,23 +1,33 @@
 [Unit]
 Description=software controller bus service
+Wants=xalarmd.service sysSentry.service
+After=xalarmd.service sysSentry.service
 After=network.target
 
 [Service]
 Type=simple
 User=ubse
-MemoryMax=1G
+MemoryMax=256M
 CPUQuota=200%
+CPUAffinity=0-1
 Group=ubse
 RestartSec=5s
 Environment=HCOM_CONNECTION_RETRY_TIMES=1
-Environment=HCOM_CONNECTION_SEND_TIMEOUT_SEC=1
-Environment=HCOM_CONNECTION_RECV_TIMEOUT_SEC=5
+Environment=HCOM_CONNECTION_SEND_TIMEOUT_SEC=10
+Environment=HCOM_CONNECTION_RECV_TIMEOUT_SEC=10
 Environment=HCOM_SET_LOG_LEVEL=3
-Environment=HCOM_OPENSSL_PATH=/usr/lib64
-ExecStartPre=/bin/sh -c 'lsof -t -i :1901 | xargs -r -I {} sh -c "if pgrep -f \"ipmitool\" | grep -q {}; then kill -9 {}; fi"'
+Environment=common
+Environment=HCOM_CTX_CAPACITY=1048576
+Environment=LD_LIBRARY_PATH=/usr/lib64/ubse
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/sysSentry/ &>/dev/null || echo 'Unable to set sysSentry acl'"
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/xalarm/ &>/dev/null || echo 'Unable to set xalarm acl'"
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/xalarm/alarm &>/dev/null || echo 'Unable to set alarm sock acl'"
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/xalarm/report &>/dev/null || echo 'Unable to set report sock acl'"
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/sysSentry/control.sock &>/dev/null || echo 'Unable to set control.sock acl'"
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /usr/bin/sentryctl  &>/dev/null || echo 'Unable to set sentryctl acl'"
 ExecStart=/usr/bin/ubse
 Restart=on-failure
-CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN
-AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE
+AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE
 [Install]
 WantedBy=multi-user.target

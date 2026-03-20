@@ -21,7 +21,6 @@
 #include "ubse_error.h"            // for UBSE_OK, UBSE_ERROR_NULLPTR
 #include "ubse_event_distribute.h" // for UbseEventDistribute, UbseEventD...
 #include "ubse_logger.h"           // for UbseLoggerEntry, FormatRetCode
-#include "ubse_logger_inner.h"     // for RM_LOG_ERROR, RM_LOG_WARN, RM_L...
 #include "ubse_logger_module.h"
 #include "ubse_pointer_process.h"
 
@@ -30,7 +29,7 @@ using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::log;
 
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_EVENT_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 BASE_DYNAMIC_CREATE(UbseEventModule, UbseConfModule, UbseLoggerModule);
 
 class UbseEventModule::Impl {
@@ -39,7 +38,7 @@ public:
                               uint32_t &lowThreadMaxItem);
     UbseResult InitDistributePtr();
 
-    UbseEventDistributePtr distributePtr = nullptr;
+    UbseEventDistributePtr distributePtr_ = nullptr;
 };
 
 UbseEventModule::UbseEventModule() = default;
@@ -47,19 +46,19 @@ UbseEventModule::~UbseEventModule() = default;
 
 UbseResult UbseEventModule::Initialize()
 {
-    pImpl = SafeMakeUnique<Impl>();
-    if (pImpl == nullptr) {
+    pImpl_ = SafeMakeUnique<Impl>();
+    if (pImpl_ == nullptr) {
         UBSE_LOG_ERROR << "Allocate memory failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
     }
 
-    UbseResult res = pImpl->InitDistributePtr();
+    UbseResult res = pImpl_->InitDistributePtr();
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "InitDistributePtr failed, " << FormatRetCode(res);
         return res;
     }
 
-    res = pImpl->distributePtr->Init();
+    res = pImpl_->distributePtr_->Init();
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "init distribute failed, " << FormatRetCode(res);
     }
@@ -68,20 +67,30 @@ UbseResult UbseEventModule::Initialize()
 
 UbseResult UbseEventModule::Start()
 {
-    if (pImpl->distributePtr == nullptr) {
-        UBSE_LOG_ERROR << "get distributePtr failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+    if (pImpl_ == nullptr) {
+        UBSE_LOG_ERROR << "pImpl is null, Start failed";
         return UBSE_ERROR_NULLPTR;
     }
-    return pImpl->distributePtr->Start();
+
+    if (pImpl_->distributePtr_ == nullptr) {
+        UBSE_LOG_ERROR << "get distributePtr failed, Start failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    return pImpl_->distributePtr_->Start();
 }
 
 void UbseEventModule::Stop()
 {
-    if (pImpl->distributePtr == nullptr) {
-        UBSE_LOG_ERROR << "get distributePtr failed, stop failed";
+    if (pImpl_ == nullptr) {
+        UBSE_LOG_ERROR << "pImpl is null, Stop failed";
         return;
     }
-    pImpl->distributePtr->Stop();
+
+    if (pImpl_->distributePtr_ == nullptr) {
+        UBSE_LOG_ERROR << "get distributePtr failed, Stop failed";
+        return;
+    }
+    pImpl_->distributePtr_->Stop();
 }
 
 void UbseEventModule::UnInitialize() {}
@@ -89,31 +98,37 @@ void UbseEventModule::UnInitialize() {}
 UbseResult UbseEventModule::UbseSubEvent(const std::string &eventId, UbseEventHandler registerFunc,
                                          UbseEventPriority priority)
 {
-    if (pImpl->distributePtr == nullptr) {
+    if (pImpl_->distributePtr_ == nullptr) {
         UBSE_LOG_ERROR << "get distributePtr failed, SubEvent failed";
         return UBSE_ERROR_NULLPTR;
     }
-    pImpl->distributePtr->RegisterSubscribe(eventId, priority, std::move(registerFunc));
+    pImpl_->distributePtr_->RegisterSubscribe(eventId, priority, std::move(registerFunc));
     return UBSE_OK;
 }
 
 UbseResult UbseEventModule::UbsePubEvent(const std::string &eventId, std::string &eventMessage)
 {
-    if (pImpl->distributePtr == nullptr) {
+    if (pImpl_->distributePtr_ == nullptr) {
         UBSE_LOG_ERROR << "get distributePtr failed, SubEvent failed";
         return UBSE_ERROR_NULLPTR;
     }
-    pImpl->distributePtr->PubEvent(eventId, eventMessage);
+    pImpl_->distributePtr_->PubEvent(eventId, eventMessage);
     return UBSE_OK;
 }
 
 UbseResult UbseEventModule::UbseUnSubEvent(const std::string &eventId, UbseEventHandler registerFunc)
 {
-    if (pImpl->distributePtr == nullptr) {
-        UBSE_LOG_ERROR << "get distributePtr failed, SubEvent failed";
+    if (pImpl_ == nullptr) {
+        UBSE_LOG_ERROR << "pImpl is null, UnSubEvent failed";
         return UBSE_ERROR_NULLPTR;
     }
-    pImpl->distributePtr->UnRegisterSubscribe(eventId, registerFunc);
+
+    if (pImpl_->distributePtr_ == nullptr) {
+        UBSE_LOG_ERROR << "get distributePtr failed, UnSubEvent failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    pImpl_->distributePtr_->UnRegisterSubscribe(eventId, registerFunc);
     return UBSE_OK;
 }
 
@@ -152,9 +167,9 @@ UbseResult UbseEventModule::Impl::InitDistributePtr()
                     << ", will use default value : " << lowThreadMaxItem;
     }
     UbseEventConfigCheck(queueMaxItem, highThreadMaxItem, mediumThreadMaxItem, lowThreadMaxItem);
-    distributePtr.Set(new (std::nothrow)
+    distributePtr_.Set(new (std::nothrow)
                           UbseEventDistribute(queueMaxItem, highThreadMaxItem, mediumThreadMaxItem, lowThreadMaxItem));
-    if (distributePtr == nullptr) {
+    if (distributePtr_ == nullptr) {
         UBSE_LOG_ERROR << "new distribute failed";
         return UBSE_ERROR_NULLPTR;
     }

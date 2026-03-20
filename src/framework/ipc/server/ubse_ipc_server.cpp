@@ -14,54 +14,56 @@
 
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 
 namespace ubse::ipc {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_API_SERVER_MID)
-UbseIpcServer::UbseIpcServer(const UbseUDSConfig &config) : udsServer(config)
+UBSE_DEFINE_THIS_MODULE("ubse");
+UbseIpcServer::UbseIpcServer(const UbseUDSConfig &config) : udsServer_(config)
 {
-    udsServer.RegisterHandler([this](const UbseRequestMessage &req, const UbseRequestContext &context) {
+    udsServer_.RegisterHandler([this](const UbseRequestMessage &req, const UbseRequestContext &context) {
         return this->HandleRequest(req, context);
     });
 }
 
 uint32_t UbseIpcServer::Start()
 {
-    return udsServer.Start();
+    return udsServer_.Start();
 }
 
 void UbseIpcServer::Stop()
 {
-    udsServer.Stop();
+    udsServer_.Stop();
 }
 
 uint32_t UbseIpcServer::RegisterHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler)
 {
-    std::lock_guard<std::mutex> lock(handlersMutex);
-    if (apiInterfaceMap.find(std::make_pair(moduleCode, opCode)) != apiInterfaceMap.end()) {
+    std::lock_guard<std::mutex> lock(handlersMutex_);
+    if (apiInterfaceMap_.find(std::make_pair(moduleCode, opCode)) != apiInterfaceMap_.end()) {
         UBSE_LOG_ERROR << "The API interface already registered, moduleCode=" << moduleCode << ", opCode=" << opCode;
-        return IPC_ERROR_INVALID_HANDLE;
+        return UBSE_ERR_DAEMON_UNREACHABLE;
     }
-    apiInterfaceMap[{moduleCode, opCode}] = std::move(handler);
-    return IPC_SUCCESS;
+    apiInterfaceMap_[{ moduleCode, opCode }] = std::move(handler);
+    return UBSE_OK;
 }
 
 void UbseIpcServer::HandleRequest(const UbseRequestMessage &request, const UbseRequestContext &context)
 {
     UBSE_LOG_INFO << "Start handling API request, moduleCode = " << request.header.moduleCode
-                  << ", opCode = " << request.header.opCode << ", request_id= " << context.requestId;
+                  << ", opCode = " << request.header.opCode << ", request_id= " << context.requestId
+                  << ", uid=" << context.clientInfo.uid << ", pid=" << context.clientInfo.pid
+                  << ", requestLen=" << request.header.bodyLen;
     const auto key = std::make_pair(request.header.moduleCode, request.header.opCode);
     UbseIpcHandler handler{};
     // 获取handler
     {
-        std::lock_guard<std::mutex> lock(handlersMutex);
-        auto it = apiInterfaceMap.find(key);
-        if (it == apiInterfaceMap.end()) {
-            UBSE_LOG_ERROR << "The API interface does not exist, moduleCode= " << request.header.moduleCode
-                           << ", opCode:= " << request.header.opCode << ", request_id= " << context.requestId;
-            UbseResponseMessage responseMessage{{IPC_ERROR_INVALID_HANDLE, 0}, nullptr};
-            auto ret = udsServer.SendResponse(context.requestId, responseMessage);
-            if (ret != IPC_SUCCESS) {
+        std::lock_guard<std::mutex> lock(handlersMutex_);
+        auto it = apiInterfaceMap_.find(key);
+        if (it == apiInterfaceMap_.end()) {
+            UBSE_LOG_ERROR << "The API interface does not exist, moduleCode= " << request.header.moduleCode <<
+                ", opCode:= " << request.header.opCode << ", request_id= " << context.requestId;
+            UbseResponseMessage responseMessage{ { UBSE_ERR_DAEMON_UNREACHABLE, 0 }, nullptr };
+            auto ret = udsServer_.SendResponse(context.requestId, responseMessage);
+            if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "The API interface Send response failed= " << request.header.moduleCode
                                << ", opCode= " << ", request_id= " << context.requestId;
             }
@@ -85,10 +87,10 @@ void UbseIpcServer::HandleRequest(const UbseRequestMessage &request, const UbseR
                   << ", opCode= " << request.header.opCode << ", handlerRet= " << handlerRet
                   << ", request_id= " << context.requestId;
     // handler执行失败, 返回错误信息
-    if (handlerRet != IPC_SUCCESS) {
-        UbseResponseMessage responseMessage{{handlerRet, 0}, nullptr};
-        auto ret = udsServer.SendResponse(context.requestId, responseMessage);
-        if (ret != IPC_SUCCESS) {
+    if (handlerRet != UBSE_OK) {
+        UbseResponseMessage responseMessage{ { handlerRet, 0 }, nullptr };
+        auto ret = udsServer_.SendResponse(context.requestId, responseMessage);
+        if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "The API interface Send response failed= " << request.header.moduleCode
                            << ", opCode= " << request.header.opCode << ", request_id= " << context.requestId;
         }
@@ -97,7 +99,13 @@ void UbseIpcServer::HandleRequest(const UbseRequestMessage &request, const UbseR
 
 uint32_t UbseIpcServer::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &response)
 {
-    UbseResponseMessage responseMessage{{statusCode, response.length}, response.buffer};
-    return udsServer.SendResponse(requestId, responseMessage);
+    UbseResponseMessage responseMessage{ { statusCode, response.length }, response.buffer };
+    return udsServer_.SendResponse(requestId, responseMessage);
+}
+
+uint32_t UbseIpcServer::AsyncSendLongLink(UbseRequestMessage requestMessage, void *ctx,
+                                          UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList)
+{
+    return udsServer_.AsyncSendLongLink(requestMessage, ctx, handler, reqList);
 }
 } // namespace ubse::ipc

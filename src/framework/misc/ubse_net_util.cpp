@@ -11,12 +11,21 @@
  */
 
 #include "ubse_net_util.h"
+#include <ifaddrs.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <regex>
 #include <securec.h>
+
+#include <fstream>
 #include <sstream>
+#include <unordered_set>
 #include "ubse_error.h"
+#include "ubse_logger.h"
 #include "ubse_str_util.h"
 
+UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::utils {
 using namespace ubse::common::def;
 const size_t IPV4_MAX_LEN = 4;
@@ -97,6 +106,9 @@ void UbseNetUtil::ParseIpRangeToList(const std::string &range, std::vector<std::
     }
     for (uint32_t ip = startIntIp; ip <= endIntIp; ip++) {
         ips.emplace_back(IntToIpV4(ip));
+        if (ip == UINT32_MAX) {
+            break;
+        }
     }
 }
 
@@ -136,8 +148,83 @@ std::string UbseNetUtil::Ipv6ArrToString(const uint8_t *arr)
     );
     // 检查转换结果
     if (result == nullptr) {
-        return "";  // 转换失败返回空字符串
+        return ""; // 转换失败返回空字符串
     }
     return std::string(buffer);
 }
+
+bool UbseNetUtil::IsSpecialIP(const std::string &ip)
+{
+    // 排除特殊 IP 地址：0.0.0.0, 127.x.x.x, 169.254.x.x
+    return std::regex_match(ip, std::regex("^(0\\.0\\.0\\.0|127\\..*|169\\.254\\..*)$"));
+}
+
+uint32_t UbseNetUtil::GetIpInfo(std::vector<std::string> &ipInfos)
+{
+    struct ifaddrs *ifaddr;
+    struct ifaddrs *ifa;
+    int family;
+    char host[NI_MAXHOST];
+
+    if (getifaddrs(&ifaddr) == -1) {
+        UBSE_LOG_ERROR << "Error getting interface addresses";
+        return UBSE_ERROR;
+    }
+
+    ipInfos.clear();
+
+    std::unordered_set<std::string> uniqueIPs;
+    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr) {
+            continue;
+        }
+
+        family = ifa->ifa_addr->sa_family;
+        if (family == AF_INET) {
+            // 获取IP地址字符串
+            if (getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST) !=
+                0) {
+                continue;
+            }
+            std::string ip(host);
+            if (!IsSpecialIP(ip)) {
+                uniqueIPs.insert(ip);
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
+    ipInfos.insert(ipInfos.end(), uniqueIPs.begin(), uniqueIPs.end());
+    return UBSE_OK;
+}
+
+bool parseIpString(const std::string &ipStr, ubse::nodeController::UbseIpAddr &out)
+{
+    // 尝试解析为IPv4
+    in_addr ipv4{};
+    if (inet_pton(AF_INET, ipStr.c_str(), &ipv4) == 1) {
+        out.type = ubse::nodeController::UbseIpType::UBSE_IP_V4;
+        auto err = memcpy_s(out.ipv4.addr, sizeof(out.ipv4.addr), &ipv4, NO_4); // ipv4
+        if (err != EOK) {
+            UBSE_LOG_ERROR << "Mem copy failed, errno_t=" << err << ".";
+            return false;
+        }
+
+        return true;
+    }
+
+    // 尝试解析为IPv6
+    in6_addr ipv6{};
+    if (inet_pton(AF_INET6, ipStr.c_str(), &ipv6) == 1) {
+        out.type = ubse::nodeController::UbseIpType::UBSE_IP_V6;
+        auto err = memcpy_s(out.ipv6.addr, sizeof(out.ipv6.addr), &ipv6, NO_16);
+        if (err != EOK) {
+            UBSE_LOG_ERROR << "Mem copy failed, errno_t=" << err << ".";
+            return false;
+        }
+        return true;
+    }
+    return false; // 无效IP格式
+}
+
 } // namespace ubse::utils

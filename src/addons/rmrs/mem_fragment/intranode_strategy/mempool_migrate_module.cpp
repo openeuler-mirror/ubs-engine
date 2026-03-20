@@ -1,0 +1,740 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ 
+ * UBS RMRS is licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *      http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#include "mempool_migrate_module.h"
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <map>
+#include <set>
+#include <thread>
+#include <unordered_set>
+#include "exporter.h"
+#include "mem_borrow_executor.h"
+#include "mem_manager.h"
+#include "mempooling_message.h"
+#include "mp_error.h"
+#include "mp_smap_helper.h"
+#include "rmrs_serialize.h"
+#include "turbo_def.h"
+#include "ubse_com.h"
+#include "ubse_logger.h"
+#include "ubse_topology_interface.h"
+#include "export_type.h"
+
+namespace mempooling {
+namespace migrate {
+#define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+#define LOG_ERROR UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+#define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+
+using namespace ubse::log;
+using namespace mempooling::smap;
+using namespace ubse::mem::controller;
+using namespace mempooling::message;
+using namespace rmrs::serialize;
+using namespace ubse::com;
+
+std::vector<uint64_t> MempoolMigrateModule::numaBorrowSize = {0, 0, 0, 0};
+const uint64_t MempoolMigrateModule::memoryPageSize = 2048;
+const uint64_t MempoolMigrateModule::memoryThreshold = 10240; // 10240kb;
+const uint64_t MempoolMigrateModule::memoryPreset = 100;
+const uint64_t MempoolMigrateModule::smapMigrateOutWaitingTimeMin = 10001; // 内存迁出最小等待时间 10S + 1ms
+const uint64_t MempoolMigrateModule::smapMigrateOutWaitingTimeMax = 59999; // 内存迁出最大等待时间 60s - 1ms
+const double MempoolMigrateModule::ratioDiff = 0.01;                       // 迁移比例允许取整差值 0.01
+const int MempoolMigrateModule::hugepagetype = 2048;                       // 2M大页类型
+
+void ConvertNodeTopology(const std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
+                         std::unordered_map<std::string, std::vector<turbo::rmrs::MemNodeDataNew>> &nodeTopologyNew)
+{
+    nodeTopologyNew.clear(); // 清空目标 map，确保无旧数据
+    for (const auto &pair : nodeTopology) {
+        const std::string &key = pair.first;
+        const std::vector<MemNodeData> &oldVec = pair.second;
+
+        std::vector<turbo::rmrs::MemNodeDataNew> newVec;
+        newVec.reserve(oldVec.size());
+
+        for (const MemNodeData &oldNode : oldVec) {
+            turbo::rmrs::MemNodeDataNew newNode;
+            newNode.nodeId = oldNode.nodeId;
+            newNode.socket.socketId = oldNode.socket.socketId;
+            newNode.hostname = oldNode.hostname;
+            newNode.isRegisterRm = oldNode.isRegisterRm;
+            newVec.push_back(std::move(newNode));
+        }
+        (void)nodeTopologyNew.emplace(key, std::move(newVec));
+    }
+}
+
+bool MempoolMigrateModule::FillDestNumaFreeHugePageMap(
+    std::map<uint16_t, uint64_t> &destNumaFreeHugePageMap,
+    std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap)
+{
+    std::vector<mempooling::exportV2::NumaInfo> numaInfos;
+    uint32_t queryNumaRes = mempooling::exportV2::Exporter::GetNumaInfoImmediately(numaInfos);
+    if (queryNumaRes != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] CurNode query numa error.";
+        return false;
+    }
+    if (numaInfos.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] CurNode numa empty.";
+        return false;
+    }
+    for (auto numaInfo : numaInfos) {
+        uint16_t destNumaId = numaInfo.metaData.numaId;
+        if (vmMigrateOutParamGroupByNumaIdMap.find(destNumaId) != vmMigrateOutParamGroupByNumaIdMap.end()) {
+            auto it = numaInfo.metaData.numaPageInfo.find(memoryPageSize);
+            destNumaFreeHugePageMap[destNumaId] =
+                (it != numaInfo.metaData.numaPageInfo.end()) ? it->second.hugePageFree : 0;
+        }
+    }
+    return true;
+}
+
+bool MempoolMigrateModule::GetVmInfoMap(std::map<pid_t, mempooling::exportV2::VmDomainInfo> &vmInfoMap,
+                                        std::vector<pid_t> pidList)
+{
+    std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
+    uint32_t queryVmRes = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
+    if (queryVmRes != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] CurNode query vm error.";
+        return false;
+    }
+    if (vmDomainInfos.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] CurNode vm empty.";
+        return false;
+    }
+    for (const auto &vmDomainInfo : vmDomainInfos) {
+        for (pid_t pid : pidList) {
+            if (pid == vmDomainInfo.metaData.pid) {
+                vmInfoMap[pid] = vmDomainInfo;
+            }
+        }
+    }
+    return true;
+}
+
+MpResult MempoolMigrateModule::GetExpectRemoteNumaMem(int nid, int &expectMigratedPages)
+{
+    // 输入远端numaid
+    expectMigratedPages = 0;
+    std::vector<ProcessPayload> processPayloadList;
+    MpResult ret = MpSmapHelper::SmapQueryProcessConfigHelper(nid, processPayloadList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] Smap query process config failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    for (size_t i = 0; i < processPayloadList.size(); i++) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] Query pid=" << processPayloadList[i].pid << ", nid=" << nid
+            << ", memSize=" << processPayloadList[i].memSize << ".";
+        expectMigratedPages += static_cast<int>(processPayloadList[i].memSize) / static_cast<int>(memoryPageSize);
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemMigrate][MemMigrate] ExpectMigratedPages=" << expectMigratedPages << ".";
+
+    // 输出远端nuam预期占用内存（大页数量）
+    return MEM_POOLING_OK;
+}
+
+bool MempoolMigrateModule::ValidateRemoteFreeSpace(const std::vector<VMMigrateOutParam> &vmMigrateOutParam)
+{
+    // 按远端numa对 待迁移参数分组
+    std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap;
+    // numa空余大页量
+    std::map<uint16_t, uint64_t> destNumaFreeHugePageMap;
+    std::vector<pid_t> pidList;
+    for (auto vmMigrateOutParamItem : vmMigrateOutParam) {
+        vmMigrateOutParamGroupByNumaIdMap[vmMigrateOutParamItem.desNumaId].push_back(vmMigrateOutParamItem);
+        pidList.push_back(vmMigrateOutParamItem.pid);
+    }
+    std::map<pid_t, mempooling::exportV2::VmDomainInfo> vmInfoMap;
+    if (!GetVmInfoMap(vmInfoMap, pidList)) {
+        return false;
+    }
+    if (vmInfoMap.size() != pidList.size()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Exist invalid pid.";
+        return false;
+    }
+    // 分别填充远端numa和`本地numa vmMigrateLocalGroupByNumaIdMap`的空余内存页
+    if (!FillDestNumaFreeHugePageMap(destNumaFreeHugePageMap, vmMigrateOutParamGroupByNumaIdMap)) {
+        return false;
+    }
+    // 远端numa的空余页的预期足量判断 遍历vmMigrateLocalGroupByNumaIdMap做本地numa的空余页的预期足量判断
+    for (const auto &vmMigrateOutParamGroupEntry : vmMigrateOutParamGroupByNumaIdMap) {
+        int sumMigrateHugePages = 0;
+        int expectSumMigrateHugePages = 0;
+        int expectMigratedPages = 0;
+        for (VMMigrateOutParam vmMigrateOutParamItem : vmMigrateOutParamGroupEntry.second) {
+            auto vmDomainInfo = vmInfoMap[vmMigrateOutParamItem.pid];
+            uint64_t pageSize = 0; // 默认为4KB
+            if (!vmDomainInfo.numaInfo.empty()) {
+                pageSize = vmDomainInfo.numaInfo.begin()->second.pageSize;
+            }
+            if (pageSize == 0) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] The pageSize is zero.";
+                return false;
+            }
+            if (vmMigrateOutParamItem.memSize % pageSize != 0) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemMigrate][MemMigrate] Size can't divided by " << pageSize << " "
+                    << vmMigrateOutParamItem.memSize << ".";
+                return false;
+            }
+            int64_t remoteUsedMem = 0;
+            for (const auto &kv : vmDomainInfo.numaInfo) {
+                const mempooling::exportV2::VmDomainNumaInfo &numa = kv.second;
+                if (!numa.isLocal) { // 远端 NUMA
+                    remoteUsedMem = numa.usedMem;
+                    break;
+                }
+            }
+            int realMigrateHugePages = static_cast<int>(vmMigrateOutParamItem.memSize / pageSize);
+            int migratedPages = static_cast<int>((remoteUsedMem / pageSize));
+            sumMigrateHugePages += (realMigrateHugePages - migratedPages);
+            expectSumMigrateHugePages += realMigrateHugePages;
+        }
+        auto ret = GetExpectRemoteNumaMem(static_cast<int>(vmMigrateOutParamGroupEntry.first), expectMigratedPages);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Get remote numa mem failed.";
+            return false;
+        }
+        expectSumMigrateHugePages -= expectMigratedPages;
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] The need pages=" << sumMigrateHugePages
+            << ", need pages by smap=" << expectSumMigrateHugePages
+            << ", free pages=" << destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first] << ".";
+        if (sumMigrateHugePages > static_cast<int>(destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first]) &&
+            expectSumMigrateHugePages > static_cast<int>(destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first])) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][MemMigrate] Remoute hugepages no enough "
+                << " migrate numaId " << vmMigrateOutParamGroupEntry.first << " need pages " << sumMigrateHugePages
+                << " need pages by smap " << expectSumMigrateHugePages << " free pages "
+                << destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first] << ".";
+            return false;
+        }
+    }
+    return true;
+}
+
+MpResult MempoolMigrateModule::ValidateSamePlane(
+    const VMMigrateOutParam &perVmParam, const std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos,
+    const std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology, const std::string &curNodeId)
+{
+    auto it = std::find_if(
+        vmDomainInfos.begin(), vmDomainInfos.end(),
+        [&perVmParam](const mempooling::exportV2::VmDomainInfo &vm) { return vm.metaData.pid == perVmParam.pid; });
+    if (it == vmDomainInfos.end()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] Pid=" << perVmParam.pid << " not exist .";
+        return MEM_POOLING_ERROR;
+    }
+    int16_t curSocketId = -1; // 约定：-1 表示未找到
+    for (const auto &[numaId, numaInfo] : it->numaInfo) {
+        if (numaInfo.isLocal) {
+            curSocketId = numaInfo.socketId;
+            break; // 只取第一个本地 numa
+        }
+    }
+    std::string srcNidAndSocketId = curNodeId + "-" + std::to_string(curSocketId);
+    auto ix = nodeTopology.find(srcNidAndSocketId);
+    if (ix == nodeTopology.end()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow][MemBorrowStrategy] Can't find " << srcNidAndSocketId << " in nodeTopology";
+        return MEM_POOLING_ERROR;
+    }
+    std::vector<MemNodeData> foundNodeData = ix->second;
+    std::vector<BorrowRecord> borrowRecords;
+    MpResult ret = BorrowRecordHelper::Instance().CollectBorrowRecords(curNodeId, borrowRecords);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Collect BorrowRecords failed.";
+        return MEM_POOLING_ERROR;
+    }
+    auto iy =
+        std::find_if(borrowRecords.begin(), borrowRecords.end(), [&perVmParam, curNodeId](const BorrowRecord &record) {
+            return record.borrowNode == curNodeId && record.borrowRemoteNuma == perVmParam.desNumaId;
+        });
+    if (iy == borrowRecords.end()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] Pid=" << perVmParam.pid << " not exist .";
+        return MEM_POOLING_ERROR;
+    }
+    std::string lentNode = iy->lentNode;
+    uint16_t lentSocketId = iy->lentSocketId;
+    auto iz =
+        std::find_if(foundNodeData.begin(), foundNodeData.end(), [lentNode, lentSocketId](const MemNodeData &nodeData) {
+            return nodeData.nodeId == lentNode && nodeData.socket.socketId == std::to_string(lentSocketId);
+        });
+    if (iz == foundNodeData.end()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] Pid=" << perVmParam.pid << " in " << srcNidAndSocketId
+            << " , but remoteNuma=" << perVmParam.desNumaId << " in " << lentNode << "-" << lentSocketId
+            << " , they are not in the same plane.";
+        return MEM_POOLING_ERROR;
+    }
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateModule::ValidateAllPidSamePlane(const std::vector<VMMigrateOutParam> &vmMigrateOutParam)
+{
+    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
+    MpResult ret = UbseMemGetTopologyInfo(nodeTopology);
+    if (ret != 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Get topo from rack failed!";
+        return MEM_POOLING_ERROR;
+    }
+
+    // 获取本节点NodeId
+    ubse::mti::MtiNodeInfo rackNodeInfo;
+    ret = UbseGetLocalNodeInfo(rackNodeInfo);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Get localNodeInfo failed.";
+        return MEM_POOLING_ERROR;
+    }
+    std::string curNodeId = rackNodeInfo.nodeId;
+
+    std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
+    ret = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
+    if (MEM_POOLING_OK != ret) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Get VmInfo(Immediately) failed.";
+        return MEM_POOLING_ERROR;
+    }
+    if (vmDomainInfos.empty()) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager][MemId] CurRemoteNode vm empty, nodeId=" << curNodeId << ".";
+        return MEM_POOLING_OK;
+    }
+
+    // 遍历vmMigrateOutParam所有pid
+    for (auto &perVmParam : vmMigrateOutParam) {
+        ret = ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
+        if (ret != MEM_POOLING_OK) {
+            return MEM_POOLING_ERROR;
+        }
+    }
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateExecute::MigrateExecuteImpl(const std::vector<VMMigrateOutParam> &vmMigrateOutParam,
+                                                   const uint64_t waitingTime,
+                                                   const std::vector<std::string> &borrowIdList)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Entry MigrateExecuteImpl.";
+    MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
+    if (MpConfiguration::GetInstance().GetMustSamePlane() == true && ret != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+    if (waitingTime != 0 && !MempoolMigrateModule::ValidateRemoteFreeSpace(vmMigrateOutParam)) {
+        return MEM_POOLING_ERROR;
+    }
+    MigrateStrategyResult migrateStrategyResult;
+    for (auto &vmInfo : vmMigrateOutParam) {
+        migrateStrategyResult.vmInfoList.push_back(vmInfo);
+    }
+    migrateStrategyResult.waitingTime = waitingTime;
+
+    ret = MempoolingMessage::rmrsMigrateExecute(migrateStrategyResult);
+    if (ret != IPC_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrate] UBTurboRMRSAgentMigrateExecute failed.";
+        if (ret == IPC_BAD_CONNECT)
+            return MEM_POOLING_TURBO_CONNECT_ERROR;
+        return MEM_POOLING_ERROR;
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Exit MigrateExecuteImpl.";
+    return MEM_POOLING_OK;
+}
+
+bool MempoolMigrateModule::FreeMemAndPersistent(std::set<std::string> &validBorrowIdSet,
+                                                std::map<std::string, std::set<BorrowIdInfo>> &curBorrowIdsPidsMap,
+                                                RollBackBorrowIdPid &outEntry)
+{
+    bool notExistFailed = true;
+    for (std::string borrowId : validBorrowIdSet) {
+        if (mempooling::MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true)) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemRollback] MemFreeWithOps failed " << borrowId << ".";
+            notExistFailed = false;
+        } else {
+            // 归还borrowId内存成功后 删掉记录的borrowId
+            curBorrowIdsPidsMap.erase(borrowId);
+        }
+    }
+    if (curBorrowIdsPidsMap.size() == validBorrowIdSet.size()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] All borrowId free failed.";
+        return false;
+    }
+    if (curBorrowIdsPidsMap.empty()) {
+        // 删除对应的borrowId记录
+        std::set<BorrowIdInfo> emprySet;
+        curBorrowIdsPidsMap[*validBorrowIdSet.begin()] = emprySet;
+    }
+    for (auto borrowIdPidEntry : curBorrowIdsPidsMap) {
+        outEntry.borrowIdList.push_back(borrowIdPidEntry.first);
+        (void)outEntry.pidList.insert(outEntry.pidList.end(), borrowIdPidEntry.second.begin(),
+                                      borrowIdPidEntry.second.end());
+    }
+    return notExistFailed;
+}
+
+MpResult MempoolMigrateExecute::MemBorrowRollbackImpl(std::vector<std::string> &borrowIds,
+                                                      const RollBackBorrowIdPid &inEntry,
+                                                      RollBackForOutEntry &rollBackForOutEntry)
+{
+    std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap;
+    if (inEntry.borrowIdList.empty() || inEntry.pidList.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Param empty.";
+        return MEM_POOLING_ERROR;
+    }
+    for (std::string borrowId : inEntry.borrowIdList) {
+        for (auto pid : inEntry.pidList) {
+            (void)borrowIdsPidsMap[borrowId].emplace(pid);
+        }
+    }
+    std::unordered_map<pid_t, uint16_t> vmPidRemoteNumaMap;
+    std::vector<uint16_t> remoteNumaIdList;
+    std::set<std::string> validBorrowIdSet;
+    // 更新用
+    std::map<std::string, std::set<BorrowIdInfo>> curBorrowIdsPidsMap;
+    for (std::string borrowId : borrowIds) {
+        for (auto &pid : borrowIdsPidsMap[borrowId]) {
+            (void)validBorrowIdSet.insert(borrowId);
+            curBorrowIdsPidsMap[borrowId] = borrowIdsPidsMap[borrowId];
+        }
+    }
+
+    MpResult ret = MempoolingMessage::rmrsBorrowRollBack(curBorrowIdsPidsMap);
+    if (ret != IPC_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] UBTurboRMRSAgentBorrowRollBack failed.";
+        if (ret == IPC_BAD_CONNECT)
+            return MEM_POOLING_TURBO_CONNECT_ERROR;
+        return MEM_POOLING_ERROR;
+    }
+
+    rollBackForOutEntry.validBorrowIdSet = validBorrowIdSet;
+    rollBackForOutEntry.curBorrowIdsPidsMap = curBorrowIdsPidsMap;
+
+    return MEM_POOLING_OK;
+}
+
+uint32_t GetVmInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+{
+    std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
+    if (mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate] Master to invoke the slave migrate execute.";
+        return MEM_POOLING_ERROR;
+    }
+    RmrsOutStream builder;
+    builder << vmDomainInfos;
+    resp.data = builder.GetBufferPointer();
+    resp.len = builder.GetSize();
+    resp.freeFunc = [](uint8_t *data) {
+        delete[] data;
+    };
+    return MEM_POOLING_OK;
+}
+
+void GetVmInfoImmediatelyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+{
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrateExecute] Ctx or respData is null.";
+        return;
+    }
+    std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos =
+        *(static_cast<std::vector<mempooling::exportV2::VmDomainInfo> *>(ctx));
+    RmrsInStream builder(respData.data, respData.len);
+    builder >> vmDomainInfos;
+    return;
+}
+
+MpResult MempoolMigrateExecute::MigrateExecuteRpc(const std::string &borrowInNode,
+                                                  const std::vector<VMMigrateOutParam> &vmInfoList,
+                                                  uint64_t waitingTime, const std::vector<std::string> &borrowIdList)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemMigrate][MemMigrateExecute] Migrate Execute in " << borrowInNode << " start.";
+
+    MpResult ret = MEM_POOLING_OK;
+    MpResult vmRet = MEM_POOLING_OK;
+
+    // 备升主可靠性保障，如果失败，不做错误返回，也不重试, 从而不影响迁出执行主功能
+    if (waitingTime != 0) {
+        for (const auto &vmParam : vmInfoList) {
+            vmRet = VmInfosCompleted::Instance().Update(vmParam.pid, std::to_string(vmParam.desNumaId), borrowInNode);
+            if (vmRet != MEM_POOLING_OK) {
+                UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemMigrate][MemMigrateExecute] UpdateVmInfosCompleted failed, pid = " << vmParam.pid << ".";
+            }
+        }
+    }
+    MigrateExecuteParam param = {vmInfoList, waitingTime, borrowIdList};
+    ret = MigrateExecuteImpl(param.vmInfoList, param.waitingTime, param.borrowIdList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrateExecute] Migrate Execute in " << borrowInNode << " failed.";
+    }
+    // 备升主可靠性保障，如果失败，不做错误返回，也不重试, 从而不影响迁出执行主功能
+    if (waitingTime != 0) {
+        std::unordered_map<pid_t, std::string> vmInfosCompletedMap;
+        vmRet = VmInfosCompleted::Instance().Query(vmInfosCompletedMap);
+        if (vmRet != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][MemMigrateExecute] GetVmInfosCompletedMap failed.";
+        }
+        for (const auto &vmInfo : vmInfosCompletedMap) {
+            vmRet = VmInfosCompleted::Instance().Remove(vmInfo.first);
+            if (vmRet != MEM_POOLING_OK) {
+                UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemMigrate][MemMigrateExecute] RemoveVmInfosCompleted failed, pid = " << vmInfo.first << ".";
+            }
+        }
+    }
+
+    if (ret == MEM_POOLING_OK) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrateExecute] Migrate Execute in " << borrowInNode << " success.";
+    }
+
+    return ret;
+}
+
+MpResult MempoolMigrateModule::MigrateStrategy(const std::string &borrowInNode,
+                                               const std::vector<turbo::rmrs::VMPresetParam> &vmInfoList,
+                                               std::uint64_t borrowSize, MigrateStrategyResult &migrateStrategyResult)
+{
+    LOG_DEBUG << "[MemMigrate][Strategy] Master call agent migrate strategy, with agent id:" << borrowInNode << ".";
+
+    std::vector<BorrowRecord> borrowRecords;
+    std::vector<turbo::rmrs::RemoteNumaSocketInfo> remoteNumaInfo;
+    MpResult retRecord = BorrowRecordHelper::Instance().CollectBorrowRecords(borrowInNode, borrowRecords);
+    if (retRecord != MEM_POOLING_OK) {
+        LOG_ERROR << "[MemMigrate][Strategy] Faild to get borrow records.";
+    }
+
+    for (auto &record : borrowRecords) {
+        remoteNumaInfo.push_back({record.borrowRemoteNuma, record.lentNode, record.lentSocketId});
+    }
+
+    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
+    std::unordered_map<std::string, std::vector<turbo::rmrs::MemNodeDataNew>> nodeTopologyNew;
+    uint32_t retTopo = UbseMemGetTopologyInfo(nodeTopology);
+    if (retTopo != 0) {
+        LOG_ERROR << "[MemMigrate][Strategy] Get topo from rack failed!";
+        return MEM_POOLING_ERROR;
+    }
+    ConvertNodeTopology(nodeTopology, nodeTopologyNew);
+
+    std::vector<uint16_t> timeOutNumas;
+    if (GetReturningNuma(borrowInNode, timeOutNumas)) {
+        LOG_ERROR << "[MemMigrate][Strategy] Get returning numas failed!";
+        return MEM_POOLING_ERROR;
+    }
+    turbo::rmrs::MigrateStrategyParam param = {vmInfoList,      borrowSize,   remoteNumaInfo,
+                                               nodeTopologyNew, borrowInNode, timeOutNumas};
+
+    uint32_t ret = MigrateStrategyRecvHandler(param, migrateStrategyResult);
+    if (ret == MEM_POOLING_TURBO_CONNECT_ERROR) {
+        LOG_ERROR << "[MemMigrate][Strategy] Migrate strategy failed, error code = " << ret << ".";
+        return MEM_POOLING_TURBO_CONNECT_ERROR;
+    }
+
+    if (migrateStrategyResult.vmInfoList.empty() || migrateStrategyResult.waitingTime == 0) {
+        LOG_ERROR << "[MemMigrate][Strategy] Migrate strategy failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_INFO << "[MemMigrate][Strategy] Migrate strategy success.";
+    return ret;
+}
+
+// 新增一个函数，获取不可迁出的远端numna列表
+MpResult MempoolMigrateModule::GetReturningNuma(const std::string &borrowInNode, std::vector<uint16_t> &timeOutNumas)
+{
+    std::unordered_map<std::string, BorrowItem> borrowCacheAll;
+    MpResult ret = MemReturnManager::Instance().QueryAll(borrowCacheAll);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[MemMigrate][Strategy] Query all returning numas failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_DEBUG << "[MemMigrate][Strategy] Get param of borrowCacheAll size = " << borrowCacheAll.size() << ".";
+    for (auto &kv : borrowCacheAll) {
+        if (kv.second.srcNid == borrowInNode) {
+            timeOutNumas.push_back(kv.second.srcRemoteNumaId);
+            LOG_DEBUG << "[MemMigrate][Strategy] Returning numaId = " << kv.second.srcRemoteNumaId << ".";
+        }
+    }
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateExecute::MigrateExecute(const std::string &borrowInNode,
+                                               const std::vector<VMMigrateOutParam> &vmInfoList, uint64_t waitingTime,
+                                               const std::vector<std::string> &borrowIdListIn)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "Master to invoke the slave migrate execute.";
+    auto borrowIdList = borrowIdListIn;
+    std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap;
+    std::unordered_set<uint16_t> uniqueDesNumaIds;
+    std::set<BorrowIdInfo> pidList;
+    MpResult ret = GetMigrateExecuteInfo(borrowInNode, vmInfoList, pidList, uniqueDesNumaIds);
+    if (waitingTime != 0 && ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Get migrate info failed.";
+        return MEM_POOLING_ERROR;
+    }
+    // 前置参数校验 分别校验borrowInNode和远端numa是否存在，大虚拟机场景也需要做校验
+    ret = ValidMigrateExecuteParam(borrowInNode, uniqueDesNumaIds);
+    if (waitingTime != 0 && ret) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Valid param failed.";
+        return MEM_POOLING_ERROR;
+    }
+    std::unordered_set<std::string> borrowIds;
+    for (auto &destNumaId : uniqueDesNumaIds) {
+        std::vector<std::string> namesOfRemoteNuma;
+        ret = BorrowRecordHelper::Instance().GetBorrowIdByNumaId(namesOfRemoteNuma, destNumaId, borrowInNode);
+        if (waitingTime != 0 && ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] GetBorrowIdByNumaId failed.";
+            return ret;
+        }
+        borrowIds.insert(namesOfRemoteNuma.begin(), namesOfRemoteNuma.end());
+    }
+    borrowIdList.erase(std::remove_if(borrowIdList.begin(), borrowIdList.end(), [&borrowIds](const std::string &id) {
+            return borrowIds.find(id) == borrowIds.end(); // 如果 id 不在 borrowIds 中
+        }), borrowIdList.end());
+    if (waitingTime != 0 && borrowIdList.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Input borrowIdList is invalid.";
+        return MEM_POOLING_ERROR;
+    }
+    for (auto &borrowId : borrowIdList) {
+        borrowIdsPidsMap[borrowId] = pidList;
+    }
+    if (waitingTime != 0) {
+        ret = mempooling::Name2VmInfo::Instance().Update(borrowInNode, borrowIdsPidsMap);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][MemMigrate] Update borrow pid map faild: " << ret << ".";
+            return MEM_POOLING_ERROR;
+        }
+    }
+    ret = mempooling::migrate::MempoolMigrateExecute::
+        MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Migrate Execute failed.";
+        return ret;
+    }
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateExecute::GetMigrateExecuteInfo(const std::string &borrowInNode,
+                                                      const std::vector<VMMigrateOutParam> &vmInfoList,
+                                                      std::set<BorrowIdInfo> &pidList,
+                                                      std::unordered_set<uint16_t> &uniqueDesNumaIds)
+{
+    std::unordered_set<pid_t> pidSet;
+    std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
+    if (RpcGetVmInfoImmediately(borrowInNode, vmDomainInfos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Master to invoke the slave migrate execute.";
+        return MEM_POOLING_ERROR;
+    }
+    for (auto &param : vmInfoList) {
+        uint64_t oriSize = 0;
+        bool found = false;
+        for (auto &item : vmDomainInfos) {
+            if (item.metaData.pid != param.pid)
+                continue;
+
+            for (const auto &kv : item.numaInfo) {
+                const mempooling::exportV2::VmDomainNumaInfo &numa = kv.second;
+                if (!numa.isLocal) {
+                    oriSize = numa.usedMem;
+                    found = true;
+                    break; // 跳出 numaInfo 循环
+                }
+            }
+
+            if (found)
+                break; // 跳出 vmDomainInfos 循环
+        }
+
+        (void)pidList.insert(BorrowIdInfo{param.pid, oriSize});
+        (void)uniqueDesNumaIds.insert(param.desNumaId);
+        (void)pidSet.insert(param.pid);
+    }
+    if (pidSet.size() != vmInfoList.size()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrateExecute] Exist repeat pid.";
+        return MEM_POOLING_ERROR;
+    }
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateExecute::RpcGetVmInfoImmediately(const std::string &nodeId,
+                                                        std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrateExecute] Get vminfo by rpc start.";
+    UbseComEndpoint endpoint_rb = {
+        .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_GETVMINFO_IMMEDIATELY, .address = nodeId};
+    UbseByteBuffer reqData = {};
+    reqData.len = 1;
+    reqData.data = new (std::nothrow) uint8_t[reqData.len];
+    reqData.freeFunc = nullptr;
+    if (reqData.data == nullptr) {
+        LOG_ERROR << "[MemMigrate][MemMigrateExecute] Failed to allocate memory, size=" << reqData.len << ".";
+        return MEM_POOLING_ERROR;
+    }
+    auto ret = UbseRpcSend(endpoint_rb, reqData, &vmDomainInfos, mempooling::migrate::GetVmInfoImmediatelyResHandler);
+    delete[] reqData.data;
+    reqData.data = nullptr;
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrateExecute] Get vminfo by rpc Failed.";
+        return ret;
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrateExecute] Get vminfo by rpc success.";
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateExecute::ValidMigrateExecuteParam(const std::string &borrowInNode,
+                                                         const std::unordered_set<uint16_t> &uniqueDesNumaIdList)
+{
+    if (uniqueDesNumaIdList.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrateExecute] Can't get remote numaId from param.";
+        return MEM_POOLING_ERROR;
+    }
+    std::vector<BorrowRecord> borrowRecords;
+    if (BorrowRecordHelper::Instance().CollectBorrowRecords(borrowInNode, borrowRecords)) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrateExecute] Collect borrow record failed nodeId=" << borrowInNode << ".";
+        return MEM_POOLING_ERROR;
+    }
+    if (borrowRecords.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][MemMigrateExecute] Node no borrow record nodeId=" << borrowInNode << ".";
+        return MEM_POOLING_ERROR;
+    }
+    for (uint16_t numaId : uniqueDesNumaIdList) {
+        if (std::none_of(borrowRecords.begin(), borrowRecords.end(),
+                         [&numaId](const BorrowRecord &item) { return item.borrowRemoteNuma == numaId; })) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][MemMigrateExecute] BorrowInNode numa map not exist, nodeId=" << borrowInNode
+                << ", numaId=" << numaId << ".";
+            return MEM_POOLING_ERROR;
+        }
+    }
+    return MEM_POOLING_OK;
+}
+
+} // namespace migrate
+} // namespace mempooling

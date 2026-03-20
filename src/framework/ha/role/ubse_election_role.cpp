@@ -17,7 +17,11 @@
 #include "ubse_election_role_mgr.h"
 
 namespace ubse::election {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
+constexpr size_t MIN_NODES_FOR_COMPARISON = 2;
+constexpr size_t SECOND_SMALLEST_INDEX = 1;
+
 UbseResult GetBootTime(uint64_t &bootTime)
 {
     struct timespec ts{};
@@ -57,8 +61,8 @@ UbseResult ConnectAllNodes()
     }
 
     for (const auto &it : allNodes) {
-        if (it.id != myselfNode.id) {
-            taskExecutor->Execute([it]() -> void { RoleMgr::GetInstance().GetCommMgr()->Connect(it.id); });
+        if (it.ip != myselfNode.ip) {
+            taskExecutor->Execute([it]() -> void { RoleMgr::GetInstance().GetCommMgr()->Connect(it.ip); });
         }
     }
     taskExecutor->Wait();
@@ -84,21 +88,32 @@ bool IsSmallestNode(const Node &myself, const std::vector<Node> &allNodes)
     if (allNodes.size() < 2) { // 2,节点数小于2
         return true;
     }
-
-    return std::all_of(allNodes.begin(), allNodes.end(), [&myself](const Node &node) { return myself.id <= node.id; });
+    return std::all_of(allNodes.begin(), allNodes.end(),
+                       [&myself](const Node &node) { return node.id.empty() || myself.id <= node.id; });
 }
 
 bool IsSecondSmallestNode(const Node &myself, const std::vector<Node> &allNodes)
 {
-    if (allNodes.size() < 2) { // 节点数小于2
+    if (allNodes.size() < MIN_NODES_FOR_COMPARISON) {
         return true;
     }
 
-    // 找到两个最小的节点
-    std::vector<Node> sortedNodes = allNodes;
-    std::sort(sortedNodes.begin(), sortedNodes.end());
+    // 过滤掉 id 为空的节点
+    std::vector<Node> validNodes;
+    for (const auto &node : allNodes) {
+        if (!node.id.empty()) {
+            validNodes.push_back(node);
+        }
+    }
 
-    return sortedNodes[1] == myself;
+    if (validNodes.size() < MIN_NODES_FOR_COMPARISON) {
+        return true;
+    }
+
+    std::partial_sort(validNodes.begin(), validNodes.begin() + MIN_NODES_FOR_COMPARISON, validNodes.end());
+
+    // 检查第二个最小的节点是否是自己
+    return validNodes[SECOND_SMALLEST_INDEX] == myself;
 }
 
 UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE &masterId, const std::vector<UBSE_ID_TYPE> &allNodes)
@@ -133,9 +148,7 @@ UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYP
 
 uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID)
 {
-    std::vector<UBSE_ID_TYPE> allNodes;
-
-    allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
+    std::vector<std::string> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
     for (auto it : allNodes) {
         ElectionPkt pkt;
         ElectionReplyPkt reply;
@@ -159,7 +172,7 @@ uint32_t ForceElection(UBSE_ID_TYPE myselfID)
     UBSE_LOG_INFO << "[ELECTION] Initializer: ForceElection: SIZE " << allNodes.size() << ".";
     if (allNodes.empty()) {
         UBSE_LOG_INFO << "[ELECTION] Initializer: allNodes.empty "
-                    << ".";
+                      << ".";
         return ELECTION_PKT_RESULT_ACCEPT;
     }
 
@@ -171,6 +184,38 @@ uint32_t ForceElection(UBSE_ID_TYPE myselfID)
         }
     }
     return ELECTION_PKT_TYPE_REJECT;
+}
+
+bool GetElectionCandidate()
+{
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] GetRole: GetConfModule failed.";
+        return true;
+    }
+    bool electionCandidate;
+    UbseResult ret = module->GetConf<bool>(UBSE_ELECTION_SECTION, UBSE_ELECTION_CANDIDATE, electionCandidate);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] Get election_candidate failed, will set it true.";
+        electionCandidate = true;
+    }
+    return electionCandidate;
+}
+
+bool GetElectionWait()
+{
+    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] GetRole: GetConfModule failed.";
+        return true;
+    }
+    bool electionWait;
+    UbseResult ret = module->GetConf<bool>(UBSE_ELECTION_SECTION, UBSE_ELECTION_WAIT, electionWait);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] Get election_wait failed, will set it true.";
+        electionWait = true;
+    }
+    return electionWait;
 }
 
 bool IsHeartBeatEnabled(HeartBeatStatus status)

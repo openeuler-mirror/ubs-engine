@@ -10,12 +10,13 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_MANAGER_IPC_SOCKET_H
-#define UBSE_MANAGER_IPC_SOCKET_H
+#ifndef UBSE_IPC_SOCKET_H
+#define UBSE_IPC_SOCKET_H
 
 #include <cstdint>
 
 namespace ubse::ipc {
+constexpr uint32_t MILLISECOND_TO_SECOND = 1000; // 1sת1000ms
 /**
  * @brief Guaranteed delivery of exact data length to a file descriptor
  *
@@ -25,10 +26,10 @@ namespace ubse::ipc {
  * @param[in] fd Target file descriptor
  * @param[in] buffer Source data buffer pointer
  * @param[in] length Data length to transmit in bytes
- * @param[in] timeout Operation timeout in milliseconds (0 = infinite blocking)
+ * @param[in] timeoutMs Operation timeout in milliseconds (0 = infinite blocking)
  * @return 0 = success, non-zero = error code
  */
-uint32_t SendMsg(int fd, const void *buffer, uint32_t length, int timeout);
+uint32_t SendMsg(int fd, const void *buffer, uint32_t length, int timeoutMs);
 
 /**
  * @brief Guaranteed reception of exact data length from a file descriptor
@@ -39,12 +40,12 @@ uint32_t SendMsg(int fd, const void *buffer, uint32_t length, int timeout);
  * @param[in] fd Source file descriptor (must be connection-oriented socket)
  * @param[out] buffer Target data buffer pointer
  * @param[in] length Exact data length to receive in bytes
- * @param[in] timeout Operation timeout in milliseconds (0 = infinite blocking)
+ * @param[in] timeoutMs Operation timeout in milliseconds (0 = infinite blocking)
  * @return 0 = success, non-zero = error code
  *
  * @note Peer closure (read return 0) is treated as EPIPE error
  * @warning Avoid use with UDP sockets (message boundaries may cause early completion)
  */
-uint32_t RecvMsg(int fd, void *buffer, uint32_t length, int timeout);
+uint32_t RecvMsg(int fd, void *buffer, uint32_t length, int timeoutMs);
 } // namespace ubse::ipc
-#endif // UBSE_MANAGER_IPC_SOCKET_H
+#endif // UBSE_IPC_SOCKET_H

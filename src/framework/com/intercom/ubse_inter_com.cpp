@@ -14,9 +14,10 @@
 
 #include "ubse_com_base.h"
 #include "ubse_context.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 
 namespace ubse::com {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::context;
 using namespace ubse::task_executor;
@@ -29,7 +30,7 @@ UbseResult UbseInterCom::StartQueue()
         return UBSE_ERROR_CONF_INVALID;
     }
 
-    mqExecutor = taskExecutor->Get("ComExecutor");
+    mqExecutor_ = taskExecutor->Get("ComExecutor");
     return UBSE_OK;
 }
 
@@ -49,7 +50,7 @@ UbseMqHandler UbseInterCom::GetHandler(uint16_t moduleCode, uint16_t opCode)
         UBSE_LOG_ERROR << "module " << moduleCode << " opCode " << opCode << " opCode exceeds limit " << OP_CODE_SIZE;
         return {moduleCode, opCode, nullptr};
     }
-    auto hdl = handlerMap[moduleCode][opCode];
+    auto hdl = handlerMap_[moduleCode][opCode];
     if (hdl.handler == nullptr) {
         UBSE_LOG_ERROR << "module " << moduleCode << " opCode " << opCode << " handler not exists";
     }

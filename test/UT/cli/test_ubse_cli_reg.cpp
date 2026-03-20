@@ -177,7 +177,7 @@ TEST_F(TestUbseCliReg, RegCmdInfoNumExceeds)
         cmd_reg_info.push_back({ "command1" + std::to_string(i), "type1", {}, UbseCliTestFun });
     }
     UbseCliModuleRegistry::GetInstance().UbseCliRegister(cmd_reg_info);
-    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().fullCommandInfo.size(), 0);
+    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().fullCommandInfo_.size(), 0);
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
 }
@@ -189,7 +189,7 @@ TEST_F(TestUbseCliReg, OneCommandHelpInfo)
     std::vector<UbseCliCommandInfo> cmd_reg_info;
     cmd_reg_info.push_back({ "command1", "type1", params_infos, UbseCliTestFun });
     UbseCliModuleRegistry::GetInstance().UbseCliRegister(cmd_reg_info);
-    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().fullCommandInfo.size(), 1);
+    EXPECT_EQ(UbseCliModuleRegistry::GetInstance().fullCommandInfo_.size(), 1);
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse({ "command1", "type1", "-h" }));
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse({ "command1", "type1", "--help" }));
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
@@ -330,7 +330,7 @@ TEST_F(TestUbseCliReg, InputUnkonwOpt)
     std::vector<UbseCliCommandInfo> cmd_reg_info;
     cmd_reg_info.push_back({ "command1", "type1", params_infos, UbseCliTestFun });
     UbseCliModuleRegistry::GetInstance().UbseCliRegister(cmd_reg_info);
-    std::vector<std::string> args{ "rack-cli", "command1", "type1", "-t2", "aaa" };
+    std::vector<std::string> args{ "ubse-cli", "command1", "type1", "-t2", "aaa" };
     EXPECT_FALSE(UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliArgsParse(args));
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
@@ -365,9 +365,21 @@ TEST_F(TestUbseCliReg, InputTooLongValue)
     std::vector<UbseCliCommandInfo> cmd_reg_info;
     cmd_reg_info.push_back({ "command1", "type1", params_infos, UbseCliTestFun });
     UbseCliModuleRegistry::GetInstance().UbseCliRegister(cmd_reg_info);
-    std::vector<std::string> args{ "command1", "type1", "-t1", std::string("a", 1025) };
+    std::vector<std::string> args{ "command1", "type1", "-t1", std::string(1025, 'a') };
     EXPECT_FALSE(UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliArgsParse(args));
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
+}
+
+// 测试多线程安全性
+TEST_F(TestUbseCliReg, ThreadSafety)
+{
+    UbseCliWaitIndicator indicator("Test Message");
+    std::thread t1([&indicator]() { indicator.Stop(); });
+    std::thread t2([&indicator]() { indicator.Stop(); });
+    EXPECT_TRUE(t1.joinable());
+    EXPECT_TRUE(t2.joinable());
+    EXPECT_NO_THROW(t1.join());
+    EXPECT_NO_THROW(t2.join());
 }
 } // namespace ubse::ut::cli

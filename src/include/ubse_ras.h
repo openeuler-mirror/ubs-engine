@@ -23,8 +23,10 @@ constexpr ALARM_FAULT_TYPE ALARM_REBOOT_EVENT = 1003;         // BMC下电事件
 constexpr ALARM_FAULT_TYPE ALARM_OOM_EVENT = 1005;            // OOM事件
 constexpr ALARM_FAULT_TYPE ALARM_PANIC_EVENT = 1007;          // PANIC事件
 constexpr ALARM_FAULT_TYPE ALARM_KERNEL_REBOOT_EVENT = 1009;  // Reboot事件
+constexpr ALARM_FAULT_TYPE ALARM_MEM_FAULT = 1013;            // 内存故障事件
 constexpr ALARM_FAULT_TYPE ALARM_MEM_UCE_PREDICT_EVENT = 101; // 预测UCE故障事件
 constexpr ALARM_FAULT_TYPE ALARM_MEM_UCE_EVENT = 103;         // 已发生UCE故障事件
+constexpr ALARM_FAULT_TYPE ALARM_NET_FAULT = 110;             // 网络故障
 
 /**
  * 故障处理函数

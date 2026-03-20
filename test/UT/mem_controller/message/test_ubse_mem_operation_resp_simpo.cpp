@@ -6,10 +6,9 @@
 
 #include "mockcpp/mockcpp.hpp"
 
-#include "message/ubse_mem_controller_conversion.h"
 #include "message/ubse_mem_controller_serial.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
-#include "ubse_conf_error.h"
+#include "ubse_error.h"
 #include "ubse_serial_util.h"
 
 namespace ubse::mem::controller::message::ut {
@@ -38,8 +37,10 @@ void TestUbseMemOperationRespSimpo::TearDown()
  */
 TEST_F(TestUbseMemOperationRespSimpo, Serialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
     EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
+    MOCKER_CPP(&UbseSerialization::Check).reset();
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
     EXPECT_TRUE(UBSE_OK == obj->Serialize());
 }
 
@@ -65,9 +66,13 @@ TEST_F(TestUbseMemOperationRespSimpo, Deserialize)
     obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
     MOCKER_CPP(&UbseMemOperationRespDeserialize).stubs().will(returnValue(false)).then(returnValue(true));
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    EXPECT_TRUE(UBSE_OK == obj->Deserialize());
 
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER_CPP(&UbseMemOperationRespDeserialize).reset();
+    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false));
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    MOCKER_CPP(&UbseDeSerialization::Check).reset();
+    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(true));
     EXPECT_TRUE(UBSE_OK == obj->Deserialize());
 }
 } // namespace ubse::mem::controller::message::ut

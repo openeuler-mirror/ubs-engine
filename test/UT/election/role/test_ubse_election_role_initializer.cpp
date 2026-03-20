@@ -10,9 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "test_ubse_election_role_Initializer.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
+#include "test_ubse_election_role_Initializer.h"
 #include "role/ubse_election_role_initializer.h"
 #include "ubse_conf_module.h"
 
@@ -35,12 +35,11 @@ UbseResult FAKE_GetMyselfNode1(UbseElectionNodeMgr *pthis, Node &myself)
 
 UbseResult FAKE_GetAllNode(std::vector<Node> &allNodes)
 {
-    std::vector<Node> allNodes_ = { Node{ "NODE0", "192.168.0.1", 10004 }, Node{ "NODE1", "192.168.0.2", 10005 },
-        Node{ "NODE2", "192.168.0.3", 10006 } };
+    std::vector<Node> allNodes_ = {Node{"NODE0", "192.168.0.1", 10004}, Node{"NODE1", "192.168.0.2", 10005},
+                                   Node{"NODE2", "192.168.0.3", 10006}};
     allNodes = allNodes_;
     return 0;
 }
-
 
 TEST_F(TestUbseElectionRoleInitializer, RecvSelectPkt_ShouldReturnAccept_WhenNodeRestore)
 {
@@ -172,11 +171,13 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMatser_WhenSmalles
         .stubs()
         .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
     Initializer initer;
-    initer.isStartTimeSet = false;
-    initer.lastTimeMs = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime();
-    initer.startTimeMs = 0;
+    initer.isStartTimeSet_ = false;
+    initer.lastTimeMs_ = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime();
+    initer.startTimeMs_ = 0;
     MOCKER(&ubse::election::IsSmallestNode).stubs().will(returnValue(true));
     MOCKER(&UbseElectionCommMgr::SendElectionPkt).stubs().will(returnValue((uint32_t)0));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     // when
     initer.ProcTimer();
@@ -194,11 +195,13 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMaster_WhenStatge2
         .stubs()
         .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
     Initializer initer;
-    initer.isStartTimeSet = false;
-    initer.lastTimeMs = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime() * NO_4;
-    initer.startTimeMs = 0;
+    initer.isStartTimeSet_ = false;
+    initer.lastTimeMs_ = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime() * NO_4;
+    initer.startTimeMs_ = 0;
     MOCKER(&ubse::election::IsSecondSmallestNode).stubs().will(returnValue(true));
     MOCKER(&UbseElectionCommMgr::SendElectionPkt).stubs().will(returnValue((uint32_t)0));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     // when
     initer.ProcTimer();
@@ -216,10 +219,12 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMaster_WhenStatge3
         .stubs()
         .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
     Initializer initer;
-    initer.isStartTimeSet = true;
-    initer.lastTimeMs = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime() * NO_5;
-    initer.startTimeMs = 0;
+    initer.isStartTimeSet_ = true;
+    initer.lastTimeMs_ = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime() * NO_5;
+    initer.startTimeMs_ = 0;
     MOCKER(&ubse::election::ForceElection).stubs().will(returnValue((uint32_t)0));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     // when
     initer.ProcTimer();
@@ -243,7 +248,6 @@ TEST_F(TestUbseElectionRoleInitializer, GetStandbyNode_ShouldReturnCorrectUbseId
     EXPECT_EQ(initializer.GetStandbyNode(), expectedUbseId);
 }
 
-
 TEST_F(TestUbseElectionRoleInitializer, GetRoleType_ShouldReturnCorrectType_WhenCalled)
 {
     Initializer initializer;
@@ -262,4 +266,4 @@ TEST_F(TestUbseElectionRoleInitializer, GetStandbyStatus_ShouldReturn0_WhenCalle
     Initializer initializer;
     EXPECT_EQ(0, initializer.GetStandbyStatus());
 }
-}
+} // namespace ubse::event::election

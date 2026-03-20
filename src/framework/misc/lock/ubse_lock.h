@@ -31,16 +31,16 @@ public:
 
     inline void DoLock()
     {
-        mLock.lock();
+        mLock_.lock();
     }
 
     inline void UnLock()
     {
-        mLock.unlock();
+        mLock_.unlock();
     }
 
 private:
-    std::mutex mLock;
+    std::mutex mLock_;
 };
 
 class RecursiveLock {
@@ -55,26 +55,26 @@ public:
 
     inline void DoLock()
     {
-        mLock.lock();
+        mLock_.lock();
     }
     inline void UnLock()
     {
-        mLock.unlock();
+        mLock_.unlock();
     }
 
 private:
-    std::recursive_mutex mLock;
+    std::recursive_mutex mLock_;
 };
 
 class ReadWriteLock {
 public:
     ReadWriteLock()
     {
-        pthread_rwlock_init(&mLock, nullptr);
+        pthread_rwlock_init(&mLock_, nullptr);
     }
     ~ReadWriteLock()
     {
-        pthread_rwlock_destroy(&mLock);
+        pthread_rwlock_destroy(&mLock_);
     }
 
     ReadWriteLock(const ReadWriteLock &) = delete;
@@ -84,21 +84,21 @@ public:
 
     inline void LockRead()
     {
-        pthread_rwlock_rdlock(&mLock);
+        pthread_rwlock_rdlock(&mLock_);
     }
 
     inline void LockWrite()
     {
-        pthread_rwlock_wrlock(&mLock);
+        pthread_rwlock_wrlock(&mLock_);
     }
 
     inline void UnLock()
     {
-        pthread_rwlock_unlock(&mLock);
+        pthread_rwlock_unlock(&mLock_);
     }
 
 private:
-    pthread_rwlock_t mLock {};
+    pthread_rwlock_t mLock_ {};
 };
 
 class SpinLock {
@@ -113,37 +113,37 @@ public:
 
     inline void TryLock()
     {
-        mFlag.test_and_set(std::memory_order_acquire);
+        mFlag_.test_and_set(std::memory_order_acquire);
     }
 
     inline void Lock()
     {
-        while (mFlag.test_and_set(std::memory_order_acquire)) {
+        while (mFlag_.test_and_set(std::memory_order_acquire)) {
         }
     }
 
     inline void UnLock()
     {
-        mFlag.clear(std::memory_order_release);
+        mFlag_.clear(std::memory_order_release);
     }
 
 private:
-    std::atomic_flag mFlag = ATOMIC_FLAG_INIT;
+    std::atomic_flag mFlag_ = ATOMIC_FLAG_INIT;
 };
 
 template <class T> class Locker {
 public:
-    explicit Locker(T *lock) : mLock(lock)
+    explicit Locker(T *lock) : mLock_(lock)
     {
-        if (mLock != nullptr) {
-            mLock->DoLock();
+        if (mLock_ != nullptr) {
+            mLock_->DoLock();
         }
     }
 
     ~Locker()
     {
-        if (mLock != nullptr) {
-            mLock->UnLock();
+        if (mLock_ != nullptr) {
+            mLock_->UnLock();
         }
     }
 
@@ -153,22 +153,22 @@ public:
     Locker &operator = (Locker &&) = delete;
 
 private:
-    T *mLock;
+    T *mLock_;
 };
 
 template <class T> class ReadLocker {
 public:
-    explicit ReadLocker(T *lock) : mLock(lock)
+    explicit ReadLocker(T *lock) : mLock_(lock)
     {
-        if (mLock != nullptr) {
-            mLock->LockRead();
+        if (mLock_ != nullptr) {
+            mLock_->LockRead();
         }
     }
 
     ~ReadLocker()
     {
-        if (mLock != nullptr) {
-            mLock->UnLock();
+        if (mLock_ != nullptr) {
+            mLock_->UnLock();
         }
     }
 
@@ -178,22 +178,22 @@ public:
     ReadLocker &operator = (ReadLocker &&) noexcept = delete;
 
 private:
-    T *mLock;
+    T *mLock_;
 };
 
 template <class T> class WriteLocker {
 public:
-    explicit WriteLocker(T *lock) : mLock(lock)
+    explicit WriteLocker(T *lock) : mLock_(lock)
     {
-        if (mLock != NULL) {
-            mLock->LockWrite();
+        if (mLock_ != NULL) {
+            mLock_->LockWrite();
         }
     }
 
     ~WriteLocker()
     {
-        if (mLock != NULL) {
-            mLock->UnLock();
+        if (mLock_ != NULL) {
+            mLock_->UnLock();
         }
     }
 
@@ -203,7 +203,7 @@ public:
     WriteLocker &operator = (WriteLocker &&) noexcept = delete;
 
 private:
-    T *mLock;
+    T *mLock_;
 };
 #define GUARD(lLock, alias) Locker<Lock> __l##alias(lLock)
 #define RECURSIVE_GUARD(mylock) Locker<RecursiveLock> __locker##mylock(mylock)

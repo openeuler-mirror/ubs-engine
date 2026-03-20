@@ -15,6 +15,8 @@
 
 #include <stdint.h>
 
+#include "src/sdk/c/include/ubs_engine_mem.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,6 +60,18 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
  * - Passing invalid pointers may lead to segmentation faults
  */
 void ubse_api_buffer_free(ubse_api_buffer_t *apiBuffer);
+
+void ubse_api_buffer_delete(ubse_api_buffer_t *apiBuffer);
+
+uint32_t ubse_long_link_connect(void);
+
+/* *
+ * 向服务端注册长连接监听的事件
+ * @param moduleCode
+ * @param opCode
+ * @return
+ */
+uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler);
 #ifdef __cplusplus
 }
 #endif

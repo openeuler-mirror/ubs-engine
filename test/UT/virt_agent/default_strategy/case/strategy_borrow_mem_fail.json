@@ -1,0 +1,572 @@
+{
+	"description": "borrowMemFail case",
+	"input": {
+		"alarmNumaInfo":{
+			"isMemReturn": false,
+            "oomEventFlag": 0,
+			"numaLoc": ["192",1,1],
+			"vmBasicInfos": [
+				{
+					"uuid":"16GB__localUsedMem_2859_remoteUsedMem_952",
+					"maxMem": 17179869184,
+					"localUsedMem": 2997878784,
+					"remoteUsedMem": 998244352,
+					"vmCreateTime": 0,
+					"vmMigrateInTime": 0,
+					"vmMigrateCount": 0,
+					"vmMigrateStatus":"MIGRATEABLE"
+				},{
+					"uuid":"4GB__localUsedMem_246_remoteUsedMem_82",
+					"maxMem": 4294967296,
+					"localUsedMem": 257949696,
+					"remoteUsedMem": 85983232,
+					"vmCreateTime": 0,
+					"vmMigrateInTime": 0,
+					"vmMigrateCount": 0,
+					"vmMigrateStatus":"MIGRATEABLE"
+				},{
+                    "uuid":"4GB__localUsedMem_943_remoteUsedMem_314",
+                    "maxMem":4294967296,
+                    "localUsedMem":988807168,
+                    "remoteUsedMem":329252864,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                },{
+                    "uuid":"4GB__localUsedMem_2298_remoteUsedMem_765",
+                    "maxMem":4294967296,
+                    "localUsedMem":2409627648,
+                    "remoteUsedMem":802160640,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_2692_remoteUsedMem_897",
+                    "maxMem":4294967296,
+                    "localUsedMem":2822766592,
+                    "remoteUsedMem":940572672,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_1477_remoteUsedMem_492",
+                    "maxMem":4294967296,
+                    "localUsedMem":1548746752,
+                    "remoteUsedMem":515899392,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_1164_remoteUsedMem_387",
+                    "maxMem":4294967296,
+                    "localUsedMem":1220542464,
+                    "remoteUsedMem":405798912,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_1419_remoteUsedMem_473",
+                    "maxMem":4294967296,
+                    "localUsedMem":1487929344,
+                    "remoteUsedMem":495976448,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_1278_remoteUsedMem_426",
+                    "maxMem":4294967296,
+                    "localUsedMem":1340080128,
+                    "remoteUsedMem":446693376,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"16GB__localUsedMem_7812_remoteUsedMem_2603",
+                    "maxMem":17179869184,
+                    "localUsedMem":8191475712,
+                    "remoteUsedMem":2729443328,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_5975_remoteUsedMem_1991",
+                    "maxMem":8589934592,
+                    "localUsedMem":6265241600,
+                    "remoteUsedMem":2087714816,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_1365_remoteUsedMem_455",
+                    "maxMem":8589934592,
+                    "localUsedMem":1431306240,
+                    "remoteUsedMem":477102080,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_2763_remoteUsedMem_921",
+                    "maxMem":8589934592,
+                    "localUsedMem":2897215488,
+                    "remoteUsedMem":965738496,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_1035_remoteUsedMem_345",
+                    "maxMem":8589934592,
+                    "localUsedMem":1085276160,
+                    "remoteUsedMem":361758720,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_3739_remoteUsedMem_1246",
+                    "maxMem":8589934592,
+                    "localUsedMem":3920625664,
+                    "remoteUsedMem":1306525696,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus":"MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_3480_remoteUsedMem_1159",
+                    "maxMem":8589934592,
+                    "localUsedMem":3649044480,
+                    "remoteUsedMem":1215299584,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_2127_remoteUsedMem_709",
+                    "maxMem":8589934592,
+                    "localUsedMem":2230321152,
+                    "remoteUsedMem":743440384,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus":"MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_5828_remoteUsedMem_1942",
+                    "maxMem":8589934592,
+                    "localUsedMem":6111100928,
+                    "remoteUsedMem":2036334592,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_3335_remoteUsedMem_1111",
+                    "maxMem":8589934592,
+                    "localUsedMem":3497000960,
+                    "remoteUsedMem":1164967936,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"16GB__localUsedMem_6272_remoteUsedMem_2090",
+                    "maxMem":17179869184,
+                    "localUsedMem":6576668672,
+                    "remoteUsedMem":2191523840,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_237_remoteUsedMem_78",
+                    "maxMem":8589934592,
+                    "localUsedMem":248512512,
+                    "remoteUsedMem":81788928,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_949_remoteUsedMem_316",
+                    "maxMem":4294967296,
+                    "localUsedMem":995098624,
+                    "remoteUsedMem":331350016,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_1933_remoteUsedMem_644",
+                    "maxMem":8589934592,
+                    "localUsedMem":2026897408,
+                    "remoteUsedMem":675282944,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_428_remoteUsedMem_142",
+                    "maxMem":4294967296,
+                    "localUsedMem":448790528,
+                    "remoteUsedMem":148897792,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus":"MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_2073_remoteUsedMem_690",
+                    "maxMem":4294967296,
+                    "localUsedMem":2173698048,
+                    "remoteUsedMem":723517440,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"8GB__localUsedMem_3271_remoteUsedMem_1090",
+                    "maxMem":8589934592,
+                    "localUsedMem":3429892096,
+                    "remoteUsedMem":1142947840,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"16GB__localUsedMem_5781_remoteUsedMem_1926",
+                    "maxMem":17179869184,
+                    "localUsedMem":6061817856,
+                    "remoteUsedMem":2019557376,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"4GB__localUsedMem_3032_remoteUsedMem_1010",
+                    "maxMem":4294967296,
+                    "localUsedMem":3179282432,
+                    "remoteUsedMem":1059061760,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"16GB__localUsedMem_4929_remoteUsedMem_1643",
+                    "maxMem":17179869184,
+                    "localUsedMem":5168431104,
+                    "remoteUsedMem":1722810368,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  },
+                  {
+                    "uuid":"16GB__localUsedMem_11943_remoteUsedMem_3980",
+                    "maxMem":17179869184,
+                    "localUsedMem":12523143168,
+                    "remoteUsedMem":4173332480,
+                    "vmCreateTime":0,
+                    "vmMigrateInTime":0,
+                    "vmMigrateCount":0,
+                    "vmMigrateStatus": "MIGRATEABLE"
+                  }
+			],
+			"borrowItemInfo": 
+            {
+                "borrowItem":[
+                {
+					"exportLocNum": 2,
+					"exportLocInfo": [["190",190,0],["190",190,1]],
+					"requestSize": [1073741824,1073741824],
+                    "importMemId": 0,
+                    "name": "1"
+				}
+            ]
+        }
+		},
+		"globalNumaInfoMap":[
+			{
+				"numaLoc": ["190",0,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 51539607552,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["190",0,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 51539607552,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["190",1,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 51539607552,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["190",1,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 51539607552,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},			{
+				"numaLoc": ["191",0,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["191",0,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["191",1,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["191",1,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 120259084288,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},			{
+				"numaLoc": ["192",0,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 188978561024,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["192",0,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 188978561024,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["192",1,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 188978561024,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["192",1,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 251970715648,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 34359738368,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["193",0,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 257698037760,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["193",0,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 257698037760,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["193",1,0],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 257698037760,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			},{
+				"numaLoc": ["193",1,1],
+				"numaMemTotal": 274877906944,
+				"numaMemUsed": 257698037760,
+				"numaVMMemAllocated": 240518168576,
+				"numaMemBorrow": 0,
+				"numaMigrateStatus":"NORMAL",
+				"numaMigrateLastTime": 0
+			}
+		]
+	},
+	"output": {
+        "escapeActionType":"NOPE",
+        "migrations":[
+            {
+				"uuid":"16GB__localUsedMem_11943_remoteUsedMem_3980",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts": [["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"16GB__localUsedMem_7812_remoteUsedMem_2603",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"16GB__localUsedMem_6272_remoteUsedMem_2090",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_5975_remoteUsedMem_1991",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_5828_remoteUsedMem_1942",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"16GB__localUsedMem_5781_remoteUsedMem_1926",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"16GB__localUsedMem_4929_remoteUsedMem_1643",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_3739_remoteUsedMem_1246",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_3480_remoteUsedMem_1159",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_3335_remoteUsedMem_1111",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_3271_remoteUsedMem_1090",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"4GB__localUsedMem_3032_remoteUsedMem_1010",
+				"migrationVMType": "ONE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"16GB__localUsedMem_2859_remoteUsedMem_952",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_2763_remoteUsedMem_921",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"4GB__localUsedMem_2692_remoteUsedMem_897",
+				"migrationVMType": "ONE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"4GB__localUsedMem_2298_remoteUsedMem_765",
+				"migrationVMType": "ONE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_2127_remoteUsedMem_709",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"4GB__localUsedMem_2073_remoteUsedMem_690",
+				"migrationVMType": "ONE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			},
+            {
+				"uuid":"8GB__localUsedMem_1933_remoteUsedMem_644",
+				"migrationVMType": "ITERATIVE_COPY",
+				"dsts":[["190",0,0],["190",0,1],["190",1,0],["190",1,1],["191",0,0],["191",0,1],["191",1,0],["191",1,1]]
+			}
+        ],
+      "returnMemNames":[],
+      "borrowSizes":[]
+	},
+	"conf": {
+        "memReturnLine": "80",
+        "memFirstLine": "85",
+        "memSecondLine": "92",
+		"minMemOverageRecovery": 0.02,
+		"maxMemBorrow": 0.25,
+		"maxMemPerBorrowBytes": 4294967296,
+		"minMemPerBorrowBytes": 1073741824,
+		"memBorrowAlignBytes": 1073741824,
+        "maxPerTotalMemBorrowBytes": 17179869184,
+		"minMemPerMigrationBytes": 2147483648,
+		"oomEventBorrowBytes": 1073741824,
+		"minSecondsOfVmMigrateInterval": 160,
+		"minSecondsOfNumaMigrateInterval": 90,
+		"minSecondsOfNonMigratableVmInterval": 300,
+		"maxOneCopyMigrationBytes": 4294967296,
+		"maxIterativeCopyMigrationBytes": 17179869184
+	}
+}

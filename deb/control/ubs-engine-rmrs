@@ -1,0 +1,6 @@
+Package: ubs-engine-rmrs
+Version: 1.0.0-1
+Architecture: arm64
+Maintainer: UB System Software
+Depends: libc6 (>= 2.31), libstdc++6
+Description: Development package for rmrs plugin

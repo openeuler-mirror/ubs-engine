@@ -15,15 +15,14 @@
 #include <memory>              // for operator==, shared_ptr, __shared_ptr_...
 
 #include "ubse_common_def.h"   // for UbseResult
-#include "ubse_conf_error.h"
+#include "ubse_error.h"
 #include "ubse_conf_module.h"  // for UbseConfModule
 #include "ubse_context.h"      // for UbseContext
 #include "ubse_logger.h"       // for UBSE_DEFINE_THIS_MODULE
-#include "ubse_logger_inner.h" // for RM_LOG_ERROR
 
 namespace ubse::config {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONF_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 template <typename T>
 UbseResult GetConf(const std::string& section, const std::string& configKey, T& configVal)
 {

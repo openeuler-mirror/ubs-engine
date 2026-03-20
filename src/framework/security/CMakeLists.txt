@@ -1,3 +1,3 @@
-add_library(ubse_security STATIC ubse_security_module.cpp ubse_security_manager.cpp)
+add_library(ubse_security STATIC ubse_security_module.cpp ubse_security_manager.cpp ubse_security.cpp)
 target_include_directories(ubse_security PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ubse_security PRIVATE ubse_context ubse_utils)

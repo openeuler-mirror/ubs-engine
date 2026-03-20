@@ -14,6 +14,8 @@
 #define UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_LEDGER_H
 #include <gtest/gtest.h>
 
+#include "message/node_mem_debt_info_simpo.h"
+
 namespace ubse::mem_controller::ut {
 class TestUbseMemControllerLedger : public testing::Test {
 public:
@@ -22,6 +24,7 @@ public:
     void SetUp() override;
 
     void TearDown() override;
+    std::unordered_map<std::string, ubse::adapter_plugins::mmi::NodeMemDebtInfo> mockDebtMap;
 };
 }  // namespace ubse::mem_controller::ut
 

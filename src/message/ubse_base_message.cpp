@@ -16,13 +16,12 @@
 
 #include "ubse_error.h"        // for UBSE_ERROR, UBSE_OK, UBSE_ERROR_NU...
 #include "ubse_logger.h"       // for UBSE_DEFINE_THIS_MODULE, UbseLogge...
-#include "ubse_logger_inner.h" // for RM_LOG_ERROR
 #include "ubse_pointer_process.h"
 #include "ubse_base_message.h"
 
 namespace ubse::message {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_MESSAGE_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseBaseMessagePtr UbseBaseMessage::gNullPtr(nullptr);
 constexpr int MAX_IPC_DATA_PACKAGE_LEN = 10485760;

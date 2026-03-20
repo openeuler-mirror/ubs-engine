@@ -30,7 +30,7 @@ std::string DeleteOther(std::string str)
     std::regex pattern("\\[[^\\[\\]]*\\]");
     // 删除匹配的方括号
     int count = 0;
-    while (count < 5 && std::regex_search(str, pattern)) { // 删除5对“[]"
+    while (count < 6 && std::regex_search(str, pattern)) { // 删除5对“[]"
         str = std::regex_replace(str, pattern, "", std::regex_constants::format_first_only);
         count++;
     }
@@ -141,7 +141,7 @@ TEST_F(TestUbseLogger, TestoperatorString)
     // 长日志输入测试，设置大于512字节的日志消息，测试开发代码因输入长日志导致的偶现问题
     std::string data =
         "This is a long string that exceeds 512 bytes. It is designed to serve as a placeholder for various testing ";
-    int count = 10; // 设置循环次数为10，增加日志长度
+    int count = 5; // 设置循环次数为5，增加日志长度
     while (count--) {
         data += data;
     }
@@ -448,10 +448,10 @@ TEST_F(TestUbseLogger, TestUbseIsLog)
     UbseLogLevel level = UbseLogLevel::INFO;
     LoggerOptions options{ UbseLoggerManager::StringToLogLevel("INFO"), 30, 20,
         1024 }; // 设置30为filesize，20为fileNums，1024为maxItem
-    UbseLoggerManager::gInstance = new (std::nothrow) UbseLoggerManager();
+    UbseLoggerManager::gInstance = UbseLoggerManager::Instance();
     UbseLoggerManager::gInstance->SetLogLevel(options.minLogLevel);
     EXPECT_TRUE(UbseIsLog(level));
-    UbseLoggerManager::gInstance = nullptr;
+    UbseLoggerManager::gInstance->Destroy();
     EXPECT_FALSE(UbseIsLog(level));
 }
 /*

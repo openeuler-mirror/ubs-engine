@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -13,6 +13,7 @@
 #ifndef UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_API_AGENT_H
 #define UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_API_AGENT_H
 #include <gtest/gtest.h>
+#include <chrono>
 
 namespace ubse::mem::controller::agent {
 std::chrono::seconds GetWaitTimeout();

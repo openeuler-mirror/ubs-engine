@@ -11,96 +11,158 @@
  */
 
 #include "ubse_timer.h"
-#include <cstring>
-#include <ctime>
-#include <functional>
-#include <iostream>
-#include "ubse_common_def.h"
+
+#include <atomic>
+#include <chrono>
+#include <shared_mutex>
+#include <unordered_map>
+
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
+#include "ubse_timer_controller.h"
 
 namespace ubse::timer {
-using namespace ubse::common::def;
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_UTILS_MID)
+using namespace ubse::context;
+UBSE_DEFINE_THIS_MODULE("ubse");
+static const std::string TIMER_NAME = "UbseTimer";
+static const uint32_t UBSE_INTERVAL = 1;
 
-// 启动定时器，interval 毫秒
-UbseResult UbseTimer::Start(int interval_ms, std::function<UbseResult()> timerCallback)
+static const uint32_t UBSE_REGISTER_MIN_INTERVAL = 1;
+static const uint32_t UBSE_REGISTER_MAX_INTERVAL = 3600;
+static const uint32_t ONE_SECOND_TO_MILLI_SECONDS = 1000;
+
+static uint64_t HANDLER_EXEC_TIMEOUT = 300;       // handler执行超时时间，单位s
+static uint32_t HANDLER_EXEC_CHECK_INTERVAL = 60; // 检测 handler 执行超时周期，单位s
+
+// map<handlerName, <interval, handler>>
+std::unordered_map<std::string, std::pair<uint32_t, UbseTimerHandler>> handlers;
+std::unordered_map<std::string, std::chrono::steady_clock::time_point> handlerExecStartRecord; // 每个handler执行开始时间
+std::shared_mutex handlerExecStartMtx;
+std::condition_variable handlerExecCheckCv{};
+std::mutex handlerExecCheckCvMutex{};
+
+std::atomic<uint64_t> count{0}; // 周期计数；每隔1s递增1
+std::shared_mutex mtx;
+UbseTimerController ubseTimer{};
+std::atomic<bool> isTimerRunning{false};
+
+std::thread checkHandlerThread{};
+
+void CheckHandlerExecTimeout()
 {
-    std::lock_guard<std::mutex> guard(mtx);
-    if (isActive) {
-        UBSE_LOG_ERROR << "Timer is already running.";
-        return UBSE_ERROR;
+    std::unique_lock<std::mutex> lock(handlerExecCheckCvMutex);
+    while (isTimerRunning.load(std::memory_order_acquire) && !g_globalStop.load(std::memory_order_acquire)) {
+        handlerExecCheckCv.wait_for(lock, std::chrono::seconds(HANDLER_EXEC_CHECK_INTERVAL));
+        if (!isTimerRunning.load(std::memory_order_acquire) || g_globalStop.load(std::memory_order_acquire)) {
+            UBSE_LOG_INFO << "ubse process exit, stop check.";
+            break;
+        }
+        handlerExecStartMtx.lock();
+        auto handlerExecStartRecordCopy = handlerExecStartRecord;
+        handlerExecStartMtx.unlock();
+        auto currentTime = std::chrono::steady_clock::now();
+        std::stringstream oss;
+        for (auto &handler : handlerExecStartRecordCopy) {
+            auto duration = currentTime - handler.second;
+            if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() > HANDLER_EXEC_TIMEOUT) {
+                oss << "handler=" << handler.first << " exec timeout,";
+            }
+        }
+        if (!oss.str().empty()) {
+            UBSE_LOG_ERROR << oss.str();
+        }
     }
+}
 
-    callback = std::move(timerCallback);
-
-    struct sigevent sev{};
-    struct itimerspec its{};
-
-    // 设置定时器的回调函数
-    sev.sigev_notify = SIGEV_THREAD;
-    sev.sigev_notify_function = &UbseTimer::TimerHandler;
-    sev.sigev_notify_attributes = nullptr;
-    sev.sigev_value.sival_ptr = this;
-
-    // 创建定时器
-    if (timer_create(CLOCK_REALTIME, &sev, &timerID) == -1) {
-        UBSE_LOG_ERROR << "Failed to create timer: " << std::strerror(errno) << " (errno=" << errno << ")";
-        timerID = nullptr;
-        return UBSE_ERROR;
+uint32_t ExecTimerHandler()
+{
+    uint64_t currentCount = count.fetch_add(1, std::memory_order_relaxed) + 1;
+    std::unordered_map<std::string, std::pair<uint32_t, UbseTimerHandler>> filtered;
+    mtx.lock_shared();
+    for (const auto &[key, val] : handlers) {
+        if (currentCount % val.first == 0) {
+            filtered.emplace(key, val);
+        }
     }
-
-    // 设置定时器触发时间间隔
-    its.it_value.tv_sec = interval_ms / 1000;
-    its.it_value.tv_nsec = (interval_ms % 1000) * 1000000;
-    its.it_interval = its.it_value;
-
-    // 启动定时器
-    if (timer_settime(timerID, 0, &its, nullptr) == -1) {
-        UBSE_LOG_ERROR << "Failed to set timer: ";
-        CleanUp();
-        return UBSE_ERROR;
+    mtx.unlock_shared();
+    uint32_t ret = UBSE_OK;
+    for (const auto &handlerItem : filtered) {
+        try {
+            {
+                std::unique_lock<std::shared_mutex> lock(handlerExecStartMtx);
+                if (handlerExecStartRecord.find(handlerItem.first) != handlerExecStartRecord.end()) {
+                    UBSE_LOG_WARN << "Handler " << handlerItem.first << " is already running, skip this round.";
+                    continue;
+                }
+                handlerExecStartRecord[handlerItem.first] = std::chrono::steady_clock::now();
+            }
+            if (ret = handlerItem.second.second(); ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Handler=" << handlerItem.first << " exec failed: " << FormatRetCode(ret);
+            }
+        } catch (const std::exception &exp) {
+            UBSE_LOG_ERROR << "Handler=" << handlerItem.first << " exec encounter exception: " << exp.what();
+        }
+        {
+            std::unique_lock<std::shared_mutex> lock(handlerExecStartMtx);
+            handlerExecStartRecord.erase(handlerItem.first);
+        }
     }
-
-    isActive = true;
     return UBSE_OK;
 }
 
-void UbseTimer::CleanUp()
+uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler, uint32_t interval)
 {
-    if (timerID) {
-        if (timer_delete(timerID) == -1) {
-            UBSE_LOG_ERROR <<"Failed to delete timer";
-        }
-        timerID = nullptr;
+    if (g_globalStop.load()) {
+        UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
+        return UBSE_ERROR;
     }
-    isActive = false;
+    if (interval < UBSE_REGISTER_MIN_INTERVAL || interval > UBSE_REGISTER_MAX_INTERVAL) {
+        UBSE_LOG_ERROR << "Handler=" << name << " interval invalid, interval=" << interval;
+        return UBSE_ERROR;
+    }
+    if (!handler) {
+        UBSE_LOG_ERROR << "Handler=" << name << " handler null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    std::unique_lock<std::shared_mutex> lock(mtx);
+    handlers[name] = std::make_pair(interval, handler);
+    UBSE_LOG_INFO << "Register handler=" << name;
+    bool expected = false;
+    if (isTimerRunning.compare_exchange_strong(expected, true)) {
+        checkHandlerThread = std::thread(CheckHandlerExecTimeout);
+        ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
+        UBSE_LOG_INFO << "Ubse timer started.";
+    }
+    return UBSE_OK;
 }
 
-// 停止定时器
-void UbseTimer::Stop()
+void UbseTimerHandlerUnregister(const std::string &name)
 {
-    std::lock_guard<std::mutex> guard(mtx);
-    if (!isActive) {
-        return;
+    mtx.lock();
+    UBSE_LOG_INFO << "Unregister handler=" << name;
+    auto it = handlers.find(name);
+    if (it != handlers.end()) {
+        handlers.erase(it);
     }
-    CleanUp();
-    callback = nullptr;
+    if (handlers.empty()) {
+        UBSE_LOG_INFO << "Handlers empty, start to exit";
+        isTimerRunning.store(false, std::memory_order_release);
+        handlerExecCheckCv.notify_all();
+        if (checkHandlerThread.joinable()) {
+            checkHandlerThread.join();
+        }
+        handlerExecStartMtx.lock();
+        handlerExecStartRecord.clear();
+        handlerExecStartMtx.unlock();
+    }
+    mtx.unlock();
+    if (!isTimerRunning.load(std::memory_order_acquire)) {
+        UBSE_LOG_INFO << "Handlers empty, stopping ubse timer...";
+        ubseTimer.Stop();
+        UBSE_LOG_INFO << "Ubse timer stopped.";
+    }
 }
 
-void UbseTimer::TimerHandler(union sigval sv)
-{
-    UbseTimer *timer = static_cast<UbseTimer *>(sv.sival_ptr); // 通过 void* 获取 Timer 实例
-    if (timer && timer->callback) {
-        std::function<UbseResult()> cbCopy;
-        {
-            std::lock_guard<std::mutex> guard(timer->mtx);
-            cbCopy = timer->callback;
-        }
-        if (cbCopy) {
-            cbCopy();
-        }
-    }
-}
-}
+} // namespace ubse::timer

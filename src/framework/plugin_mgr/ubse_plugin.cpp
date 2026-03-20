@@ -10,13 +10,13 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "ubse_plugin.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
-#include "ubse_plugin.h"
 #include "ubse_plugin_module.h"
 
 namespace ubse::plugin {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_PLUGIN_MID)
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 bool GetPluginInitRes(const std::string &pluginName)
 {
@@ -46,4 +46,4 @@ uint32_t NotifyPluginReadyStatus(const std::string &pluginName, bool status)
     module->NotifyPluginReadyStatus(pluginName, status);
     return UBSE_OK;
 }
-}
+} // namespace ubse::plugin

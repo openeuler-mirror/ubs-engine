@@ -15,16 +15,18 @@
 
 #include <memory>
 #include <sstream>
-#include "mem_opt.h"
+#include <unordered_map>
+#include <unordered_set>
+
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
+#include "ubse_common_def.h"
 
 namespace tc::rs::mem {
 #define LOG_LEVEL mStrategyImpl->GetLogLevel()
 
 const int MB_TO_B = (1024 * 1024);
 const int GB_TO_B = (1024 * 1024 * 1024);
-const int GB_TO_MB = 1024;
 const int HUNDRED = 100;
 const int HALF_MIN_REQUEST_SIZE = (128.0 / 2);
 const int TWO = 2;
@@ -38,6 +40,9 @@ class ShareDecisionMaker;
 struct DebtInfo {
     DebtInfo() = default;
     int debtSize[NUM_HOSTS][NUM_HOSTS]; /* debtSize[i][j]表示节点 i向节点 j借用内存总量, 单位为MB */
+    // std::unordered_map<uint16_t, std::vector<MemLoc>> borrowNodeToNuma;       // 借入节点和借出numa的关系
+    std::unordered_map<MemLoc, std::unordered_set<uint16_t>, MemLoc::Hash>
+        lenderNumaToBorrowNode; // 借出numa和借入节点的关系
 };
 
 /** 请求类型 */
@@ -52,14 +57,15 @@ struct TargetSocket {
     int32_t resLen{0};                           /* 内存提供方numa数量 */
     MemLoc resLocs[MAX_NUM_SRC_PER_REQUEST]{};   /* 内存提供方numa列表 */
     int32_t resSizes[MAX_NUM_SRC_PER_REQUEST]{}; /* 内存提供量, 单位: MB */
+    MemLoc socketLoc;
 };
 
 /** socket、host内存信息结构体 */
 struct MemStatus {
     MemStatus() = default;
-    MemLoc loc{};           /* socket(numaId=-1)或host的具体位置(socketId, numaId=-1) */
-    time_t timeStamp{};     /* 采样时间戳 */
-    uint64_t memLocal{};    /* 本地的内存容量，不包含借入内存、借出内存、共享内存，单位：Byte */
+    MemLoc loc{};       /* socket(numaId=-1)或host的具体位置(socketId, numaId=-1) */
+    time_t timeStamp{}; /* 采样时间戳 */
+    uint64_t memLocal{}; /* 本地的内存容量，不包含借入内存、借出内存、共享内存，单位：Byte */
     uint64_t memUsed{};     /* memTotal 中已使用的内存容量，单位：Byte */
     uint64_t memFree{};     /* memTotal 中没有使用的内存容量，单位：Byte */
     uint64_t memBorrowed{}; /* 已借入的内存容量，单位：Byte */
@@ -83,34 +89,17 @@ struct SysStatus {
     MemStatus hostStatus[NUM_HOSTS]{};
 };
 
-#ifndef NN_LOG_FILENAME
-#define NN_LOG_FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-#endif
-
-#define LOG(mLogLevel, level, ...)                                                            \
-    do {                                                                                      \
-        if (UNLIKELY((level) >= (mLogLevel))) {                                               \
-            std::ostringstream oss;                                                           \
-            oss << "[STRATEGY " << NN_LOG_FILENAME << ":" << __LINE__ << "] " << __VA_ARGS__; \
-            MemPoolStrategy::GetInstance().mLogFun(level, oss.str().c_str());                 \
-        }                                                                                     \
-    } while (0)
-
-#define LOG_INFO(mLogLevel, args) LOG(mLogLevel, LogLevel::INFO, args)
-#define LOG_DEBUG(mLogLevel, args) LOG(mLogLevel, LogLevel::DEBUG, args)
-#define LOG_ERROR(mLogLevel, args) LOG(mLogLevel, LogLevel::ERROR, args)
-
 class MemPoolStrategyImpl : public MemPoolStrategy {
 public:
     MemPoolStrategyImpl();
     ~MemPoolStrategyImpl() override;
 
-    std::unique_ptr<MemPoolConfig> mConfig; /* 内存池算法静态配置类 */
-    SysStatus memSysStatus = {};      /* 系统状态信息, 决策前以socket、host为粒度完成内存状态统计 */
-    DebtDetail mDebtDetail = {};      /* 系统详细借用账本, 决策前将输入参数的账本备份至成员变量中 */
-    std::unique_ptr<BorrowDecisionMaker> mBorrowDecisionMaker;
-    std::unique_ptr<ShareDecisionMaker> mShareDecisionMaker;
-    float memUsedRatioWeight[2]{0.5, 0.5}; /* 节点触发水线时, 考虑节点已用内存占比、socket已用内存占比的权重 */
+    std::unique_ptr<MemPoolConfig> mConfig_; /* 内存池算法静态配置类 */
+    SysStatus memSysStatus_ = {}; /* 系统状态信息, 决策前以socket、host为粒度完成内存状态统计 */
+    DebtDetail mDebtDetail_ = {}; /* 系统详细借用账本, 决策前将输入参数的账本备份至成员变量中 */
+    std::unique_ptr<BorrowDecisionMaker> mBorrowDecisionMaker_;
+    std::unique_ptr<ShareDecisionMaker> mShareDecisionMaker_;
+    float memUsedRatioWeight_[2]{0.5, 0.5}; /* 节点触发水线时, 考虑节点已用内存占比、socket已用内存占比的权重 */
 
     /**
     * @brief 决策单个借用请求
@@ -184,6 +173,23 @@ public:
     * @return 提供内存的numa位置, 和numa提供的内存量
     */
     static TargetSocket TargetSocket2Numa(TargetSocket numaList, int32_t requestSize);
+
+    /**
+    * @brief 计算共享请求socket的时延评分,
+    * @param requestSizeS [IN] 共享请求的内存申请量, 借用和归还请求无需该参数
+    * @param targetSocket [IN] 目标socket. 借用, 共享请求的目标socket为numa拆分结果; 归还请求的目标socket为待归还借用债务
+    * @return
+    */
+    double ComputeShareLatencyScore(int32_t requestSizeS, const TargetSocket &targetSocket) const;
+
+    /**
+    * @brief 候选socket依据各numa的剩余内存, 确定各numa提供的内存量
+    * @param numaList[IN] socket上的numa位置列表,以及各numa内存余量, 单位MB
+    * @param requestSize[IN] socket提供内存量
+    * @return 提供内存的numa位置,和numa提供的内存
+    */
+    static TargetSocket TargetSocket2NumaByReliable(const MemLoc &requestLoc, const TargetSocket &numaList,
+                                                    const SysStatus &sysStatus, int32_t requestSize);
 
     /**
     * @brief 计算请求方与目标socket的时延评分, 适用于借用、归还、共享请求.
@@ -349,7 +355,7 @@ public:
      * @param borrowRequest
      * @return
      */
-    bool IsValidRequest(const BorrowRequest &borrowRequest);
+    bool IsInvalidRequest(const BorrowRequest &borrowRequest);
 
     /**
      * @brief 检查节点最大借入节点数设置

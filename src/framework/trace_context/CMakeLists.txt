@@ -1,0 +1,3 @@
+add_library(trace_context STATIC trace_context.cpp)
+target_link_libraries(trace_context)
+target_link_libraries(trace_context PRIVATE boundscheck)

@@ -19,9 +19,14 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "ubse_common_def.h"
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
+#include "ubse_logger.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::nodeController {
+#define MODULE_LOG_NAME "ubse"
 
 class UbseNodeControllerLockMgr {
 public:
@@ -35,23 +40,19 @@ public:
 
     static void ReadUnLock(const std::string &nodeId);
 
-    static void TryReadLock(const std::string &nodeId);
+    static bool TryReadLock(const std::string &nodeId);
 
 private:
     static std::shared_ptr<std::shared_mutex> GetLock(const std::string &nodeId);
 
 private:
-    static std::mutex nodeControllerMutex;
-    static std::unordered_map<std::string, std::shared_ptr<std::shared_mutex>> nodeControllerLocks;
+    static std::mutex nodeControllerMutex_;
+    static std::unordered_map<std::string, std::shared_ptr<std::shared_mutex>> nodeControllerLocks_;
 };
 
-bool IsUBEnable();
-
-std::vector<UbseNodeInfo> GetStaticNodeInfoFromConf();
-
-std::unordered_map<std::string, std::string> GetClusterIpListFromConf();
-
-void GetCurNodeInfo(UbseNodeInfo& info);
+void GetCurNodeInfo(UbseNodeInfo &info);
+UbseAllocator GetAllocator();
+#undef MODULE_LOG_NAME
 } // namespace ubse::nodeController
 
 #endif // UBSE_NODE_CONTROLLER_UTIL_H

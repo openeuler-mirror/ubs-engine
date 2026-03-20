@@ -9,14 +9,17 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#ifndef UBSE_MEM_FUNCTIONS_H
-#define UBSE_MEM_FUNCTIONS_H
+#ifndef MXE_MEM_FUNCTIONS_H
+#define MXE_MEM_FUNCTIONS_H
 #include <cstdint>
 #include "ubse_mem_constants.h"
-namespace ubse::mem::strategy {
+#include "ubse_logger.h"
 
-constexpr uint16_t MOVE20_BIT = 20;
+namespace ubse::mem::strategy {
+#define MODULE_LOG_NAME "ubse_mem_strategy"
+constexpr uint16_t BYTES_PER_KB = 10;
+constexpr uint16_t BYTES_PER_MB = 20;
+constexpr uint16_t BYTES_PER_GB = 30;
 
 inline uint64_t CeilToN(const uint64_t x, const uint64_t n)
 {
@@ -26,20 +29,41 @@ inline uint64_t CeilToN(const uint64_t x, const uint64_t n)
 inline int32_t CeilToN(const int32_t x, const uint64_t n)
 {
 #ifdef UB_ENVIRONMENT
-    const uint64_t m = n / ONE_M;
-    return static_cast<int32_t>(((static_cast<uint64_t>(x) + m - 1) / m) * m);
+    if (n == 0) {
+        return 0;
+    }
+    return static_cast<int32_t>(((x + n - 1) / n) * n);
 #else
     return x;
 #endif
 }
 inline uint64_t SizeByte2Mb(uint64_t size)
 {
-    return size >> MOVE20_BIT;
+    return size >> BYTES_PER_MB;
 }
 
 inline uint64_t SizeMb2Byte(uint64_t size)
 {
-    return size << MOVE20_BIT;
+    if (size > (UINT64_MAX >> BYTES_PER_MB)) {
+        throw std::overflow_error("Size in MB is too large to convert to bytes without overflow");
+    }
+    return size << BYTES_PER_MB;
+}
+
+inline uint64_t SizeKb2Byte(uint64_t size)
+{
+    if (size > (UINT64_MAX >> BYTES_PER_KB)) {
+        throw std::overflow_error("Size in KB is too large to convert to bytes without overflow");
+    }
+    return size << BYTES_PER_KB;
+}
+
+inline uint64_t SizeGb2Byte(uint64_t size)
+{
+    if (size > (UINT64_MAX >> BYTES_PER_GB)) {
+        throw std::overflow_error("Size in GB is too large to convert to bytes without overflow");
+    }
+    return size << BYTES_PER_GB;
 }
 
 template <typename T>
@@ -80,5 +104,25 @@ inline bool StrToULL(const std::string &src, uint64_t &value, int base = 10L)
     }
     return true;
 }
+
+inline void UpdateSizeWithCheckFlow(uint64_t &srcSize, uint64_t updateSize, bool isAdd)
+{
+    if (isAdd) {
+        if (updateSize > UINT64_MAX - srcSize) {
+            UBSE_LOG_ERROR << "update debtNumaInfo Size is overflow! " << "srcSize is " << srcSize
+                           << ", updateSize size is " << updateSize;
+            return;
+        }
+        srcSize += updateSize;
+    } else {
+        if (updateSize > srcSize) {
+            UBSE_LOG_ERROR << "update debtNumaInfo Size is underflow! " << "srcSize is " << srcSize
+                           << ", updateSize size is " << updateSize;
+            return;
+        }
+        srcSize -= updateSize;
+    }
+}
+#undef MODULE_LOG_NAME
 } // namespace ubse::mem::strategy
 #endif

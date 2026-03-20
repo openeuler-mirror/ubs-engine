@@ -25,7 +25,7 @@ namespace ubse::utils {
 template <typename T>
 class RingBuffer {
 public:
-    explicit RingBuffer(uint32_t capacity) : mCapacity(capacity) {}
+    explicit RingBuffer(uint32_t capacity) : mCapacity_(capacity) {}
 
     RingBuffer() = delete;
 
@@ -41,8 +41,8 @@ public:
      */
     inline void Capacity(uint32_t capacity)
     {
-        if (mRingBuf == nullptr) {
-            mCapacity = capacity;
+        if (mRingBuf_ == nullptr) {
+            mCapacity_ = capacity;
         }
     }
 
@@ -53,7 +53,7 @@ public:
      */
     inline uint32_t Capacity() const
     {
-        return mCapacity;
+        return mCapacity_;
     }
 
     /*
@@ -65,20 +65,20 @@ public:
      */
     int32_t Initialize()
     {
-        if (mCapacity == 0) {
+        if (mCapacity_ == 0) {
             return -1;
         }
 
-        mCount = 0;
-        mHead = 0;
-        mTail = 0;
+        mCount_ = 0;
+        mHead_ = 0;
+        mTail_ = 0;
 
-        if (mRingBuf != nullptr) {
+        if (mRingBuf_ != nullptr) {
             return 0;
         }
 
-        mRingBuf = new (std::nothrow) T[mCapacity];
-        if (mRingBuf == nullptr) {
+        mRingBuf_ = new (std::nothrow) T[mCapacity_];
+        if (mRingBuf_ == nullptr) {
             return -1;
         }
 
@@ -90,12 +90,12 @@ public:
      */
     inline void UnInitialize()
     {
-        if (mRingBuf == nullptr) {
+        if (mRingBuf_ == nullptr) {
             return;
         }
 
-        delete[] mRingBuf;
-        mRingBuf = nullptr;
+        delete[] mRingBuf_;
+        mRingBuf_ = nullptr;
     }
 
     /*
@@ -107,20 +107,20 @@ public:
      */
     bool PushBack(const T &item)
     {
-        mLock.Lock();
-        if (mCapacity <= mCount) {
-            mLock.UnLock();
+        mLock_.Lock();
+        if (mCapacity_ <= mCount_) {
+            mLock_.UnLock();
             return false;
         }
 
-        mRingBuf[mTail] = item;
-        if (mTail != mCapacity - 1) {
-            ++mTail;
+        mRingBuf_[mTail_] = item;
+        if (mTail_ != mCapacity_ - 1) {
+            ++mTail_;
         } else {
-            mTail = 0;
+            mTail_ = 0;
         }
-        ++mCount;
-        mLock.UnLock();
+        ++mCount_;
+        mLock_.UnLock();
         return true;
     }
 
@@ -133,23 +133,23 @@ public:
      */
     bool PushFront(const T &item)
     {
-        mLock.Lock();
-        if (mCapacity <= mCount) {
-            mLock.UnLock();
+        mLock_.Lock();
+        if (mCapacity_ <= mCount_) {
+            mLock_.UnLock();
             return false;
         }
 
         /* move to tail */
-        if (mHead == 0) {
-            mHead = mCapacity - 1;
+        if (mHead_ == 0) {
+            mHead_ = mCapacity_ - 1;
         } else {
-            mHead--;
+            mHead_--;
         }
 
-        mRingBuf[mHead] = item;
-        ++mCount;
+        mRingBuf_[mHead_] = item;
+        ++mCount_;
 
-        mLock.UnLock();
+        mLock_.UnLock();
         return true;
     }
 
@@ -162,52 +162,20 @@ public:
      */
     bool PopFront(T &item)
     {
-        mLock.Lock();
-        if (mCount == 0) {
-            mLock.UnLock();
+        mLock_.Lock();
+        if (mCount_ == 0) {
+            mLock_.UnLock();
             return false;
         }
 
-        item = mRingBuf[mHead];
-        if (mHead != mCapacity - 1) {
-            ++mHead;
+        item = mRingBuf_[mHead_];
+        if (mHead_ != mCapacity_ - 1) {
+            ++mHead_;
         } else {
-            mHead = 0;
+            mHead_ = 0;
         }
-        --mCount;
-        mLock.UnLock();
-        return true;
-    }
-
-    /*
-     * @brief Pop N items from front of ring buffer, must be initialized firstly
-     * and caller must ensure items is not null
-     *
-     * @param items            [out] item popped in front
-     * @param n                [out] item count popped in front
-     *
-     * @return true if successful, false if the ring buffer doesn't have n items
-     */
-    bool PopFrontN(T *items, uint32_t n)
-    {
-        mLock.Lock();
-        if (mCount < n) {
-            mLock.UnLock();
-            return false;
-        }
-
-        for (uint32_t i = 0; i < n; ++i) {
-            items[i] = mRingBuf[mHead];
-            if (mHead != mCapacity - 1) {
-                ++mHead;
-            } else {
-                mHead = 0;
-            }
-        }
-
-        mCount -= n;
-
-        mLock.UnLock();
+        --mCount_;
+        mLock_.UnLock();
         return true;
     }
 
@@ -218,9 +186,9 @@ public:
      */
     inline uint32_t Size()
     {
-        mLock.Lock();
-        auto temp = mCount;
-        mLock.UnLock();
+        mLock_.Lock();
+        auto temp = mCount_;
+        mLock_.UnLock();
         return temp;
     }
 
@@ -230,7 +198,7 @@ public:
     inline std::string ToString()
     {
         std::ostringstream oss;
-        oss << "head " << mHead << ", tail " << mTail << ", capacity " << mCapacity << ", count " << mCount;
+        oss << "head " << mHead_ << ", tail " << mTail_ << ", capacity " << mCapacity_ << ", count " << mCount_;
         return oss.str();
     }
 
@@ -240,12 +208,12 @@ public:
     RingBuffer &operator=(RingBuffer &&) = delete;
 
 private:
-    T *mRingBuf = nullptr;
-    SpinLock mLock;
-    uint32_t mCapacity = 0;
-    uint32_t mCount = 0;
-    uint32_t mHead = 0;
-    uint32_t mTail = 0;
+    T *mRingBuf_ = nullptr;
+    SpinLock mLock_;
+    uint32_t mCapacity_ = 0;
+    uint32_t mCount_ = 0;
+    uint32_t mHead_ = 0;
+    uint32_t mTail_ = 0;
 };
 
 /*
@@ -254,7 +222,7 @@ private:
 template <typename T>
 class RingBufferBlockingQueue {
 public:
-    explicit RingBufferBlockingQueue(uint32_t capacity) : mRingBuffer(capacity) {}
+    explicit RingBufferBlockingQueue(uint32_t capacity) : mRingBuffer_(capacity) {}
 
     ~RingBufferBlockingQueue()
     {
@@ -268,11 +236,11 @@ public:
      */
     inline int Initialize()
     {
-        if (sem_init(&mSem, 0, 0) != 0) {
+        if (sem_init(&mSem_, 0, 0) != 0) {
             return -1;
         }
 
-        return mRingBuffer.Initialize();
+        return mRingBuffer_.Initialize();
     }
 
     /*
@@ -280,8 +248,8 @@ public:
      */
     inline void UnInitialize()
     {
-        mRingBuffer.UnInitialize();
-        sem_destroy(&mSem);
+        mRingBuffer_.UnInitialize();
+        sem_destroy(&mSem_);
     }
 
     /*
@@ -293,9 +261,9 @@ public:
      */
     inline bool Enqueue(const T &item)
     {
-        auto result = mRingBuffer.PushBack(item);
+        auto result = mRingBuffer_.PushBack(item);
         if (result) {
-            sem_post(&mSem);
+            sem_post(&mSem_);
         }
         return result;
     }
@@ -309,9 +277,9 @@ public:
      */
     inline bool Enqueue(T &item)
     {
-        auto result = mRingBuffer.PushBack(item);
+        auto result = mRingBuffer_.PushBack(item);
         if (result) {
-            sem_post(&mSem);
+            sem_post(&mSem_);
         }
         return result;
     }
@@ -325,9 +293,9 @@ public:
      */
     inline bool EnqueueFirst(T &item)
     {
-        auto result = mRingBuffer.PushFront(item);
+        auto result = mRingBuffer_.PushFront(item);
         if (result) {
-            sem_post(&mSem);
+            sem_post(&mSem_);
         }
         return result;
     }
@@ -341,9 +309,9 @@ public:
      */
     inline bool EnqueueFirst(const T &item)
     {
-        auto result = mRingBuffer.PushFront(item);
+        auto result = mRingBuffer_.PushFront(item);
         if (result) {
-            sem_post(&mSem);
+            sem_post(&mSem_);
         }
         return result;
     }
@@ -358,9 +326,9 @@ public:
     inline bool Dequeue(T &item)
     {
         while (true) {
-            auto result = mRingBuffer.PopFront(item);
+            auto result = mRingBuffer_.PopFront(item);
             if (!result) {
-                sem_wait(&mSem);
+                sem_wait(&mSem_);
             } else {
                 return result;
             }
@@ -368,8 +336,8 @@ public:
     }
 
 private:
-    RingBuffer<T> mRingBuffer; /* ring buffer to data store */
-    sem_t mSem{};              /* semaphore to wait and notify */
+    RingBuffer<T> mRingBuffer_; /* ring buffer to data store */
+    sem_t mSem_{};              /* semaphore to wait and notify */
 };
 } // namespace ubse::utils
 

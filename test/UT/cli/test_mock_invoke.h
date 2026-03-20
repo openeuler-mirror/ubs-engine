@@ -28,33 +28,48 @@ uint32_t mock_ubse_invoke_call_error_size(uint16_t module_code, uint16_t op_code
 uint32_t mock_ubse_invoke_call_empty(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
     ubse_api_buffer_t *response_data);
 
-uint32_t mock_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
-
 uint32_t mock_cluster_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
-
-uint32_t mock_borrow_details_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
     const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
 
 uint32_t mock_node_borrow_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
     const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
 
+uint32_t mock_borrow_details_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
+
+uint32_t mock_fetch_debt_info_by_page_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
+
+uint32_t mock_get_id_with_hostname_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
+
 uint32_t mock_check_memory_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
     const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
 
-int8_t mock_import_cert_set_failed(const char *serverCertPath, const char *trustCertPath, const char *serverKeyPath,
-    const char *caCrlPath);
+bool mock_import_cert_set_failed(const std::string &serverCertPath, const std::string &trustCertPath,
+                                 const std::string &serverKeyPath, const std::string &caCrlPath, std::string &errMsg);
 
-int8_t mock_import_cert_set_success(const char *serverCertPath, const char *trustCertPath, const char *serverKeyPath,
-    const char *caCrlPath);
+bool mock_import_cert_set_success(const std::string &serverCertPath, const std::string &trustCertPath,
+                                  const std::string &serverKeyPath, const std::string &caCrlPath, std::string &errMsg);
 
-int8_t mock_import_ca_set_failed(const char *caCrlPath);
+bool mock_import_ca_set_failed(const std::string &caCrlPath, std::string &errMsg);
 
-int8_t mock_import_ca_set_success(const char *caCrlPath);
+bool mock_import_ca_set_success(const std::string &caCrlPath, std::string &errMsg);
 
-int8_t mock_delete_cert_failed();
+uint32_t mock_delete_cert_failed(std::string &errMsg);
 
-int8_t mock_delete_cert_success();
+uint32_t mock_delete_cert_success(std::string &errMsg);
+
+uint32_t mock_cpu_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
+
+uint32_t mock_node_lend_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
+
+uint32_t mock_numa_status_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
+
+uint32_t mock_config_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
 
 #endif // UBS_ENGINE_TEST_MOCK_INVOKE_H

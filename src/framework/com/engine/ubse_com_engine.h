@@ -13,12 +13,15 @@
 #ifndef UBSE_COM_ENGINE_H
 #define UBSE_COM_ENGINE_H
 
+#include <optional>
 #include <set>
 #include <thread>
 #include "lock/ubse_lock.h"
 #include "ubse_com_def.h"
-#include "ubse_com_error.h"
+#include "ubse_error.h"
 #include "ubse_map_util.h"
+
+#include <condition_variable>
 
 namespace ubse::com {
 using namespace ubse::utils;
@@ -27,7 +30,15 @@ const uint16_t OP_CODE_SIZE = 1000; // 最大操作码
 
 using HandlerMap = ubse::utils::PairMap<uint16_t, uint16_t, UbseComMsgHandler>;
 using NodeChannelMap = std::map<std::string, std::map<UbseChannelType, UbseComChannelInfo>>;
+using NodeIpIdMap = std::map<std::string, std::string>;
 using ChannelIdMap = std::map<uint64_t, UbseComChannelInfo>;
+
+enum OpCodeType : uint16_t {
+    DEFAULT = 0,
+    GET_REMOTE_ID = 1,
+    ASK_REMOTE_INFO_OFFSET = 100,
+    REMOTE_INFO_CALL_BACK_OFFSET = 500
+};
 
 class UbseComEngine;
 
@@ -77,7 +88,7 @@ public:
      * @param[in] id: channel 的标识
      * @param[in] UbseComEngine *engine ubsecomengine的指针
      */
-    void RemoveChannelByChannelId(uint64_t id, UbseComEngine *engine);
+    void RemoveChannelByChannelId(uint64_t id, UbseComEngine *engine, bool isSync = false);
 
     /* *
      * @brief 根据channel id移除channel，不会调用close和destory接口，适用于被动断链
@@ -85,8 +96,6 @@ public:
      * @param[in] id: channel 的标识
      */
     void RemoveChannelByChannelIdForBroken(uint64_t id);
-
-    void UpdateChannel(const std::string &nodeId, UbseChannelType chType);
 
     /* *
      * @brief 移除所有channel
@@ -96,10 +105,17 @@ public:
 
     std::string GetNodeIdByChannelId(uint64_t id);
 
+    void SetIsStop();
+
+    std::string GetNodeIdByIp(const std::string &ip);
+
+    NodeIpIdMap nodeIpIdMap_;
+    NodeChannelMap nodeChannelMap_;
+    ChannelIdMap channelIdMap_;
+
 private:
     void LogChannelInfo();
-    NodeChannelMap nodeChannelMap;
-    ChannelIdMap channelIdMap;
+    bool isStop_{false};
 };
 
 class UbseComEngine {
@@ -122,7 +138,7 @@ public:
      */
     UbseResult RegUbseComMsgHandler(const UbseComMsgHandler &handle);
 
-    UbseResult DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options, UBSHcomChannelPtr& channelPtr);
+    UbseResult DoConnect(UbseComChannelConnectInfo &info, UBSHcomConnectOptions options, UBSHcomChannelPtr &channelPtr);
 
     /* *
      * @brief 创建一个信息通道
@@ -131,7 +147,7 @@ public:
      * @param[in] chType: 通道类型
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult CreateChannel(UbseComChannelConnectInfo &info, UbseChannelType chType);
+    UbseResult CreateChannel(UbseComChannelConnectInfo &info, UbseChannelType chType, std::string &remoteNodeId);
 
     /* *
      * @brief 获取消息通道
@@ -160,7 +176,7 @@ public:
      * @param[in] opCode: 操作码
      * @return TransMessageHandler *, 成功返回函数指针, 失败返回非nullptr
      */
-    UbseComMsgHandler *GetMessageHandler(uint16_t moduleCode, uint16_t opCode);
+    std::optional<UbseComMsgHandler> GetMessageHandler(uint16_t moduleCode, uint16_t opCode);
 
     /* *
      * @brief 通过远端节点ID，通道类型删除channel
@@ -182,6 +198,10 @@ public:
     void Stop();
 
     void RegisterQueryCb(QueryEidByNodeIdCb cb);
+
+    std::string GetNodeIdByIp(const std::string &ip);
+
+    UBSHcomService *GetHcomService() const;
 
 protected:
     void InitEngineOptions();
@@ -216,6 +236,15 @@ protected:
      */
     UbseResult ReceivedRequest(UBSHcomServiceContext &context);
 
+    UbseResult HandleRemoteCall(UBSHcomServiceContext &context);
+
+    UbseResult NormalRequestHandle(UBSHcomServiceContext &context);
+
+    void ParseContextMsg(UBSHcomServiceContext &context, UbseComMessage *msg, UbseComMessageCtx &msgCtx);
+
+    UbseResult GetRemoteNodeId(UbseComChannelConnectInfo &info, UbseChannelType chType,
+                               const UBSHcomChannelPtr &channelPtr, std::string &engineName, std::string &remoteNodeId);
+
     /* *
      * @brief 通信消息发送完成处理函数
      * @param[in] context: 消息上下文
@@ -235,30 +264,34 @@ protected:
      */
     void AddListenOptions(UBSHcomServiceNewChannelHandler newChannelHandler);
 
-    bool AddConnectingNode(const std::string &remoteNodeId, UbseChannelType channelType);
+    bool AddConnectingNode(const std::string &remoteNodeIp, UbseChannelType channelType);
 
-    void RemoveConnectingNode(const std::string &remoteNodeId, UbseChannelType channelType);
+    void RemoveConnectingNode(const std::string &remoteNodeIp, UbseChannelType channelType);
 
 protected:
     UbseResult InsertChannelToMap(UbseComChannelInfo &chInfo);
+    UbseResult AddConnectingNodeForServer(UbseComChannelInfo &chInfo);
     bool SplitIp(const std::string ipPortStr, std::string &ip);
+    bool VerifyMsg(UbseComMessageCtx &msgCtx);
+    void HandleGetLocalNodeId(const UBSHcomServiceContext &context);
+    void DoEngineStart();
 
 protected:
-    UbseComEngineInfo engineInfo;           // 引擎信息
-    UBSHcomService *hcomNetService = nullptr;  // hcom service实例
-    UbseComLinkStateNotify linkStateNotify; // 通道状态变更回调函数
-    std::atomic<bool> deleted{false};       // 引擎是否销毁
-    UbseComLinkManager linkManager;         // 连接通道管理器
-    HandlerMap handlerMap{};                // 操作函数映射表，一个引擎一个表
-    ubse::utils::ReadWriteLock rwLock;      // 读写锁
-
-    void *address = nullptr; // 预分配内存地址
-    std::map<std::string, std::set<UbseChannelType>> connectingMap;
-    std::mutex conMutex;
-    int16_t timeout;
-    int16_t heartBeatTimeout;
-    ShouldDoReconnectCb shouldReconnect = nullptr;
-    QueryEidByNodeIdCb queryCb = nullptr;
+    UbseComEngineInfo engineInfo_;             // 引擎信息
+    UBSHcomService *hcomNetService_ = nullptr; // hcom service实例
+    UbseComLinkStateNotify linkStateNotify_;   // 通道状态变更回调函数
+    std::atomic<bool> deleted_{false};         // 引擎是否销毁
+    std::mutex serviceMutex_;
+    UbseComLinkManager linkManager_;           // 连接通道管理器
+    HandlerMap handlerMap_{};                  // 操作函数映射表，一个引擎一个表
+    ubse::utils::ReadWriteLock rwLock_;        // 读写锁
+    std::atomic<uint32_t> reconnectThreadNum_{0};
+    std::map<std::string, std::set<UbseChannelType>> connectingMap_;
+    std::mutex conMutex_;
+    int16_t timeout_;
+    int16_t heartBeatTimeout_;
+    ShouldDoReconnectCb shouldReconnect_ = nullptr;
+    QueryEidByNodeIdCb queryCb_ = nullptr;
 };
 
 class UbseComEngineManager {
@@ -286,8 +319,8 @@ public:
     static UbseComEngine *GetEngine(const std::string &name);
 
 private:
-    static std::map<std::string, UbseComEngine *> G_ENGINE_MAP; // 引擎全局映射表
-    static std::mutex G_MUTEX;
+    static std::map<std::string, UbseComEngine *> G_ENGINE_MAP_; // 引擎全局映射表
+    static std::mutex G_MUTEX_;
 };
 
 class UbseCommunication {
@@ -319,7 +352,7 @@ public:
      */
     static UbseResult UbseComRpcConnect(const std::string &engineName,
                                         const std::pair<std::string, uint16_t> &ipAndPort,
-                                        const std::pair<std::string, std::string> &nodeIds,
+                                        const std::pair<std::string, std::string> &nodeIds, std::string &remoteNodeId,
                                         UbseChannelType chType = UbseChannelType::NORMAL, bool isUb = false);
 
     /* *
@@ -351,7 +384,6 @@ public:
      */
     static UbseResult UbseComMsgAsyncSend(const std::string &engineName, UbseComMessageCtx &message,
                                           const UbseComCallback &usrCb = UbseComCallback());
-
     /* *
      * @brief 回复消息
      *
@@ -370,10 +402,17 @@ public:
      * @param type [in] 通道引擎
      */
     static void RemoveChannel(const std::string &engineName, const std::string &remoteNodeId, UbseChannelType type);
+
+    static std::string GetNodeIdByIp(const std::string &engineName, const std::string &ip);
 };
 
 bool CertCallback(const std::string &name, std::string &value);
-bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len, UBSHcomTLSEraseKeypass &erase);
+bool PrivateKeyCallback(
+    const std::string &name,
+    std::string &value,
+    void *&keyPass,
+    int &len,
+    UBSHcomTLSEraseKeypass &erase);
 bool CACallback(const std::string &name, std::string &caPath, std::string &crlPath,
     UBSHcomPeerCertVerifyType &peerCertVerifyType, UBSHcomTLSCertVerifyCallback &cb);
 void KeyPassErase(void *pass, int len);
