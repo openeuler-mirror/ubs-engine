@@ -550,8 +550,8 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId, UBSE_ERR_TIMEOUT,
-                           MemAdvice::TIME_OUT);
+        BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId,
+                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }
@@ -586,6 +586,19 @@ static UbseResult SendRpcRequestForAddrBorrow(const UbseMemAddrBorrowReq &req)
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
+uint32_t CheckAddrBorrowMode(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp)
+{
+    if (req.wrDelayComp != 0 && req.wrDelayComp != 1) { // 0为接力模式，1为非接力模式
+        resp.name = req.name;
+        resp.requestNodeId = req.requestNodeId;
+        resp.errorCode = UBSE_MEMCONTROLLER_ERROR_COMP_ERROR;
+        UBSE_LOG_ERROR << "Only relay mode and non-relay mode are supported currently,"
+                          " the value of wrDelayComp is "
+                       << req.wrDelayComp;
+        return UBSE_ERROR;
+    }
+}
+
 uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp)
 {
     // 创建请求
@@ -599,18 +612,12 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
             return res;
             }
     }
-    if (req.wrDelayComp != 0 && req.wrDelayComp != 1) { // 0为接力模式，1为非接力模式
-        resp.name = req.name;
-        resp.requestNodeId = req.requestNodeId;
-        resp.errorCode = UBSE_MEMCONTROLLER_ERROR_COMP_ERROR;
-        UBSE_LOG_ERROR << "Only relay mode and non-relay mode are supported currently,"
-                          " the value of wrDelayComp is "
-                       << req.wrDelayComp;
+    if (CheckAddrBorrowMode(req, resp) != UBSE_OK) {
         return UBSE_ERROR;
     }
-    size_t req_size = 0;
+    size_t reqSize = 0;
     for (auto addr : req.exportAddrList) {
-        req_size += addr.size;
+        reqSize += addr.size;
     }
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
     auto respMgr = FutureMgr::CreateInstance(requestId);
@@ -625,7 +632,7 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice("Import failed", req.name, "APP_PRI_BORROW", req_size, "", req.requestNodeId, ret,
+        BorrowFailedAdvice("Import failed", req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId, ret,
                            MemAdvice::COMM_FAILED);
         return ret;
     }
@@ -635,8 +642,8 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice("Import failed", req.name, "APP_PRI_BORROW", req_size, "", req.requestNodeId, UBSE_ERR_TIMEOUT,
-                           MemAdvice::TIME_OUT);
+        BorrowFailedAdvice("Import failed", req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId,
+                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::ADDR_RETURN);
         return UBSE_ERROR;
     }

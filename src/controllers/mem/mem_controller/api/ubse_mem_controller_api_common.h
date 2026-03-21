@@ -44,6 +44,10 @@ extern std::atomic<uint64_t> g_numaUnimportFailedCount;
 extern std::atomic<uint64_t> g_shareUnimportFailedCount;
 extern std::atomic<uint64_t> g_addrUnimportFailedCount;
 
+struct UbseMemBorrowStatus {
+    bool hasImport = false;
+    bool hasExport = false;
+};
 
 uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::string &name,
                                     const std::string &requestNodeId, std::string errMsg, uint32_t errorCode,
