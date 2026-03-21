@@ -65,8 +65,45 @@ MpResult FilterBorrowIds(const std::vector<std::string> &borrowIdsList,
     return MEM_POOLING_OK;
 }
 
+MpResult CheckBorrowIdsExist(std nodeId, std::map<std::string, std::set<BorrowIdInfo>> validBorrowIdsPidsMap,
+                             bool &allNotExist)
+{
+    std::vector<BorrowRecord> borrowRecords;
+    auto ret = BorrowRecordHelper::Instance().CollectBorrowRecords(nodeId, borrowRecords);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] CollectBorrowRecords failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    bool find = false;
+
+    for (auto &pair : validBorrowIdsPidsMap) {
+        std::string inputBorrowId = pair.first;
+
+        for (auto record : borrowRecords) {
+            if (inputBorrowId == record.name) {
+                find = true;
+                UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) 
+                    << "[MemRollback] The borrowId=" << inputBorrowId << " exist in borrow debt.";
+                break;
+            }
+        }
+        if (find) {
+            break;
+        }
+    }
+
+    if (find) {
+        allNotExist = false;
+    } else {
+        allNotExist = true;
+    }
+
+    return MEM_POOLING_OK;
+}
+
 MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &entry,
-                                std::vector<std::string> borrowIdsList)
+                                std::vector<std::string> borrowIdsList, bool &inputBorrowIdsAllNotExist)
 {
     // 持久化处取borrowId与pid的映射
     std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap;
@@ -80,6 +117,13 @@ MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &
     res = FilterBorrowIds(borrowIdsList, borrowIdsPidsMap, validBorrowIdsPidsMap);
     if (res != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
+    }
+    res = CheckBorrowIdsExist(nodeId, validBorrowIdsPidsMap, inputBorrowIdsAllNotExist);
+    if (res != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+    if (inputBorrowIdsAllNotExist) {
+        return MEM_POOLING_OK;
     }
     if (ValidBorrowIdPidMap(validBorrowIdsPidsMap)) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Valid borrowId same batch failed.";
@@ -144,8 +188,14 @@ MpResult RpcMemBorrowRollback(std::string nodeId, const std::vector<std::string>
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Master to invoke the slave MemBorrow Rollback.";
     RollBackBorrowIdPid inEntry;
-    if (GetRollBackBorrowIdPid(nodeId, inEntry, borrowIdsList)) {
+    bool inputBorrowIdsAllNotExist;
+    if (GetRollBackBorrowIdPid(nodeId, inEntry, borrowIdsList, inputBorrowIdsAllNotExist)) {
         return MEM_POOLING_ERROR;
+    }
+    if (inputBorrowIdsAllNotExist) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemRollback] All borrowIds not in ubse debt, return success.";
+        return MEM_POOLING_OK;
     }
     MemBorrowRollbackParam param = {nodeId, borrowIdsList, inEntry};
     RollBackForOutEntry rollBackForOutEntry;
