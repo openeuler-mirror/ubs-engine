@@ -22,6 +22,8 @@
 #include <fstream>
 #include <memory>
 #include <regex>
+#include <iostream>
+#include <sstream>
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -123,5 +125,18 @@ UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId)
     }
     file.close();
     return UBSE_ERROR;
+}
+
+UbseResult UbseOsUtil::ReadFileContent(const std::string &filePath, std::string &res)
+{
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        return UBSE_ERROR;
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    res = buffer.str();
+    file.close();
+    return UBSE_OK;
 }
 } // namespace ubse::utils
