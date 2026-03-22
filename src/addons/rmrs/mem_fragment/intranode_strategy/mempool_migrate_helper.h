@@ -39,12 +39,14 @@ MpResult FilterBorrowIds(const std::vector<std::string> &borrowIdsList,
                          std::map<std::string, std::set<BorrowIdInfo>> &borrowIdsPidsMap,
                          std::map<std::string, std::set<BorrowIdInfo>> &validBorrowIdsPidsMap);
 MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &entry,
-    std::vector<std::string> borrowIdsList);
+                                std::vector<std::string> borrowIdsList, bool &inputBorrowIdsAllNotExist);
 MpResult ValidBorrowIdPidMap(std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap);
 MpResult RollBackMigratedVmsInStandbyToMasterEvent();
 MpResult MigrateExecuteInStandbyToMasterEvent(const pid_t pid, const std::string borrowInNode,
                                               const std::string remoteNumaId);
 MpResult RemoveVmInfosCompletedWithRetry(const pid_t pid);
+MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<BorrowIdInfo>> validBorrowIdsPidsMap,
+                             bool &allNotExist);
 
 class MpMigrateSubModule : public MpSubModule {
 public:
