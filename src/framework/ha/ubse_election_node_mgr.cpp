@@ -196,7 +196,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
                 nodeIpMap_.emplace(tempNode.ip, node.nodeId);
             }
         }
-    } else {
+    } else if (!ubEnable && currentAllNodes_.empty()) {
         std::vector<std::string> ipList{};
         adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterIpList(ipList);
         for (const auto &ip : ipList) {
