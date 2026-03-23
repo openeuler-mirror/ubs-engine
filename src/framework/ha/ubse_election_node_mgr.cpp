@@ -180,6 +180,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
     std::unique_lock<std::shared_mutex> lock(mtx_);
     if (ubEnable) {
         currentAllNodes_.clear();
+        nodeIpMap_.clear();
         std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
         if (ubseNodeInfos.empty()) {
             UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
