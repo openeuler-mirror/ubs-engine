@@ -188,8 +188,8 @@ public:
     * @param requestSize[IN] socket提供内存量
     * @return 提供内存的numa位置,和numa提供的内存
     */
-    static TargetSocket TargetSocket2NumaByReliable(const MemLoc &requestLoc, const TargetSocket &numaList,
-                                                    const SysStatus &sysStatus, int32_t requestSize);
+    TargetSocket TargetSocket2NumaByReliable(const MemLoc &requestLoc, const TargetSocket &numaList,
+                                             const SysStatus &sysStatus, int32_t requestSize);
 
     /**
     * @brief 计算请求方与目标socket的时延评分, 适用于借用、归还、共享请求.
@@ -239,6 +239,9 @@ public:
     */
     double ReliabilityScore(MemLoc requestLocBR, const TargetSocket &targetSocket, RequestMode requestMode,
                             const SysStatus &sysStatus) const;
+
+    void SplitNumaWithVector(const std::vector<uint32_t> &numaVector, TargetSocket numaList, int32_t &lentSize,
+                             std::unordered_set<uint32_t> &lentNumas, TargetSocket &tmpSocket);
 
     /**
     * @brief 计算目标socket的numa拆分评分, 适用于借用、共享请求, 归还请求无需该评分
