@@ -193,28 +193,32 @@ UbseResult AgentSendNumaExportObj(const std::shared_ptr<UbseComModule> &comModul
                                   const UbseMemNumaBorrowExportObj &exportObj)
 {
     const uint32_t maxRetryTimes = GetWaitTimeOut() / SEND_RETRY_DURATION;
-    auto ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+    auto ret = UBSE_ERROR;
     uint32_t retryCount = 0;
     while (ret != UBSE_OK && retryCount < maxRetryTimes) {
+        std::string masterId{};
+        ret = UbseGetMasterNodeId(masterId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Get master nodeId failed, " << FormatRetCode(ret);
+            retryCount++;
+            sleep(SEND_RETRY_DURATION);
+            continue;
+        }
+        sendParam.SetRemoteId(masterId);
+        ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+        if (ret == UBSE_OK) {
+            break;
+        }
         UBSE_LOG_ERROR << "Send to exportObj, name=" << exportObj.req.name
                        << ", requestNodeId=" << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId
                        << ", masterNodeId=" << sendParam.GetRemoteId() << " failed, " << FormatRetCode(ret);
         retryCount++;
         sleep(SEND_RETRY_DURATION);
-        std::string masterId{};
-        ret = UbseGetMasterNodeId(masterId);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Get master nodeId failed, " << FormatRetCode(ret);
-            continue;
-        }
-        sendParam.SetRemoteId(masterId);
-        ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
     }
     return ret;
 }
 
-UbseResult SendNumaExportObj(const std::string &nodeId, const UbseMemNumaBorrowExportObj &exportObj,
-                             const bool isMaster)
+UbseResult SendNumaExportObj(const UbseMemNumaBorrowExportObj &exportObj, const bool isMaster, const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -367,7 +371,7 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp
     }
     // 下发exportObj
     UpdateNumaMemDebtInfoMap(importObj, exportObj, name);
-    if (const auto res = SendNumaExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, exportObj, true);
+    if (const auto res = SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
         res != UBSE_OK) {
         BorrowFailedAdvice("Borrow Schedule failed", name, "APP_NUMA_BORROW", req.size,
                            importObj.algoResult.exportNumaInfos[0].nodeId, requestNodeId, ret, MemAdvice::COMM_FAILED);
@@ -443,8 +447,8 @@ uint32_t SendNumaExport(UbseMemNumaBorrowExportObj &exportObj, const std::string
 }
 
 uint32_t NumaExportRunningCallback(UbseMemOperationResp &resp, UbseMemNumaBorrowExportObj &exportObj,
-                                   const std::string &name, const std::string &masterNodeId,
-                                   const std::string &exportNodeId, const std::string &requestNodeId)
+                                   const std::string &name, const std::string &exportNodeId, 
+                                   const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Numa export running callback. name is " << name << ";requestId: " << exportObj.req.requestId;
     mapLock.LockRead();
@@ -493,8 +497,8 @@ uint32_t NumaExportRunningCallback(UbseMemOperationResp &resp, UbseMemNumaBorrow
 }
 
 uint32_t NumaExportDestroyingCallback(UbseMemOperationResp &resp, UbseMemNumaBorrowExportObj &exportObj,
-                                      const std::string &name, const std::string &masterNodeId,
-                                      const std::string &exportNodeId, const std::string &requestNodeId)
+                                      const std::string &name, const std::string &exportNodeId, 
+                                      const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Numa export destroying callback. name is " << name << ";requestId: " << exportObj.req.requestId;
     auto exportKey = GenerateExportObjKey(name, exportObj.req.importNodeId);
@@ -527,8 +531,7 @@ uint32_t NumaExportDestroyingCallback(UbseMemOperationResp &resp, UbseMemNumaBor
     return SendNumaExport(exportObj, name, masterNodeId, exportNodeId, true);
 }
 
-uint32_t NumaExportAgentCallback(const std::string &exportNodeId, UbseMemNumaBorrowExportObj &exportObj,
-                                 const std::string &name, const std::string &masterNodeId)
+uint32_t NumaExportAgentCallback(const std::string &exportNodeId, UbseMemNumaBorrowExportObj &exportObj, const std::string &name)
 {
     UBSE_LOG_INFO << "Numa export agent callback. name=" << name << ", state=" << exportObj.status.state
                   << ";requestId: " << exportObj.req.requestId;
@@ -539,11 +542,11 @@ uint32_t NumaExportAgentCallback(const std::string &exportNodeId, UbseMemNumaBor
     auto requestNodeId = exportObj.req.requestNodeId;
     // 创建
     if (exportObj.status.state == UBSE_MEM_EXPORT_RUNNING) {
-        return NumaExportRunningCallback(resp, exportObj, name, masterNodeId, exportNodeId, requestNodeId);
+        return NumaExportRunningCallback(resp, exportObj, name, exportNodeId, requestNodeId);
     }
     // 归还
     if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING) {
-        return NumaExportDestroyingCallback(resp, exportObj, name, masterNodeId, exportNodeId, requestNodeId);
+        return NumaExportDestroyingCallback(resp, exportObj, name, exportNodeId, requestNodeId);
     }
     return UBSE_OK;
 }
@@ -558,7 +561,7 @@ uint32_t NumaExportRollback(UbseMemNumaBorrowExportObj &exportObj, UbseMemNumaBo
     UbseMemNumaImportObjStateChangeHandler(importObj); // 通知算法
     BuildOperationRespWhenFail(resp, name, exportObj.req.requestNodeId, "Failed to import", UBSE_ERR_INTERNAL,
                                MemOperationType::NUMA_BORROW);
-    return SendNumaExportObj(exportNodeId, exportObj, true);
+    return SendNumaExportObj(exportObj, true, exportNodeId);
 }
 
 UbseResult AgentSendNumaImportObj(const std::shared_ptr<UbseComModule> &comModule, SendParam &sendParam,
@@ -566,28 +569,29 @@ UbseResult AgentSendNumaImportObj(const std::shared_ptr<UbseComModule> &comModul
                                   const UbseMemNumaBorrowImportObj &importObj)
 {
     const uint32_t maxRetryTimes = GetWaitTimeOut() / SEND_RETRY_DURATION;
-    auto ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+    auto ret = UBSE_ERROR;
     uint32_t retryCount = 0;
     while (ret != UBSE_OK && retryCount < maxRetryTimes) {
+        std::string masterId{};
+        ret = UbseGetMasterNodeId(masterId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Get master nodeId failed, " << FormatRetCode(ret);
+            retryCount++;
+            sleep(SEND_RETRY_DURATION);
+            continue;
+        }
+        sendParam.SetRemoteId(masterId);
+        ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
         UBSE_LOG_ERROR << "Send to importObj, name=" << importObj.req.name
                        << ", requestNodeId=" << importObj.req.requestNodeId << ", requestId=" << importObj.req.requestId
                        << ", masterNodeId=" << sendParam.GetRemoteId() << " failed, " << FormatRetCode(ret);
         retryCount++;
         sleep(SEND_RETRY_DURATION);
-        std::string masterId{};
-        ret = UbseGetMasterNodeId(masterId);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Get master nodeId failed, " << FormatRetCode(ret);
-            continue;
-        }
-        sendParam.SetRemoteId(masterId);
-        ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
     }
     return ret;
 }
 
-UbseResult SendNumaImportObj(const std::string &nodeId, const UbseMemNumaBorrowImportObj &importObj,
-                             const bool isMaster)
+UbseResult SendNumaImportObj(const UbseMemNumaBorrowImportObj &importObj, const bool isMaster, const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -743,16 +747,6 @@ uint32_t UbseMemNumaBorrowExportObjCallback(const UbseMemNumaBorrowExportObj &ex
 {
     UbseRoleInfo currentNodeInfo{};
     UbseGetCurrentNodeInfo(currentNodeInfo);
-    UbseRoleInfo masterInfo{};
-    auto ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Failed to get master's info, " << FormatRetCode(ret);
-        return ret;
-    }
-    if (exportObj.algoResult.exportNumaInfos.empty()) {
-        UBSE_LOG_WARN << "The exportObj with no export numa info will be ignored.";
-        return UBSE_ERROR;
-    }
     auto copy = exportObj;
 
     auto exportNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
@@ -762,15 +756,14 @@ uint32_t UbseMemNumaBorrowExportObjCallback(const UbseMemNumaBorrowExportObj &ex
     // 履行侧履行
     if (exportNodeId == currentNodeInfo.nodeId &&
         (exportObj.status.state == UBSE_MEM_EXPORT_RUNNING || exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING)) {
-        return NumaExportAgentCallback(exportNodeId, copy, name, masterInfo.nodeId);
+        return NumaExportAgentCallback(exportNodeId, copy, name);
     }
     // 中心侧处理
     return NumaExportMasterCallback(exportNodeId, copy, importNodeId, name);
 }
 
 uint32_t NumaImportRunningHandler(UbseMemOperationResp &resp, UbseMemNumaBorrowImportObj &importObj,
-                                  const std::string &masterNodeId, const std::string &name,
-                                  const std::string &requestNodeId)
+                                  const std::string &name, const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Numa import running agent callback. name is " << name
                   << ";requestId: " << importObj.req.requestId;
@@ -831,8 +824,7 @@ uint32_t SendNumaImport(UbseMemNumaBorrowImportObj &importObj, const std::string
 }
 
 uint32_t NumaImportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemNumaBorrowImportObj &importObj,
-                                        const std::string &masterNodeId, const std::string &name,
-                                        const std::string &requestNodeId)
+                                        const std::string &name, const std::string &requestNodeId)
 {
     mapLock.LockRead();
     if (nodeMemDebtInfoMap[importObj.req.importNodeId].numaImportObjMap.find(importObj.req.name) !=
@@ -844,7 +836,7 @@ uint32_t NumaImportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemNumaB
         }
     }
     mapLock.UnLock();
-    auto res = NumaImportRunningHandler(resp, importObj, masterNodeId, name, requestNodeId);
+    auto res = NumaImportRunningHandler(resp, importObj, name, requestNodeId);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         importObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
@@ -858,8 +850,7 @@ uint32_t NumaImportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemNumaB
 }
 
 uint32_t NumaImportDestroyingHandler(UbseMemOperationResp &resp, UbseMemNumaBorrowImportObj &importObj,
-                                     const std::string &masterNodeId, const std::string &name,
-                                     const std::string &requestNodeId)
+                                     const std::string &name, const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Numa import destroying agent callback. name is " << name
                   << ";requestId: " << importObj.req.requestId;
@@ -895,10 +886,9 @@ uint32_t NumaImportDestroyingHandler(UbseMemOperationResp &resp, UbseMemNumaBorr
 }
 
 uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemNumaBorrowImportObj &importObj,
-                                           const std::string &masterNodeId, const std::string &name,
-                                           const std::string &requestNodeId)
+                                           const std::string &name, const std::string &requestNodeId)
 {
-    auto res = NumaImportDestroyingHandler(resp, importObj, masterNodeId, name, requestNodeId);
+    auto res = NumaImportDestroyingHandler(resp, importObj, name, requestNodeId);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
@@ -914,7 +904,7 @@ uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemNu
 }
 
 uint32_t NumaImportAgentCallback(const std::string &requestNodeId, UbseMemNumaBorrowImportObj &importObj,
-                                 const std::string &name, const std::string &masterNodeId)
+                                 const std::string &name)
 {
     UBSE_LOG_INFO << "numa import agent callback. name is " << name << ", state=" << importObj.status.state;
     auto exportKey = GenerateExportObjKey(name, importObj.req.importNodeId);
@@ -922,10 +912,10 @@ uint32_t NumaImportAgentCallback(const std::string &requestNodeId, UbseMemNumaBo
     UbseMemOperationResp resp{
         .name = importObj.req.name, .requestNodeId = importObj.req.requestNodeId, .requestId = importObj.req.requestId};
     if (importObj.status.state == UBSE_MEM_IMPORT_RUNNING) {
-        return NumaImportRunningAgentCallback(resp, importObj, masterNodeId, name, requestNodeId);
+        return NumaImportRunningAgentCallback(resp, importObj, name, requestNodeId);
     }
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYING) {
-        return NumaImportDestroyingAgentCallback(resp, importObj, masterNodeId, name, requestNodeId);
+        return NumaImportDestroyingAgentCallback(resp, importObj, name, requestNodeId);
     }
     return UBSE_OK;
 }
@@ -961,7 +951,7 @@ uint32_t NumaImportExpectSuccessMasterCallBack(UbseMemOperationResp &resp, const
     auto copy = importObj;
     copy.status.state = UBSE_MEM_STATE_FAILED;
     UbseMemNumaImportObjStateChangeHandler(copy); // 通知算法
-    if (auto ret = SendNumaExportObj(exportNodeId, exportObj, true); ret != UBSE_OK) {
+    if (auto ret = SendNumaExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to send rollback export. name is " << name << ";requestId: "
                        << ";requestId: " << importObj.req.requestId;
         NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
@@ -1036,7 +1026,7 @@ uint32_t NumaImportExpectDestroyedMasterCallBack(UbseMemOperationResp &resp, con
 }
 
 uint32_t NumaImportMasterCallback(const std::string &requestNodeId, UbseMemNumaBorrowImportObj &importObj,
-                                  const std::string &name, const std::string &masterNodeId)
+                                  const std::string &name)
 {
     UBSE_LOG_INFO << "Numa import master callback. name is " << name << ", state=" << importObj.status.state
                   << ";requestId: " << importObj.req.requestId;
@@ -1068,13 +1058,6 @@ uint32_t UbseMemNumaBorrowImportObjCallback(const UbseMemNumaBorrowImportObj &im
         UBSE_LOG_INFO << "Failed to get local node's info, " << FormatRetCode(ret);
         return ret;
     }
-    UbseRoleInfo masterInfo{};
-    ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Failed to get master's info, " << FormatRetCode(ret);
-        return ret;
-    }
-
     auto requestNodeId = importObj.req.requestNodeId;
     auto name = importObj.req.name;
 
@@ -1082,10 +1065,10 @@ uint32_t UbseMemNumaBorrowImportObjCallback(const UbseMemNumaBorrowImportObj &im
     // 履行侧履行
     if (importObj.req.importNodeId == currentNodeInfo.nodeId &&
         (importObj.status.state == UBSE_MEM_IMPORT_RUNNING || importObj.status.state == UBSE_MEM_IMPORT_DESTROYING)) {
-        return NumaImportAgentCallback(requestNodeId, copy, name, masterInfo.nodeId);
+        return NumaImportAgentCallback(requestNodeId, copy, name);
     }
     // 中心侧处理
-    return NumaImportMasterCallback(requestNodeId, copy, name, masterInfo.nodeId);
+    return NumaImportMasterCallback(requestNodeId, copy, name);
 }
 
 uint32_t DealSendNumaUnImportObjFailed(UbseMemNumaBorrowImportObj &importObj, const UbseMemReturnReq &req,
@@ -1117,13 +1100,13 @@ uint32_t NumaReturnExistImport(UbseMemNumaBorrowImportObj &importObj, bool hasEx
         exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
         exportObj.req.requestId = req.requestId;
-        return SendNumaExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, exportObj, true);
+        return SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
     }
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     importObj.req.requestId = req.requestId;
     NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
-    if (SendNumaImportObj(importObj.req.importNodeId, importObj, true) != UBSE_OK) {
+    if (SendNumaImportObj(importObj, true, importObj.req.importNodeId) != UBSE_OK) {
         return DealSendNumaUnImportObjFailed(importObj, req, resp, name);
     }
     return UBSE_OK;
@@ -1157,7 +1140,7 @@ uint32_t HandleSingleExportReturn(const UbseMemReturnReq &req, UbseMemOperationR
                                           "Single export failed get exportNumaInfos.", UBSE_ERR_INTERNAL,
                                           MemOperationType::NUMA_RETURN);
     }
-    return SendNumaExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, exportObj, true);
+    return SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
 }
 
 uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp, UbseMemBorrowStatus &status,
@@ -1286,7 +1269,7 @@ uint32_t DeleteNumaExport(const UbseMemNumaBorrowExportObj &exportObj)
         UBSE_LOG_WARN << "The exportObj with no export numa info will be ignored.";
         return UBSE_ERROR;
     }
-    return SendNumaExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, copy, true);
+    return SendNumaExportObj(copy, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
 }
 
 uint32_t AddNumaImport(const UbseMemNumaBorrowImportObj &importObj)
