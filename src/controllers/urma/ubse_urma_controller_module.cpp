@@ -189,14 +189,14 @@ void UbseUrmaControllerModule::Stop()
         UBSE_LOG_ERROR << "Fail to unsub the event=" << nodeTopoLinkChangeEventId;
     }
     DisconnectAllNormalLink();
+    while (g_asyncHandlerCnt != 0) {
+        UBSE_LOG_INFO << "There are async operation, wait to stop";
+        sleep(1);
+    }
     std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
     for (const auto &timerName : g_RegTimerNames) {
         UBSE_LOG_INFO << "Unregister timer=" << timerName;
         ubse::timer::UbseTimerHandlerUnregister(timerName);
-    }
-    while (g_asyncHandlerCnt != 0) {
-        UBSE_LOG_INFO << "There are async operation, wait to stop";
-        sleep(1);
     }
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
