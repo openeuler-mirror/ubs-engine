@@ -21,28 +21,31 @@
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_logger_inner.h"
 
 #include "ubse_npu_resource_collection.h"
 #include "ubse_npu_resource_collection_def.h"
 
 #include "ubse_npu_controller_process.h"
 
+#include "adapter_plugins/mti/ubse_mti_1825.h"
+#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
+#include "adapter_plugins/mti/ubse_mti_urma.h"
 #include "vm_state_monitor/ubse_npu_monitor_service_api.h"
 
 namespace ubse::npu::controller {
-UBSE_DEFINE_THIS_MODULE("ubse");
+UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
 using namespace ubse::log;
 using namespace ubse::common::def;
+using namespace ubse::mti::_1825;
+using namespace ubse::mti::bus_instance;
+using namespace ubse::mti::urma;
 
-fe_loc ToFeLoc(const CollectDeviceLoc &loc);
-ub_controller ToUbController(const CollectDeviceLoc &loc);
-david_loc ToDavidLoc(const CollectDeviceLoc &loc);
+constexpr uint8_t SLEEP_TIME = 2;
 
-const uint8_t CORRECT_RSP = 0;
-const uint8_t ERROR_RSP = 1;
-const uint8_t SLEEP_TIME = 2;
-
-const uint8_t COMMON_RETRY_TIME = 5;
+constexpr uint8_t ROLLBACK_RETRY_TIME = 2;
+constexpr uint8_t COMMON_RETRY_TIME = 5;
+constexpr uint8_t HEX_RADIX = 16;
 
 struct OperationHistory {
     std::function<UbseResult()> operation;
@@ -81,6 +84,27 @@ UbseResult CheckAndHandleOccupiedDevices(std::vector<std::shared_ptr<CollectionD
 UbseResult CheckCollection(const std::string &action);
 
 void ClearEmptyVMBusInstance();
+
+UbseResult ClearNic(std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList, std::string &newBusInstanceGuid);
+
+UbseResult CheckBusi(const std::shared_ptr<CollectionDeviceBusi> &busInstance);
+
+std::vector<UbseMti1825Vf> UpdateFailedNicList(const std::vector<UbseMti1825Vf> &vfList, std::vector<bool> &resList);
+
+std::vector<UbseMtiIdevVfe> UpdateFailedVfeList(const std::vector<UbseMtiIdevVfe> &vfeList, std::vector<bool> &resList);
+
+bool CheckResList(std::vector<bool> &resList);
+
+UbseMtiIdevVfe ConvertToUbseMtiIdevVfe(std::shared_ptr<CollectionDeviceIdevVfe> &vfe);
+
+std::vector<UbseMtiIdevVfe> ConvertToUbseMtiIdevVfeList(
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &vfeList);
+
+std::vector<UbseMti1825Vf> ConvertToUbseMti1825Vf(const std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList);
+
+UbseMtiBusInst ConvertToUbseMtiBusi(const std::shared_ptr<CollectionDeviceBusi> &busInstance);
+
+UbseMtiDavid ConvertToUbseMtiDavid(const std::shared_ptr<CollectionDeviceDavid> &davidDevice);
 
 class UbseNpuManagerApi {
 public:
@@ -142,31 +166,33 @@ private:
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> FilterDevices(
         const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
         const std::shared_ptr<CollectionDeviceBusi> &busInstance);
-    std::vector<reg_info> PrepareRegisterInfos(const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList);
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> PrepareRegisterInfos(
+        const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList);
     UbseResult RegisterVfeToBusi(std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
                                  const CollectionDevId &busiGuid);
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> FilterUnRegisterDevices(
         const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
         const std::shared_ptr<CollectionDeviceBusi> &busInstance);
-    std::vector<un_reg_info> PrepareUnRegisterInfos(
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> PrepareUnRegisterInfos(
         const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList);
     UbseResult UnRegisterVfeFromBusi(std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
                                      const CollectionDevId &busiGuid);
     UbseResult RollBack();
     void ExecuteFreeQueueBackGround();
-    UbseResult SendUnRegisterRequest(EID eid, const std::vector<un_reg_info> &infos,
-                                     std::vector<un_reg_info> &sendInfos);
-    UbseResult SendRegisterRequest(const std::vector<reg_info> &infos, const EID &eid,
-                                   std::vector<reg_info> &sendInfos);
-    UbseResult SendUnbindRequest(uint16_t upi, std::vector<un_bind_info> &unbindInfoList);
-    UbseResult SendBindRequest(uint16_t upi, const std::vector<bind_info> &bindInfoList);
-    UbseResult CheckSendUnRegister(CtrlQUnRegisterDevProxy &proxy, CtrlQUnRegisterDevReqBuilder &builder,
-                                   std::vector<un_reg_info> &sendInfos);
-    UbseResult CheckSendRegister(CtrlQRegisterDevProxy &proxy, CtrlQRegisterDevReqBuilder &builder,
-                                 std::vector<reg_info> &sendInfos);
+    UbseResult SendUnRegisterNicRequest(std::vector<std::shared_ptr<CollectionDeviceNic>> &devList,
+                                        bool &needRollback = false);
+    UbseResult SendUnRegisterVfeRequest(std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
+                                        bool &needRollback = false);
+    UbseResult SendRegisterNicRequest(const std::shared_ptr<CollectionDeviceBusi> &busi,
+                                      const std::vector<std::shared_ptr<CollectionDeviceNic>> &devList,
+                                      bool &needRollback = false);
+    UbseResult SendRegisterVfeRequest(const std::shared_ptr<CollectionDeviceBusi> &busi,
+                                      const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
+                                      bool &needRollback = false);
+    UbseResult SendUnbindRequest(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &unbindList);
+    UbseResult SendBindRequest(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &bindList);
     void HandleUnRegisterFailure(std::vector<std::shared_ptr<CollectionDeviceNic>> &devList,
-                                 const std::shared_ptr<CollectionDeviceBusi> &busInstance,
-                                 const std::vector<un_reg_info> &infos, const std::vector<un_reg_info> &infosFailed);
+                                 const std::shared_ptr<CollectionDeviceBusi> &busInstance, bool &needRollback = false);
 
 private:
     std::stack<std::shared_ptr<OperationHistory>> operationHistory_;
@@ -252,7 +278,6 @@ UbseResult AllocDevicesAction(const UbseAllocRequest &requestInfo, std::string &
                               std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
                               std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList)
 {
-    auto &collection = ResourceCollection::GetInstance();
     auto &manager = UbseNpuManagerApi::GetInstance();
     uint16_t upi = requestInfo.upiStr;
 
@@ -261,13 +286,6 @@ UbseResult AllocDevicesAction(const UbseAllocRequest &requestInfo, std::string &
         UBSE_LOG_ERROR << "Failed in alloc npu,nic devices preparation";
         return ret; // 如果绑定失败，返回错误码
     }
-
-    auto hostbusi = collection.GetDeviceHostBusInstance();
-    if (hostbusi == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get host bus instance";
-        return UBSE_ERROR;
-    }
-
     // 调用LCNE接口，创建虚机bus instance （如果传入businstance 跳过）
     if (!requestInfo.busInstanceGuid.empty()) {
         newBusInstanceGuid = requestInfo.busInstanceGuid;
@@ -292,22 +310,16 @@ UbseResult AllocDevicesAction(const UbseAllocRequest &requestInfo, std::string &
         UBSE_LOG_ERROR << "Failed to bind npus to vfes";
         return ret; // 如果绑定失败，返回错误码
     }
-
+    // 对npu进行复位
+    ret = manager.ResetNpu(npuList);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to reset npu";
+        return ret; // 如果复位失败，返回错误码
+    }
     if (!nicList.empty()) {
-        CollectionDevId hostBusInstanceGuid = hostbusi->GetGuid();
-
-        // 调用LCNE接口，解除1825与host bus instance的注册关系
-        ret = manager.UnRegisterDevFromBusi(nicList, hostBusInstanceGuid);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to unregister nics from host bus instance " << hostBusInstanceGuid;
-            return ret; // 如果解注册失败，返回错误码
-        }
-
-        // 调用LCNE接口，将1825注册到虚机bus instance上
-        ret = manager.RegisterDevToBusi(nicList, newBusInstanceGuid);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to register nics to vm bus instance " << newBusInstanceGuid;
-            return ret; // 如果注册失败，返回错误码
+        UbseResult res = ClearNic(nicList, newBusInstanceGuid);
+        if (res != UBSE_OK) {
+            return res;
         }
     }
 
@@ -353,6 +365,197 @@ UbseResult UbseGetAllocDeviceList(const UbseAllocRequest &requestInfo,
     return UBSE_OK;
 }
 
+UbseResult FreeUbDeviceImpl(const UbseAllocRequest &requestInfo)
+{
+    auto &manager = UbseNpuManagerApi::GetInstance();
+    if (CheckCollection("free ub device") != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    {
+        std::unique_lock<std::mutex> lock(manager.mtx_);
+        manager.cv_.wait(lock,
+                         [&manager] { return manager.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
+    }
+
+    auto &collection = ResourceCollection::GetInstance();
+    std::shared_ptr<CollectionDeviceBusi> busInstance = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(
+        collection.GetDeviceByGuid(requestInfo.busInstanceGuid));
+
+    if (CheckBusi(busInstance) != UBSE_OK) {
+        return UBSE_ERROR_INVAL;
+    }
+
+    uint16_t upi;
+    if (ConvertStrToUint16(busInstance->GetUpiStr(), upi, HEX_RADIX) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Invalid upi:" << busInstance->GetUpiStr();
+        return UBSE_ERROR_INVAL;
+    }
+
+    std::vector<std::shared_ptr<CollectionDeviceNic>> nics = busInstance->GetSubDevNic();
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npus;
+    for (auto &vfe : busInstance->GetSubDevIdev()) {
+        if (vfe->GetIsComSharedFe()) {
+            continue;
+        }
+        std::shared_ptr<CollectionDeviceDavid> npu = vfe->GetBondingDevDavid();
+        if (npu == nullptr) {
+            UBSE_LOG_ERROR << "Failed to get bonding npu device for vfe " << vfe->GetIdStr();
+            return UBSE_ERROR;
+        }
+        npus.push_back(npu);
+    }
+
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_FREE);
+    auto tmpRequest = requestInfo;
+    tmpRequest.upiStr = upi;
+    auto ret = FreeUbDeviceAction(tmpRequest, npus, nics);
+    if (ret != UBSE_OK) {
+        manager.SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
+        UBSE_LOG_ERROR << "Failed to free ub device";
+        return UBSE_ERROR; // 去使能阶段调用某个lcne协议接口失败
+    }
+
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+    UBSE_LOG_INFO << "Success to free bus instance " << requestInfo.busInstanceGuid
+                  << " and its related npu,nic devices";
+
+    return UBSE_OK;
+}
+
+UbseResult FreeUbDeviceAction(const UbseAllocRequest &requestInfo,
+                              std::vector<std::shared_ptr<CollectionDeviceDavid>> &npus,
+                              std::vector<std::shared_ptr<CollectionDeviceNic>> &nics)
+{
+    auto &collection = ResourceCollection::GetInstance();
+    auto hostBusInstance = collection.GetDeviceHostBusInstance();
+    if (hostBusInstance == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get host bus instance";
+        return UBSE_ERROR;
+    }
+    CollectionDevId hostBusInstanceGuid = hostBusInstance->GetGuid();
+
+    auto &manager = UbseNpuManagerApi::GetInstance();
+
+    manager.FreeQueue(requestInfo, hostBusInstanceGuid, npus, nics);
+    return manager.ExecuteFreeQueue();
+}
+
+std::pair<UbseResult, std::vector<std::shared_ptr<IResource>>> QueryVmBusInstances(ResourceCollection &collection)
+{
+    std::vector<std::shared_ptr<IResource>> vmBusInstances;
+    CollectionDevIdToDevice vmMap;
+    auto res = collection.GetDevicesByType(CollectionDeviceType::VM_BUSINSTANCE, vmMap);
+    if (res != UBSE_OK || vmMap.empty()) {
+        UBSE_LOG_WARN << "Failed to get vm bus instances";
+        return {res, vmBusInstances};
+    }
+
+    for (auto &dev : vmMap) {
+        auto vmBusInstance = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(dev.second);
+        if (vmBusInstance == nullptr) {
+            UBSE_LOG_ERROR << "Failed to transfer vm bus instance " << dev.first << " to resource";
+            return {UBSE_ERROR, vmBusInstances};
+        }
+        std::shared_ptr<BusiResource> vmBusiRes = std::make_shared<BusiResource>();
+        res = UbseNpuControllerProcess::BusInstanceToResource(vmBusInstance, vmBusiRes);
+        if (res != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to transfer vm bus instance " << dev.first << " to resource";
+            return {res, vmBusInstances};
+        }
+        vmBusInstances.push_back(vmBusiRes);
+    }
+
+    return {UBSE_OK, vmBusInstances};
+}
+
+std::pair<UbseResult, std::vector<std::shared_ptr<IResource>>> QueryNpuDevices(ResourceCollection &collection)
+{
+    std::vector<std::shared_ptr<IResource>> npuDevices;
+    CollectionDevIdToDevice npuDevMap;
+    auto res = collection.GetDevicesByType(CollectionDeviceType::NPU, npuDevMap);
+    if (res != UBSE_OK || npuDevMap.empty()) {
+        UBSE_LOG_WARN << "Failed to get npus";
+    }
+
+    for (auto &dev : npuDevMap) {
+        auto npuDevice = CollectionDevice::CollectionToDerived<CollectionDeviceDavid>(dev.second);
+        std::shared_ptr<NpuResource> npuRes = std::make_shared<NpuResource>();
+        res = UbseNpuControllerProcess::DeviceNpuToResource(npuDevice, npuRes);
+        if (res != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to transfer npu " << dev.first << " to resource";
+            return {res, npuDevices};
+        }
+        npuDevices.push_back(npuRes);
+    }
+
+    return {UBSE_OK, npuDevices};
+}
+
+std::pair<UbseResult, std::vector<std::shared_ptr<IResource>>> QueryNicDevices(ResourceCollection &collection)
+{
+    std::vector<std::shared_ptr<IResource>> nicDevices;
+    CollectionDevIdToDevice nicDevMap;
+    auto res = collection.GetDevicesByType(CollectionDeviceType::NIC, nicDevMap);
+    if (res != UBSE_OK || nicDevMap.empty()) {
+        UBSE_LOG_WARN << "Failed to get nics";
+    }
+
+    for (auto &dev : nicDevMap) {
+        auto nicDevice = CollectionDevice::CollectionToDerived<CollectionDeviceNic>(dev.second);
+        if (nicDevice == nullptr) {
+            UBSE_LOG_ERROR << "Failed to transfer nic " << dev.first << " to resource";
+            return {UBSE_ERROR, nicDevices};
+        }
+        std::shared_ptr<NicResource> nicRes = std::make_shared<NicResource>();
+        res = UbseNpuControllerProcess::DeviceNicToResource(nicDevice, nicRes);
+        if (res != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to transfer nic " << dev.first << " to resource";
+            return {res, nicDevices};
+        }
+        nicDevices.push_back(nicRes);
+    }
+
+    return {UBSE_OK, nicDevices};
+}
+
+UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>> &devList)
+{
+    auto &manager = UbseNpuManagerApi::GetInstance();
+    if (CheckCollection("query ub device") != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    {
+        std::unique_lock<std::mutex> lock(manager.mtx_);
+        manager.cv_.wait(lock,
+                         [&manager] { return manager.GetState() == UbseNpuManagerApi::NpuManagerState::AVAILABLE; });
+    }
+    UBSE_LOG_INFO << "Start to query all bus instances and nic, npu devices...";
+    auto &collection = ResourceCollection::GetInstance();
+    // 查询并处理 VM bus instances
+    auto vmBusInstances = QueryVmBusInstances(collection);
+    if (vmBusInstances.first != UBSE_OK) {
+        return vmBusInstances.first;
+    }
+    devList.insert(devList.end(), vmBusInstances.second.begin(), vmBusInstances.second.end());
+    UBSE_LOG_INFO << "Success to add " << vmBusInstances.second.size() << " vm bus instances to devlist";
+    // 查询并处理 NPU devices
+    auto npuDevices = QueryNpuDevices(collection);
+    if (npuDevices.first != UBSE_OK) {
+        return npuDevices.first;
+    }
+    devList.insert(devList.end(), npuDevices.second.begin(), npuDevices.second.end());
+    UBSE_LOG_INFO << "Success to add " << npuDevices.second.size() << " npus to devlist";
+    // 查询并处理 NIC devices
+    auto nicDevices = QueryNicDevices(collection);
+    if (nicDevices.first != UBSE_OK) {
+        return nicDevices.first;
+    }
+    devList.insert(devList.end(), nicDevices.second.begin(), nicDevices.second.end());
+    UBSE_LOG_INFO << "Success to add " << nicDevices.second.size() << " nics to devlist";
+    return UBSE_OK;
+}
+
 UbseResult ListAllocDevices(const UbseAllocRequest &requestInfo, std::vector<std::shared_ptr<IResource>> &devList,
                             std::string &newBusInstanceGuid)
 {
@@ -379,21 +582,178 @@ UbseResult ListAllocDevices(const UbseAllocRequest &requestInfo, std::vector<std
     return res;
 }
 
+UbseResult CheckOccupiedNpus(const std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
+                             std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> &occupiedNpuMap)
+{
+    for (const auto &npu : npuList) {
+        std::shared_ptr<CollectionDevice> idev = npu->GetBondingIdev();
+        if (idev == nullptr) {
+            UBSE_LOG_ERROR << "Failed to get bonding idev for npu " << npu->GetIdStr();
+            return UBSE_ERROR;
+        }
+        if (idev->GetType() == CollectionDeviceType::V_IDEV) {
+            auto bondingIdev = CollectionDevice::CollectionToDerived<CollectionDeviceIdevVfe>(npu->GetBondingIdev());
+            if (bondingIdev == nullptr) {
+                UBSE_LOG_ERROR << "Failed to get bonding idev for npu " << npu->GetIdStr();
+                return UBSE_ERROR;
+            }
+            auto businstances = bondingIdev->GetBondingDevBusi();
+            if (businstances.empty()) {
+                UBSE_LOG_WARN << "Failed to get bonding busi for npu " << npu->GetIdStr();
+                continue;
+            }
+            CollectionDevId busInstanceGuid = businstances[0]->GetGuid();
+            occupiedNpuMap[busInstanceGuid].push_back(npu);
+            UBSE_LOG_WARN << "NPU " << npu->GetIdStr() << " is already registered to bus instance " << busInstanceGuid;
+        }
+    }
+    return UBSE_OK;
+}
+
+void CheckOccupiedNics(const std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList,
+                       std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNic>>> &occupiedNicMap,
+                       std::vector<std::shared_ptr<CollectionDeviceNic>> &recoverNics)
+{
+    for (const auto &nic : nicList) {
+        if (nic == nullptr) {
+            continue;
+        }
+        std::shared_ptr<CollectionDeviceBusi> busi = nic->GetBondingDevBusi();
+        if (busi == nullptr) {
+            UBSE_LOG_WARN << "Failed to get bonding busi for nic " << nic->GetIdStr()
+                          << " ,try to register it to host bus instance";
+            recoverNics.push_back(nic);
+        } else if (busi->GetType() == CollectionDeviceType::VM_BUSINSTANCE) {
+            CollectionDevId busInstanceGuid = busi->GetGuid();
+            occupiedNicMap[busInstanceGuid].push_back(nic);
+            UBSE_LOG_WARN << "nic " << nic->GetIdStr() << " is already registered to bus instance " << busInstanceGuid;
+        }
+    }
+}
+
+UbseResult UnregisterAndUnbindNpus(
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> &occupiedNpuMap)
+{
+    for (auto &[busInstanceGuid, occupiedNpuList] : occupiedNpuMap) {
+        auto &collection = ResourceCollection::GetInstance();
+        std::shared_ptr<CollectionDeviceBusi> busInstance =
+            CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(collection.GetDeviceByGuid(busInstanceGuid));
+        if (busInstance == nullptr) {
+            UBSE_LOG_ERROR << "Failed to get bus instance by guid " << busInstanceGuid;
+            return UBSE_ERROR_INVAL;
+        }
+        uint16_t upi;
+        if (ConvertStrToUint16(busInstance->GetUpiStr(), upi, HEX_RADIX) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Invalid upi:" << busInstance->GetUpiStr();
+            return UBSE_ERROR_INVAL;
+        }
+        auto ret = UbseNpuManagerApi::GetInstance().UnbindVfeDavid(upi, occupiedNpuList);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to unbind occupied npus from vfe";
+            return ret;
+        }
+        ret = UbseNpuManagerApi::GetInstance().UnRegisterIDevFromBusi(occupiedNpuList, busInstanceGuid);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to unregister occupied npus from bus instance " << busInstanceGuid;
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult RegisterNicsToHost(std::vector<std::shared_ptr<CollectionDeviceNic>> &recoverNics)
+{
+    if (!recoverNics.empty()) {
+        auto hostBusInstance = ResourceCollection::GetInstance().GetDeviceHostBusInstance();
+        if (hostBusInstance == nullptr) {
+            UBSE_LOG_ERROR << "Failed to get host bus instance";
+            return UBSE_ERROR;
+        }
+        auto ret = UbseNpuManagerApi::GetInstance().RegisterDevToBusi(recoverNics, hostBusInstance->GetGuid());
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to register error nics to host bus instance";
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult UnregisterAndRegisterNics(
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNic>>> &occupiedNicMap)
+{
+    for (auto &[BusInstanceGuid, occupiedNicList] : occupiedNicMap) {
+        auto ret = UbseNpuManagerApi::GetInstance().UnRegisterDevFromBusi(occupiedNicList, BusInstanceGuid);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to unregister occupied nics from bus instance " << BusInstanceGuid;
+            return ret;
+        }
+        ret = RegisterNicsToHost(occupiedNicList);
+        if (ret != UBSE_OK) {
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult CheckAndHandleOccupiedDevices(std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
+                                         std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList)
+{
+    UBSE_LOG_INFO << "Start to check if there are any npus or nics in alloc request that are already registered to vm "
+                     "bus instances";
+    // 检查并处理已绑定的 NPU
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> occupiedNpuMap;
+    auto ret = CheckOccupiedNpus(npuList, occupiedNpuMap);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    // 检查并处理已绑定的 NIC
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNic>>> occupiedNicMap;
+    std::vector<std::shared_ptr<CollectionDeviceNic>> recoverNics;
+    CheckOccupiedNics(nicList, occupiedNicMap, recoverNics);
+    UBSE_LOG_INFO << "Start to unregister and unbind occupied " << occupiedNpuMap.size() << " npus and "
+                  << occupiedNicMap.size() << " nics";
+
+    // 解注册和解绑定已绑定的 NPU
+    ret = UnregisterAndUnbindNpus(occupiedNpuMap);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    // 解注册和注册已绑定的 NIC 到主机总线实例
+    ret = UnregisterAndRegisterNics(occupiedNicMap);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    // 注册未绑定的 NIC 到主机总线实例
+    ret = RegisterNicsToHost(recoverNics);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    UBSE_LOG_INFO << "Success to unregister and unbind occupied npus and nics";
+    return UBSE_OK;
+}
+
 UbseResult HandleOccupiedFilterDeviceVMBusi(std::shared_ptr<CollectionDeviceBusi> &busInstance,
                                             std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
                                             std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList)
 {
     UbseResult ret = UBSE_OK;
     if (!npuList.empty()) {
+        uint16_t upi;
+        if (ConvertStrToUint16(busInstance->GetUpiStr(), upi, HEX_RADIX) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Invalid upi:" << busInstance->GetUpiStr();
+            return UBSE_ERROR_INVAL;
+        }
+        ret = UbseNpuManagerApi::GetInstance().UnbindVfeDavid(upi, npuList);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to unbind npuList from vfe";
+            return ret; // 如果绑定失败，返回错误码
+        }
         ret = UbseNpuManagerApi::GetInstance().UnRegisterIDevFromBusi(npuList, busInstance->GetGuid());
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to unregister npuList from bus instance " << busInstance->GetIdStr();
             return ret; // 如果解注册失败，返回错误码
-        }
-        ret = UbseNpuManagerApi::GetInstance().UnbindVfeDavid(0, npuList);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to unbind npuList from vfe";
-            return ret; // 如果绑定失败，返回错误码
         }
     }
 
@@ -452,7 +812,7 @@ void ClearEmptyVMBusInstance()
     UBSE_LOG_INFO << "Success to clear empty vm bus instances";
 }
 
-UbseResult AllocDevicesPreparation(const std::string &BusInstanceGuid,
+UbseResult AllocDevicesPreparation(const std::string &busInstanceGuid,
                                    std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
                                    std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList)
 {
@@ -460,10 +820,10 @@ UbseResult AllocDevicesPreparation(const std::string &BusInstanceGuid,
     auto &collection = ResourceCollection::GetInstance();
 
     // 处理businstance占用
-    if (!BusInstanceGuid.empty()) {
-        UBSE_LOG_INFO << "Bus instance " << BusInstanceGuid << " already exists.";
+    if (!busInstanceGuid.empty()) {
+        UBSE_LOG_INFO << "Bus instance " << busInstanceGuid << " already exists.";
         std::shared_ptr<CollectionDeviceBusi> busInstance =
-            CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(collection.GetDeviceByGuid(BusInstanceGuid));
+            CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(collection.GetDeviceByGuid(busInstanceGuid));
         if (busInstance == nullptr) {
             return UBSE_ERROR_INVAL;
         }
@@ -580,17 +940,10 @@ UbseResult UbseNpuManagerApi::UnRegisterDevFromBusi(std::vector<std::shared_ptr<
         UBSE_LOG_ERROR << "bus instance " << busiGuid << " not found";
         return UBSE_ERROR;
     }
-
-    std::vector<un_reg_info> infos;
-    std::vector<un_reg_info> infosFailed;
-    for (const auto &dev : devList) {
-        if (dev != nullptr && dev->GetBondingDevBusi() != nullptr) {
-            infos.push_back(un_reg_info{ToFeLoc(dev->GetDeviceLoc())});
-        }
-    }
-    UbseResult ret = SendUnRegisterRequest(busInstance->GetEid(), infos, infosFailed);
+    bool needRollback = false;
+    UbseResult ret = SendUnRegisterNicRequest(devList, needRollback);
     if (ret != UBSE_OK) {
-        HandleUnRegisterFailure(devList, busInstance, infos, infosFailed);
+        HandleUnRegisterFailure(devList, busInstance, needRollback);
         UBSE_LOG_ERROR << "Request UnRegister nic from bus instance failed, " << FormatRetCode(ret);
         return ret;
     }
@@ -615,21 +968,16 @@ UbseResult UbseNpuManagerApi::UnRegisterDevFromBusi(std::vector<std::shared_ptr<
 }
 void UbseNpuManagerApi::HandleUnRegisterFailure(std::vector<std::shared_ptr<CollectionDeviceNic>> &devList,
                                                 const std::shared_ptr<CollectionDeviceBusi> &busInstance,
-                                                const std::vector<un_reg_info> &infos,
-                                                const std::vector<un_reg_info> &infosFailed)
+                                                bool &needRollback)
 {
-    if (this->state_ == NpuManagerState::RUNNING_ALLOC and !infosFailed.empty() and
-        infosFailed.size() != infos.size()) {
-        // 意图注销的全部dev都重新注册，不关注是否成功
-        std::vector<reg_info> rollRegInfos;
-        std::vector<reg_info> rollRegInfosFailed;
+    if (this->state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
+        std::vector<std::shared_ptr<CollectionDeviceNic>> nicList;
         for (const auto &dev : devList) {
             if (dev != nullptr && dev->GetBondingDevBusi() != nullptr) {
-                rollRegInfos.push_back(reg_info{ToFeLoc(dev->GetDeviceLoc()),
-                                                ToUbController(dev->GetAffinityDevUbCtrl()->GetDeviceLoc())});
+                nicList.push_back(dev);
             }
         }
-        this->SendRegisterRequest(rollRegInfos, busInstance->GetEid(), rollRegInfosFailed);
+        this->SendRegisterNicRequest(busInstance, nicList);
     }
 }
 
@@ -690,25 +1038,19 @@ UbseResult UbseNpuManagerApi::RegisterDevToBusi(std::vector<std::shared_ptr<Coll
         return UBSE_ERROR;
     }
 
-    std::vector<reg_info> infos;
-    std::vector<reg_info> infosFailed;
+    std::vector<std::shared_ptr<CollectionDeviceNic>> nicList;
     for (auto &dev : devList) {
         if (dev == nullptr || dev->GetAffinityDevUbCtrl() == nullptr) {
             continue;
         }
-        reg_info regInfo{ToFeLoc(dev->GetDeviceLoc()), ToUbController(dev->GetAffinityDevUbCtrl()->GetDeviceLoc())};
-        infos.push_back(regInfo);
+        nicList.push_back(dev);
     }
-    UbseResult ret = SendRegisterRequest(infos, busInstance->GetEid(), infosFailed);
+    bool needRollback = false;
+    UbseResult ret = SendRegisterNicRequest(busInstance, nicList, needRollback);
     if (ret != UBSE_OK) {
-        if (state_ == NpuManagerState::RUNNING_ALLOC and !infosFailed.empty() and infosFailed.size() != infos.size()) {
+        if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
             // 回滚当前
-            std::vector<un_reg_info> rollRegInfos;
-            std::vector<un_reg_info> rollRegInfosFailed;
-            for (auto &dev : devList) {
-                rollRegInfos.push_back(un_reg_info{ToFeLoc(dev->GetDeviceLoc())});
-            }
-            SendUnRegisterRequest(busInstance->GetEid(), rollRegInfos, rollRegInfosFailed);
+            SendUnRegisterNicRequest(nicList);
         }
         UBSE_LOG_ERROR << "Request Register nic to bus instance failed, " << FormatRetCode(ret);
         return ret;
@@ -771,23 +1113,20 @@ UbseResult UbseNpuManagerApi::RegisterIDevToBusi(std::vector<std::shared_ptr<Col
 UbseResult UbseNpuManagerApi::UnbindVfeDavid(uint16_t upi, std::vector<std::shared_ptr<CollectionDeviceDavid>> &devList)
 {
     UBSE_LOG_DEBUG << "Unbind VFE DAVID start, upi: " << upi << ", dev size: " << devList.size();
-    std::vector<un_bind_info> unbindInfoList;
+    std::vector<UbseMtiIdevVfeDavidPair> unbindList;
     for (auto &dev : devList) {
         if (dev != nullptr && dev->GetBondingIdev() != nullptr &&
             dev->GetBondingIdev()->GetType() == CollectionDeviceType::V_IDEV) {
-            un_bind_info info{ToFeLoc(dev->GetBondingIdev()->GetDeviceLoc()), ToDavidLoc(dev->GetDeviceLoc())};
-            unbindInfoList.push_back(info);
+            UbseMtiIdevVfe mtivfe = ConvertToUbseMtiIdevVfe(dev);
+            UbseMtiDavid mtiDavid = ConvertToUbseMtiDavid(dev);
+            unbindList.push_back(make_pair(mtivfe, mtiDavid));
         }
     }
 
-    UbseResult res = SendUnbindRequest(upi, unbindInfoList);
+    UbseResult res = SendUnbindRequest(upi, unbindList);
     if (res != UBSE_OK) {
         if (state_ == NpuManagerState::RUNNING_ALLOC) {
-            std::vector<bind_info> bindInfoList;
-            for (auto &info : unbindInfoList) {
-                bindInfoList.push_back(bind_info{info.fe, info.david});
-            }
-            SendBindRequest(upi, bindInfoList);
+            SendBindRequest(upi, unbindList);
         }
         UBSE_LOG_ERROR << "Request Unbind VFE DAVID failed, res: " << FormatRetCode(res);
         return res;
@@ -818,25 +1157,22 @@ UbseResult UbseNpuManagerApi::UnbindVfeDavid(uint16_t upi, std::vector<std::shar
 UbseResult UbseNpuManagerApi::BindVfeDavid(uint16_t upi, std::vector<std::shared_ptr<CollectionDeviceDavid>> &devList)
 {
     UBSE_LOG_DEBUG << "Bind VFE DAVID start, upi: " << upi << ", dev size: " << devList.size();
-    std::vector<bind_info> bindInfoList;
+    std::vector<UbseMtiIdevVfeDavidPair> bindList;
     for (auto &dev : devList) {
         if (dev != nullptr && dev->GetBondingIdev() != nullptr &&
             dev->GetBondingIdev()->GetType() == CollectionDeviceType::P_IDEV) {
             std::shared_ptr<CollectionDeviceIdevPfe> pfe =
                 CollectionDevice::CollectionToDerived<CollectionDeviceIdevPfe>(dev->GetBondingIdev());
             std::shared_ptr<CollectionDeviceIdevVfe> vfe = pfe->GetSubDevVfe()[0];
-            bind_info info{ToFeLoc(vfe->GetDeviceLoc()), ToDavidLoc(dev->GetDeviceLoc())};
-            bindInfoList.push_back(info);
+            UbseMtiIdevVfe mtivfe = ConvertToUbseMtiIdevVfe(vfe);
+            UbseMtiDavid mtiDavid = ConvertToUbseMtiDavid(dev);
+            bindList.push_back(make_pair(mtivfe, mtiDavid));
         }
     }
-    UbseResult res = SendBindRequest(upi, bindInfoList);
+    UbseResult res = SendBindRequest(upi, bindList);
     if (res != UBSE_OK) {
         if (state_ == NpuManagerState::RUNNING_ALLOC) {
-            std::vector<un_bind_info> unbindInfoList;
-            for (auto &info : bindInfoList) {
-                unbindInfoList.push_back(un_bind_info{info.fe, info.david});
-            }
-            SendUnbindRequest(upi, unbindInfoList);
+            SendUnbindRequest(upi, bindList);
         }
         UBSE_LOG_ERROR << "Request Bind VFE DAVID failed, res: " << FormatRetCode(res);
         return res;
@@ -862,8 +1198,529 @@ UbseResult UbseNpuManagerApi::BindVfeDavid(uint16_t upi, std::vector<std::shared
         auto operation = std::make_shared<OperationHistory>();
         operation->operation = rollbackFunc;
         operationHistory_.push(operation);
-        UBSE_LOG_DEBUG << "push operation to operationHistory_ success";
+        UBSE_LOG_DEBUG << "push operation to operationHistory success";
     }
     UBSE_LOG_INFO << "Bind VFE DAVID success";
     return UBSE_OK;
 }
+
+std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> UbseNpuManagerApi::FilterDevices(
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
+    const std::shared_ptr<CollectionDeviceBusi> &busInstance)
+{
+    auto bonding_vfes = busInstance->GetSubDevIdev();
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> newDevList;
+
+    for (auto &dev : devList) {
+        // 检查 dev 是否在 bonding_vfes 中
+        auto it = std::find(bonding_vfes.begin(), bonding_vfes.end(), dev);
+        if (it == bonding_vfes.end()) {
+            newDevList.push_back(dev);
+        }
+    }
+
+    return newDevList;
+}
+
+std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> UbseNpuManagerApi::PrepareRegisterInfos(
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList)
+{
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfeList;
+    for (auto &dev : devList) {
+        if (dev == nullptr) {
+            continue;
+        }
+        vfeList.push_back(dev);
+    }
+    return vfeList;
+}
+
+UbseResult UbseNpuManagerApi::RegisterVfeToBusi(std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
+                                                const CollectionDevId &busiGuid)
+{
+    auto &collection = ResourceCollection::GetInstance();
+    std::shared_ptr<CollectionDeviceBusi> busInstance =
+        CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(collection.GetDeviceByGuid(busiGuid));
+    if (busInstance == nullptr) {
+        UBSE_LOG_ERROR << "bus instance " << busiGuid << " not found";
+        return UBSE_ERROR;
+    }
+
+    // 检查并过滤设备
+    auto newDevList = FilterDevices(devList, busInstance);
+    devList = std::move(newDevList);
+    if (devList.empty()) {
+        UBSE_LOG_INFO << "all vfe has bonding to busi, no need to register";
+        return UBSE_OK;
+    }
+    UBSE_LOG_DEBUG << "Start Register vfe to bus instance, vfe size: " << devList.size()
+                   << ", bus instance: " << busiGuid;
+
+    // 准备注册信息
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfeList = PrepareRegisterInfos(devList);
+
+    // 发送注册请求
+    bool needRollback = false;
+    UbseResult ret = SendRegisterVfeRequest(busInstance, vfeList, needRollback);
+    if (ret != UBSE_OK) {
+        if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
+            // 回滚当前
+            SendUnRegisterVfeRequest(vfeList);
+        }
+        UBSE_LOG_ERROR << "Request Register vfe to bus instance failed";
+        return ret;
+    }
+    UBSE_LOG_DEBUG << "Request success, now change state in collection";
+    for (const auto &dev : devList) {
+        ResourceCollection::BindDevice(dev, busInstance);
+    }
+    if (state_ == NpuManagerState::RUNNING_ALLOC) {
+        auto rollbackFunc = [this, devList, busiGuid]() mutable -> UbseResult {
+            return this->UnRegisterVfeFromBusi(devList, busiGuid);
+        };
+        auto operation = std::make_shared<OperationHistory>();
+        operation->operation = rollbackFunc;
+        operationHistory_.push(operation);
+        UBSE_LOG_DEBUG << "push operation to operationHistory success";
+    }
+    UBSE_LOG_DEBUG << "Register vfe to bus instance success";
+    return UBSE_OK;
+}
+
+std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> UbseNpuManagerApi::FilterUnRegisterDevices(
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
+    const std::shared_ptr<CollectionDeviceBusi> &busInstance)
+{
+    auto bonding_vfes = busInstance->GetSubDevIdev();
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> newDevList;
+
+    for (auto &dev : devList) {
+        // 检查 dev 是否在 bonding_vfes 中
+        auto it = std::find(bonding_vfes.begin(), bonding_vfes.end(), dev);
+        if (it != bonding_vfes.end()) {
+            newDevList.push_back(dev);
+        }
+    }
+
+    return newDevList;
+}
+
+std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> UbseNpuManagerApi::PrepareUnRegisterInfos(
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList)
+{
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfeList;
+    for (auto &dev : devList) {
+        if (dev == nullptr) {
+            continue;
+        }
+        vfeList.push_back(dev);
+    }
+    return vfeList;
+}
+
+UbseResult UbseNpuManagerApi::UnRegisterVfeFromBusi(std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
+                                                    const CollectionDevId &busiGuid)
+{
+    auto &collection = ResourceCollection::GetInstance();
+    std::shared_ptr<CollectionDeviceBusi> busInstance =
+        CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(collection.GetDeviceByGuid(busiGuid));
+    if (busInstance == nullptr) {
+        UBSE_LOG_ERROR << "busInstance " << busiGuid << " not found";
+        return UBSE_ERROR;
+    }
+
+    // 检查并过滤设备
+    auto newDevList = FilterDevices(devList, busInstance);
+    devList = std::move(newDevList);
+    if (devList.empty()) {
+        return UBSE_OK;
+    }
+
+    // 准备注销信息
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfeList = PrepareUnRegisterInfos(devList);
+
+    UBSE_LOG_DEBUG << "Start UnRegister vfe from bus instance, vfe size: " << vfeList.size()
+                   << ", bus instance: " << busiGuid;
+    bool needRollback = false;
+    UbseResult ret = SendUnRegisterVfeRequest(vfeList, needRollback);
+    if (ret != UBSE_OK) {
+        if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
+            // 回滚当前
+            SendRegisterVfeRequest(busInstance, devList);
+        }
+        UBSE_LOG_ERROR << "Request UnRegister vfe from bus instance failed";
+        return ret;
+    }
+
+    UBSE_LOG_DEBUG << "Request success, now change state in collection";
+    for (auto &dev : devList) {
+        ResourceCollection::UnbindDevice(dev, busInstance);
+    }
+
+    if (state_ == NpuManagerState::RUNNING_ALLOC) {
+        auto rollbackFunc = [this, devList, busiGuid]() mutable -> UbseResult {
+            return this->RegisterVfeToBusi(devList, busiGuid);
+        };
+        auto operation = std::make_shared<OperationHistory>();
+        operation->operation = rollbackFunc;
+        operationHistory_.push(operation);
+        UBSE_LOG_DEBUG << "push operation to operationHistory success";
+    }
+    UBSE_LOG_DEBUG << "UnRegister vfe from bus instance success";
+    return UBSE_OK;
+}
+
+UbseResult UbseNpuManagerApi::SendUnRegisterNicRequest(const std::vector<std::shared_ptr<CollectionDeviceNic>> &devList,
+                                                       bool &needRollback)
+{
+    UBSE_LOG_DEBUG << "Start Send UnRegister Nic Request, infos size: " << devList.size();
+    UbseResult res = UBSE_ERROR;
+    if (devList.empty()) {
+        return res;
+    }
+    auto busi = devList[0]->GetBondingDevBusi();
+    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
+    std::vector<UbseMti1825Vf> mti1825VfList = ConvertToUbseMti1825Vf(devList);
+
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        std::vector<bool> resList;
+        res = UbseMti1825::UnReg1825FeFromVmBusInstance(mtiBusi, mti1825VfList, resList);
+        if (res != UBSE_OK) {
+            UBSE_LOG_DEBUG << "SendMsg failed";
+            sleep(SLEEP_TIME);
+            continue;
+        }
+        mti1825VfList = UpdateFailedNicList(mti1825VfList, resList);
+        if (mti1825VfList.empty()) {
+            UBSE_LOG_DEBUG << "Unregister Nic from busi request success";
+            break;
+        }
+    }
+    needRollback = !mti1825VfList.empty() && mti1825VfList.size() != devList.size();
+    UBSE_LOG_DEBUG << "Finish Send UnRegister Request, " << FormatRetCode(res);
+    return mti1825VfList.empty() ? UBSE_OK : UBSE_ERROR;
+}
+
+UbseResult UbseNpuManagerApi::SendUnRegisterVfeRequest(std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
+                                                       bool &needRollback)
+{
+    UBSE_LOG_DEBUG << "Start Send UnRegister Vfe Request, infos size: " << devList.size();
+    UbseResult res = UBSE_ERROR;
+    if (devList.empty()) {
+        return res;
+    }
+    auto busi = devList[0]->GetBondingDevBusi();
+    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi[0]);
+    std::vector<UbseMtiIdevVfe> mtiVfeList = ConvertToUbseMtiIdevVfeList(devList);
+
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        std::vector<bool> resList;
+        res = UbseMtiUrma::UnRegDavidFeFromVmBusInstance(mtiBusi, mtiVfeList, resList);
+        if (res != UBSE_OK) {
+            UBSE_LOG_DEBUG << "SendMsg failed";
+            sleep(SLEEP_TIME);
+            continue;
+        }
+        mtiVfeList = UpdateFailedVfeList(mtiVfeList, resList);
+        if (mtiVfeList.empty()) {
+            UBSE_LOG_DEBUG << "Unregister Vfe from busi request success";
+            break;
+        }
+    }
+    needRollback = !mtiVfeList.empty() && mtiVfeList.size() != devList.size();
+    UBSE_LOG_DEBUG << "Finish Send UnRegister Request, " << FormatRetCode(res);
+    return mtiVfeList.empty() ? UBSE_OK : UBSE_ERROR;
+}
+
+UbseResult UbseNpuManagerApi::SendRegisterVfeRequest(
+    const std::shared_ptr<CollectionDeviceBusi> &busi,
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList, bool &needRollback)
+{
+    UBSE_LOG_DEBUG << "Start Send Vfe Register Request, infos size: " << devList.size();
+    UbseResult res = UBSE_ERROR;
+    std::vector<UbseMtiIdevVfe> mtiVfeList = ConvertToUbseMtiIdevVfeList(devList);
+    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
+
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        UBSE_LOG_DEBUG << "Send Register Vfe Request start, retry: " << i;
+        std::vector<bool> resList;
+        res = UbseMtiUrma::RegDavidFeToVmBusInstance(mtiBusi, mtiVfeList, resList);
+        if (res != UBSE_OK) {
+            UBSE_LOG_DEBUG << "Send Register Request failed";
+            sleep(SLEEP_TIME);
+            continue;
+        }
+        mtiVfeList = UpdateFailedVfeList(mtiVfeList, resList);
+        if (mtiVfeList.empty()) {
+            UBSE_LOG_DEBUG << "Register Vfe to busi request success";
+            break;
+        }
+    }
+    needRollback = !mtiVfeList.empty() && mtiVfeList.size() != devList.size();
+    UBSE_LOG_DEBUG << "Finish Send Register Request, " << FormatRetCode(res);
+    return mtiVfeList.empty() ? UBSE_OK : UBSE_ERROR;
+}
+
+UbseResult UbseNpuManagerApi::SendRegisterNicRequest(const std::shared_ptr<CollectionDeviceBusi> &busi,
+                                                     const std::vector<std::shared_ptr<CollectionDeviceNic>> &devList,
+                                                     bool &needRollback)
+{
+    UBSE_LOG_DEBUG << "Start Send Nic Register Request, infos size: " << devList.size();
+    UbseResult res = UBSE_ERROR;
+    std::vector<UbseMti1825Vf> mti1825VfList = ConvertToUbseMti1825Vf(devList);
+    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
+
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        UBSE_LOG_DEBUG << "Send Register Request Msg start, retry: " << i;
+        std::vector<bool> resList;
+        res = UbseMti1825::Reg1825FeToVmBusInstance(mtiBusi, mti1825VfList, resList);
+        if (res != UBSE_OK) {
+            UBSE_LOG_DEBUG << "Send Register Request failed";
+            sleep(SLEEP_TIME);
+            continue;
+        }
+        mti1825VfList = UpdateFailedNicList(mti1825VfList, resList);
+        if (mti1825VfList.empty()) {
+            UBSE_LOG_DEBUG << "Unregister Vfe from busi request success";
+            break;
+        }
+    }
+    needRollback = !mti1825VfList.empty() && mti1825VfList.size() != devList.size();
+    UBSE_LOG_DEBUG << "Finish Send Register Request, " << FormatRetCode(res);
+    return mti1825VfList.empty() ? UBSE_OK : UBSE_ERROR;
+}
+
+UbseResult UbseNpuManagerApi::SendUnbindRequest(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &unbindList)
+{
+    UBSE_LOG_DEBUG << "Send Unbind Request, unbindInfoList size: " << unbindList.size();
+
+    UbseResult res;
+    bool checkRes = false;
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        UBSE_LOG_DEBUG << "Send Unbind Request start, retry: " << i;
+        std::vector<bool> resList;
+        res = UbseMtiUrma::UnBindDavid(upi, unbindList, resList);
+        if (res != UBSE_OK) {
+            UBSE_LOG_DEBUG << "Send Unbind Request failed";
+            sleep(SLEEP_TIME);
+            continue;
+        }
+        if (checkRes = CheckResList(resList)) {
+            break;
+        }
+    }
+    if (res != UBSE_OK || checkRes != true) {
+        UBSE_LOG_ERROR << "Failed to unbind VFE and David";
+        return res;
+    }
+    UBSE_LOG_DEBUG << "Unbind VFE and David request success";
+    return res;
+}
+
+UbseResult UbseNpuManagerApi::SendBindRequest(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &bindList)
+{
+    UBSE_LOG_DEBUG << "Send Bind Request, bindInfoList size: " << bindList.size();
+
+    UbseResult res;
+    bool checkRes = false;
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        std::vector<bool> resList;
+        res = UbseMtiUrma::BindDavid(upi, bindList, resList);
+        if (res != UBSE_OK) {
+            UBSE_LOG_DEBUG << "Send bind Request failed";
+            sleep(SLEEP_TIME);
+            continue;
+        }
+        if (checkRes = CheckResList(resList)) {
+            break;
+        }
+    }
+    if (res != UBSE_OK || checkRes != true) {
+        UBSE_LOG_ERROR << "Failed to bind VFE and David";
+        return res;
+    }
+    UBSE_LOG_DEBUG << "Bind VFE and David request success";
+    return res;
+}
+
+void UbseNpuManagerApi::SetState(NpuManagerState stateX)
+{
+    state_ = stateX;
+    if (stateX == NpuManagerState::AVAILABLE) {
+        retryTime_ = COMMON_RETRY_TIME;
+    } else if (stateX == NpuManagerState::ROLLBACK) {
+        retryTime_ = ROLLBACK_RETRY_TIME;
+        RollBack();
+    } else if (stateX == NpuManagerState::RUNNING_ALLOC) {
+        while (!operationHistory_.empty()) {
+            operationHistory_.pop();
+        }
+        retryTime_ = COMMON_RETRY_TIME;
+    } else if (stateX == NpuManagerState::RUNNING_FREE) {
+        while (!futureProcedure_.empty()) {
+            futureProcedure_.pop();
+        }
+        retryTime_ = COMMON_RETRY_TIME;
+    } else if (stateX == NpuManagerState::ROLLBACK_BG) {
+        retryTime_ = COMMON_RETRY_TIME;
+    } else if (stateX == NpuManagerState::FREE_BG) {
+        retryTime_ = COMMON_RETRY_TIME;
+        ExecuteFreeQueueBackGround();
+    }
+}
+
+UbseNpuManagerApi::NpuManagerState UbseNpuManagerApi::GetState()
+{
+    return state_;
+}
+
+UbseResult ClearNic(std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList, std::string &newBusInstanceGuid)
+{
+    auto &manager = UbseNpuManagerApi::GetInstance();
+    auto &collection = ResourceCollection::GetInstance();
+    auto hostbusi = collection.GetDeviceHostBusInstance();
+    if (hostbusi == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get host bus instance";
+        return UBSE_ERROR;
+    }
+    CollectionDevId hostBusInstanceGuid = hostbusi->GetGuid();
+
+    // 调用LCNE接口，解除1825与host bus instance的注册关系
+    UbseResult ret = manager.UnRegisterDevFromBusi(nicList, hostBusInstanceGuid);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to unregister nics from host bus instance " << hostBusInstanceGuid;
+        return ret; // 如果解注册失败，返回错误码
+    }
+
+    // 调用LCNE接口，将1825注册到虚机bus instance上
+    ret = manager.RegisterDevToBusi(nicList, newBusInstanceGuid);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to register nics to vm bus instance " << newBusInstanceGuid;
+        return ret; // 如果注册失败，返回错误码
+    }
+}
+
+UbseResult CheckBusi(const std::shared_ptr<CollectionDeviceBusi> &busInstance)
+{
+    if (busInstance == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get bus instance by guid " << busInstance->GetGuid();
+        return UBSE_ERROR_INVAL;
+    }
+
+    if (busInstance->GetType() != CollectionDeviceType::VM_BUSINSTANCE) {
+        UBSE_LOG_ERROR << "Invalid bus instance type";
+        return UBSE_ERROR_INVAL;
+    }
+    return UBSE_OK;
+}
+
+std::vector<UbseMti1825Vf> UpdateFailedNicList(const std::vector<UbseMti1825Vf> &vfList, std::vector<bool> &resList)
+{
+    std::vector<UbseMti1825Vf> newNicList;
+    for (uint8_t i = 0; i < resList.size(); i++) {
+        if (!resList[i]) {
+            newNicList.push_back(vfList[i]);
+        }
+    }
+    return newNicList;
+}
+
+std::vector<UbseMtiIdevVfe> UpdateFailedVfeList(const std::vector<UbseMtiIdevVfe> &vfeList, std::vector<bool> &resList)
+{
+    std::vector<UbseMtiIdevVfe> newVfeList;
+    for (uint8_t i = 0; i < resList.size(); i++) {
+        if (!resList[i]) {
+            newVfeList.push_back(vfeList[i]);
+        }
+    }
+    return newVfeList;
+}
+
+bool CheckResList(std::vector<bool> &resList)
+{
+    for (uint8_t i = 0; i < resList.size(); i++) {
+        if (!resList[i]) {
+            UBSE_LOG_DEBUG << "Fail value found at index " << i;
+            return false;
+        }
+    }
+    return true;
+}
+
+UbseMtiIdevVfe ConvertToUbseMtiIdevVfe(std::shared_ptr<CollectionDeviceIdevVfe> &vfe)
+{
+    UbseMtiIdevVfe mtivfe;
+    if (vfe == nullptr) {
+        UBSE_LOG_DEBUG << "Vfe is nullptr";
+        return mtivfe;
+    }
+
+    if (vfe->GetParentPfe() == nullptr || vfe->GetParentPfe()->GetParentUbCtl() == nullptr) {
+        UBSE_LOG_DEBUG << "Can not find the ubController of vfe";
+        return mtivfe;
+    }
+    UbseMtiUbController mtiUbCtl;
+    auto ubCtlLoc = vfe->GetParentPfe()->GetParentUbCtl()->GetDeviceLoc();
+    mtiUbCtl.slotId = ubCtlLoc.slotId;
+    mtiUbCtl.chipId = ubCtlLoc.chipId;
+    mtiUbCtl.dieId = ubCtlLoc.dieId;
+
+    mtivfe.vfeId = vfe->GetDeviceLoc().vfId;
+    mtivfe.pfeId = vfe->GetDeviceLoc().pfId;
+    mtivfe.ubController = mtiUbCtl;
+
+    return mtivfe;
+}
+
+std::vector<UbseMtiIdevVfe> ConvertToUbseMtiIdevVfeList(
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &vfeList)
+{
+    std::vector<UbseMtiIdevVfe> result;
+    for (const auto &vfe : vfeList) {
+        if (vfe == nullptr) {
+            continue;
+        }
+        UbseMtiIdevVfe mtivfe = ConvertToUbseMtiIdevVfe(vfe);
+        result.push_back(mtivfe);
+    }
+    return result;
+}
+
+std::vector<UbseMti1825Vf> ConvertToUbseMti1825Vf(const std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList)
+{
+    std::vector<UbseMti1825Vf> result;
+    for (const auto &nic : nicList) {
+        if (nic == nullptr) {
+            continue;
+        }
+        const auto &devLoc = nic->GetDeviceLoc();
+        UbseMti1825Vf mti1825Vf;
+        mti1825Vf.slotId = devLoc.slotId;
+        mti1825Vf.chipId = devLoc.chipId;
+        mti1825Vf.dieId = devLoc.dieId;
+        mti1825Vf.pfId = devLoc.pfId;
+        mti1825Vf.vfId = devLoc.vfId;
+        result.push_back(mti1825Vf);
+    }
+    return result;
+}
+
+UbseMtiBusInst ConvertToUbseMtiBusi(const std::shared_ptr<CollectionDeviceBusi> &busInstance)
+{
+    UbseMtiBusInst mtiBushiInstance;
+    mtiBushiInstance.eid = busInstance->GetEid().content;
+    return mtiBushiInstance;
+}
+
+UbseMtiDavid ConvertToUbseMtiDavid(const std::shared_ptr<CollectionDeviceDavid> &davidDevice)
+{
+    CollectDeviceLoc loc = davidDevice->GetDeviceLoc();
+
+    UbseMtiDavid mtiDavid;
+    mtiDavid.slotId = loc.slotId;
+    mtiDavid.chipId = loc.chipId;
+    mtiDavid.channelId = 0xff; // 默认值
+
+    return mtiDavid;
+}
+} // namespace ubse::npu::controller

@@ -24,6 +24,10 @@ void StartCollect();
 UbseResult AllocDevicesImpl(const UbseAllocRequest &requestInfo, std::string &newBusInstanceGuid,
                             std::vector<std::shared_ptr<IResource>> &devList);
 
+UbseResult FreeUbDeviceImpl(const UbseAllocRequest &requestInfo);
+
+UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>> &devList);
+
 } // namespace ubse::npu::controller
 
 #endif // UBSE_NPU_MANAGER_API_H

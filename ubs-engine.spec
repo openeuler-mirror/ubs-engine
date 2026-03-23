@@ -360,6 +360,9 @@ ensure_directory_owner "%{socket_dir}" true
 chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data" "%{data_dir}/sync"
 chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
+if [ "$ENABLE_AI" = "true" ]; then
+ 	sed -i '/^Environment=SCENE_TYPE=/s/common/ai/' /usr/lib/systemd/system/ubse.service
+fi
 systemctl enable %{service_name}
 modify_udev_rule
 if [ "$MXE_SCENE" == "vm" ]; then
