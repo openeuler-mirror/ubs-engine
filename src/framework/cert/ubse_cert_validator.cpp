@@ -107,7 +107,7 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
     fclose(fp);
 
     if (!pkey) {
-        UBSE_LOG_ERROR << "Failed to parse " << name << " (wrong password?): " << keyPath;
+        UBSE_LOG_ERROR << "Failed to parse " << name << ". Please check your server key password."
         return nullptr;
     }
 
@@ -120,7 +120,7 @@ bool UbseSslValidator::VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const c
         return false;
     }
     if (X509_check_private_key(cert, pkey) != 1) {
-        UBSE_LOG_ERROR << certName << " and " << keyName << " do NOT match!";
+        UBSE_LOG_ERROR << certName << " and " << keyName << " do NOT match.";
         return false;
     }
     return true;
