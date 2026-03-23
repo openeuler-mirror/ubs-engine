@@ -8,7 +8,8 @@ if(ENABLE_UB)
     # 如果ENABLE_UB为true，包含所有源文件
     file(GLOB SOURCES "*.cpp" "*.h")
     file(GLOB SOURCESLCNE "${CMAKE_CURRENT_SOURCE_DIR}/lcne/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/lcne/*.h}")
-    list(APPEND SOURCES ${SOURCESLCNE})
+    file(GLOB SOURCE_OUT_OF_BAND "${CMAKE_CURRENT_SOURCE_DIR}/out_of_band/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/out_of_band/*.h}")
+    list(APPEND SOURCES ${SOURCESLCNE} ${SOURCE_OUT_OF_BAND})
 else()
     # 如果ENABLE_UB为false，只包含特定的源文件
     set(SOURCES ubse_mti_interface.cpp ubse_topology_interface.cpp)

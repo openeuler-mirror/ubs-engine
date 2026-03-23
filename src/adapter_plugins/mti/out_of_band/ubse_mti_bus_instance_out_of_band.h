@@ -10,16 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_MTI_BUS_INSTANCE_DEFAULT_IMPL_H
-#define UBSE_MTI_BUS_INSTANCE_DEFAULT_IMPL_H
+#ifndef UBSE_MTI_BUS_INSTANCE_OUT_OF_BAND_H
+#define UBSE_MTI_BUS_INSTANCE_OUT_OF_BAND_H
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 namespace ubse::mti::bus_instance {
-class UbseMtiBusInstanceDefaultImpl : public UbseMtiBusInstance {
-    UbseResult GetBusInstanceList(std::vector<UbseMtiBusInst> &busInstanceList);
+class UbseMtiBusInstanceOutOfBand : public UbseMtiBusInstance {
+    UbseResult GetBusInstanceList(std::vector<UbseMtiBusInst> &busInstanceList) override;
 
-    UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance);
+    UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance) override;
 
-    UbseResult DestroyVmBusInstance(const UbseMtiBusInst &busInstance);
+    UbseResult DestroyVmBusInstance(const UbseMtiBusInst &busInstance) override;
 };
 } // namespace ubse::mti::bus_instance
-#endif // UBSE_MTI_BUS_INSTANCE_DEFAULT_IMPL_H
+#endif // UBSE_MTI_BUS_INSTANCE_OUT_OF_BAND_H

@@ -9,10 +9,10 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_mti_bus_instance_default_impl.h"
+#include "ubse_mti_bus_instance_out_of_band.h"
 #include <regex>
-#include "./ctrl_q/protocol/ubse_ctrl_q_businstance_opt_proxy.h"
-#include "./ctrl_q/ubse_ictrl_q_req_msg.h"
+#include "../ctrl_q/protocol/ubse_ctrl_q_businstance_opt_proxy.h"
+#include "../ctrl_q/ubse_ictrl_q_req_msg.h"
 #include "securec.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -162,12 +162,12 @@ UbseResult GetBusInstanceFromLsub(std::vector<UbseMtiBusInst> &busInstanceList)
     return UBSE_OK;
 }
 
-UbseResult UbseMtiBusInstanceDefaultImpl::GetBusInstanceList(std::vector<UbseMtiBusInst> &busInstanceList)
+UbseResult UbseMtiBusInstanceOutOfBand::GetBusInstanceList(std::vector<UbseMtiBusInst> &busInstanceList)
 {
     return GetBusInstanceFromLsub(busInstanceList);
 }
 
-UbseResult UbseMtiBusInstanceDefaultImpl::CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance)
+UbseResult UbseMtiBusInstanceOutOfBand::CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance)
 {
     UbseCtrlQCreateBusInstanceReqMsg reqMsg(upi, DEFAULT_VENDOR);
     UbseCtrlQCreateBusInstanceProxy proxy;
@@ -180,7 +180,7 @@ UbseResult UbseMtiBusInstanceDefaultImpl::CreateVmBusInstance(uint16_t upi, Ubse
     return UBSE_OK;
 }
 
-UbseResult UbseMtiBusInstanceDefaultImpl::DestroyVmBusInstance(const UbseMtiBusInst &busInstance)
+UbseResult UbseMtiBusInstanceOutOfBand::DestroyVmBusInstance(const UbseMtiBusInst &busInstance)
 {
     UbseCtrlQDestroyBusInstanceReqMsg reqMsg(busInstance);
     UbseCtrlQDestroyBusInstanceProxy proxy;
