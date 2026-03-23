@@ -107,7 +107,7 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
     fclose(fp);
 
     if (!pkey) {
-        UBSE_LOG_ERROR << "Failed to parse " << name << ". Please check your server key password."
+        UBSE_LOG_ERROR << "Failed to parse " << name << ". Please check your server key password.";
         return nullptr;
     }
 
