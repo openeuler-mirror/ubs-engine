@@ -178,8 +178,8 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
     GetUBEnable(ubEnable);
     const uint16_t port = TCP_LISTEN_PORT;
     std::unique_lock<std::shared_mutex> lock(mtx_);
-    currentAllNodes_.clear();
     if (ubEnable) {
+        currentAllNodes_.clear();
         std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
         if (ubseNodeInfos.empty()) {
             UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
