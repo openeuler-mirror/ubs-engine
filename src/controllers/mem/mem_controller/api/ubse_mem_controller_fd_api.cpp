@@ -532,6 +532,9 @@ UbseResult AgentSendFdImportObj(const std::shared_ptr<UbseComModule> &comModule,
         }
         sendParam.SetRemoteId(masterId);
         ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+        if (ret == UBSE_OK) {
+            break;
+        }
         UBSE_LOG_ERROR << "Send to importObj, name=" << importObj.req.name
                        << ", requestNodeId=" << importObj.req.requestNodeId << ", requestId=" << importObj.req.requestId
                        << ", masterNodeId=" << sendParam.GetRemoteId() << " failed, " << FormatRetCode(ret);
