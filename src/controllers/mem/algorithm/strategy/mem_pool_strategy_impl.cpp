@@ -126,6 +126,7 @@ BResult MemPoolStrategyImpl::MemoryShare(const ShareRequest &shareRequest, const
 BResult MemPoolStrategyImpl::InitDebtInfo(const UbseStatus &ubseStatus)
 {
     mDebtDetail_ = ubseStatus.debtDetail;
+    memSysStatus_.debtInfo.lenderNumaToBorrowNode.clear();
     // 基于debtDetail统计每一对节点之间的借用内存量, 存储与mSysStatus中
     for (auto &row : memSysStatus_.debtInfo.debtSize) {
         for (int &item : row) {
@@ -137,7 +138,9 @@ BResult MemPoolStrategyImpl::InitDebtInfo(const UbseStatus &ubseStatus)
         for (auto &item : mDebtDetail_.numaDebts[i]) {
             const MemLoc &lender = mConfig_->memStaticParam.availNumas[item.first];
             memSysStatus_.debtInfo.debtSize[borrower.hostId][lender.hostId] += static_cast<int>(item.second / MB_TO_B);
-            memSysStatus_.debtInfo.lenderNumaToBorrowNode[lender].insert(borrower.hostId);
+            if (item.second != 0) {
+                memSysStatus_.debtInfo.lenderNumaToBorrowNode[lender].insert(borrower.hostId);
+            }
         }
     }
     return UBSE_OK;
@@ -287,12 +290,17 @@ void FillTmpSocket(uint32_t index, TargetSocket numaList, int32_t &lentSize, std
     }
 }
 
-void SplitNumaWithVector(const std::vector<uint32_t> &numaVector, TargetSocket numaList, int32_t &lentSize,
-                         std::unordered_set<uint32_t> &lentNumas, TargetSocket &tmpSocket)
+void MemPoolStrategyImpl::SplitNumaWithVector(const std::vector<uint32_t> &numaVector, TargetSocket numaList,
+                                              int32_t &lentSize, std::unordered_set<uint32_t> &lentNumas,
+                                              TargetSocket &tmpSocket)
 {
+    auto unitMem = static_cast<uint64_t>(mConfig_->memStaticParam.unitMemSize);
     for (const auto &index : numaVector) {
         if (lentSize == 0) {
             break;
+        }
+        if (numaList.resSizes[index] < unitMem) {
+            continue;
         }
         FillTmpSocket(index, numaList, lentSize, lentNumas, tmpSocket);
     }
