@@ -57,8 +57,8 @@ UbseResult UbseHttpModule::Initialize()
     } else {
         isTcpServer = true;
         if (!UbseNetUtil::IsPortVaLid(port_)) {
-            UBSE_LOG_ERROR << "Tcp server port=" << port_
-                           << " is invalid, will use default value: " << DEFAULT_UBM_SERVER_PORT;
+            UBSE_LOG_ERROR << "ubse.server.port=" << port_
+                           << " is out of range[1024, 65535], will use default value: " << DEFAULT_UBM_SERVER_PORT;
             port = DEFAULT_UBM_SERVER_PORT;
         } else {
             // 端口号有效，使用配置文件中的端口号

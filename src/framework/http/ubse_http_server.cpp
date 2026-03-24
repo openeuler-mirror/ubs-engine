@@ -233,8 +233,8 @@ void UbseHttpServer::GetTcpServerPort(uint32_t &port)
                        << DEFAULT_TCP_SERVER_PORT;
     }
     if (!UbseNetUtil::IsPortVaLid(port)) {
-        UBSE_LOG_ERROR << "Tcp server port=" << port
-                       << " is invalid, will use default value: " << DEFAULT_TCP_SERVER_PORT;
+        UBSE_LOG_ERROR << "ubse.server.port=" << port
+                       << " is out of range[1024, 65535], will use default value: " << DEFAULT_TCP_SERVER_PORT;
         port = DEFAULT_TCP_SERVER_PORT;
     }
 }
