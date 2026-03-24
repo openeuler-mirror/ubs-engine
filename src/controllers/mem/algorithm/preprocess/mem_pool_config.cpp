@@ -78,7 +78,7 @@ bool MemPoolConfig::IsHostMeshLocValid() const
     return true;
 }
 
-BResult MemPoolConfig::RefreshNumaDelays()
+void MemPoolConfig::RefreshNumaDelays()
 {
     const int32_t latBase = 100;  /* 本地numa访问内地内存的基础时延 */
     const int32_t latNuma = 20;   /* 同一个socket内跨numa所增加的时延 */
@@ -137,8 +137,6 @@ BResult MemPoolConfig::RefreshNumaDelays()
             }
         }
     }
-
-    return UBSE_OK;
 }
 
 bool MemPoolConfig::CheckFullConnectivity() const
