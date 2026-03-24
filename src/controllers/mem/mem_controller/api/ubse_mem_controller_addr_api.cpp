@@ -108,7 +108,8 @@ UbseResult AgentSendAddrExportObj(const std::shared_ptr<UbseComModule> &comModul
     return ret;
 }
 
-UbseResult SendAddrExportObj(const UbseMemAddrBorrowExportObj &exportObj, const bool isMaster, const std::string &nodeId = "")
+UbseResult SendAddrExportObj(const UbseMemAddrBorrowExportObj &exportObj, const bool isMaster, 
+                             const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -455,7 +456,7 @@ uint32_t AddrExportMasterCallback(const std::string &exportNodeId, UbseMemAddrBo
     mapLock.LockRead();
     if (nodeMemDebtInfoMap.find(importNodeId) != nodeMemDebtInfoMap.end() &&
         nodeMemDebtInfoMap[importNodeId].addrImportObjMap.find(name) !=
-            nodeMemDebtInfoMap[importNodeId].addrImportObjMap.end()) {
+        nodeMemDebtInfoMap[importNodeId].addrImportObjMap.end()) {
         importObj = nodeMemDebtInfoMap[importNodeId].addrImportObjMap[name];
     } else {
         UBSE_LOG_ERROR << "Failed to find import obj, name is " << name;

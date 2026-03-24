@@ -786,7 +786,7 @@ void ShareExportFillResp(UbseMemOperationResp &resp, const UbseMemShareBorrowExp
 }
 
 uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemShareBorrowExportObj &exportObj,
-                                         const std::string &name, const std::string &requestNodeId, 
+                                         const std::string &name, const std::string &requestNodeId,
                                          const std::string &exportNodeId)
 {
     UBSE_LOG_INFO << "Share export running agent callback. name is " << name

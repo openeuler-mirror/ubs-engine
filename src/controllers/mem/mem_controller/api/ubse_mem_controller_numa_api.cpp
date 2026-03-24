@@ -218,7 +218,8 @@ UbseResult AgentSendNumaExportObj(const std::shared_ptr<UbseComModule> &comModul
     return ret;
 }
 
-UbseResult SendNumaExportObj(const UbseMemNumaBorrowExportObj &exportObj, const bool isMaster, const std::string &nodeId = "")
+UbseResult SendNumaExportObj(const UbseMemNumaBorrowExportObj &exportObj, const bool isMaster, 
+                             const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -447,7 +448,7 @@ uint32_t SendNumaExport(UbseMemNumaBorrowExportObj &exportObj, const std::string
 }
 
 uint32_t NumaExportRunningCallback(UbseMemOperationResp &resp, UbseMemNumaBorrowExportObj &exportObj,
-                                   const std::string &name, const std::string &exportNodeId, 
+                                   const std::string &name, const std::string &exportNodeId,
                                    const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Numa export running callback. name is " << name << ";requestId: " << exportObj.req.requestId;
@@ -497,7 +498,7 @@ uint32_t NumaExportRunningCallback(UbseMemOperationResp &resp, UbseMemNumaBorrow
 }
 
 uint32_t NumaExportDestroyingCallback(UbseMemOperationResp &resp, UbseMemNumaBorrowExportObj &exportObj,
-                                      const std::string &name, const std::string &exportNodeId, 
+                                      const std::string &name, const std::string &exportNodeId,
                                       const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Numa export destroying callback. name is " << name << ";requestId: " << exportObj.req.requestId;
@@ -531,7 +532,8 @@ uint32_t NumaExportDestroyingCallback(UbseMemOperationResp &resp, UbseMemNumaBor
     return SendNumaExport(exportObj, name, exportNodeId, true);
 }
 
-uint32_t NumaExportAgentCallback(const std::string &exportNodeId, UbseMemNumaBorrowExportObj &exportObj, const std::string &name)
+uint32_t NumaExportAgentCallback(const std::string &exportNodeId, UbseMemNumaBorrowExportObj &exportObj,
+                                 const std::string &name)
 {
     UBSE_LOG_INFO << "Numa export agent callback. name=" << name << ", state=" << exportObj.status.state
                   << ";requestId: " << exportObj.req.requestId;
@@ -594,7 +596,8 @@ UbseResult AgentSendNumaImportObj(const std::shared_ptr<UbseComModule> &comModul
     return ret;
 }
 
-UbseResult SendNumaImportObj(const UbseMemNumaBorrowImportObj &importObj, const bool isMaster, const std::string &nodeId = "")
+UbseResult SendNumaImportObj(const UbseMemNumaBorrowImportObj &importObj, const bool isMaster,
+                             const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -835,7 +838,7 @@ uint32_t NumaImportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemNumaB
         auto nowObj = nodeMemDebtInfoMap[importObj.req.importNodeId].numaImportObjMap[importObj.req.name];
         if (nowObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
             mapLock.UnLock();
-            return SendNumaImport(nowObj, name,requestNodeId, false);
+            return SendNumaImport(nowObj, name, requestNodeId, false);
         }
     }
     mapLock.UnLock();
