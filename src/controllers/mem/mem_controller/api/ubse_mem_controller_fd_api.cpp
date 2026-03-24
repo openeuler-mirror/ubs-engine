@@ -1198,8 +1198,8 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
     // 查找导入/导出借用对象
     FindBorrowObjByName<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>(
         req.name, req.importNodeId, result.importObj, result.exportObj, result.hasImport, result.hasExport,
-        [](const NodeMemDebtInfo &info) -> const UbseMemFdImportObjMap & { return info.fdImportObjMap; },
-        [](const NodeMemDebtInfo &info) -> const UbseMemFdExportObjMap & { return info.fdExportObjMap; });
+        [](const NodeMemDebtInfo &info) -> const UbseMemFdImportObjMap& { return info.fdImportObjMap; },
+        [](const NodeMemDebtInfo &info) -> const UbseMemFdExportObjMap& { return info.fdExportObjMap; });
     if (!result.hasImport && !result.hasExport) {
         return ReturnFailed(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
     }
