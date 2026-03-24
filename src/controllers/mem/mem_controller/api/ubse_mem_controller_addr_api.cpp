@@ -108,7 +108,7 @@ UbseResult AgentSendAddrExportObj(const std::shared_ptr<UbseComModule> &comModul
     return ret;
 }
 
-UbseResult SendAddrExportObj(const UbseMemAddrBorrowExportObj &exportObj, const bool isMaster, 
+UbseResult SendAddrExportObj(const UbseMemAddrBorrowExportObj &exportObj, const bool isMaster,
                              const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();

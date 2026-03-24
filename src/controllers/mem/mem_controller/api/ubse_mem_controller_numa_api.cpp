@@ -218,7 +218,7 @@ UbseResult AgentSendNumaExportObj(const std::shared_ptr<UbseComModule> &comModul
     return ret;
 }
 
-UbseResult SendNumaExportObj(const UbseMemNumaBorrowExportObj &exportObj, const bool isMaster, 
+UbseResult SendNumaExportObj(const UbseMemNumaBorrowExportObj &exportObj, const bool isMaster,
                              const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
