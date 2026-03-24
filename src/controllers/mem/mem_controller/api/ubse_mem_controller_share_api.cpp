@@ -134,28 +134,33 @@ UbseResult AgentSendShareExportObj(const std::shared_ptr<UbseComModule> &comModu
                                    const UbseMemShareBorrowExportObj &exportObj)
 {
     const uint32_t maxRetryTimes = GetWaitTimeOut() / SEND_RETRY_DURATION;
-    auto ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+    auto ret = UBSE_ERROR;
     uint32_t retryCount = 0;
     while (ret != UBSE_OK && retryCount < maxRetryTimes) {
+        std::string masterId{};
+        ret = UbseGetMasterNodeId(masterId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Get master nodeId failed, " << FormatRetCode(ret);
+            retryCount++;
+            sleep(SEND_RETRY_DURATION);
+            continue;
+        }
+        sendParam.SetRemoteId(masterId);
+        ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+        if (ret == UBSE_OK) {
+            break;
+        }
         UBSE_LOG_ERROR << "Send to exportObj, name=" << exportObj.req.name
                        << ", requestNodeId=" << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId
                        << ", masterNodeId=" << sendParam.GetRemoteId() << " failed, " << FormatRetCode(ret);
         retryCount++;
         sleep(SEND_RETRY_DURATION);
-        std::string masterId{};
-        ret = UbseGetMasterNodeId(masterId);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Get master nodeId failed, " << FormatRetCode(ret);
-            continue;
-        }
-        sendParam.SetRemoteId(masterId);
-        ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
     }
     return ret;
 }
 
-UbseResult SendShareExportObj(const std::string &nodeId, const UbseMemShareBorrowExportObj &exportObj,
-                              const bool isMaster)
+UbseResult SendShareExportObj(const UbseMemShareBorrowExportObj &exportObj, const bool isMaster,
+                              const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -290,7 +295,7 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationRe
     exportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     exportObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
     RegisterExportObjectDebtInfo(exportObj, name);
-    ret = SendShareExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, exportObj, true);
+    ret = SendShareExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
     if (ret != UBSE_OK) {
         return HandleSendExportError(resp, req, exportObj);
     }
@@ -438,31 +443,36 @@ void ConstructShareImportObj(UbseMemShareBorrowImportObj &importObj, const UbseM
 
 UbseResult AgentSendShareImportObj(const std::shared_ptr<UbseComModule> &comModule, SendParam &sendParam,
                                    UbseMemShareBorrowImportobjSimpoPtr &ptr, UbseBaseMessagePtr &ubseResponsePtr,
-                                   const UbseMemShareBorrowImportObj &exportObj)
+                                   const UbseMemShareBorrowImportObj &importObj)
 {
     const uint32_t maxRetryTimes = GetWaitTimeOut() / SEND_RETRY_DURATION;
-    auto ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+    auto ret = UBSE_ERROR;
     uint32_t retryCount = 0;
     while (ret != UBSE_OK && retryCount < maxRetryTimes) {
-        UBSE_LOG_ERROR << "Send to importObj, name=" << exportObj.req.name
-                       << ", requestNodeId=" << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId
-                       << ", masterNodeId=" << sendParam.GetRemoteId() << " failed, " << FormatRetCode(ret);
-        retryCount++;
-        sleep(SEND_RETRY_DURATION);
         std::string masterId{};
         ret = UbseGetMasterNodeId(masterId);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Get master nodeId failed, " << FormatRetCode(ret);
+            retryCount++;
+            sleep(SEND_RETRY_DURATION);
             continue;
         }
         sendParam.SetRemoteId(masterId);
         ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
+        if (ret == UBSE_OK) {
+            break;
+        }
+        UBSE_LOG_ERROR << "Send to importObj, name=" << importObj.req.name
+                       << ", requestNodeId=" << importObj.req.requestNodeId << ", requestId=" << importObj.req.requestId
+                       << ", masterNodeId=" << sendParam.GetRemoteId() << " failed, " << FormatRetCode(ret);
+        retryCount++;
+        sleep(SEND_RETRY_DURATION);
     }
     return ret;
 }
 
-UbseResult SendShareImportObj(const std::string &nodeId, const UbseMemShareBorrowImportObj &importObj,
-                              const bool isMaster)
+UbseResult SendShareImportObj(const UbseMemShareBorrowImportObj &importObj, const bool isMaster,
+                              const std::string &nodeId = "")
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
@@ -659,7 +669,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     UBSE_LOG_INFO << "import size: " << importObj.req.size << ";requestId: " << req.requestId;
     ConstructShareImportObj(importObj, req);
     UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
-    if (auto ret = SendShareImportObj(req.importNodeId, importObj, true); ret != UBSE_OK) {
+    if (auto ret = SendShareImportObj(importObj, true, req.importNodeId); ret != UBSE_OK) {
         mapLock.LockWrite();
         nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap.erase(req.name);
         mapLock.UnLock();
@@ -714,7 +724,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     //  下发importObj;
-    if (SendShareImportObj(req.unImportNodeId, importObj, true) != UBSE_OK) {
+    if (SendShareImportObj(importObj, true, req.unImportNodeId) != UBSE_OK) {
         importObj.status.expectState = UBSE_MEM_IMPORT_SUCCESS;
         ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to Send import",
@@ -776,8 +786,8 @@ void ShareExportFillResp(UbseMemOperationResp &resp, const UbseMemShareBorrowExp
 }
 
 uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemShareBorrowExportObj &exportObj,
-                                         const std::string &masterNodeId, const std::string &name,
-                                         const std::string &requestNodeId, const std::string &exportNodeId)
+                                         const std::string &name, const std::string &requestNodeId,
+                                         const std::string &exportNodeId)
 {
     UBSE_LOG_INFO << "Share export running agent callback. name is " << name
                   << ";requestId: " << exportObj.req.requestId;
@@ -788,7 +798,7 @@ uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemShar
         auto nowObj = nodeMemDebtInfoMap[curNode].shareExportObjMap[exportObj.req.name];
         if (nowObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
             mapLock.UnLock();
-            return SendShareExportObj(masterNodeId, nowObj, false);
+            return SendShareExportObj(nowObj, false);
         }
     }
     mapLock.UnLock();
@@ -799,7 +809,7 @@ uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemShar
         exportObj.errorCode = ret;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
         EraseShareExport(exportObj);
-        return SendShareExportObj(masterNodeId, exportObj, false);
+        return SendShareExportObj(exportObj, false);
     }
     UBSE_LOG_INFO << "Success to export share, name is " << name << ";requestId: " << exportObj.req.requestId;
     UBSE_AUDIT_RUNTIME_ALLOC << name << " on Node: " << exportNodeId << " ShareMemory Export"
@@ -815,17 +825,17 @@ uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemShar
             EraseShareExport(exportObj);
             exportObj.errorCode = ret;
             exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
-            return SendShareExportObj(masterNodeId, exportObj, false);
+            return SendShareExportObj(exportObj, false);
         }
     }
     exportObj.req.trustRingData.ClearReqSignedDataMemory();
     ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
-    return SendShareExportObj(masterNodeId, exportObj, false);
+    return SendShareExportObj(exportObj, false);
 }
 
 uint32_t ShareExportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemShareBorrowExportObj &exportObj,
-                                            const std::string &masterNodeId, const std::string &name,
-                                            const std::string &requestNodeId, const std::string &exportNodeId)
+                                            const std::string &name, const std::string &requestNodeId,
+                                            const std::string &exportNodeId)
 {
     UBSE_LOG_INFO << "Share export Destroying agent callback. name is " << name
                   << ";requestId: " << exportObj.req.requestId;
@@ -836,25 +846,25 @@ uint32_t ShareExportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemS
     mapLock.UnLock();
     if (directReply) {
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
-        return SendShareExportObj(masterNodeId, exportObj, false);
+        return SendShareExportObj(exportObj, false);
     }
     ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_DESTROYING);
     if (auto ret = UbseMmiInterface::GetInstance().ShmUnExportExecutor(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Success to unexport, name is " << name << ";requestId: " << exportObj.req.requestId;
         exportObj.errorCode = ret;
         ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
-        return SendShareExportObj(masterNodeId, exportObj, false);
+        return SendShareExportObj(exportObj, false);
     }
     UBSE_LOG_INFO << "Success to unexport share, name is " << name << ";requestId: " << exportObj.req.requestId;
     UBSE_AUDIT_RUNTIME_DEALLOC << name << " on Node: " << exportNodeId << " ShareMemory UnExport "
                                << std::to_string(exportObj.req.size) << " Bytes Success";
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     EraseShareExport(exportObj);
-    return SendShareExportObj(masterNodeId, exportObj, false);
+    return SendShareExportObj(exportObj, false);
 }
 
 uint32_t ShareExportAgentCallback(const std::string &exportNodeId, UbseMemShareBorrowExportObj &exportObj,
-                                  const std::string &name, const std::string &masterNodeId)
+                                  const std::string &name)
 {
     UBSE_LOG_INFO << "Share export agent callback name=" << name << ", state=" << exportObj.status.state
                   << ";requestId: " << exportObj.req.requestId;
@@ -863,9 +873,9 @@ uint32_t ShareExportAgentCallback(const std::string &exportNodeId, UbseMemShareB
         .name = exportObj.req.name, .requestNodeId = exportObj.req.requestNodeId, .requestId = exportObj.req.requestId};
     auto requestNodeId = exportObj.req.requestNodeId;
     if (exportObj.status.state == UBSE_MEM_EXPORT_RUNNING) {
-        return ShareExportRunningAgentCallback(resp, exportObj, masterNodeId, name, requestNodeId, exportNodeId);
+        return ShareExportRunningAgentCallback(resp, exportObj, name, requestNodeId, exportNodeId);
     }
-    return ShareExportDestroyingAgentCallback(resp, exportObj, masterNodeId, name, requestNodeId, exportNodeId);
+    return ShareExportDestroyingAgentCallback(resp, exportObj, name, requestNodeId, exportNodeId);
 }
 
 uint32_t ShareExportMasterCallback(const std::string &exportNodeId, UbseMemShareBorrowExportObj &exportObj)
@@ -940,7 +950,7 @@ uint32_t UbseMemShareBorrowExportObjCallback(const UbseMemShareBorrowExportObj &
 
     if (exportNodeId == currentNodeInfo.nodeId &&
         (exportObj.status.state == UBSE_MEM_EXPORT_RUNNING || exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING)) {
-        return ShareExportAgentCallback(exportNodeId, copy, name, masterInfo.nodeId);
+        return ShareExportAgentCallback(exportNodeId, copy, name);
     }
     return ShareExportMasterCallback(exportNodeId, copy);
 }
@@ -988,8 +998,7 @@ uint32_t RealImportDecoder(const std::pair<uint32_t, uint32_t> &chipDiePair, Ubs
 }
 
 uint32_t ShareImportRunningHandler(UbseMemOperationResp &resp, UbseMemShareBorrowImportObj &importObj,
-                                   const std::string &masterNodeId, const std::string &name,
-                                   const std::string &requestNodeId)
+                                   const std::string &name, const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "ShareImportRunningAgent callback. name is " << name << ";requestId: " << importObj.req.requestId;
     mapLock.LockRead();
@@ -1035,8 +1044,7 @@ uint32_t ShareImportRunningHandler(UbseMemOperationResp &resp, UbseMemShareBorro
 }
 
 uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp &resp, UbseMemShareBorrowImportObj &importObj,
-                                         const std::string &masterNodeId, const std::string &name,
-                                         const std::string &requestNodeId)
+                                         const std::string &name, const std::string &requestNodeId)
 {
     mapLock.LockRead();
     if (nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap.find(importObj.req.name) !=
@@ -1044,22 +1052,22 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp &resp, UbseMemShar
         auto nowObj = nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name];
         if (nowObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
             mapLock.UnLock();
-            return SendShareImportObj(masterNodeId, nowObj, false);
+            return SendShareImportObj(nowObj, false);
         }
     }
     mapLock.UnLock();
-    auto res = ShareImportRunningHandler(resp, importObj, masterNodeId, name, requestNodeId);
+    auto res = ShareImportRunningHandler(resp, importObj, name, requestNodeId);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
     } else {
         ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
     }
-    return SendShareImportObj(masterNodeId, importObj, false);
+    return SendShareImportObj(importObj, false);
 }
 
 uint32_t ShareImportDestroyingHandler(UbseMemOperationResp &resp, UbseMemShareBorrowImportObj &importObj,
-                                      const std::string &name, const std::string &masterNodeId,
+                                      const std::string &name,
                                       const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Share import destroying agent callback. name is " << name
@@ -1098,10 +1106,9 @@ uint32_t ShareImportDestroyingHandler(UbseMemOperationResp &resp, UbseMemShareBo
 }
 
 uint32_t ShareImportDestroyingAgentCallBack(UbseMemOperationResp &resp, UbseMemShareBorrowImportObj &importObj,
-                                            const std::string &name, const std::string &masterNodeId,
-                                            const std::string &requestNodeId)
+                                            const std::string &name, const std::string &requestNodeId)
 {
-    auto res = ShareImportDestroyingHandler(resp, importObj, name, masterNodeId, requestNodeId);
+    auto res = ShareImportDestroyingHandler(resp, importObj, name, requestNodeId);
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
@@ -1111,10 +1118,10 @@ uint32_t ShareImportDestroyingAgentCallBack(UbseMemOperationResp &resp, UbseMemS
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
         EraseShareImport(importObj);
     }
-    return SendShareImportObj(masterNodeId, importObj, false);
+    return SendShareImportObj(importObj, false);
 }
 
-uint32_t ShareImportAgentCallBack(UbseMemShareBorrowImportObj &importObj, const std::string &masterNodeId,
+uint32_t ShareImportAgentCallBack(UbseMemShareBorrowImportObj &importObj,
                                   const std::string &name, const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Share import agent callback. name=" << name << ", state=" << importObj.status.state
@@ -1123,10 +1130,10 @@ uint32_t ShareImportAgentCallBack(UbseMemShareBorrowImportObj &importObj, const 
     UbseMemOperationResp resp{
         .name = importObj.req.name, .requestNodeId = importObj.req.requestNodeId, .requestId = importObj.req.requestId};
     if (importObj.status.state == UBSE_MEM_IMPORT_RUNNING) {
-        return ShareImportRunningAgentCallBack(resp, importObj, masterNodeId, name, requestNodeId);
+        return ShareImportRunningAgentCallBack(resp, importObj, name, requestNodeId);
     }
     // 如果Agent侧不存在或DESTROYED，则直接返回已销毁.
-    return ShareImportDestroyingAgentCallBack(resp, importObj, name, masterNodeId, requestNodeId);
+    return ShareImportDestroyingAgentCallBack(resp, importObj, name, requestNodeId);
 }
 
 uint32_t ShareImportMasterCallBack(UbseMemShareBorrowImportObj &importObj)
@@ -1168,19 +1175,13 @@ uint32_t UbseMemShareBorrowImportObjCallback(const UbseMemShareBorrowImportObj &
 {
     UbseRoleInfo currentNodeInfo{};
     UbseGetCurrentNodeInfo(currentNodeInfo);
-    UbseRoleInfo masterInfo{};
-    auto ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Failed to get master's info, " << FormatRetCode(ret);
-        return ret;
-    }
 
     auto importNodeId = importObj.importNodeId;
     auto name = importObj.req.name;
     auto copy = importObj;
     if (importNodeId == currentNodeInfo.nodeId &&
         (importObj.status.state == UBSE_MEM_IMPORT_RUNNING || importObj.status.state == UBSE_MEM_IMPORT_DESTROYING)) {
-        return ShareImportAgentCallBack(copy, masterInfo.nodeId, name, importNodeId);
+        return ShareImportAgentCallBack(copy, name, importNodeId);
     }
 
     return ShareImportMasterCallBack(copy);
@@ -1247,7 +1248,7 @@ uint32_t UbseMemShareReturn(const UbseMemReturnReq &req, UbseMemOperationResp &r
     exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     exportObj.returnReq = req;
     ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_DESTROYING);
-    if (SendShareExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, exportObj, true) != UBSE_OK) {
+    if (SendShareExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId) != UBSE_OK) {
         return DealSendShareUnExportObjFailed(exportObj, req, resp, req.name);
     }
     return UBSE_OK;
@@ -1317,6 +1318,7 @@ uint32_t DeleteShareExport(const UbseMemShareBorrowExportObj &exportObj)
     }
     UBSE_LOG_INFO << "Force delete. name=" << copy.req.name;
     ShareExportUpdateState(copy, UBSE_MEM_EXPORT_DESTROYING);
-    return SendShareExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, copy, true);
+    return SendShareExportObj(copy, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
 }
 } // namespace ubse::mem::controller
+ 
