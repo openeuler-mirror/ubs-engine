@@ -176,7 +176,7 @@ struct StrategyParam {
     /* 含义: 是否填写numaLatencies. true表示填写numaLatencies, 认为所有host全连接; false表示填写hostMeshLocs, 自动计算时延 */
     /* 配置建议: 1630代际必须配置为true, 填写numaLatencies; 1650代际建议配置为false, 填写hostMeshLocs, 自动计算链路时延信息 */
     bool enableCustomLatencies{true};
-    std::array<std::set<int16_t>, tc::rs::mem::NUM_HOSTS> neighborNodes;
+    std::array<std::set<int16_t>, tc::rs::mem::NUM_HOSTS> neighborNodes;  /* 每个节点的邻居节点的index集合 */
     MeshLoc hostMeshLocs
         [NUM_HOSTS]{}; /* 1650代际host拓扑坐标, 数组下标表示hostId: x表示host所在列编号, y表示host所在行编号 */
     /* 每两个numa之间的访存时延，index与availNumas一致 */
