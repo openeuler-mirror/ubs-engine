@@ -597,6 +597,7 @@ uint32_t CheckAddrBorrowMode(UbseMemAddrBorrowReq &req, UbseMemOperationResp &re
                        << req.wrDelayComp;
         return UBSE_ERROR;
     }
+    return UBSE_OK;
 }
 
 uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp)

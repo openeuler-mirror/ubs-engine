@@ -500,24 +500,13 @@ UbseResult RmObmmDevRead::GetCustomMeta(const std::string &path,
 UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
 {
     auto filePath = "/sys/devices/obmm/obmm_shmdev" + std::to_string(memid) + "/export_info/node_mem_size";
-    // 打开文件
-    std::ifstream file(filePath);
-    if (!file.is_open()) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to open file, path is " << filePath;
-        return UBSE_ERROR_INVAL;
-    }
-
     std::string line;
-    int index = 0; // 记录当前值的索引
-
-    // 读取文件的第一行
-    std::istream &res = std::getline(file, line);
-    if (!res) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "File is empty or failed to read the first line";
-        file.close();
-        return UBSE_ERROR_INVAL;
+    auto ret = RmCommonUtils::GetFileFirstLine(filePath, line);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get node_mem_size from obmm meta. path" << filePath;
+        return ret;
     }
-
+    int index = 0; // 记录当前值的索引
     std::istringstream iss(line); // 将行内容放入字符串流中
     std::string token;
     bool isNonZero = false;
@@ -537,7 +526,6 @@ UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
         }
     }
 
-    file.close();
     if (!isNonZero) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get numa failed. memid=" << memid;
         return UBSE_ERROR_INVAL;
