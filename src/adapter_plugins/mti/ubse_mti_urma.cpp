@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "adapter_plugins/mti/ubse_mti_urma.h"
-#include "ubse_mti_urma_default_impl.h"
+#include "./out_of_band/ubse_mti_urma_out_of_band.h"
 namespace ubse::mti::urma {
 
 UbseMtiIdevVfe::UbseMtiIdevVfe(const UbseMtiUbController &ubController, uint8_t pfeId, uint8_t vfeId)
@@ -71,7 +71,7 @@ std::size_t UbseMtiDavidHash::operator()(const UbseMtiDavid &d) const noexcept
 
 UbseMtiUrma &UbseMtiUrma::GetInstance()
 {
-    static UbseMtiUrmaDefaultImpl instance;
+    static UbseMtiUrmaOutOfBand instance;
     return instance;
 }
 

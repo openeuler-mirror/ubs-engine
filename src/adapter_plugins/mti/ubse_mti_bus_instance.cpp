@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
-#include "ubse_mti_bus_instance_default_impl.h"
+#include "./out_of_band/ubse_mti_bus_instance_out_of_band.h"
 namespace ubse::mti::bus_instance {
 UbseMtiUbController::UbseMtiUbController(uint8_t chipId, uint8_t dieId) : chipId(chipId), dieId(dieId) {}
 
@@ -26,7 +26,7 @@ bool UbseMtiUbController::operator<(const UbseMtiUbController &other) const
 
 UbseMtiBusInstance &UbseMtiBusInstance::GetInstance()
 {
-    static UbseMtiBusInstanceDefaultImpl instance;
+    static UbseMtiBusInstanceOutOfBand instance;
     return instance;
 }
 } // namespace ubse::mti::bus_instance

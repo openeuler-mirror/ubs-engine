@@ -9,13 +9,13 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_mti_urma_default_impl.h"
-#include "./ctrl_q/protocol/ubse_ctrl_q_businstance_opt_proxy.h"
-#include "./ctrl_q/protocol/ubse_ctrl_q_dev_opt_proxy.h"
-#include "./ctrl_q/protocol/ubse_ctrl_q_get_idev_fe_david_mapping_proxy.h"
-#include "./ctrl_q/protocol/ubse_ctrl_q_get_idev_fe_proxy.h"
-#include "./ctrl_q/protocol/ubse_ctrl_q_vfe_david_proxy.h"
-#include "./ctrl_q/ubse_ictrl_q_req_msg.h"
+#include "ubse_mti_urma_out_of_band.h"
+#include "../ctrl_q/protocol/ubse_ctrl_q_businstance_opt_proxy.h"
+#include "../ctrl_q/protocol/ubse_ctrl_q_dev_opt_proxy.h"
+#include "../ctrl_q/protocol/ubse_ctrl_q_get_idev_fe_david_mapping_proxy.h"
+#include "../ctrl_q/protocol/ubse_ctrl_q_get_idev_fe_proxy.h"
+#include "../ctrl_q/protocol/ubse_ctrl_q_vfe_david_proxy.h"
+#include "../ctrl_q/ubse_ictrl_q_req_msg.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::urma {
@@ -23,7 +23,7 @@ using namespace ubse::mti::ctrl_q;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseResult UbseMtiUrmaDefaultImpl::GetIdevFeList(std::vector<UbseMtiIdevPfe> &feList)
+UbseResult UbseMtiUrmaOutOfBand::GetIdevFeList(std::vector<UbseMtiIdevPfe> &feList)
 {
     UbseCtrlQGetIdevFeReqMsg reqMsg;
     UbseCtrlQGetIdevFeProxy proxy;
@@ -36,7 +36,7 @@ UbseResult UbseMtiUrmaDefaultImpl::GetIdevFeList(std::vector<UbseMtiIdevPfe> &fe
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaDefaultImpl::GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping &mapping)
+UbseResult UbseMtiUrmaOutOfBand::GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping &mapping)
 {
     UbseCtrlQGetIdevFeDavidMappingReqMsg reqMsg;
     UbseCtrlQGetIdevFeDavidMappingProxy proxy;
@@ -49,8 +49,8 @@ UbseResult UbseMtiUrmaDefaultImpl::GetIdevFeDavidMapping(UbseMtiIdevFeDavidMappi
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaDefaultImpl::BindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
-                                             std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::BindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
+                                           std::vector<bool> &resList)
 {
     UbseCtrlQBindVfeDavidReqMsg reqMsg(upi, vfeDavidList);
     UbseCtrlQBindVfeDavidProxy proxy;
@@ -63,8 +63,8 @@ UbseResult UbseMtiUrmaDefaultImpl::BindDavid(uint16_t upi, const std::vector<Ubs
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaDefaultImpl::UnBindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
-                                               std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::UnBindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
+                                             std::vector<bool> &resList)
 {
     UbseCtrlQUnBindVfeDavidReqMsg reqMsg(upi, vfeDavidList);
     UbseCtrlQUnBindVfeDavidProxy proxy;
@@ -77,9 +77,9 @@ UbseResult UbseMtiUrmaDefaultImpl::UnBindDavid(uint16_t upi, const std::vector<U
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaDefaultImpl::RegDavidFeToVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                             const std::vector<UbseMtiIdevVfe> &vfeList,
-                                                             std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::RegDavidFeToVmBusInstance(const UbseMtiBusInst &busInstance,
+                                                           const std::vector<UbseMtiIdevVfe> &vfeList,
+                                                           std::vector<bool> &resList)
 {
     UbseCtrlQRegDavidFeToBusInstanceReqMsg reqMsg(busInstance, vfeList);
     UbseCtrlQRegDevProxy proxy;
@@ -92,9 +92,9 @@ UbseResult UbseMtiUrmaDefaultImpl::RegDavidFeToVmBusInstance(const UbseMtiBusIns
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaDefaultImpl::UnRegDavidFeFromVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                                 const std::vector<UbseMtiIdevVfe> &vfeList,
-                                                                 std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::UnRegDavidFeFromVmBusInstance(const UbseMtiBusInst &busInstance,
+                                                               const std::vector<UbseMtiIdevVfe> &vfeList,
+                                                               std::vector<bool> &resList)
 {
     UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg reqMsg(busInstance, vfeList);
     UbseCtrlQUnRegDevProxy proxy;
