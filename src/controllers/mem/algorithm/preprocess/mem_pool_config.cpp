@@ -41,16 +41,11 @@ MemPoolConfig::MemPoolConfig(const StrategyParam &param)
             throw std::invalid_argument("Error! enableCustomLatencies is true while hosts are not fully connected.");
         }
     } else { // 没有开启自定义时延, 表示填写了hostMeshLoc, 自动计算时延信息. 检查hostMeshLoc的正确性.
-        // 确保hostMeshLoc信息正确性
-        if (!IsHostMeshLocValid()) {
-            UBSE_LOG_ERROR << "Invalid hostMeshLocs.";
-            throw std::invalid_argument("Error! enableCustomLatencies is false while hostMeshLocs is invalid.");
-        }
         // 基于hostMeshLoc生成链路时延信息
         RefreshNumaDelays();
     }
-    // 判断系统各节点是否全连接
-    memIsFullyConnected = CheckFullConnectivity();
+    // 默认系统全连接
+    memIsFullyConnected = true;
     // 记录节点所在行列与hostId的对应关系
     MapTopologyToIndices();
     // 构建numa, socket全局index映射矩阵
@@ -83,7 +78,7 @@ bool MemPoolConfig::IsHostMeshLocValid() const
     return true;
 }
 
-BResult MemPoolConfig::RefreshNumaDelays()
+void MemPoolConfig::RefreshNumaDelays()
 {
     const int32_t latBase = 100;  /* 本地numa访问内地内存的基础时延 */
     const int32_t latNuma = 20;   /* 同一个socket内跨numa所增加的时延 */
@@ -116,10 +111,12 @@ BResult MemPoolConfig::RefreshNumaDelays()
             auto jSocketId = memStaticParam.availNumas[j].socketId;
             const MeshLoc &iHostMeshLoc = memStaticParam.hostMeshLocs[iHostId];
             const MeshLoc &jHostMeshLoc = memStaticParam.hostMeshLocs[jHostId];
+            const auto iNeighborNodes = memStaticParam.neighborNodes[iHostId];
+            const auto jNeighborNodes = memStaticParam.neighborNodes[jHostId];
             if (iHostId == jHostId) {
-                // 同一个host
                 memLatencyInfo.numaToNumaLatency[i][j] = numaLatenciesInHost[iNumaIdxInHost][jNumaIdxInHost];
-            } else if (!iHostMeshLoc.IsNeighbor(jHostMeshLoc)) {
+            } else if (iNeighborNodes.find(jHostId) == iNeighborNodes.end()
+                       || jNeighborNodes.find(iHostId) == jNeighborNodes.end()) {
                 // 非直连邻居，无法访问对端的内存，时延设置为负数
                 memLatencyInfo.numaToNumaLatency[i][j] = -1;
             } else if (iSocketId == jSocketId) {
@@ -140,8 +137,6 @@ BResult MemPoolConfig::RefreshNumaDelays()
             }
         }
     }
-
-    return UBSE_OK;
 }
 
 bool MemPoolConfig::CheckFullConnectivity() const

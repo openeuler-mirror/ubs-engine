@@ -54,7 +54,7 @@ public:
     bool IsNonPositive(MeshLoc cord) const;
 
     /** 根据拓扑坐标，刷新Numa之间的时延 */
-    BResult RefreshNumaDelays();
+    void RefreshNumaDelays();
 
     /** 判断系统各host是否全连接 (1630代际, 或1650代际1P4) */
     bool CheckFullConnectivity() const;
