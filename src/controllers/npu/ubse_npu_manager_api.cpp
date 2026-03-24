@@ -1204,6 +1204,213 @@ UbseResult UbseNpuManagerApi::BindVfeDavid(uint16_t upi, std::vector<std::shared
     return UBSE_OK;
 }
 
+
+UbseResult UbseNpuManagerApi::ResetNpu(std::vector<std::shared_ptr<CollectionDeviceDavid>> &devList)
+{
+    for (auto &npu : devList) {
+        auto loc = npu->GetDeviceLoc();
+        auto ret = ubse::npu::vm_monitor::ResetNpu(loc.chip_id);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to reset npu, guid:" << npu->GetGuid() << FormatRetCode(ret);
+            return ret; // 如果绑定失败，返回错误码
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseNpuManagerApi::ResetNpu(const std::vector<UbDevice> &ubDevList)
+{
+    for (auto &ubDev : ubDevList) {
+        if (ubDev.type != ResourceType::NPU) {
+            continue;
+        }
+        auto ret = ubse::npu::vm_monitor::ResetNpu(ubDev.chipId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to reset npu, chipId:" << ubDev.chipId << FormatRetCode(ret);
+            return ret; // 如果绑定失败，返回错误码
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseNpuManagerApi::CreateVMBusi(uint16_t upi, CollectionGuid &busiGuid)
+{
+    UBSE_LOG_DEBUG << "Create VM bus instance start";
+    UbseResult res = UBSE_ERROR;
+    UbseMtiBusInst mtiBusi;
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        UBSE_LOG_DEBUG << "Send Create Request start, retry: " << i;
+        res = UbseMtiBusInstance::CreateVmBusInstance(upi, mtiBusi);
+        if (res == UBSE_OK) {
+            break;
+        }
+        sleep(SLEEP_TIME);
+    }
+
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "Request Create VM bus instance failed";
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_DEBUG << "change state in collection";
+    CollectionDevId guid = CollectionStringUtil::GuidToStr(mtiBusi.guid);
+    auto busi = std::make_shared<CollectionDeviceBusi>(guid, mtiBusi.eid, std::to_string(upi),
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    auto &collection = ResourceCollection::GetInstance();
+    collection.SetDevice(busi);
+
+    busiGuid = guid;
+    UBSE_LOG_INFO << "Create VM bus instance " << busiGuid << " success";
+    return UBSE_OK;
+}
+
+UbseResult UbseNpuManagerApi::DestroyVMBusi(const CollectionDevId &busiGuid)
+{
+    auto &collection = ResourceCollection::GetInstance();
+    std::shared_ptr<CollectionDeviceBusi> busInstance =
+        CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(collection.GetDeviceByGuid(busiGuid));
+    if (busInstance == nullptr) {
+        UBSE_LOG_ERROR << "bus instance " << busiGuid << " not found";
+        return UBSE_ERROR;
+    }
+
+    UbseResult res = UBSE_ERROR;
+    auto mtiBusInstance = ConvertToUbseMtiBusi(busInstance);
+    for (uint8_t i = 0; i < retryTime_; i++) {
+        UBSE_LOG_DEBUG << "Send Destroy Request Msg start, retry: " << static_cast<int>(i);
+        res = UbseMtiBusInstance::DestroyVmBusInstance(mtiBusInstance);
+        if (res == UBSE_OK) {
+            break;
+        }
+        sleep(SLEEP_TIME);
+    }
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "Request Destroy VM bus instance failed";
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_DEBUG << "change state in collection";
+    collection.RemoveDeviceEmptyVmBusi(busInstance);
+    UBSE_LOG_INFO << "Destroy VM bus instance " << busiGuid << " success";
+    return UBSE_OK;
+}
+
+UbseResult UbseNpuManagerApi::RollBack()
+{
+    while (!operationHistory_.empty()) {
+        std::shared_ptr<OperationHistory> op = operationHistory_.top();
+        // 调用存储的操作
+        UbseResult result = op->operation();
+        if (result == UBSE_OK) {
+            operationHistory_.pop();
+            continue;
+        }
+        SetState(NpuManagerState::ROLLBACK_BG);
+        // 创建异步线程，继续rollback
+        std::thread rollbackThread([this]() {
+            std::lock_guard<std::mutex> lock(mtx_);
+            while (!operationHistory_.empty()) {
+                std::shared_ptr<OperationHistory> op_bg = operationHistory_.top();
+                operationHistory_.pop();
+                UbseResult res = op_bg->operation();
+                if (res == UBSE_ERROR) {
+                    UBSE_LOG_ERROR << "rollback failed";
+                    break;
+                }
+            }
+            SetState(NpuManagerState::AVAILABLE);
+            cv_.notify_all();
+        });
+        // 分离线程，使其在主线程结束后继续运行
+        rollbackThread.detach();
+        return result;
+    }
+    SetState(NpuManagerState::AVAILABLE);
+    return UBSE_OK;
+}
+bool UbseNpuManagerApi::GetCollectionReady()
+{
+    return collectionReady_;
+}
+
+void UbseNpuManagerApi::SetCollectionReady(bool ready)
+{
+    collectionReady_ = ready;
+}
+void UbseNpuManagerApi::FreeQueue(const UbseAllocRequest &requestInfo, const CollectionDevId &hostBusInstanceGuid,
+                                  std::vector<std::shared_ptr<CollectionDeviceDavid>> &npus,
+                                  std::vector<std::shared_ptr<CollectionDeviceNic>> &nics)
+{
+    auto upi = requestInfo.upiStr;
+    auto busInstanceGuid = requestInfo.busInstanceGuid;
+
+    // 辅助函数，用于创建并添加操作到futureProcedure队列
+    auto addOperation = [this](const auto &func) {
+        auto operation = std::make_shared<OperationHistory>();
+        operation->operation = func;
+        futureProcedure_.push(operation);
+    };
+
+    // 调用LCNE接口，绑定npu与pfe（LCNE会在该接口中完成npu与vfe解绑的动作）
+    addOperation([this, upi, npus]() mutable -> UbseResult { return this->UnbindVfeDavid(upi, npus); });
+
+    // 调用LCNE接口，解注册vfe
+    addOperation([this, npus, busInstanceGuid]() mutable -> UbseResult {
+        return this->UnRegisterIDevFromBusi(npus, busInstanceGuid);
+    });
+
+    // 调用LCNE接口，解注册1825
+    addOperation([this, nics, busInstanceGuid]() mutable -> UbseResult {
+        return this->UnRegisterDevFromBusi(nics, busInstanceGuid);
+    });
+
+    // 调用LCNE接口，把1825注册到host bus instance上
+    addOperation([this, nics, hostBusInstanceGuid]() mutable -> UbseResult {
+        return this->RegisterDevToBusi(nics, hostBusInstanceGuid);
+    });
+
+    // 调用LCNE接口，删除虚机bus instance
+    addOperation([this, busInstanceGuid]() mutable -> UbseResult { return this->DestroyVMBusi(busInstanceGuid); });
+
+    // 调用ipmi接口，复位NPU
+    auto ubDevs = requestInfo.ubDevList;
+    addOperation([this, ubDevs]() mutable -> UbseResult { return this->ResetNpu(ubDevs); });
+}
+
+UbseResult UbseNpuManagerApi::ExecuteFreeQueue()
+{
+    UbseResult res = UBSE_OK;
+    while (!futureProcedure_.empty()) {
+        std::shared_ptr<OperationHistory> op_bg = futureProcedure_.front();
+        res = op_bg->operation();
+        if (res == UBSE_ERROR) {
+            UBSE_LOG_WARN << "Running free queue failed. " << FormatRetCode(res);
+            return res;
+        } else {
+            futureProcedure_.pop();
+        }
+    }
+    return res;
+}
+
+void UbseNpuManagerApi::ExecuteFreeQueueBackGround()
+{
+    std::thread futureThread([this]() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        while (!futureProcedure_.empty()) {
+            std::shared_ptr<OperationHistory> op_bg = futureProcedure_.front();
+            UbseResult res = op_bg->operation();
+            futureProcedure_.pop();
+            if (res == UBSE_ERROR) {
+                UBSE_LOG_WARN << "Background running free queue failed. " << FormatRetCode(res);
+                break;
+            }
+        }
+        SetState(NpuManagerState::AVAILABLE);
+        cv_.notify_all();
+    });
+    futureThread.detach();
+}
+
 std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> UbseNpuManagerApi::FilterDevices(
     const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &devList,
     const std::shared_ptr<CollectionDeviceBusi> &busInstance)
