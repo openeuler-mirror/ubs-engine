@@ -1182,7 +1182,8 @@ static uint32_t ReturnFailed(const UbseMemReturnReq &req, UbseMemOperationResp &
                              uint32_t errCode, MemAdvice advice)
 {
     BorrowFailedAdvice("Return Schedule failed", req.name, "WATER_BORROW", 0, "", req.importNodeId, errCode, advice);
-    return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::FD_RETURN);
+    BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::FD_RETURN);
+    return errCode;
 }
 
 static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOperationResp &resp,
