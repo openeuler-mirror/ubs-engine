@@ -1176,14 +1176,14 @@ struct BorrowObjResult {
     UbseMemFdBorrowImportObj importObj{};
     bool hasImport = false;
     bool hasExport = false;
+    uint32_t comErrorCode = UBSE_OK;
 };
 
 static uint32_t ReturnFailed(const UbseMemReturnReq &req, UbseMemOperationResp &resp, const std::string &msg,
                              uint32_t errCode, MemAdvice advice)
 {
     BorrowFailedAdvice("Return Schedule failed", req.name, "WATER_BORROW", 0, "", req.importNodeId, errCode, advice);
-    BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::FD_RETURN);
-    return errCode;
+    return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::FD_RETURN);
 }
 
 static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOperationResp &resp,
@@ -1194,7 +1194,8 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
     InitializeResponse(req, resp);
     // 等待导入节点对账完成
     if (auto ret = WaitNodeStateWork(req.importNodeId); ret != UBSE_OK) {
-        return ReturnFailed(req, resp, "importNode is not ok", ret, MemAdvice::NODE_IN_MAITENANCE);
+        result.comErrorCode = ReturnFailed(req, resp, "importNode is not ok", ret, MemAdvice::NODE_IN_MAITENANCE);
+        return ret;
     }
     // 查找导入/导出借用对象
     FindBorrowObjByName<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>(
@@ -1202,7 +1203,9 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
         [](const NodeMemDebtInfo &info) -> const UbseMemFdImportObjMap& { return info.fdImportObjMap; },
         [](const NodeMemDebtInfo &info) -> const UbseMemFdExportObjMap& { return info.fdExportObjMap; });
     if (!result.hasImport && !result.hasExport) {
-        return ReturnFailed(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
+        result.comErrorCode =
+            ReturnFailed(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
+        return UBSE_ERR_NOT_EXIST;
     }
     // 检查资源状态（是否正在借用/归还中）
     UbseMemStage memStage = GetMemStageByImportObjState(result.importObj, result.hasImport);
@@ -1211,10 +1214,10 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
     }
     if (memStage == UbseMemStage::UBSE_CREATING || memStage == UbseMemStage::UBSE_DELETING) {
         UBSE_LOG_INFO << "resource is being borrowed or returned, name is " << req.name;
-        return ReturnFailed(
-            req, resp, "resource being borrowed or returned",
-            static_cast<uint32_t>(memStage == UbseMemStage::UBSE_CREATING ? UBSE_ERR_CREATING : UBSE_ERR_DELETING),
-            MemAdvice::RESOURCE_OPERATION_CONFLICT);
+        auto ret = (memStage == UbseMemStage::UBSE_CREATING ? UBSE_ERR_CREATING : UBSE_ERR_DELETING);
+        result.comErrorCode =
+            ReturnFailed(req, resp, "resource being borrowed or returned", ret, MemAdvice::RESOURCE_OPERATION_CONFLICT);
+        return ret;
     }
     auto udsInfo = result.hasExport ? result.exportObj.req.udsInfo : result.importObj.req.udsInfo;
     auto exportNodeId = result.hasExport ? result.exportObj.algoResult.exportNumaInfos[0].nodeId : "";
@@ -1224,7 +1227,9 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
                        << ", current req username: " << req.udsInfo.username << "uid: " << req.udsInfo.uid
                        << ", realRequestNodeId:" << realRequestNodeId
                        << ", importNodeId:" << result.importObj.req.importNodeId << ", exportNodeId: " << exportNodeId;
-        return ReturnFailed(req, resp, "Error auth", UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
+        result.comErrorCode =
+            ReturnFailed(req, resp, "Error auth", UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
+        return UBSE_ERR_AUTH_FAILED;
     }
     return UBSE_OK;
 }
@@ -1235,7 +1240,7 @@ uint32_t UbseMemFdReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
                   << ";requestId: " << req.requestId << ", realRequestNodeId:" << realRequestNodeId;
     BorrowObjResult result{};
     if (auto ret = ValidateBorrowResource(req, resp, realRequestNodeId, result); ret != UBSE_OK) {
-        return ret;
+        return result.comErrorCode;
     }
     result.exportObj.returnReq = req;
     result.importObj.returnReq = req;
