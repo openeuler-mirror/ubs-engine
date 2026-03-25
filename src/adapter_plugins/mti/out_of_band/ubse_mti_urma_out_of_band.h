@@ -10,11 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_MTI_URMA_DEFAULT_IMPL_H
-#define UBSE_MTI_URMA_DEFAULT_IMPL_H
+#ifndef UBSE_MTI_URMA_OUT_OF_BAND_H
+#define UBSE_MTI_URMA_OUT_OF_BAND_H
 #include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::mti::urma {
-class UbseMtiUrmaDefaultImpl : public UbseMtiUrma {
+class UbseMtiUrmaOutOfBand : public UbseMtiUrma {
     UbseResult GetIdevFeList(std::vector<UbseMtiIdevPfe> &feList) override;
 
     UbseResult GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping &mapping) override;
@@ -32,4 +32,4 @@ class UbseMtiUrmaDefaultImpl : public UbseMtiUrma {
                                              std::vector<bool> &resList) override;
 };
 } // namespace ubse::mti::urma
-#endif // UBSE_MTI_URMA_DEFAULT_IMPL_H
+#endif // UBSE_MTI_URMA_OUT_OF_BAND_H
