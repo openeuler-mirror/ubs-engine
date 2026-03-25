@@ -12,13 +12,13 @@
 #include "ubse_npu_controller_process.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 #include "ubse_npu_resource_collection.h"
 #include "ubse_npu_resource_collection_def.h"
 #include "ubse_npu_source_def.h"
 
 namespace ubse::npu::controller {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::common::def;
 
@@ -123,8 +123,8 @@ UbseResult UbseNpuControllerProcess::DeviceNpuToResource(const std::shared_ptr<C
                                                          std::shared_ptr<NpuResource> &npuRes)
 {
     CollectDeviceLoc npuLoc = npu->GetDeviceLoc();
-    npuRes->SetLoc(npuLoc.slot_id, npuLoc.chip_id, npuLoc.die_id);
-    UBSE_LOG_DEBUG << "DeviceNpuToResource npu " << npuLoc.slot_id << "-" << npuLoc.chip_id << "-" << npuLoc.die_id
+    npuRes->SetLoc(npuLoc.slotId, npuLoc.chipId, npuLoc.dieId);
+    UBSE_LOG_DEBUG << "DeviceNpuToResource npu " << npuLoc.slotId << "-" << npuLoc.chipId << "-" << npuLoc.dieId
                    << " added to npuRes";
     npuRes->SetGuid(npu->GetGuid());
     UBSE_LOG_DEBUG << "DeviceNpuToResource npu " << npu->GetGuid() << " added to npuRes";
@@ -145,14 +145,14 @@ UbseResult UbseNpuControllerProcess::DeviceNpuToResource(const std::shared_ptr<C
 
     for (const auto &affiNic : affiNics) {
         CollectDeviceLoc affinic = affiNic->GetDeviceLoc();
-        npuRes->AddAffinityDevice({ResourceType::NIC, affinic.slot_id, affinic.chip_id, affinic.die_id});
-        UBSE_LOG_DEBUG << "DeviceNpuToResource nic " << affinic.slot_id << "-" << affinic.chip_id << "-"
-                       << affinic.die_id << " added to npuRes.affinityDevices";
+        npuRes->AddAffinityDevice({ResourceType::NIC, affinic.slotId, affinic.chipId, affinic.dieId});
+        UBSE_LOG_DEBUG << "DeviceNpuToResource nic " << affinic.slotId << "-" << affinic.chipId << "-"
+                       << affinic.dieId << " added to npuRes.affinityDevices";
     }
 
     CollectDeviceLoc ubctl = ubCtl->GetDeviceLoc();
-    npuRes->AddAffinityDevice({ResourceType::UBCONTROLLER, ubctl.slot_id, ubctl.chip_id, ubctl.die_id});
-    UBSE_LOG_DEBUG << "DeviceNpuToResource UBctrl " << ubctl.slot_id << "-" << ubctl.chip_id << "-" << ubctl.die_id
+    npuRes->AddAffinityDevice({ResourceType::UBCONTROLLER, ubctl.slotId, ubctl.chipId, ubctl.dieId});
+    UBSE_LOG_DEBUG << "DeviceNpuToResource UBctrl " << ubctl.slotId << "-" << ubctl.chipId << "-" << ubctl.dieId
                    << " added to npuRes.affinityDevices";
     return UBSE_OK;
 }
@@ -161,9 +161,9 @@ void UbseNpuControllerProcess::SetNicLocation(const std::shared_ptr<CollectionDe
                                               std::shared_ptr<NicResource> &nicRes)
 {
     CollectDeviceLoc nicLoc = nic->GetDeviceLoc();
-    UBSE_LOG_DEBUG << "DeviceNicToResource start, nic " << nic->GetGuid() << " " << nicLoc.slot_id << "-"
-                   << nicLoc.chip_id << "-" << nicLoc.die_id << " added to nicRes";
-    nicRes->SetLoc(nicLoc.slot_id, nicLoc.chip_id, nicLoc.die_id);
+    UBSE_LOG_DEBUG << "DeviceNicToResource start, nic " << nic->GetGuid() << " " << nicLoc.slotId << "-"
+                   << nicLoc.chipId << "-" << nicLoc.dieId << " added to nicRes";
+    nicRes->SetLoc(nicLoc.slotId, nicLoc.chipId, nicLoc.dieId);
 }
 
 void UbseNpuControllerProcess::SetNicBusInstanceGuid(const std::shared_ptr<CollectionDeviceNic> &nic,
@@ -222,13 +222,13 @@ UbseResult UbseNpuControllerProcess::DeviceNicToResource(const std::shared_ptr<C
             }
         }
         CollectDeviceLoc npuLoc = npu->GetDeviceLoc();
-        nicRes->AddAffinityDevice({ResourceType::NPU, npuLoc.slot_id, npuLoc.chip_id, npuLoc.die_id});
-        UBSE_LOG_DEBUG << "DeviceNicToResource npu " << npuLoc.slot_id << "-" << npuLoc.chip_id << "-" << npuLoc.die_id
+        nicRes->AddAffinityDevice({ResourceType::NPU, npuLoc.slotId, npuLoc.chipId, npuLoc.dieId});
+        UBSE_LOG_DEBUG << "DeviceNicToResource npu " << npuLoc.slotId << "-" << npuLoc.chipId << "-" << npuLoc.dieId
                        << " added to nicRes.affinityDevices";
     }
     CollectDeviceLoc ubctl = ubCtl->GetDeviceLoc();
-    nicRes->AddAffinityDevice({ResourceType::UBCONTROLLER, ubctl.slot_id, ubctl.chip_id, ubctl.die_id});
-    UBSE_LOG_DEBUG << "DeviceNicToResource UBctrl: " << ubctl.slot_id << "-" << ubctl.chip_id << "-" << ubctl.die_id
+    nicRes->AddAffinityDevice({ResourceType::UBCONTROLLER, ubctl.slotId, ubctl.chipId, ubctl.dieId});
+    UBSE_LOG_DEBUG << "DeviceNicToResource UBctrl: " << ubctl.slotId << "-" << ubctl.chipId << "-" << ubctl.dieId
                    << " added to nicRes.affinityDevices";
     return UBSE_OK;
 }
@@ -242,8 +242,8 @@ UbseResult UbseNpuControllerProcess::BusInstanceToResource(const std::shared_ptr
     UBSE_LOG_DEBUG << "BusInstanceToResource nics size: " << nics.size();
     for (auto &nic : nics) {
         CollectDeviceLoc nicLoc = nic->GetDeviceLoc();
-        busRes->AddSubDevice({ResourceType::NIC, nicLoc.slot_id, nicLoc.chip_id, nicLoc.die_id});
-        UBSE_LOG_DEBUG << "nic: " << nicLoc.slot_id << "-" << nicLoc.chip_id << "-" << nicLoc.die_id
+        busRes->AddSubDevice({ResourceType::NIC, nicLoc.slotId, nicLoc.chipId, nicLoc.dieId});
+        UBSE_LOG_DEBUG << "nic: " << nicLoc.slotId << "-" << nicLoc.chipId << "-" << nicLoc.dieId
                        << " added to busRes.subDevices";
     }
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfes = busi->GetSubDevIdev();
@@ -261,8 +261,8 @@ UbseResult UbseNpuControllerProcess::BusInstanceToResource(const std::shared_ptr
             continue;
         }
         CollectDeviceLoc devLoc = dev->GetDeviceLoc();
-        busRes->AddSubDevice({ResourceType::NPU, devLoc.slot_id, devLoc.chip_id, devLoc.die_id});
-        UBSE_LOG_DEBUG << "npu " << devLoc.slot_id << "-" << devLoc.chip_id << "-" << devLoc.die_id
+        busRes->AddSubDevice({ResourceType::NPU, devLoc.slotId, devLoc.chipId, devLoc.dieId});
+        UBSE_LOG_DEBUG << "npu " << devLoc.slotId << "-" << devLoc.chipId << "-" << devLoc.dieId
                        << " added to busRes.subDevices";
     }
     return UBSE_OK;

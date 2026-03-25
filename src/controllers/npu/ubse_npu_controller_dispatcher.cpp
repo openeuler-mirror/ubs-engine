@@ -16,11 +16,10 @@
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_logger.h"
-#include "ubse_logger_inner.h"
 #include "ubse_npu_msg_execute.h"
 #include "ubse_npu_source_def.h"
 namespace ubse::npu::controller {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::log;
 using namespace ::api::server;

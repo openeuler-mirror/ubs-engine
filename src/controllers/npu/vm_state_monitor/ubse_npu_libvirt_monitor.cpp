@@ -14,11 +14,11 @@
 #include <dlfcn.h>
 #include <atomic>
 #include "ubse_error.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 
 namespace ubse::npu::vm_monitor {
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 static constexpr int VIR_DOMAIN_EVENT_ID_LIFECYCLE = 0;
 

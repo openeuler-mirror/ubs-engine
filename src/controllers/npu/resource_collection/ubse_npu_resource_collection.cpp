@@ -14,10 +14,12 @@
 #include <utility>
 
 #include "ubse_error.h"
-#include "ubse_logger_inner.h"
-#include "ubse_os_util.h"
+#include "ubse_logger.h"
+#include "adapter_plugins/mti/ubse_mti_1825.h"
+#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
+#include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::npu::controller {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::mti::urma;
 using namespace ubse::mti::_1825;
 using namespace ubse::common::def;
@@ -31,6 +33,22 @@ ResourceCollection &ResourceCollection::GetInstance()
 {
     static ResourceCollection instance;
     return instance;
+}
+
+CollectionDevId CollectionStringUtil::GuidToStr(const UbseMtiGuid &guid)
+{
+    // UbseMtiGuid内存布局位小端序，与字符串表示相反，字符串用大端序存储
+    UbseMtiGuid reversed{};
+    size_t reversed_size = guid.size() - 1;
+    for (size_t i = 0; i < guid.size(); i++) {
+        reversed.at(i) = guid.at(reversed_size - i);
+    }
+    std::ostringstream oss;
+    oss << std::hex << std::nouppercase << std::setfill('0'); // 确保小写字母，填充‘0’
+    for (uint8_t byte : reversed) {
+        oss << std::setw(NO_2) << static_cast<int>(byte); // 强制按 2 字符输出
+    }
+    return oss.str();
 }
 
 void ResourceCollection::ClearAllDevices()
@@ -67,7 +85,7 @@ UbseResult SetDeviceWithDevId(std::shared_ptr<CollectionDevice> &dev, Collection
     return UBSE_OK;
 }
 
-UbseResult SetDeviceWithGuid(const std::shared_ptr<CollectionDevice> &dev, CollectionGuidToDevice &guidToDevice_)
+UbseResult SetDeviceWithGuid(std::shared_ptr<CollectionDevice> &dev, CollectionGuidToDevice &guidToDevice_)
 {
     if (!ValidateGuid(dev->GetGuid())) {
         UBSE_LOG_WARN << "Guid is invalid, guid: " << dev->GetGuid();
@@ -523,9 +541,10 @@ UbseResult ResourceCollection::RemoveDeviceEmptyVmBusi(const std::shared_ptr<Col
     return UBSE_OK;
 }
 UbseResult ResourceCollection::AddDevIdevPfe(const std::shared_ptr<CollectionDeviceUbCtrl> &ubCtrlDev,
-                                             std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev)
+                                             const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev)
 {
-    auto ret = SetDevice(pfeDev);
+    auto device = CollectionDevice::CollectionToBase(pfeDev);
+    auto ret = SetDevice(device);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to add idev pfe";
         return ret;
@@ -536,9 +555,10 @@ UbseResult ResourceCollection::AddDevIdevPfe(const std::shared_ptr<CollectionDev
 }
 
 UbseResult ResourceCollection::AddDevIdevVfe(const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev,
-                                             std::shared_ptr<CollectionDeviceIdevVfe> &vfeDev)
+                                             const std::shared_ptr<CollectionDeviceIdevVfe> &vfeDev)
 {
-    auto ret = SetDevice(vfeDev);
+    auto device = CollectionDevice::CollectionToBase(vfeDev);
+    auto ret = SetDevice(device);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to add idev vfe";
         return ret;
@@ -586,7 +606,8 @@ UbseResult ResourceCollection::CollectUbCtrlIdev()
     for (const auto &idevPfe : feList) {
         // 提取ubController, 转换成std::shared_ptr<CollectionDeviceUbCtrl> ubCtrlDev 并SetDevice(ubContrller)
         auto ubCtrlDevPtr = ConstructUbCtrlObject(idevPfe.ubController);
-        if (auto ret = SetDevice(ubCtrlDevPtr); ret != UBSE_OK) {
+        auto device = CollectionDevice::CollectionToBase(ubCtrlDevPtr);
+        if (auto ret = SetDevice(device); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to add ub controller";
             return ret;
         }
@@ -647,7 +668,8 @@ UbseResult ResourceCollection::AddDavidAndBindToIdevPfe(CollectDeviceLoc &davidD
             vfe->SetIsComSharedFe(true);
         }
     } else {
-        if (auto ret = SetDevice(davidDev); ret != UBSE_OK) {
+        auto device = CollectionDevice::CollectionToBase(davidDev);
+        if (auto ret = SetDevice(device); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to add david device";
             return ret;
         }
@@ -722,7 +744,8 @@ UbseResult ResourceCollection::AddNicFeAndSetAffinity(const UbseMti1825Vf &mti18
         UBSE_LOG_ERROR << "Failed to transfer guid from array to string";
         return UBSE_ERROR;
     }
-    auto ret = SetDevice(devNic);
+    auto device = CollectionDevice::CollectionToBase(devNic);
+    auto ret = SetDevice(device);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to add nic device";
         return ret;
@@ -840,7 +863,7 @@ UbseResult ResourceCollection::CollectBusInstance()
     return UBSE_OK;
 }
 
-UbseResult CheckDevTopoIdevVfe(int &cnt, std::shared_ptr<CollectionDeviceIdevVfe> &devVfe)
+UbseResult CheckDevTopoIdevVfe(int &cnt, const std::shared_ptr<CollectionDeviceIdevVfe> &devVfe)
 {
     auto devDavid = devVfe->GetBondingDevDavid();
     if (devDavid != nullptr) {
@@ -854,7 +877,7 @@ UbseResult CheckDevTopoIdevVfe(int &cnt, std::shared_ptr<CollectionDeviceIdevVfe
     return UBSE_OK;
 }
 
-UbseResult CheckDevTopoIdevPfe(int &cnt, std::shared_ptr<CollectionDeviceIdevPfe> &devPfe)
+UbseResult CheckDevTopoIdevPfe(int &cnt, const std::shared_ptr<CollectionDeviceIdevPfe> &devPfe)
 {
     for (auto &devVfe : devPfe->GetSubDevVfe()) {
         if (devVfe == nullptr) {

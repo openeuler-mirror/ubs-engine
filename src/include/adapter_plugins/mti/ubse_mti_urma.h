@@ -21,10 +21,12 @@ namespace ubse::mti::urma {
 using namespace ubse::mti::bus_instance;
 
 struct UbseMtiIdevVfe {
-    UbseMtiUbController ubController;
-    uint8_t pfeId;
-    UbseMtiGuid guid;
-    uint8_t vfeId;
+    UbseMtiUbController ubController{};
+    uint8_t pfeId{0xFF};
+    UbseMtiGuid guid{0xFF};
+    uint8_t vfeId{0xFF};
+
+    UbseMtiIdevVfe() = default;
 
     UbseMtiIdevVfe(const UbseMtiUbController &ubController, uint8_t pfeId, uint8_t vfeId);
 
@@ -34,10 +36,12 @@ struct UbseMtiIdevVfe {
 };
 
 struct UbseMtiIdevPfe {
-    UbseMtiUbController ubController;
-    uint8_t pfeId;
-    UbseMtiGuid guid;
-    std::vector<UbseMtiIdevVfe> vfeList;
+    UbseMtiUbController ubController{};
+    uint8_t pfeId{0xFF};
+    UbseMtiGuid guid{0xFF};
+    std::vector<UbseMtiIdevVfe> vfeList{};
+
+    UbseMtiIdevPfe() = default;
 
     UbseMtiIdevPfe(const UbseMtiUbController &ubController, uint8_t pfeId);
 
@@ -49,9 +53,11 @@ struct UbseMtiIdevPfe {
 };
 
 struct UbseMtiDavid {
-    uint8_t slotId;
-    uint8_t chipId;
+    uint8_t slotId{0xFF};
+    uint8_t chipId{0xFF};
     uint8_t channelId{0xFF};
+
+    UbseMtiDavid() = default;
 
     UbseMtiDavid(uint8_t slotId, uint8_t chipId);
 

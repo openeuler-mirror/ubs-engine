@@ -12,9 +12,8 @@
 #include "ubse_npu_source_def.h"
 #include <array>
 #include "ubse_logger.h"
-#include "ubse_logger_inner.h"
 namespace ubse::npu::controller {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> StringToArrayForGuid(const std::string &str)
 {

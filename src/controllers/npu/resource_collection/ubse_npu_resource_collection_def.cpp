@@ -11,19 +11,16 @@
  */
 #include "ubse_npu_resource_collection_def.h"
 #include <optional>
-
 #include "adapter_plugins/mti/ubse_mti_urma.h"
-#include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_logger_inner.h"
 namespace ubse::npu::controller {
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::mti::bus_instance;
 using namespace ubse::mti::urma;
-constexpr std::string  DEV_NIC = "devNic";
-constexpr std::string  IDEV_VFE = "idevVfe";
-constexpr std::string  DEV_IDEV = "devIdev";
-constexpr std::string  DEV_BUSI = "devBusi";
+static const std::string  DEV_NIC = "devNic";
+static const std::string  IDEV_VFE = "idevVfe";
+static const std::string  DEV_IDEV = "devIdev";
+static const std::string  DEV_BUSI = "devBusi";
 CollectDeviceLoc::CollectDeviceLoc() : slotId(0xff), chipId(0xff), dieId(0xff), pfeId(0xff), vfeId(0xff) {}
 CollectDeviceLoc::CollectDeviceLoc(const UbseMtiEid &eid, const CollectionGuid &guid, const CollectionUpi &upi)
     : slotId(0xff),
@@ -74,7 +71,7 @@ CollectionDeviceType CollectionDevice::GetType() const
 CollectionDevId CollectionDevice::GetDevIdByDevLoc(const CollectDeviceLoc &devLoc, const CollectionDeviceType devType)
 {
     auto devTypeVal = DeviceTypeToUint8(devType);
-    if (type >= CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT || devTypeVal >= GET_DEVID_FUNCTION_NUM) {
+    if (devType >= CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT || devTypeVal >= GET_DEVID_FUNCTION_NUM) {
         UBSE_LOG_ERROR << "Invalid collection device type: " << static_cast<uint32_t>(devType);
         return "";
     }

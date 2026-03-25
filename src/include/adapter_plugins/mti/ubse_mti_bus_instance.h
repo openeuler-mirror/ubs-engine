@@ -23,8 +23,10 @@ using UbseMtiEid = std::array<uint8_t, 16>;  // 16 byte eid
 
 struct UbseMtiUbController {
     uint8_t slotId{0xFF};
-    uint8_t chipId;
-    uint8_t dieId;
+    uint8_t chipId{0xFF};
+    uint8_t dieId{0xFF};
+
+    UbseMtiUbController() = default;
 
     UbseMtiUbController(uint8_t chipId, uint8_t dieId);
 

@@ -18,11 +18,6 @@
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
-#include "common/ctrl_q_error_code.h"
-#include "protocol/ctrl_q_query_fe_proxy.h"
-#include "protocol/ctrl_q_query_guid.h"
-#include "protocol/ctrl_q_query_nic_fe_proxy.h"
-#include "protocol/ctrl_q_query_pfe_david_proxy.h"
 #include "ubse_common_def.h"
 #include "ubse_npu_resource_collection_def.h"
 namespace ubse::npu::controller {
@@ -84,9 +79,9 @@ private:
     UbseResult ValidateDevice(const std::shared_ptr<CollectionDevice> &dev);
     ResourceCollection();
     UbseResult AddDevIdevPfe(const std::shared_ptr<CollectionDeviceUbCtrl> &ubCtrlDev,
-                             std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev);
+                             const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev);
     UbseResult AddDevIdevVfe(const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev,
-                             std::shared_ptr<CollectionDeviceIdevVfe> &vfeDev);
+                             const std::shared_ptr<CollectionDeviceIdevVfe> &vfeDev);
     UbseResult AddDavidAndBindToIdevPfe(CollectDeviceLoc &davidDevLoc, CollectDeviceLoc &pfeDevLoc);
     UbseResult GetDevUbCtrlFromNicFeInfo(const mti::_1825::UbseMti1825Pf &feInfo,
                                          std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl);
