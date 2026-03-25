@@ -256,6 +256,13 @@ void RegisterExportObjectDebtInfo(const UbseMemShareBorrowExportObj &exportObj, 
     mapLock.UnLock();
 }
 
+static uint32_t ShareBorrowFailed(const UbseMemShareBorrowReq &req, UbseMemOperationResp &resp, const std::string &msg,
+                                  uint32_t errCode, MemAdvice advice)
+{
+    BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size, "", "", errCode, advice);
+    return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::SHARED_BORROW);
+}
+
 uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationResp &resp)
 {
     UBSE_LOG_INFO << "Share borrow begins, name is" << req.name << ", requestNodeId is " << req.requestNodeId
@@ -269,17 +276,11 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationRe
     std::vector<UbseMemShareBorrowImportObj> importObjs;
     FindShareBorrowObjByNameWhenBorrow(nodeMemDebtInfoMap, name, exportObjs, importObjs);
     if (!exportObjs.empty() || !importObjs.empty()) {
-        BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size, "", "", UBSE_ERR_EXISTED,
-                           MemAdvice::RESOURCE_EXIST);
-        return BuildOperationRespWhenFail(resp, name, requestNodeId, "Resource Exist.", UBSE_ERR_EXISTED,
-                                          MemOperationType::SHARED_BORROW);
+        return ShareBorrowFailed(req, resp, "Resource Exist.", UBSE_ERR_EXISTED, MemAdvice::RESOURCE_EXIST);
     }
     if (!ValidateAffinityParams(req)) {
-        BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size, "", "",
-                           UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL, MemAdvice::CHECK_FAILED);
-        return BuildOperationRespWhenFail(resp, name, requestNodeId, "Invalid Affinity parameters",
-                                          UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL,
-                                          MemOperationType::SHARED_BORROW);
+        return ShareBorrowFailed(req, resp, "Invalid Affinity parameters", UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL,
+                                 MemAdvice::CHECK_FAILED);
     }
     UbseMemShareBorrowExportObj exportObj;
     exportObj.req = req;
@@ -287,19 +288,13 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationRe
     if (SetNodeIndex(exportObj.req) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MMC] Failed to SetNodeIndex, name is " << exportObj.req.name << " ,requestNodeId is "
                        << exportObj.req.requestNodeId << "; requestId: " << req.requestId;
-        BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size, "", "", UBSE_ERR_INTERNAL,
-                           MemAdvice::SCHEDULE_FAILED);
-        return BuildOperationRespWhenFail(resp, name, requestNodeId, "SetNodeIndex Failed.", UBSE_ERR_INTERNAL,
-                                          MemOperationType::SHARED_BORROW);
+        return ShareBorrowFailed(req, resp, "SetNodeIndex Failed.", UBSE_ERR_INTERNAL, MemAdvice::SCHEDULE_FAILED);
     }
     auto ret = ShareAllocate(req, exportObj);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name is " << exportObj.req.name << " ,requestNodeId is "
                        << exportObj.req.requestNodeId << FormatRetCode(ret) << ";requestId: " << resp.requestId;
-        BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size, "", "", UBSE_ERR_ALLOCATE,
-                           MemAdvice::SCHEDULE_FAILED);
-        return BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
-                                          MemOperationType::SHARED_BORROW);
+        return ShareBorrowFailed(req, resp, "Failed to allocate", UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
     }
     exportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     exportObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
@@ -383,8 +378,8 @@ uint32_t ExistImportObjHandler(const UbseMemShareAttachReq &req, UbseMemShareBor
         SafeAdd(realSize, numaInfo.size, realSize);
     }
     resp.realSize = std::to_string(realSize);
-    return BuildOperationRespWhenFail(resp, name, requestNodeId, "The importNodeId has attached.",
-                                      UBSE_ERR_EXISTED, MemOperationType::SHARED_ATTACH);
+    return BuildOperationRespWhenFail(resp, name, requestNodeId, "The importNodeId has attached.", UBSE_ERR_EXISTED,
+                                      MemOperationType::SHARED_ATTACH);
 }
 
 UbseResult ShmAttachPreCheck(const UbseMemShareAttachReq &req, UbseMemOperationResp &resp,
@@ -701,6 +696,23 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     return UBSE_OK;
 }
 
+static uint32_t ShareDetachFailed(const UbseMemShareDetachReq &req, UbseMemOperationResp &resp, const std::string &msg,
+                                  uint32_t errCode, MemAdvice advice)
+{
+    BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId, errCode, advice);
+    return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::SHARED_DETACH);
+}
+static uint32_t ShareDetachRollback(UbseMemShareBorrowImportObj &importObj, const UbseMemShareDetachReq &req,
+                                    UbseMemOperationResp &resp, uint32_t ret)
+{
+    importObj.status.expectState = UBSE_MEM_IMPORT_SUCCESS;
+    ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
+    BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId, ret,
+                       MemAdvice::COMM_FAILED);
+    return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to Send import", UBSE_ERR_INTERNAL,
+                                      MemOperationType::SHARED_DETACH);
+}
+
 uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationResp &resp,
                             const std::string &realRequestNodeId)
 {
@@ -709,37 +721,27 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
     resp.requestId = req.requestId;
     if (req.unImportNodeId.empty()) {
-        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId,
-                           UBSE_ERR_SHM_NODE_EMPTY, MemAdvice::NODE_IN_MAITENANCE);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Detach with no node is valid.",
-                                          UBSE_ERR_SHM_NODE_EMPTY, MemOperationType::SHARED_DETACH);
+        return ShareDetachFailed(req, resp, "Detach with no node is valid.", UBSE_ERR_SHM_NODE_EMPTY,
+                                 MemAdvice::NODE_IN_MAITENANCE);
     }
     auto waitResult = WaitNodeStateWork(req.unImportNodeId);
     if (waitResult != UBSE_OK) {
-        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId, waitResult,
-                           MemAdvice::NODE_IN_MAITENANCE);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,
-                                          MemOperationType::FD_RETURN);
+        return ShareDetachFailed(req, resp, "importNode is not ok", waitResult, MemAdvice::NODE_IN_MAITENANCE);
     }
     std::vector<UbseMemShareBorrowExportObj> exportObjs{};
     std::vector<UbseMemShareBorrowImportObj> importObjs{};
     UbseMemShareBorrowImportObj importObj{};
     FindShareBorrowObjByName(nodeMemDebtInfoMap, req.name, exportObjs, importObjs);
     if (!ExistImportObj(req.name, req.unImportNodeId, importObjs, importObj)) {
-        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId,
-                           UBSE_ERR_SHM_NO_ATTACH, MemAdvice::RESOURCE_NOT_EXIST);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId,
-                                          "Detach is not allowed, because the node is not attach.",
-                                          UBSE_ERR_SHM_NO_ATTACH, MemOperationType::SHARED_DETACH);
+        return ShareDetachFailed(req, resp, "Detach is not allowed, because the node is not attach.",
+                                 UBSE_ERR_SHM_NO_ATTACH, MemAdvice::RESOURCE_NOT_EXIST);
     }
     UbseMemStage memStage = GetMemStageByShareImportObjState(importObj, true);
     if (memStage == UbseMemStage::UBSE_CREATING || memStage == UbseMemStage::UBSE_DELETING) {
         UBSE_LOG_INFO << "resource is being borrowed or returned, name is " << req.name;
         auto ret = (memStage == UbseMemStage::UBSE_CREATING) ? UBSE_ERR_CREATING : UBSE_ERR_DELETING;
-        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId, ret,
-                           MemAdvice::RESOURCE_OPERATION_CONFLICT);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned", ret,
-                                          MemOperationType::SHARED_DETACH);
+        return ShareDetachFailed(req, resp, "resource being borrowed or returned", ret,
+                                 MemAdvice::RESOURCE_OPERATION_CONFLICT);
     }
     if (!CheckShareDetachPermission(importObj.req.udsInfo, req.udsInfo, realRequestNodeId, importObj.importNodeId)) {
         UBSE_LOG_ERROR << "name:" << req.name << " auth failed,req username:" << req.udsInfo.username
@@ -747,10 +749,8 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
                        << ", importObj obj username:" << importObj.req.udsInfo.username
                        << ", import obj uid:" << importObj.req.udsInfo.uid << "importObj.importNodeId"
                        << importObj.importNodeId << ", realRequestNodeId:" << realRequestNodeId;
-        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId,
-                           UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Error auth.", UBSE_ERR_AUTH_FAILED,
-                                          MemOperationType::SHARED_DETACH);
+        return ShareDetachFailed(req, resp, "Error auth.", UBSE_ERR_AUTH_FAILED,
+                                 MemAdvice::UBSE_NO_OPERATION_PERMISSION);
     }
     importObj.req.requestId = req.requestId;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
@@ -758,18 +758,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     //  下发importObj;
     if (auto ret = SendShareImportObj(importObj, true, req.unImportNodeId); ret != UBSE_OK) {
-        importObj.status.expectState = UBSE_MEM_IMPORT_SUCCESS;
-        ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
-        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId, ret,
-                           MemAdvice::COMM_FAILED);
-        if (ret = BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to Send import",
-                                             UBSE_ERR_INTERNAL, MemOperationType::SHARED_DETACH);
-            ret != UBSE_OK) {
-            BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", req.unImportNodeId, ret,
-                               MemAdvice::COMM_FAILED);
-            return ret;
-        }
-        return UBSE_OK;
+        return ShareDetachRollback(importObj, req, resp, ret);
     }
     return UBSE_OK;
 }
@@ -946,6 +935,46 @@ uint32_t ShareExportAgentCallback(const std::string &exportNodeId, UbseMemShareB
     return ShareExportDestroyingAgentCallback(resp, exportObj, name, requestNodeId, exportNodeId);
 }
 
+static uint32_t ShareExportReturnCallback(const std::string &exportNodeId, UbseMemShareBorrowExportObj &exportObj,
+                                          UbseMemOperationResp &resp)
+{
+    auto req = exportObj.returnReq;
+    std::string requestNodeId = req.requestNodeId;
+    resp.requestNodeId = requestNodeId;
+    resp.requestId = req.requestId;
+    if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
+        EraseShareExport(exportObj);
+        UBSE_LOG_INFO << "shm callback exportObjStateChange, name:" << exportObj.req.name
+                      << ", requestId:" << exportObj.req.requestId;
+        UbseMemShmExportObjStateChangeHandler(exportObj);
+        UBSE_LOG_INFO << "shm return, name:" << exportObj.req.name << ", requestId:" << exportObj.req.requestId;
+        // requestNodeId为空则当前场景为对账删除导出账本
+        if (requestNodeId.empty()) {
+            return UBSE_OK;
+        }
+        if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_RETURN); ret != UBSE_OK) {
+            BorrowFailedAdvice("Return Schedule failed", exportObj.req.name, "SHARE_BORROW", 0, exportNodeId, "", ret,
+                               MemAdvice::COMM_FAILED);
+            return ret;
+        }
+        return UBSE_OK;
+    }
+    // 归还失败
+    ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
+    // requestNodeId为空则当前场景为对账删除导出账本
+    if (requestNodeId.empty()) {
+        return UBSE_OK;
+    }
+    if (auto ret = BuildOperationRespWhenFail(resp, exportObj.req.name, requestNodeId, "Failed to unexport",
+                                              exportObj.errorCode, MemOperationType::SHARED_RETURN);
+        ret != UBSE_OK) {
+        BorrowFailedAdvice("Return Schedule failed", exportObj.req.name, "SHARE_BORROW", 0, exportNodeId, "", ret,
+                           MemAdvice::COMM_FAILED);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
 uint32_t ShareExportMasterCallback(const std::string &exportNodeId, UbseMemShareBorrowExportObj &exportObj)
 {
     UBSE_LOG_INFO << "Share export master callback name=" << exportObj.req.name << ", state=" << exportObj.status.state
@@ -972,43 +1001,7 @@ uint32_t ShareExportMasterCallback(const std::string &exportNodeId, UbseMemShare
     }
     // 归还逻辑
     if (exportObj.status.expectState == UBSE_MEM_EXPORT_DESTROYED) {
-        auto req = exportObj.returnReq;
-        std::string requestNodeId = req.requestNodeId;
-        resp.requestNodeId = requestNodeId;
-        resp.requestId = req.requestId;
-        if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
-            EraseShareExport(exportObj);
-            UBSE_LOG_INFO << "this is shm callback before shm exportObjstateChange, name is" << exportObj.req.name
-                          << ";requestId: " << exportObj.req.requestId;
-            UbseMemShmExportObjStateChangeHandler(exportObj);
-            UBSE_LOG_INFO << "this is shm return, name is" << exportObj.req.name
-                          << ";requestId: " << exportObj.req.requestId;
-            // requestNodeId为空则当前场景为对账删除导出账本
-            if (requestNodeId.empty()) {
-                return UBSE_OK;
-            }
-            if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_RETURN);
-                ret != UBSE_OK) {
-                BorrowFailedAdvice("Return Schedule failed", name, "SHARE_BORROW", 0, exportNodeId, "", ret,
-                                   MemAdvice::COMM_FAILED);
-                return ret;
-            }
-            return UBSE_OK;
-        }
-        // 归还失败
-        ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
-        // requestNodeId为空则当前场景为对账删除导出账本
-        if (requestNodeId.empty()) {
-            return UBSE_OK;
-        }
-        if (auto ret = BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to unexport", exportObj.errorCode,
-                                                  MemOperationType::SHARED_RETURN);
-            ret != UBSE_OK) {
-            BorrowFailedAdvice("Return Schedule failed", name, "SHARE_BORROW", 0, exportNodeId, "", ret,
-                               MemAdvice::COMM_FAILED);
-            return ret;
-        }
-        return UBSE_OK;
+        return ShareExportReturnCallback(exportNodeId, exportObj, resp);
     }
     return UBSE_OK;
 }
@@ -1331,18 +1324,19 @@ NodeMemDebtInfoMap GetNodeDebtInfoMap()
     return map;
 }
 
-uint32_t UbseMemShareReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp,
-                            const std::string &realRequestNodeId)
+static uint32_t ShareReturnFail(const UbseMemReturnReq &req, UbseMemOperationResp &resp, const std::string &msg,
+                                uint32_t errCode, MemAdvice advice)
 {
-    UBSE_LOG_INFO << "Start to share return, name is " << req.name << ", requestNodeId is " << req.requestNodeId
-                  << ";requestId: " << req.requestId << ", realRequestNodeId:" << realRequestNodeId;
-    auto lock = LoggingLockGuard(req.name);
-    InitializeResponse(req, resp);
-    NodeMemDebtInfoMap map = GetNodeDebtInfoMap();
+    BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", "", errCode, advice);
+    return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::SHARED_RETURN);
+}
+
+static uint32_t ShareReturnValidate(const UbseMemReturnReq &req, UbseMemOperationResp &resp,
+                                    const std::string &realRequestNodeId, UbseMemShareBorrowExportObj &exportObj)
+{
     std::vector<UbseMemShareBorrowExportObj> exportObjs;
     std::vector<UbseMemShareBorrowImportObj> importObjs;
-    FindShareBorrowObjByName(map, req.name, exportObjs, importObjs);
-    UbseMemShareBorrowImportObj importObj{};
+    FindShareBorrowObjByName(GetNodeDebtInfoMap(), req.name, exportObjs, importObjs);
     if (!importObjs.empty()) {
         BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, "", "", UBSE_ERR_SHM_ATTACH_USING,
                            MemAdvice::RESOURCE_EXIST);
@@ -1355,36 +1349,45 @@ uint32_t UbseMemShareReturn(const UbseMemReturnReq &req, UbseMemOperationResp &r
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource not found.", UBSE_ERR_NOT_EXIST,
                                           MemOperationType::SHARED_RETURN);
     }
-    UbseMemShareBorrowExportObj exportObj = exportObjs[0];
-    UbseMemStage memStage = GetMemStageByExportObjState(exportObj, true);
+    exportObj = exportObjs[0];
+    auto enode = exportObj.algoResult.exportNumaInfos.empty() ? "" :
+                                                                exportObj.algoResult.exportNumaInfos.begin()->nodeId;
+    auto inode = exportObj.algoResult.importNumaInfos.empty() ? "" :
+                                                                exportObj.algoResult.importNumaInfos.begin()->nodeId;
+    auto memStage = GetMemStageByExportObjState(exportObj, true);
     if (memStage == UbseMemStage::UBSE_CREATING || memStage == UbseMemStage::UBSE_DELETING) {
-        UBSE_LOG_INFO << "resource is being borrowed or returned, name is " << req.name;
+        UBSE_LOG_INFO << "resource is being borrowed or returned, name:" << req.name;
         auto ret = (memStage == UbseMemStage::UBSE_CREATING) ? UBSE_ERR_CREATING : UBSE_ERR_DELETING;
-        BorrowFailedAdvice(
-            "Return Schedule failed", req.name, "SHARE_BORROW", 0,
-            exportObj.algoResult.exportNumaInfos.empty() ? "" : exportObj.algoResult.exportNumaInfos.begin()->nodeId,
-            exportObj.algoResult.importNumaInfos.empty() ? "" : exportObj.algoResult.importNumaInfos.begin()->nodeId,
-            ret, MemAdvice::RESOURCE_OPERATION_CONFLICT);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned",
-                                          static_cast<uint32_t>(ret), MemOperationType::SHARED_RETURN);
+        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, enode, inode, ret,
+                           MemAdvice::RESOURCE_OPERATION_CONFLICT);
+        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned", ret,
+                                          MemOperationType::SHARED_RETURN);
     }
     if (!CheckShareReturnPermission(exportObj.req.udsInfo, req.udsInfo, realRequestNodeId, exportObj.req.shmRegion)) {
         std::string shmRegionIds;
-        for (const auto &node : exportObj.req.shmRegion.nodelist) {
-            shmRegionIds += node.nodeId;
-            shmRegionIds += ", ";
-        }
-        UBSE_LOG_ERROR << "name:" << req.name << " auth failed,req username:" << req.udsInfo.username
-                       << ", req uid:" << req.udsInfo.uid << ", export obj username:" << exportObj.req.udsInfo.username
-                       << ", export obj uid:" << exportObj.req.udsInfo.uid
-                       << ", realRequestNodeId:" << realRequestNodeId << ", shmRegionIds: " << shmRegionIds;
-        BorrowFailedAdvice(
-            "Return Schedule failed", req.name, "SHARE_BORROW", 0,
-            exportObj.algoResult.exportNumaInfos.empty() ? "" : exportObj.algoResult.exportNumaInfos.begin()->nodeId,
-            exportObj.algoResult.importNumaInfos.empty() ? "" : exportObj.algoResult.importNumaInfos.begin()->nodeId,
-            UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
+        for (const auto &node : exportObj.req.shmRegion.nodelist)
+            shmRegionIds += node.nodeId + ", ";
+        UBSE_LOG_ERROR << "name:" << req.name << " auth failed, reqUid:" << req.udsInfo.uid
+                       << ", objUid:" << exportObj.req.udsInfo.uid << ", realRequestNodeId:" << realRequestNodeId
+                       << ", shmRegionIds:" << shmRegionIds;
+        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, enode, inode, UBSE_ERR_AUTH_FAILED,
+                           MemAdvice::UBSE_NO_OPERATION_PERMISSION);
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Error auth", UBSE_ERR_AUTH_FAILED,
                                           MemOperationType::SHARED_RETURN);
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseMemShareReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp,
+                            const std::string &realRequestNodeId)
+{
+    UBSE_LOG_INFO << "Start to share return, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+                  << ";requestId: " << req.requestId << ", realRequestNodeId:" << realRequestNodeId;
+    auto lock = LoggingLockGuard(req.name);
+    InitializeResponse(req, resp);
+    UbseMemShareBorrowExportObj exportObj;
+    if (auto ret = ShareReturnValidate(req, resp, realRequestNodeId, exportObj); ret != UBSE_OK) {
+        return ret;
     }
     exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     exportObj.returnReq = req;
