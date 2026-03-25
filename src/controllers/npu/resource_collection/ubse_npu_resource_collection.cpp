@@ -39,9 +39,9 @@ CollectionDevId CollectionStringUtil::GuidToStr(const UbseMtiGuid &guid)
 {
     // UbseMtiGuid内存布局位小端序，与字符串表示相反，字符串用大端序存储
     UbseMtiGuid reversed{};
-    size_t reversed_size = guid.size() - 1;
+    size_t reversedSize = guid.size() - 1;
     for (size_t i = 0; i < guid.size(); i++) {
-        reversed.at(i) = guid.at(reversed_size - i);
+        reversed.at(i) = guid.at(reversedSize - i);
     }
     std::ostringstream oss;
     oss << std::hex << std::nouppercase << std::setfill('0'); // 确保小写字母，填充‘0’

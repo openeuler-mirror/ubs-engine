@@ -58,8 +58,8 @@ UbseResult AllocDevicesAction(const UbseAllocRequest &requestInfo, std::string &
                               std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList);
 
 UbseResult FreeUbDevicesAction(const UbseAllocRequest &requestInfo,
-                              std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
-                              std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList);
+                               std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
+                               std::vector<std::shared_ptr<CollectionDeviceNic>> &nicList);
 
 UbseResult UbseGetAllocDeviceList(const UbseAllocRequest &requestInfo,
                                   std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
@@ -423,8 +423,8 @@ UbseResult FreeUbDevicesImpl(const UbseAllocRequest &requestInfo)
 }
 
 UbseResult FreeUbDevicesAction(const UbseAllocRequest &requestInfo,
-                              std::vector<std::shared_ptr<CollectionDeviceDavid>> &npus,
-                              std::vector<std::shared_ptr<CollectionDeviceNic>> &nics)
+                               std::vector<std::shared_ptr<CollectionDeviceDavid>> &npus,
+                               std::vector<std::shared_ptr<CollectionDeviceNic>> &nics)
 {
     auto &collection = ResourceCollection::GetInstance();
     auto hostBusInstance = collection.GetDeviceHostBusInstance();
@@ -981,8 +981,7 @@ void UbseNpuManagerApi::HandleUnRegisterFailure(const std::vector<std::shared_pt
                 nicList.push_back(dev);
             }
         }
-        auto _ = false;
-        this->SendRegisterNicRequest(busInstance, nicList, _);
+        this->SendRegisterNicRequest(busInstance, nicList, needRollback);
     }
 }
 
@@ -1055,8 +1054,7 @@ UbseResult UbseNpuManagerApi::RegisterDevToBusi(std::vector<std::shared_ptr<Coll
     if (ret != UBSE_OK) {
         if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
             // 回滚当前
-            auto _ = false;
-            SendUnRegisterNicRequest(nicList, _);
+            SendUnRegisterNicRequest(nicList, needRollback);
         }
         UBSE_LOG_ERROR << "Request Register nic to bus instance failed, " << FormatRetCode(ret);
         return ret;
@@ -1481,8 +1479,7 @@ UbseResult UbseNpuManagerApi::RegisterVfeToBusi(std::vector<std::shared_ptr<Coll
     if (ret != UBSE_OK) {
         if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
             // 回滚当前
-            auto _ = false;
-            SendUnRegisterVfeRequest(vfeList, _);
+            SendUnRegisterVfeRequest(vfeList, needRollback);
         }
         UBSE_LOG_ERROR << "Request Register vfe to bus instance failed";
         return ret;
@@ -1563,8 +1560,7 @@ UbseResult UbseNpuManagerApi::UnRegisterVfeFromBusi(std::vector<std::shared_ptr<
     if (ret != UBSE_OK) {
         if (state_ == NpuManagerState::RUNNING_ALLOC && needRollback) {
             // 回滚当前
-            auto _ = false;
-            SendRegisterVfeRequest(busInstance, devList, _);
+            SendRegisterVfeRequest(busInstance, devList, needRollback);
         }
         UBSE_LOG_ERROR << "Request UnRegister vfe from bus instance failed";
         return ret;
