@@ -302,7 +302,7 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationRe
     ret = SendShareExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
     if (ret != UBSE_OK) {
         BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size,
-                           exportObj.algoResult.exportNumaInfos[0].nodeId, "", ret, MemAdvice::SCHEDULE_FAILED);
+                           exportObj.algoResult.exportNumaInfos[0].nodeId, "", ret, MemAdvice::COMM_FAILED);
         return HandleSendExportError(resp, req, exportObj);
     }
     return UBSE_OK;
@@ -1128,7 +1128,7 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp &resp, UbseMemShar
         auto nowObj = nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name];
         if (nowObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
             mapLock.UnLock();
-            if (auto ret = SendShareImportObj(importObj, false); ret != UBSE_OK) {
+            if (auto ret = SendShareImportObj(nowObj, false); ret != UBSE_OK) {
                 BorrowFailedAdvice("Import failed", name, "SHARE_BORROW", nowObj.req.size,
                                    nowObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId, ret,
                                    MemAdvice::COMM_FAILED);
@@ -1216,7 +1216,7 @@ uint32_t ShareImportDestroyingAgentCallBack(UbseMemOperationResp &resp, UbseMemS
         BorrowFailedAdvice(
             "UnImport failed", name, "SHARE_BORROW", 0,
             importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos.begin()->nodeId,
-            importObj.importNodeId, res, MemAdvice::COMM_FAILED);
+            importObj.importNodeId, ret, MemAdvice::COMM_FAILED);
         return ret;
     }
     return UBSE_OK;
@@ -1251,7 +1251,7 @@ uint32_t ShareImportMasterCallBack(UbseMemShareBorrowImportObj &importObj)
             UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name is" << importObj.req.name
                           << ";requestId: " << importObj.req.requestId;
             UbseMemShmImportObjStateChangeHandler(importObj);
-            if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_DETACH);
+            if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_ATTACH);
                 ret != UBSE_OK) {
                 BorrowFailedAdvice("Return Schedule failed", importObj.req.name, "SHARE_BORROW", 0,
                                    importObj.algoResult.exportNumaInfos.empty() ?
