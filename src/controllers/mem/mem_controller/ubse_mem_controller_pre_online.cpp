@@ -127,19 +127,18 @@ UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
     auto nodes = UbseNodeController::GetInstance().GetAllNodes();
     if (nodes.size() <= 1) { // 集群节点<=1，不做预上线
         UBSE_LOG_INFO << "current cluster only has one node=" << ubseNode.nodeId << " when smoothing, skip pre online.";
-    } else if (nodes.size() == 2) { // 集群节点=2，将2个节点进行预上线，若没有直连关系，也置为ONLINE
-        UBSE_LOG_INFO << "current cluster only has two node when smoothing, pre online.";
-        for (auto clusterNode : nodes) {
+    } else if (CLUSTER_SIZE >= 2) { // 集群节点数>=2，对所有节点进行预上线处理
+        UBSE_LOG_INFO << "current cluster has " << CLUSTER_SIZE << " nodes when smoothing, pre online.";
+        for (const auto& clusterNode : nodes) {
             if (IsNodeOnLine(clusterNode.second.nodeId)) {
                 UBSE_LOG_INFO << "node=" << clusterNode.second.nodeId
                               << " already online when smooth, skip pre online.";
                 continue;
             }
-            PreOnlineThread(clusterNode.second, true);
+            // 集群节点数>2时，使用false参数
+            bool isTwoNodeCluster = (CLUSTER_SIZE == 2);
+            PreOnlineThread(clusterNode.second, isTwoNodeCluster);
         }
-    } else { // 集群>2，将加入集群的节点进行上线。
-        UBSE_LOG_INFO << "current cluster has more than two node, pre online.";
-        PreOnlineThread(ubseNode, false);
     }
     return UBSE_OK;
 }
