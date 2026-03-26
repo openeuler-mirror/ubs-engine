@@ -297,8 +297,6 @@ void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string &nodeId)
     // 对账 = 切换到SMOOTHING
     UbseResult ret = UbseNodeController::GetInstance().UpdateNodeInfoClusterState(
         nodeId, UbseNodeClusterState::UBSE_NODE_SMOOTHING);
-
-
     // 获取切换后的状态
     nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     // 检查节点是否处于故障状态
@@ -345,8 +343,6 @@ void UbseNodeControllerMaster::UbseNodeLedger(const std::string& nodeId)
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " not in smoothing after smoothing, current state="
-
-
                       << static_cast<uint32_t>(nodeInfo.clusterState);
         return;
     }
