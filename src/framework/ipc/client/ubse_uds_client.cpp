@@ -401,7 +401,13 @@ uint32_t UbseUDSClient::CalculateRemainingTime(std::chrono::steady_clock::time_p
 
 UbseUDSClient::~UbseUDSClient() noexcept
 {
-    Stop();
+    try {
+        // 先停止重连线程
+        StopReconnectThread();
+        // 再调用 Stop
+        Stop();
+    } catch (...) {
+    }
 }
 
 uint32_t UbseUDSClient::CreateEpoll()
@@ -511,29 +517,21 @@ void UbseUDSClient::StopReconnectThread()
     IPC_LOG_INFO << "stopping reconnect thread";
     isReConnect_.store(false);
     try {
-        // 等待重连线程结束（最多等待1秒）
-        auto startTime = std::chrono::steady_clock::now();
-        bool timeout = false;
-        while (reconnectThread_.joinable() && !timeout) {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
-            if (elapsed.count() > 1000) {
-                IPC_LOG_WARN << "reconnect thread stop timeout, forcing stop";
-                timeout = true;
-            } else {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-        }
-        // 记录线程状态
         if (reconnectThread_.joinable()) {
-            IPC_LOG_ERROR << "reconnect thread still alive, but we will not detach it";
-        } else {
-            IPC_LOG_INFO << "reconnect thread stopped successfully";
+            reconnectThread_.join();
+            IPC_LOG_INFO << "reconnect thread joined successfully";
+
         }
     } catch (const std::exception& e) {
-        IPC_LOG_WARN << "exception when stopping reconnect thread: " << e.what();
+        IPC_LOG_ERROR << "failed to join reconnect thread: " << e.what();
+        if (reconnectThread_.joinable()) {
+            reconnectThread_.detach();
+        }
     } catch (...) {
-        IPC_LOG_WARN << "unknown exception when stopping reconnect thread";
+        IPC_LOG_ERROR << "unknown exception when joining reconnect thread";
+        if (reconnectThread_.joinable()) {
+            reconnectThread_.detach();
+        }
     }
     // 重置线程对象
     reconnectThread_ = std::thread();
@@ -570,12 +568,19 @@ void UbseUDSClient::CleanupReconnectThread()
     if (reconnectThread_.joinable()) {
         IPC_LOG_INFO << "cleaning up old reconnect thread";
         try {
-            // 尝试detach旧的线程
-            reconnectThread_.detach();
+            // 设置停止标志
+            isReConnect_.store(false);
+            // 等待一小段时间
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+            if (reconnectThread_.joinable()) {
+                // 如果还在运行，detach
+                IPC_LOG_WARN << "old reconnect thread still alive, detaching";
+                reconnectThread_.detach();
+            }
         } catch (...) {
-            // 忽略异常
+            // 忽略所有异常
         }
-        // 重置为空线程
         reconnectThread_ = std::thread();
     }
 }
