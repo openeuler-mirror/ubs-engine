@@ -111,23 +111,27 @@ void PreOnlineThread(const ubse::nodeController::UbseNodeInfo &ubseNode, bool is
 UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
 {
     UBSE_LOG_INFO << "nodeId=" << ubseNode.nodeId << " online, state=" << static_cast<uint32_t>(ubseNode.clusterState);
+
     if (ubseNode.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT ||
         ubseNode.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
-        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << "not working, set to offline";
+        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << " not working, set to offline";
         SetNodePreOnLine(ubseNode.nodeId, PreOnLineState::OFFLINE);
         return UBSE_OK;
     }
     if (ubseNode.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << "not smoothing";
+        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << " not smoothing";
         return UBSE_OK;
     }
     if (!ValidPreOnLine(ubseNode.nodeId)) {
         return UBSE_OK;
     }
     auto nodes = UbseNodeController::GetInstance().GetAllNodes();
-    if (nodes.size() <= 1) { // 集群节点<=1，不做预上线
+    const size_t CLUSTER_SIZE = nodes.size();  // 定义集群大小变量
+    if (CLUSTER_SIZE <= 1) {
+        // 集群节点<=1，不做预上线
         UBSE_LOG_INFO << "current cluster only has one node=" << ubseNode.nodeId << " when smoothing, skip pre online.";
-    } else if (CLUSTER_SIZE >= 2) { // 集群节点数>=2，对所有节点进行预上线处理
+    } else if (CLUSTER_SIZE >= 2) {
+        // 集群节点数>=2，对所有节点进行预上线处理
         UBSE_LOG_INFO << "current cluster has " << CLUSTER_SIZE << " nodes when smoothing, pre online.";
         for (const auto& clusterNode : nodes) {
             if (IsNodeOnLine(clusterNode.second.nodeId)) {
@@ -135,7 +139,7 @@ UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
                               << " already online when smooth, skip pre online.";
                 continue;
             }
-            // 集群节点数>2时，使用false参数
+            // 集群节点数=2时，使用true参数
             bool isTwoNodeCluster = (CLUSTER_SIZE == 2);
             PreOnlineThread(clusterNode.second, isTwoNodeCluster);
         }
