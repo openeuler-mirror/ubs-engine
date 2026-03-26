@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_TIMER_H
-#define UBSE_TIMER_H
+#ifndef UBSE_TIMER_CONTROLLER_H
+#define UBSE_TIMER_CONTROLLER_H
 
 #include <condition_variable>
 #include <functional>
@@ -56,4 +56,4 @@ private:
 };
 } // namespace ubse::timer
 
-#endif // UBSE_TIMER_H
+#endif // UBSE_TIMER_CONTROLLER_H
