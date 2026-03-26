@@ -571,8 +571,8 @@ void UbseUDSClient::CleanupReconnectThread()
             // 设置停止标志
             isReConnect_.store(false);
             // 给重连线程一个短暂的等待时间用于响应停止信号
-            constexpr int MAX_WAIT_MS_FOR_THREAD_EXIT = 50;
-            std::this_thread::sleep_for(std::chrono::milliseconds(MAX_WAIT_MS_FOR_THREAD_EXIT));
+            constexpr int maxWaitMsForThreadExit = 50;
+            std::this_thread::sleep_for(std::chrono::milliseconds(maxWaitMsForThreadExit));
             if (reconnectThread_.joinable()) {
                 // 如果线程仍在运行，分离以允许其继续执行
                 IPC_LOG_WARN << "old reconnect thread still alive, detaching";
