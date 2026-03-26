@@ -57,7 +57,7 @@ UbseResult UbseHttpModule::Initialize()
     } else {
         isTcpServer = true;
         if (!UbseNetUtil::IsPortVaLid(port_)) {
-            UBSE_LOG_ERROR << "ubse.server.port=" << port_
+            UBSE_LOG_ERROR << "ubm.server.port=" << port_
                            << " is out of range[1024, 65535], will use default value: " << DEFAULT_UBM_SERVER_PORT;
             port = DEFAULT_UBM_SERVER_PORT;
         } else {
