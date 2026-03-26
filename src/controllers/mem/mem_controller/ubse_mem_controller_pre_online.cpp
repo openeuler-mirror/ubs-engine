@@ -45,6 +45,9 @@ const uint64_t PRE_ONLINE_TIMEOUT = 12000;
 const uint32_t SEND_PRE_ONLINE_MSG_TIMES = 5; // master发送消息失败后重试次数
 const uint32_t MB_SIZE = 1024 * 1024;
 constexpr int MAX_CNA_LIST_SIZE = 256;
+// 集群节点数相关常量
+constexpr size_t SINGLE_NODE_CLUSTER = 1;      // 单节点集群
+constexpr size_t MIN_NODES_FOR_PRE_ONLINE = 2; // 需要预上线的最小节点数
 
 const std::string PRE_ONLINE_TASK_NAME = "pre_online_task";
 
@@ -125,11 +128,12 @@ UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
     if (!ValidPreOnLine(ubseNode.nodeId)) {
         return UBSE_OK;
     }
+
     auto nodes = UbseNodeController::GetInstance().GetAllNodes();
-    if (nodes.size() <= 1) {
+    if (nodes.size() <= SINGLE_NODE_CLUSTER) {
         // 集群节点<=1，不做预上线
         UBSE_LOG_INFO << "current cluster only has one node=" << ubseNode.nodeId << " when smoothing, skip pre online.";
-    } else if (nodes.size() >= 2) {
+    } else if (nodes.size() >= MIN_NODES_FOR_PRE_ONLINE) {
         // 集群节点数>=2，对所有节点进行预上线处理
         UBSE_LOG_INFO << "current cluster has " << nodes.size() << " nodes when smoothing, pre online.";
         for (const auto& clusterNode : nodes) {
@@ -139,7 +143,7 @@ UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
                 continue;
             }
             // 集群节点数=2时，使用true参数
-            bool isTwoNodeCluster = (nodes.size() == 2);
+            bool isTwoNodeCluster = (nodes.size() == MIN_NODES_FOR_PRE_ONLINE);
             PreOnlineThread(clusterNode.second, isTwoNodeCluster);
         }
     }
