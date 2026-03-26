@@ -407,6 +407,7 @@ UbseUDSClient::~UbseUDSClient() noexcept
         // 再调用 Stop
         Stop();
     } catch (...) {
+        // 析构函数中不能抛出异常
     }
 }
 
@@ -520,7 +521,6 @@ void UbseUDSClient::StopReconnectThread()
         if (reconnectThread_.joinable()) {
             reconnectThread_.join();
             IPC_LOG_INFO << "reconnect thread joined successfully";
-
         }
     } catch (const std::exception& e) {
         IPC_LOG_ERROR << "failed to join reconnect thread: " << e.what();
@@ -570,17 +570,18 @@ void UbseUDSClient::CleanupReconnectThread()
         try {
             // 设置停止标志
             isReConnect_.store(false);
-            // 等待一小段时间
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
+            // 给重连线程一个短暂的等待时间用于响应停止信号
+            constexpr int MAX_WAIT_MS_FOR_THREAD_EXIT = 50;
+            std::this_thread::sleep_for(std::chrono::milliseconds(MAX_WAIT_MS_FOR_THREAD_EXIT));
             if (reconnectThread_.joinable()) {
-                // 如果还在运行，detach
+                // 如果线程仍在运行，分离以允许其继续执行
                 IPC_LOG_WARN << "old reconnect thread still alive, detaching";
                 reconnectThread_.detach();
             }
         } catch (...) {
             // 忽略所有异常
         }
+        // 重置线程对象
         reconnectThread_ = std::thread();
     }
 }
