@@ -23,6 +23,7 @@
 #include "ubse_str_util.h"
 #include "ubse_election_module.h"
 
+
 namespace ubse::node::api {
 using namespace ubse::context;
 using namespace ubse::serial;
