@@ -176,7 +176,7 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
         UBSE_LOG_ERROR << "UbsePubEvent "<< UBSE_EVENT_NODE_JOIN << " failed on master node";
         return ret;
     }
-    std::lock_guard<std::mutex> lock(taskExecMutex_);
+    taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_2, NO_1024);
     if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
         taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_16, NO_1024);
         if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
@@ -271,20 +271,116 @@ void UbseNodeControllerMaster::UbseNodeCycleLedger(const std::string& nodeId)
     UbseNodeControllerLockMgr::WriteUnLock(nodeId);
 }
 
+void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string &nodeId)
+{
+    // 获取节点锁
+    UbseNodeControllerLockMgr::WriteLock(nodeId);
+    UBSE_LOG_INFO << "nodeId=" << nodeId << " start retry ledger";
+    std::string timerName = "UbseNodeLedgerRetry_" + nodeId;
+    // 检查节点是否存在
+    auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_WARN << "nodeId=" << nodeId << " not report, will skip";
+        UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+        return;
+    }
+    // 判断节点是否处于故障状态
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+        nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_PRE_BMC ||
+        nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " is in fault state, cancel retry timer";
+        // 取消对账定时器
+        (void)UbseTimerHandlerUnregister(timerName);
+        UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+        return;
+    }
+    // 对账 = 切换到SMOOTHING
+    UbseResult ret = UbseNodeController::GetInstance().UpdateNodeInfoClusterState(
+        nodeId, UbseNodeClusterState::UBSE_NODE_SMOOTHING);
+
+
+    // 获取切换后的状态
+    nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
+    // 检查节点是否处于故障状态
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+        nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_PRE_BMC ||
+        nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " changed to fault state after ledger, cancel retry timer";
+        // 取消对账定时器
+        (void)UbseTimerHandlerUnregister(timerName);
+        UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+        return;
+    }
+    // 判断对账执行结果
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "nodeId=" << nodeId << " failed to switch to smoothing, will retry in next cycle";
+        UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+        return;
+    }
+    // 检查状态是否为 SMOOTHING
+    if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " not in smoothing, current state="
+                      << static_cast<uint32_t>(nodeInfo.clusterState);
+        UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+        return;
+    }
+    // 对账成功，取消对账定时器
+    (void)UbseTimerHandlerUnregister(timerName);
+    UBSE_LOG_INFO << "nodeId=" << nodeId << " retry ledger success, timer cleaned";
+    // 将节点状态切换至WORKING
+    UbseNodeController::GetInstance().UpdateNodeInfoClusterState(
+        nodeId, UbseNodeClusterState::UBSE_NODE_WORKING);
+    // 释放锁
+    UbseNodeControllerLockMgr::WriteUnLock(nodeId);
+    UBSE_LOG_INFO << "nodeId=" << nodeId << " retry ledger completed successfully";
+}
+
 void UbseNodeControllerMaster::UbseNodeLedger(const std::string& nodeId)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " start to collect reconciliation";
-    (void)UbseNodeController::GetInstance().UpdateNodeInfoClusterState(nodeId,
-                                                                       UbseNodeClusterState::UBSE_NODE_SMOOTHING);
+    // 对账 = 切换到SMOOTHING
+    UbseResult ret = UbseNodeController::GetInstance().UpdateNodeInfoClusterState(
+        nodeId, UbseNodeClusterState::UBSE_NODE_SMOOTHING);
+    // 检查状态
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-        // 若对账期间，节点故障或者断连，故障模块会将节点状态修改为fault，unknown；
-        // 在部分不断链的故障场景下，例如BMC下电失败，reboot -f等，若对账完毕发现状态非smoothing，不刷新状态。
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " not in smoothing after smoothing, stop update state, current state="
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " not in smoothing after smoothing, current state="
+
+
                       << static_cast<uint32_t>(nodeInfo.clusterState);
         return;
     }
-    UbseNodeController::GetInstance().UpdateNodeInfoClusterState(nodeId, UbseNodeClusterState::UBSE_NODE_WORKING);
+    if (ret != UBSE_OK) {
+        // 对账失败，注册定时器，5分钟后重新对账
+        UBSE_LOG_WARN << "nodeId=" << nodeId << " collect ledger failed " << FormatRetCode(ret);
+        std::string timerName = "UbseNodeLedgerRetry_" + nodeId;
+        auto registerRet = UbseTimerHandlerRegister(
+            timerName,
+            [this, nodeId]() -> UbseResult {
+                if (taskExecutor_ != nullptr) {
+                    taskExecutor_->Execute([this, nodeId]() {
+                        UbseNodeRetryLedger(nodeId);
+                    });
+                }
+                return UBSE_OK;
+            },
+            300); // 5分钟
+        if (registerRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to register retry timer for node: " << nodeId;
+        }
+        return;
+    }
+    // 对账成功
+    // 再次检查状态
+    nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
+    if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " not in smoothing after ledger, current state="
+                      << static_cast<uint32_t>(nodeInfo.clusterState);
+        return;
+    }
+    // 切换到WORKING
+    UbseNodeController::GetInstance().UpdateNodeInfoClusterState(
+        nodeId, UbseNodeClusterState::UBSE_NODE_WORKING);
     UBSE_LOG_INFO << "nodeId=" << nodeId << " collect ledger success.";
 }
 
@@ -553,20 +649,31 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 
 void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
 {
+    UBSE_LOG_INFO << "Start cleaning master resources...";
+    // 停止日志聚合
     isLogAggregationRunning_.store(false);
     cv_.notify_all();
-    // 停止定时器
-    UBSE_LOG_INFO << "ubse node master start to stop ledger timer.";
-    UbseTimerHandlerUnregister(UBSE_NODE_MASTER_LEDGER_TIMER);
-    UBSE_LOG_INFO << "ubse node master start to stop executor.";
-    std::lock_guard<std::mutex> lock(taskExecMutex_);
+    // 清理主定时器
+    UBSE_LOG_INFO << "Stopping master ledger timer...";
+    (void)UbseTimerHandlerUnregister(UBSE_NODE_MASTER_LEDGER_TIMER);
+    // 清理所有节点的重试定时器
+    UBSE_LOG_INFO << "Cleaning all node retry timers...";
+    auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
+    for (const auto& node : nodeInfos) {
+        std::string timerName = "UbseNodeLedgerRetry_" + node.first;
+        (void)UbseTimerHandlerUnregister(timerName);
+    }
+    // 停止任务执行器
+    UBSE_LOG_INFO << "Stopping task executor...";
     if (taskExecutor_ != nullptr) {
         taskExecutor_->Stop();
+        UBSE_LOG_INFO << "Task executor stopped";
     }
-    // 清理内存中其余节点的信息
-    UBSE_LOG_INFO << "ubse node master start to clean context.";
+    // 清理节点信息
+    UBSE_LOG_INFO << "Cleaning node context...";
     UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
-    UBSE_LOG_INFO << "ubse node master clean done.";
+
+    UBSE_LOG_INFO << "Master cleanup completed";
 }
 
 void UbseNodeControllerMaster::Stop()
