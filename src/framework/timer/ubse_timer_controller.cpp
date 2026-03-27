@@ -33,8 +33,8 @@ using namespace ubse::log;
 using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-const int THREAD_NUM = 2; // 线程池线程数量为2
-const int QUEUE_CAPACITY = 14; // 线程池队列数量为14
+const int THREAD_NUM = 2;        // 线程池线程数量为2
+const int QUEUE_CAPACITY = 25;   // 线程池队列数量为25
 static const std::string TIMER_NAME = "UbseTimer";
 static const uint32_t UBSE_INTERVAL = 1;
 static const uint32_t UBSE_REGISTER_MIN_INTERVAL = 1;
@@ -62,6 +62,8 @@ static void CheckHandlerExecTimeout()
     std::unique_lock<std::mutex> lock(g_handlerExecCheckCvMutex);
     while (g_isTimerRunning.load(std::memory_order_acquire) && !g_globalStop.load(std::memory_order_acquire)) {
         g_handlerExecCheckCv.wait_for(lock, std::chrono::seconds(g_handlerExecCheckInterval));
+        // 确认线程进入检查状态
+        UBSE_LOG_INFO << "Checking handler execution timeouts.";
         if (!g_isTimerRunning.load(std::memory_order_acquire) || g_globalStop.load(std::memory_order_acquire)) {
             UBSE_LOG_INFO << "ubse process exit, stop check.";
             break;
@@ -74,11 +76,11 @@ static void CheckHandlerExecTimeout()
         for (auto &handler : handlerExecStartRecordCopy) {
             auto duration = currentTime - handler.second;
             if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() > g_handlerExecTimeout) {
-                oss << "handler=" << handler.first << " exec timeout,";
+                oss << "handler=" << handler.first << " exec timeout,";  // 超时警告
             }
         }
         if (!oss.str().empty()) {
-            UBSE_LOG_ERROR << oss.str();
+            UBSE_LOG_ERROR << oss.str();  // 打印超时错误信息
         }
     }
 }
@@ -283,8 +285,8 @@ void UbseTimerController::run()
             UBSE_LOG_ERROR << "[TIMER] Get task executor failed";
             break;
         }
-        // 定时器触发，执行所有需要执行的handler
-        taskExecutor->Execute([]() { ExecTimerHandler(); });
+        // 定时器触发，直接在当前线程执行所有需要执行的handler
+        ExecTimerHandler();
         next_time += std::chrono::milliseconds(interval_ms_);
     }
 }
