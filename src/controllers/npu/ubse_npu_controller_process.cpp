@@ -145,9 +145,9 @@ UbseResult UbseNpuControllerProcess::DeviceNpuToResource(const std::shared_ptr<C
 
     for (const auto &affiNic : affiNics) {
         CollectDeviceLoc affinic = affiNic->GetDeviceLoc();
-        npuRes->AddAffinityDevice({ResourceType::NIC, affinic.slotId, affinic.chipId, affinic.dieId});
+        npuRes->AddAffinityDevice({ResourceType::NIC, affinic.slotId, affinic.chipId, affinic.pfeId});
         UBSE_LOG_DEBUG << "DeviceNpuToResource nic " << affinic.slotId << "-" << affinic.chipId << "-"
-                       << affinic.dieId << " added to npuRes.affinityDevices";
+                       << affinic.pfeId << " added to npuRes.affinityDevices";
     }
 
     CollectDeviceLoc ubctl = ubCtl->GetDeviceLoc();
@@ -162,8 +162,8 @@ void UbseNpuControllerProcess::SetNicLocation(const std::shared_ptr<CollectionDe
 {
     CollectDeviceLoc nicLoc = nic->GetDeviceLoc();
     UBSE_LOG_DEBUG << "DeviceNicToResource start, nic " << nic->GetGuid() << " " << nicLoc.slotId << "-"
-                   << nicLoc.chipId << "-" << nicLoc.dieId << " added to nicRes";
-    nicRes->SetLoc(nicLoc.slotId, nicLoc.chipId, nicLoc.dieId);
+                   << nicLoc.chipId << "-" << nicLoc.pfeId << " added to nicRes";
+    nicRes->SetLoc(nicLoc.slotId, nicLoc.chipId, nicLoc.pfeId);
 }
 
 void UbseNpuControllerProcess::SetNicBusInstanceGuid(const std::shared_ptr<CollectionDeviceNic> &nic,
@@ -242,8 +242,8 @@ UbseResult UbseNpuControllerProcess::BusInstanceToResource(const std::shared_ptr
     UBSE_LOG_DEBUG << "BusInstanceToResource nics size: " << nics.size();
     for (auto &nic : nics) {
         CollectDeviceLoc nicLoc = nic->GetDeviceLoc();
-        busRes->AddSubDevice({ResourceType::NIC, nicLoc.slotId, nicLoc.chipId, nicLoc.dieId});
-        UBSE_LOG_DEBUG << "nic: " << nicLoc.slotId << "-" << nicLoc.chipId << "-" << nicLoc.dieId
+        busRes->AddSubDevice({ResourceType::NIC, nicLoc.slotId, nicLoc.chipId, nicLoc.pfeId});
+        UBSE_LOG_DEBUG << "nic: " << nicLoc.slotId << "-" << nicLoc.chipId << "-" << nicLoc.pfeId
                        << " added to busRes.subDevices";
     }
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfes = busi->GetSubDevIdev();

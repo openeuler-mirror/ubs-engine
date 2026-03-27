@@ -21,7 +21,7 @@
 #include "ubse_error.h"
 namespace ubse::npu::controller {
 constexpr uint8_t UBSE_UB_DEVICE_GUID_SIZE = 32;
-constexpr uint8_t UBSE_UB_UPI_STR_SIZE = 3;
+constexpr uint8_t UBSE_UB_UPI_STR_SIZE = 4;
 constexpr uint8_t DEVICE_ID_SIZE = 3;
 
 using namespace ubse::common::def;

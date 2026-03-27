@@ -17,7 +17,6 @@
 #include <memory>
 #include <string>
 #include <thread>
-#include "ubse_npu_monitor_def.h"
 #include "ubse_common_def.h"
 
 namespace ubse::npu::vm_monitor {
@@ -30,7 +29,7 @@ enum class VirDomainEventType {
     VIR_DOMAIN_EVENT_RESUMED = 4,
     VIR_DOMAIN_EVENT_STOPPED = 5,
     VIR_DOMAIN_EVENT_SHUTDOWN = 6,
-    VIR_DOMAIN_EVENT_PMSUSPENOED = 7,
+    VIR_DOMAIN_EVENT_PMSUSPENDED = 7,
     VIR_DOMAIN_EVENT_CRASHED = 8,
     VIR_DOMAIN_EVENT_LAST = 9,
 };

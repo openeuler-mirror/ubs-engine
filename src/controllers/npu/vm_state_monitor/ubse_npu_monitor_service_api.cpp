@@ -15,6 +15,7 @@
 #include <mutex>
 #include <optional>
 #include <securec.h>
+#include <unordered_set>
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_npu_resource_collection.h"
@@ -148,13 +149,13 @@ UbseResult StartVMMonitor()
 
 void ResetNpuOfBusInstance(const std::string &busInstance, VirDomainEventType event)
 {
-    switch (static_cast<VirDomainEventType>(event)) {
-        case VirDomainEventType::VIR_DOMAIN_EVENT_STARTED:
-        case VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED:
-        case VirDomainEventType::VIR_DOMAIN_EVENT_SHUTDOWN:
-            break;
-        default:
-            return;
+    static const std::unordered_set<VirDomainEventType> handleEvents = {
+        VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
+        VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
+        VirDomainEventType::VIR_DOMAIN_EVENT_SHUTDOWN
+    };
+    if (handleEvents.find(event) == handleEvents.end()) {
+        return;
     }
     static std::unordered_map<std::string, VirDomainEventType> record;
     static std::mutex recordMutex;
