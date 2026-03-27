@@ -199,7 +199,6 @@ void HandleImportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &parti
 UbseResult FetchDebtInfoByTypeAndPage(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &partialFetchRes)
 {
     auto nodeInfo = UbseMemDebtLedger::GetInstance().GetNodeMemDebtInfo(debtFetchInfo.nodeId, false);
-
     if (nodeInfo.fdImportObjMap.empty() && nodeInfo.fdExportObjMap.empty() && nodeInfo.numaImportObjMap.empty() &&
         nodeInfo.numaExportObjMap.empty() && nodeInfo.shareImportObjMap.empty() && nodeInfo.shareExportObjMap.empty() &&
         nodeInfo.addrImportObjMap.empty() && nodeInfo.addrExportObjMap.empty()) {

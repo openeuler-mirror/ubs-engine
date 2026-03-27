@@ -98,7 +98,6 @@ uint32_t UbseMemFdList(const UbseMemDebtQueryRequest &request, std::vector<UbseM
     auto nodeImportMap = UbseMemDebtLedger::GetInstance()
         .GetDebtMap<UbseMemFdBorrowImportObj>()
         .FindNodeMap(request.importNodeId);
-
     if (!nodeImportMap) {
         UBSE_LOG_INFO << "Failed to find import debt, import node id: " << request.importNodeId;
         return UBSE_OK;
@@ -119,7 +118,7 @@ uint32_t UbseMemFdList(const UbseMemDebtQueryRequest &request, std::vector<UbseM
         ubse::nodeController::UbseNodeGetByNodeIdInMaster(request.importNodeId, fdDesc.importNode);
         if (!importObjPtr->algoResult.exportNumaInfos.empty()) {
             ubse::nodeController::UbseNodeGetByNodeIdInMaster(importObjPtr->algoResult.exportNumaInfos[0].nodeId,
-                                                                fdDesc.exportNode);
+                fdDesc.exportNode);
         }
         UbseMemResult memResult = GetFdStageByObj(name, request.importNodeId);
         fdDesc.state = memResult.stage;
