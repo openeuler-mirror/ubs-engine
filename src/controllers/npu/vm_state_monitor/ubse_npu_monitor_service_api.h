@@ -14,12 +14,12 @@
 #define UBSE_MONIOR_SERVICE_API_H
 
 #include "ubse_common_def.h"
-#include "ubse_npu_monitor_def.h"
+#include "ubse_npu_libvirt_monitor.h"
 
-namespace  ubse::npu::vm_monitor {
+namespace ubse::npu::vm_monitor {
 ubse::common::def::UbseResult StartVMMonitor();
 
-void ResetNpuOfBusInstance(const std::string &busInstance, VmEventType event);
+void ResetNpuOfBusInstance(const std::string &busInstance, VirDomainEventType event);
 
 ubse::common::def::UbseResult ResetNpu(const uint8_t &chipId);
 }

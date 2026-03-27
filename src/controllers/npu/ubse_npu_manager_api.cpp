@@ -1271,7 +1271,7 @@ UbseResult UbseNpuManagerApi::CreateVMBusi(uint16_t upi, CollectionGuid &busiGui
     return UBSE_OK;
 }
 
-UbseResult UbseNpuManagerApi::DestroyVMBusi(const CollectionDevId &busiGuid)
+UbseResult UbseNpuManagerApi::DestroyVMBusi(const CollectionGuid &busiGuid)
 {
     auto &collection = ResourceCollection::GetInstance();
     std::shared_ptr<CollectionDeviceBusi> busInstance =
