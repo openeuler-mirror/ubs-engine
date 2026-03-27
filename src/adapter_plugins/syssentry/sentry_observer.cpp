@@ -5,14 +5,16 @@
 #include "securec.h"
 #include "src/framework/security/ubse_security_module.h"
 #include "src/ras/ubse_ras_handler.h"
+#include "sys_sentry_module.h"
+#include "trace_context.h"
+#include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
 #include "ubse_ras.h"
-#include "trace_context.h"
-#include "sys_sentry_module.h"
 #include "ubse_timer.h"
+#include "src/framework/misc/ubse_os_util.h"
 
 using namespace ubse::log;
 using namespace ubse::context;
@@ -30,6 +32,9 @@ const int SLEEP_TIME = 5; // 注册alarm失败休眠时间
 LibPtr xalarmHandle = nullptr;
 const std::string UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME = "UbseRasConfigSysSentryTimer";
 const uint32_t UBSE_RAS_CONFIG_SYSSENTRY_TIMER_INTERVAL = NO_5;
+
+const std::string UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME = "UbseRasQueryMsgMonitorTimer";
+const uint32_t UBSE_RAS_QUERY_MSG_MONITOR_TIMER_INTERVAL = NO_10;
 
 UbseRasObserver &UbseRasObserver::GetInstance()
 {
@@ -83,6 +88,46 @@ UbseResult UbseRasObserver::Init()
     return UBSE_OK;
 }
 
+void UbseRasObserver::UbseQueryMsgMonitorTimerRun()
+{
+    // 调用sentryctl命令查询sentry_msg_helper 运行状态
+    std::string command = "sentryctl status sentry_msg_monitor 2>/dev/null";
+    std::string result;
+    auto ret = ubse::utils::UbseOsUtil::Exec(command, result);
+    // sysSentry 服务未启动时也会返回错误，因此命令执行失败后视作sysSentry服务异常
+    if (ret != UBSE_OK || result.find("RUNNING") == std::string::npos) {
+        this->isSentryMsgMonitorRunning = false;
+    } else {
+        this->isSentryMsgMonitorRunning = true;
+    }
+}
+
+void UbseRasObserver::RegQueryMsgMonitorTimer()
+{
+    auto ret = ubse::timer::UbseTimerHandlerRegister(
+        UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME,
+        []() -> UbseResult {
+            if (g_globalStop) {
+                UBSE_LOG_INFO << "detect global stop flag, will stop query msg monitor timer";
+                ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME);
+                return UBSE_OK;
+            }
+            auto taskModule = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+            if (taskModule == nullptr) {
+                UBSE_LOG_ERROR << "Get task module failed";
+                return UBSE_ERROR;
+            }
+            UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_TASK_NAME);
+            if (executor == nullptr) {
+                UBSE_LOG_WARN << "executor empty, skip query msg monitor";
+                return UBSE_OK;
+            }
+            executor->Execute([]() -> void { UbseRasObserver::GetInstance().UbseQueryMsgMonitorTimerRun(); });
+            return UBSE_OK;
+        },
+        UBSE_RAS_QUERY_MSG_MONITOR_TIMER_INTERVAL);
+}
+
 UbseResult UbseRasObserver::Start()
 {
     auto ret = Init();
@@ -100,6 +145,7 @@ UbseResult UbseRasObserver::Start()
 void UbseRasObserver::Stop()
 {
     stopThread = true;
+    ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME);
     ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
     if (worker && worker->joinable()) {
         worker->detach();
@@ -221,6 +267,11 @@ bool UbseRasObserver::IsConfigSuccess() const
     return configSysSentrySuccess;
 }
 
+bool UbseRasObserver::IsSentryMsgMonitorRunning() const
+{
+    return isSentryMsgMonitorRunning;
+}
+
 UbseResult UbseRasObserver::UbseConfigSysSentry()
 {
     std::unique_lock<std::mutex> mtx(configSysSentryMtx);
@@ -287,7 +338,7 @@ UbseResult UbseRasObserver::UbseConfigSysSentryWithRetry()
                 UBSE_LOG_ERROR << "Get task module failed";
                 return UBSE_ERROR;
             }
-            UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME);
+            UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_TASK_NAME);
             if (executor == nullptr) {
                 UBSE_LOG_WARN << "executor empty, skip config sysSentry";
                 return UBSE_OK;

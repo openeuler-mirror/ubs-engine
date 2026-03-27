@@ -25,7 +25,7 @@ using XalarmRegisterFunc = int (*)(struct alarm_register **, struct alarm_subscr
 using XalarmGetEventFunc = int (*)(struct alarm_msg *, struct alarm_register *);
 using XalarmUnRegisterFunc = void (*)(struct alarm_register *);
 
-const std::string UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME = "UbseRasConfigSysSentryTaskName";
+const std::string UBSE_RAS_TASK_NAME = "UbseRasTaskName";
 class UbseRasObserver {
 public:
     /**
@@ -60,6 +60,9 @@ public:
     UbseResult UbseConfigSysSentryWithRetry(); // 向sysSentry配置事件开关、用于广播故障的eid，失败时注册定时器重试
     void UbseConfigSysSentryTimerRun(); // 定时重试配置sysSentry的回调
     bool IsConfigSuccess() const;
+    bool IsSentryMsgMonitorRunning() const;
+    void RegQueryMsgMonitorTimer(); // 注册查询sentry_msg_helper运行状态的定时器
+    void UbseQueryMsgMonitorTimerRun(); // 定时查询sentry_msg_helper运行状态的回调
 
 private:
     /*
@@ -93,6 +96,7 @@ private:
     XalarmRegisterFunc xalarmRegisterFunc = nullptr;
     XalarmUnRegisterFunc xalarmUnRegisterFunc = nullptr;
     std::atomic<bool> configSysSentrySuccess = false;
+    std::atomic<bool> isSentryMsgMonitorRunning = false;
     std::mutex configSysSentryMtx;
 };
 } // namespace syssentry
