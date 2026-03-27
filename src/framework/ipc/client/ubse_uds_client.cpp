@@ -574,9 +574,9 @@ void UbseUDSClient::CleanupReconnectThread()
             constexpr int maxWaitMsForThreadExit = 50;
             std::this_thread::sleep_for(std::chrono::milliseconds(maxWaitMsForThreadExit));
             if (reconnectThread_.joinable()) {
-                // 如果线程仍在运行，分离以允许其继续执行
-                IPC_LOG_WARN << "old reconnect thread still alive, detaching";
-                reconnectThread_.detach();
+                // 如果线程仍在运行，等待线程完成
+                IPC_LOG_WARN << "old reconnect thread still alive, joining";
+                reconnectThread_.join();  // 等待线程结束
             }
         } catch (...) {
             // 忽略所有异常
