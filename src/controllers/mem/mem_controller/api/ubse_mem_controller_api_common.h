@@ -176,6 +176,43 @@ UbseMemStage GetMemStageByImportObjState(const importType &importObj, const bool
     return UbseMemStage::UBSE_EXIST;
 }
 
+template <class ImportType>
+UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType> &importObjPtr)
+{
+    if (!importObjPtr) {
+        return UbseMemStage::UBSE_NOT_EXIST;
+    }
+    if (importObjPtr->status.state == UBSE_MEM_IMPORT_RUNNING ||
+        importObjPtr->status.state == UBSE_MEM_EXPORT_RUNNING) {
+        return UbseMemStage::UBSE_CREATING;
+    }
+
+    if (importObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYING ||
+        importObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING) {
+        return UbseMemStage::UBSE_DELETING;
+    }
+
+    return UbseMemStage::UBSE_EXIST;
+}
+
+template <class ExportType>
+UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType> &exportObjPtr)
+{
+    if (!exportObjPtr) {
+        return UbseMemStage::UBSE_NOT_EXIST;
+    }
+    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_RUNNING) {
+        return UbseMemStage::UBSE_CREATING;
+    }
+
+    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING) {
+        return UbseMemStage::UBSE_DELETING;
+    }
+
+    return UbseMemStage::UBSE_EXIST;
+}
+
+
 UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj &importObj, const bool &importObjExist);
 
 template <class exportType>
