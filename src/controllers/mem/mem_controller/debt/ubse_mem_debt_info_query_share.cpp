@@ -312,7 +312,6 @@ uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, def::UbseMe
 
     auto &ledger = UbseMemDebtLedger::GetInstance();
     auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResourceByGlobalKey(request.name);
-
     if (!exportObjPtr) {
         UBSE_LOG_WARN << "No export information found. related name: " << name;
     }

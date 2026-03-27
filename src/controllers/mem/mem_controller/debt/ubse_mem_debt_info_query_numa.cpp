@@ -121,7 +121,6 @@ uint32_t UbseMemNumaList(const UbseMemDebtQueryRequest &request, std::vector<def
     }
     auto nodeImportMap =
         UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().FindNodeMap(request.importNodeId);
-
     if (!nodeImportMap) {
         UBSE_LOG_INFO << "Failed to find import debt, import node id: " << request.importNodeId;
         return UBSE_OK;

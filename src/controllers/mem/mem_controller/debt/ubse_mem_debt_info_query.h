@@ -39,8 +39,8 @@ uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, UbseMemShmM
 uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest &request, UbseMemAddrDesc &desc);
 
 template <typename ImportType, typename ExportType>
-std::pair<std::shared_ptr<const ImportType>, std::shared_ptr<const ExportType>>
-FindBorrowObjPair(const std::string &name, const std::string &importNodeId)
+std::pair<std::shared_ptr<const ImportType>, std::shared_ptr<const ExportType>> FindBorrowObjPair(
+    const std::string &name, const std::string &importNodeId)
 {
     auto importObj = UbseMemDebtLedger::GetInstance().GetDebtMap<ImportType>().GetResource(importNodeId, name);
     auto exportKey = GenerateExportObjKey(name, importNodeId);
