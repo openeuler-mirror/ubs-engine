@@ -505,6 +505,7 @@ UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std
         UBSE_LOG_ERROR << "fault info is invalid. ";
         return ret;
     }
+    mem::controller::UbseMemFaultManager::MemReportWhenExportNodeOnFault(faultType, faultNodeId);
     SwitchRoleWhenMasterFault(faultNodeId);
 
     UbseRoleInfo roleInfo;

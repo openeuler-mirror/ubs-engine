@@ -615,6 +615,7 @@ typedef enum {
     MAR_TIMEOUT_ERR,
     MAR_ILLEGAL_ACCESS_ERR,
     REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
+    EXPORT_NODE_FAULT,
     UB_MEM_HEALTHY = 1000, // 无故障
 } ubs_mem_fault_type_t;
 
