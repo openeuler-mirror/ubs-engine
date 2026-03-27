@@ -315,4 +315,6 @@ int main(void)
     ubs_mem_share_attach_example();
     ubs_mem_share_detach_example();
     ubs_mem_share_delete_example();
+
+    ubs_mem_shm_fault_register_example();
 }
