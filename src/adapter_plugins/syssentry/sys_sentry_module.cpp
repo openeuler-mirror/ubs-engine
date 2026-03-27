@@ -49,7 +49,7 @@ void SysSentryModule::UnInitialize()
 
 UbseResult SysSentryModule::Start()
 {
-    // 注册定时器，每隔一段时间调用sentryctl命令查询sentry_msg_helper 运行状态
+    // 注册定时器，每隔一段时间调用sentryctl命令查询sentry_msg_monitor 运行状态
     UbseRasObserver::GetInstance().RegQueryMsgMonitorTimer();
     UbseRasObserver::GetInstance().UbseConfigSysSentryWithRetry(); // 不校验返回值，sysSentry未就绪时不影响ubse其它功能
     auto ret = UbseRasObserver::GetInstance().Start();

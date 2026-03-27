@@ -90,7 +90,7 @@ UbseResult UbseRasObserver::Init()
 
 void UbseRasObserver::UbseQueryMsgMonitorTimerRun()
 {
-    // 调用sentryctl命令查询sentry_msg_helper 运行状态
+    // 调用sentryctl命令查询sentry_msg_monitor 运行状态
     std::string command = "sentryctl status sentry_msg_monitor 2>/dev/null";
     std::string result;
     auto ret = ubse::utils::UbseOsUtil::Exec(command, result);
