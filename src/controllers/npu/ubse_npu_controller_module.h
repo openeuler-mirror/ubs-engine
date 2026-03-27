@@ -25,7 +25,7 @@ class UbseNpuControllerModule : public UbseModule {
 public:
     UbseResult Initialize() override;
 
-    void Uninitialize() override;
+    void UnInitialize() override;
 
     UbseResult Start() override;
 
@@ -34,11 +34,11 @@ public:
     UbseResult AllocDevices(const UbseAllocRequest &request, std::string &newBusInstanceGuid,
                             std::vector<std::shared_ptr<IResource>> &devList);
 
-    UbseResult FreeUbDevices(std::string &busInstanceGuid);
+    UbseResult FreeUbDevices(const UbseAllocRequest &requestInfo);
 
     UbseResult QueryAllDevices(std::vector<std::shared_ptr<IResource>> &devList);
 
-    UbseResult QueryUbaTidSize(const std::string &busInstanceGuid, Uba_Tid_Size &info);
+    UbseResult QueryUbaTidSize(const std::string &busInstanceGuid, UbaTidSize &info);
 };
 } // namespace ubse::npu::controller
 #endif // UBSE_NPU_CONTROLLER_MODULE_H

@@ -27,6 +27,7 @@ add_executable(ubse
         controllers/mem/mem_controller/ubse_mem_controller.cpp
         controllers/urma/ubse_urma_controller_module.cpp
         controllers/urma/ubse_urma_controller.cpp
+        controllers/npu/ubse_npu_controller_module.cpp
         framework/ha/ubse_election_module.cpp
         adapter_plugins/syssentry/sys_sentry_module.cpp
         ras/ubse_ras_module.cpp
@@ -66,6 +67,7 @@ target_link_libraries(ubse PRIVATE
         trace_context
         ubse_urma_uvs
         ubse_urma_controller
+        npu_controller
 )
 
 # 手动导出注册模式下会被编译器优化的符号

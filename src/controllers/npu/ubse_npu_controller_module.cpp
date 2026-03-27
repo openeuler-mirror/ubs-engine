@@ -11,7 +11,7 @@
  */
 
 #include "ubse_npu_controller_module.h"
-#include "vm_state_monitor/monitor_service_api.h"
+#include "vm_state_monitor/ubse_npu_monitor_service_api.h"
 #include "ubse_context.h"
 #include "ubse_env_util.h"
 #include "ubse_error.h"
@@ -39,7 +39,7 @@ UbseResult UbseNpuControllerModule::Initialize()
     return UBSE_OK;
 }
 
-void UbseNpuControllerModule::Uninitialize() {}
+void UbseNpuControllerModule::UnInitialize() {}
 
 UbseResult UbseNpuControllerModule::Start()
 {
@@ -62,9 +62,9 @@ UbseResult UbseNpuControllerModule::AllocDevices(const UbseAllocRequest &request
     return AllocDevicesImpl(request, newBusInstanceGuid, devList);
 }
 
-UbseResult UbseNpuControllerModule::FreeUbDevices(std::string &busInstanceGuid)
+UbseResult UbseNpuControllerModule::FreeUbDevices(const UbseAllocRequest &requestInfo)
 {
-    return FreeUbDevicesImpl(busInstanceGuid);
+    return FreeUbDevicesImpl(requestInfo);
 }
 
 UbseResult UbseNpuControllerModule::QueryAllDevices(std::vector<std::shared_ptr<IResource> > &devList)
@@ -72,7 +72,7 @@ UbseResult UbseNpuControllerModule::QueryAllDevices(std::vector<std::shared_ptr<
     return QueryAllDevicesImpl(devList);
 }
 
-UbseResult UbseNpuControllerModule::QueryUbaTidSize(const std::string &busInstanceGuid, Uba_Tid_Size &info)
+UbseResult UbseNpuControllerModule::QueryUbaTidSize(const std::string &busInstanceGuid, UbaTidSize &info)
 {
     return QueryUbaTidSizeImpl(busInstanceGuid, info);
 }

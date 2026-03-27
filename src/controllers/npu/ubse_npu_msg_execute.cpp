@@ -18,7 +18,7 @@
 
 #include "src/framework/ipc/include/ubse_ipc_common.h"
 #include "ubse_context.h"
-#include "ubse_logger_inner.h"
+#include "ubse_logger.h"
 #include "ubse_npu_controller_module.h"
 #include "ubse_npu_manager_api.h"
 #include "ubse_pack_util.h"
@@ -26,7 +26,7 @@ namespace ubse::npu::controller {
 using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::log;
-UBSE_DEFINE_THIS_MODULE("ubse", UBSE_CONTROLLER_MID);
+UBSE_DEFINE_THIS_MODULE("ubse");
 // 4个类型的数量大小+总数量大小
 constexpr size_t HEAD_SIZE = 5 * sizeof(uint8_t);
 
@@ -43,6 +43,11 @@ uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, T
 uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg &resp)
 {
     std::vector<std::shared_ptr<IResource>> devList;
+    auto npuCtrlModule = UbseContext::GetInstance().GetModule<UbseNpuControllerModule>();
+    if (npuCtrlModule == nullptr) {
+        UBSE_LOG_ERROR << "Get npu controller module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
     auto ret = npuCtrlModule->QueryAllDevices(devList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "QueryLocalUbDevices failed, " << FormatRetCode(ret);
@@ -68,7 +73,8 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
     }
     // 业务处理
     std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> newBusInstanceGuid;
-    std::string newBusInstanceGuidStr(static_cast<const char *>(newBusInstanceGuid.data()), UBSE_UB_DEVICE_GUID_SIZE);
+    std::string newBusInstanceGuidStr(reinterpret_cast<const char *>(newBusInstanceGuid.data()),
+        UBSE_UB_DEVICE_GUID_SIZE);
     std::vector<std::shared_ptr<IResource>> devList;
     ret = AllocDevicesImpl(requestInfo, newBusInstanceGuidStr, devList);
     if (ret != UBSE_OK) {
@@ -257,7 +263,7 @@ uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &req
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     for (size_t i = 0; i < devListSize; i++) {
-        DevicesType tmpDev;
+        UbDevice tmpDev;
         unsigned char devType;
         if (!unpackUtil.UnpackUChar(devType)) {
             UBSE_LOG_ERROR << "Failed to unpack devType";

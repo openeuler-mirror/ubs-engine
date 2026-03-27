@@ -15,21 +15,16 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
-#include <map>
 #include <memory>
-#include <optional>
 #include <type_traits>
 #include <vector>
 
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
-#include "adapter_plugins/mti/ubse_mti_npu.h"
-#include "common/ctrl_q_message.h"
 #include "src/framework/misc/ubse_str_util.h"
 #include "ubse_common_def.h"
-#include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::npu::controller {
-using namespace ubse::npu::ctrlQ;
+using namespace ubse::mti::bus_instance;
 using namespace ubse::common::def;
 using CollectionDevId = std::string;
 using CollectionGuid = std::string;
@@ -83,6 +78,8 @@ public:
             return "";
         }
     }
+
+    static CollectionDevId GuidToStr(const UbseMtiGuid &guid);
 
 private:
     static CollectionDevId CollectionJoinStr()

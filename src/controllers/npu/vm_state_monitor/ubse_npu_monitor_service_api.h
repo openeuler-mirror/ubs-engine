@@ -20,5 +20,7 @@ namespace  ubse::npu::vm_monitor {
 ubse::common::def::UbseResult StartVMMonitor();
 
 void ResetNpuOfBusInstance(const std::string &busInstance, VmEventType event);
+
+ubse::common::def::UbseResult ResetNpu(const uint8_t &chipId);
 }
 #endif // UBSE_MONIOR_SERVICE_API_H
