@@ -149,7 +149,7 @@ int main(void)
 }
 ```
 
-# 3. RackStartIpcClientWithTimeout
+# 3. ubs_virt_agent_set_timeout
 
 ## 库 LIBRARY
 
@@ -159,7 +159,7 @@ virt_agent库 (libubs-virt-agent.so)
 
 ```c
 #include <ubs_virt_agent_ham_migrate.h>
-virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);
+virt_agent_ret_t ubs_virt_agent_set_timeout(uint16_t timeout, uint16_t scene);
 ```
 
 ## 描述 DESCRIPTION
@@ -171,6 +171,7 @@ libvirt与virt_agent通信超时时间设置。
 | name            | IN/OUT | description                |
 |-----------------|--------|----------------------------|
 | timeout      | IN     | libvirt与virt_agent超时时间，单位秒 |
+| scene      | IN     | 场景，0：确定性迁移，1：异地快恢          |
 
 ## 返回值 RETURN VALUE
 
@@ -209,9 +210,10 @@ int main(void)
 {
     int32_t ret;
     uint16_t timeout = 128;
-    ret = RackStartIpcClientWithTimeout(timeout);
+    uint16_t scene = 0;
+    ret = ubs_virt_agent_set_timeout(timeout, scene);
     if (ret != VA_SUCESS) {
-        perror("RackStartIpcClientWithTimeout failed.\n");
+        perror("ubs_virt_agent_set_timeout failed.\n");
         return -1;
     }
     /* Do your work here... */
@@ -219,7 +221,7 @@ int main(void)
 }
 ```
 
-# 4. RackSyncSendForHam
+# 4. ubs_sync_send_msg
 
 ## 库 LIBRARY
 
@@ -229,27 +231,27 @@ virt_agent库 (libubs-virt-agent.so)
 
 ```c
 #include <ubs_virt_agent_ham_migrate.h>
-int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);
+int ubs_sync_send_msg(VirtAgentByteBuffer *request, VirtAgentByteBuffer *response, uint16_t scene);
 ```
 
 ## 描述 DESCRIPTION
 
-获取虚拟机迁移策略。
+libvirt与virt_agent同步调用接口。
 
 ## 参数 Parameters
 
-| name     | IN/OUT | description                   |
-|----------|--------|-------------------------------|
+| name     | IN/OUT | description                  |
+|----------|--------|------------------------------|
 | request  | IN     | libvirt调用virt_agent传参（json）   |
 | response | OUT    | virt_agent给libvirt返回的参数（json） |
-
+| scene      | IN     | 场景，0：确定性迁移，1：异地快恢         |
 - 数据结构说明
 
 ```c
 typedef struct {
     uint8_t *data;
     uint32_t len;
-} HamComByteBuffer;
+} VirtAgentByteBuffer;
 ```
 
 ## 返回值 RETURN VALUE
@@ -277,7 +279,7 @@ typedef struct {
 
 暂无
 
-# 5. RackAsyncSendForHam
+# 5. ubs_async_send_msg
 
 ## 库 LIBRARY
 
@@ -287,7 +289,7 @@ virt_agent库 (libubs-virt-agent.so)
 
 ```c
 #include <ubs_virt_agent_ham_migrate.h>
-int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);
+int ubs_async_send_msg(VirtAgentByteBuffer *request, VirtAgentCallbackDef *callback, uint16_t scene);
 ```
 
 ## 描述 DESCRIPTION
@@ -296,19 +298,19 @@ libvirt与virt_agent异步调用接口
 
 ## 参数 Parameters
 
-| name            | IN/OUT | description                  |
-|-----------------|--------|------------------------------|
-| request      | IN     | libvirt调用virt_agent传参（json）  |
-| callback            | OUT    | libvirt调用virt_agent回调函数的函数指针 |
-
+| name            | IN/OUT | description |
+|-----------------|--------|-------------|
+| request      | IN     | libvirt调用virt_agent传参（json）     |
+| callback            | OUT    | libvirt调用virt_agent回调函数的函数指针     |
+| scene      | IN     | 场景，0：确定性迁移，1：异地快恢         |
 - 数据结构说明
 
 ```c
-typedef void (*HamComCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t result);
+typedef void (*VirtAgentCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t result);
 typedef struct {
-    HamComCallbackFunc cb; 
+    VirtAgentCallbackFunc cb; 
     void *cbCtx;         
-} HamComCallbackDef;
+} VirtAgentCallbackDef;
 ```
 
 ## 返回值 RETURN VALUE

@@ -26,7 +26,7 @@ const std::string UBS_VA_CONTAINER_PERMISSION = "vm.container";
 
 static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJECTS = {
     {UBS_VA_VM_MIGRATE_PERMISSION, {"ubs_virt_agent_make_migrate_decision", "update_page_flow_and_status",
-                                    "RackSyncSendForHam", "RackAsyncSendForHam"}},
+                                    "ubs_sync_send_msg", "ubs_async_send_msg"}},
     {UBS_VA_QUERY_PERMISSION,
      {"ubs_virt_agent_mem_fragmentation_node_info", "ubs_virt_agent_mem_fragmentation_vm_info"}},
     {UBS_VA_FRAGMENTATION_PERMISSION,

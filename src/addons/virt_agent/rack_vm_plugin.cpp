@@ -19,6 +19,7 @@
 #include "escape_algorithm_helper.h"
 #include "fragmentation_vm_collection.h"
 #include "ham_migrate.h"
+#include "libvirt_handler.h"
 #include "mem_handler.h"
 #include "mempooling_module.h"
 #include "router.h"
@@ -111,6 +112,11 @@ uint32_t VmSceneInit()
     }
 
     // Initialization the ham migration function
+    res = LibvirtHandler::Start();
+    if (res != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to init libvirtHandler, " << FormatRetCode(res);
+        return res;
+    }
     res = HamMigrate::Start();
     if (res != VM_OK) {
         UBSE_LOG_ERROR << "Failed to init vm HamMigrate, " << FormatRetCode(res);

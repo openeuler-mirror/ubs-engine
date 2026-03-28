@@ -28,17 +28,17 @@ typedef enum {
 typedef struct {
     uint8_t *data;
     uint32_t len;
-} HamComByteBuffer;
+} VirtAgentByteBuffer;
 
-typedef void (*HamComCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t result);
+typedef void (*VirtAgentCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t result);
 
 /*
  * @brief Definition of the asynchronous send callback structure
  */
 typedef struct {
-    HamComCallbackFunc cb;  // Callback function pointer
+    VirtAgentCallbackFunc cb;  // Callback function pointer
     void *cbCtx;            // Pointer to the callback context
-} HamComCallbackDef;
+} VirtAgentCallbackDef;
 
 /**
  * @brief  make migrate decision
@@ -55,24 +55,27 @@ virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const
 /**
  * @brief  set IPC client timeout for Rack module
  * @param timeout [IN] desired timeout value in milliseconds; must be > 0 and <= ipctimeout_max
+ * @param timeout [IN] Describe the functional scenario
  */
-virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);
+virt_agent_ret_t ubs_virt_agent_set_timeout(uint16_t timeout, uint16_t scene);
 
 /**
  * @brief  synchronously send a request to HAM and process the response
  * @param request  [IN]  input request buffer to be sent
  * @param response [OUT] buffer to receive the response
+ * @param scene [IN] Describe the functional scenario
  * @return 0 for success, non-zero for error
  */
-int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);
+int ubs_sync_send_msg(VirtAgentByteBuffer *request, VirtAgentByteBuffer *response, uint16_t scene);
 
 /**
  * @brief  asynchronously send a request to HAM using a background thread
  * @param request  [IN]  input request buffer to be sent
  * @param callback [IN]  callback function definition to handle response (currently unused in implementation)
+ * @param scene [IN] Describe the functional scenario
  * @return 0 for success, non-zero for error
  */
-int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);
+int ubs_async_send_msg(VirtAgentByteBuffer *request, VirtAgentCallbackDef *callback, uint16_t scene);
 
 
 #ifdef __cplusplus

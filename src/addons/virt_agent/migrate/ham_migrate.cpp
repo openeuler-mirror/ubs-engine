@@ -14,30 +14,33 @@
 #include "ham_migrate.h"
 
 #include <climits>
+#include <regex>
+#include <fstream>
+#include <set>
+
+#include <ubse_election.h>
 #include <ubse_api_server.h>
 #include <ubse_api_server_def.h>
-#include <ubse_com.h>
-#include <ubse_election.h>
-#include <ubse_error.h>
 #include <ubse_logger.h>
-#include <ubse_mem_controller.h>
+#include <ubse_com.h>
+#include <ubse_error.h>
 #include <ubse_node.h>
-#include <fstream>
-#include <regex>
-#include <set>
-#include "ham_migrate_dst_info_message.h"
+#include <ubse_mem_controller.h>
+
+#include "ubs_virt_agent_object_def.h"
 #include "ham_migrate_vm_info_storage.h"
 #include "libvirt_helper.h"
-#include "migrate_strategy.h"
+#include "libvirt_handler.h"
 #include "resource_query.h"
 #include "response_info_message.h"
-#include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_http_util.h"
 #include "vm_json_util.h"
 #include "vm_migrate_handler.h"
-#include "vm_sdk_def.h"
 #include "vm_string_util.h"
+#include "vm_sdk_def.h"
+#include "migrate_strategy.h"
+#include "ham_migrate_dst_info_message.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -63,11 +66,9 @@ static const int WATER_SCAN_TYPE = 1;
 static const int WATER_SCANT_TIME = 200;
 static const std::string HAM_MIGRATE = "ham_migrate";
 static const std::string HAM_BORROW_START_WITH = "ham_";
-static const std::string BORROW_ACTION = "borrow";
-static const std::string CLEAR_ACTION = "clear";
 static const int TRY_ABORT_HAM_MIGRATE_TIMES = 5;
 static const int CANCEL_LEN_MAX = 32;
-static unsigned int RESP_INFO_CODE_FOR_SUCCESS = 200;
+
 VmResult HamMigrate::Start()
 {
     uint16_t moduleId = VM_MODULE_CODE;
@@ -75,17 +76,9 @@ VmResult HamMigrate::Start()
         .moduleId = moduleId,
         .serviceId = HAM_MIGRATE_CANCEL,
     };
-    VmResult ret =
-        RegisterIpcHandler(UBS_VA_VM_MIGRATE, UBS_VA_HAM_NORTH, HamMigrateNorth, UBS_VA_VM_MIGRATE_PERMISSION);
-    if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "UbseRegIpcService failed, moduleId = " << UBS_VA_VM_MIGRATE
-                       << ", opId = " << UBS_VA_HAM_NORTH;
-        return ret;
-    }
-    LibvirtHelper::GetInstance().Init();
     HamMigrate::Run();
     VmMigrateHandler::FlushExpireDataThread();
-    ret = UbseRegRpcService(endpoint, HamMigrateCancel);
+    auto ret = UbseRegRpcService(endpoint, HamMigrateCancel);
     endpoint.serviceId = HAM_MIGRATE_MESSAGE_TO_MASTER;
     ret |= UbseRegRpcService(endpoint, MasterDstInfoHandler);
     endpoint.serviceId = HAM_MIGRATE_MESSAGE_TO_AGENT;
@@ -95,10 +88,11 @@ VmResult HamMigrate::Start()
         return ret;
     }
 
-    ret = RegisterAlarmFaultHandler(ALARM_PANIC_EVENT, HAM_MIGRATE, PanicEventHandler, AlarmHandlerPriority::HIGH);
+    ret = RegisterAlarmFaultHandler(ALARM_PANIC_EVENT, HAM_MIGRATE, HamMigrate::PanicEventHandler,
+                                    AlarmHandlerPriority::HIGH);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "RegisterAlarmFaultHandler failed, name=" << HAM_MIGRATE
-                       << ", ALARM_FAULT_TYPE=" << ALARM_PANIC_EVENT;
+        UBSE_LOG_ERROR << "RegisterAlarmFaultHandler failed, name = " << HAM_MIGRATE
+                       << ", ALARM_FAULT_TYPE = " << ALARM_PANIC_EVENT;
         return ret;
     }
 
@@ -108,7 +102,7 @@ VmResult HamMigrate::Start()
         return ret;
     }
 
-    UBSE_LOG_INFO << "HamMigrateMaxTimeout=" << VmConfiguration::GetInstance().GetHamMigrateMaxTimeout();
+    UBSE_LOG_INFO << "HamMigrateMaxTimeout = " << VmConfiguration::GetInstance().GetHamMigrateMaxTimeout();
     return VM_OK;
 }
 
@@ -188,83 +182,38 @@ void HamMigrate::ClearQueueOperation()
     }
 }
 
-VmResult HamMigrate::ProcessResponse(const RespInfo &respInfo, UbseIpcMessage &resp, uint64_t requestId)
+VmResult HamMigrate::HandleHamMigrateBorrow(const Document& msgJson, RespInfo& respInfo,
+                                            UbseIpcMessage& resp, const UbseRequestContext& context)
 {
-    std::string respJson = respInfo.ToJson();
-    const char *res = respJson.c_str();
-    size_t node_id_len = strlen(res);
-    resp.length = static_cast<uint32_t>(node_id_len + 1);
-    resp.buffer = new (std::nothrow) uint8_t[resp.length];
-    if (resp.buffer == nullptr) {
-        UBSE_LOG_ERROR << "Failed to allocate memory for response buffer.";
-        return VM_ERROR;
+    BorrowInfo borrowInfo;
+    auto ret = ConvertToBorrow(msgJson, borrowInfo);
+    borrowInfo.type = HAM_MIGRATE;
+    if (ret != VM_OK) {
+        return ret;
     }
-    errno_t copy_result = memcpy_s(resp.buffer, resp.length, res, node_id_len + 1);
-    if (copy_result != 0) {
-        UBSE_LOG_ERROR << "memcpy_s failed with error code=" << copy_result;
-        SafeDeleteArray(resp.buffer);
-        return VM_ERROR;
+    BorrowResponse borrowResponse;
+    ret = Borrow(borrowInfo, borrowResponse);
+    if (ret != VM_OK) {
+        return ret;
     }
-    SendResponse(VM_OK, requestId, resp);
-    SafeDeleteArray(resp.buffer);
-    return VM_OK;
+    respInfo.message = borrowResponse.ToJson();
+    UBSE_LOG_INFO << "HamMigrate borrowResponse=" << respInfo.ToJson();
+    return LibvirtHandler::ProcessResponse(respInfo, resp, context.requestId);
 }
 
-/**  param example
- *   {"action":"borrow","srcHostname":"computer01","srcPid":xxx,"dstHostname":"computer02","dstPid":xxx,
- *      "valist":[{"start":xxx,"length":xxx}]}
- *   {"action":"clear","type":1,"srcHostname":"computer01","name":"xxx","srcPid":xxx,
- *      "dstHostname":"computer02","dstPid":xxx}
- */
-uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage &req, const UbseRequestContext &context)
+VmResult HamMigrate::HandleHamMigrateClear(const Document& msgJson, RespInfo& respInfo,
+                                           UbseIpcMessage& resp, const UbseRequestContext& context)
 {
-    UbseIpcMessage resp{};
-    if (req.buffer == nullptr) {
-        return VM_ERROR;
+    ClearInfo clearInfo;
+    auto ret = ConvertToClear(msgJson, clearInfo);
+    if (ret != VM_OK) {
+        return ret;
     }
-    std::string body(reinterpret_cast<char *>(req.buffer), req.length);
-    UBSE_LOG_INFO << "HamMigrate request=" << body;
-    Document msgJson;
-    msgJson.Parse(body.c_str());
-    if (msgJson.HasParseError()) {
-        UBSE_LOG_ERROR << "Bad Json Format=" << body;
-        return VM_ERROR;
+    ret = Clear(clearInfo);
+    if (ret != VM_OK) {
+        return ret;
     }
-    std::string action;
-    if (VMJsonUtil::GetString(msgJson, "action", action) != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to get action from json str=" << body;
-        return VM_ERROR;
-    }
-    RespInfo respInfo;
-    respInfo.code = RESP_INFO_CODE_FOR_SUCCESS;
-    auto ret = VM_ERROR;
-    if (action == BORROW_ACTION) {
-        BorrowInfo borrowInfo;
-        ret = ConvertToBorrow(msgJson, borrowInfo);
-        if (ret == VM_OK) {
-            BorrowResponse borrowResponse;
-            ret = Borrow(borrowInfo, borrowResponse);
-            if (ret == VM_OK) {
-                respInfo.message = borrowResponse.ToJson();
-                UBSE_LOG_INFO << "HamMigrate borrowResponse=" << respInfo.ToJson();
-                return ProcessResponse(respInfo, resp, context.requestId);
-            }
-        }
-    } else if (action == CLEAR_ACTION) {
-        ClearInfo clearInfo;
-        ret = ConvertToClear(msgJson, clearInfo);
-        if (ret == VM_OK) {
-            ret = Clear(clearInfo);
-            if (ret == VM_OK) {
-                return ProcessResponse(respInfo, resp, context.requestId);
-            }
-        }
-    } else {
-        UBSE_LOG_ERROR << "unknown for action=" << action;
-        return VM_ERROR;
-    }
-    UBSE_LOG_INFO << "HamMigrate response error.";
-    return VM_ERROR;
+    return LibvirtHandler::ProcessResponse(respInfo, resp, context.requestId);
 }
 
 void HamMigrate::HamMigrateCancel(const UbseByteBuffer &req, UbseByteBuffer &resp)
@@ -315,23 +264,30 @@ void HamMigrate::SrcNodeInfoReplyHandler(void *ctx, const UbseByteBuffer &respDa
         UBSE_LOG_ERROR << "ctx is nullptr.";
         return;
     }
-    auto result = static_cast<unsigned int *>(ctx);
+    auto result = static_cast<UbseMemAddrDesc *>(ctx);
+    result->numaId = -1;
     if (resCode != VM_OK) {
-        *result = VM_ERROR;
         UBSE_LOG_ERROR << "error, " << FormatRetCode(resCode);
         return;
     }
     ResponseInfoMessage responseInfoSimpo(respData.data, respData.len);
-    UBSE_LOG_INFO << "DstInfoReplyHandler responseInfoSimpo=" << responseInfoSimpo.ToString()
-                  << ",respData.len=" << respData.len;
     if (const auto ret = responseInfoSimpo.Deserialize(); ret != VM_OK) {
-        *result = VM_ERROR;
         UBSE_LOG_ERROR << "deserialize failed, ret=" << ret;
         return;
     }
+    UBSE_LOG_INFO << "DstInfoReplyHandler responseInfoSimpo=" << responseInfoSimpo.ToString()
+                  << ",respData.len=" << respData.len;
     const auto [code, message] = responseInfoSimpo.GetResponseInfo();
-    *result = code;
-    UBSE_LOG_INFO << "SrcNodeInfoReplyHandler end, result=" << code;
+    if (code == VM_OK) {
+        try {
+            result->numaId = std::stoll(message);
+        } catch (const std::exception &e) {
+            UBSE_LOG_ERROR << "stoll error";
+            return;
+        }
+    }
+    UBSE_LOG_INFO << "SrcNodeInfoReplyHandler end, result.code="
+                  << code << ", result.message=" << result->numaId;
 }
 
 void HamMigrate::MasterDstInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
@@ -354,11 +310,18 @@ void HamMigrate::MasterDstInfoHandler(const UbseByteBuffer &req, UbseByteBuffer 
                   << ", hamMigrateDstInfo.dstPid=" << hamMigrateDstInfo.dstPid;
     const ubse::com::UbseComEndpoint endpoint = {
         .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_MESSAGE_TO_AGENT, .address = hamMigrateDstInfo.dstNodeId};
+    hamMigrateDstInfoMessage.Serialize();
     const UbseByteBuffer reqData = {
-        .data = (uint8_t *)&hamMigrateDstInfo.dstPid, .len = sizeof(uint64_t), .freeFunc = nullptr};
-    unsigned int result = VM_ERROR;
-    UbseRpcSend(endpoint, reqData, &result, MasterDstInfoReplyHandler);
-    HttpUtil::SetResp(resp, result, "");
+        .data = hamMigrateDstInfoMessage.SerializedData(), .len = hamMigrateDstInfoMessage.SerializedDataSize(),
+        .freeFunc = nullptr};
+    ResponseInfo responseInfo;
+    ret = UbseRpcSend(endpoint, reqData, &responseInfo, MasterDstInfoReplyHandler);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "UbseRpcSend failed." << FormatRetCode(ret);
+        HttpUtil::SetResp(resp, ret, "");
+        return;
+    }
+    HttpUtil::SetResp(resp, responseInfo.code, responseInfo.message);
     UBSE_LOG_INFO << "[MasterDstInfoHandler] req end.";
 }
 
@@ -369,42 +332,91 @@ void HamMigrate::MasterDstInfoReplyHandler(void *ctx, const UbseByteBuffer &resp
         UBSE_LOG_ERROR << "ctx is nullptr.";
         return;
     }
-    auto result = static_cast<unsigned int *>(ctx);
+    auto result = static_cast<ResponseInfo *>(ctx);
+    result->code = VM_ERROR;
     if (resCode != VM_OK) {
-        *result = VM_ERROR;
         UBSE_LOG_ERROR << "error, " << FormatRetCode(resCode);
         return;
     }
     ResponseInfoMessage responseInfoSimpo(respData.data, respData.len);
-    UBSE_LOG_INFO << "DstInfoReplyHandler responseInfoSimpo=" << responseInfoSimpo.ToString()
-                  << ",respData.len=" << respData.len;
     if (const auto ret = responseInfoSimpo.Deserialize(); ret != VM_OK) {
-        *result = VM_ERROR;
         UBSE_LOG_ERROR << "deserialize failed, ret=" << ret;
         return;
     }
+    UBSE_LOG_INFO << "DstInfoReplyHandler responseInfoSimpo=" << responseInfoSimpo.ToString()
+                  << ",respData.len=" << respData.len;
     const auto [code, message] = responseInfoSimpo.GetResponseInfo();
-    *result = code;
-    UBSE_LOG_INFO << "MasterDstInfoReplyHandler end, result=" << code;
+    if (code == VM_OK) {
+        result->code = VM_OK;
+        result->message = message;
+    }
+    UBSE_LOG_INFO << "MasterDstInfoReplyHandler end, result.code="
+                  << result->code << ", result.message=" << result->message;
 }
 
 void HamMigrate::AgentDstInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOG_INFO << "[AgentDstInfoHandler] req start.";
-    if (req.data == nullptr || req.len != sizeof(uint64_t)) {
+    if (req.data == nullptr || req.len == 0) {
         UBSE_LOG_ERROR << "[AgentDstInfoHandler] params invalid.";
         HttpUtil::SetResp(resp, VM_ERROR_INVAL, "");
         return;
     }
-    uint64_t pid;
-    if (memcpy_s(&pid, req.len, req.data, req.len) != EOK) {
-        UBSE_LOG_ERROR << "memcpy_s failed.";
+    HamMigrateDstInfoMessage hamMigrateDstInfoMessage(req.data, req.len);
+    auto ret = hamMigrateDstInfoMessage.Deserialize();
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "hamMigrateDstInfoMessage deserialize failed. " << FormatRetCode(ret);
+        HttpUtil::SetResp(resp, ret, "");
+        return;
+    }
+    HamMigrateDstInfo hamMigrateDstInfo = hamMigrateDstInfoMessage.GetHamMigrateDstInfo();
+    if (req.data == nullptr) {
+        UBSE_LOG_ERROR << "[AgentDstInfoHandler] params invalid.";
         HttpUtil::SetResp(resp, VM_ERROR_INVAL, "");
         return;
     }
-    UBSE_LOG_INFO << "pid=" << pid;
-    HttpUtil::SetResp(resp, PidIsVm(pid), "");
+    UBSE_LOG_INFO << "pid=" << hamMigrateDstInfo.dstPid;
+    ret = PidIsVm(hamMigrateDstInfo.dstPid);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "pid is not VM or not starting. ";
+        HttpUtil::SetResp(resp, ret, "");
+        return;
+    }
+    LendMemInDstNode(resp, hamMigrateDstInfo);
     UBSE_LOG_INFO << "[AgentDstInfoHandler] req end.";
+}
+
+void HamMigrate::LendMemInDstNode(UbseByteBuffer &resp, const HamMigrateDstInfo& hamMigrateVmInfo)
+{
+    UbseMemBorrower borrower{.nodeId = hamMigrateVmInfo.srcNodeId};
+    uint32_t slotId;
+    try {
+        slotId = VmStringUtil::SafeStoul(hamMigrateVmInfo.dstNodeId);
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "[ham migrate] [borrow] invalid soltId = " << hamMigrateVmInfo.dstNodeId;
+        HttpUtil::SetResp(resp, VM_ERROR, "");
+        return;
+    }
+    UbseMemProcessLender lender{
+        .slotId = slotId, .socketId =  static_cast<int>(hamMigrateVmInfo.srcSocket),
+        .pid = static_cast<uint64_t>(hamMigrateVmInfo.dstPid)};
+    for (const auto &[start, length] : hamMigrateVmInfo.vaLists) {
+        lender.vaLists.emplace_back(UbseMemAddrBorrowLocAndSizeByPid{.addr = start, .size = length});
+    }
+    UbseMemAddrDesc desc;
+    int flag = vm::NO_1; // Non-relay
+    /* hamMigrateVmInfo.exportAccessMode, */
+    auto ubsRet = UbseMemAddrCreate(hamMigrateVmInfo.borrowName, borrower,
+                                    lender, flag, desc);
+    if (ubsRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ham migrate] [borrow] ubse mem addr borrow return error. "
+                       << FormatRetCode(static_cast<uint32_t>(ubsRet));
+        HttpUtil::SetResp(resp, VM_ERROR, "");
+        return;
+    }
+    HttpUtil::SetResp(resp, ubsRet, std::to_string(desc.numaId));
+    UBSE_LOG_INFO << "[ham migrate] [borrow] ubse mem addr borrow success. numaId = " << std::to_string(desc.numaId);
+    return;
 }
 
 VmResult HamMigrate::PidIsVm(const uint64_t pid)
@@ -477,7 +489,10 @@ VmResult HamMigrate::PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::st
     bool isFail = false;
     for (auto &srcNode : srcNodes) {
         const UbseComEndpoint endpoint = {
-            .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_CANCEL, .address = srcNode};
+            .moduleId = VM_MODULE_CODE,
+            .serviceId = HAM_MIGRATE_CANCEL,
+            .address = srcNode
+        };
         UbseByteBuffer reqData;
         auto ret = HttpUtil::ToUbseByteBuffer(dstNodeId, reqData);
         if (ret != VM_OK) {
@@ -511,7 +526,7 @@ VmResult HamMigrate::ConvertToBorrow(const Value &msgJson, BorrowInfo &borrowInf
     if (!msgJson.HasMember("valist") || !msgJson["valist"].IsArray()) {
         ret |= VM_ERROR;
     } else {
-        ret |= ConvertToVaList(msgJson["valist"], valist);
+        ret |= LibvirtHandler::ConvertToVaList(msgJson["valist"], valist);
     }
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "Failed to parse BorrowInfo.";
@@ -537,34 +552,6 @@ VmResult HamMigrate::ConvertToBorrow(const Value &msgJson, BorrowInfo &borrowInf
     borrowInfo.dstNodeId = dstNodeId;
     borrowInfo.valist = valist;
     UBSE_LOG_INFO << "ConvertToBorrow=" << borrowInfo.ToJson();
-    return VM_OK;
-}
-
-VmResult HamMigrate::ConvertToVaList(const Value &msgJson, std::vector<VirtualAddress> &valist)
-{
-    VirtualAddress tmpItem{};
-    if (!msgJson.IsArray()) {
-        UBSE_LOG_ERROR << "Failed to get array.";
-        return VM_ERROR;
-    }
-    auto i = 0;
-    double numVal;
-    for (auto &item : msgJson.GetArray()) {
-        if (item.IsNull()) {
-            UBSE_LOG_ERROR << "Failed to get array item[" << i << "].";
-            return VM_ERROR;
-        }
-        auto ret = VMJsonUtil::GetNumber(item, "start", numVal);
-        tmpItem.start = numVal;
-        ret |= VMJsonUtil::GetNumber(item, "length", numVal);
-        tmpItem.length = numVal;
-        if (ret != VM_OK) {
-            UBSE_LOG_ERROR << "Failed to get field of array item[" << i << "].";
-            return VM_ERROR;
-        }
-        i++;
-        valist.emplace_back(tmpItem);
-    }
     return VM_OK;
 }
 
@@ -617,27 +604,6 @@ std::string HamMigrate::GetMasterNodeId()
         return "";
     }
     return masterNode.nodeId;
-}
-
-VmResult HamMigrate::CheckPid(BorrowInfo &borrowInfo)
-{
-    const ubse::com::UbseComEndpoint endpoint = {
-        .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_MESSAGE_TO_MASTER, .address = GetMasterNodeId()};
-    HamMigrateDstInfoMessage hamMigrateDstInfoMessage;
-    hamMigrateDstInfoMessage.SetHamMigrateDstInfo(borrowInfo.dstPid, borrowInfo.dstNodeId);
-    auto ret = hamMigrateDstInfoMessage.Serialize();
-    if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "hamMigrateDstInfoMessage Serialize fail, "
-                       << " ret = " << ret;
-        return ret;
-    }
-
-    const UbseByteBuffer reqData = {.data = hamMigrateDstInfoMessage.SerializedData(),
-                                    .len = hamMigrateDstInfoMessage.SerializedDataSize(),
-                                    .freeFunc = nullptr};
-    unsigned int result = VM_ERROR;
-    UbseRpcSend(endpoint, reqData, &result, SrcNodeInfoReplyHandler);
-    return result;
 }
 
 void HamMigrate::HandleBorrowFailure(HamMigrateVmInfo &hamMigrateVmInfo)
@@ -695,13 +661,8 @@ VmResult HamMigrate::Borrow(BorrowInfo &borrowInfo, BorrowResponse &borrowRespon
     if (HasTask(borrowInfo)) {
         return VM_ERROR;
     }
-    auto ret = CheckPid(borrowInfo);
-    if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "[ham migrate] CheckPid Failed, ret = " << ret;
-        return ret;
-    }
     HostVmDomainInfo hostVmDomainInfo;
-    ret = ResourceQuery::GetVmDomainInfosFromGlobal(hostVmDomainInfo);
+    auto ret = ResourceQuery::GetVmDomainInfosFromGlobal(hostVmDomainInfo);
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "[ham migrate] Query VmInfo, pid = " << borrowInfo.srcPid
                        << ", nodeId = " << borrowInfo.srcNodeId << ", " << FormatRetCode(ret);
@@ -839,7 +800,7 @@ VmResult HamMigrate::DoProcessTracking(HamMigrateVmInfo &hamMigrateVmInfo)
     VmResult ret = HttpUtil::AddProcessTracking(hamMigrateVmInfo.pid, HAM_SCAN_TIME, HAM_SCAN_TYPE);
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "[ham migrate] add_process_tracking, scanTime = " << HAM_SCAN_TIME
-                       << "ms, type: " << HAM_SCAN_TYPE << ", " << vmInfoPrefixLog << FormatRetCode(ret);
+                       << "ms, type=" << HAM_SCAN_TYPE << ", " << vmInfoPrefixLog << FormatRetCode(ret);
         return VM_ERROR;
     }
     UBSE_LOG_INFO << "[ham migrate] add_process_tracking, scanTime = " << HAM_SCAN_TIME
@@ -889,29 +850,36 @@ VmResult HamMigrate::DoBorrowAddress(BorrowInfo &borrowInfo, HamMigrateVmInfo &h
 
 VmResult HamMigrate::DoUbseBorrowAddress(const BorrowInfo &borrowInfo, BorrowResponse &borrowResponse)
 {
-    UbseMemBorrower borrower{.nodeId = borrowInfo.srcNodeId};
-    uint32_t slotId;
-    try {
-        slotId = VmStringUtil::SafeStoul(borrowInfo.dstNodeId);
-    } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "[ham migrate] [borrow] invalid soltId = " << borrowInfo.dstNodeId;
-        return VM_ERROR;
+    const ubse::com::UbseComEndpoint endpoint = {
+        .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_MESSAGE_TO_MASTER, .address = GetMasterNodeId()};
+    HamMigrateDstInfo hamMigrateDstInfo;
+    hamMigrateDstInfo.borrowName = borrowInfo.name;
+    hamMigrateDstInfo.srcNodeId = borrowInfo.srcNodeId;
+    hamMigrateDstInfo.srcSocket = borrowInfo.srcSocket;
+    hamMigrateDstInfo.vaListSize = borrowInfo.valist.size();
+    hamMigrateDstInfo.vaLists = borrowInfo.valist;
+    hamMigrateDstInfo.dstPid = borrowInfo.dstPid;
+    hamMigrateDstInfo.dstNodeId = borrowInfo.dstNodeId;
+    hamMigrateDstInfo.exportAccessMode = static_cast<uint8_t>(ExportAccessMode::HAM_MIGRATE_MODE);
+    HamMigrateDstInfoMessage hamMigrateDstInfoMessage;
+    hamMigrateDstInfoMessage.SetHamMigrateDstInfo(hamMigrateDstInfo);
+    auto ret = hamMigrateDstInfoMessage.Serialize();
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "[ham migrate] [borrow] hamMigrateDstInfoMessage Serialize Failed, ret=" << ret;
+        return ret;
     }
-
-    UbseMemProcessLender lender{
-        .slotId = slotId, .socketId = borrowInfo.srcSocket, .pid = static_cast<uint64_t>(borrowInfo.dstPid)};
-    for (const auto &[start, length] : borrowInfo.valist) {
-        lender.vaLists.emplace_back(UbseMemAddrBorrowLocAndSizeByPid{.addr = start, .size = length});
-    }
+    const UbseByteBuffer reqData = {
+        .data = hamMigrateDstInfoMessage.SerializedData(), .len = hamMigrateDstInfoMessage.SerializedDataSize(),
+        .freeFunc = nullptr
+    };
     UbseMemAddrDesc desc;
-    int flag = vm::NO_1; // Non-relay
-    auto ubsRet = UbseMemAddrCreate(borrowInfo.name, borrower, lender, flag, desc);
-    if (ubsRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ham migrate] [borrow] ubse mem addr borrow return error. "
-                       << FormatRetCode(static_cast<uint32_t>(ubsRet));
+    desc.numaId = -1;
+    ret = UbseRpcSend(endpoint, reqData, &desc, SrcNodeInfoReplyHandler);
+    if (ret != VM_OK || desc.numaId == -1) {
+        UBSE_LOG_ERROR << "[ham migrate] [borrow] ubse mem addr borrow return error."
+                       << "numaId=" << desc.numaId << ", " << FormatRetCode(ret);
         return VM_ERROR;
     }
-
     borrowResponse.name = borrowInfo.name;
     borrowResponse.scna = 0;
     borrowResponse.numaIds.emplace_back(desc.numaId);
@@ -971,9 +939,9 @@ VmResult HamMigrate::UbseRollbackBorrowAddress(const HamMigrateVmInfo &hamMigrat
     UbseMemBorrower borrower{.nodeId = hamMigrateVmInfo.nodeId};
     auto ubsRet = UbseMemAddrDelete(hamMigrateVmInfo.borrowName, borrower);
     if (ubsRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ham migrate] [return] ubse mem return error. "
+        UBSE_LOG_WARN << "[ham migrate] [return] ubse mem return is not OK. "
                        << FormatRetCode(static_cast<uint32_t>(ubsRet));
-        return VM_ERROR;
+        return ubsRet;
     }
 
     UBSE_LOG_INFO << "[ham migrate] [return] ubse mem return success.";

@@ -57,4 +57,9 @@ typedef enum {
     UBS_VA_CONTAINER_WATERLINE_MEM_MIGRATE = 0x0005,   // Op code for waterline mem migrate
     UBS_VA_CONTAINER_WATERLINE_MEM_RETURN = 0x0006,    // Op code for waterline mem return
 } ubs_virt_agent_container_op_code_t;
+
+typedef enum {
+    UBS_VA_HAM_MIGRATE_SCENE = 0x0001,
+    UBS_VA_FAST_RECOVERY_SCENE = 0x0002,
+} ubs_virt_agent_libvirt_scene_code_t;
 #endif // VM_SDK_DEF_H

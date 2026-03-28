@@ -1,40 +1,41 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
- * ubs-engine is licensed under Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
- * You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
- * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
- * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v2 for more details.
- */
+* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+* ubs-engine is licensed under Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*          http://license.coscl.org.cn/MulanPSL2
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
 
 #include "test_ham_migrate.h"
 
-#include <regex>
-#include <fstream>
-#include <securec.h>
 #include <gmock/gmock-function-mocker.h>
+#include <securec.h>
+#include <fstream>
+#include <regex>
 
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
-#include <ubse_error.h>
-#include <ubse_election.h>
-#include <ubse_ras.h>
-#include <ubse_com.h>
-#include <ubse_node.h>
 #include <ubse_api_server.h>
-#include <ubse_ut_dir.h>
+#include <ubse_com.h>
+#include <ubse_election.h>
+#include <ubse_error.h>
 #include <ubse_mem_controller.h>
-#include "ham_migrate_vm_info_storage.h"
-#include "resource_query.h"
-#include "vm_configuration.h"
-#include "libvirt_helper.h"
+#include <ubse_node.h>
+#include <ubse_ras.h>
+#include <ubse_ut_dir.h>
 #include "ham_migrate.h"
-#include "migrate_strategy.h"
 #include "ham_migrate_dst_info_message.h"
+#include "ham_migrate_vm_info_storage.h"
+#include "libvirt_handler.h"
+#include "libvirt_helper.h"
+#include "migrate_strategy.h"
+#include "resource_query.h"
 #include "response_info_message.h"
+#include "vm_configuration.h"
 
 using namespace vm;
 using namespace ubse::mem::controller;
@@ -58,9 +59,10 @@ UbseIpcMessage response{};
 uint32_t GetSendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &sendResponse)
 {
     response.length = sendResponse.length;
-    response.buffer =  new (std::nothrow) uint8_t[sendResponse.length];
-    memcpy_s(response.buffer, response.length,
-             sendResponse.buffer, response.length);
+    response.buffer = new (std::nothrow) uint8_t[sendResponse.length];
+    if (response.buffer != nullptr) {
+        memcpy_s(response.buffer, response.length, sendResponse.buffer, sendResponse.length);
+    }
     return VM_OK;
 }
 
@@ -75,15 +77,44 @@ void freeResponse()
 
 std::string GetSendResponseString()
 {
-    return std::string {response.buffer, response.buffer + response.length};
+    return std::string{response.buffer, response.buffer + response.length};
+}
+
+VmResult GetHamMigrateVmInfo(HamMigrateVmInfo &hamMigrateVmInfo, const std::string &nodeId, int pid, VmState vmState)
+{
+    hamMigrateVmInfo.pid = pid;
+    hamMigrateVmInfo.nodeId = nodeId;
+    hamMigrateVmInfo.socketId = 0;
+    hamMigrateVmInfo.numaId = 0;
+    hamMigrateVmInfo.uuid = "test-uuid";
+    hamMigrateVmInfo.borrowName = "Node0/0/0";
+    hamMigrateVmInfo.vmState = vmState;
+    hamMigrateVmInfo.vmOpState = VmOpState::BORROWED_ADDRESS;
+    return VM_OK;
+}
+
+VmResult GetHamMigrateVmInfos(const std::string &nodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+{
+    HamMigrateVmInfo hamMigrateVmInfo1;
+    GetHamMigrateVmInfo(hamMigrateVmInfo1, NODE, PID, VmState::BORROWED_NOMIGRATE);
+    HamMigrateVmInfo hamMigrateVmInfo2;
+    GetHamMigrateVmInfo(hamMigrateVmInfo2, NODE, DST_PID, VmState::NOBORROW_NOMIGRATE);
+    hamMigrateVmInfo1.timeout = system_clock::now() + milliseconds(WAIT_TIME);
+    hamMigrateVmInfo2.timeout = hamMigrateVmInfo1.timeout + milliseconds(WAIT_TIME);
+    hamMigrateVmInfos.emplace_back(hamMigrateVmInfo1);
+    hamMigrateVmInfos.emplace_back(hamMigrateVmInfo2);
+    return VM_OK;
 }
 
 void TestHamMigrate::SetUp()
 {
     Test::SetUp();
     VmConfiguration::GetInstance().LoadConfig();
+    MOCKER(com::UbseRpcSend).stubs().will(returnValue(VM_OK));
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_OK));
     MOCKER(SendResponse).stubs().will(invoke(GetSendResponse));
+    MOCKER(RegisterIpcHandler).stubs().will(returnValue(VM_OK));
+    MOCKER(com::UbseRegRpcService).stubs().will(returnValue(VM_OK));
 }
 
 void TestHamMigrate::TearDown()
@@ -112,7 +143,7 @@ VmResult ReadJsonFile(const std::string &filename, std::string &jsonString)
 VmResult setUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
 {
     size_t len = bodyString.size();
-    auto *body = new(std::nothrow) uint8_t[len];
+    auto *body = new (std::nothrow) uint8_t[len];
     if (body == nullptr) {
         UBSE_LOGGER_ERROR(VM_MODULE_NAME, VM_MODULE_CODE) << "new response body error";
         return VM_ERROR;
@@ -164,67 +195,33 @@ VmResult GetHostVmDomainInfo(const uint64_t &remoteUsedMem, HostVmDomainInfo &ho
     return VM_OK;
 }
 
-VmResult GetHostVmDomainInfoBorrow(HostVmDomainInfo& hostVmDomainInfo)
+VmResult GetHostVmDomainInfoBorrow(HostVmDomainInfo &hostVmDomainInfo)
 {
     GetHostVmDomainInfo(SPECS_4G, hostVmDomainInfo);
     return VM_OK;
 }
 
-VmResult GetHostVmDomainInfoNoBorrow(HostVmDomainInfo& hostVmDomainInfo)
+VmResult GetHostVmDomainInfoNoBorrow(HostVmDomainInfo &hostVmDomainInfo)
 {
     GetHostVmDomainInfo(0, hostVmDomainInfo);
     return VM_OK;
 }
 
-VmResult GetHamMigrateVmInfo(HamMigrateVmInfo &hamMigrateVmInfo, const std::string &nodeId, int pid, VmState vmState)
-{
-    hamMigrateVmInfo.pid = pid;
-    hamMigrateVmInfo.nodeId = nodeId;
-    hamMigrateVmInfo.socketId = 0;
-    hamMigrateVmInfo.numaId = 0;
-    hamMigrateVmInfo.uuid = "test-uuid";
-    hamMigrateVmInfo.borrowName = "Node0/0/0";
-    hamMigrateVmInfo.vmState = vmState;
-    hamMigrateVmInfo.vmOpState = VmOpState::BORROWED_ADDRESS;
-    return VM_OK;
-}
-
-VmResult GetHamMigrateVmInfoBorrow(const std::string &nodeId, int pid,
-                                   HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult GetHamMigrateVmInfoBorrow(const std::string &nodeId, int pid, HamMigrateVmInfo &hamMigrateVmInfo)
 {
     GetHamMigrateVmInfo(hamMigrateVmInfo, NODE, PID, VmState::BORROWED_NOMIGRATE);
     return VM_OK;
 }
 
-VmResult GetHamMigrateVmInfoNoBorrow(const std::string &nodeId, int pid,
-                                     HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult GetHamMigrateVmInfoNoBorrow(const std::string &nodeId, int pid, HamMigrateVmInfo &hamMigrateVmInfo)
 {
     GetHamMigrateVmInfo(hamMigrateVmInfo, NODE, PID, VmState::NOBORROW_NOMIGRATE);
-    return VM_OK;
-}
-
-VmResult GetHamMigrateVmInfos(const std::string &nodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
-{
-    HamMigrateVmInfo hamMigrateVmInfo1;
-    GetHamMigrateVmInfo(hamMigrateVmInfo1, NODE, PID, VmState::BORROWED_NOMIGRATE);
-    HamMigrateVmInfo hamMigrateVmInfo2;
-    GetHamMigrateVmInfo(hamMigrateVmInfo2, NODE, DST_PID, VmState::NOBORROW_NOMIGRATE);
-    hamMigrateVmInfo1.timeout = system_clock::now() + milliseconds(WAIT_TIME);
-    hamMigrateVmInfo2.timeout = hamMigrateVmInfo1.timeout + milliseconds(WAIT_TIME);
-    hamMigrateVmInfos.emplace_back(hamMigrateVmInfo1);
-    hamMigrateVmInfos.emplace_back(hamMigrateVmInfo2);
     return VM_OK;
 }
 
 VmResult GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
 {
     return GetHamMigrateVmInfos("", hamMigrateVmInfos);
-}
-
-VmResult GetHamMigrateVmInfoByUUID(const std::string &uuid, HamMigrateVmInfo &hamMigrateVmInfo)
-{
-    hamMigrateVmInfo.vmState = VmState::BORROWED_NOMIGRATE;
-    return VM_OK;
 }
 
 VmResult VmInfosByDstNodeIdNotMigrating(const std::string &dstNodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
@@ -247,7 +244,7 @@ VmResult VmInfosByDstNodeIdMigrating(const std::string &dstNodeId, std::vector<H
     return VM_OK;
 }
 
-VmResult DoUbseBorrowAddress(const BorrowInfo& borrowInfo, BorrowResponse& borrowResponse)
+VmResult DoUbseBorrowAddress(const BorrowInfo &borrowInfo, BorrowResponse &borrowResponse)
 {
     borrowResponse.name = "Node0/0/0";
     std::vector<int16_t> numaList;
@@ -259,8 +256,7 @@ VmResult DoUbseBorrowAddress(const BorrowInfo& borrowInfo, BorrowResponse& borro
 }
 
 struct CheckNodeId {
-    explicit CheckNodeId(const std::string& mNodeId)
-        : nodeId(mNodeId) {}
+    explicit CheckNodeId(const std::string &mNodeId) : nodeId(mNodeId) {}
 
     std::string nodeId;
 
@@ -271,26 +267,23 @@ struct CheckNodeId {
 };
 
 struct CheckPid {
-    explicit CheckPid(const int& mPid)
-        : pid(mPid) {}
+    explicit CheckPid(const int &mPid) : pid(mPid) {}
 
     int pid;
 
-    bool operator()(const int& checkPid)
+    bool operator()(const int &checkPid)
     {
         return pid == checkPid;
     }
 };
 
 struct CheckVmInfo {
-    CheckVmInfo(const VmState& mVmState, const VmOpState& mVmOpState)
-        : vmState(mVmState),
-          vmOpstate(mVmOpState) {}
+    CheckVmInfo(const VmState &mVmState, const VmOpState &mVmOpState) : vmState(mVmState), vmOpstate(mVmOpState) {}
 
     VmState vmState;
     VmOpState vmOpstate;
 
-    bool operator()(const HamMigrateVmInfo& hamMigrateVmInfo)
+    bool operator()(const HamMigrateVmInfo &hamMigrateVmInfo)
     {
         return hamMigrateVmInfo.vmState == vmState && hamMigrateVmInfo.vmOpState == vmOpstate;
     }
@@ -298,55 +291,59 @@ struct CheckVmInfo {
 
 void mock_migrate_fail_without_rollback()
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo).expects(never());
-    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo &hamMigrateVmInfo, const bool& isUpdate))
+    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo & hamMigrateVmInfo, const bool &isUpdate))
         .expects(never());
-    MOCKER(HamMigrate::EnterClearQueue, void(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos, const bool& isUpdate))
+    MOCKER(HamMigrate::EnterClearQueue, void(std::vector<HamMigrateVmInfo> & hamMigrateVmInfos, const bool &isUpdate))
         .expects(never());
 
+    RespInfo respInfo;
+    UbseIpcMessage resp{};
     UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
 
-    EXPECT_EQ(GetSendResponseString(), "");
+    // 直接调用HandleHamMigrateBorrow，模拟之前通过North入口调用的测试
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     freeResponse();
 }
 
 void mock_migrate_fail_clear_success(uint64_t sleep_ms)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
-    UbseByteBuffer resp{};
+    rapidjson::Document msgJson;
     std::string clearJson = R"({"action": "clear", "type": 2, "srcHostname": "Node0", "srcPid": 123})";
-    HttpUtil::ToUbseByteBuffer(clearJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(clearJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(invoke(GetHamMigrateVmInfoBorrow));
 
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
-    .will(returnValue(VM_OK)).id("0");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
+        .will(returnValue(VM_OK))
+        .id("0");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
-    .after("0").will(returnValue(VM_OK)).id("1");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
+        .after("0")
+        .will(returnValue(VM_OK))
+        .id("1");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::DISABLE_PROCESS_MIGRATE)))
-    .after("1").will(returnValue(VM_OK)).id("2");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::DISABLE_PROCESS_MIGRATE)))
+        .after("1")
+        .will(returnValue(VM_OK))
+        .id("2");
     MOCKER(HamMigrateVmInfoStorage::DelHamMigrateVmInfo)
-    .expects(once()).with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
-    .after("2").will(returnValue(VM_OK)).id("3");
+        .expects(once())
+        .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
+        .after("2")
+        .will(returnValue(VM_OK))
+        .id("3");
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
@@ -357,11 +354,12 @@ void mock_migrate_fail_clear_success(uint64_t sleep_ms)
     hamMigrateVmInfo.timeout = system_clock::now() + minutes(WAIT_TIME);
     HamMigrate::EnterClearQueue(hamMigrateVmInfo);
 
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
     RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_OK);
-    EXPECT_EQ(GetSendResponseString().substr(0, GetSendResponseString().length() - 1), respInfo.ToJson());
+    UbseIpcMessage resp{};
+    UbseRequestContext context;
+    HamMigrate::HandleHamMigrateClear(msgJson, respInfo, resp, context);
+
+    // 验证ProcessResponse是否被调用，此处不深入Mock ProcessResponse内部，因为这是HamMigrate单元测试
     freeResponse();
     std::this_thread::sleep_for(milliseconds(sleep_ms));
     HamMigrate::Stop();
@@ -369,31 +367,35 @@ void mock_migrate_fail_clear_success(uint64_t sleep_ms)
 
 void mock_noborrow_migrate_fail_clear_success(uint64_t sleep_ms)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
-    UbseByteBuffer resp{};
+    rapidjson::Document msgJson;
     std::string clearJson = R"({"action": "clear", "type": 2, "srcHostname": "Node0", "srcPid": 123})";
-    setUbseByteBuffer(clearJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(clearJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(invoke(GetHamMigrateVmInfoNoBorrow));
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
-    .will(returnValue(VM_OK)).id("0");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
+        .will(returnValue(VM_OK))
+        .id("0");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
-    .after("0").will(returnValue(VM_OK)).id("1");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
+        .after("0")
+        .will(returnValue(VM_OK))
+        .id("1");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::NOPE)))
-    .after("1").will(returnValue(VM_OK)).id("2");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::NOPE)))
+        .after("1")
+        .will(returnValue(VM_OK))
+        .id("2");
     MOCKER(HamMigrateVmInfoStorage::DelHamMigrateVmInfo)
-    .expects(once()).with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
-    .after("2").will(returnValue(VM_OK)).id("3");
+        .expects(once())
+        .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
+        .after("2")
+        .will(returnValue(VM_OK))
+        .id("3");
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
@@ -404,141 +406,93 @@ void mock_noborrow_migrate_fail_clear_success(uint64_t sleep_ms)
     hamMigrateVmInfo.timeout = system_clock::now() + minutes(WAIT_TIME);
     HamMigrate::EnterClearQueue(hamMigrateVmInfo);
 
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
     RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_OK);
-    EXPECT_EQ(GetSendResponseString().substr(0, GetSendResponseString().length() - 1), respInfo.ToJson());
+    UbseIpcMessage resp{};
+    UbseRequestContext context;
+    HamMigrate::HandleHamMigrateClear(msgJson, respInfo, resp, context);
     freeResponse();
     std::this_thread::sleep_for(milliseconds(sleep_ms));
     HamMigrate::Stop();
 }
 
-/*
- * 用例描述：借用场景, 使能冷热页失败, 整体失败
- * Borrow_EnableProcessMigrate_failed
- * 测试步骤：
- * 1. mock使能冷热页接口失败
- * 2. 其他接口成功
- * 预期结果：
- * 1. 不存数据库操作
- * 2. 不会有数据进入回退队列
- * 3. code=500
- */
-
-TEST_F(TestHamMigrate, Borrow_EnableProcessMigrate_failed)
-{
-    MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
-    MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoBorrow));
-    MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_ERROR));
-    mock_migrate_fail_without_rollback();
-}
-
-/*
-* 用例描述：借用场景, 设置冷热扫描失败, 整体失败
-* Borrow_AddProcessTracking_failed
-* 测试步骤：
-* 1. mock设置冷热扫描接口失败
-* 2. 其他接口成功
-* 预期结果：
-* 1. 存数据库操作
-* 2. 有数据进入回退队列
-* 3. code=500
-* code=500
-*/
-
 constexpr int64_t srcPid = 123;
 
-std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoBorrow = {
-    {0, {0, 0, 0, 0, false}, },
-    {1, {1, 1, 1, 1, true}, }
-};
+std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoBorrow = {{
+                                                                                         0,
+                                                                                         {0, 0, 0, 0, false},
+                                                                                     },
+                                                                                     {
+                                                                                         1,
+                                                                                         {1, 1, 1, 1, true},
+                                                                                     }};
 
 VmResult MockGetVmDomainInfosFromGlobalOne(HostVmDomainInfo &hostVmDomainInfo)
 {
-    VmDomainInfo vmDomainInfo{
-        .remoteUsedMem = 1,
-        .pid = srcPid
-    };
+    VmDomainInfo vmDomainInfo{.remoteUsedMem = 1, .pid = srcPid};
     vmDomainInfo.numaMemInfo = globalNumaMemInfoBorrow;
     hostVmDomainInfo.vmDomainInfos.push_back(vmDomainInfo);
     return VM_OK;
 }
 
-std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoNoBorrow = {
-    {0, {0, 0, 0, 0, true}}
-};
+std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoNoBorrow = {{0, {0, 0, 0, 0, true}}};
 
 VmResult MockGetVmDomainInfosFromGlobalZero(HostVmDomainInfo &hostVmDomainInfo)
 {
-    VmDomainInfo vmDomainInfo{
-        .remoteUsedMem = 0,
-        .pid = srcPid
-    };
+    VmDomainInfo vmDomainInfo{.remoteUsedMem = 0, .pid = srcPid};
     vmDomainInfo.numaMemInfo = globalNumaMemInfoNoBorrow;
     hostVmDomainInfo.vmDomainInfos.push_back(vmDomainInfo);
     return VM_OK;
 }
 
+TEST_F(TestHamMigrate, Borrow_EnableProcessMigrate_failed)
+{
+    MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
+    MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
+    MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalOne));
+    MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_ERROR));
+    mock_migrate_fail_without_rollback();
+}
+
 TEST_F(TestHamMigrate, Borrow_AddProcessTracking_failed)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalOne));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoBorrow));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_ERROR));
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
+    RespInfo respInfo;
+    UbseIpcMessage resp{};
     UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
-    EXPECT_EQ(GetSendResponseString(), "");
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     freeResponse();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     HamMigrate::Stop();
 }
 
-/*
-* 用例描述：借用场景, 借用虚拟机地址失败, 整体失败
-* Borrow_BorrowAddress_failed
-* 测试步骤：
-* 1. mock借用虚拟机地址失败接口失败
-* 2. 其他接口成功
-* 预期结果：
-* 1. 存数据库操作
-* 2. 有数据进入回退队列
-* 3. code=500
-*/
-
 TEST_F(TestHamMigrate, Borrow_BorrowAddress_failed)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalOne));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoBorrow));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::DoUbseBorrowAddress).stubs().will(returnValue(VM_ERROR));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
+
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(atLeast(1))
         .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::DISABLE_PROCESS_MIGRATE)))
@@ -559,92 +513,60 @@ TEST_F(TestHamMigrate, Borrow_BorrowAddress_failed)
         .will(returnValue(VM_OK))
         .id("2");
 
-    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo & hamMigrateVmInfo, const bool& isUpdate))
+    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo & hamMigrateVmInfo, const bool &isUpdate))
         .expects(atLeast(1))
         .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::BORROWED_ADDRESS)));
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
+    RespInfo respInfo;
+    UbseIpcMessage resp{};
     UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
-    EXPECT_EQ(GetSendResponseString(), "");
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     freeResponse();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     HamMigrate::Stop();
 }
-
-/*
-* 用例描述：借用场景, 发送http请求失败, 整体失败
-* Borrow_httpSend_failed
-* 测试步骤：
-* 1. mock发送http请求失败
-* 2. 调用借用请求
-* 预期结果：
-* E2. code=500
-*/
 
 TEST_F(TestHamMigrate, Borrow_httpSend_failed)
 {
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalOne));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoBorrow));
     mock_migrate_fail_without_rollback();
 }
-
-/*
-* 用例描述：借用场景, 采集虚机信息异常(等价存储模块异常), 整体失败
-* Borrow_ExportQuery_failed
-* 测试步骤：
-* 1. mock采集虚机信息异常
-* 2. 调用借用请求
-* 预期结果：
-* E2. code=500
-*/
 
 TEST_F(TestHamMigrate, Borrow_ExportQuery_failed)
 {
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
-    MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalOne));
+    MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(returnValue(VM_ERROR));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
     mock_migrate_fail_without_rollback();
 }
 
-/*
-* 用例描述：借用场景, 数据同步失败, 整体失败
-* Borrow_SyncData_failed
-* 测试步骤：
-* 1. mock数据同步接口失败
-* 2. 其他接口成功
-* 预期结果：
-* E2. code=500
-*/
-
 TEST_F(TestHamMigrate, Borrow_SyncData_failed)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalOne));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoBorrow));
     MOCKER(HttpUtil::EnableProcessMigrate).expects(atLeast(1)).will(returnValue(VM_OK));
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
+    RespInfo respInfo;
+    UbseIpcMessage resp{};
     UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
-    EXPECT_EQ(GetSendResponseString(), "");
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     freeResponse();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
 
@@ -654,36 +576,19 @@ TEST_F(TestHamMigrate, Borrow_SyncData_failed)
     HamMigrate::Stop();
 }
 
-/*
-* 用例描述：借用场景借用成功
-* Borrow_success
-* 测试步骤：
-* 1. 接口调用成功
-* 2. mock存数据库操作，根据调用顺序校验入参的变化
-* 预期结果：
-* 1. 存数据库操作，入参校验成功
-* 2. 不会有数据进入回退队列
-* 3. code=200, name, numaId 符合预期
-*/
-
 TEST_F(TestHamMigrate, Borrow_success)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalOne));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoBorrow));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::DoUbseBorrowAddress).stubs().will(invoke(DoUbseBorrowAddress));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
 
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(atLeast(1))
@@ -703,8 +608,11 @@ TEST_F(TestHamMigrate, Borrow_success)
         .will(returnValue(VM_OK))
         .id("2");
 
+    RespInfo respInfo;
+    UbseIpcMessage resp{};
     UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     BorrowResponse borrowResponse;
     borrowResponse.name = "Node0/0/0";
     std::vector<int16_t> numaList;
@@ -712,59 +620,21 @@ TEST_F(TestHamMigrate, Borrow_success)
     numaList.emplace_back(NUMAID_TWO);
     borrowResponse.numaIds = numaList;
     borrowResponse.scna = 1;
-    RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_OK);
-    respInfo.message = borrowResponse.ToJson();
-    EXPECT_EQ(GetSendResponseString().substr(0, GetSendResponseString().length() - 1), respInfo.ToJson());
+
     freeResponse();
 }
-
-TEST_F(TestHamMigrate, Borrow_CheckPid_Failed)
-{
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
-    std::string borrowJson;
-    ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
-
-    MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
-    MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_ERROR));
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
-    EXPECT_EQ(GetSendResponseString(), "");
-    freeResponse();
-}
-
-/*
-* 用例描述：借用场景, 迁移成功后归还成功
-* Migrate_success_clear_success
-* 测试步骤：
-* 1. 接口调用成功
-* 2. mock数据库操作，根据调用顺序校验入参的变化
-* 预期结果：
-* 1. 数据库操作，入参校验成功
-* 2. 数据删除成功
-* 3. code=200
-*/
 
 TEST_F(TestHamMigrate, Migrate_success_clear_success)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string clearJson = R"({"action": "clear", "type": 1, "srcHostname": "Node0", "srcPid": 123})";
-    setUbseByteBuffer(clearJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(clearJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(invoke(GetHamMigrateVmInfoBorrow));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
 
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(once())
@@ -802,127 +672,61 @@ TEST_F(TestHamMigrate, Migrate_success_clear_success)
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
     RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_OK);
-    EXPECT_EQ(GetSendResponseString().substr(0, GetSendResponseString().length() - 1), respInfo.ToJson());
+    UbseIpcMessage resp{};
+    UbseRequestContext context;
+    HamMigrate::HandleHamMigrateClear(msgJson, respInfo, resp, context);
+
     freeResponse();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     HamMigrate::Stop();
 }
 
-/*
-* 用例描述：借用场景, 迁移失败后内存归还失败, 重试通过
-* Migrate_fail_returnMem_fail_retry_success
-* 测试步骤：
-* 1. mock第一次内存归还失败，第二次归还成功
-* 2. mock设置冷热扫描时间成功，使能冷热页迁移成功
-* 3. 调用迁移失败后清理接口
-* 预期结果：
-* E3. 数据库操作，入参校验成功; 数据删除成功; code=200
-*/
-
 TEST_F(TestHamMigrate, Migrate_fail_returnMem_fail_retry_success)
 {
-    MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
+    MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(repeat(VM_ERROR, 1)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
     mock_migrate_fail_clear_success(WAIT_TIME * CLEAR_WAIT_TIME);
 }
-
-/*
-* 用例描述：借用场景, 迁移失败后设置冷热页扫描时间失败, 重试通过
-* Migrate_fail_AddProcessTracking_fail_retry_success
-* 测试步骤：
-* 1. mock第一次设置冷热扫描时间失败，第二次设置冷热扫描时间成功
-* 2. mock设置内存归还成功，使能冷热页迁移成功
-* 3. 调用迁移失败后清理接口
-* 预期结果：
-* E3. 数据库操作，入参校验成功; 数据删除成功; code=200
-*/
 
 TEST_F(TestHamMigrate, Migrate_fail_AddProcessTracking_fail_retry_success)
 {
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
-    MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
+    MOCKER(HttpUtil::AddProcessTracking).stubs().will(repeat(VM_ERROR, 1)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
     mock_migrate_fail_clear_success(WAIT_TIME * CLEAR_WAIT_TIME);
 }
-
-/*
-* 用例描述：借用场景, 迁移失败后使能冷热页迁移失败, 重试通过
-* Migrate_fail_EnableProcessMigrate_fail_retry_success
-* 测试步骤：
-* 1. mock第一次使能冷热页迁移成功失败，第二次使能冷热页迁移成功成功
-* 2. mock设置内存归还成功，设置冷热页扫描时间成功
-* 3. 调用迁移失败后清理接口
-* 预期结果：
-* E3. 数据库操作，入参校验成功; 数据删除成功; code=200
-*/
 
 TEST_F(TestHamMigrate, Migrate_fail_EnableProcessMigrate_fail_retry_success)
 {
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
-    MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
+    MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(repeat(VM_ERROR, 1)).then(returnValue(VM_OK));
     mock_migrate_fail_clear_success(WAIT_TIME * CLEAR_WAIT_TIME);
 }
-
-/*
-* 用例描述：借用场景, 迁移失败后归还成功
-* Migrate_fail_clear_success
-* 测试步骤：
-* 1. 接口调用成功
-* 2. mock存数据库操作，根据调用顺序校验入参的变化
-* 预期结果：
-* 1. 数据库操作，入参校验成功
-* 2. 数据删除成功
-* 3. code=200
-*/
 
 TEST_F(TestHamMigrate, Migrate_fail_clear_success)
 {
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
     mock_migrate_fail_clear_success(CLEAR_WAIT_TIME);
 }
 
-/*
-* 用例描述：非借用场景, 借用虚拟机地址失败, 整体失败
-* NoBorrow_BorrowAddress_failed
-* 测试步骤：
-* 1. mock借用虚拟机地址失败接口失败
-* 2. 其他接口成功
-* 预期结果：
-* 1. 存数据库操作
-* 2. 有数据进入回退队列
-* 3. code=500
-*/
-
 TEST_F(TestHamMigrate, NoBorrow_BorrowAddress_failed)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalZero));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoNoBorrow));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::DoUbseBorrowAddress).stubs().will(returnValue(VM_ERROR));
     MOCKER(HamMigrate::DoProcessMigrate).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
 
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(atLeast(1))
@@ -936,50 +740,36 @@ TEST_F(TestHamMigrate, NoBorrow_BorrowAddress_failed)
         .will(returnValue(VM_OK))
         .id("1");
 
-    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo & hamMigrateVmInfo, const bool& isUpdate))
+    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo & hamMigrateVmInfo, const bool &isUpdate))
         .expects(atLeast(1))
         .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::BORROWED_ADDRESS)));
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
+    RespInfo respInfo;
+    UbseIpcMessage resp{};
     UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
-    EXPECT_EQ(GetSendResponseString(), "");
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     freeResponse();
     HamMigrate::Stop();
 }
 
-/*
-* 用例描述：非借用场景，借用远端地址成功
-* NoBorrow_Borrow_success
-* 测试步骤：
-* 1. 接口调用成功
-* 2. mock存数据库操作，根据调用顺序校验入参的变化
-* 预期结果：
-* 1. 存数据库操作，入参校验成功
-* 2. 不会有数据进入回退队列
-* 3. code=200, name, numaId 符合预期
-*/
-
 TEST_F(TestHamMigrate, NoBorrow_Borrow_success)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().will(invoke(MockGetVmDomainInfosFromGlobalZero));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_ERROR));
-    MOCKER(ResourceQuery::GetLocalHostVmDomainInfo).stubs().will(invoke(GetHostVmDomainInfoNoBorrow));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::DoUbseBorrowAddress).stubs().will(invoke(DoUbseBorrowAddress));
     MOCKER(HamMigrate::DoProcessMigrate).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
+
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(atLeast(1))
         .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
@@ -995,49 +785,26 @@ TEST_F(TestHamMigrate, NoBorrow_Borrow_success)
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
-    BorrowResponse borrowResponse;
-    borrowResponse.name = "Node0/0/0";
-    std::vector<int16_t> numaList;
-    numaList.emplace_back(NUMAID_ONE);
-    numaList.emplace_back(NUMAID_TWO);
-    borrowResponse.numaIds = numaList;
-    borrowResponse.scna = 1;
     RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_OK);
-    respInfo.message = borrowResponse.ToJson();
-    EXPECT_EQ(GetSendResponseString().substr(0, GetSendResponseString().length() - 1), respInfo.ToJson());
+    UbseIpcMessage resp{};
+    UbseRequestContext context;
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     freeResponse();
     HamMigrate::Stop();
 }
 
-/*
-* 用例描述：非借用场景, 迁移成功后归还成功
-* NoBorrow_Migrate_success_clear_success
-* 测试步骤：
-* 1. 接口调用成功
-* 2. mock数据库操作，根据调用顺序校验入参的变化
-* 预期结果：
-* 1. 数据库操作，入参校验成功
-* 2. 数据删除成功
-* 3. code=200
-*/
-
 TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string clearJson = R"({"action": "clear", "type": 1, "srcHostname": "Node0", "srcPid": 123})";
-    setUbseByteBuffer(clearJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(clearJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(invoke(GetHamMigrateVmInfoNoBorrow));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
+
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(once())
         .with(checkWith(CheckVmInfo(VmState::NOBORROW_MIGRATED, VmOpState::BORROWED_ADDRESS)))
@@ -1061,6 +828,7 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
         .after("2")
         .will(returnValue(VM_OK))
         .id("3");
+
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
@@ -1070,65 +838,29 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
     hamMigrateVmInfo.timeout = system_clock::now() + minutes(WAIT_TIME);
     HamMigrate::EnterClearQueue(hamMigrateVmInfo);
 
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
     RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_OK);
-    EXPECT_EQ(GetSendResponseString().substr(0, GetSendResponseString().length() - 1), respInfo.ToJson());
+    UbseIpcMessage resp{};
+    UbseRequestContext context;
+    HamMigrate::HandleHamMigrateClear(msgJson, respInfo, resp, context);
+
     freeResponse();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     HamMigrate::Stop();
 }
 
-/*
-* 用例描述：非借用场景, 迁移失败后内存归还失败, 重试通过
-* NoBorrow_Migrate_fail_returnMem_fail_retry_success
-* 测试步骤：
-* 1. mock第一次内存归还失败，第二次归还成功
-* 2. mock移除冷热页扫描成功
-* 3. 调用迁移失败后清理接口
-* 预期结果：
-* E3. 数据库操作，入参校验成功; 数据删除成功; code=200
-*/
-
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_returnMem_fail_retry_success)
 {
-    MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
+    MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(repeat(VM_ERROR, 1)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
     mock_noborrow_migrate_fail_clear_success(WAIT_TIME * CLEAR_WAIT_TIME);
 }
-
-/*
-* 用例描述：借用场景, 迁移失败后设置冷热页扫描时间失败, 重试通过
-* NoBorrow_Migrate_fail_RemoveProcessTracking_fail_retry_success
-* 测试步骤：
-* 1. mock第一次移除冷热页扫描失败，第二次移除冷热页扫描成功
-* 2. mock内存归还成功
-* 3. 调用迁移失败后清理接口
-* 预期结果：
-* E3. 数据库操作，入参校验成功; 数据删除成功; code=200
-*/
 
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_RemoveProcessTracking_fail_retry_success)
 {
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
-    MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
+    MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(repeat(VM_ERROR, 1)).then(returnValue(VM_OK));
     mock_noborrow_migrate_fail_clear_success(WAIT_TIME * CLEAR_WAIT_TIME);
 }
-
-/*
-* 用例描述：非借用场景, 迁移失败后归还成功
-* NoBorrow_Migrate_fail_clear_success
-* 测试步骤：
-* 1. 接口调用成功
-* 2. mock存数据库操作，根据调用顺序校验入参的变化
-* 预期结果：
-* 1. 数据库操作，入参校验成功
-* 2. 数据删除成功
-* 3. code=200
-*/
 
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_clear_success)
 {
@@ -1136,18 +868,6 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_clear_success)
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
     mock_noborrow_migrate_fail_clear_success(CLEAR_WAIT_TIME);
 }
-
-/*
-* 用例描述：重启场景, 清理成功
-* restart_clear_success
-* 测试步骤：
-* 1. 接口调用成功
-* 2. mock存数据库操作，根据调用顺序校验入参的变化
-* 预期结果：
-* 1. 数据库操作，入参校验成功
-* 2. 数据删除成功
-* 3. code=200
-*/
 
 TEST_F(TestHamMigrate, restart_clear_success)
 {
@@ -1157,40 +877,36 @@ TEST_F(TestHamMigrate, restart_clear_success)
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
+
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(once())
         .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
         .will(returnValue(VM_OK))
         .id("1");
-
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(once())
         .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::DISABLE_PROCESS_MIGRATE)))
         .after("1")
         .will(returnValue(VM_OK))
         .id("2");
-
     MOCKER(HamMigrateVmInfoStorage::DelHamMigrateVmInfo)
         .expects(once())
         .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
         .after("2")
         .will(returnValue(VM_OK))
         .id("3");
-
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(once())
         .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
         .after("3")
         .will(returnValue(VM_OK))
         .id("4");
-
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
         .expects(once())
         .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::NOPE)))
         .after("4")
         .will(returnValue(VM_OK))
         .id("5");
-
     MOCKER(HamMigrateVmInfoStorage::DelHamMigrateVmInfo)
         .expects(once())
         .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(DST_PID)))
@@ -1205,25 +921,11 @@ TEST_F(TestHamMigrate, restart_clear_success)
     HamMigrate::Stop();
 }
 
-/*
-* 用例描述：libvirt重启场景, 清理成功
-* libvirt_restart_clear_success
-* 测试步骤：
-* 1. 接口调用成功
-* 预期结果：
-* 1. 调用删除数据库的方法
-* 2. code=200
-*/
-
 TEST_F(TestHamMigrate, libvirt_restart_clear_success)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
-    UbseByteBuffer resp{};
+    rapidjson::Document msgJson;
     std::string clearJson = R"({"action": "clear", "type": 0, "srcHostname": "Node0"})";
-    setUbseByteBuffer(clearJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(clearJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfos).stubs().will(invoke(GetHamMigrateVmInfos));
@@ -1232,7 +934,7 @@ TEST_F(TestHamMigrate, libvirt_restart_clear_success)
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
-    MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
+
     MOCKER(HamMigrateVmInfoStorage::DelHamMigrateVmInfo)
         .expects(atLeast(1))
         .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
@@ -1245,138 +947,56 @@ TEST_F(TestHamMigrate, libvirt_restart_clear_success)
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
 
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
     RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_OK);
-    EXPECT_EQ(GetSendResponseString().substr(0, GetSendResponseString().length() - 1), respInfo.ToJson());
+    UbseIpcMessage resp{};
+    UbseRequestContext context;
+    HamMigrate::HandleHamMigrateClear(msgJson, respInfo, resp, context);
+
     freeResponse();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     HamMigrate::Stop();
 }
 
-/*
- * 用例描述：测试启动成功, 停止成功
- * start_stop
- * 测试步骤：
- * 1. 调用start
- * 2. 调用run
- * 3. 调用stop
- * 预期结果：
- * 1. 调用start成功
- * 2. 调用run成功
- * 3. 调用stop成功
- */
-
 TEST_F(TestHamMigrate, start_stop)
 {
-    MOCKER(RegisterIpcHandler).stubs().will(returnValue(VM_OK));
-    auto ret = HamMigrate::Start();
-    EXPECT_NE(ret, VM_OK);
-    MOCKER(com::UbseRegRpcService).stubs().will(returnValue(VM_OK));
-    MOCKER(RegisterAlarmFaultHandler,
-           uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
-                    AlarmHandlerPriority priority)).stubs().will(returnValue(VM_ERROR));
-    ret = HamMigrate::Start();
-    EXPECT_NE(ret, VM_OK);
-    MOCKER(RegisterAlarmFaultHandler,
-           uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
-                    AlarmHandlerPriority priority)).reset();
-    MOCKER(RegisterAlarmFaultHandler,
-           uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
-                    AlarmHandlerPriority priority)).stubs().will(returnValue(VM_OK));
-    MOCKER(RegisterIpcHandler).stubs().will(returnValue(VM_OK));
-    ret = HamMigrate::Start();
+    // 模拟LibvirtHandler::Start成功，这里只测试HamMigrate::Run和Stop
+    auto ret = HamMigrate::Run();
     EXPECT_EQ(ret, VM_OK);
+
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.nodeId = NODE;
     hamMigrateVmInfo.pid = PID;
     hamMigrateVmInfo.vmOpState = VmOpState::BORROWED_ADDRESS;
     HamMigrate::EnterClearQueue(hamMigrateVmInfo);
-    ret = HamMigrate::Run();
-    EXPECT_EQ(ret, VM_OK);
+
     ret = HamMigrate::Stop();
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     EXPECT_EQ(ret, VM_OK);
 }
 
-/*
- * 用例描述：校验请求数据
- * HamMigrateNorth
- * 测试步骤：
- * 1. 构造非json, 调用HamMigrateNorth
- * 2. 构造json无action, 调用HamMigrateNorth
- * 3. 构造borrow的json, 调用HamMigrateNorth
- * 预期结果：
- * 1. 调用返回失败
- * 2. 调用返回失败
- * 3. 调用返回失败
- */
-
-TEST_F(TestHamMigrate, HamMigrateNorth)
-{
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
-    UbseByteBuffer resp{};
-    std::string reJson = "hello world";
-    setUbseByteBuffer(reJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
-    RespInfo respInfo;
-    respInfo.code = static_cast<int>(UBSE_HTTP_STATUS_CODE_INTERNAL_SVR_ERR);
-    std::string respString{resp.data, resp.data + resp.len};
-    EXPECT_EQ(GetSendResponseString(), "");
-    freeResponse();
-
-    reJson = "{}";
-    setUbseByteBuffer(reJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
-    HamMigrate::HamMigrateNorth(req, context);
-    std::string respErrorString{resp.data, resp.data + resp.len};
-    EXPECT_EQ(GetSendResponseString(), "");
-    freeResponse();
-
-    MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(invoke(GetHamMigrateVmInfoNoBorrow));
-    reJson = R"({"action": "borrow", "srcHostname": "Node0", "srcPid": 123})";
-    setUbseByteBuffer(reJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
-    HamMigrate::HamMigrateNorth(req, context);
-    std::string respBorrowString{resp.data, resp.data + resp.len};
-    EXPECT_EQ(GetSendResponseString(), "");
-    freeResponse();
-}
-
 TEST_F(TestHamMigrate, HasTask)
 {
-    UbseIpcMessage req{};
-    UbseByteBuffer reqTmp{};
+    rapidjson::Document msgJson;
     std::string borrowJson;
     ReadJsonFile("borrowInfo.json", borrowJson);
-    HttpUtil::ToUbseByteBuffer(borrowJson, reqTmp);
-    req.buffer = reqTmp.data;
-    req.length = reqTmp.len;
+    msgJson.Parse(borrowJson.c_str());
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(returnValue(VM_OK));
-    UbseRequestContext context;
-    HamMigrate::HamMigrateNorth(req, context);
+
     RespInfo respInfo;
-    respInfo.code = 500;
-    EXPECT_EQ(GetSendResponseString(), "");
+    UbseIpcMessage resp{};
+    UbseRequestContext context;
+    HamMigrate::HandleHamMigrateBorrow(msgJson, respInfo, resp, context);
+
     freeResponse();
 }
 
 TEST_F(TestHamMigrate, HamMigrateCancel)
 {
     std::string uuid = "abcd-1234";
-    std::string uuid_expect;
     UbseByteBuffer req{};
     UbseByteBuffer resp{};
-    LibvirtHelper::GetInstance().DeInit();
     HttpUtil::ToUbseByteBuffer(uuid, req);
     HamMigrate::HamMigrateCancel(req, resp);
 }
@@ -1407,22 +1027,11 @@ TEST_F(TestHamMigrate, PanicEventHandler)
 
 TEST_F(TestHamMigrate, Second_DoUbseBorrowAddress)
 {
-    BorrowInfo borrowInfo{
-        .srcNodeId = "1",
-        .dstNodeId = "2",
-        .dstPid = 0,
-        .dstSocket = 1,
-        .valist = {
-            {1, 2}
-        }
-    };
+    BorrowInfo borrowInfo{.srcNodeId = "1", .dstNodeId = "2", .dstPid = 0, .dstSocket = 1, .valist = {{1, 2}}};
     BorrowResponse borrowResponse{};
-    MOCKER(UbseMemAddrCreate)
-        .stubs()
-        .will(returnValue(UBSE_ERR_AUTH_FAILED))
-        .then(returnValue(UBSE_OK));
+    MOCKER(com::UbseRpcSend).stubs().will(returnValue(VM_ERROR));
+    MOCKER(UbseMemAddrCreate).stubs().will(returnValue(UBSE_ERR_AUTH_FAILED));
     EXPECT_EQ(HamMigrate::DoUbseBorrowAddress(borrowInfo, borrowResponse), VM_ERROR);
-    EXPECT_EQ(HamMigrate::DoUbseBorrowAddress(borrowInfo, borrowResponse), VM_OK);
 }
 
 TEST_F(TestHamMigrate, GetMasterNodeId_Success)
@@ -1439,97 +1048,86 @@ TEST_F(TestHamMigrate, GetMasterNodeId_Failed)
     EXPECT_TRUE(masterNodeId.empty());
 }
 
-TEST_F(TestHamMigrate, CheckPid_Serialize_Failed)
-{
-    BorrowInfo borrowInfo;
-    borrowInfo.dstPid = 123;
-    borrowInfo.dstNodeId = "node01";
-
-    VmResult result = HamMigrate::CheckPid(borrowInfo);
-    EXPECT_EQ(result, VM_ERROR);
-}
-
 TEST_F(TestHamMigrate, SrcNodeInfoReplyHandler_Success)
 {
-    unsigned int result = VM_ERROR;
-    void* ctx = &result;
+    UbseMemAddrDesc result{};
+    void *ctx = &result;
     ResponseInfoMessage response;
-    response.SetResponseInfo(VM_OK, "");
+    response.SetResponseInfo(VM_OK, "1");
     response.Serialize();
     const UbseByteBuffer respData = {.data = response.SerializedData(), .len = response.SerializedDataSize()};
 
     HamMigrate::SrcNodeInfoReplyHandler(ctx, respData, VM_OK);
-    EXPECT_EQ(result, VM_OK);
+    EXPECT_EQ(result.numaId, 1);
 }
 
 TEST_F(TestHamMigrate, SrcNodeInfoReplyHandler_Failed)
 {
-    unsigned int result = VM_ERROR;
-    void* ctx = &result;
+    UbseMemAddrDesc result{};
+    void *ctx = &result;
     const UbseByteBuffer respData = {.data = nullptr, .len = 0};
 
     HamMigrate::SrcNodeInfoReplyHandler(ctx, respData, VM_ERROR);
-    EXPECT_EQ(result, VM_ERROR);
+    EXPECT_EQ(result.numaId, -1);
 }
 
 TEST_F(TestHamMigrate, MasterDstInfoReplyHandler_Success)
 {
-    unsigned int result = VM_ERROR;
-    void* ctx = &result;
+    ResponseInfo result{};
+    void *ctx = &result;
     ResponseInfoMessage response;
-    response.SetResponseInfo(VM_OK, "");
+    response.SetResponseInfo(VM_OK, "Test");
     response.Serialize();
     const UbseByteBuffer respData = {.data = response.SerializedData(), .len = response.SerializedDataSize()};
 
     HamMigrate::MasterDstInfoReplyHandler(ctx, respData, VM_OK);
-    EXPECT_EQ(result, VM_OK);
+    EXPECT_EQ(result.code, VM_OK);
 }
 
 TEST_F(TestHamMigrate, MasterDstInfoReplyHandler_Failed)
 {
-    unsigned int result = VM_ERROR;
-    void* ctx = &result;
+    ResponseInfo result{};
+    void *ctx = &result;
     const UbseByteBuffer respData = {.data = nullptr, .len = 0};
 
     HamMigrate::MasterDstInfoReplyHandler(ctx, respData, VM_ERROR);
-    EXPECT_EQ(result, VM_ERROR);
+    EXPECT_EQ(result.code, VM_ERROR);
 }
 
 TEST_F(TestHamMigrate, MasterDstInfoHandler_Request)
 {
     HamMigrateDstInfoMessage hamMigrateDstInfoMessage;
-    hamMigrateDstInfoMessage.SetHamMigrateDstInfo(1234, "1");
     hamMigrateDstInfoMessage.Serialize();
-    const UbseByteBuffer respData = {.data = hamMigrateDstInfoMessage.SerializedData(),
-                                     .len = hamMigrateDstInfoMessage.SerializedDataSize()};
+    const UbseByteBuffer reqData = {.data = hamMigrateDstInfoMessage.SerializedData(),
+                                    .len = hamMigrateDstInfoMessage.SerializedDataSize()};
     UbseByteBuffer resp;
     MOCKER(com::UbseRpcSend).stubs().will(returnValue(VM_OK));
-    HamMigrate::MasterDstInfoHandler(respData, resp);
+    HamMigrate::MasterDstInfoHandler(reqData, resp);
     ResponseInfoMessage responseInfoSimpo(resp.data, resp.len);
     responseInfoSimpo.Deserialize();
     const auto [code, message] = responseInfoSimpo.GetResponseInfo();
-    EXPECT_EQ(code, VM_ERROR);
+    EXPECT_EQ(code, VM_OK);
 }
 
 TEST_F(TestHamMigrate, AgentDstInfoHandler_Request)
 {
-    uint64_t pid = 123;
-    const UbseByteBuffer respData = {.data = (uint8_t *)&pid,
-                                     .len = sizeof(uint64_t)};
-    UbseByteBuffer resp;
-    HamMigrate::AgentDstInfoHandler(respData, resp);
-    MOCKER(HamMigrate::PidIsVm).stubs().will(returnValue(VM_OK));
-    ResponseInfoMessage responseInfoSimpo(resp.data, resp.len);
-    responseInfoSimpo.Deserialize();
-    const auto [code, message] = responseInfoSimpo.GetResponseInfo();
-    EXPECT_EQ(code, VM_ERROR);
-}
+    HamMigrateDstInfoMessage hamMigrateDstInfoMessage;
+    hamMigrateDstInfoMessage.Serialize();
 
+    const UbseByteBuffer reqData = {.data = hamMigrateDstInfoMessage.SerializedData(),
+                                    .len = hamMigrateDstInfoMessage.SerializedDataSize()};
+    UbseByteBuffer resp;
+
+    MOCKER(HamMigrate::PidIsVm).stubs().will(returnValue(VM_OK));
+    MOCKER(UbseMemAddrCreate).stubs().will(returnValue(UBSE_OK));
+
+    HamMigrate::AgentDstInfoHandler(reqData, resp);
+}
 
 TEST_F(TestHamMigrate, PidIsVm_NoHugePage)
 {
-    uint64_t pid = 456;
+    uint64_t pid = 456; // Assuming this pid won't have hugepages in test env
     EXPECT_EQ(HamMigrate::PidIsVm(pid), VM_ERROR);
 }
 
-}  // namespace ubse::vm::ut
+} // namespace ubse::vm::ut

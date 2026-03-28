@@ -53,47 +53,47 @@ TEST_F(TestUbsVirtAgentHamMigrate, ubs_virt_agent_make_migrate_decision_fail)
 
 TEST_F(TestUbsVirtAgentHamMigrate, SetTimeout_Normal)
 {
-    virt_agent_ret_t ret = RackStartIpcClientWithTimeout(500);
+    virt_agent_ret_t ret = ubs_virt_agent_set_timeout(500, 1);
     EXPECT_EQ(ret, VA_SUCCESS);
 }
 
 TEST_F(TestUbsVirtAgentHamMigrate, AllocateRequestBufferFail)
 {
-    HamComByteBuffer request = {nullptr, 0};
-    HamComByteBuffer response = {nullptr, 0};
-    auto ret = RackSyncSendForHam(&request, &response);
+    VirtAgentByteBuffer request = {nullptr, 0};
+    VirtAgentByteBuffer response = {nullptr, 0};
+    auto ret = ubs_sync_send_msg(&request, &response, 1);
     EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
-    ret = RackSyncSendForHam(nullptr, &response);
+    ret = ubs_sync_send_msg(nullptr, &response, 1);
     EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
 }
 
 TEST_F(TestUbsVirtAgentHamMigrate, CallExternalApiWithTimeoutFail)
 {
-    HamComByteBuffer request = {new uint8_t[10], 10};
-    HamComByteBuffer response = {nullptr, 0};
-    int ret = RackSyncSendForHam(&request, &response);
+    VirtAgentByteBuffer request = {new uint8_t[10], 10};
+    VirtAgentByteBuffer response = {nullptr, 0};
+    int ret = ubs_sync_send_msg(&request, &response, 1);
     EXPECT_NE(ret, VA_SUCCESS);
     delete[] request.data;
 }
 
 TEST_F(TestUbsVirtAgentHamMigrate, ProcessResponseFail)
 {
-    HamComByteBuffer request = {new uint8_t[10], 10};
-    HamComByteBuffer response = {nullptr, 0};
+    VirtAgentByteBuffer request = {new uint8_t[10], 10};
+    VirtAgentByteBuffer response = {nullptr, 0};
     MOCKER(ubse_invoke_call).stubs().will(returnValue(static_cast<uint32_t>(0)));
-    int ret = RackSyncSendForHam(&request, &response);
+    int ret = ubs_sync_send_msg(&request, &response, 1);
     EXPECT_NE(ret, VA_SUCCESS);
     delete[] request.data;
 }
 
 TEST_F(TestUbsVirtAgentHamMigrate, TestNullRequest)
 {
-    HamComByteBuffer request = {nullptr, 0};
-    HamComCallbackDef callback = {nullptr, nullptr};
+    VirtAgentByteBuffer request = {nullptr, 0};
+    VirtAgentCallbackDef callback = {nullptr, nullptr};
     char *data = "request";
     request.data = reinterpret_cast<uint8_t *>(data);
     request.len = strlen(data);
-    int ret = RackAsyncSendForHam(&request, &callback);
+    int ret = ubs_async_send_msg(&request, &callback, 1);
     EXPECT_EQ(ret, 0);
 }
 

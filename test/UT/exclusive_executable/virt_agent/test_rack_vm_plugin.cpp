@@ -22,6 +22,7 @@
 #include "ham_migrate.h"
 #include "mem_handler.h"
 #include "router.h"
+#include "libvirt_handler.h"
 #include "status_manager.h"
 #include "vm_configuration.h"
 #include "vm_error.h"
@@ -123,7 +124,8 @@ TEST_F(TestUbseVmPlugin, VmSceneInit)
 {
     MOCKER(ResourceCollect::Init).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(VMCommonSdkServerInit).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
-    MOCKER(HamMigrate::Start).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
+    MOCKER(LibvirtHandler::Start).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
+    MOCKER(HamMigrate::Start).stubs().will(returnValue(VM_OK));
     MOCKER(&CaseConf::Init).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(&CaseConf::CaseRegisterRun).stubs().will(invoke(CaseRegisterRunMock));
 

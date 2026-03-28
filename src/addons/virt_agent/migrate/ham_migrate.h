@@ -14,63 +14,16 @@
 #ifndef HAM_MIGRATE_H
 #define HAM_MIGRATE_H
 
-#include <dynamic_priority_queue.h>
-#include <ubse_ras.h>
-#include <atomic>
-#include <condition_variable>
-#include <mutex>
-#include <vector>
-#include <rapidjson/document.h>
-#include <ubse_api_server_def.h>
-#include "ham_migrate_vm_info.h"
-#include "vm_error.h"
-#include "vm_http_util.h"
-#include "vm_info.h"
-#include "vm_strategy_struct.h"
+#include "libvirt_handler.h"
 
 namespace vm {
-    using namespace ubse::ras;
-    using namespace rapidjson;
-    using namespace api::server;
-
-    struct RespInfo {
-        unsigned int code{};
-        std::string message = "{}";
-
-        std::string ToJson() const
-        {
-            std::ostringstream oss;
-            oss << "{";
-            oss << R"("code": )" << code << ", ";
-            oss << R"("message": )" << message;
-            oss << "}";
-            return oss.str();
-        }
-    };
-
-    enum class ClearType {
-        NODE = 0,                    // Current node
-        MIGRATED_CLEAR = 1,          // Migration successful cleanup
-        NOMIGRATE_CLEAR = 2,         // Migration failed cleanup
-    };
-
-    struct ClearInfo {
-        std::string borrowName{};
-        ClearType state = ClearType::NODE;
-        std::string srcNodeId{};
-        int srcPid{};
-        std::string dstNodeId{};
-        int dstPid{};
-    };
-
     class HamMigrate {
     public:
-        static void ClearQueueOperation();
         static VmResult Start();
+        static void ClearQueueOperation();
         static VmResult Run();
         static VmResult Stop();
         static void LoadData();
-        static uint32_t HamMigrateNorth(const UbseIpcMessage &req, const UbseRequestContext &context);
         static void EnterClearQueue(HamMigrateVmInfo& hamMigrateVmInfo, const bool& isUpdate = false);
         static void EnterClearQueue(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos, const bool& isUpdate = false);
         static void HamMigrateCancel(const UbseByteBuffer &req, UbseByteBuffer &resp);
@@ -79,21 +32,23 @@ namespace vm {
         static void SrcNodeInfoReplyHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
         static void AgentDstInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
         static VmResult PidIsVm(const uint64_t pid);
-        static VmResult CheckPid(BorrowInfo &borrowInfo);
+        static void LendMemInDstNode(UbseByteBuffer &req, const HamMigrateDstInfo& hamMigrateVmInfo);
         static std::string GetMasterNodeId();
         static void HamMigrateCancelReply(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
         static VmResult PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
+        static VmResult HandleHamMigrateBorrow(const Document& msgJson, RespInfo& respInfo,
+                                               UbseIpcMessage& resp, const UbseRequestContext& context);
+        static VmResult HandleHamMigrateClear(const Document& msgJson, RespInfo& respInfo,
+                                              UbseIpcMessage& resp, const UbseRequestContext& context);
 
     private:
         static VmResult ConvertToBorrow(const Value &msgJson, BorrowInfo& borrowInfo);
         static VmResult ConvertToClear(const Value &msgJson, ClearInfo& clearInfo);
-        static VmResult ConvertToVaList(const Value &msgJson, std::vector<VirtualAddress> &valist);
         static void HandleBorrowFailure(HamMigrateVmInfo &hamMigrateVmInfo);
         static VmResult MigrateAndTracking(const HostVmDomainInfo &hostVmDomainInfo, BorrowInfo &borrowInfo,
                                            BorrowResponse &borrowResponse);
         static VmResult Borrow(BorrowInfo& borrowInfo, BorrowResponse& borrowResponse);
         static VmResult Clear(const ClearInfo& clearInfo);
-        static VmResult ProcessResponse(const RespInfo& respInfo, UbseIpcMessage& resp, uint64_t requestId);
         static bool HasTask(const BorrowInfo &borrowInfo);
         static bool IsMigrating(const HamMigrateVmInfo &hamMigrateVmInfo);
         static void UpdateHamMigrateVmInfo(const BorrowInfo& borrowInfo, const VmDomainInfo& vmDomainInfo,
