@@ -2,7 +2,9 @@
 #include "sentry_observer.h"
 #include <dlfcn.h>
 #include <unistd.h>
+#include <cstdint>
 #include "securec.h"
+#include "src/framework/misc/ubse_os_util.h"
 #include "src/framework/security/ubse_security_module.h"
 #include "src/ras/ubse_ras_handler.h"
 #include "sys_sentry_module.h"
@@ -14,7 +16,6 @@
 #include "ubse_pointer_process.h"
 #include "ubse_ras.h"
 #include "ubse_timer.h"
-#include "src/framework/misc/ubse_os_util.h"
 
 using namespace ubse::log;
 using namespace ubse::context;
@@ -34,7 +35,7 @@ const std::string UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME = "UbseRasConfigSysSentry
 const uint32_t UBSE_RAS_CONFIG_SYSSENTRY_TIMER_INTERVAL = NO_5;
 
 const std::string UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME = "UbseRasQueryMsgMonitorTimer";
-const uint32_t UBSE_RAS_QUERY_MSG_MONITOR_TIMER_INTERVAL = NO_10;
+const uint32_t UBSE_RAS_QUERY_MSG_MONITOR_TIMER_INTERVAL = NO_2;
 
 UbseRasObserver &UbseRasObserver::GetInstance()
 {
@@ -78,8 +79,8 @@ UbseResult UbseRasObserver::Init()
         xalarmHandle = nullptr;
         return UBSE_ERROR;
     }
-    xalarmUnRegisterFunc = reinterpret_cast<XalarmUnRegisterFunc>(
-            GetFuncByDlsym(xalarmHandle, "xalarm_unregister_event"));
+    xalarmUnRegisterFunc =
+        reinterpret_cast<XalarmUnRegisterFunc>(GetFuncByDlsym(xalarmHandle, "xalarm_unregister_event"));
     if (xalarmUnRegisterFunc == nullptr) {
         dlclose(xalarmHandle);
         xalarmHandle = nullptr;
@@ -102,6 +103,7 @@ void UbseRasObserver::UbseQueryMsgMonitorTimerRun()
     }
 }
 
+std::atomic<uint32_t> g_queryCount = 0;
 void UbseRasObserver::RegQueryMsgMonitorTimer()
 {
     auto ret = ubse::timer::UbseTimerHandlerRegister(
@@ -110,6 +112,10 @@ void UbseRasObserver::RegQueryMsgMonitorTimer()
             if (g_globalStop) {
                 UBSE_LOG_INFO << "detect global stop flag, will stop query msg monitor timer";
                 ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME);
+                return UBSE_OK;
+            }
+            // 为避免任务队列溢出，允许有两个任务。非严格限制，由于时序，允许超过NO_2个任务
+            if (g_queryCount.load() >= NO_2) {
                 return UBSE_OK;
             }
             auto taskModule = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
@@ -122,7 +128,13 @@ void UbseRasObserver::RegQueryMsgMonitorTimer()
                 UBSE_LOG_WARN << "executor empty, skip query msg monitor";
                 return UBSE_OK;
             }
-            executor->Execute([]() -> void { UbseRasObserver::GetInstance().UbseQueryMsgMonitorTimerRun(); });
+            bool isAdded = executor->Execute([]() -> void {
+                UbseRasObserver::GetInstance().UbseQueryMsgMonitorTimerRun();
+                g_queryCount.fetch_sub(1);
+            });
+            if (isAdded) {
+                g_queryCount.fetch_add(1);
+            }
             return UBSE_OK;
         },
         UBSE_RAS_QUERY_MSG_MONITOR_TIMER_INTERVAL);
@@ -199,7 +211,8 @@ void UbseRasObserver::SentryEventListen()
         }
         std::string pucParasStr{msg->pucParas};
         // 信息可能是json类型，去除换行符
-        std::replace_if(pucParasStr.begin(), pucParasStr.end(), [](char c) { return c == '\n' || c == '\r'; }, ' ');
+        std::replace_if(
+            pucParasStr.begin(), pucParasStr.end(), [](char c) { return c == '\n' || c == '\r'; }, ' ');
         if (ubse::ras::hasInvalidChars(pucParasStr)) {
             SafeDelete(msg);
             UBSE_LOG_WARN << "Invalid fault info, contains invalid characters";
@@ -223,7 +236,7 @@ void UbseRasObserver::RegisterSentryEvent(alarm_register **registerInfo)
         UBSE_LOG_ERROR << "register info ptr is nullptr. ";
         return;
     }
-    struct alarm_subscription_info idFilter{};
+    struct alarm_subscription_info idFilter {};
     for (size_t i = 0; i < ALARM_EVENT_LIST.size(); i++) {
         idFilter.id_list[i] = ALARM_EVENT_LIST[i];
     }
