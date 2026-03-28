@@ -572,14 +572,9 @@ void UbseUDSClient::CleanupReconnectThread()
         try {
             // 设置停止标志
             isReConnect_.store(false);
-            // 给重连线程一个短暂的等待时间用于响应停止信号
-            constexpr int maxWaitMsForThreadExit = 50;
-            std::this_thread::sleep_for(std::chrono::milliseconds(maxWaitMsForThreadExit));
-            if (reconnectThread_.joinable()) {
-                // 如果线程仍在运行，等待线程完成
-                IPC_LOG_WARN << "old reconnect thread still alive, joining";
-                reconnectThread_.join();  // 等待线程结束
-            }
+            // 如果线程仍在运行，等待线程完成
+            IPC_LOG_WARN << "old reconnect thread still alive, joining";
+            reconnectThread_.join();  // 等待线程结束
         } catch (...) {
             // 忽略所有异常
             IPC_LOG_ERROR << "Exception caught while cleaning up reconnect thread, but suppressed.";
