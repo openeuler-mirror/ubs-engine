@@ -388,7 +388,7 @@ static void SendFaultShareHandleMessages(std::shared_ptr<UbseApiServerModule> &a
             UbseShmFault shmFault{
                 .shmName = info.name,
                 .memId = memId,
-                .type = static_cast<UbseIpcMemFaultType>(MEM_EXPORT_NODE_FAULT),
+                .type = static_cast<UbseIpcMemFaultType>(MEM_EXPORT_FAULT),
             };
             uint8_t *buffer = nullptr;
             size_t size = 0;
