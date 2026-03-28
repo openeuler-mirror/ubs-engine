@@ -75,7 +75,6 @@ struct UbseMemLocalObmmCustomMeta {
     uint64_t srcPid{};  // 进程借用 导出端存储 src pid, 应用借用时为应用进程的Pid
     uint64_t dstPid{};  // 进程借用 导出端存储 dst pid
     uint64_t virAddr{}; // 进程借用 虚拟地址
-
     // 用于判断一个obmm设备有没有被使用，存储pid可以快速判断，没有pid用lsof判断
     char exportNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
     char requestNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
@@ -97,6 +96,7 @@ struct UbseMemLocalObmmCustomMeta {
     uint8_t anonymous{0};   // 共享内存的匿名属性，0非匿名，1匿名
     uint64_t requestSize{}; // 共享内存的请求大小，与实际导出的大小可能不同
     adapter_plugins::mti::mami::UbseMamiMemImportResult decoderResult{};
+    uint8_t exportAccessMode{0}; // 导出端内存访问模式，0为invalid(适用于虚机迁移)，1为valid（适用于异地快恢）。默认为0即invalid
 } __attribute__((packed));
 
 struct UbMemPrivData {
@@ -207,9 +207,12 @@ using mem_id = uint64_t;
 constexpr uint32_t OBMM_MAX_LOCAL_NUMA_NODES = 16;
 constexpr uint32_t MAX_NUMA_NODES = 16;
 constexpr uint32_t OBMM_EXPORT_FLAG_ALLOW_MMAP = 0x1UL;
+constexpr uint32_t OBMM_EXPORT_FLAG_FAST = 0x2UL;
+constexpr uint32_t OBMM_EXPORT_FLAG_KEEP_ACCESS = 0x4UL;
 constexpr uint32_t OBMM_IMPORT_FLAG_ALLOW_MMAP = 0x1UL;
 constexpr uint32_t OBMM_IMPORT_FLAG_PREIMPORT = 0x2UL;
 constexpr uint32_t OBMM_IMPORT_FLAG_NUMA_REMOTE = 0x4UL;
+constexpr uint32_t OBMM_IMPORT_FLAG_NUMA_NO_ACCESS = 0x8UL;
 
 } // namespace ubse::mmi
 #endif // UBSE_MANAGER_UBSE_MEM_TYPES_H

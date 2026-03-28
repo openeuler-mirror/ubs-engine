@@ -367,6 +367,7 @@ UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj &expo
     customMeta.dstPid = exportObj.req.exportPid;
     customMeta.importSocket = exportObj.req.srcSocket;
     customMeta.exportSocket = exportObj.req.dstSocket;
+    customMeta.exportAccessMode = exportObj.req.exportAccessMode;
     const std::string name = GenerateExportKey(exportObj.req.name, importNodeId);
     if (strcpy_s(customMeta.name, UBSE_MEM_MAX_NAME_LENGTH, name.c_str()) != EOK ||
         strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK ||
@@ -404,6 +405,7 @@ UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj &impo
     customMeta.srcPid = importObj.req.importPid;
     customMeta.dstPid = importObj.req.exportPid;
     customMeta.decoderResult = importObj.status.decoderResult[index];
+    customMeta.exportAccessMode = importObj.req.exportAccessMode;
     std::string name = importObj.req.name;
     if (importObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The exportNumaInfos is empty.";
