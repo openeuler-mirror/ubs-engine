@@ -448,7 +448,7 @@ void UbseMemImportStatusSerialization(UbseSerialization &out, const UbseMemImpor
     }
     out << (right_v<size_t>(ubseMemImportStatus.decoderResult.size()));
     for (auto &decoderResult : ubseMemImportStatus.decoderResult) {
-        out << decoderResult.marId << decoderResult.hpa << decoderResult.handle;
+        out << decoderResult.marId << decoderResult.hpa << decoderResult.handle << decoderResult.valid;
     }
     out << enum_v(ubseMemImportStatus.expectState) << enum_v(ubseMemImportStatus.state);
 }
@@ -478,7 +478,7 @@ bool UbseMemImportStatusDeserialization(UbseDeSerialization &in, UbseMemImportSt
     ubseMemImportStatus.decoderResult.resize(size);
     for (size_t i = 0; i < size; ++i) {
         in >> ubseMemImportStatus.decoderResult[i].marId >> ubseMemImportStatus.decoderResult[i].hpa >>
-            ubseMemImportStatus.decoderResult[i].handle;
+            ubseMemImportStatus.decoderResult[i].handle >> ubseMemImportStatus.decoderResult[i].valid;
         if (!in.Check()) {
             UBSE_LOG_ERROR << "Failed to check UbseMemFdBorrowExportObj during deserialization";
             return false;

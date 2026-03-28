@@ -34,6 +34,8 @@ public:
 
     common::def::UbseResult DeleteDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo) override;
 
+    common::def::UbseResult InvalidateDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo) override;
+
     common::def::UbseResult GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo& queryInfo,
                                              std::vector<mami::UbseMamiMemHandleValue>& handleValues) override;
     common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo> &socketInfoMap) override;

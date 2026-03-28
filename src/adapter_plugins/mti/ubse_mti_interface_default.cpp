@@ -138,6 +138,11 @@ UbseResult UbseMtiInterfaceDefault::DeleteDecoderEntry(const mami::UbseMamiMemWi
     return lcne::UbseLcneDecoderEntry::DeleteDecoderEntry(drawInfo);
 }
 
+UbseResult UbseMtiInterfaceDefault::InvalidateDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo)
+{
+    return lcne::UbseLcneDecoderEntry::InvalidateDecoderEntry(drawInfo);
+}
+
 UbseResult UbseMtiInterfaceDefault::GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo& queryInfo,
                                                      std::vector<mami::UbseMamiMemHandleValue>& handleValues)
 {

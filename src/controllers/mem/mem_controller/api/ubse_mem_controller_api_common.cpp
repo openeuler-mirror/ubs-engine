@@ -11,6 +11,7 @@
  */
 
 #include "ubse_mem_controller_api_common.h"
+#include <cstdint>
 
 #include "../message/node_mem_debtInfo_query_req_simpo.h"
 #include "../message/ubse_mem_operation_resp_simpo.h"
@@ -301,6 +302,31 @@ void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
     }
 
     status.decoderResult = failedDecoderResult;
+}
+
+uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus &status, uint8_t decoderId)
+{
+    std::pair<uint32_t, uint32_t> chipDiePair{attachSocketId, attachSocketId};
+    auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(attachSocketId, chipDiePair);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetChipAndDieId failed, decoderId is " << decoderId;
+        return res;
+    }
+    for (auto &decoderVal : status.decoderResult) {
+        if (decoderVal.valid) {
+            continue;
+        }
+        UbseMamiMemWithdraw mamiDelInfo{chipDiePair.first, chipDiePair.second, decoderVal.marId, decoderId,
+                                        decoderVal.handle};
+        auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().InvalidateDecoderEntry(mamiDelInfo);
+        if (res != UBSE_OK) {
+            UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, handle is " << decoderVal.handle << " hpa is "
+                           << decoderVal.hpa << " marId is " << decoderVal.marId;
+            return res;
+        }
+        decoderVal.valid = true;
+    }
+    return res;
 }
 
 UbseResult SetMarIdByLinkInfo(std::string &importNodeId, std::string &exportNodeId,

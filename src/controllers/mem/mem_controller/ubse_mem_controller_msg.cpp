@@ -17,12 +17,17 @@
 #include "message/ubse_mem_numa_borrow_importobj_simpo.h"
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
+#include "ubse_com_base.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_mem_agent_task_manager.h"
+#include "ubse_mem_controller_ledger.h"
+#include "ubse_mem_controller.h"
 #include "ubse_mem_controller_ledger_filter.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_opt_req_simpo.h"
+#include "ubse_mem_opt_result_simpo.h"
 #include "ubse_mem_util.h"
 #include "ubse_os_util.h"
 namespace ubse::mem::controller {
@@ -34,7 +39,7 @@ using namespace ubse::serial;
 using namespace ubse::context;
 using namespace ubse::mem::controller::debt;
 
-void RegUbseMemControllerHandler()
+void RegRespCtrlHandlers()
 {
     const ubse::com::UbseComEndpoint collectEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_LEDGER)};
@@ -50,6 +55,21 @@ void RegUbseMemControllerHandler()
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_PRE_ONLINE_REQ)};
     const ubse::com::UbseComEndpoint preOnLineReplyEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_PRE_ONLINE_RESP)};
+    const ubse::com::UbseComEndpoint invalidateImportDebtEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+        static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT)};
+
+    UbseRegRpcService(collectEndpoint, CollectLedgeHandler);
+    UbseRegRpcService(queryFdImportEndpoint, QueryFdImportObjHandler);
+    UbseRegRpcService(queryNumaImportEndpoint, QueryNumaImportObjHandler);
+    UbseRegRpcService(queryAddrImportEndpoint, QueryAddrImportObjHandler);
+    UbseRegRpcService(preOnLineEndpoint, PreOnLineHandler);
+    UbseRegRpcService(preOnLineReplyEndpoint, PreOnLineReplyHandler);
+    UbseRegRpcService(invalidateImportDebtEndpoint, SendInvalidateSingleImportDebtRpcHandler);
+}
+
+void RegQueryHandlers()
+{
     const ubse::com::UbseComEndpoint getNumaInfoByPidEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_GET_NUMAINFO_BY_PID)};
@@ -69,12 +89,7 @@ void RegUbseMemControllerHandler()
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_EXPORT)};
     const ubse::com::UbseComEndpoint getShareImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_IMPORT)};
-    UbseRegRpcService(collectEndpoint, CollectLedgeHandler);
-    UbseRegRpcService(queryFdImportEndpoint, QueryFdImportObjHandler);
-    UbseRegRpcService(queryNumaImportEndpoint, QueryNumaImportObjHandler);
-    UbseRegRpcService(queryAddrImportEndpoint, QueryAddrImportObjHandler);
-    UbseRegRpcService(preOnLineEndpoint, PreOnLineHandler);
-    UbseRegRpcService(preOnLineReplyEndpoint, PreOnLineReplyHandler);
+
     UbseRegRpcService(getNumaInfoByPidEndpoint, GetNumaInfoByPidHandler);
     UbseRegRpcService(getFdExportEndpoint, QueryFdExportHandler);
     UbseRegRpcService(getFdImportEndpoint, QueryFdImportHandler);
@@ -84,6 +99,12 @@ void RegUbseMemControllerHandler()
     UbseRegRpcService(getAddrImportEndpoint, QueryAddrImportHandler);
     UbseRegRpcService(getShareExportEndpoint, QueryShareExportHandler);
     UbseRegRpcService(getShareImportEndpoint, QueryShareImportHandler);
+}
+
+void RegUbseMemControllerHandler()
+{
+    RegRespCtrlHandlers();
+    RegQueryHandlers();
 }
 
 bool IsUrma()
@@ -1090,6 +1111,66 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem share import deserialize failed, " << FormatRetCode(ret);
+        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+                    SafeDeleteArray(p, size);
+                }};
+        return ret;
+    }
+    return CreateRespBuffer(*resultSimpo.Get(), resp);
+}
+
+UbseResult SendInvalidateSingleImportDebtRpc(const std::string &nodeId,
+                                             const std::string &debtName, UbseMemBorrowType type)
+{
+    const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+                              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT)};
+    UbseMemOptReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemOptReqSimpo();
+    if (ubseRequestPtr == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    ubseRequestPtr->SetOptRequest(debtName, nodeId, type);
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemOptResultSimpo();
+    if (ubseResponsePtr == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ubseComModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (ubseComModule == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    auto retCode = ubseComModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "rpc sync send invalidate single import debt failed, " << FormatRetCode(retCode);
+        return retCode;
+    }
+    auto resultPtr = UbseBaseMessage::DeConvert<UbseMemOptResultSimpo>(ubseResponsePtr);
+    return resultPtr->GetResult();
+}
+
+UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+{
+    UbseMemOptReqSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
+    auto ret = simpo.Deserialize();
+    size_t size = 0;
+    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Mem invalidate single import debt deserialize failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    std::string name = simpo.GetName();
+    UbseMemBorrowType type = simpo.GetType();
+    UBSE_LOG_INFO << "Agent invalidate import debt, name=" << name << ", type=" << int(type);
+    auto result = AgentInvalidateImportDebt(name, type);
+    UbseMemOptResultSimpoPtr resultSimpo = new (std::nothrow) UbseMemOptResultSimpo();
+    if (resultSimpo == nullptr) {
+        UBSE_LOG_ERROR << "new simpo failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    resultSimpo->SetResult(result);
+    ret = resultSimpo->Serialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "mem invalidate single import debt serialize failed, " << FormatRetCode(ret);
         resp = {nullptr, 0, [size](uint8_t *p) noexcept {
                     SafeDeleteArray(p, size);
                 }};

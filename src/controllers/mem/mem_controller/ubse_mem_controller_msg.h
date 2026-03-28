@@ -5,7 +5,9 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H
 #define UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H
 
+#include <string>
 #include "ubse_com_module.h"
+#include "ubse_mem_controller.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_mem_controller_def.h"
@@ -23,6 +25,9 @@ void RegUbseMemControllerHandler();
 * @return
 */
 UbseResult CollectLedge(const std::string &nodeId, NodeMemDebtInfo &info);
+
+UbseResult SendInvalidateSingleImportDebtRpc(const std::string &nodeId,
+                                             const std::string &debtName, UbseMemBorrowType type);
 
 UbseResult CollectLedgeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
@@ -107,6 +112,8 @@ UbseResult QueryAddrImportHandler(const UbseByteBuffer &req, UbseByteBuffer &res
 UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj &obj);
 
 UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H

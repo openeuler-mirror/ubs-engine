@@ -33,6 +33,9 @@ public:
 
     /* 删除Decoder表项 */
     static UbseResult DeleteDecoderEntry(const UbseMamiMemWithdraw &drawInfo);
+
+    /* 无效Decoder表项 */
+    static UbseResult InvalidateDecoderEntry(const UbseMamiMemWithdraw &drawInfo);
 };
 }
 
