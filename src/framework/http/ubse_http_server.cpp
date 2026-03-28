@@ -14,11 +14,9 @@
 #include <errno.h>
 #include <grp.h>
 #include <securec.h>
-#include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
-#include <openssl/x509_vfy.h>
 
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "httplib.h"
@@ -245,32 +243,6 @@ void UbseHttpServer::GetTcpServerPort(uint32_t &port)
     }
 }
 
-static bool LoadCrlFile(X509_STORE *store) {
-    FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
-    if (!fp) {
-        UBSE_LOG_ERROR << "Failed to open CRL file: " << UbseSSLConfig::CrlFile << ", error: " << strerror(errno);
-        return false;
-    }
-    ERR_clear_error();
-    X509_CRL *crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
-    fclose(fp);
-    if (!crl) {
-        int errorCode = ERR_get_error();
-        UBSE_LOG_ERROR << "Failed to parse CRL file: " << UbseSSLConfig::CrlFile << ", sslErrorCode: " << errorCode;
-        return false;
-    }
-    if (X509_STORE_add_crl(store, crl) != 1) {
-        int errorCode = ERR_get_error();
-        UBSE_LOG_ERROR << "Failed to add CRL to certificate store, sslErrorCode: " << errorCode;
-        X509_CRL_free(crl);
-        return false;
-    }
-    X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
-    X509_CRL_free(crl);
-    UBSE_LOG_INFO << "CRL validation enabled with file: " << UbseSSLConfig::CrlFile;
-    return true;
-}
-
 std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
 {
     password = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
@@ -292,20 +264,6 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
         return nullptr;
     }
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
-    // 如果 CRL 文件存在，加载并启用吊销检查
-    if (access(UbseSSLConfig::CrlFile, F_OK) == 0) {
-        X509_STORE *store = SSL_CTX_get_cert_store(ctx);
-        if (store) {
-            if (!LoadCrlFile(store)) {
-                return nullptr;
-            }
-        } else {
-            UBSE_LOG_ERROR << "Failed to get certificate store from SSL context";
-            return nullptr;
-        }
-    } else {
-        UBSE_LOG_WARN << "CRL file not found, skipping CRL validation.";
-    }
     sslServer->new_task_queue = []() -> httplib::ThreadPool* {
         return new httplib::ThreadPool(NO_1, NO_8);
     };

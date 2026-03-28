@@ -11,12 +11,13 @@
 */
 #include "ubse_cert_validator.h"
 
-#include <fstream>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
+#include <fstream>
 
 #include "ubse_cert_def.h"
 #include "ubse_file_util.h"
@@ -112,8 +113,9 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
     EVP_PKEY *pkey = PEM_read_PrivateKey(fp, nullptr, nullptr, const_cast<void *>(static_cast<const void *>(password)));
     if (!pkey) {
         int errorCode = ERR_get_error();
-        UBSE_LOG_ERROR << "[CERT] Failed to parse " << name << ". Incorrect password provided. sslErrorCode=" << errorCode
-        << ". Check password at" << UbseSSLConfig::PasswordFile << " and private key at" << UbseSSLConfig::ServerKeyFile;
+        UBSE_LOG_ERROR << "[CERT] Failed to parse " << name
+                       << ". Incorrect password provided. sslErrorCode=" << errorCode << ". Check password at"
+                       << UbseSSLConfig::PasswordFile << " and private key at" << UbseSSLConfig::ServerKeyFile;
         fclose(fp);
         return nullptr;
     }
@@ -124,13 +126,13 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
 bool UbseSslValidator::VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const char *certName, const char *keyName)
 {
     if (!cert || !pkey) {
-        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " or "
-        << keyName << "at" << UbseSSLConfig::ServerCertFile << " is invalid";
+        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " or " << keyName << "at"
+                       << UbseSSLConfig::ServerCertFile << " is invalid";
         return false;
     }
     if (X509_check_private_key(cert, pkey) != 1) {
-        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " and "
-        << keyName << "at" << UbseSSLConfig::ServerCertFile << " do not match";
+        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " and " << keyName << "at"
+                       << UbseSSLConfig::ServerCertFile << " do not match";
         return false;
     }
     UBSE_LOG_INFO << "[CERT] " << certName << " and " << keyName << " match successfully";
@@ -240,6 +242,43 @@ bool UbseSslValidator::ValidateAll()
         UBSE_LOG_ERROR << "[CERT] Invalid CRL.";
         return false;
     }
+    return true;
+}
+
+bool UbseSslValidator::ConfigureClientCrlValidation(SSL_CTX *ctx)
+{
+    if (access(UbseSSLConfig::CrlFile, F_OK) != 0) {
+        UBSE_LOG_WARN << "CRL file not found, skipping CRL validation.";
+        return true;
+    }
+    X509_STORE *store = SSL_CTX_get_cert_store(ctx);
+    if (!store) {
+        UBSE_LOG_ERROR << "Failed to get certificate store from SSL context. path at" << UbseSSLConfig::CrlFile;
+        return false;
+    }
+    FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
+    if (!fp) {
+        UBSE_LOG_ERROR << "Failed to open CRL file: " << UbseSSLConfig::CrlFile << "at" << UbseSSLConfig::CrlFile
+                       << ", errorCode: " << strerror(errno);
+        return false;
+    }
+    ERR_clear_error();
+    X509_CRL *crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
+    fclose(fp);
+    if (!crl) {
+        int errorCode = ERR_get_error();
+        UBSE_LOG_ERROR << "Failed to parse CRL file  at " << UbseSSLConfig::CrlFile << ", sslErrorCode: " << errorCode;
+        return false;
+    }
+    if (X509_STORE_add_crl(store, crl) != 1) {
+        int errorCode = ERR_get_error();
+        UBSE_LOG_ERROR << "Failed to add CRL to certificate store at << " << UbseSSLConfig::CrlFile
+                       << ", sslErrorCode: " << errorCode;
+        X509_CRL_free(crl);
+        return false;
+    }
+    X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+    X509_CRL_free(crl);
     return true;
 }
 } // namespace ubse::cert

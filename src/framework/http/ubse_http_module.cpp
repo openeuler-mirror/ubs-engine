@@ -13,10 +13,13 @@
 #include "ubse_http_module.h"
 
 #include <httplib.h> // for Error, Response, Request, Client
+#include <openssl/x509.h>
 #include <securec.h> // for memcpy_s, EOK, errno_t
 #include <map>       // for map, operator!=, _Rb_tree_con...
 #include <mutex>     // for mutex, lock_guard
 
+#include "ubse_cert_def.h"
+#include "ubse_cert_validator.h"
 #include "ubse_conf_module.h" // for UbseConfModule
 #include "ubse_context.h"     // for UbseContext, ProcessMode, BAS...
 #include "ubse_error.h"       // for UBSE_OK, UBSE_ERROR, UBSE_ERR...
@@ -24,10 +27,8 @@
 #include "ubse_http_server.h" // for UbseHttpServer
 #include "ubse_logger.h"      // for UbseLoggerEntry, FormatRetCode
 #include "ubse_net_util.h"
-#include "ubse_cert_def.h"
-#include "ubse_cert_validator.h"
-#include "ubse_thread_pool_module.h" // for UbseTaskExecutorModule
 #include "ubse_security_module.h"
+#include "ubse_thread_pool_module.h" // for UbseTaskExecutorModule
 
 namespace ubse::http {
 using namespace ubse::task_executor;
@@ -167,6 +168,11 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
         cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
         cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
         cli.set_path_encode(false);
+        SSL_CTX *ctx = cli.ssl_context();
+        if (ctx && !cert::UbseSslValidator::ConfigureClientCrlValidation(ctx)) {
+            UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
+            return UBSE_ERROR;
+        }
         cli.send(httpReq, httpRsp, error);
     } else {
         // UBFM UDS服务地址为 UBFM_UDS_ADDRESS
@@ -191,8 +197,11 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
     for (auto &header : httpRsp.headers) {
         rsp.headers.emplace(header.first, header.second);
     }
-
     if (error != httplib::Error::Success) {
+        if (error == httplib::Error::SSLServerVerification) {
+            UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
+                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+        }
         return MakeError(static_cast<uint32_t>(error));
     }
     return UBSE_OK;
@@ -221,6 +230,11 @@ UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, cons
                       serverKeyPassword.c_str());
         cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
         cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+        SSL_CTX *ctx = cli.ssl_context();
+        if (ctx && !cert::UbseSslValidator::ConfigureClientCrlValidation(ctx)) {
+            UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
+            return UBSE_ERROR;
+        }
         cli.send(req, rsp, error);
     } else {
         Client cli(UBM_UDS_ADDRESS);
@@ -232,6 +246,10 @@ UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, cons
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     }
     if (error != Error::Success) {
+        if (error == Error::SSLServerVerification) {
+            UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
+                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+        }
         return MakeError(static_cast<uint32_t>(error));
     }
 
