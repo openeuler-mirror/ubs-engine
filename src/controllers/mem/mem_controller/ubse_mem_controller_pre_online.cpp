@@ -111,35 +111,38 @@ void PreOnlineThread(const ubse::nodeController::UbseNodeInfo &ubseNode, bool is
 UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
 {
     UBSE_LOG_INFO << "nodeId=" << ubseNode.nodeId << " online, state=" << static_cast<uint32_t>(ubseNode.clusterState);
+
     if (ubseNode.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT ||
         ubseNode.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
-        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << "not working, set to offline";
+        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << " not working, set to offline";
         SetNodePreOnLine(ubseNode.nodeId, PreOnLineState::OFFLINE);
         return UBSE_OK;
     }
     if (ubseNode.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << "not smoothing";
+        UBSE_LOG_WARN << "nodeId=" << ubseNode.nodeId << " not smoothing";
         return UBSE_OK;
     }
     if (!ValidPreOnLine(ubseNode.nodeId)) {
         return UBSE_OK;
     }
+
     auto nodes = UbseNodeController::GetInstance().GetAllNodes();
-    if (nodes.size() <= 1) { // 集群节点<=1，不做预上线
+    if (nodes.size() <= 1) {
+        // 集群节点<=1，不做预上线
         UBSE_LOG_INFO << "current cluster only has one node=" << ubseNode.nodeId << " when smoothing, skip pre online.";
-    } else if (nodes.size() == 2) { // 集群节点=2，将2个节点进行预上线，若没有直连关系，也置为ONLINE
-        UBSE_LOG_INFO << "current cluster only has two node when smoothing, pre online.";
-        for (auto clusterNode : nodes) {
+    } else {
+        // 集群节点数>=2，对所有节点进行预上线处理
+        UBSE_LOG_INFO << "current cluster has " << nodes.size() << " nodes when smoothing, pre online.";
+        for (const auto& clusterNode : nodes) {
             if (IsNodeOnLine(clusterNode.second.nodeId)) {
                 UBSE_LOG_INFO << "node=" << clusterNode.second.nodeId
                               << " already online when smooth, skip pre online.";
                 continue;
             }
-            PreOnlineThread(clusterNode.second, true);
+            // 集群节点数=2时，使用true参数
+            bool isTwoNodeCluster = (nodes.size() == 2);
+            PreOnlineThread(clusterNode.second, isTwoNodeCluster);
         }
-    } else { // 集群>2，将加入集群的节点进行上线。
-        UBSE_LOG_INFO << "current cluster has more than two node, pre online.";
-        PreOnlineThread(ubseNode, false);
     }
     return UBSE_OK;
 }
