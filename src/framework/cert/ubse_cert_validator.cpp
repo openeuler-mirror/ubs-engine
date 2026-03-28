@@ -110,11 +110,9 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
     }
     ERR_clear_error();
     EVP_PKEY *pkey = PEM_read_PrivateKey(fp, nullptr, nullptr, const_cast<void *>(static_cast<const void *>(password)));
-    int errorCode = 0;
-
     if (!pkey) {
-        errorCode = ERR_get_error();
-        UBSE_LOG_ERROR << "[CERT] Failed to parse " << name << ". Incorrect password provided. errorCode=" << errorCode
+        int errorCode = ERR_get_error();
+        UBSE_LOG_ERROR << "[CERT] Failed to parse " << name << ". Incorrect password provided. sslErrorCode=" << errorCode
         << ". Check password at" << UbseSSLConfig::PasswordFile << " and private key at" << UbseSSLConfig::ServerKeyFile;
         fclose(fp);
         return nullptr;
