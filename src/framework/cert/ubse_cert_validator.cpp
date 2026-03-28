@@ -43,7 +43,6 @@ SecureBuffer UbseSslValidator::LoadPasswordFromFile(const char *path)
         SecureBuffer securePwd(tmpValue);
         SecureZeroMemory(tmpValue.data(), tmpValue.size());
         tmpValue.clear();
-        UBSE_LOG_INFO << "[CERT] Successfully loaded password from file: " << path;
         return securePwd;
     }
     UBSE_LOG_ERROR << "[CERT] Failed to read password from file: " << path;
@@ -115,22 +114,12 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
 
     if (!pkey) {
         errorCode = ERR_get_error();
-        bool isPasswordError = false;
-        if (errorCode == ERR_PACK(ERR_LIB_PEM, 0, PEM_R_BAD_PASSWORD_READ) ||
-            errorCode == ERR_PACK(ERR_LIB_PEM, 0, PEM_R_BAD_DECRYPT)) {
-            isPasswordError = true;
-        }
-        if (isPasswordError) {
-            UBSE_LOG_ERROR << "[CERT] Failed to parse " << name << ". Incorrect password provided. errorCode=" << errorCode;
-        } else {
-            UBSE_LOG_ERROR << "[CERT] Failed to parse " << name << ". Invalid private key. errorCode=" << errorCode;
-        }
-    }
-    fclose(fp);
-    if (!pkey) {
-        UBSE_LOG_ERROR << "[CERT] Failed to load and validate " << name << " at path: " << keyPath;
+        UBSE_LOG_ERROR << "[CERT] Failed to parse " << name << ". Incorrect password provided. errorCode=" << errorCode
+        << ". Check password at" << UbseSSLConfig::PasswordFile << " and private key at" << UbseSSLConfig::ServerKeyFile;
+        fclose(fp);
         return nullptr;
     }
+    fclose(fp);
     return pkey;
 }
 
