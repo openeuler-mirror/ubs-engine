@@ -408,6 +408,8 @@ UbseUDSClient::~UbseUDSClient() noexcept
         Stop();
     } catch (...) {
         // 析构函数中不能抛出异常
+        IPC_LOG_ERROR << "Exception caught in UbseUDSClient destructor, "
+                         "but suppressed to avoid throwing exceptions in destructor.";
     }
 }
 
@@ -580,6 +582,7 @@ void UbseUDSClient::CleanupReconnectThread()
             }
         } catch (...) {
             // 忽略所有异常
+            IPC_LOG_ERROR << "Exception caught while cleaning up reconnect thread, but suppressed.";
         }
         // 重置线程对象
         reconnectThread_ = std::thread();
