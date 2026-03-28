@@ -124,11 +124,13 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
 bool UbseSslValidator::VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const char *certName, const char *keyName)
 {
     if (!cert || !pkey) {
-        UBSE_LOG_ERROR << "[CERT] Invalid certificate or private key.";
+        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " or "
+        << keyName << "at" << UbseSSLConfig::ServerCertFile << " is invalid";
         return false;
     }
     if (X509_check_private_key(cert, pkey) != 1) {
-        UBSE_LOG_ERROR << "[CERT] " << certName << " and " << keyName << " do not match";
+        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " and "
+        << keyName << "at" << UbseSSLConfig::ServerCertFile << " do not match";
         return false;
     }
     UBSE_LOG_INFO << "[CERT] " << certName << " and " << keyName << " match successfully";
@@ -144,7 +146,7 @@ X509_STORE *UbseSslValidator::LoadAndValidateCaStore(const char *caPath)
 
     X509_STORE *store = X509_STORE_new();
     if (!store) {
-        UBSE_LOG_ERROR << "[CERT] Failed to create X509 certificate store";
+        UBSE_LOG_ERROR << "[CERT] Failed to create X509 certificate store at path: " << caPath;
         return nullptr;
     }
 
@@ -205,14 +207,14 @@ bool UbseSslValidator::ValidateAll()
     // 1. 加载服务端私钥密码
     SecureBuffer serverKeyPassword = LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
     if (serverKeyPassword.size() == 0) {
-        UBSE_LOG_ERROR << "[CERT] Step 1 failed: Server private key password is empty or could not be loaded";
+        UBSE_LOG_ERROR << "[CERT] Server private key password is empty or could not be loaded";
         return false;
     }
     // 2. 验证服务端证书 + 私钥
     std::unique_ptr<X509, decltype(&X509_free)> serverCert(
         LoadAndValidateCert(UbseSSLConfig::ServerCertFile, "Server certificate"), X509_free);
     if (!serverCert) {
-        UBSE_LOG_ERROR << "[CERT] Step 2 failed: Invalid server certificate";
+        UBSE_LOG_ERROR << "[CERT] Invalid server certificate";
         return false;
     }
 
@@ -221,7 +223,7 @@ bool UbseSslValidator::ValidateAll()
         EVP_PKEY_free);
     if (!serverKey ||
         !VerifyCertAndKeyMatch(serverCert.get(), serverKey.get(), "Server certificate", "Server private key")) {
-        UBSE_LOG_ERROR << "[CERT] Step 2 failed: Invalid server private key or certificate-key mismatch";
+        UBSE_LOG_ERROR << "[CERT] Server private key or certificate-key mismatch";
         return false;
     }
 
@@ -229,13 +231,13 @@ bool UbseSslValidator::ValidateAll()
     std::unique_ptr<X509_STORE, decltype(&X509_STORE_free)> caStore(
         LoadAndValidateCaStore(UbseSSLConfig::TrustCertFile), X509_STORE_free);
     if (!caStore) {
-        UBSE_LOG_ERROR << "[CERT] Step 3 failed: Invalid CA trust certificates";
+        UBSE_LOG_ERROR << "[CERT] Invalid CA trust certificates";
         return false;
     }
 
     // 4. 验证 CRL（如果存在）
     if (!ValidateCRLIfExists()) {
-        UBSE_LOG_ERROR << "[CERT] Step 4 failed: Invalid CRL";
+        UBSE_LOG_ERROR << "[CERT] Invalid CRL.";
         return false;
     }
     return true;
