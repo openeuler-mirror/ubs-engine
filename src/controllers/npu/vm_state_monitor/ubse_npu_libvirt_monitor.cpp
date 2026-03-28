@@ -22,19 +22,6 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 static constexpr int VIR_DOMAIN_EVENT_ID_LIFECYCLE = 0;
 
-enum class VirDomainEventType {
-    VIR_DOMAIN_EVENT_DEFINED = 0,
-    VIR_DOMAIN_EVENT_UNDEFINED = 1,
-    VIR_DOMAIN_EVENT_STARTED = 2,
-    VIR_DOMAIN_EVENT_SUSPENDED = 3,
-    VIR_DOMAIN_EVENT_RESUMED = 4,
-    VIR_DOMAIN_EVENT_STOPPED = 5,
-    VIR_DOMAIN_EVENT_SHUTDOWN = 6,
-    VIR_DOMAIN_EVENT_PMSUSPENOED = 7,
-    VIR_DOMAIN_EVENT_CRASHED = 8,
-    VIR_DOMAIN_EVENT_LAST = 9,
-};
-
 extern "C" {
     using VirConnectPtr = void *;
     using VirDomainPtr = void *;
@@ -206,24 +193,7 @@ private:
         if (!domName) {
             return UBSE_OK;
         }
-        VmEventType eventType;
-        switch (static_cast<VirDomainEventType>(event)) {
-            case VirDomainEventType::VIR_DOMAIN_EVENT_DEFINED:
-                eventType = VmEventType::CREATE;
-                break;
-            case VirDomainEventType::VIR_DOMAIN_EVENT_STARTED:
-                eventType = VmEventType::STARTED;
-                break;
-            case VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED:
-            case VirDomainEventType::VIR_DOMAIN_EVENT_SHUTDOWN:
-                eventType = VmEventType::STOPPED;
-                break;
-            case VirDomainEventType::VIR_DOMAIN_EVENT_UNDEFINED:
-                eventType = VmEventType::DESTROY;
-                break;
-            default:
-                return UBSE_OK;
-        }
+        auto eventType = static_cast<VirDomainEventType>(event);
         char *xmlCStr = nullptr;
         xmlCStr = virDomainGetXMLDesc_(dom, 0);
         if (!xmlCStr) {

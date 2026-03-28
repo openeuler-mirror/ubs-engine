@@ -204,7 +204,7 @@ private:
 void StartCollect()
 {
     try {
-        std::thread CollectStaticResourceThread([]() {
+        std::thread collectStaticResourceThread([]() {
             UBSE_LOG_INFO << "Start to collect static resource";
             UbseResult res = ResourceCollection::GetInstance().CollectStaticResource();
             if (res != UBSE_OK) {
@@ -216,7 +216,7 @@ void StartCollect()
                 manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
             }
         });
-        CollectStaticResourceThread.detach();
+        collectStaticResourceThread.detach();
     } catch (const std::system_error &e) {
         UBSE_LOG_ERROR << "Failed to create collect static resource thread: " << e.what();
     } catch (...) {
@@ -876,19 +876,6 @@ UbseResult FilterDeviceVMBusi(std::shared_ptr<CollectionDeviceBusi> &busInstance
             }
         }
     }
-    // 2. 找出当前 npus 中不在 bus instance 上绑定的 npu 的设备（npusToRegisterToBusi）
-    std::vector<std::shared_ptr<CollectionDeviceDavid>> npusToRegisterToBusi;
-    for (const auto &npu : npuList) {
-        auto idev = npu->GetBondingIdev();
-        if (idev != nullptr && idev->GetType() == CollectionDeviceType::V_IDEV) {
-            auto vfe = CollectionDevice::CollectionToDerived<CollectionDeviceIdevVfe>(idev);
-            if (std::find(vfes.begin(), vfes.end(), vfe) != vfes.end()) {
-                continue;
-            }
-        }
-        npusToRegisterToBusi.push_back(npu);
-    }
-    npuList = std::move(npusToRegisterToBusi);
 
     UBSE_LOG_WARN << "Bus instance " << busInstance->GetIdStr() << " is already registered with "
                   << npusToRemoveFromBusi.size() << " npus and " << nicsToRemoveFromBusi.size()
@@ -1271,7 +1258,7 @@ UbseResult UbseNpuManagerApi::CreateVMBusi(uint16_t upi, CollectionGuid &busiGui
     return UBSE_OK;
 }
 
-UbseResult UbseNpuManagerApi::DestroyVMBusi(const CollectionDevId &busiGuid)
+UbseResult UbseNpuManagerApi::DestroyVMBusi(const CollectionGuid &busiGuid)
 {
     auto &collection = ResourceCollection::GetInstance();
     std::shared_ptr<CollectionDeviceBusi> busInstance =
@@ -1365,6 +1352,10 @@ void UbseNpuManagerApi::FreeQueue(const UbseAllocRequest &requestInfo, const Col
         return this->UnRegisterIDevFromBusi(npus, busInstanceGuid);
     });
 
+    // 调用ipmi接口，复位NPU
+    auto ubDevs = requestInfo.ubDevList;
+    addOperation([this, ubDevs]() mutable -> UbseResult { return this->ResetNpu(ubDevs); });
+
     // 调用LCNE接口，解注册1825
     addOperation([this, nics, busInstanceGuid]() mutable -> UbseResult {
         return this->UnRegisterDevFromBusi(nics, busInstanceGuid);
@@ -1377,10 +1368,6 @@ void UbseNpuManagerApi::FreeQueue(const UbseAllocRequest &requestInfo, const Col
 
     // 调用LCNE接口，删除虚机bus instance
     addOperation([this, busInstanceGuid]() mutable -> UbseResult { return this->DestroyVMBusi(busInstanceGuid); });
-
-    // 调用ipmi接口，复位NPU
-    auto ubDevs = requestInfo.ubDevList;
-    addOperation([this, ubDevs]() mutable -> UbseResult { return this->ResetNpu(ubDevs); });
 }
 
 UbseResult UbseNpuManagerApi::ExecuteFreeQueue()

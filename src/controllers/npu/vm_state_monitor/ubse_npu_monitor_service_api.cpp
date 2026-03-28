@@ -15,9 +15,9 @@
 #include <mutex>
 #include <optional>
 #include <securec.h>
+#include <unordered_set>
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_npu_libvirt_monitor.h"
 #include "ubse_npu_resource_collection.h"
 #include "ubse_os_util.h"
 #include "ubse_pointer_process.h"
@@ -30,7 +30,7 @@ using namespace ubse::npu::controller;
 using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE ("ubse");
 
-static LibvirtMonitor g_monitor("qemu::///system");
+static LibvirtMonitor g_monitor("qemu:///system");
 
 UbseResult ResetNpu(const uint8_t &chipId)
 {
@@ -39,7 +39,7 @@ UbseResult ResetNpu(const uint8_t &chipId)
         "0x00 0x00 0x00 0x01 0xff";
     char realCmd[128]; // 128:数组长度
     static_assert(sizeof(cmdTemplate) <= sizeof(realCmd) - 1);
-    if (sprintf_s(realCmd, sizeof(realCmd), cmdTemplate, chipId + 1) == -1) { // 不必要考虑chipId + 1绕接
+    if (sprintf_s(realCmd, sizeof(realCmd), cmdTemplate, chipId) == -1) { // 不必要考虑chipId + 1绕接
         UBSE_LOG_ERROR << "Failed to generate ipmi command.";
         return UBSE_ERROR;
     }
@@ -102,7 +102,7 @@ std::string GetBusInstance(std::string_view xmlStr)
             ubseXml = ubseXml->Child("devices");
             controller = ubseXml->Child("controller", num);
             auto addressNode = controller->Child("address");
-            if (addressNode != nullptr) {
+            if (addressNode == nullptr) {
                 UBSE_LOG_ERROR << "Failed to get address node.";
                 return guid;
             }
@@ -120,7 +120,7 @@ std::string GetBusInstance(std::string_view xmlStr)
     return guid;
 }
 
-static void VmStateCallback(std::string_view name, VmEventType event, const std::shared_ptr<char> &xmlPtr)
+static void VmStateCallback(std::string_view name, VirDomainEventType event, const std::shared_ptr<char> &xmlPtr)
 {
     if (xmlPtr == nullptr) {
         UBSE_LOG_ERROR << "xmlPtr is nullptr.";
@@ -146,47 +146,28 @@ UbseResult StartVMMonitor()
     return UBSE_OK;
 }
 
-void ResetNpuOfBusInstance(const std::string &busInstance, VmEventType event)
+
+void ResetNpuOfBusInstance(const std::string &busInstance, VirDomainEventType event)
 {
-    static std::unordered_map<std::string, VmEventType> record;
+    static const std::unordered_set<VirDomainEventType> handleEvents = {
+        VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
+        VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
+        VirDomainEventType::VIR_DOMAIN_EVENT_SHUTDOWN
+    };
+    if (handleEvents.find(event) == handleEvents.end()) {
+        return;
+    }
+    static std::unordered_map<std::string, VirDomainEventType> record;
     static std::mutex recordMutex;
-    bool needReset = false;
     std::lock_guard<std::mutex> lock(recordMutex);
     if (const auto it = record.find(busInstance); it != record.end()) {
         if (it->second == event) {
             return;
         }
-        switch (event) {
-            case VmEventType::DESTROY: {
-                const VmEventType oldEvent = it->second;
-                record.erase(it);
-                needReset = (oldEvent != VmEventType::STOPPED);
-                break;
-            }
-            case VmEventType::CREATE: {
-                it->second = event;
-                needReset = true;
-                break;
-            }
-            case VmEventType::STARTED: {
-                needReset = (it->second != VmEventType::CREATE);
-                it->second = event;
-                break;
-            }
-            case VmEventType::STOPPED: {
-                it->second = event;
-                needReset = true;
-                break;
-            }
-            default:
-                break;
-        }
+        it->second = event;
     } else {
         record[busInstance] = event;
-        needReset = true;
     }
-    if (needReset) {
-        QueryAndReset(busInstance);
-    }
+    QueryAndReset(busInstance);
 }
 }

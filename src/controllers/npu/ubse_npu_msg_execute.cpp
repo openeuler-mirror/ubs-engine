@@ -22,6 +22,8 @@
 #include "ubse_npu_controller_module.h"
 #include "ubse_npu_manager_api.h"
 #include "ubse_pack_util.h"
+#include "ubse_str_util.h"
+
 namespace ubse::npu::controller {
 using namespace ubse::utils;
 using namespace ubse::context;
@@ -29,6 +31,7 @@ using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 // 4个类型的数量大小+总数量大小
 constexpr size_t HEAD_SIZE = 5 * sizeof(uint8_t);
+constexpr uint8_t HEX_RADIX = 16;
 
 // list接口
 uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
@@ -236,27 +239,8 @@ void PrintInfo(const UbseAllocRequest &requestInfo)
     UBSE_LOG_INFO << oss.str();
 }
 
-uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo)
+uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice> &devList)
 {
-    UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
-    for (size_t i = 0; i < UBSE_UB_UPI_STR_SIZE; i++) {
-        if (!unpackUtil.UnpackUint8(requestInfo.upis[i])) {
-            UBSE_LOG_ERROR << "Failed to unpack upi str";
-            return UBSE_ERROR_DESERIALIZE_FAILED;
-        }
-    }
-    uint8_t tmpGuid[UBSE_UB_DEVICE_GUID_SIZE];
-    for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {
-        if (!unpackUtil.UnpackUint8(tmpGuid[i])) {
-            UBSE_LOG_ERROR << "Failed to unpack bus instance guid";
-            return UBSE_ERROR_DESERIALIZE_FAILED;
-        }
-    }
-    requestInfo.busInstanceGuid.assign(tmpGuid, tmpGuid + UBSE_UB_DEVICE_GUID_SIZE);
-    auto validGuidLen = strlen(requestInfo.busInstanceGuid.c_str());
-    if (validGuidLen < requestInfo.busInstanceGuid.size()) {
-        requestInfo.busInstanceGuid.resize(validGuidLen);
-    }
     uint8_t devListSize;
     if (!unpackUtil.UnpackUint8(devListSize)) {
         UBSE_LOG_ERROR << "Failed to unpack device list size";
@@ -282,7 +266,39 @@ uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &req
             UBSE_LOG_ERROR << "Failed to unpack index";
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
-        requestInfo.ubDevList.emplace_back(tmpDev);
+        devList.emplace_back(tmpDev);
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo)
+{
+    UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
+    for (size_t i = 0; i < UBSE_UB_UPI_STR_SIZE; i++) {
+        if (!unpackUtil.UnpackUint8(requestInfo.upis[i])) {
+            UBSE_LOG_ERROR << "Failed to unpack upi str";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+    }
+    std::string upiStr(requestInfo.upis, requestInfo.upis + UBSE_UB_UPI_STR_SIZE);
+    if (ConvertStrToUint16(upiStr, requestInfo.upiStr, HEX_RADIX) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Invalid upi:" << upiStr;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    uint8_t tmpGuid[UBSE_UB_DEVICE_GUID_SIZE];
+    for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {
+        if (!unpackUtil.UnpackUint8(tmpGuid[i])) {
+            UBSE_LOG_ERROR << "Failed to unpack bus instance guid";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+    }
+    requestInfo.busInstanceGuid.assign(tmpGuid, tmpGuid + UBSE_UB_DEVICE_GUID_SIZE);
+    auto validGuidLen = strlen(requestInfo.busInstanceGuid.c_str());
+    if (validGuidLen < requestInfo.busInstanceGuid.size()) {
+        requestInfo.busInstanceGuid.resize(validGuidLen);
+    }
+    if (auto ret = UnpackDeviceList(unpackUtil, requestInfo.ubDevList); ret != UBSE_OK) {
+        return ret;
     }
     PrintInfo(requestInfo);
     return UBSE_OK;

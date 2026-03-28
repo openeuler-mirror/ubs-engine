@@ -17,12 +17,23 @@
 #include <memory>
 #include <string>
 #include <thread>
-#include "ubse_npu_monitor_def.h"
 #include "ubse_common_def.h"
 
 namespace ubse::npu::vm_monitor {
 using namespace ubse::common::def;
-using EventCallback = std::function<void(std::string_view, VmEventType, std::shared_ptr<char>)>;
+enum class VirDomainEventType {
+    VIR_DOMAIN_EVENT_DEFINED = 0,
+    VIR_DOMAIN_EVENT_UNDEFINED = 1,
+    VIR_DOMAIN_EVENT_STARTED = 2,
+    VIR_DOMAIN_EVENT_SUSPENDED = 3,
+    VIR_DOMAIN_EVENT_RESUMED = 4,
+    VIR_DOMAIN_EVENT_STOPPED = 5,
+    VIR_DOMAIN_EVENT_SHUTDOWN = 6,
+    VIR_DOMAIN_EVENT_PMSUSPENDED = 7,
+    VIR_DOMAIN_EVENT_CRASHED = 8,
+    VIR_DOMAIN_EVENT_LAST = 9,
+};
+using EventCallback = std::function<void(std::string_view, VirDomainEventType, std::shared_ptr<char>)>;
 
 class LibvirtMonitorImpl;
 
