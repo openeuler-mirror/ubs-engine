@@ -371,8 +371,8 @@ static bool ValidateAndGetShareHandleInfo(const std::string &faultId,
 }
 
 static void SendFaultShareHandleMessages(std::shared_ptr<UbseApiServerModule> &apiServerPtr,
-                              const debt::ShareHandleInfoVec &handleInfo,
-                              std::shared_ptr<std::atomic<uint32_t>> respCount)
+    const debt::ShareHandleInfoVec &handleInfo,
+    std::shared_ptr<std::atomic<uint32_t>> respCount)
 {
     UbseRequestMessage longLinkReq{};
     longLinkReq.header.opCode = UBSE_LONGLINK_FAULT;
@@ -394,7 +394,8 @@ static void SendFaultShareHandleMessages(std::shared_ptr<UbseApiServerModule> &a
             size_t size = 0;
             auto ret = SerializeShmFault(shmFault, buffer, size);
             if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to generate share handle info message, " << FormatRetCode(ret);
+                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to generate share handle info message, "
+                               << FormatRetCode(ret);
                 continue;
             }
             longLinkReq.body = buffer;

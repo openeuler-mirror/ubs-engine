@@ -237,7 +237,7 @@ static const char *fault_type_to_string(ubs_mem_fault_type_t type)
             return "MAR_ILLEGAL_ACCESS_ERR";
         case REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR:
             return "REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR";
-        case EXPORT_NODE_FAULT:
+        case MEM_EXPORT_NODE_FAULT:
             return "EXPORT_NODE_FAULT";
         case UB_MEM_HEALTHY:
             return "UB_MEM_HEALTHY";
@@ -273,19 +273,19 @@ static int32_t shm_fault_handler(const char *name, uint64_t memid, ubs_mem_fault
     return 0;
 }
 
-static void signal_handler(int sig)
+static void SignalHandler(int sig)
 {
     (void)sig;
     g_running = 0;
     printf("\n[MAIN] Received shutdown signal, exiting...\n");
 }
 
-static void ubs_mem_shm_fault_register_example(void)
+static void UbsMemShmFaultRegisterExample(void)
 {
     printf("=== ubs_mem_shm_fault_register_example ===\n");
 
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
+    signal(SIGINT, SignalHandler);
+    signal(SIGTERM, SignalHandler);
 
     printf("[MAIN] Registering shared memory fault handler...\n");
     int32_t ret = ubs_mem_shm_fault_register(shm_fault_handler);
@@ -316,5 +316,5 @@ int main(void)
     ubs_mem_share_detach_example();
     ubs_mem_share_delete_example();
 
-    ubs_mem_shm_fault_register_example();
+    UbsMemShmFaultRegisterExample();
 }

@@ -181,7 +181,7 @@ UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNod
         return UBSE_ERROR_INVAL;
     }
     mapLock.LockRead();
-    auto it = nodeMemDebtInfoMap.find(importNodeId);
+    const auto it = nodeMemDebtInfoMap.find(importNodeId);
     if (it == nodeMemDebtInfoMap.end()) {
         mapLock.UnLock();
         UBSE_LOG_INFO << "[MEM_CONTROLLER] Import node " << importNodeId << " has no debt info";
