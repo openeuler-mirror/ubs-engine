@@ -237,8 +237,8 @@ static const char *fault_type_to_string(ubs_mem_fault_type_t type)
             return "MAR_ILLEGAL_ACCESS_ERR";
         case REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR:
             return "REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR";
-        case MEM_EXPORT_NODE_FAULT:
-            return "EXPORT_NODE_FAULT";
+        case MEM_EXPORT_FAULT:
+            return "MEM_EXPORT_FAULT";
         case UB_MEM_HEALTHY:
             return "UB_MEM_HEALTHY";
         default:
