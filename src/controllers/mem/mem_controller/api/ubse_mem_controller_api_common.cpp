@@ -408,7 +408,7 @@ bool CheckShareReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &re
     if (ubse::election::UbseGetMasterNodeId(masterId) != UBSE_OK) {
         return false;
     }
-    std::vector<std::string> commonRoleIds{masterId};
+    std::vector<std::string> commonRoleIds{};
     for (const auto &node : shareRegion.nodelist) {
         commonRoleIds.push_back(node.nodeId);
     }
