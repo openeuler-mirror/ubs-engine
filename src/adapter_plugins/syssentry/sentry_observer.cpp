@@ -128,12 +128,14 @@ void UbseRasObserver::RegQueryMsgMonitorTimer()
                 UBSE_LOG_WARN << "executor empty, skip query msg monitor";
                 return UBSE_OK;
             }
+            g_queryCount.fetch_add(1);
             bool isAdded = executor->Execute([]() -> void {
                 UbseRasObserver::GetInstance().UbseQueryMsgMonitorTimerRun();
                 g_queryCount.fetch_sub(1);
             });
-            if (isAdded) {
-                g_queryCount.fetch_add(1);
+            if (!isAdded) {
+                // 添加任务失败，减1
+                g_queryCount.fetch_sub(1);
             }
             return UBSE_OK;
         },
