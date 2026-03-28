@@ -19,6 +19,7 @@ from ubse.models.ubs_engine_model_npu import UbsUbDevicesListT, UbsUbAllocDevice
 from ubse.ffi.ubs_engine_exceptions import UbsError, UbsErrNullPointer, UbsEngineConnectionError, UbsEngineAuthError, \
     UbsEngineTimeoutError, UbsEngineInternalError
 from ubse.ffi.ubs_engine_binding_base import UbsEngineBindingBase
+from ubse.models.ubs_device_info import DeviceFactory
 
 
 class UbsEngineBindingNpu(UbsEngineBindingBase):
@@ -384,7 +385,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             "BUSI": 1,
             "NPU": 2,
             "NIC": 3,
-            "UBCTRL": 3
+            "UBCTRL": 4
         }.get(device_type, 0)  # 默认值为 0
 
         # 将 device_id 转换为UbsDeviceIdT

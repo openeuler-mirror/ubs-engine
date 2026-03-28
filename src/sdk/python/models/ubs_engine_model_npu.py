@@ -71,9 +71,9 @@ class UbsBusinstanceId:
             parts.append(raw[start:start + length])
             start += length
 
-            #  用'-'拼接成标准格式再初始化
-            formatted = '-'.join(parts)
-            return formatted
+        #  用'-'拼接成标准格式再初始化
+        formatted = '-'.join(parts)
+        return formatted
 
     @classmethod
     def empty(cls):
@@ -245,6 +245,3 @@ class UbsUbDevicesListT(ctypes.Structure):
         ("busi_ptr", POINTER(UbsBusiT)),
         ("busi_cnt", ctypes.c_uint8)
     ]
-
-raw_guid = "cc08a000000000000000000000010000"
-print(UbsBusinstanceId().from_raw(raw_guid))
