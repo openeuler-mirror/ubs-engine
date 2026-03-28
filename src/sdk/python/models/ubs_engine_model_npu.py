@@ -245,3 +245,103 @@ class UbsUbDevicesListT(ctypes.Structure):
         ("busi_ptr", POINTER(UbsBusiT)),
         ("busi_cnt", ctypes.c_uint8)
     ]
+
+
+class DeviceInfo:
+    """设备信息基类"""
+
+    def __init__(self, device_type):
+        self.device_type = device_type
+
+    def to_dict(self):
+        """转换为字典格式"""
+        return {
+            "device_type": self.device_type
+        }
+
+
+class NICInfo(DeviceInfo):
+    """NIC设备信息类"""
+
+    def __init__(self, device_id, guid, bus_instance):
+        super().__init__("NIC")
+        self.device_id = device_id
+        self.guid = guid
+        self.bus_instance = bus_instance
+        self.affinity_devs = []
+
+    def to_dict(self):
+        return {
+            "device_type": self.device_type,
+            "device_id": self.device_id,
+            "guid": self.guid,
+            "bus_instance": self.bus_instance,
+            "affinity_devs": self.affinity_devs
+        }
+
+
+class NPUInfo(DeviceInfo):
+    """NPU设备信息类"""
+
+    def __init__(self, device_id, guid, bus_instance):
+        super().__init__("NPU")
+        self.device_id = device_id
+        self.guid = guid
+        self.bus_instance = bus_instance
+        self.affinity_devs = []
+
+    def to_dict(self):
+        return {
+            "device_type": self.device_type,
+            "device_id": self.device_id,
+            "guid": self.guid,
+            "bus_instance": self.bus_instance,
+            "affinity_devs": self.affinity_devs
+        }
+
+
+class BUSIInfo(DeviceInfo):
+    """BUSI设备信息类"""
+
+    def __init__(self, guid):
+        super().__init__("BUSI")
+        self.guid = guid
+        self.sub_devices = []
+
+    def to_dict(self):
+        return {
+            "device_type": self.device_type,
+            "guid": self.guid,
+            "sub_devices": self.sub_devices
+        }
+
+
+class UBCTRLInfo(DeviceInfo):
+    """UBCTRL设备信息类"""
+
+    def __init__(self, device_id):
+        super().__init__("UBCTRL")
+        self.device_id = device_id
+
+    def to_dict(self):
+        return {
+            "device_type": self.device_type,
+            "device_id": self.device_id
+        }
+
+
+class DeviceFactory:
+    """设备信息工厂类"""
+
+    @staticmethod
+    def create_device(device_type, **kwargs):
+        if device_type == "NIC":
+            return NICInfo(**kwargs)
+        elif device_type == "NPU":
+            return NPUInfo(**kwargs)
+        elif device_type == "BUSI":
+            return BUSIInfo(**kwargs)
+        elif device_type == "UBCTRL":
+            return UBCTRLInfo(**kwargs)
+        else:
+            raise ValueError(f"Unknown device type: {device_type}")

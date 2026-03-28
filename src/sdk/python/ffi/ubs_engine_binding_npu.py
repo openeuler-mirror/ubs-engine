@@ -15,11 +15,11 @@ from _ctypes import POINTER
 from ctypes import create_string_buffer, c_ubyte, cast
 
 from ubse.models.ubs_engine_model_npu import UbsUbDevicesListT, UbsUbAllocDevicesInfoT, UBSE_UB_UPI_STR_SIZE, \
-    UBSE_UB_DEVICE_GUID_SIZE, UbsUbDevicesTypeT, UbsDeviceIdT, UbsBusinstanceId, NicAttrT, NpuAttrT, BusiAttrT
+    UBSE_UB_DEVICE_GUID_SIZE, UbsUbDevicesTypeT, UbsDeviceIdT, UbsBusinstanceId, NicAttrT, NpuAttrT, BusiAttrT, \
+    DeviceFactory
 from ubse.ffi.ubs_engine_exceptions import UbsError, UbsErrNullPointer, UbsEngineConnectionError, UbsEngineAuthError, \
     UbsEngineTimeoutError, UbsEngineInternalError
 from ubse.ffi.ubs_engine_binding_base import UbsEngineBindingBase
-from ubse.models.ubs_device_info import DeviceFactory
 
 
 class UbsEngineBindingNpu(UbsEngineBindingBase):
