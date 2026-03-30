@@ -1,4 +1,4 @@
-# !/usr/bin/python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
 # MatrixEngine is licensed under Mulan PSL v2.
@@ -9,23 +9,43 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from typing import List, Dict
+from typing import List, Tuple
 
 from ubse.ffi.ubs_engine_binding_npu import UbsEngineBindingNpu
+from ubse.models.ubs_engine_model_npu import DeviceInfo
 
 _npu_interface = UbsEngineBindingNpu()
 
 
-def get_host_ub_devices() -> List[Dict]:
+def get_host_ub_devices() -> List[DeviceInfo]:
+    """
+    获取主机上的UB设备列表
+    
+    Returns:
+        List[DeviceInfo]: 设备信息对象列表，包含NIC、NPU、BUSI、UBCTRL等设备
+    """
     return _npu_interface.ubs_device_list()
 
 
-def alloc_devices(upi_bytes, bus_guid_bytes, device_list):
+def alloc_devices(upi_bytes, bus_guid_bytes, device_list) -> Tuple[str, List[DeviceInfo]]:
+    """
+    分配UB设备
+    
+    Returns:
+        Tuple[str, List[DeviceInfo]]: (新的总线实例GUID, 分配的设备信息对象列表)
+    """
     return _npu_interface.ubs_device_alloc(upi_bytes, bus_guid_bytes, device_list)
 
 
 def free_devices(bus_instance_guid, device_list):
+    """
+    释放UB设备
+    """
     return _npu_interface.ubs_device_free(bus_instance_guid, device_list)
 
+
 def query_uba_tid_size(bus_instance_guid):
+    """
+    查询UBA TID大小
+    """
     return _npu_interface.ubs_query_uba_tid_size(bus_instance_guid)

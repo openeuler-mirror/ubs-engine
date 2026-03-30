@@ -10,9 +10,14 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import ctypes
+import logging
 
 from _ctypes import POINTER
 from ctypes import create_string_buffer, c_ubyte, cast
+
+# 设置日志记录器
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 from ubse.models.ubs_engine_model_npu import UbsUbDevicesListT, UbsUbAllocDevicesInfoT, UBSE_UB_UPI_STR_SIZE, \
     UBSE_UB_DEVICE_GUID_SIZE, UbsUbDevicesTypeT, UbsDeviceIdT, UbsBusinstanceId, NicAttrT, NpuAttrT, BusiAttrT, \
@@ -32,40 +37,51 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
     def ubs_device_list(self):
         """
         查询NPU设备列表
+        
+        Returns:
+            List[DeviceInfo]: 设备信息对象列表
         """
         if not self.lib_ubse:
             raise ConnectionError("Native library not loaded")
         try:
             # 调用设备列表查询函数
-            print("querying NPU list...")
+            logger.info("Querying NPU device list...")
             result, devlist = self._get_device_list()
             if not devlist:
-                print("npu ubse_devices list is null")
+                logger.debug("NPU device list is null")
 
             if result != 0:
                 raise RuntimeError("Querying device list failed.")
-            return self._convert_ubs_list_to_py_list(devlist)
+            return self._convert_ubs_list_to_device_list(devlist)
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error(f"Unexpected error in ubs_device_list: {ex}")
             raise
         finally:
             self._ubs_npu_device_list_free(devlist)
 
     def ubs_device_alloc(self, upi_bytes, bus_guid_bytes, device_list):
+        """
+        分配NPU设备
+        
+        Returns:
+            Tuple[str, List[DeviceInfo]]: (新的总线实例GUID, 设备信息对象列表)
+        """
         if not self.lib_ubse:
             raise ConnectionError("Native library not loaded")
         try:
-            # 调用设备列表查询函数
-            print("alloc NPU list...")
-            result, new_guid_bytes, devlist = self._allocate_npu_device(
+            # 调用设备分配函数
+            logger.info("Allocating NPU devices...")
+            result, new_guid_str, devlist = self._allocate_npu_device(
                 upi_bytes, bus_guid_bytes, device_list)
             if result != 0:
                 raise RuntimeError("Allocating devices failed.")
 
-            return new_guid_bytes, self._convert_ubs_list_to_py_list(devlist)
+            return new_guid_str, self._convert_ubs_list_to_device_list(devlist)
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error(f"Unexpected error in ubs_device_alloc: {ex}")
             raise
+        finally:
+            self._ubs_npu_device_list_free(devlist)
 
     def _prepare_alloc_info(self, bus_instance_guid, device_list, upi_str=None):
         """准备UbsUbAllocDevicesInfoT结构体
@@ -113,14 +129,14 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             if result != 0:
                 raise RuntimeError("Freeing NPU device failed.")
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error(f"Unexpected error in ubs_device_free: {ex}")
             raise
 
     def ubs_query_uba_tid_size(self, bus_instance_guid):
         if not self.lib_ubse:
             raise ConnectionError("Native library not loaded")
         try:
-            print(type(bus_instance_guid))
+            logger.debug(f"bus_instance_guid type: {type(bus_instance_guid)}")
             raw_bus_instance_guid = UbsBusinstanceId(bus_instance_guid).to_raw()
             tid = ctypes.c_uint32()
             uba = ctypes.c_uint32()
@@ -135,7 +151,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             return tid.value, uba.value, size.value
 
         except Exception as ex:
-            print(f"Unexpected error: {ex}")
+            logger.error(f"Unexpected error in ubs_query_uba_tid_size: {ex}")
             raise
 
     def _ubs_handle_npu_result(self, result: int, operation: str):
@@ -155,40 +171,33 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         if not self.lib_ubse:
             raise ConnectionError("Native library not loaded")
         self.lib_ubse.ubs_npu_device_list_free(ctypes.byref(devlist))
-        print("Successfully free NPU device list")
+        logger.debug("Successfully freed NPU device list")
 
     def _convert_ubs_list_to_py_list(self, devlist):
-        """将UBS设备列表转换为Python列表"""
+        """将UBS设备列表转换为Python字典列表"""
         reslist = []
 
         # 处理不同类型的设备
-        reslist.extend(self._process_nic_devices(devlist))
-        reslist.extend(self._process_npu_devices(devlist))
-        reslist.extend(self._process_busi_devices(devlist))
-        reslist.extend(self._process_ubctrl_devices(devlist))
+        reslist.extend(self._process_nic_devices(devlist, as_dict=True))
+        reslist.extend(self._process_npu_devices(devlist, as_dict=True))
+        reslist.extend(self._process_busi_devices(devlist, as_dict=True))
+        reslist.extend(self._process_ubctrl_devices(devlist, as_dict=True))
 
         return reslist
 
-    def _convert_device_type_and_id(self, devType, devId):
-        # 使用字典映射设备类型，替代多个if语句
-        DEVICE_TYPE_MAP = {
-            1: "BUSI",
-            2: "NPU",
-            3: "NIC",
-            4: "UBCTRL"
-        }
+    def _convert_ubs_list_to_device_list(self, devlist):
+        """将UBS设备列表转换为设备信息对象列表"""
+        reslist = []
 
-        device_type = DEVICE_TYPE_MAP.get(devType, "")
+        # 处理不同类型的设备
+        reslist.extend(self._process_nic_devices(devlist, as_dict=False))
+        reslist.extend(self._process_npu_devices(devlist, as_dict=False))
+        reslist.extend(self._process_busi_devices(devlist, as_dict=False))
+        reslist.extend(self._process_ubctrl_devices(devlist, as_dict=False))
 
-        # 构建设备ID字符串
-        if devType == 2:  # NPU设备没有index
-            device_id = f"{devId.slot_id}-{devId.chip_id}"
-        else:
-            device_id = f"{devId.slot_id}-{devId.chip_id}-{devId.index}"
+        return reslist
 
-        return device_type, device_id
-
-    def _process_nic_devices(self, devlist):
+    def _process_nic_devices(self, devlist, as_dict=True):
         """处理NIC设备列表"""
         nic_devices = []
         for i in range(devlist.nic_cnt):
@@ -204,11 +213,14 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
                 attr.affinity_devices_count
             )
 
-            nic_devices.append(device_info.to_dict())
+            if as_dict:
+                nic_devices.append(device_info.to_dict())
+            else:
+                nic_devices.append(device_info)
 
         return nic_devices
 
-    def _process_npu_devices(self, devlist):
+    def _process_npu_devices(self, devlist, as_dict=True):
         """处理NPU设备列表"""
         npu_devices = []
         for i in range(devlist.npu_cnt):
@@ -224,11 +236,14 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
                 attr.affinity_devices_count
             )
 
-            npu_devices.append(device_info.to_dict())
+            if as_dict:
+                npu_devices.append(device_info.to_dict())
+            else:
+                npu_devices.append(device_info)
 
         return npu_devices
 
-    def _process_busi_devices(self, devlist):
+    def _process_busi_devices(self, devlist, as_dict=True):
         """处理BUSI设备列表"""
         busi_devices = []
         for i in range(devlist.busi_cnt):
@@ -244,11 +259,14 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
                 attr.sub_devices_count
             )
 
-            busi_devices.append(device_info.to_dict())
+            if as_dict:
+                busi_devices.append(device_info.to_dict())
+            else:
+                busi_devices.append(device_info)
 
         return busi_devices
 
-    def _process_ubctrl_devices(self, devlist):
+    def _process_ubctrl_devices(self, devlist, as_dict=True):
         """处理UBCTRL设备列表"""
         ubctrl_devices = []
         for i in range(devlist.ubctrl_cnt):
@@ -258,7 +276,10 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             # 创建设备信息
             device_info = self._create_ubctrl_info(attr)
 
-            ubctrl_devices.append(device_info.to_dict())
+            if as_dict:
+                ubctrl_devices.append(device_info.to_dict())
+            else:
+                ubctrl_devices.append(device_info)
 
         return ubctrl_devices
 
@@ -272,9 +293,75 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         bus_ins_guid = self._get_guid_string(attr.bus_instance_guid)
         return guid_str, bus_ins_guid
 
+    def _get_device_id(self, dev_type, devId):
+        """根据设备类型和设备ID结构体构建设备ID字符串
+        
+        Args:
+            dev_type: 设备类型字符串，必须是 "BUSI", "NPU", "NIC", "UBCTRL" 之一
+            devId: 设备ID结构体
+        
+        Returns:
+            str: 设备ID字符串
+        
+        Raises:
+            ValueError: 如果设备类型不是字符串或不是合法值
+        """
+        # 验证设备类型是否为字符串
+        if not isinstance(dev_type, str):
+            raise ValueError(f"Device type must be a string, got {type(dev_type).__name__}")
+
+        # 验证设备类型是否为合法值
+        valid_device_types = {"BUSI", "NPU", "NIC", "UBCTRL"}
+        device_type = dev_type.upper()
+
+        if device_type not in valid_device_types:
+            raise ValueError(f"Invalid device type: {dev_type}. Must be one of {valid_device_types}")
+
+        # 直接判断是否是NPU设备来决定ID格式
+        if device_type == "NPU":
+            return f"{devId.slot_id}-{devId.chip_id}"
+        else:
+            return f"{devId.slot_id}-{devId.chip_id}-{devId.index}"
+
+    def _convert_device_type_and_id(self, dev_type_num, devId):
+        """根据设备类型和设备ID结构体转换为设备类型字符串和设备ID字符串
+        
+        Args:
+            dev_type_num: 设备类型数字(1-4)
+            devId: 设备ID结构体
+        
+        Returns:
+            tuple: (device_type, device_id)
+        
+        Raises:
+            ValueError: 如果设备类型不是合法值
+        """
+        # 设备类型映射字典
+        DEVICE_TYPE_MAP = {
+            1: "BUSI",
+            2: "NPU",
+            3: "NIC",
+            4: "UBCTRL"
+        }
+
+        # 验证设备类型是否为合法值
+        if dev_type_num not in DEVICE_TYPE_MAP:
+            raise ValueError(
+                f"Invalid device type number: {dev_type_num}. Must be one of {set(DEVICE_TYPE_MAP.keys())}")
+
+        device_type = DEVICE_TYPE_MAP[dev_type_num]
+
+        # 构建设备ID字符串
+        if device_type == "NPU":
+            device_id = f"{devId.slot_id}-{devId.chip_id}"
+        else:
+            device_id = f"{devId.slot_id}-{devId.chip_id}-{devId.index}"
+
+        return device_type, device_id
+
     def _create_nic_info(self, attr):
         """创建NIC设备信息"""
-        _device_type, _device_id = self._convert_device_type_and_id(3, attr.device_id)
+        _device_id = self._get_device_id("NIC", attr.device_id)
         guid_str, bus_ins_guid = self._get_guid_and_bus_instance(attr)
 
         return DeviceFactory.create_device(
@@ -286,7 +373,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
 
     def _create_npu_info(self, attr):
         """创建NPU设备信息"""
-        _device_type, _device_id = self._convert_device_type_and_id(2, attr.device_id)
+        _device_id = self._get_device_id("NPU", attr.device_id)
         guid_str, bus_ins_guid = self._get_guid_and_bus_instance(attr)
 
         return DeviceFactory.create_device(
@@ -307,7 +394,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
 
     def _create_ubctrl_info(self, attr):
         """创建UBCTRL设备信息"""
-        _device_type, _device_id = self._convert_device_type_and_id(4, attr.device_id)
+        _device_id = self._get_device_id("UBCTRL", attr.device_id)
 
         return DeviceFactory.create_device(
             "UBCTRL",
@@ -322,14 +409,19 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
                 ctypes.sizeof(UbsUbDevicesTypeT) * j,
                 POINTER(UbsUbDevicesTypeT)
             )
-            _device_type, _device_id = self._convert_device_type_and_id(
-                affinity_device_ptr.contents.device_type,
-                affinity_device_ptr.contents.device_id
-            )
-            device_info.affinity_devs.append({
-                "device_type": _device_type,
-                "device_id": _device_id
-            })
+
+            try:
+                _device_type, _device_id = self._convert_device_type_and_id(
+                    affinity_device_ptr.contents.device_type,
+                    affinity_device_ptr.contents.device_id
+                )
+                device_info.affinity_devs.append({
+                    "device_type": _device_type,
+                    "device_id": _device_id
+                })
+            except ValueError:
+                # 忽略无效的设备类型
+                continue
 
     def _add_sub_devices(self, device_info, attr, offset, count):
         """添加子设备信息"""
@@ -339,14 +431,19 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
                 ctypes.sizeof(UbsUbDevicesTypeT) * j,
                 POINTER(UbsUbDevicesTypeT)
             )
-            _device_type, _device_id = self._convert_device_type_and_id(
-                sub_device_ptr.contents.device_type,
-                sub_device_ptr.contents.device_id
-            )
-            device_info.sub_devices.append({
-                "device_type": _device_type,
-                "device_id": _device_id
-            })
+
+            try:
+                _device_type, _device_id = self._convert_device_type_and_id(
+                    sub_device_ptr.contents.device_type,
+                    sub_device_ptr.contents.device_id
+                )
+                device_info.sub_devices.append({
+                    "device_type": _device_type,
+                    "device_id": _device_id
+                })
+            except ValueError:
+                # 忽略无效的设备类型
+                continue
 
     def _get_device_list(self):
         """
@@ -365,7 +462,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             ctypes.byref(devlist)
         )
         if not devlist:
-            print("npu ubse_devices is null")
+            logger.debug("NPU ubse_devices is null")
 
         return result, devlist
 
@@ -417,8 +514,8 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         )
 
         # 将输出转换为Python类型
-        new_guid_bytes = UbsBusinstanceId().from_raw(self._get_guid_string(new_bus_instance_guid))
-        return result, new_guid_bytes, devList
+        new_guid_str = UbsBusinstanceId().from_raw(self._get_guid_string(new_bus_instance_guid))
+        return result, new_guid_str, devList
 
     def _setup_npu_functions(self):
         """设置相关原型"""
