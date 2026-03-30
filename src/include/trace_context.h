@@ -80,15 +80,11 @@ private:
         // 优先使用 libuuid
         if (uuidGenerateRandomFunc_ != nullptr &&
             uuidUnparseFunc_ != nullptr) {
-
             uuid_t uuid;
             char buf[TRACE_ID_SIZE] = {0};
-
             uuidGenerateRandomFunc_(uuid);
             uuidUnparseFunc_(uuid, buf);
-
             buf[TRACE_ID_SIZE - 1] = '\0';
-
             errno_t ret = strcpy_s(tls_traceId, TRACE_ID_SIZE, buf);
             if (ret != EOK) {
                 tls_traceId[0] = '\0';
