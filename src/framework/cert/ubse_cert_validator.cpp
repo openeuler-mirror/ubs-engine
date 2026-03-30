@@ -247,7 +247,7 @@ bool UbseSslValidator::ValidateAll()
 
 bool UbseSslValidator::ConfigureClientCrlValidation(SSL_CTX *ctx)
 {
-    if (access(UbseSSLConfig::CrlFile, F_OK) != 0) {
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::CrlFile)) {
         UBSE_LOG_WARN << "CRL file not found, skipping CRL validation.";
         return true;
     }
@@ -258,8 +258,7 @@ bool UbseSslValidator::ConfigureClientCrlValidation(SSL_CTX *ctx)
     }
     FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
     if (!fp) {
-        UBSE_LOG_ERROR << "Failed to open CRL file: " << UbseSSLConfig::CrlFile << "at" << UbseSSLConfig::CrlFile
-                       << ", errorCode: " << strerror(errno);
+        UBSE_LOG_ERROR << "Failed to open CRL file: " << UbseSSLConfig::CrlFile << "at" << UbseSSLConfig::CrlFile;
         return false;
     }
     ERR_clear_error();

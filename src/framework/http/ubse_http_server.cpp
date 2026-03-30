@@ -11,7 +11,7 @@
  */
 #include "ubse_http_server.h"
 
-#include <errno.h>
+#include <cerrno>
 #include <grp.h>
 #include <securec.h>
 #include <openssl/pem.h>

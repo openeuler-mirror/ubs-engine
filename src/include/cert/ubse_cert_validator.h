@@ -13,13 +13,7 @@
 #ifndef UBS_ENGINE_UBSE_SSL_VALIDATOR_H
 #define UBS_ENGINE_UBSE_SSL_VALIDATOR_H
 
-#include <sys/stat.h>
-#include <unistd.h>
-#include <openssl/bio.h>
 #include <openssl/err.h>
-#include <openssl/pem.h>
-#include <openssl/x509.h>
-
 #include "src/framework/misc/ubse_secure_buffer.h"
 namespace ubse::cert {
 class UbseSslValidator {
@@ -41,11 +35,11 @@ public:
 
     /**
      * @brief 客户端配置吊销列表，用于校验服务的证书是否可信
-     * 
+     *
      * @param ctx http client端的ssl ctx
      * @return 客户端配置吊销列表是否成功
      */
-     static bool ConfigureClientCrlValidation(SSL_CTX *ctx);
+    static bool ConfigureClientCrlValidation(SSL_CTX *ctx);
 
 private:
     static X509 *LoadAndValidateCert(const char *path, const char *name);
