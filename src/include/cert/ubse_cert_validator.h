@@ -34,12 +34,12 @@ public:
     static utils::SecureBuffer LoadPasswordFromFile(const char *path);
 
     /**
-     * @brief 客户端配置吊销列表，用于校验服务的证书是否可信
+     * @brief 配置吊销列表，用于校验证书是否可信
      *
-     * @param ctx http client端的ssl ctx
-     * @return 客户端配置吊销列表是否成功
+     * @param ctx SSL上下文
+     * @return 配置吊销列表是否成功
      */
-    static bool ConfigureClientCrlValidation(SSL_CTX *ctx);
+    static bool ConfigureCrlValidation(SSL_CTX *ctx);
 
 private:
     static X509 *LoadAndValidateCert(const char *path, const char *name);

@@ -154,7 +154,7 @@ bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpR
     cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
     cli.set_path_encode(false);
     SSL_CTX *ctx = cli.ssl_context();
-    if (ctx && !cert::UbseSslValidator::ConfigureClientCrlValidation(ctx)) {
+    if (ctx && !cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
         UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
         return false;
     }
@@ -162,7 +162,7 @@ bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpR
     return true;
 }
 
-bool UbseHttpModule::UdsSend(httplib::Request &httpReq, httplib::Response &httpRsp, httplib::Error &error)
+void UbseHttpModule::UdsSend(httplib::Request &httpReq, httplib::Response &httpRsp, httplib::Error &error)
 {
     // UBFM UDS服务地址为 UBFM_UDS_ADDRESS
     httplib::Client cli(UBM_UDS_ADDRESS);

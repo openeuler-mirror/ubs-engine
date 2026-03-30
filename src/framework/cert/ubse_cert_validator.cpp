@@ -245,7 +245,7 @@ bool UbseSslValidator::ValidateAll()
     return true;
 }
 
-bool UbseSslValidator::ConfigureClientCrlValidation(SSL_CTX *ctx)
+bool UbseSslValidator::ConfigureCrlValidation(SSL_CTX *ctx)
 {
     if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::CrlFile)) {
         UBSE_LOG_WARN << "CRL file not found, skipping CRL validation.";

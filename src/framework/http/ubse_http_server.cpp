@@ -264,6 +264,11 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
         return nullptr;
     }
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+    // 配置证书吊销列表（CRL）验证
+    if (!cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
+        UBSE_LOG_ERROR << "Failed to configure CRL validation for server";
+        return nullptr;
+    }
     sslServer->new_task_queue = []() -> httplib::ThreadPool* {
         return new httplib::ThreadPool(NO_1, NO_8);
     };
