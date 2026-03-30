@@ -30,7 +30,7 @@ using namespace ubse::utils;
 DYNAMIC_CREATE(UbseMemControllerModule, UbseMmiModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-const uint32_t CYCLE_CHECK_TIME_MS = 300000;
+const uint32_t CYCLE_CHECK_TIME_S = 300;
 static std::atomic<bool> g_startCheckDecoderHandle{false};
 
 void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &allHandleValues,
@@ -139,7 +139,7 @@ UbseResult UbseMemControllerModule::Initialize()
             }
             return CycleCheckDecoderHandle();
         },
-        CYCLE_CHECK_TIME_MS);
+        CYCLE_CHECK_TIME_S);
     return UBSE_OK;
 }
 
