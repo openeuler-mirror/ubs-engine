@@ -304,9 +304,7 @@ UbseResult AgentInvalidateImportDebt(const std::string &name,
         UBSE_LOG_ERROR << "InvalidateImportDebt failed, " << FormatRetCode(ret);
         return ret;
     }
-    mapLock.LockWrite();
-    nodeMemDebtInfoMap[curNode.nodeId] = debtInfo;
-    mapLock.UnLock();
+    UbseMemDebtLedger::GetInstance().LoadFromNodeMemDebtInfo(curNode.nodeId, debtInfo);
     return ret;
 }
 
