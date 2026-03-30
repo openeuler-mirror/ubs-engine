@@ -11,9 +11,12 @@
  */
 
 #include "ubse_urma_controller.h"
+#include <cstdint>
+#include <string>
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
@@ -255,37 +258,75 @@ UbseResult UrmaController::UbseTopoLinkChangeHandler([[maybe_unused]] std::strin
     return UBSE_OK;
 }
 
-UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId)
+void SetUrmaInfoState(const std::string &urmaDevEid, bool isActive, const std::string &nodeId)
+{
+    if (isActive) {
+        UbseUrmaControllerManager::GetInstance().SetActiveState(urmaDevEid, nodeId);
+    } else {
+        UbseUrmaControllerManager::GetInstance().SetInactiveState(urmaDevEid, nodeId);
+    }
+}
+
+std::string GetUrmaDevEidByUrmaName(const std::string &nodeId, const std::string &urmaName)
+{
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
+    auto it = nodeInfo.urmaList.find(urmaName);
+    if (it == nodeInfo.urmaList.end()) {
+        UBSE_LOG_WARN << "Failed to find urma info by urmaName=" << urmaName;
+        return "";
+    }
+    return it->second.urmaDevEid;
+}
+
+UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::string &urmaName)
 {
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to query all ports status, ret=" << ret;
         return ret;
     }
+    bool isQueryOneUrma = !urmaName.empty();
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
-        UBSE_LOG_INFO << "All ports are down, set all URMA info to inactive";
-        UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(nodeId);
+        UBSE_LOG_INFO << "All ports are down, set URMA info to inactive";
+        if (isQueryOneUrma) {
+            if (auto urmaDevEid = GetUrmaDevEidByUrmaName(nodeId, urmaName); !urmaDevEid.empty()) {
+                SetUrmaInfoState(urmaDevEid, false, nodeId);
+                return UBSE_OK;
+            }
+            return UBSE_ERR_NOT_EXIST;
+        } else {
+            UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(nodeId);
+        }
         return UBSE_OK;
     }
     auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
     if (urmaModule == nullptr) {
-        UBSE_LOG_WARN << "Getting UrmaModule failed.";
+        UBSE_LOG_WARN << "Getting UrmaModule failed";
         return UBSE_ERROR_NULLPTR;
     }
     auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
+    // 查询指定urma的状态，如果为空则查询所有urma
+    if (isQueryOneUrma) {
+        if (auto urmaDevEid = GetUrmaDevEidByUrmaName(nodeId, urmaName); !urmaDevEid.empty()) {
+            bool isUrmaActive = false;
+            if (UbseGetBondingActiveStateByEid(urmaDevEid, isUrmaActive) != UBSE_OK) {
+                UBSE_LOG_WARN << "Failed to get urma state by urmaEid=" << urmaDevEid;
+                return UBSE_ERROR;
+            }
+            UBSE_LOG_INFO << "urma name=" << urmaName << ", isActive=" << static_cast<int>(isUrmaActive);
+            SetUrmaInfoState(urmaDevEid, isUrmaActive, nodeId);
+            return UBSE_OK;
+        }
+        return UBSE_ERR_NOT_EXIST;
+    }
     for (auto &urmaInfo : nodeInfo.urmaList) {
         auto urmaEid = urmaInfo.second.urmaDevEid;
         bool isUrmaActive = false;
         if (UbseGetBondingActiveStateByEid(urmaEid, isUrmaActive) != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to get urma state by urmaEid=" << urmaEid;
             continue;
         }
-        if (isUrmaActive) {
-            UbseUrmaControllerManager::GetInstance().SetActiveState(urmaEid, nodeId);
-        } else {
-            UbseUrmaControllerManager::GetInstance().SetInactiveState(urmaEid, nodeId);
-        }
+        SetUrmaInfoState(urmaEid, isUrmaActive, nodeId);
     }
     return UBSE_OK;
 }

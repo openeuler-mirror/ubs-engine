@@ -62,7 +62,14 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
                                         const std::vector<PhysicalLink> &allLinkInfo,
                                         const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
 UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId);
-UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId);
+
+/**
+ * @brief 查询指定urma的状态，如果为空则查询所有urma，查询后设置urmaInfo状态
+ * @param nodeId: 节点ID
+ * @param urmaName: urma name，为空时查询所有urma
+ * @return 成功返回0, 失败返回非0
+ */
+UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::string &urmaName = "");
 UbseResult QueryAllPortsDown(bool &isAllPortDown);
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H
