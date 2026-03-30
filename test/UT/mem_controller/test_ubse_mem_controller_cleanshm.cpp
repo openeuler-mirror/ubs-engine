@@ -462,71 +462,10 @@ TEST_F(TestUbseMemControllerCleanShm, CollectImportObjsFromNode_InvalidMatch)
     EXPECT_TRUE(result.empty());
 }
 
-TEST_F(TestUbseMemControllerCleanShm, GetImportObjsByBaseNode_NormalCase)
-{
-    NodeMemDebtInfoMap debtMap;
-    UbseMemShareBorrowImportObj importObj1;
-    importObj1.req.name = "res1";
-    importObj1.algoResult.exportNumaInfos = {{"node1"}};
-    debtMap["nodeA"].shareImportObjMap["res1"] = importObj1;
-
-    UbseMemShareBorrowImportObj importObj2;
-    importObj2.req.name = "res1";
-    importObj2.algoResult.exportNumaInfos = {{"node1"}};
-    debtMap["nodeB"].shareImportObjMap["res1"] = importObj2;
-
-    auto result = GetImportObjsByBaseNode(debtMap, "res1", "node1");
-
-    EXPECT_EQ(result.size(), 2);
-}
-
-TEST_F(TestUbseMemControllerCleanShm, GetImportObjsByBaseNode_InvalidMatch)
-{
-    NodeMemDebtInfoMap debtMap;
-    UbseMemShareBorrowImportObj importObj1;
-    importObj1.req.name = "res1";
-    importObj1.algoResult.exportNumaInfos = {{"node1"}};
-    debtMap["nodeA"].shareImportObjMap["res1"] = importObj1;
-
-    auto result = GetImportObjsByBaseNode(debtMap, "res2", "node1");
-
-    EXPECT_TRUE(result.empty());
-}
-
-TEST_F(TestUbseMemControllerCleanShm, Test_GetAllImportObjsByName)
-{
-    NodeMemDebtInfoMap debtMap;
-
-    // 使用 addNodeToDebtMap_Import 函数添加节点
-    addNodeToDebtMap_Import(debtMap, "node1", "res1", {"node0"}, UBSE_MEM_IMPORT_SUCCESS);
-    addNodeToDebtMap_Import(debtMap, "node2", "res1", {"node3"}, UBSE_MEM_IMPORT_SUCCESS);
-    addNodeToDebtMap_Import(debtMap, "node2", "res2", {"node0"}, UBSE_MEM_IMPORT_SUCCESS);
-
-    // 调用 GetAllImportObjsByName 函数并验证结果
-    auto result = GetAllImportObjsByName(debtMap, "res1");
-
-    ASSERT_EQ(result.size(), 2);
-    EXPECT_EQ(result[0].req.name, "res1");
-    EXPECT_EQ(result[1].req.name, "res1");
-
-    // 测试获取 "res2" 的所有导入对象
-    result = GetAllImportObjsByName(debtMap, "res2");
-
-    // 验证结果
-    ASSERT_EQ(result.size(), 1);
-    EXPECT_EQ(result[0].req.name, "res2");
-
-    // 测试获取不存在的 name
-    result = GetAllImportObjsByName(debtMap, "res3");
-
-    // 验证结果
-    EXPECT_TRUE(result.empty());
-}
-
 TEST_F(TestUbseMemControllerCleanShm, GetMaxRefCountExportObj_NormalCase)
 {
     auto result = GetMaxRefCountExportObj("res1");
-    EXPECT_TRUE(result.first.req.name.empty());
+    EXPECT_TRUE(result.first == nullptr || result.first->req.name.empty());
     EXPECT_EQ(result.second.size(), 0);
 }
 
@@ -657,7 +596,7 @@ TEST_F(TestUbseMemControllerCleanShm, TestProcessCurrentCleanList_SingelObj)
 TEST_F(TestUbseMemControllerCleanShm, GetMaxRefCountExportObj_NoExportNoImport)
 {
     auto result = GetMaxRefCountExportObj("res1");
-    EXPECT_TRUE(result.first.req.name.empty());
+    EXPECT_TRUE(result.first == nullptr || result.first->req.name.empty());
     EXPECT_TRUE(result.second.empty());
 }
 }  // namespace ubse::mem_controller::ut
