@@ -34,7 +34,7 @@ UbseResult SysSentryModule::Initialize()
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    return taskExecutor->Create(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME, NO_1, NO_128);
+    return taskExecutor->Create(UBSE_RAS_TASK_NAME, NO_1, NO_128);
 }
 
 void SysSentryModule::UnInitialize()
@@ -44,11 +44,13 @@ void SysSentryModule::UnInitialize()
         UBSE_LOG_WARN << "TaskExecutorModule is null";
         return;
     }
-    taskExecutor->Remove(UBSE_RAS_CONFIG_SYSSENTRY_TASK_NAME);
+    taskExecutor->Remove(UBSE_RAS_TASK_NAME);
 }
 
 UbseResult SysSentryModule::Start()
 {
+    // 注册定时器，每隔一段时间调用sentryctl命令查询sentry_msg_monitor 运行状态
+    UbseRasObserver::GetInstance().RegQueryMsgMonitorTimer();
     UbseRasObserver::GetInstance().UbseConfigSysSentryWithRetry(); // 不校验返回值，sysSentry未就绪时不影响ubse其它功能
     auto ret = UbseRasObserver::GetInstance().Start();
     if (ret != UBSE_OK) {

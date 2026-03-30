@@ -193,6 +193,9 @@ uint32_t mempooling::outinterface::UBSRMRSMemBorrowExecute(
     const vector<mempooling::outinterface::DestMemoryBorrowParam> &outDestParam,
     mempooling::outinterface::MemBorrowExecuteResult &outBorrowExecuteResult)
 {
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] Start to process memory "
+                                                        "borrow request.";
+
     if (outSrcParam.srcNid != MpConfiguration::GetInstance().GetNodeId()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] SrcNodeId param invalid.";
         return MEM_POOLING_ERROR;

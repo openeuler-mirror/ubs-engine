@@ -5,9 +5,14 @@
 #include "ubse_mem_controller_ledger.h"
 
 #include <ubse_node.h>
+#include <cstdint>
+#include <string>
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 
+#include "ubse_common_def.h"
+#include "ubse_error.h"
+#include "ubse_mem_controller.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_debt_info.h"
 
@@ -22,6 +27,7 @@
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_scheduler.h"
 #include "ubse_mem_util.h"
+#include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
 
 namespace ubse::mem::controller {
@@ -169,6 +175,149 @@ NodeMemDebtInfo GetMasterCtxLedger(const std::string &nodeId)
     return {};
 }
 
+template <typename ImportObj, typename ExportObjMap>
+UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const ExportObjMap &exportObjMap,
+                                        const std::string &name, const std::string &nodeId,
+                                        UbseMemBorrowType borrowType)
+{
+    auto ret = UBSE_OK;
+    std::string exportDebtName = name + "_" + nodeId;
+    if (exportObjMap.find(exportDebtName) != exportObjMap.end()) {
+        return ret;
+    }
+
+    bool isValid = true;
+    for (const auto &decoderval : importObj.status.decoderResult) {
+        if (!decoderval.valid) {
+            isValid = false;
+            break;
+        }
+    }
+    
+    if (!isValid) {
+        int retry = 10;
+        UBSE_LOG_INFO << "Start to invalidate import debt, name=" << name
+                      << ", importNodeId=" << nodeId
+                      << ", borrowType=" << int(borrowType);
+        while (retry > 0) {
+            retry--;
+            ret = SendInvalidateSingleImportDebtRpc(nodeId, name, borrowType);
+            if (ret == UBSE_OK) {
+                break;
+            }
+        }
+    }
+    return ret;
+}
+
+UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
+                                        const std::string &targetNodeId)
+{
+    auto ret = UBSE_OK;
+    
+    auto processDebt = [&allDebtInfoMap, &ret, &targetNodeId](const auto& importMap,
+                                                             const auto& getExportMap,
+                                                             const auto& getImportNode,
+                                                             UbseMemBorrowType borrowType) {
+        for (const auto &[name, importObj] : importMap) {
+            if (importObj.algoResult.exportNumaInfos.empty()) {
+                UBSE_LOG_ERROR << "exportNumaInfos is empty, skip debt: " << name;
+                continue;
+            }
+            
+            std::string importNode = getImportNode(importObj);
+            std::string exportNode = importObj.algoResult.exportNumaInfos[0].nodeId;
+            if (allDebtInfoMap.find(exportNode) == allDebtInfoMap.end()) {
+                continue;
+            }
+            if (importNode != targetNodeId && exportNode != targetNodeId) {
+                continue;
+            }
+            
+            ret |= MasterHandleSingleDebtHelper(importObj, getExportMap(allDebtInfoMap.at(exportNode)),
+                                                name, importNode, borrowType);
+        }
+    };
+
+    for (const auto &[_, debtInfo] : allDebtInfoMap) {
+        processDebt(debtInfo.fdImportObjMap,
+                    [](const auto& exportDebtInfo) { return exportDebtInfo.fdExportObjMap; },
+                    [](const auto& importObj) { return importObj.req.importNodeId; },
+                    UbseMemBorrowType::FD_BORROW);
+        
+        processDebt(debtInfo.numaImportObjMap,
+                    [](const auto& exportDebtInfo) { return exportDebtInfo.numaExportObjMap; },
+                    [](const auto& importObj) { return importObj.req.importNodeId; },
+                    UbseMemBorrowType::NUMA_BORROW);
+        processDebt(debtInfo.addrImportObjMap,
+                    [](const auto& exportDebtInfo) { return exportDebtInfo.addrExportObjMap; },
+                    [](const auto& importObj) { return importObj.req.importNodeId; },
+                    UbseMemBorrowType::ADDR_BORROW);
+        
+        processDebt(debtInfo.shareImportObjMap,
+                    [](const auto& exportDebtInfo) { return exportDebtInfo.shareExportObjMap; },
+                    [](const auto& importObj) { return importObj.importNodeId; },
+                    UbseMemBorrowType::SHM_BORROW);
+    }
+    
+    return ret;
+}
+
+template <typename ImportObjMap>
+UbseResult AgentInvalidateImportDebtHelper(ImportObjMap &importObjMap,
+                                           const std::string &name)
+{
+    if (importObjMap.find(name) == importObjMap.end()) {
+        UBSE_LOG_INFO << "ImportObjMap not found name=" << name;
+        return UBSE_OK;
+    }
+    auto& debtObj = importObjMap.at(name);
+    uint8_t decoderId = 0;
+    if constexpr (std::is_same_v<decltype(debtObj), UbseMemShareBorrowImportObj&>) {
+        decoderId = debtObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
+    }
+
+    auto ret = AgentInvalidateDecoderEntry(debtObj.algoResult.attachSocketId, debtObj.status, decoderId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    return ret;
+}
+
+UbseResult AgentInvalidateImportDebt(const std::string &name,
+                                     UbseMemBorrowType type)
+{
+    auto agentDebtInfo = GetNodeMemDebtInfoMap();
+    ubse::nodeController::UbseNodeInfo curNode = UbseNodeController::GetInstance().GetCurNode();
+    auto &debtInfo = agentDebtInfo.at(curNode.nodeId);
+    uint32_t ret = UBSE_ERROR;
+    switch (type) {
+        case UbseMemBorrowType::FD_BORROW:
+            ret = AgentInvalidateImportDebtHelper(debtInfo.fdImportObjMap, name);
+            break;
+        case UbseMemBorrowType::NUMA_BORROW:
+            ret = AgentInvalidateImportDebtHelper(debtInfo.numaImportObjMap, name);
+            break;
+        case UbseMemBorrowType::ADDR_BORROW:
+            ret = AgentInvalidateImportDebtHelper(debtInfo.addrImportObjMap, name);
+            break;
+        case UbseMemBorrowType::SHM_BORROW:
+            ret = AgentInvalidateImportDebtHelper(debtInfo.shareImportObjMap, name);
+            break;
+        default:
+            break;
+    }
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "InvalidateImportDebt failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    mapLock.LockWrite();
+    nodeMemDebtInfoMap[curNode.nodeId] = debtInfo;
+    mapLock.UnLock();
+    return ret;
+}
+
 UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
 {
     if (node.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
@@ -192,6 +341,8 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
     ret |= NumaBorrowLedger(node.nodeId, masterDebtInfo, agentDebtInfo, allDebtInfoMap);
     ret |= AddrBorrowLedger(node.nodeId, masterDebtInfo, agentDebtInfo, allDebtInfoMap);
     ret |= ShmBorrowLedger(node.nodeId, masterDebtInfo, agentDebtInfo);
+    allDebtInfoMap[currentNodeId] = GetMasterCtxLedger(currentNodeId);
+    ret |= MasterHandleSingleImportDebt(allDebtInfoMap, nodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " ledger failed, " << FormatRetCode(ret);
     } else {

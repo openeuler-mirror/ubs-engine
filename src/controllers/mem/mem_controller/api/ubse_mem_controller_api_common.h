@@ -13,6 +13,7 @@
 #ifndef UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H
 #define UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H
 
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -203,6 +204,8 @@ uint32_t ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePai
 
 void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair, UbseMemImportStatus &status,
                                uint8_t decoderId);
+
+uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus &status, uint8_t decoderId);
 
 uint32_t SetMarIdByLinkInfo(std::string &importNodeId, std::string &exportNodeId,
                             const std::pair<uint32_t, uint32_t> &chipDiePair,

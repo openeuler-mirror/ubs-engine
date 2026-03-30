@@ -33,6 +33,16 @@ public:
         resp_ = input;
     }
 
+    void SetResult(uint32_t input)
+    {
+        result_ = input;
+    }
+
+    uint32_t GetResult()
+    {
+        return result_;
+    }
+
     UbseMemResult GetResp()
     {
         return resp_;
@@ -44,6 +54,7 @@ public:
 
 private:
     UbseMemResult resp_;
+    uint32_t result_;
 };
 
 using UbseMemOptResultSimpoPtr = Ref<UbseMemOptResultSimpo>;
