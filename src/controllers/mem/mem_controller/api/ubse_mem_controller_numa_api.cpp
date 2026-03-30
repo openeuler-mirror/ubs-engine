@@ -1156,14 +1156,14 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, waitResult,
                            MemAdvice::NODE_IN_MAITENANCE);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,
-                                          MemOperationType::NUMA_RETURN);
+                                   MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }
     if (!FindBorrowObjects(req, importObj, exportObj, status.hasImport, status.hasExport)) {
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource not found.", UBSE_ERR_NOT_EXIST,
-                                          MemOperationType::NUMA_RETURN);
+                                   MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }
     UbseMemStage memStage = GetMemStageByImportObjState(importObj, status.hasImport);
@@ -1176,7 +1176,7 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, ret,
                            MemAdvice::RESOURCE_OPERATION_CONFLICT);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned", ret,
-                                          MemOperationType::NUMA_RETURN);
+                                   MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }
     return UBSE_OK;
