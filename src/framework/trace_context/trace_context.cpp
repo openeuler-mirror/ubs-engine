@@ -1,10 +1,11 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+
 #include "trace_context.h"
 #include <dlfcn.h>
-#include <chrono>
-#include <thread>
+#include <cstdlib>
 
 thread_local char tls_traceId[TRACE_ID_SIZE] = {'\0'};
+
 void *TraceContext::uuidLib_ = nullptr;
 bool TraceContext::IsEnable_ = false;
 UuidGenerateRandom TraceContext::uuidGenerateRandomFunc_ = nullptr;
@@ -40,7 +41,7 @@ uint32_t TraceContext::InitUuid()
             return;
         }
         IsEnable_ = true;
-        // 注册退出清理
+        // 注册进程退出清理
         atexit(CleanupUuidLib);
     });
     return IsEnable_ ? 0 : 1;
