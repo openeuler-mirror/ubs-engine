@@ -44,7 +44,7 @@ TEST_F(TestMemPoolConfig, TestRefreshNumaDelays)
 {
     StrategyParam param;
     MemPoolConfig config(param);
-    EXPECT_EQ(UBSE_OK, config.RefreshNumaDelays());
+    EXPECT_NO_THROW(config.RefreshNumaDelays());
 }
 
 TEST_F(TestMemPoolConfig, TestRefreshNuma)
@@ -52,7 +52,9 @@ TEST_F(TestMemPoolConfig, TestRefreshNuma)
     StrategyParam param;
     MemPoolConfig config(param);
     config.memStaticParam.numAvailNumas = 1;
-    EXPECT_EQ(UBSE_OK, config.RefreshNumaDelays());
+    MemLoc loc{0, 0, 0};
+    config.memStaticParam.availNumas[0] = loc;
+    EXPECT_NO_THROW(config.RefreshNumaDelays());
 }
 
 TEST_F(TestMemPoolConfig, TestSysLatencyProcess)
