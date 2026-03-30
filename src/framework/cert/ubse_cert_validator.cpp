@@ -258,7 +258,7 @@ bool UbseSslValidator::ConfigureClientCrlValidation(SSL_CTX *ctx)
     }
     FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
     if (!fp) {
-        UBSE_LOG_ERROR << "Failed to open CRL file: " << UbseSSLConfig::CrlFile << "at" << UbseSSLConfig::CrlFile;
+        UBSE_LOG_ERROR << "Failed to open CRL file: " << UbseSSLConfig::CrlFile;
         return false;
     }
     ERR_clear_error();
@@ -271,7 +271,7 @@ bool UbseSslValidator::ConfigureClientCrlValidation(SSL_CTX *ctx)
     }
     if (X509_STORE_add_crl(store, crl) != 1) {
         int errorCode = ERR_get_error();
-        UBSE_LOG_ERROR << "Failed to add CRL to certificate store at << " << UbseSSLConfig::CrlFile
+        UBSE_LOG_ERROR << "Failed to add CRL to certificate store at path: " << UbseSSLConfig::CrlFile
                        << ", sslErrorCode: " << errorCode;
         X509_CRL_free(crl);
         return false;
