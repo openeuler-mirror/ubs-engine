@@ -13,6 +13,7 @@
 #include "test_borrow_decision_maker.h"
 
 #include <mockcpp/mockcpp.hpp>
+#include <set>
 #include "share_decision_maker.h"
 #include "ubse_pointer_process.h"
 
@@ -70,6 +71,14 @@ StrategyParam GetDefaultParam(int numHosts)
         meshLoc.x = i % 4;
         meshLoc.y = static_cast<int8_t>(i / 4);
         param.hostMeshLocs[i] = meshLoc;
+    }
+    std::set<int16_t> neighborNodes{};
+    for (int i = 0; i < numHosts; i++) {
+        neighborNodes.insert(i);
+    }
+    for (int i = 0; i < numHosts; i++) {
+        param.neighborNodes[i] = neighborNodes;
+        param.neighborNodes[i].erase(i);
     }
     param.maxMemSizePerBorrow = 4 * 1024;
     param.watermarkGrain = WatermarkGrain::HOST_WATERMARK;
@@ -730,9 +739,6 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
         ave_host1 += freeRatio_host1[i] / 16;
     }
     double cost_host1 = 0;
-    for (int i = 0; i < 16; i++) {
-        cost_host1 += std::abs(freeRatio_host1[i] - ave_host1) / 16;
-    }
     double freeRatio_host4[16]{1100.0 / 2800 - 1.0 / 2800,
                                1012.0 / 2800,
                                1108.0 / 2800,
@@ -754,9 +760,6 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
         ave_host4 += freeRatio_host4[i] / 16;
     }
     double cost_host4 = 0;
-    for (int i = 0; i < 16; i++) {
-        cost_host4 += std::abs(freeRatio_host4[i] - ave_host4) / 16;
-    }
     double freeRatio_host6[16]{1100.0 / 2800,
                                1012.0 / 2800,
                                1108.0 / 2800 - 1.0 / 2800,
@@ -778,9 +781,6 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
         ave_host6 += freeRatio_host6[i] / 16;
     }
     double cost_host6 = 0;
-    for (int i = 0; i < 16; i++) {
-        cost_host6 += std::abs(freeRatio_host6[i] - ave_host6) / 16;
-    }
     double freeRatio_host7[16]{1100.0 / 2800,
                                1012.0 / 2800,
                                1108.0 / 2800,
@@ -802,9 +802,6 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
         ave_host7 += freeRatio_host7[i] / 16;
     }
     double cost_host7 = 0;
-    for (int i = 0; i < 16; i++) {
-        cost_host7 += std::abs(freeRatio_host7[i] - ave_host7) / 16;
-    }
     double freeRatio_host9[16]{1100.0 / 2800,
                                1012.0 / 2800 - 1.0 / 2800,
                                1108.0 / 2800,
@@ -826,9 +823,6 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
         ave_host9 += freeRatio_host9[i] / 16;
     }
     double cost_host9 = 0;
-    for (int i = 0; i < 16; i++) {
-        cost_host9 += std::abs(freeRatio_host9[i] - ave_host9) / 16;
-    }
 
     for (int i = 0; i < 32; i++) {
         if (i <= 1 || (i >= 4 && i <= 7) || (i >= 16 && i <= 17) || (i >= 20 && i <= 25) || (i >= 28 && i <= 31) ||
@@ -993,9 +987,6 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase5)
         ave += freeRatio[i] / 16;
     }
     double cost = 0;
-    for (int i = 0; i < 16; i++) {
-        cost += std::abs(freeRatio[i] - ave) / 16;
-    }
 
     for (int i = 0; i < 32; i++) {
         if (i <= 25 || (i >= 28 && i <= 31)) {
