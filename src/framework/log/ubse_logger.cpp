@@ -59,10 +59,10 @@ static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
     // 格式化时区部分，自动获取系统时区
     strftime(tzBuffer, sizeof(tzBuffer), "%z", &localTime);
     uint64_t milliseconds = (timestamp % 1000000) / 1000;
-    constexpr int MILLISECOND_WIDTH = 3;
+    constexpr int millisecondWidth = 3;
     // 输出 时间戳 + 自动获取的时区
     oss << '[' << dateTimeBuffer
-        << std::setw(MILLISECOND_WIDTH) << std::setfill('0') << milliseconds
+        << std::setw(millisecondWidth) << std::setfill('0') << milliseconds
         << tzBuffer << ']';
 }
 
