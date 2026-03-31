@@ -31,7 +31,6 @@
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
-#include "ubse_election.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -49,7 +48,7 @@ const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
 const uint32_t BYTE_TO_BIT = 8;
 
-std::mutex g_invokeUrmaMutex; 
+std::mutex g_invokeUrmaMutex;
 std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup)
 {
     if (eidGroup.feInfo) {
@@ -289,7 +288,18 @@ std::string GetUrmaDevEidByUrmaName(const std::string &urmaName)
 UbseResult QueryUdmaDevHealth(const std::string &feEid)
 {
     std::string dummyName;
-    return UbseGetUrmaSubpathByEid(feEid, dummyName);
+    return UbseGetUrmaSubpathByEid(feEid, dummyName) && !dummyName.empty();
+}
+
+bool IsUrmaBondingActivated(const std::string &urmaName)
+{
+    UbseUrmaInfo urmaInfo;
+    auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
+    if (ret != UBSE_OK || urmaInfo.subPath.empty()) {
+        UBSE_LOG_WARN << "Failed to find urma info by urmaName=" << urmaName;
+        return false;
+    }
+    return true;
 }
 
 UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::string &urmaName)
@@ -329,7 +339,7 @@ UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::stri
                 return UBSE_ERROR;
             }
             UBSE_LOG_INFO << "urma name=" << urmaName << ", isActive=" << static_cast<int>(isUrmaActive);
-            SetUrmaInfoState(urmaDevEid, isUrmaActive, nodeId);
+            SetUrmaInfoState(urmaDevEid, isUrmaActive && IsUrmaBondingActivated(urmaName), nodeId);
             return UBSE_OK;
         }
         return UBSE_ERR_NOT_EXIST;
@@ -340,7 +350,7 @@ UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::stri
         if (UbseGetBondingActiveStateByEid(urmaEid, isUrmaActive) != UBSE_OK) {
             continue;
         }
-        SetUrmaInfoState(urmaEid, isUrmaActive, nodeId);
+        SetUrmaInfoState(urmaEid, isUrmaActive && IsUrmaBondingActivated(urmaInfo.first), nodeId);
     }
     return UBSE_OK;
 }
@@ -486,7 +496,10 @@ UbseResult UrmaController::UbseAllocUrmaDev(const std::string &urmaName, UbseUrm
         UBSE_LOG_ERROR << "Failed to get current node info";
         return UBSE_ERROR;
     }
-    if (QueryUrmaInfoStateFromUrma(currentNodeInfo.nodeId, urmaName) != UBSE_OK) {
+    (void)QueryUrmaInfoStateFromUrma(currentNodeInfo.nodeId, urmaName);
+    UbseUrmaInfo urmaInfo;
+    auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
+    if (ret != UBSE_OK || urmaInfo.state != UrmaDevState::ACTIVED || urmaInfo.subPath.empty()) {
         UBSE_LOG_WARN << "Failed to query urma info state from urma, nodeId=" << currentNodeInfo.nodeId
                       << ", urmaName=" << urmaName << ", try to activate it";
         if (ActivateSpecifyUrmaBonding(urmaName) != UBSE_OK) {
