@@ -4,6 +4,7 @@
 
 #include "ubse_node_controller_util.h"
 #include <optional>
+#include <unordered_map>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "securec.h"
 #include "ubse_conf_module.h"
@@ -75,20 +76,25 @@ bool UbseNodeControllerLockMgr::TryReadLock(const std::string &nodeId)
     return GetLock(nodeId)->try_lock_shared();
 }
 
+static std::string g_allocator = "init";
+
 UbseAllocator GetAllocator()
 {
-    std::string val;
-    auto ret = GetUbseConf("obmm", "mempool_allocator", val);
-    if (ret != UBSE_OK) {
-        return UbseAllocator::BUDDY_HIGHMEM;
+    std::unordered_map<std::string, UbseAllocator> allocatorMap = {
+        {"hugetlb_pmd", UbseAllocator::HUGETLB_PMD},
+        {"hugetlb_pud", UbseAllocator::HUGETLB_PUD},
+        {"buddy_highmem", UbseAllocator::BUDDY_HIGHMEM},
+    };
+
+    if (g_allocator != "init") {
+        return allocatorMap[g_allocator];
     }
-    if (val == "hugetlb_pmd") {
-        return UbseAllocator::HUGETLB_PMD;
+    auto ret = GetUbseConf("obmm", "mempool_allocator", g_allocator);
+    if (ret != UBSE_OK || allocatorMap.find(g_allocator) == allocatorMap.end()) {
+        g_allocator = "buddy_highmem";
+        UBSE_LOG_WARN << "Get allocator failed, Use default allocator " << g_allocator;
     }
-    if (val == "hugetlb_pud") {
-        return UbseAllocator::HUGETLB_PUD;
-    }
-    return UbseAllocator::BUDDY_HIGHMEM;
+    return allocatorMap[g_allocator];
 }
 
 uint32_t GetPmdMapping()
@@ -125,6 +131,7 @@ uint32_t GetBlockSize(UbseAllocator allocator)
     }
     if (allocator == UbseAllocator::HUGETLB_PUD) {
         blockSize = BLOCK_1G;
+        UBSE_LOG_WARN << "Use default block size " << blockSize << " for HUGETLB_PUD allocator";
         return blockSize;
     }
     std::string osPageSize;
@@ -141,6 +148,7 @@ uint32_t GetBlockSize(UbseAllocator allocator)
         UBSE_LOG_WARN << "Get os page_size type is invalid, Use default value 4096";
         blockSize = BLOCK_128M;
     }
+    UBSE_LOG_WARN << "Use default block size " << blockSize << " for BUDDY_HIGHMEM or HUGETLB_PMD allocator";
     return blockSize;
 }
 

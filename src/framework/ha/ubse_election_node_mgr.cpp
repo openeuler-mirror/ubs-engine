@@ -178,8 +178,9 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
     GetUBEnable(ubEnable);
     const uint16_t port = TCP_LISTEN_PORT;
     std::unique_lock<std::shared_mutex> lock(mtx_);
-    currentAllNodes_.clear();
     if (ubEnable) {
+        currentAllNodes_.clear();
+        nodeIpMap_.clear();
         std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
         if (ubseNodeInfos.empty()) {
             UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
@@ -196,7 +197,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
                 nodeIpMap_.emplace(tempNode.ip, node.nodeId);
             }
         }
-    } else {
+    } else if (!ubEnable && currentAllNodes_.empty()) {
         std::vector<std::string> ipList{};
         adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterIpList(ipList);
         for (const auto &ip : ipList) {

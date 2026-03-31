@@ -619,6 +619,10 @@ uint32_t UbseMemApi::UbseCliShmAttachDispatch(const UbseIpcMessage &buffer, cons
     std::string name;
     auto ret = DeserializeAndValidateName(buffer, name);
     if (ret != UBSE_OK) {
+        ubse::election::UbseRoleInfo currentNodeInfo;
+        auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
+        BorrowFailedAdvice("Import failed", name, "SHARE_BORROW", 0, "", currentNodeInfo.nodeId, ret,
+                           MemAdvice::CHECK_FAILED);
         return ret;
     }
 
@@ -656,6 +660,10 @@ uint32_t UbseMemApi::UbseCliShmCreateDispatch(const UbseIpcMessage &buffer, cons
     UbseMemShareBorrowReq req{};
     auto ret = BuildMemShareCreateReq(buffer, context, req);
     if (ret != UBSE_OK) {
+        ubse::election::UbseRoleInfo currentNodeInfo;
+        auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
+        BorrowFailedAdvice("Export failed", req.name, "SHARE_BORROW", req.size, "", "", ret,
+                           MemAdvice::CHECK_FAILED);
         return ret;
     }
 
@@ -834,8 +842,8 @@ uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage &buffer, const Ub
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        UBSE_LOG_ERROR << BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "",
-                                             currentNodeInfo.nodeId, ret, MemAdvice::CHECK_FAILED);
+        BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "", currentNodeInfo.nodeId, ret,
+                           MemAdvice::CHECK_FAILED);
         return ret;
     }
 
@@ -872,6 +880,10 @@ uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage &buffer, const Ubse
     UbseMemFdBorrowReq req{};
     auto ret = FillFdInfoToCreateReq(buffer, context, req);
     if (ret != UBSE_OK) {
+        ubse::election::UbseRoleInfo currentNodeInfo;
+        auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
+        BorrowFailedAdvice("Import failed", req.name, "WATER_BORROW", req.size, "", currentNodeInfo.nodeId, ret,
+                           MemAdvice::CHECK_FAILED);
         return ret;
     }
 

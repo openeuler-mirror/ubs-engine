@@ -9,10 +9,6 @@ find_library(LIBBOUNDCHECK_SHARED_LIBRARY
         PATHS /usr/lib64 /usr/lib
         NO_DEFAULT_PATH
 )
-
-# -----------------------------
-# 验证是否找到
-# -----------------------------
 if(NOT LIBBOUNDCHECK_INCLUDE_DIR OR NOT LIBBOUNDCHECK_SHARED_LIBRARY)
     message(FATAL_ERROR
             "libboundscheck not found! Please install the RPM package:\n"

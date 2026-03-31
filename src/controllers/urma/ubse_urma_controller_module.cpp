@@ -15,6 +15,7 @@
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_event.h"
+#include "ubse_logger.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_thread_pool_module.h"
@@ -32,6 +33,8 @@ using namespace ubse::common::def;
 using namespace ubse::nodeController;
 
 std::atomic<uint32_t> g_asyncHandlerCnt{0};
+std::set<std::string> g_RegTimerNames;
+std::mutex g_RegTimerNamesMtx;
 
 DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -187,14 +190,31 @@ void UbseUrmaControllerModule::Stop()
     }
     DisconnectAllNormalLink();
     while (g_asyncHandlerCnt != 0) {
-        UBSE_LOG_DEBUG << "There are async operation, wait to stop";
+        UBSE_LOG_INFO << "There are async operation, wait to stop";
         sleep(1);
     }
+    std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
+    for (const auto &timerName : g_RegTimerNames) {
+        UBSE_LOG_INFO << "Unregister timer=" << timerName;
+        ubse::timer::UbseTimerHandlerUnregister(timerName);
+    }
+    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get task executor module";
+        return;
+    }
+    taskExecutor->Remove("UrmaExecutor");
     return;
 }
 
 UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task)
 {
+    AsyncHandlerGuard cntGuard;
+    if (g_globalStop) {
+        UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
+        ubse::timer::UbseTimerHandlerUnregister(timerName);
+        return UBSE_OK;
+    }
     auto ret = task();
     if (ret == UBSE_OK) {
         UBSE_LOG_INFO << "Do timer task success, timer name=" << timerName;
@@ -203,6 +223,7 @@ UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTa
     }
     UBSE_LOG_WARN << "Do timer task failed, timer name=" << timerName << ", retry later";
     if (g_globalStop) {
+        UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
         ubse::timer::UbseTimerHandlerUnregister(timerName);
     }
     return ret;
@@ -212,14 +233,31 @@ UbseResult HandleTaskWithRetry(const std::string &executorName, const std::strin
                                UbseUrmaRetryTaskHandler task)
 {
     UBSE_LOG_INFO << "HandleTaskWithRetry start, taskName=" << taskName;
+    AsyncHandlerGuard cntGuard;
+    if (g_globalStop) {
+        UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
+        return UBSE_OK;
+    }
     if (task() == UBSE_OK) {
         UBSE_LOG_INFO << "Do task success, taskName=" << taskName;
         return UBSE_OK;
     }
+    std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
+    if (g_globalStop) {
+        UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
+        return UBSE_OK;
+    }
+    g_RegTimerNames.insert(taskName);
     UBSE_LOG_WARN << "Do task failed, taskName=" << taskName << ", retry later";
     auto ret = ubse::timer::UbseTimerHandlerRegister(
         taskName,
         [executorName, taskName, task]() {
+            AsyncHandlerGuard cntGuard;
+            if (g_globalStop) {
+                UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
+                ubse::timer::UbseTimerHandlerUnregister(taskName);
+                return UBSE_OK;
+            }
             auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
             if (taskExecutor == nullptr) {
                 UBSE_LOG_ERROR << "Get task executor failed";

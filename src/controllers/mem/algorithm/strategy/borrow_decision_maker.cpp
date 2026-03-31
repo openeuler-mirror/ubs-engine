@@ -145,7 +145,7 @@ BResult BorrowDecisionMaker::GetSocketBorrowCost(const BorrowRequest &borrowRequ
         } else {
             if (memConfig_->memStaticParam.lenderNumaMode == LenderNumaMode::BALANCE) {
                 targetSockets[i] =
-                    MemPoolStrategyImpl::TargetSocket2NumaByReliable(requestLoc, numaList, sysStatus, requestSize);
+                    mStrategyImpl_->TargetSocket2NumaByReliable(requestLoc, numaList, sysStatus, requestSize);
             } else {
                 targetSockets[i] = MemPoolStrategyImpl::TargetSocket2Numa(numaList, requestSize);
             }
@@ -260,9 +260,9 @@ BResult BorrowDecisionMaker::SelectTopKBorrow(const BorrowRequest &borrowRequest
 
     for (int i = 0; i < numCost; i++) {
         UBSE_LOG_INFO << "Index host/socket cost: " << costIndex[i] << "\t\t"
-                       << memConfig_->memAvailSockets[costIndex[i]].hostId << "/"
-                       << static_cast<int>(memConfig_->memAvailSockets[costIndex[i]].socketId) << "\t\t"
-                       << socketCost[costIndex[i]];
+                      << memConfig_->memAvailSockets[costIndex[i]].hostId << "/"
+                      << static_cast<int>(memConfig_->memAvailSockets[costIndex[i]].socketId) << "\t\t"
+                      << socketCost[costIndex[i]];
     }
     UBSE_LOG_INFO << "Get " << numCost << " available sockets.";
 
@@ -273,9 +273,9 @@ BResult BorrowDecisionMaker::SingleMemBorrow(const BorrowRequest &borrowRequest,
                                              BorrowResult &borrowResult)
 {
     UBSE_LOG_INFO << "RequestLoc, requestSize, urgentLevel: " << borrowRequest.requestLoc.hostId << "/"
-                   << static_cast<int>(borrowRequest.requestLoc.socketId) << "/"
-                   << static_cast<int>(borrowRequest.requestLoc.numaId) << ", " << borrowRequest.requestSize << "M"
-                   << ", LEVEL" << static_cast<int>(borrowRequest.urgentLevel);
+                  << static_cast<int>(borrowRequest.requestLoc.socketId) << "/"
+                  << static_cast<int>(borrowRequest.requestLoc.numaId) << ", " << borrowRequest.requestSize << "M"
+                  << ", LEVEL" << static_cast<int>(borrowRequest.urgentLevel);
 
     // 初始化所有numa, socket, host状态
     mStrategyImpl_->InitSysStatus(ubseStatus);

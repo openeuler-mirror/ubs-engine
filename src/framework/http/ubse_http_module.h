@@ -43,6 +43,8 @@ public:
 
 private:
     static UbseResult MakeError(uint32_t code);
+    static bool TcpSend(httplib::Request &req, httplib::Response &rsp, httplib::Error &error);
+    static void UdsSend(httplib::Request &req, httplib::Response &rsp, httplib::Error &error);
     static bool isTcpServer;
     static int port;
 };

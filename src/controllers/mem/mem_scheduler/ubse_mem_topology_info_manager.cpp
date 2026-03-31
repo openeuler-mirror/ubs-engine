@@ -821,16 +821,8 @@ bool UbseMemTopologyInfoManager::TransferTopoToCoordinate(tc::rs::mem::StrategyP
         UBSE_LOG_ERROR << "Transfer topo to neighbor set failed.";
         return false;
     }
-
-    for (auto &meshLoc : strategyParam.hostMeshLocs) {
-        meshLoc = tc::rs::mem::MeshLoc();
-    }
-
-    auto ret = GenerateCoordinate(neighborNodes, strategyParam, nodeIndexList);
-    if (!ret) {
-        UBSE_LOG_ERROR << "Generate coordinate failed.";
-    }
-    return ret;
+    strategyParam.neighborNodes = neighborNodes;
+    return true;
 }
 
 static bool GetNodeIdAndSocketIdFromNodeSocketString(const std::string &nodeSocketStr, std::string &nodeId,

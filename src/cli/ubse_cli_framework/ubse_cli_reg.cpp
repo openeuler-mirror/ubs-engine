@@ -12,6 +12,7 @@
 
 #include "ubse_cli_reg.h"
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <iomanip>
 #include "ubse_cli_whitelist.h"

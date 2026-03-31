@@ -38,6 +38,7 @@ UBS Engine
 %package client-libs
 Summary: UBSE client shared library for third-party integration
 Provides: %{lib_name}.so.%{lib_soversion}
+Requires: libboundscheck, libstdc++
 Obsoletes: %{name}-client-libs < %{version}-%{release}
 Provides: %{name}-client-libs = %{version}-%{release}
 
@@ -104,7 +105,7 @@ else
     echo "Warning: ubse user does not exist, skip group addition" >&2
 fi
 
-%define project_dir %{name}
+%define project_dir %{name}-%{version}
 %define cmake_build_dir cmake-build-relwithdebinfo
 
 %define log_dir /var/log/ubse
@@ -199,7 +200,6 @@ fi
 
 %build
 cd %{_builddir}/%{project_dir}/
-bash build.sh 3rdparty
 bash build.sh -T RelWithDebInfo
 %py3_build
 
@@ -218,9 +218,6 @@ mkdir -p %{buildroot}/etc/ubse/plugins
 
 mkdir -p %{buildroot}/etc/bash_completion.d/
 cp -f %{_builddir}/%{project_dir}/scripts/command_completion/cli_commands.sh %{buildroot}/etc/bash_completion.d/
-
-mkdir -p %{buildroot}/usr/share/ubse
-cp -f %{_builddir}/%{project_dir}/%{cmake_build_dir}/VERSION %{buildroot}/usr/share/ubse/
 
 mkdir -p %{buildroot}/usr/lib64
 
@@ -256,6 +253,7 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libmempooling.so %{buildro
 cp %{_builddir}/%{project_dir}/src/addons/rmrs/conf/plugin_mempooling.conf %{buildroot}/etc/ubse/plugins/
 mkdir -p %{buildroot}/usr/local/mempooling/include/mempooling/
 cp %{_builddir}/%{project_dir}/src/addons/rmrs/interface/mempooling_interface.h %{buildroot}/usr/local/mempooling/include/mempooling/
+
 
 #install python-sdk
 %py3_install
@@ -340,7 +338,7 @@ create_user
 if getent group %{ubm_group} > /dev/null; then
     sudo usermod -aG %{ubm_group} %{system_user}
 else
-    exit 1
+    echo "[WARN] Group '%{ubm_group}' does not exist. Skipping usermod for '%{system_user}'."
 fi
 
 
@@ -354,10 +352,9 @@ systemctl daemon-reload
 ensure_directory_owner "%{log_dir}" true
 ensure_directory_owner "%{data_dir}" true
 ensure_directory_owner "%{data_dir}/data" true
-ensure_directory_owner "%{data_dir}/sync" true
 ensure_directory_owner "%{cert_dir}" true
 ensure_directory_owner "%{socket_dir}" true
-chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data" "%{data_dir}/sync"
+chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data"
 chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
 if [ "$ENABLE_AI" = "true" ]; then
@@ -385,9 +382,6 @@ if systemctl list-units --type=service | grep -q %{service_name}; then
     systemctl reset-failed %{service_name} || true
 fi
 restore_udev_rule
-if [ -L /usr/local/softbus/ctrlbus/lib/librack_com.so ]; then
-    rm -f /usr/local/softbus/ctrlbus/lib/librack_com.so || true
-fi
 
 
 %postun
@@ -401,7 +395,6 @@ systemctl daemon-reload
 remove_directory %{log_dir}
 remove_directory %{cert_dir}
 remove_directory %{socket_dir}
-remove_directory %{data_dir}/sync
 
 deleted_semaphore
 if id "%{system_user}" &>/dev/null; then
@@ -423,8 +416,6 @@ fi
 %dir /etc/ubse/plugins
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
-%defattr(644,root,root,-)
-/usr/share/ubse/VERSION
 
 %files client-libs
 %defattr(755,root,root,-)

@@ -11,7 +11,7 @@
  */
 
 #include "ubse_ipc_log.h"
-
+#include <sys/time.h>
 #include <array>
 #include <csignal>
 #include <iomanip>

@@ -138,6 +138,7 @@ enum class UbseMemRespCtrlOpCode {
     UBSE_MEM_FD_PERMISSION = 0x0014,          // FD权限
     UBSE_MEM_FD_BORROW_IMPORT_OBJ_FOR_PERMISSION_CALLBACK = 0x0015, // FD借用导入对象权限回调
     UBSE_MEM_GET_OPT_RES = 0x0016,            // 获取操作结果
+    UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT = 0x0017, // 无效单个导入账本
 };
 
 // UBSE内存查询操作码

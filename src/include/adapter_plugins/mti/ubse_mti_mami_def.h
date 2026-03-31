@@ -90,6 +90,7 @@ struct UbseMamiMemImportResult {
     uint64_t hpa;    // HPA起始地址
     uint64_t handle; // 内存handle, handle值用于标识分配的PA范围和decoder表项，删除decoder表项时需要传入相应的handle。
     uint64_t staticHandle; // 使用的静态表项handle，为0则表示非预引入的handle
+    bool valid; // 是否有效
 };
 
 /* 查询所有handle */
