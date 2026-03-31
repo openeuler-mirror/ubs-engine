@@ -48,39 +48,28 @@ static std::thread::id GetThreadId()
 
 static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
 {
-    constexpr std::time_t HOUR_IN_SECONDS = 60 * 60;
-    constexpr std::time_t MINUTE_IN_SECONDS = 60;
-    constexpr int DATE_TIME_BUFFER_SIZE = 32;
-    constexpr int TZ_BUFFER_SIZE = 9;
-    constexpr int RAW_TZ_BUFFER_SIZE = 8;
-    constexpr int STANDARD_TZ_LENGTH = 5;  // 标准时区格式长度，如"+0800"
-    constexpr int TZ_SIGN_POSITION = 3;    // 时区符号位置
-    constexpr int TZ_HOUR_WIDTH = 2;       // 时区小时部分宽度
-    constexpr int TZ_MINUTE_WIDTH = 2;     // 时区分钟部分宽度
-    constexpr int MILLISECOND_WIDTH = 3;   // 毫秒部分宽度
-
-    std::time_t timet = static_cast<std::time_t>(timestamp / 1000000);
-    std::tm localTime;
-    // 获取本地时间
+    constexpr int dateTimeBufferSize = 32;
+    constexpr int rawTzBufferSize = 8;
+    constexpr int standardTzLength = 5;   // "+0800"
+    constexpr int tzSignPosition = 3;     // "+08"
+    constexpr int tzMinuteWidth = 2;
+    constexpr uint64_t microsecondsPerSecond = 1000000;
+    constexpr uint64_t microsecondsPerMillisecond = 1000;
+    constexpr int millisecondWidth = 3;
+    std::time_t timet = static_cast<std::time_t>(timestamp / microsecondsPerSecond);
+    std::tm localTime {};
     localtime_r(&timet, &localTime);
-    char dateTimeBuffer[DATE_TIME_BUFFER_SIZE];
-    char tzBuffer[TZ_BUFFER_SIZE];
-    // 格式化日期和时间部分
+    char dateTimeBuffer[dateTimeBufferSize] = {0};
+    char rawTzBuffer[rawTzBufferSize] = {0};
     strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime);
-    // 格式化时区部分，使用%z获取时区偏移
-    char rawTzBuffer[RAW_TZ_BUFFER_SIZE];
     strftime(rawTzBuffer, sizeof(rawTzBuffer), "%z", &localTime);
-    // 处理时区格式，添加冒号
     std::string tzStr(rawTzBuffer);
-    if (tzStr.length() == STANDARD_TZ_LENGTH) { // 格式为+0800或-0500
-        tzStr = tzStr.substr(0, TZ_SIGN_POSITION) + ":" +
-                tzStr.substr(TZ_SIGN_POSITION, TZ_HOUR_WIDTH);
+    if (tzStr.length() == standardTzLength) {
+        tzStr = tzStr.substr(0, tzSignPosition) + ":" + tzStr.substr(tzSignPosition, tzMinuteWidth);
     }
-    uint64_t milliseconds = (timestamp % 1000000) / 1000;
-    // 输出 时间戳 + 带冒号的时区
-    oss << '[' << dateTimeBuffer
-        << std::setw(MILLISECOND_WIDTH) << std::setfill('0') << milliseconds
-        << tzStr << ']';
+    uint64_t milliseconds =
+        (timestamp % microsecondsPerSecond) / microsecondsPerMillisecond;
+    oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzStr << ']';
 }
 
 static const char *LogLevelToString(UbseLogLevel level)
