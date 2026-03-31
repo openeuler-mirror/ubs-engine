@@ -49,6 +49,7 @@ const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
 const uint32_t BYTE_TO_BIT = 8;
 
+std::mutex g_invokeUrmaMutex; 
 std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup)
 {
     if (eidGroup.feInfo) {
@@ -667,8 +668,8 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
         UBSE_LOG_ERROR << "Getting UrmaModule failed.";
         return UBSE_ERROR;
     }
-    static std::mutex setUvsInfoMutex; // 加锁避免多线程下发造成竞态条件
-    std::lock_guard<std::mutex> lock(setUvsInfoMutex);
+    // 加锁避免多线程下发造成竞态条件
+    std::lock_guard<std::mutex> lock(g_invokeUrmaMutex);
     std::string nodeId = current_slot_id;
     return UbsePushTopoAndBondingToUvs(nodeId, allLinkInfo, bondingInfo);
 }
@@ -732,6 +733,7 @@ UbseResult UrmaController::ActivateSpecifyUrmaBonding(const std::string &urmaNam
         return ret;
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
+    std::lock_guard<std::mutex> lock(g_invokeUrmaMutex);
     bool isActivated = UbseActiveBonding(urmaInfo.urmaDevEid) == UBSE_OK;
     SetUrmaInfoState(urmaInfo.urmaDevEid, isActivated, curNode.nodeId);
     if (!isActivated) {

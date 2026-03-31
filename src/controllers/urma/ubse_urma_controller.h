@@ -59,9 +59,6 @@ private:
     UbseResult DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
     UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &urmaInfo);
-
-private:
-    std::atomic<bool> receiveAllocFlag{false}; // 记录ubse启动以来是否接收到alloc调用，保证alloc sdk接口调用后，才激活urma设备
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
