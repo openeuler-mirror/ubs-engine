@@ -48,13 +48,22 @@ static std::thread::id GetThreadId()
 
 static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
 {
-    std::time_t timet = static_cast<std::time_t>(timestamp / 1000000) + 8 * 60 * 60; // 时区8小时为8*60*60秒
-    std::tm time;
-    gmtime_r(&timet, &time);
-    char buffer[32]; // 设置缓冲区大小为32
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d %T.", &time);
-    uint64_t milliseconds = (timestamp % 1000000) / 1000; // timestamp % 1000000提取时间戳微秒部分
-    oss << '[' << buffer << std::setw(3) << std::setfill('0') << milliseconds << "+08:00]"; // 毫秒格式化3位
+    std::time_t timet = static_cast<std::time_t>(timestamp / 1000000);
+    std::tm local_time;
+    // 获取本地时间
+    localtime_r(&timet, &local_time);
+    char date_time_buffer[32];
+    char tz_buffer[8];
+    // 格式化日期和时间部分
+    strftime(date_time_buffer, sizeof(date_time_buffer), "%Y-%m-%d %T.", &local_time);
+    // 格式化时区部分，自动获取系统时区
+    strftime(tz_buffer, sizeof(tz_buffer), "%z", &local_time);
+    uint64_t milliseconds = (timestamp % 1000000) / 1000;
+    // 输出 时间戳 + 自动获取的时区
+    oss << '[' << date_time_buffer
+        << std::setw(3) << std::setfill('0') << milliseconds
+        << tz_buffer
+        << ']';
 }
 
 static const char *LogLevelToString(UbseLogLevel level)
