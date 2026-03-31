@@ -49,21 +49,21 @@ static std::thread::id GetThreadId()
 static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
 {
     std::time_t timet = static_cast<std::time_t>(timestamp / 1000000);
-    std::tm local_time;
+    std::tm localTime;
     // 获取本地时间
-    localtime_r(&timet, &local_time);
-    char date_time_buffer[32];
-    char tz_buffer[8];
+    localtime_r(&timet, &localTime);
+    char dateTimeBuffer[32];
+    char tzBuffer[8];
     // 格式化日期和时间部分
-    strftime(date_time_buffer, sizeof(date_time_buffer), "%Y-%m-%d %T.", &local_time);
+    strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime);
     // 格式化时区部分，自动获取系统时区
-    strftime(tz_buffer, sizeof(tz_buffer), "%z", &local_time);
+    strftime(tzBuffer, sizeof(tzBuffer), "%z", &localTime);
     uint64_t milliseconds = (timestamp % 1000000) / 1000;
+    constexpr int MILLISECOND_WIDTH = 3;
     // 输出 时间戳 + 自动获取的时区
-    oss << '[' << date_time_buffer
-        << std::setw(3) << std::setfill('0') << milliseconds
-        << tz_buffer
-        << ']';
+    oss << '[' << dateTimeBuffer
+        << std::setw(MILLISECOND_WIDTH) << std::setfill('0') << milliseconds
+        << tzBuffer << ']';
 }
 
 static const char *LogLevelToString(UbseLogLevel level)
