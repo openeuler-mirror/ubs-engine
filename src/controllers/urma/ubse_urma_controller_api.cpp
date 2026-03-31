@@ -375,20 +375,20 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
 
 uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
-    UrmaController::GetInstance().SetReceiveAllocFlag(true);
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
     UbseDeSerialization out{req.buffer, req.length};
     std::string nodeId;
+    std::string urmaName;
 
-    out >> nodeId;
+    out >> nodeId >> urmaName;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaCliDevActivate deserialiazation fail";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    uint32_t ret = UrmaController::GetInstance().UbseUrmaCliDevActivate(nodeId);
+    uint32_t ret = UrmaController::GetInstance().UbseUrmaCliDevActivate(nodeId, urmaName);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaCliDevActivate failed," << FormatRetCode(ret);
         return ret;
@@ -448,7 +448,6 @@ UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
 
 uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
-    UrmaController::GetInstance().SetReceiveAllocFlag(true);
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Alloc IPC request info is null.";
         return UBSE_ERROR_NULLPTR;

@@ -14,14 +14,12 @@
 #include <cstdint>
 #include "securec.h"
 #include "src/controllers/node/ubse_node_com_urma_collector.h"
+#include "ubse_context.h"
 #include "ubse_election.h"
-#include "ubse_lcne_module.h"
-#include "ubse_logger_module.h"
-#include "ubse_node_controller.h"
+#include "ubse_logger.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_uvs_module.h"
-#include "ubse_context.h"
 
 namespace ubse::urmaController {
 using namespace ubse::election;
@@ -102,7 +100,6 @@ UbseResult UbseUrmaControllerManager::AllocByUrmaName(const std::string &urmaNam
         UBSE_LOG_ERROR << "Failed to get current node info";
         return UBSE_ERROR;
     }
-    (void)QueryUrmaInfoStateFromUrma(currentNodeInfo.nodeId, urmaName);
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
@@ -387,9 +384,9 @@ void UbseUrmaControllerManager::PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo)
     UBSE_LOG_DEBUG << "URMA List:";
     for (const auto &urma : nodeInfo.urmaList) {
         UBSE_LOG_DEBUG << "  URMA Name=" << urma.first << ", URMA Sub Path=" << urma.second.subPath
-                      << ", URMA Dev EID=" << urma.second.urmaDevEid
-                      << ", URMA Dev Type=" << static_cast<int>(urma.second.urmaDevType)
-                      << ", URMA State=" << static_cast<int>(urma.second.state);
+                       << ", URMA Dev EID=" << urma.second.urmaDevEid
+                       << ", URMA Dev Type=" << static_cast<int>(urma.second.urmaDevType)
+                       << ", URMA State=" << static_cast<int>(urma.second.state);
     }
 }
 

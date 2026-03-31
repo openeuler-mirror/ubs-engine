@@ -353,12 +353,28 @@ public:
         return nodeId;
     }
 
+    inline void SetUrmaName(const std::string &name)
+    {
+        urmaName = name;
+    }
+
+    inline void SetUrmaName(std::string &&name)
+    {
+        urmaName = std::move(name);
+    }
+
+    inline std::string GetUrmaName() const
+    {
+        return urmaName;
+    }
+
     UbseResult Serialize() override;
 
     UbseResult Deserialize() override;
 
 private:
     std::string nodeId;
+    std::string urmaName;
 };
 using UbseUrmaActivateUrmaInfoReqSimpoPtr = Ref<UbseUrmaActivateUrmaInfoReqSimpo>;
 

@@ -40,17 +40,17 @@ public:
     // For SDK
     UbseResult UbseGetLocalUrmaDevInfo(std::vector<std::string> &nameInfo, std::vector<uint32_t> &status,
                                        std::vector<uint64_t> &hwResIds);
-    UbseResult UbseAllocUrmaDev(const std::string name, UbseUrmaDevPath &devPaths);
+    UbseResult UbseAllocUrmaDev(const std::string &name, UbseUrmaDevPath &devPaths);
     UbseResult UbseFreeUrmaDev(const std::string name);
 
     UbseResult UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &devInfos);
-    UbseResult UbseUrmaCliDevActivate(const std::string &nodeId);
+    UbseResult UbseUrmaCliDevActivate(const std::string &nodeId, const std::string &urmaName);
 
     static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMessage);
     static UbseResult UbseNodeJoinHandler(std::string &eventId, const std::string &eventMessage);
 
-    void SetReceiveAllocFlag(bool flag) { receiveAllocFlag.store(flag); }
-    bool GetReceiveAllocFlag() { return receiveAllocFlag.load(); }
+    void RecoverUrmaDeviceForOneNode(const std::string &nodeId, std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
+    UbseResult ActivateSpecifyUrmaBonding(const std::string &urmaName);
 
 private:
     UbseResult DoNodeJoin(const std::string &joinNodeId);
@@ -68,8 +68,6 @@ std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
                                         const std::vector<PhysicalLink> &allLinkInfo,
                                         const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
-UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId, bool skipActivate = false);
-
 /**
  * @brief 查询指定urma的状态，如果为空则查询所有urma，查询后设置urmaInfo状态
  * @param nodeId: 节点ID
