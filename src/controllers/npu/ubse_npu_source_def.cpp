@@ -17,13 +17,9 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> StringToArrayForGuid(const std::string &str)
 {
-    std::string newStr{};
-    if (str.size() > UBSE_UB_DEVICE_GUID_SIZE) {
-        UBSE_LOG_WARN << "There is truncate when str to guid";
-        newStr = str.substr(0, UBSE_UB_DEVICE_GUID_SIZE);
-    }
     std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> arr{};
-    std::copy(newStr.begin(), newStr.end(), arr.begin());
+    size_t copySize = std::min(str.size(), arr.size());
+    std::copy(str.begin(), str.begin() + copySize, arr.begin());
     return arr;
 }
 

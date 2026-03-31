@@ -348,9 +348,9 @@ UbseResult AllocDevicesAction(const UbseAllocRequest &requestInfo, std::string &
 }
 
 UbseResult UbseGetAllocDeviceList(const UbseAllocRequest &requestInfo,
-                                  std::vector<std::shared_ptr<CollectionDeviceDavid>> &npuList,
-                                  std::vector<std::shared_ptr<CollectionDeviceNicPfe>> &nicPfeList,
-                                  std::vector<std::shared_ptr<CollectionDeviceNicVfe>> &nicVfeList)
+                                  std::vector<std::shared_ptr<CollectionDeviceDavid> > &npuList,
+                                  std::vector<std::shared_ptr<CollectionDeviceNicPfe> > &nicPfeList,
+                                  std::vector<std::shared_ptr<CollectionDeviceNicVfe> > &nicVfeList)
 {
     auto &collection = ResourceCollection::GetInstance();
     auto devices = requestInfo.ubDevList;
@@ -379,7 +379,8 @@ UbseResult UbseGetAllocDeviceList(const UbseAllocRequest &requestInfo,
             nicPfeList.push_back(nic);
         } else if (ubDevice.type == ResourceType::NIC_VFE) {
             CollectionDevId locStr = CollectionStringUtil::CollectionJoinStr(
-                static_cast<uint8_t>(CollectionDeviceType::NIC_VFE), ubDevice.slotId, ubDevice.chipId, ubDevice.pfId, ubDevice.vfId);
+                static_cast<uint8_t>(CollectionDeviceType::NIC_VFE), ubDevice.slotId, ubDevice.chipId, ubDevice.pfId,
+                ubDevice.vfId);
             std::shared_ptr<CollectionDeviceNicVfe> nic = CollectionDevice::CollectionToDerived<CollectionDeviceNicVfe>(
                 collection.GetDeviceByDevId(locStr, CollectionDeviceType::NIC_VFE));
             if (nic == nullptr) {
@@ -697,9 +698,9 @@ UbseResult CheckOccupiedNpus(const std::vector<std::shared_ptr<CollectionDeviceD
     return UBSE_OK;
 }
 
-void CheckOccupiedNicPfes(const std::vector<std::shared_ptr<CollectionDeviceNicPfe>> &nicList,
-                       std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicPfe>>> &occupiedNicMap,
-                       std::vector<std::shared_ptr<CollectionDeviceNicPfe>> &recoverNics)
+void CheckOccupiedNicPfes(const std::vector<std::shared_ptr<CollectionDeviceNicPfe> > &nicList,
+                          std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicPfe>>> &occupiedNicMap,
+                          std::vector<std::shared_ptr<CollectionDeviceNicPfe> > &recoverNics)
 {
     for (const auto &nic : nicList) {
         if (nic == nullptr) {
@@ -708,7 +709,7 @@ void CheckOccupiedNicPfes(const std::vector<std::shared_ptr<CollectionDeviceNicP
         std::shared_ptr<CollectionDeviceBusi> busi = nic->GetBondingDevBusi();
         if (busi == nullptr) {
             UBSE_LOG_WARN << "Failed to get bonding busi for nic " << nic->GetIdStr()
-                          << " ,try to register it to host bus instance";
+                << " ,try to register it to host bus instance";
             recoverNics.push_back(nic);
         } else if (busi->GetType() == CollectionDeviceType::VM_BUSINSTANCE) {
             CollectionDevId busInstanceGuid = busi->GetGuid();
@@ -719,7 +720,7 @@ void CheckOccupiedNicPfes(const std::vector<std::shared_ptr<CollectionDeviceNicP
 }
 
 void CheckOccupiedNicVfes(const std::vector<std::shared_ptr<CollectionDeviceNicVfe>> &nicList,
-                       std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicVfe>>> &occupiedNicMap)
+                          std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicVfe>>> &occupiedNicMap)
 {
     for (const auto &nic : nicList) {
         if (nic == nullptr) {
@@ -930,17 +931,18 @@ void ClearEmptyVMBusInstance()
 
         auto subDevNicVfeList = busi->GetSubDevNicVfe();
         if (!subDevNicVfeList.empty()) {
-            UBSE_LOG_DEBUG << "Bus instance " << busi->GetGuid() << " can find " << subDevNicVfeList.size() << " nic vfe";
+            UBSE_LOG_DEBUG << "Bus instance " << busi->GetGuid() << " can find " << subDevNicVfeList.size() <<
+                " nic vfe";
             continue;
         }
         UBSE_LOG_DEBUG << "Bus instance " << busi->GetGuid() << " has no nic vfe";
 
-        std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfes = busi->GetSubDevIdev();
+        std::vector<std::shared_ptr<CollectionDeviceIdevVfe> > vfes = busi->GetSubDevIdev();
         bool deleteFlag = true;
         for (auto &vfe : vfes) {
             if (!vfe->GetIsComSharedFe()) {
                 UBSE_LOG_DEBUG << "Bus instance " << busi->GetGuid() << " has vfe " << vfe->GetGuid()
-                               << ". So skip destroying.";
+                    << ". So skip destroying.";
                 deleteFlag = false;
                 break;
             }

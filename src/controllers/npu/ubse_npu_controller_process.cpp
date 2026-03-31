@@ -23,7 +23,7 @@ using namespace ubse::log;
 using namespace ubse::common::def;
 
 UbseResult UbseNpuControllerProcess::ProcessNpuDevice(const UbDevice &ubDevice,
-                                                      std::vector<std::shared_ptr<IResource>> &devList)
+                                                      std::vector<std::shared_ptr<IResource> > &devList)
 {
     UBSE_LOG_DEBUG << "ProcessNpuDevice start, npu " << ubDevice.slotId << "-" << ubDevice.chipId;
     auto &collection = ResourceCollection::GetInstance();
@@ -32,7 +32,8 @@ UbseResult UbseNpuControllerProcess::ProcessNpuDevice(const UbDevice &ubDevice,
     std::shared_ptr<CollectionDeviceDavid> npu = CollectionDevice::CollectionToDerived<CollectionDeviceDavid>(
         collection.GetDeviceByDevId(locStr, CollectionDeviceType::NPU));
     if (npu == nullptr) {
-        UBSE_LOG_ERROR << "ProcessNpuDevice failed, npu " << ubDevice.slotId << "-" << ubDevice.chipId << " is not found";
+        UBSE_LOG_ERROR << "ProcessNpuDevice failed, npu " << ubDevice.slotId << "-" << ubDevice.chipId <<
+            " is not found";
         return UBSE_ERROR;
     }
     std::shared_ptr<NpuResource> npuRes = std::make_shared<NpuResource>();
@@ -43,7 +44,7 @@ UbseResult UbseNpuControllerProcess::ProcessNpuDevice(const UbDevice &ubDevice,
 }
 
 UbseResult UbseNpuControllerProcess::ProcessNicPfeDevice(const UbDevice &ubDevice,
-                                                      std::vector<std::shared_ptr<IResource> > &devList)
+                                                         std::vector<std::shared_ptr<IResource>> &devList)
 {
     UBSE_LOG_DEBUG << "ProcessNicPfeDevice start, nic " << ubDevice.slotId << "-" << ubDevice.chipId << "-"
         << ubDevice.pfId;
@@ -67,7 +68,7 @@ UbseResult UbseNpuControllerProcess::ProcessNicPfeDevice(const UbDevice &ubDevic
 }
 
 UbseResult UbseNpuControllerProcess::ProcessNicVfeDevice(const UbDevice &ubDevice,
-                                                      std::vector<std::shared_ptr<IResource> > &devList)
+                                                         std::vector<std::shared_ptr<IResource> > &devList)
 {
     UBSE_LOG_DEBUG << "ProcessNicVfeDevice start, nic " << ubDevice.slotId << "-" << ubDevice.chipId << "-"
         << ubDevice.pfId << "-" << ubDevice.vfId;
@@ -213,7 +214,7 @@ UbseResult UbseNpuControllerProcess::DeviceNicPfeToResource(const std::shared_pt
     // 2. 设置NIC的GUID
     nicRes->SetGuid(nic->GetGuid());
     // 3. 处理绑定的Busi设备
-    SetNicBusInstanceGuid(nic, nicRes);
+    SetNicBusInstanceGuid<NicPfeResource>(nic, nicRes);
     std::shared_ptr<CollectionDeviceDavid> npu = nic->GetAffinityDevDavid();
     if (!npu) {
         return UBSE_OK;
@@ -224,14 +225,14 @@ UbseResult UbseNpuControllerProcess::DeviceNicPfeToResource(const std::shared_pt
 }
 
 UbseResult UbseNpuControllerProcess::DeviceNicVfeToResource(const std::shared_ptr<CollectionDeviceNicVfe> &nic,
-                                                         std::shared_ptr<NicVfeResource> &nicRes)
+                                                            std::shared_ptr<NicVfeResource> &nicRes)
 {
     // 1. 设置NIC位置信息
     SetNicVfeLocation(nic, nicRes);
     // 2. 设置NIC的GUID
     nicRes->SetGuid(nic->GetGuid());
     // 3. 处理绑定的Busi设备
-    SetNicBusInstanceGuid(nic, nicRes);
+    SetNicBusInstanceGuid<NicVfeResource>(nic, nicRes);
     std::shared_ptr<CollectionDeviceDavid> npu = nic->GetAffinityDevDavid();
     if (!npu) {
         return UBSE_OK;

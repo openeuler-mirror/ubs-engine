@@ -18,7 +18,6 @@
 #include "ubse_error.h"
 #include "ubse_npu_resource_collection_def.h"
 #include "ubse_npu_source_def.h"
-#include "resource_collection/ubse_npu_resource_collection_def.h"
 
 namespace ubse::npu::controller {
 using namespace ubse::common::def;
@@ -50,11 +49,15 @@ private:
     static std::shared_ptr<CollectionDeviceIdevPfe> ProcessBondingDevice(
         const std::shared_ptr<CollectionDeviceDavid> &npu, std::shared_ptr<NpuResource> &npuRes);
 
-    static void SetNicPfeLocation(const std::shared_ptr<CollectionDeviceNicPfe> &nic, std::shared_ptr<NicPfeResource> &nicRes);
-    static void SetNicVfeLocation(const std::shared_ptr<CollectionDeviceNicVfe> &nic, std::shared_ptr<NicVfeResource> &nicRes);
-    template <typename ResourceType>
+    static void SetNicPfeLocation(const std::shared_ptr<CollectionDeviceNicPfe> &nic,
+                                  std::shared_ptr<NicPfeResource> &nicRes);
+
+    static void SetNicVfeLocation(const std::shared_ptr<CollectionDeviceNicVfe> &nic,
+                                  std::shared_ptr<NicVfeResource> &nicRes);
+
+    template <typename T>
     static void SetNicBusInstanceGuid(const std::shared_ptr<CollectionDeviceNic> &nic,
-                              std::shared_ptr<ResourceType> &nicRes)
+                                      std::shared_ptr<T> &nicRes)
     {
         std::shared_ptr<CollectionDeviceBusi> busi = nic->GetBondingDevBusi();
         if (!busi) {

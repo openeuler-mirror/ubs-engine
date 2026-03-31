@@ -134,24 +134,31 @@ uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg &resp)
     return UBSE_OK;
 }
 
-void CountDevicesByType(const std::vector<std::shared_ptr<IResource>> &devList, uint8_t &nicPfeCnt, uint8_t &nicVfeCnt, uint8_t &npuCnt,
-                        uint8_t &ubctrlCnt, uint8_t &busiCnt)
+struct DeviceCnt {
+    uint8_t npuCnt{};
+    uint8_t ubctrlCnt{};
+    uint8_t busiCnt{};
+    uint8_t nicPfeCnt{};
+    uint8_t nicVfeCnt{};
+};
+
+void CountDevicesByType(const std::vector<std::shared_ptr<IResource>> &devList, DeviceCnt &devCnt)
 {
     for (auto &dev : devList) {
         if (dev->GetType() == ResourceType::NIC_PFE) {
-            nicPfeCnt++;
+            devCnt.nicPfeCnt++;
         }
         if (dev->GetType() == ResourceType::NIC_VFE) {
-            nicVfeCnt++;
+            devCnt.nicVfeCnt++;
         }
         if (dev->GetType() == ResourceType::NPU) {
-            npuCnt++;
+            devCnt.npuCnt++;
         }
         if (dev->GetType() == ResourceType::UBCONTROLLER) {
-            ubctrlCnt++;
+            devCnt.ubctrlCnt++;
         }
         if (dev->GetType() == ResourceType::BUSINSTANCE) {
-            busiCnt++;
+            devCnt.busiCnt++;
         }
     }
 }
@@ -171,17 +178,13 @@ uint32_t QueryDeviceRespBufferAlloc(const std::vector<std::shared_ptr<IResource>
     return UBSE_OK;
 }
 
-uint32_t PackDevList(const std::vector<std::shared_ptr<IResource>> &devList, UbsePackUtil &packUtil)
+uint32_t PackDevList(const std::vector<std::shared_ptr<IResource> > &devList, UbsePackUtil &packUtil)
 {
-    uint8_t npuCnt{};
-    uint8_t ubctrlCnt{};
-    uint8_t busiCnt{};
-    uint8_t nicPfeCnt{};
-    uint8_t nicVfeCnt{};
-    CountDevicesByType(devList, nicPfeCnt, nicVfeCnt, npuCnt, ubctrlCnt, busiCnt);
-    if (!packUtil.UbsePackUint8(devList.size()) || !packUtil.UbsePackUint8(nicPfeCnt) || !packUtil.
-        UbsePackUint8(nicVfeCnt) || !packUtil.UbsePackUint8(npuCnt) ||
-        !packUtil.UbsePackUint8(ubctrlCnt) || !packUtil.UbsePackUint8(busiCnt)) {
+    DeviceCnt devCnt{};
+    CountDevicesByType(devList, devCnt);
+    if (!packUtil.UbsePackUint8(devList.size()) || !packUtil.UbsePackUint8(devCnt.nicPfeCnt) || !packUtil.
+        UbsePackUint8(devCnt.nicVfeCnt) || !packUtil.UbsePackUint8(devCnt.npuCnt) ||
+        !packUtil.UbsePackUint8(devCnt.ubctrlCnt) || !packUtil.UbsePackUint8(devCnt.busiCnt)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
 
