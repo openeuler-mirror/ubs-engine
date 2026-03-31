@@ -296,8 +296,6 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
         UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
     }
-    // 初始化带宽模板，可重复调用
-    // UbseUrmaBandwidthInit(curNode.nodeId);
     UBSE_LOG_INFO << "End to update urma info";
     return UBSE_OK;
 }
@@ -764,7 +762,8 @@ UbseResult GetCurNodeIdAndMasterNodeId(std::string &curNodeId, std::string &mast
     return UBSE_OK;
 }
 
-UbseResult ForwardActiveReqToSpecifyNode(const std::string &nodeId, const UbseBaseMessagePtr &request, const UbseBaseMessagePtr &response)
+UbseResult ForwardActiveReqToSpecifyNode(const std::string &nodeId, const UbseBaseMessagePtr &request,
+                                         const UbseBaseMessagePtr &response)
 {
     UBSE_LOG_INFO << "Forward activate urma node, nodeId=" << nodeId;
     SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_URMA),
