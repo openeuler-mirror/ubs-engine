@@ -61,9 +61,7 @@ static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
     uint64_t milliseconds = (timestamp % 1000000) / 1000;
     constexpr int millisecondWidth = 3;
     // 输出 时间戳 + 自动获取的时区
-    oss << '[' << dateTimeBuffer
-        << std::setw(millisecondWidth) << std::setfill('0') << milliseconds
-        << tzBuffer << ']';
+    oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzBuffer << ']';
 }
 
 static const char *LogLevelToString(UbseLogLevel level)
