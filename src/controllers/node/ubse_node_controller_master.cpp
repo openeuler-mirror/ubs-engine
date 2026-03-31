@@ -176,9 +176,9 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
         UBSE_LOG_ERROR << "UbsePubEvent "<< UBSE_EVENT_NODE_JOIN << " failed on master node";
         return ret;
     }
-    taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_2, NO_1024);
+    std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
-        taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_16, NO_1024);
+        taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_2, NO_1024);
         if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
             UBSE_LOG_ERROR << "master online, current nodeId=" << nodeId << " start task thread pool failed";
             taskExecutor_ = nullptr;
@@ -317,7 +317,7 @@ void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string &nodeId)
     }
     // 检查状态是否为 SMOOTHING
     if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " not in smoothing, current state="
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " expected UBSE_NODE_SMOOTHING, but current state="
                       << static_cast<uint32_t>(nodeInfo.clusterState);
         UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         return;
@@ -336,13 +336,16 @@ void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string &nodeId)
 void UbseNodeControllerMaster::UbseNodeLedger(const std::string& nodeId)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " start to collect reconciliation";
+    const uint32_t LEDGER_RETRY_INTERVAL = 300; // 5分钟，单位：秒
     // 对账 = 切换到SMOOTHING
     UbseResult ret = UbseNodeController::GetInstance().UpdateNodeInfoClusterState(
         nodeId, UbseNodeClusterState::UBSE_NODE_SMOOTHING);
     // 检查状态
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " not in smoothing after smoothing, current state="
+        // 若对账期间，节点故障或者断连，故障模块会将节点状态修改为fault，unknown；
+        // 在部分不断链的故障场景下，例如BMC下电失败，reboot -f等，若对账完毕发现状态非smoothing，不刷新状态。
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " expected UBSE_NODE_SMOOTHING, but current state="
                       << static_cast<uint32_t>(nodeInfo.clusterState);
         return;
     }
@@ -360,7 +363,7 @@ void UbseNodeControllerMaster::UbseNodeLedger(const std::string& nodeId)
                 }
                 return UBSE_OK;
             },
-            300); // 5分钟
+            LEDGER_RETRY_INTERVAL);
         if (registerRet != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to register retry timer for node: " << nodeId;
         }
