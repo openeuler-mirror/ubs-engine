@@ -144,12 +144,13 @@ void CollectImportHandleDebtInfo(const ImportObjMap &importObjMap, const std::st
                                  ShareHandleInfoVec &importHandleInfo)
 {
     for (const auto &[name, importObj] : importObjMap) {
-        if (importObj.status.state != UBSE_MEM_IMPORT_SUCCESS) {
+        if (importObj.status.state != UBSE_MEM_IMPORT_SUCCESS &&
+            importObj.status.state != UBSE_MEM_IMPORT_RUNNING) {
             UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Skip " << name
                            << ", state=" << static_cast<uint32_t>(importObj.status.state)
-                           << ", expect UBSE_MEM_IMPORT_SUCCESS.";
+                           << ", expect UBSE_MEM_IMPORT_SUCCESS or UBSE_MEM_IMPORT_RUNNING.";
             continue;
-        }
+            }
         if (importObj.algoResult.exportNumaInfos.empty()) {
             UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Skip " << name << ", export info is empty.";
             continue;
