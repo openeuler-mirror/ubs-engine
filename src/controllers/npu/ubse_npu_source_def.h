@@ -30,7 +30,8 @@ using namespace ubse::utils;
 enum class ResourceType {
     BUSINSTANCE = 1,
     NPU,
-    NIC,
+    NIC_PFE,
+    NIC_VFE,
     UBCONTROLLER
 };
 struct UbDevice {
@@ -119,7 +120,7 @@ public:
     void AddAffinityDevice(const UbDevice& device);
 
 private:
-    ResourceType type_ = ResourceType::NIC;
+    ResourceType type_ = ResourceType::NIC_PFE;
     uint8_t slotId_{};
     uint8_t chipId_{};
     uint8_t index_{};

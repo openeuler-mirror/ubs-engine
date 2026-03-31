@@ -13,6 +13,7 @@
 #define UBSE_NPU_RESOURCE_COLLECTION_H
 #include <array>
 #include <map>
+#include <unordered_map>
 #include <regex>
 #include <shared_mutex>
 #include "adapter_plugins/mti/ubse_mti_1825.h"
@@ -23,6 +24,9 @@
 namespace ubse::npu::controller {
 using CollectionDevIdToDevice = std::map<CollectionDevId, std::shared_ptr<CollectionDevice>>;
 using CollectionGuidToDevice = CollectionDevIdToDevice;
+using CollectionDavidDevId = std::string;
+using Collection1825DevId = std::string;
+using CollectionDavidDevIdTo1825DevId = std::unordered_map<CollectionDavidDevId, Collection1825DevId>;
 class ResourceCollection {
 public:
     static ResourceCollection &GetInstance();
@@ -73,8 +77,6 @@ public:
      */
     static UbseResult UnbindDevice(const std::shared_ptr<CollectionDevice> &dev1,
                                    const std::shared_ptr<CollectionDevice> &dev2);
-    UbseResult CheckDevTopo(int &cnt);
-
 private:
     UbseResult ValidateDevice(const std::shared_ptr<CollectionDevice> &dev);
     ResourceCollection();
@@ -83,13 +85,10 @@ private:
     UbseResult AddDevIdevVfe(const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev,
                              const std::shared_ptr<CollectionDeviceIdevVfe> &vfeDev);
     UbseResult AddDavidAndBindToIdevPfe(CollectDeviceLoc &davidDevLoc, CollectDeviceLoc &pfeDevLoc);
-    UbseResult GetDevUbCtrlFromNicFeInfo(const mti::_1825::UbseMti1825Pf &feInfo,
-                                         std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl);
-    UbseResult AddNicFeAndSetAffinity(const mti::_1825::UbseMti1825Vf &mti1825Vf,
-                                      std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl);
+    UbseResult AddNicFe(const mti::_1825::UbseMti1825Pf &mti1825Pf);
     UbseResult CollectUbCtrlIdev();
     UbseResult CollectIdevPfeDavid();
-    UbseResult CollectAffinityNic();
+    UbseResult CollectNic();
     std::shared_ptr<CollectionDeviceIdevVfe> GetIdevVfeByGuid(const std::string &guid);
     UbseResult QueryBusiSubDevices(const std::vector<mti::bus_instance::UbseMtiGuid> &guids,
                                    std::shared_ptr<CollectionDeviceBusi> &devBusi);
@@ -97,6 +96,19 @@ private:
     void ClearAllDevices();
     UbseResult BindVfeToNpu();
 
+    UbseResult CollectDavidAffinityNic();
+
+    UbseResult GenerateDavidNicMap(ProductType productType, CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId);
+
+    UbseResult SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId);
+
+    std::vector<std::string> SplitLines(std::string result);
+
+    std::vector<std::string> SplitFields(std::vector<std::string> lines);
+
+    UbseResult GetProductType(ProductType &productType);
+
+    UbseResult GetDavidSlotId(uint8_t &slotId);
 private:
     std::vector<CollectionDevIdToDevice> devIdToDevice_;
     CollectionGuidToDevice guidToDevice_;

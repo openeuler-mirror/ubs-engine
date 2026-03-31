@@ -17,7 +17,8 @@ namespace ubse::npu::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::mti::bus_instance;
 using namespace ubse::mti::urma;
-static const std::string  DEV_NIC = "devNic";
+static const std::string  DEV_NIC_PFE = "devNicPfe";
+static const std::string  DEV_NIC_VFE = "devNicVfe";
 static const std::string  IDEV_VFE = "idevVfe";
 static const std::string  DEV_IDEV = "devIdev";
 static const std::string  DEV_BUSI = "devBusi";
@@ -98,11 +99,15 @@ void CollectionDeviceBusi::SetUpiStr(const CollectionUpi &upi)
 {
     dev.upi = upi;
 }
-const std::vector<std::shared_ptr<CollectionDeviceNic>> &CollectionDeviceBusi::GetSubDevNic()
+const std::vector<std::shared_ptr<CollectionDeviceNicPfe>> &CollectionDeviceBusi::GetSubDevNicPfe() const
 {
-    return subDevNic;
+    return subDevNicPfe;
 }
-const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &CollectionDeviceBusi::GetSubDevIdev()
+const std::vector<std::shared_ptr<CollectionDeviceNicVfe>> &CollectionDeviceBusi::GetSubDevNicVfe() const
+{
+    return subDevNicVfe;
+}
+const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &CollectionDeviceBusi::GetSubDevIdev() const
 {
     return subDevIdev;
 }
@@ -176,9 +181,14 @@ void RemoveCollectionDevice(std::vector<std::weak_ptr<T>> &devices, const std::s
         devices.end());
 }
 
-void CollectionDeviceBusi::SetSubDevNic(const std::shared_ptr<CollectionDeviceNic> &devNic)
+void CollectionDeviceBusi::SetSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &devNic)
 {
-    SetCollectionDevice<CollectionDeviceNic>(subDevNic, devNic, DEV_NIC);
+    SetCollectionDevice<CollectionDeviceNicPfe>(subDevNicPfe, devNic, DEV_NIC_PFE);
+}
+
+void CollectionDeviceBusi::SetSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &devNic)
+{
+    SetCollectionDevice<CollectionDeviceNicVfe>(subDevNicVfe, devNic, DEV_NIC_VFE);
 }
 
 void CollectionDeviceBusi::SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe> &devIdev)
@@ -186,9 +196,13 @@ void CollectionDeviceBusi::SetSubDevIdev(const std::shared_ptr<CollectionDeviceI
     SetCollectionDevice<CollectionDeviceIdevVfe>(subDevIdev, devIdev, DEV_IDEV);
 }
 
-void CollectionDeviceBusi::RemoveSubDevNic(const std::shared_ptr<CollectionDeviceNic> &devNic)
+void CollectionDeviceBusi::RemoveSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &devNic)
 {
-    RemoveCollectionDevice<CollectionDeviceNic>(subDevNic, devNic, DEV_NIC);
+    RemoveCollectionDevice<CollectionDeviceNicPfe>(subDevNicPfe, devNic, DEV_NIC_PFE);
+}
+void CollectionDeviceBusi::RemoveSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &devNic)
+{
+    RemoveCollectionDevice<CollectionDeviceNicVfe>(subDevNicVfe, devNic, DEV_NIC_VFE);
 }
 void CollectionDeviceBusi::RemoveSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe> &devIdev)
 {
@@ -206,17 +220,9 @@ const std::vector<std::shared_ptr<CollectionDeviceIdevPfe>> &CollectionDeviceUbC
 {
     return subDevIdev;
 }
-const std::vector<std::shared_ptr<CollectionDeviceNic>> &CollectionDeviceUbCtrl::GetAffiDevNic()
-{
-    return affinityDevNic;
-}
 void CollectionDeviceUbCtrl::SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevPfe> &idevPfe)
 {
     SetCollectionDevice<CollectionDeviceIdevPfe>(subDevIdev, idevPfe, IDEV_VFE);
-}
-void CollectionDeviceUbCtrl::SetAffinityDevNic(const std::shared_ptr<CollectionDeviceNic> &devNic)
-{
-    SetCollectionDevice<CollectionDeviceNic>(affinityDevNic, devNic, DEV_NIC);
 }
 CollectionDeviceIdev::CollectionDeviceIdev(const CollectDeviceLoc &devLoc, CollectionDeviceType type)
     : CollectionDevice(devLoc, type),
@@ -323,25 +329,29 @@ void CollectionDeviceDavid::RemoveBondingIdev()
 {
     bondingIdev.reset();
 }
-CollectionDeviceNic::CollectionDeviceNic(const CollectDeviceLoc &devLoc)
-    : CollectionDevice(devLoc, CollectionDeviceType::NIC)
+std::shared_ptr<CollectionDeviceNicPfe> CollectionDeviceDavid::GetAffinityDevNicPfe()
 {
+    return affinityDevNicPfe;
 }
-CollectionDevId CollectionDeviceNic::GetIdStr()
+void CollectionDeviceDavid::SetAffinityDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &nicPfe)
 {
-    return CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(type), dev.slotId, dev.chipId, dev.pfeId);
+    affinityDevNicPfe = nicPfe;
 }
-std::shared_ptr<CollectionDeviceUbCtrl> CollectionDeviceNic::GetAffinityDevUbCtrl()
+std::shared_ptr<CollectionDeviceNicVfe> CollectionDeviceDavid::GetAffinityDevNicVfe()
 {
-    return affinityDevUbCtrl.lock();
+    return affinityDevNicVfe;
+}
+void CollectionDeviceDavid::SetAffinityDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &nicVfe)
+{
+    affinityDevNicVfe = nicVfe;
+}
+CollectionDeviceNic::CollectionDeviceNic(const CollectDeviceLoc &devLoc, CollectionDeviceType type)
+    : CollectionDevice(devLoc, type)
+{
 }
 std::shared_ptr<CollectionDeviceBusi> CollectionDeviceNic::GetBondingDevBusi()
 {
     return bondingDevBusi.lock();
-}
-void CollectionDeviceNic::SetAffinityDevUbCtrl(const std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl)
-{
-    affinityDevUbCtrl = devUbCtrl;
 }
 void CollectionDeviceNic::SetBondingDevBusi(const std::shared_ptr<CollectionDeviceBusi> &devBusi)
 {
@@ -351,4 +361,52 @@ void CollectionDeviceNic::RemoveBondingDevBusi()
 {
     bondingDevBusi.reset();
 }
+
+std::shared_ptr<CollectionDeviceDavid> CollectionDeviceNic::GetAffinityDevDavid()
+{
+    return affinityDevDavid.lock();
+}
+
+void CollectionDeviceNic::SetAffinityDevDavid(const std::shared_ptr<CollectionDeviceDavid> &devDavid)
+{
+    affinityDevDavid = devDavid;
+}
+
+CollectionDeviceNicPfe::CollectionDeviceNicPfe(const CollectDeviceLoc &devLoc)
+    : CollectionDeviceNic(devLoc, CollectionDeviceType::NIC_PFE) {}
+
+CollectionDevId CollectionDeviceNicPfe::GetIdStr()
+{
+    return CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(type), dev.slotId, dev.chipId, dev.pfeId);
+}
+
+std::vector<std::shared_ptr<CollectionDeviceNicVfe> > CollectionDeviceNicPfe::GetSubNicVfe()
+{
+    return subNicVfe;
+}
+
+void CollectionDeviceNicPfe::SetSubNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &nicVfe)
+{
+    SetCollectionDevice(subNicVfe, nicVfe, DEV_NIC_VFE);
+}
+
+CollectionDeviceNicVfe::CollectionDeviceNicVfe(const CollectDeviceLoc &devLoc)
+    : CollectionDeviceNic(devLoc, CollectionDeviceType::NIC_VFE) {}
+
+CollectionDevId CollectionDeviceNicVfe::GetIdStr()
+{
+    return CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(type), dev.slotId, dev.chipId, dev.pfeId,
+                                                   dev.vfeId);
+}
+
+std::shared_ptr<CollectionDeviceNicPfe> CollectionDeviceNicVfe::GetParentNicPfe() const
+{
+    return parentNicPfe.lock();
+}
+
+void CollectionDeviceNicVfe::SetParentNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &nicPfe)
+{
+    parentNicPfe = nicPfe;
+}
+
 } // namespace ubse::npu::controller

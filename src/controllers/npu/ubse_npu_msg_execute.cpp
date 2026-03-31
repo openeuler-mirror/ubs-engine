@@ -142,7 +142,7 @@ void CountDevicesByType(const std::vector<std::shared_ptr<IResource>> &devList, 
                         uint8_t &ubctrlCnt, uint8_t &busiCnt)
 {
     for (auto &dev : devList) {
-        if (dev->GetType() == ResourceType::NIC) {
+        if (dev->GetType() == ResourceType::NIC_PFE) {
             nicCnt++;
         }
         if (dev->GetType() == ResourceType::NPU) {
