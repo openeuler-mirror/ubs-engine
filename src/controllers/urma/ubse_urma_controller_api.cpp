@@ -375,6 +375,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
 
 uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
+    UrmaController::GetInstance().SetReceiveAllocFlag(true);
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -447,6 +448,7 @@ UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
 
 uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
+    UrmaController::GetInstance().SetReceiveAllocFlag(true);
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Alloc IPC request info is null.";
         return UBSE_ERROR_NULLPTR;

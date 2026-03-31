@@ -13,6 +13,7 @@
 #ifndef UBSE_URMA_CONTROLLER_H
 #define UBSE_URMA_CONTROLLER_H
 
+#include <atomic>
 #include <chrono>
 #include <thread>
 #include <vector>
@@ -48,6 +49,9 @@ public:
     static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMessage);
     static UbseResult UbseNodeJoinHandler(std::string &eventId, const std::string &eventMessage);
 
+    void SetReceiveAllocFlag(bool flag) { receiveAllocFlag.store(flag); }
+    bool GetReceiveAllocFlag() { return receiveAllocFlag.load(); }
+
 private:
     UbseResult DoNodeJoin(const std::string &joinNodeId);
     UbseResult HandleNodeJoinWithRetry(const std::string &joinNodeId);
@@ -55,13 +59,16 @@ private:
     UbseResult DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
     UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &urmaInfo);
+
+private:
+    std::atomic<bool> receiveAllocFlag{false}; // 记录ubse启动以来是否接收到alloc调用，保证alloc sdk接口调用后，才激活urma设备
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
                                         const std::vector<PhysicalLink> &allLinkInfo,
                                         const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
-UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId);
+UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId, bool skipActivate=false);
 
 /**
  * @brief 查询指定urma的状态，如果为空则查询所有urma，查询后设置urmaInfo状态

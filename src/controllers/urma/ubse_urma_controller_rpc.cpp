@@ -276,7 +276,9 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
         return ret;
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    if (auto ret = UrmaCtlActivateUrmaDevice(curNode.nodeId); ret != UBSE_OK) {
+    // 如果当前节点不在更新列表中，无需激活本地urma设备
+    bool skipActivate = updateNodeIds.end() == std::find(updateNodeIds.begin(), updateNodeIds.end(), curNode.nodeId);
+    if (auto ret = UrmaCtlActivateUrmaDevice(curNode.nodeId, skipActivate); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to activate urma device, ret=" << ret;
         return ret;
     }

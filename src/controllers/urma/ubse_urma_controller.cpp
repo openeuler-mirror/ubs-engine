@@ -692,7 +692,7 @@ UbseResult UrmaCtlActivateUrmaDeviceForOneNode(UbseUrmaUvsNodeInfo &devInfo)
     return UBSE_OK;
 }
 
-UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId)
+UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId, bool skipActivate)
 {
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
     UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
@@ -701,6 +701,15 @@ UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId)
         return ret;
     }
 
+    // 如果当前节点不在更新列表中，无需激活本地urma设备，返回成功，停止定时器
+    if (skipActivate) {
+        UBSE_LOG_INFO << "Local node info not updated, skip activate urma device";
+        return UBSE_OK;
+    }
+    if (!UrmaController::GetInstance().GetReceiveAllocFlag()) {
+        UBSE_LOG_WARN << "Receive alloc sdk flag is false, skip activate urma device for node=" << nodeId;
+        return UBSE_ERROR_AGAIN;
+    }
     static std::mutex activeteMutex;
     std::lock_guard<std::mutex> lock(activeteMutex);
     for (auto &devInfo : uvsInfos) {
