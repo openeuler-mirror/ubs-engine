@@ -635,7 +635,8 @@ bool CanUpdateNodeClusterState(UbseNodeClusterState curState, UbseNodeClusterSta
             return updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
                    updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
                    updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
+                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING;
         case UbseNodeClusterState::UBSE_NODE_WORKING:
             return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
                    updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
