@@ -53,15 +53,22 @@ static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
     // 获取本地时间
     localtime_r(&timet, &localTime);
     char dateTimeBuffer[32];
-    char tzBuffer[8];
+    char tzBuffer[9];
     // 格式化日期和时间部分
     strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime);
-    // 格式化时区部分，自动获取系统时区
-    strftime(tzBuffer, sizeof(tzBuffer), "%z", &localTime);
+    // 格式化时区部分，使用%z获取时区偏移
+    char rawTzBuffer[8];
+    strftime(rawTzBuffer, sizeof(rawTzBuffer), "%z", &localTime);
+    // 处理时区格式，添加冒号
+    std::string tzStr(rawTzBuffer);
+    if (tzStr.length() == 5) { // 格式为+0800或-0500
+        tzStr = tzStr.substr(0, 3) + ":" + tzStr.substr(3, 2);
+    }
     uint64_t milliseconds = (timestamp % 1000000) / 1000;
     constexpr int millisecondWidth = 3;
-    // 输出 时间戳 + 自动获取的时区
-    oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzBuffer << ']';
+    // 输出 时间戳 + 带冒号的时区
+    oss << '[' << dateTimeBuffer << std::setw(millisecondWidth)
+        << std::setfill('0') << milliseconds << tzStr << ']';
 }
 
 static const char *LogLevelToString(UbseLogLevel level)
