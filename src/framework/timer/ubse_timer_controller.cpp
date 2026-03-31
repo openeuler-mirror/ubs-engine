@@ -156,7 +156,7 @@ uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler hand
         return UBSE_ERROR;
     }
     if (interval < UBSE_REGISTER_MIN_INTERVAL || interval > UBSE_REGISTER_MAX_INTERVAL) {
-        UBSE_LOG_ERROR << "Handler=" << name << " interval invalid, interval=" << interval;
+        UBSE_LOG_ERROR << "Handler=" << name << " interval invalid, interval=" << interval << "s";
         return UBSE_ERROR;
     }
     if (!handler) {
