@@ -260,7 +260,7 @@ class DeviceInfo:
         }
 
 
-class NICInfo(DeviceInfo):
+class NicInfo(DeviceInfo):
     """NIC设备信息类"""
 
     def __init__(self, device_id, guid, bus_instance):
@@ -280,7 +280,7 @@ class NICInfo(DeviceInfo):
         }
 
 
-class NPUInfo(DeviceInfo):
+class NpuInfo(DeviceInfo):
     """NPU设备信息类"""
 
     def __init__(self, device_id, guid, bus_instance):
@@ -300,7 +300,7 @@ class NPUInfo(DeviceInfo):
         }
 
 
-class BUSIInfo(DeviceInfo):
+class BusInstanceInfo(DeviceInfo):
     """BUSI设备信息类"""
 
     def __init__(self, guid):
@@ -316,7 +316,7 @@ class BUSIInfo(DeviceInfo):
         }
 
 
-class UBCTRLInfo(DeviceInfo):
+class UbctrlInfo(DeviceInfo):
     """UBCTRL设备信息类"""
 
     def __init__(self, device_id):
@@ -336,12 +336,12 @@ class DeviceFactory:
     @staticmethod
     def create_device(device_type, **kwargs):
         if device_type == "NIC":
-            return NICInfo(**kwargs)
+            return NicInfo(**kwargs)
         elif device_type == "NPU":
-            return NPUInfo(**kwargs)
+            return NpuInfo(**kwargs)
         elif device_type == "BUSI":
-            return BUSIInfo(**kwargs)
+            return BusInstanceInfo(**kwargs)
         elif device_type == "UBCTRL":
-            return UBCTRLInfo(**kwargs)
+            return UbctrlInfo(**kwargs)
         else:
             raise ValueError(f"Unknown device type: {device_type}")
