@@ -15,10 +15,7 @@
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
-
-#include "src/framework/ipc/include/ubse_ipc_common.h"
 #include "ubse_context.h"
-#include "ubse_logger.h"
 #include "ubse_npu_controller_module.h"
 #include "ubse_npu_manager_api.h"
 #include "ubse_pack_util.h"
@@ -39,7 +36,6 @@ uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>> &devL
 uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo);
 uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
                               const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
-uint32_t UbseFreeRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo);
 uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo);
 uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, TransRespMsg &buffer);
 
@@ -138,12 +134,15 @@ uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg &resp)
     return UBSE_OK;
 }
 
-void CountDevicesByType(const std::vector<std::shared_ptr<IResource>> &devList, uint8_t &nicCnt, uint8_t &npuCnt,
+void CountDevicesByType(const std::vector<std::shared_ptr<IResource>> &devList, uint8_t &nicPfeCnt, uint8_t &nicVfeCnt, uint8_t &npuCnt,
                         uint8_t &ubctrlCnt, uint8_t &busiCnt)
 {
     for (auto &dev : devList) {
         if (dev->GetType() == ResourceType::NIC_PFE) {
-            nicCnt++;
+            nicPfeCnt++;
+        }
+        if (dev->GetType() == ResourceType::NIC_VFE) {
+            nicVfeCnt++;
         }
         if (dev->GetType() == ResourceType::NPU) {
             npuCnt++;
@@ -172,25 +171,16 @@ uint32_t QueryDeviceRespBufferAlloc(const std::vector<std::shared_ptr<IResource>
     return UBSE_OK;
 }
 
-uint32_t PackDeviceSize(UbsePackUtil &packUtil, uint8_t &nicCnt, uint8_t &npuCnt, uint8_t &ubctrlCnt, uint8_t &busiCnt)
-{
-    if (!packUtil.UbsePackUint8(nicCnt))
-        return UBSE_ERROR;
-    if (!packUtil.UbsePackUint8(npuCnt))
-        return UBSE_ERROR;
-    if (!packUtil.UbsePackUint8(ubctrlCnt))
-        return UBSE_ERROR;
-    if (!packUtil.UbsePackUint8(busiCnt))
-        return UBSE_ERROR;
-}
 uint32_t PackDevList(const std::vector<std::shared_ptr<IResource>> &devList, UbsePackUtil &packUtil)
 {
     uint8_t npuCnt{};
     uint8_t ubctrlCnt{};
     uint8_t busiCnt{};
-    uint8_t nicCnt{};
-    CountDevicesByType(devList, nicCnt, npuCnt, ubctrlCnt, busiCnt);
-    if (!packUtil.UbsePackUint8(devList.size()) || !packUtil.UbsePackUint8(nicCnt) || !packUtil.UbsePackUint8(npuCnt) ||
+    uint8_t nicPfeCnt{};
+    uint8_t nicVfeCnt{};
+    CountDevicesByType(devList, nicPfeCnt, nicVfeCnt, npuCnt, ubctrlCnt, busiCnt);
+    if (!packUtil.UbsePackUint8(devList.size()) || !packUtil.UbsePackUint8(nicPfeCnt) || !packUtil.
+        UbsePackUint8(nicVfeCnt) || !packUtil.UbsePackUint8(npuCnt) ||
         !packUtil.UbsePackUint8(ubctrlCnt) || !packUtil.UbsePackUint8(busiCnt)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
@@ -262,8 +252,16 @@ uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice> &devL
             UBSE_LOG_ERROR << "Failed to unpack chip_id";
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
-        if (!unpackUtil.UnpackUint8(tmpDev.index)) {
-            UBSE_LOG_ERROR << "Failed to unpack index";
+        if (!unpackUtil.UnpackUint8(tmpDev.dieId)) {
+            UBSE_LOG_ERROR << "Failed to unpack dieId";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        if (!unpackUtil.UnpackUint8(tmpDev.pfId)) {
+            UBSE_LOG_ERROR << "Failed to unpack pfId";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        if (!unpackUtil.UnpackUint8(tmpDev.vfId)) {
+            UBSE_LOG_ERROR << "Failed to unpack vfId";
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
         devList.emplace_back(tmpDev);
@@ -362,20 +360,6 @@ uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE
         return ret;
     }
     return ret;
-}
-
-uint32_t UbseFreeRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo)
-{
-    UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
-    for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {
-        uint8_t tmp;
-        if (!unpackUtil.UnpackUint8(tmp)) {
-            UBSE_LOG_ERROR << "Failed to unpack bus instance guid";
-            return UBSE_ERROR_DESERIALIZE_FAILED;
-        }
-        requestInfo += tmp;
-    }
-    return UBSE_OK;
 }
 
 uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, TransRespMsg &buffer)
