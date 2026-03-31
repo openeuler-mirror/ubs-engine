@@ -111,7 +111,7 @@ bool UbseMemConfiguration::IsLenderBalance()
     bool res = false;
     if (GetUbseConf(UBSE_MEMORY, UBSE_LENDER_BALANCE, res) != UBSE_OK) {
         res = false;
-        UBSE_LOG_ERROR << "rmMemConfigInitFuncs get error , can not get " << UBSE_LENDER_BALANCE;
+        UBSE_LOG_WARN << "rmMemConfigInitFuncs get error , can not get " << UBSE_LENDER_BALANCE;
     }
     return res;
 }

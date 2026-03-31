@@ -101,6 +101,15 @@ public:
     virtual common::def::UbseResult DeleteDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo) = 0;
 
     /**
+     * 无效表项信息
+     * @param drawInfo 待无效表项信息
+     * @return UBSE_OK 标识成功
+     * @return UBSE_ERROR_MODULE_LOAD_FAILED mti模块未加载
+     * @return UBSE_ERROR 表示失败
+     */
+    virtual common::def::UbseResult InvalidateDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo) = 0;
+
+    /**
      * 查询全部handle
      * @param queryInfo 查询参数
      * @param handleValues 查询结果

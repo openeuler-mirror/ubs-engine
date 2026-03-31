@@ -1216,6 +1216,9 @@ MpResult MempoolBorrowModule::ExecuteSingleBorrow(const DestMemoryBorrowParam &d
     }
     attr.waterMallocAttr = memAttr;
 
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] Parameter check completed, "
+                                                        "start memory borrowing execution.";
+
     ret = MemBorrowExecutor::Instance().MemBorrow(srcParam.srcNid, attr, name, presentNumaId);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)

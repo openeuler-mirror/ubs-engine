@@ -119,6 +119,9 @@ MpResult MemBorrowExecutor::MemBorrow(const std::string &attachNode, const RackC
         }
     }
 
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] Start calling ubse interface "
+                                                        "for memory borrowing.";
+
     // 调用ubse借用接口
     UbseMemNumaDesc ubseMemNumaDesc;
     auto start = std::chrono::steady_clock::now();
@@ -143,7 +146,7 @@ MpResult MemBorrowExecutor::MemBorrow(const std::string &attachNode, const RackC
         << "[MemBorrow][MemBorrowExecute] Execution time=" << duration.count()
         << " microseconds, borrowMemSize=" << attr.size << " Byte.";
 
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemBorrow][MemBorrowExecute] MemBorrowExecutor borrows memory success, borrow_id=" << name << ".";
 
     return MEM_POOLING_OK;

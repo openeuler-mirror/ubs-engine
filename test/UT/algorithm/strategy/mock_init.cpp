@@ -11,6 +11,7 @@
  */
 
 #include "mock_init.h"
+#include <cstdint>
 #include "mem_pool_strategy.h"
 
 using namespace tc::rs::mem;
@@ -183,6 +184,14 @@ StrategyParam GetRs1650DefaultParam(int numHosts)
         meshLoc.y = i / 4;
         param.hostMeshLocs[i] = meshLoc;
     }
+    std::set<int16_t> neighborNodes{1, 4, 5, 6, 7, 9, 13};
+    for (int i = 0; i < numHosts; i++) {
+        if (neighborNodes.find(i) == neighborNodes.end()) {
+            continue;
+        }
+        param.neighborNodes[i] = neighborNodes; 
+        param.neighborNodes[i].erase(i);
+    }
     param.maxMemSizePerBorrow = 4 * 1024;
     param.watermarkGrain = WatermarkGrain::HOST_WATERMARK;
     param.unitMemSize = 128;
@@ -231,6 +240,14 @@ StrategyParam GetRs1D8DefaultParam(int numHosts)
         meshLoc.x = i;
         meshLoc.y = 0;
         param.hostMeshLocs[i] = meshLoc;
+    }
+    std::set<int16_t> neighborNodes;
+    for (int i = 0; i < numHosts; i++) {
+        neighborNodes.insert(i);
+    }
+    for (int i = 0; i < numHosts; i++) {
+        param.neighborNodes[i] = neighborNodes;
+        param.neighborNodes[i].erase(i);
     }
     param.maxMemSizePerBorrow = 4 * 1024;
     param.watermarkGrain = WatermarkGrain::HOST_WATERMARK;

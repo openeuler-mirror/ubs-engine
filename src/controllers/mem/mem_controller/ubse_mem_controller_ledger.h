@@ -203,6 +203,8 @@ std::vector<UbseMemShareBorrowImportObj> GetImportObjsByBaseNode(const NodeMemDe
 std::vector<UbseMemShareBorrowImportObj> GetAllImportObjsByName(const NodeMemDebtInfoMap &debtMap,
                                                                 const std::string &name);
 
+UbseResult AgentInvalidateImportDebt(const std::string &name, UbseMemBorrowType type);
+
 std::pair<UbseMemShareBorrowExportObj, std::vector<UbseMemShareBorrowImportObj>> GetMaxRefCountExportObj(
     const std::string &name);
 } // namespace ubse::mem::controller

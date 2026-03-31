@@ -1155,14 +1155,16 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
     if (auto waitResult = WaitNodeStateWork(req.importNodeId); waitResult != UBSE_OK) {
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, waitResult,
                            MemAdvice::NODE_IN_MAITENANCE);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,
-                                          MemOperationType::NUMA_RETURN);
+        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,
+                                   MemOperationType::NUMA_RETURN);
+        return UBSE_ERROR;
     }
     if (!FindBorrowObjects(req, importObj, exportObj, status.hasImport, status.hasExport)) {
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource not found.", UBSE_ERR_NOT_EXIST,
-                                          MemOperationType::NUMA_RETURN);
+        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource not found.", UBSE_ERR_NOT_EXIST,
+                                   MemOperationType::NUMA_RETURN);
+        return UBSE_ERROR;
     }
     UbseMemStage memStage = GetMemStageByImportObjState(importObj, status.hasImport);
     if (memStage != UbseMemStage::UBSE_CREATING && memStage != UbseMemStage::UBSE_DELETING) {
@@ -1173,8 +1175,9 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
         auto ret = (memStage == UbseMemStage::UBSE_CREATING) ? UBSE_ERR_CREATING : UBSE_ERR_DELETING;
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, ret,
                            MemAdvice::RESOURCE_OPERATION_CONFLICT);
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned", ret,
-                                          MemOperationType::NUMA_RETURN);
+        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned", ret,
+                                   MemOperationType::NUMA_RETURN);
+        return UBSE_ERROR;
     }
     return UBSE_OK;
 }
