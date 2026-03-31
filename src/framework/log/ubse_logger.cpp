@@ -20,6 +20,9 @@
 #include <iostream>              // for basic_ostream, operator<<, ostream
 #include <new>                   // for nothrow
 #include <utility>               // for move
+#include <sstream>
+#include <string>
+#include <cstdint>
 
 #include "securec.h"             // for memcpy_s, EOK, errno_t
 #include "ubse_error.h"          // for UBSE_OK, UBSE_ERROR
@@ -49,27 +52,26 @@ static std::thread::id GetThreadId()
 static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
 {
     constexpr int dateTimeBufferSize = 32;
-    constexpr int rawTzBufferSize = 8;
-    constexpr int standardTzLength = 5;   // "+0800"
-    constexpr int tzSignPosition = 3;     // "+08"
-    constexpr int tzMinuteWidth = 2;
     constexpr uint64_t microsecondsPerSecond = 1000000;
     constexpr uint64_t microsecondsPerMillisecond = 1000;
     constexpr int millisecondWidth = 3;
-    std::time_t timet = static_cast<std::time_t>(timestamp / microsecondsPerSecond);
+    std::time_t seconds = static_cast<std::time_t>(timestamp / microsecondsPerSecond);
     std::tm localTime {};
-    localtime_r(&timet, &localTime);
+    std::tm gmtTime {};
+    localtime_r(&seconds, &localTime);
+    gmtime_r(&seconds, &gmtTime);
     char dateTimeBuffer[dateTimeBufferSize] = {0};
-    char rawTzBuffer[rawTzBufferSize] = {0};
     strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime);
-    strftime(rawTzBuffer, sizeof(rawTzBuffer), "%z", &localTime);
-    std::string tzStr(rawTzBuffer);
-    if (tzStr.length() == standardTzLength) {
-        tzStr = tzStr.substr(0, tzSignPosition) + ":" + tzStr.substr(tzSignPosition, tzMinuteWidth);
-    }
+    std::time_t localSeconds = mktime(&localTime);
+    std::time_t gmtSeconds   = mktime(&gmtTime);
+    int offsetSeconds = static_cast<int>(difftime(localSeconds, gmtSeconds));
+    int offsetHours = offsetSeconds / 3600;
+    int offsetMinutes = (std::abs(offsetSeconds) % 3600) / 60;
+    char tzBuffer[7] = {0}; // "+08:00"
+    std::snprintf(tzBuffer, sizeof(tzBuffer), "%+03d:%02d", offsetHours, offsetMinutes);
     uint64_t milliseconds =
         (timestamp % microsecondsPerSecond) / microsecondsPerMillisecond;
-    oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzStr << ']';
+    oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzBuffer << ']';
 }
 
 static const char *LogLevelToString(UbseLogLevel level)
