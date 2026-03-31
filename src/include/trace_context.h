@@ -2,12 +2,7 @@
 
 #ifndef UBSE_MANAGER_TRACE_CONTEXT_H
 #define UBSE_MANAGER_TRACE_CONTEXT_H
-
 #include <string>
-#include <algorithm>
-#include <mutex>
-#include <chrono>
-#include <thread>
 #include "securec.h"
 
 #ifdef __cplusplus
@@ -32,11 +27,11 @@ public:
     // 获取当前线程的traceId（不存在则生成）
     static inline std::string GetTraceId()
     {
-        if (tls_traceId[0] == '\0') {
+        if (strlen(tls_traceId) == 0) { // 检查是否为空
             if (!IsEnable_) {
                 return "";
             }
-            generateTraceId();
+            generateTraceId();          // 首次调用时生成
         }
         return std::string(tls_traceId);
     }
@@ -52,17 +47,16 @@ public:
         if (traceId.empty() || !IsEnable_) {
             return;
         }
-
+        // 确保不超过缓冲区大小，截断过长的ID
         size_t copyLen = std::min(traceId.size(), TRACE_ID_SIZE - 1);
+        auto ret = memcpy_s(tls_traceId, copyLen, traceId.c_str(), traceId.size());
 
-        errno_t ret = memcpy_s(tls_traceId, TRACE_ID_SIZE,
-                               traceId.c_str(), copyLen);
         if (ret != EOK) {
-            tls_traceId[0] = '\0';
             return;
         }
+        tls_traceId[copyLen] = '\0'; // 确保字符串终止
 
-        tls_traceId[copyLen] = '\0';
+
     }
 
     // 清空当前线程的traceId（请求处理结束时清理）
@@ -74,52 +68,33 @@ public:
     static uint32_t InitUuid();
 
 private:
-    // 生成UUID作为traceId
+    // 生成UUID作为traceId（例如：a1b2c3d4-5678-90ef-ghij-klmnopqrstuv）
     static inline void generateTraceId()
     {
-        // 优先使用 libuuid
-        if (uuidGenerateRandomFunc_ != nullptr &&
-            uuidUnparseFunc_ != nullptr) {
-            uuid_t uuid;
-            char buf[TRACE_ID_SIZE] = {0};
-            uuidGenerateRandomFunc_(uuid);
-            uuidUnparseFunc_(uuid, buf);
-            buf[TRACE_ID_SIZE - 1] = '\0';
-            errno_t ret = strcpy_s(tls_traceId, TRACE_ID_SIZE, buf);
-            if (ret != EOK) {
-                tls_traceId[0] = '\0';
-            }
+        uuid_t uuid;
+        if (uuidGenerateRandomFunc_ == nullptr) {
+            tls_traceId[0] = '\0';
+
             return;
         }
-
-        // fallback（避免完全不可用）
-        auto now = std::chrono::high_resolution_clock::now()
-                       .time_since_epoch()
-                       .count();
-        auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
-
-        std::string fallback =
-            std::to_string(now) + std::to_string(tid);
-
-        size_t copyLen = std::min(fallback.size(), TRACE_ID_SIZE - 1);
-
-        errno_t ret = memcpy_s(tls_traceId, TRACE_ID_SIZE,
-                               fallback.c_str(), copyLen);
+        uuidGenerateRandomFunc_(uuid);
+        char buf[TRACE_ID_SIZE]; // UUID字符串长度固定36，加终止符
+        if (uuidUnparseFunc_ == nullptr) {
+            tls_traceId[0] = '\0';
+            return;
+        }
+        uuidUnparseFunc_(uuid, buf);
+        buf[TRACE_ID_SIZE - 1] = '\0';
+        auto ret = strcpy_s(tls_traceId, TRACE_ID_SIZE, buf);
         if (ret != EOK) {
             tls_traceId[0] = '\0';
             return;
         }
-
-        tls_traceId[copyLen] = '\0';
     }
-
-private:
     static UuidGenerateRandom uuidGenerateRandomFunc_;
     static UuidUnparse uuidUnparseFunc_;
     static void *uuidLib_;
     static bool IsEnable_;
-
-    static std::once_flag initFlag_;
 };
 
 #endif // UBSE_MANAGER_TRACE_CONTEXT_H
