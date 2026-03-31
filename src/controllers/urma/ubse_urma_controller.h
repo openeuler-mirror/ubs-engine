@@ -68,7 +68,7 @@ std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
                                         const std::vector<PhysicalLink> &allLinkInfo,
                                         const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
-UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId, bool skipActivate=false);
+UbseResult UrmaCtlActivateUrmaDevice(const std::string &nodeId, bool skipActivate = false);
 
 /**
  * @brief 查询指定urma的状态，如果为空则查询所有urma，查询后设置urmaInfo状态
