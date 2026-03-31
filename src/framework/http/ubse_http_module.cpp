@@ -13,10 +13,13 @@
 #include "ubse_http_module.h"
 
 #include <httplib.h> // for Error, Response, Request, Client
+#include <openssl/x509.h>
 #include <securec.h> // for memcpy_s, EOK, errno_t
 #include <map>       // for map, operator!=, _Rb_tree_con...
 #include <mutex>     // for mutex, lock_guard
 
+#include "ubse_cert_def.h"
+#include "ubse_cert_validator.h"
 #include "ubse_conf_module.h" // for UbseConfModule
 #include "ubse_context.h"     // for UbseContext, ProcessMode, BAS...
 #include "ubse_error.h"       // for UBSE_OK, UBSE_ERROR, UBSE_ERR...
@@ -24,10 +27,8 @@
 #include "ubse_http_server.h" // for UbseHttpServer
 #include "ubse_logger.h"      // for UbseLoggerEntry, FormatRetCode
 #include "ubse_net_util.h"
-#include "ubse_cert_def.h"
-#include "ubse_cert_validator.h"
-#include "ubse_thread_pool_module.h" // for UbseTaskExecutorModule
 #include "ubse_security_module.h"
+#include "ubse_thread_pool_module.h" // for UbseTaskExecutorModule
 
 namespace ubse::http {
 using namespace ubse::task_executor;
@@ -139,6 +140,41 @@ UbseResult UbseHttpModule::MakeError(uint32_t code)
     return UBSE_HTTP_ERROR_FAILURE;
 }
 
+bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpRsp, httplib::Error &error)
+{
+    // UBFM TCP服务端口为本机，端口为配置文件中读取的端口
+    SecureBuffer serverKeyPassword = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
+    if (serverKeyPassword.size() == 0) {
+        UBSE_LOG_ERROR << "ServerKeyPassword is empty!";
+        return false;
+    }
+    SSLClient cli("localhost", port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
+                  serverKeyPassword.c_str());
+    cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
+    cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+    cli.set_path_encode(false);
+    SSL_CTX *ctx = cli.ssl_context();
+    if (ctx && !cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
+        UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
+        return false;
+    }
+    cli.send(httpReq, httpRsp, error);
+    return true;
+}
+
+void UbseHttpModule::UdsSend(httplib::Request &httpReq, httplib::Response &httpRsp, httplib::Error &error)
+{
+    // UBFM UDS服务地址为 UBFM_UDS_ADDRESS
+    httplib::Client cli(UBM_UDS_ADDRESS);
+    cli.set_address_family(AF_UNIX);
+    cli.set_path_encode(false);
+    cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
+    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
+    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    cli.send(httpReq, httpRsp, error);
+    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+}
+
 UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
 {
     httplib::Error error;
@@ -156,28 +192,11 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
 
     // 目前send仅支持向UBFM服务端口发送请求
     if (isTcpServer) {
-        // UBFM TCP服务端口为本机，端口为配置文件中读取的端口
-        SecureBuffer serverKeyPassword = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
-        if (serverKeyPassword.size() == 0) {
-            UBSE_LOG_ERROR << "ServerKeyPassword is empty!";
+        if (!TcpSend(httpReq, httpRsp, error)) {
             return UBSE_ERROR;
         }
-        SSLClient cli("localhost", port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
-                      serverKeyPassword.c_str());
-        cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
-        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
-        cli.set_path_encode(false);
-        cli.send(httpReq, httpRsp, error);
     } else {
-        // UBFM UDS服务地址为 UBFM_UDS_ADDRESS
-        httplib::Client cli(UBM_UDS_ADDRESS);
-        cli.set_address_family(AF_UNIX);
-        cli.set_path_encode(false);
-        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
-        std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        cli.send(httpReq, httpRsp, error);
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        UdsSend(httpReq, httpRsp, error);
     }
 
     if (httpRsp.body.size() > MAX_RESPONSE_BODY_SIZE) {
@@ -191,8 +210,11 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
     for (auto &header : httpRsp.headers) {
         rsp.headers.emplace(header.first, header.second);
     }
-
     if (error != httplib::Error::Success) {
+        if (error == httplib::Error::SSLServerVerification) {
+            UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
+                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+        }
         return MakeError(static_cast<uint32_t>(error));
     }
     return UBSE_OK;
@@ -211,27 +233,17 @@ UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, cons
     Error error;
     Response rsp{};
     if (isTcpServer) {
-        // UBFM TCP服务端口为本机，端口为配置文件中读取的端口
-        SecureBuffer serverKeyPassword = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
-        if (serverKeyPassword.size() == 0) {
-            UBSE_LOG_ERROR << "ServerKeyPassword is empty!";
+        if (!TcpSend(req, rsp, error)) {
             return UBSE_ERROR;
         }
-        SSLClient cli("localhost", port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
-                      serverKeyPassword.c_str());
-        cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
-        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
-        cli.send(req, rsp, error);
     } else {
-        Client cli(UBM_UDS_ADDRESS);
-        cli.set_address_family(AF_UNIX);
-        cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
-        std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        cli.send(req, rsp, error);
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        UdsSend(req, rsp, error);
     }
     if (error != Error::Success) {
+        if (error == Error::SSLServerVerification) {
+            UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
+                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+        }
         return MakeError(static_cast<uint32_t>(error));
     }
 

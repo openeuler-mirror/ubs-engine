@@ -11,8 +11,12 @@
  */
 #include "ubse_http_server.h"
 
+#include <cerrno>
 #include <grp.h>
 #include <securec.h>
+#include <openssl/pem.h>
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
 
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "httplib.h"
@@ -260,23 +264,11 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
         return nullptr;
     }
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
-    // 如果 CRL 文件存在，加载并启用吊销检查
-    if (access(UbseSSLConfig::CrlFile, F_OK) == 0) {
-        X509_STORE *store = SSL_CTX_get_cert_store(ctx);
-        if (store) {
-            X509_LOOKUP *lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file());
-            if (lookup && X509_load_crl_file(lookup, UbseSSLConfig::CrlFile, X509_FILETYPE_PEM)) {
-                X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
-                UBSE_LOG_INFO << "CRL validation enabled.";
-            } else {
-                UBSE_LOG_ERROR << "Failed to parse CRL file: " << UbseSSLConfig::CrlFile;
-                return nullptr;
-            }
-        }
-    } else {
-        UBSE_LOG_WARN << "CRL file not found, skipping CRL validation.";
+    // 配置证书吊销列表（CRL）验证
+    if (!cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
+        UBSE_LOG_ERROR << "Failed to configure CRL validation for server";
+        return nullptr;
     }
-
     sslServer->new_task_queue = []() -> httplib::ThreadPool* {
         return new httplib::ThreadPool(NO_1, NO_8);
     };
