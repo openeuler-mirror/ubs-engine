@@ -808,7 +808,6 @@ UbseResult UbseUrmaActivateUrmaInfoMessageHandler::Handle(const UbseBaseMessageP
     // 如果是本节点的消息就激活，如果是主节点就转发，其他情况丢弃并返回错误
     if (nodeId == curNodeId) {
         UBSE_LOG_INFO << "Activate urma node, nodeId=" << nodeId;
-        UbseUrmaInfo urmaInfo{};
         auto ret = UrmaController::GetInstance().ActivateSpecifyUrmaBonding(urmaName);
         response->SetErrCode(ret);
         return ret;

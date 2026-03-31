@@ -19,6 +19,7 @@
 #include "ubse_logger.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_controller.h"
+#include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
 
 namespace ubse::urmaController {
@@ -67,7 +68,11 @@ UbseResult UbseUrmaControllerManager::GetAllUrmaInfo(std::vector<std::string> &u
         return UBSE_ERROR;
     }
     // 查询设备激活状态
-    (void)QueryUrmaInfoStateFromUrma(currentNodeInfo.nodeId);
+    bool isAllPortDown = false;
+    if (QueryAllPortsDown(isAllPortDown) != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to query all ports status, all ports are down should be down";
+        isAllPortDown = true;
+    }
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
@@ -75,7 +80,18 @@ UbseResult UbseUrmaControllerManager::GetAllUrmaInfo(std::vector<std::string> &u
     }
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         urmaInfoName.push_back(info.first);
-        status.push_back(static_cast<uint32_t>(info.second.state));
+        bool health = true;
+        for (auto &eidGroup : info.second.eidGroups) {
+            if (isAllPortDown) {
+                health = false;
+                break;
+            }
+            if (QueryUdmaDevHealth(eidGroup.primaryEid) != UBSE_OK) {
+                health = false;
+                break;
+            }
+        }
+        status.push_back(static_cast<uint32_t>(health ? UrmaDevState::ACTIVED : UrmaDevState::INACTIVED));
         hwResIds.push_back(info.second.hwResId);
     }
 

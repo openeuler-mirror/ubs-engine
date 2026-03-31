@@ -286,6 +286,12 @@ std::string GetUrmaDevEidByUrmaName(const std::string &urmaName)
     return urmaInfo.urmaDevEid;
 }
 
+UbseResult QueryUdmaDevHealth(const std::string &feEid)
+{
+    std::string dummyName;
+    return UbseGetUrmaSubpathByEid(feEid, dummyName);
+}
+
 UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::string &urmaName)
 {
     bool isAllPortDown = false;
@@ -606,7 +612,6 @@ UbseResult UrmaController::UbseUrmaCliDevActivate(const std::string &nodeId, con
     ubse::election::UbseRoleInfo currentNodeInfo{};
     ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
     if (nodeId == currentNodeInfo.nodeId) {
-        UbseUrmaInfo urmaInfo{};
         return ActivateSpecifyUrmaBonding(urmaName);
     }
     // 转发至主节点处理
