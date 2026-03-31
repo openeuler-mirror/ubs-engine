@@ -50,13 +50,10 @@ public:
         // 确保不超过缓冲区大小，截断过长的ID
         size_t copyLen = std::min(traceId.size(), TRACE_ID_SIZE - 1);
         auto ret = memcpy_s(tls_traceId, copyLen, traceId.c_str(), traceId.size());
-
         if (ret != EOK) {
             return;
         }
         tls_traceId[copyLen] = '\0'; // 确保字符串终止
-
-
     }
 
     // 清空当前线程的traceId（请求处理结束时清理）
