@@ -75,5 +75,13 @@ UbseMemShareBorrowImportObj UbseShareImportObjGet(const std::string &nodeId, con
 
 UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string &nodeId, const std::string &name,
                                                 bool isFromTaskManager = false);
+
+struct ShareHandleInfo {
+    std::string name;
+    std::vector<uint64_t> memIds;
+};
+using ShareHandleInfoVec = std::vector<ShareHandleInfo>;
+UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNodeId, const std::string &exportNodeId,
+                                                    ShareHandleInfoVec &importHandInfo);
 } // namespace ubse::mem::controller::debt
 #endif // UBS_ENGINE_UBSE_MEM_DEBT_INFO_QUERY_H

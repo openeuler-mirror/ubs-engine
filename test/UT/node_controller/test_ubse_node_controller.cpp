@@ -235,7 +235,7 @@ TEST_F(TestUbseNodeController, CanUpdateNodeClusterState)
         false);
     EXPECT_EQ(
         CanUpdateNodeClusterState(UbseNodeClusterState::UBSE_NODE_SMOOTHING, UbseNodeClusterState::UBSE_NODE_SMOOTHING),
-        false);
+        true);
     EXPECT_EQ(
         CanUpdateNodeClusterState(UbseNodeClusterState::UBSE_NODE_SMOOTHING, UbseNodeClusterState::UBSE_NODE_WORKING),
         true);

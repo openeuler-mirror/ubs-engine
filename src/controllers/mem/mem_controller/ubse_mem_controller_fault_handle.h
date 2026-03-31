@@ -51,6 +51,7 @@ public:
 
     static UbseResult DeInitMemFaultManager();
 
+    static UbseResult MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string &faultId);
 private:
     static UbseResult GetMemNameById(uint64_t memId, std::string &memName);
 
