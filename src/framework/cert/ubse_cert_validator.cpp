@@ -1,14 +1,15 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-* http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ * http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #include "ubse_cert_validator.h"
 
 #include <openssl/err.h>
@@ -18,6 +19,8 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <fstream>
+#include <pwd.h>
+#include <sys/stat.h>
 
 #include "ubse_cert_def.h"
 #include "ubse_file_util.h"
@@ -27,6 +30,7 @@ namespace ubse::cert {
 using namespace ubse::utils;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
+constexpr mode_t FILEPERMISSION = 0600;
 
 SecureBuffer UbseSslValidator::LoadPasswordFromFile(const char *path)
 {
@@ -48,6 +52,95 @@ SecureBuffer UbseSslValidator::LoadPasswordFromFile(const char *path)
     }
     UBSE_LOG_ERROR << "[CERT] Failed to read password from file: " << path;
     return {};
+}
+
+bool UbseSslValidator::CheckAllFileExist()
+{
+    bool res = true;
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::ServerCertFile)) {
+        UBSE_LOG_ERROR << "ServerCert file not found: " << UbseSSLConfig::ServerCertFile;
+        res &= false;
+    }
+ 
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::ServerKeyFile)) {
+        UBSE_LOG_ERROR << "ServerKey file not found: " << UbseSSLConfig::ServerKeyFile;
+        res &= false;
+    }
+ 
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::TrustCertFile)) {
+        UBSE_LOG_ERROR << "TrustCert file not found: " << UbseSSLConfig::TrustCertFile;
+        res &= false;
+    }
+ 
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::PasswordFile)) {
+        UBSE_LOG_ERROR << "Password file not found: " << UbseSSLConfig::PasswordFile;
+        res &= false;
+    }
+ 
+    CheckAllFilePermission600();
+    return res;
+}
+ 
+bool CheckFilePermission600(const std::string &filepath)
+{
+    struct stat fileStat;
+    if (stat(filepath.c_str(), &fileStat) != 0) {
+        UBSE_LOG_ERROR << "Failed to stat file " << filepath;
+        return false;
+    }
+ 
+    const std::string user = "ubse";
+    struct passwd *pwuid = getpwnam(user.c_str());
+    if (pwuid == nullptr) {
+        UBSE_LOG_ERROR << "User:ubse does not exist on this system.";
+        return false;
+    }
+    uid_t targetUid = pwuid->pw_uid;
+ 
+    if (fileStat.st_uid != targetUid) {
+        UBSE_LOG_ERROR << "File owner mismatch for " << filepath
+                       << ". Expected: " << user << "(" << targetUid << ")"
+                       << ", Actual UID: " << fileStat.st_uid;
+        return false;
+    }
+ 
+    mode_t permissions = fileStat.st_mode & (~S_IFMT);
+    if (permissions == FILEPERMISSION) {
+        return true;
+    }
+    return false;
+}
+ 
+bool UbseSslValidator::CheckAllFilePermission600()
+{
+    bool res = true;
+    if (!CheckFilePermission600(UbseSSLConfig::ServerCertFile)) {
+        UBSE_LOG_WARN << "ServerCert file : " << UbseSSLConfig::ServerCertFile << "Permission is not 600";
+        res &= false;
+    }
+ 
+    if (!CheckFilePermission600(UbseSSLConfig::ServerKeyFile)) {
+        UBSE_LOG_WARN << "ServerKey file : " << UbseSSLConfig::ServerKeyFile << "Permission is not 600";
+        res &= false;
+    }
+ 
+    if (!CheckFilePermission600(UbseSSLConfig::TrustCertFile)) {
+        UBSE_LOG_WARN << "TrustCert file : " << UbseSSLConfig::TrustCertFile << "Permission is not 600";
+        res &= false;
+    }
+ 
+    if (!CheckFilePermission600(UbseSSLConfig::PasswordFile)) {
+        UBSE_LOG_WARN << "Password file : " << UbseSSLConfig::PasswordFile << "Permission is not 600";
+        res &= false;
+    }
+
+    if (UbseFileUtil::CheckFileExists(UbseSSLConfig::CrlFile)) {
+        if (!CheckFilePermission600(UbseSSLConfig::CrlFile)) {
+            UBSE_LOG_WARN << "Crl file: " << UbseSSLConfig::CrlFile << "Permission is not 600.";
+            res &= false;
+        }
+    }
+    return res;
 }
 
 X509 *UbseSslValidator::LoadAndValidateCert(const char *path, const char *name)

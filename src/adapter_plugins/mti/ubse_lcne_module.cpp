@@ -54,20 +54,23 @@ UbseResult UbseLcneModule::GetLcneConf()
         UBSE_LOG_ERROR << "Failed to get config module";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    uint32_t intCid;
+    if (auto ret = module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.cid", intCid); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to get the configuration for server.cid. Uds protocol will be used.";
+        LcneServer::isTcpServer = false;
+        return UBSE_OK;
+    }
     // 真实lcne端口
     std::string realLcnePortStr{realUbfmDefaultPort}; // 默认为34256
     auto ret = module->GetConf<std::string>("ubse.ubfm", "ubm.server.port", realLcnePortStr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Unable to get the configuration for lcne.port. Uds protocol will be used.";
-        LcneServer::isTcpServer = false;
-        return UBSE_OK;
-    }
-    UBSE_LOG_DEBUG << "The value of the lcne.port field is " << realLcnePortStr;
-    LcneServer::isTcpServer = true;
-    if (ConvertPortConfStrToInt(realLcnePortStr, LcneServer::realPort) != UBSE_OK) {
+        LcneServer::realPort = DEFAULT_UBM_SERVER_PORT;
+        UBSE_LOG_WARN << "The default value for port will be used.";
+    } else if (ConvertPortConfStrToInt(realLcnePortStr, LcneServer::realPort) != UBSE_OK) {
         LcneServer::realPort = DEFAULT_UBM_SERVER_PORT;
         UBSE_LOG_WARN << "The default value for port will be used.";
     };
+    LcneServer::isTcpServer = true;
     return UBSE_OK;
 }
 

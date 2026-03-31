@@ -111,6 +111,7 @@ fi
 %define log_dir /var/log/ubse
 %define data_dir /var/lib/ubse
 %define cert_dir /var/lib/ubse/cert
+%define lcne_cert_dir /var/lib/ubse/lcne_cert
 %define socket_dir /var/run/ubse
 
 %define system_user ubse
@@ -353,10 +354,12 @@ ensure_directory_owner "%{log_dir}" true
 ensure_directory_owner "%{data_dir}" true
 ensure_directory_owner "%{data_dir}/data" true
 ensure_directory_owner "%{cert_dir}" true
+ensure_directory_owner "%{lcne_cert_dir}" true
 ensure_directory_owner "%{socket_dir}" true
 chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data"
 chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
+chmod 700 "%{lcne_cert_dir}"
 systemctl enable %{service_name}
 modify_udev_rule
 if [ "$MXE_SCENE" == "vm" ]; then
@@ -392,6 +395,7 @@ systemctl daemon-reload
 remove_directory %{log_dir}
 remove_directory %{cert_dir}
 remove_directory %{socket_dir}
+remove_directory %{lcne_cert_dir}
 
 deleted_semaphore
 if id "%{system_user}" &>/dev/null; then

@@ -385,7 +385,7 @@ uint32_t FdExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemFdBorro
         if (const auto ret = UbseMemSignVerifier::SignAndVerify(trustReq, exportObj.req.trustRingData.lendSignedDatas);
             ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to sign for lend information, " << FormatRetCode(ret);
-            EraseFdExport(exportObj);
+            UbseMmiInterface::GetInstance().FdExportExecutor(exportObj);
             exportObj.errorCode = ret;
             exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
             return SendFdExportObj(exportObj, false);
@@ -476,8 +476,7 @@ uint32_t FdExportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
     UbseMemFdExportObjStateChangeHandler(exportObj);
     // requestNodeId为空则当前场景为对账删除导出账本或者借用失败回滚
     return requestNodeId.empty() ?
-               UBSE_OK :
-               BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::FD_RETURN);
+               UBSE_OK : BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::FD_RETURN);
 }
 
 void FdImportUpdateState(UbseMemFdBorrowImportObj &importObj, const UbseMemState &state)
@@ -1079,11 +1078,11 @@ uint32_t UbseMemFdReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
     bool hasExport = false;
     FindBorrowObjByName<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>(
         req.name, req.importNodeId, importObj, exportObj, hasImport, hasExport,
-        [](const NodeMemDebtInfo &info) -> const UbseMemFdImportObjMap& { return info.fdImportObjMap; },
-        [](const NodeMemDebtInfo &info) -> const UbseMemFdExportObjMap& { return info.fdExportObjMap; });
+        [](const NodeMemDebtInfo &info) -> const UbseMemFdImportObjMap &{ return info.fdImportObjMap; },
+        [](const NodeMemDebtInfo &info) -> const UbseMemFdExportObjMap &{ return info.fdExportObjMap; });
     if (!hasImport && !hasExport) {
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource not found.",
-            UBSE_ERR_NOT_EXIST, MemOperationType::FD_RETURN);
+                                          UBSE_ERR_NOT_EXIST, MemOperationType::FD_RETURN);
     }
     UbseMemStage memStage = GetMemStageByImportObjState(importObj, hasImport);
     if (memStage != UbseMemStage::UBSE_CREATING && memStage != UbseMemStage::UBSE_DELETING) {
