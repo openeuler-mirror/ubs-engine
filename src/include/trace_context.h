@@ -118,7 +118,7 @@ private:
         fallbackGenerateTraceId();
     }
 
-    // 备用方案: 当UUID库不可用时生成唯一ID
+    // 备用方案：当UUID库不可用时生成唯一ID
     static inline void fallbackGenerateTraceId()
     {
         // 使用线程局部随机数生成器，避免锁竞争
@@ -129,18 +129,20 @@ private:
         auto now = std::chrono::steady_clock::now().time_since_epoch().count();
         auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
         auto random = dist(rng);
-        // 生成UUID格式的字符串（32位十六进制）
+        // 生成类似UUID格式的字符串（32位十六进制）
         uint64_t high = static_cast<uint64_t>(now) ^ tid;
         uint64_t low = random;
-        errno_t ret = snprintf_s(tls_traceId, TRACE_ID_SIZE, TRACE_ID_SIZE - 1,
+        // destMax 设置为缓冲区实际大小
+        errno_t ret = snprintf_s(tls_traceId, TRACE_ID_SIZE, TRACE_ID_SIZE,
                                  "%016lx-%016lx",
                                  static_cast<unsigned long>(high),
                                  static_cast<unsigned long>(low));
         if (ret < 0) {
             // 格式化失败，设置为空字符串
             tls_traceId[0] = '\0';
-        } else {
-            tls_traceId[TRACE_ID_SIZE - 1] = '\0';  // 确保终止符
+        } else if (ret >= TRACE_ID_SIZE) {
+            // 如果输出被截断，确保字符串以终止符结尾
+            tls_traceId[TRACE_ID_SIZE - 1] = '\0';
         }
     }
 
