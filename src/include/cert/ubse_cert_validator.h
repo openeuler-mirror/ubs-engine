@@ -1,14 +1,14 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
-* ubs-engine is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-* http://license.coscl.org.cn/MulanPSL2
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-* See the Mulan PSL v2 for more details.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ * http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 
 #ifndef UBS_ENGINE_UBSE_SSL_VALIDATOR_H
 #define UBS_ENGINE_UBSE_SSL_VALIDATOR_H
@@ -40,6 +40,28 @@ public:
      * @return 配置吊销列表是否成功
      */
     static bool ConfigureCrlValidation(SSL_CTX *ctx);
+
+    /**
+     * @brief 检查对应路径文件是否完整
+     *
+     * @return 返回检查结果，true表示所需文件都存在
+     */
+    static bool CheckAllFileExist();
+
+    /**
+     * @brief 检查对应路径文件权限是否为600
+     *
+     * @return 返回检查结果，true表示所有文件权限合法
+     */
+    static bool CheckAllFilePermission600();
+
+    /**
+     * @brief 客户端配置吊销列表，用于校验服务的的证书是否可信
+     *
+     * @param ctx http client端的ssl ctx
+     * @return 客户端配置吊销列表是否成功
+     */
+    static bool ConfigureClientCrlValidation(SSL_CTX *ctx);
 
 private:
     static X509 *LoadAndValidateCert(const char *path, const char *name);

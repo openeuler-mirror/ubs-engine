@@ -404,7 +404,7 @@ uint32_t FdExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemFdBorro
         if (const auto ret = UbseMemSignVerifier::SignAndVerify(trustReq, exportObj.req.trustRingData.lendSignedDatas);
             ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to sign for lend information, " << FormatRetCode(ret);
-            EraseFdExport(exportObj);
+            UbseMmiInterface::GetInstance().FdExportExecutor(exportObj);
             exportObj.errorCode = ret;
             exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
             return SendFdExport(exportObj, name, exportNodeId, false);

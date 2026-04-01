@@ -635,7 +635,6 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
     auto req = reqSimpoPtr->GetUbseMemShareBorrowReq();
     req.withAffinity.enableCreateWithAffinity = true;
     req.withAffinity.createReqNodeId = localNodeId;
-    reqSimpoPtr->SetUbseMemShareBorrowReq(req);
     if (IsHighSafety()) {
         if (const auto res =
                 UbseMemSignVerifier::Sign("share", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
@@ -644,6 +643,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
             return res;
             }
     }
+    reqSimpoPtr->SetUbseMemShareBorrowReq(req);
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
         ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
@@ -693,6 +693,15 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
         return UBSE_ERROR_NULLPTR;
     }
     reqSimpoPtr->SetUbseMemShareBorrowReq(req);
+    if (IsHighSafety()) {
+        if (const auto res =
+            UbseMemSignVerifier::Sign("share", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
+            res != UBSE_OK) {
+                UBSE_LOG_ERROR << "Sign for request failed, " << FormatRetCode(res);
+                return res;
+            }
+        reqSimpoPtr->SetUbseMemShareBorrowReq(req);
+    }
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
         ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
