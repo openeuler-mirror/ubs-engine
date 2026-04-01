@@ -414,6 +414,7 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo &info, UbseC
     if (GetRemoteNodeIdByCall(info.GetIp(), channelPtr, remoteNodeId) != UBSE_OK) {
         auto chId = channelPtr->GetId();
         DestroyChannel(channelPtr);
+        RemoveConnectingNode(info.GetIp(), chType);
         UBSE_LOG_ERROR << "Get remote node id for " << info.GetIp() << " fail, destroy current channel:" << chId;
         return UBSE_ERROR;
     }
