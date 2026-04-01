@@ -105,7 +105,6 @@ private:
         // 缓存函数指针，避免重复检查静态变量
         auto generateFunc = uuidGenerateRandomFunc_.load(std::memory_order_relaxed);
         auto unparseFunc = uuidUnparseFunc_.load(std::memory_order_relaxed);
-
         // 优先使用UUID库
         if (generateFunc && unparseFunc) {
             uuid_t uuid;
@@ -119,27 +118,30 @@ private:
         fallbackGenerateTraceId();
     }
 
-    // 备用方案：当UUID库不可用时生成唯一ID
+    // 备用方案: 当UUID库不可用时生成唯一ID
     static inline void fallbackGenerateTraceId()
     {
         // 使用线程局部随机数生成器，避免锁竞争
         thread_local std::mt19937_64 rng(std::random_device{}() ^
                                          std::hash<std::thread::id>{}(std::this_thread::get_id()));
         thread_local std::uniform_int_distribution<uint64_t> dist;
-
         // 组合时间戳、线程ID和随机数确保唯一性
         auto now = std::chrono::steady_clock::now().time_since_epoch().count();
         auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
         auto random = dist(rng);
-
-        // 生成类似UUID格式的字符串（32位十六进制）
+        // 生成UUID格式的字符串（32位十六进制）
         uint64_t high = static_cast<uint64_t>(now) ^ tid;
         uint64_t low = random;
-
-        snprintf(tls_traceId, TRACE_ID_SIZE, "%016lx-%016lx",
-                 static_cast<unsigned long>(high),
-                 static_cast<unsigned long>(low));
-        tls_traceId[TRACE_ID_SIZE - 1] = '\0';
+        errno_t ret = snprintf_s(tls_traceId, TRACE_ID_SIZE, TRACE_ID_SIZE - 1,
+                                 "%016lx-%016lx",
+                                 static_cast<unsigned long>(high),
+                                 static_cast<unsigned long>(low));
+        if (ret < 0) {
+            // 格式化失败，设置为空字符串
+            tls_traceId[0] = '\0';
+        } else {
+            tls_traceId[TRACE_ID_SIZE - 1] = '\0';  // 确保终止符
+        }
     }
 
     static std::atomic<void*> uuidLib_;
