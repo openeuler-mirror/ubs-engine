@@ -132,17 +132,17 @@ private:
         // 生成类似UUID格式的字符串（32位十六进制）
         uint64_t high = static_cast<uint64_t>(now) ^ tid;
         uint64_t low = random;
-        // destMax 设置为缓冲区实际大小
-        errno_t ret = snprintf_s(tls_traceId, TRACE_ID_SIZE, TRACE_ID_SIZE,
+        // 使用 _TRUNCATE 模式，让函数自动处理截断
+        errno_t ret = snprintf_s(tls_traceId,
+                                 sizeof(tls_traceId),  // 使用 sizeof 获取实际大小
+                                 _TRUNCATE,            // 自动截断模式
                                  "%016lx-%016lx",
                                  static_cast<unsigned long>(high),
                                  static_cast<unsigned long>(low));
+
         if (ret < 0) {
             // 格式化失败，设置为空字符串
             tls_traceId[0] = '\0';
-        } else if (ret >= TRACE_ID_SIZE) {
-            // 如果输出被截断，确保字符串以终止符结尾
-            tls_traceId[TRACE_ID_SIZE - 1] = '\0';
         }
     }
 
