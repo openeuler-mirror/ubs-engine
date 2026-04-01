@@ -305,6 +305,7 @@ void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam &
     importParam.importType = UB_MEMORY_IMPORT_MEMORY;
     importParam.decoderIdx = 0;
     importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
+    importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
 }
 
 void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam &importParam,
@@ -315,9 +316,7 @@ void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam &
     if (privData.adTrOchip == 1) {
         importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
     }
-    if (privData.onePth == 1) {
-        importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
-    }
+    importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
     if (privData.so == 1) {
         importParam.flag |= UB_MEMORY_IMPORT_SO;
     }
@@ -338,6 +337,7 @@ void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam &
     importParam.importType = UB_MEMORY_IMPORT_MEMORY;
     importParam.decoderIdx = 0;
     importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
+    importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
     if (wrDelayComp == 1) {
         importParam.flag |= UB_MEMORY_IMPORT_WR_DELAY_COMP;
     }
