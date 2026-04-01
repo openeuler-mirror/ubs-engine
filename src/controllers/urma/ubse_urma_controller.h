@@ -73,7 +73,7 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
  * @return 成功返回0, 失败返回非0
  */
 UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::string &urmaName = "");
-bool QueryUdmaDevHealth(const std::string &feEid);
+bool IsUdmaDevHealthy(const std::string &feEid);
 UbseResult QueryAllPortsDown(bool &isAllPortDown);
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_H

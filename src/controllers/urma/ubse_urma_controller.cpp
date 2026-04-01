@@ -285,7 +285,7 @@ std::string GetUrmaDevEidByUrmaName(const std::string &urmaName)
     return urmaInfo.urmaDevEid;
 }
 
-bool QueryUdmaDevHealth(const std::string &feEid)
+bool IsUdmaDevHealthy(const std::string &feEid)
 {
     std::string dummyName;
     return UbseGetUrmaSubpathByEid(feEid, dummyName) == UBSE_OK && !dummyName.empty();

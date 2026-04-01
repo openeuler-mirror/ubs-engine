@@ -86,7 +86,7 @@ UbseResult UbseUrmaControllerManager::GetAllUrmaInfo(std::vector<std::string> &u
                 health = false;
                 break;
             }
-            if (QueryUdmaDevHealth(eidGroup.primaryEid) != UBSE_OK) {
+            if (!IsUdmaDevHealthy(eidGroup.primaryEid)) {
                 health = false;
                 break;
             }
