@@ -9,11 +9,14 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> // getuid, getgid, getpid
 #include "ubs_engine_mem.h"
+
+static volatile int g_running = 1;
 static const char *g_shm_name = "demo_shm";
 static const uint64_t g_shm_size = 4 * 1024 * 1024; // 4MB
 static ubs_mem_fd_owner_t g_owner;
@@ -194,6 +197,113 @@ static void ubs_mem_shm_fault_get_example(void)
         }
     }
 }
+
+static const char *fault_type_to_string(ubs_mem_fault_type_t type)
+{
+    switch (type) {
+        case UB_MEM_ATOMIC_DATA_ERR:
+            return "UB_MEM_ATOMIC_DATA_ERR";
+        case UB_MEM_READ_DATA_ERR:
+            return "UB_MEM_READ_DATA_ERR";
+        case UB_MEM_FLOW_POISON:
+            return "UB_MEM_FLOW_POISON";
+        case UB_MEM_FLOW_READ_AUTH_POISON:
+            return "UB_MEM_FLOW_READ_AUTH_POISON";
+        case UB_MEM_FLOW_READ_AUTH_RESPERR:
+            return "UB_MEM_FLOW_READ_AUTH_RESPERR";
+        case UB_MEM_TIMEOUT_POISON:
+            return "UB_MEM_TIMEOUT_POISON";
+        case UB_MEM_TIMEOUT_RESPERR:
+            return "UB_MEM_TIMEOUT_RESPERR";
+        case UB_MEM_READ_DATA_POISON:
+            return "UB_MEM_READ_DATA_POISON";
+        case UB_MEM_READ_DATA_RESPERR:
+            return "UB_MEM_READ_DATA_RESPERR";
+        case MAR_NOPORT_VLD_INT_ERR:
+            return "MAR_NOPORT_VLD_INT_ERR";
+        case MAR_FLUX_INT_ERR:
+            return "MAR_FLUX_INT_ERR";
+        case MAR_WITHOUT_CXT_ERR:
+            return "MAR_WITHOUT_CXT_ERR";
+        case RSP_BKPRE_OVER_TIMEOUT_ERR:
+            return "RSP_BKPRE_OVER_TIMEOUT_ERR";
+        case MAR_NEAR_AUTH_FAIL_ERR:
+            return "MAR_NEAR_AUTH_FAIL_ERR";
+        case MAR_FAR_AUTH_FAIL_ERR:
+            return "MAR_FAR_AUTH_FAIL_ERR";
+        case MAR_TIMEOUT_ERR:
+            return "MAR_TIMEOUT_ERR";
+        case MAR_ILLEGAL_ACCESS_ERR:
+            return "MAR_ILLEGAL_ACCESS_ERR";
+        case REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR:
+            return "REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR";
+        case MEM_EXPORT_FAULT:
+            return "MEM_EXPORT_FAULT";
+        case UB_MEM_HEALTHY:
+            return "UB_MEM_HEALTHY";
+        default:
+            return "UNKNOWN_FAULT_TYPE";
+    }
+}
+
+static int32_t shm_fault_handler(const char *name, uint64_t memid, ubs_mem_fault_type_t type)
+{
+    if (name == NULL) {
+        fprintf(stderr, "[FAULT HANDLER] Error: name is NULL\n");
+        return -1;
+    }
+
+    printf("\n========================================\n");
+    printf("[FAULT HANDLER] Shared Memory Fault Event Received\n");
+    printf("  Name: %s\n", name);
+    printf("  Memory ID: 0x%lx\n", (unsigned long)memid);
+    printf("  Fault Type: %s (%d)\n", fault_type_to_string(type), type);
+    printf("========================================\n\n");
+
+    if (type == UB_MEM_HEALTHY) {
+        printf("[FAULT HANDLER] Memory is healthy, no action needed\n");
+    } else {
+        printf("[FAULT HANDLER] Memory fault detected! Taking recovery actions...\n");
+        printf("[FAULT HANDLER] Suggested actions:\n");
+        printf("  1. Stop using this memory region\n");
+        printf("  2. Notify application layer\n");
+        printf("  3. Initiate failover mechanism\n");
+    }
+
+    return 0;
+}
+
+static void SignalHandler(int sig)
+{
+    (void)sig;
+    g_running = 0;
+    printf("\n[MAIN] Received shutdown signal, exiting...\n");
+}
+
+static void UbsMemShmFaultRegisterExample(void)
+{
+    printf("=== ubs_mem_shm_fault_register_example ===\n");
+
+    signal(SIGINT, SignalHandler);
+    signal(SIGTERM, SignalHandler);
+
+    printf("[MAIN] Registering shared memory fault handler...\n");
+    int32_t ret = ubs_mem_shm_fault_register(shm_fault_handler);
+    if (ret != 0) {
+        fprintf(stderr, "[MAIN] Failed to register fault handler, error: %d\n", ret);
+        return;
+    }
+
+    printf("[MAIN] Fault handler registered successfully\n");
+    printf("[MAIN] Monitoring for shared memory fault events...\n");
+    printf("[MAIN] Press Ctrl+C to exit\n\n");
+
+    while (g_running) {
+        sleep(1);
+    }
+
+    printf("[MAIN] Shutting down...\n");
+}
 int main(void)
 {
     ubs_mem_share_create_example();
@@ -205,4 +315,6 @@ int main(void)
     ubs_mem_share_attach_example();
     ubs_mem_share_detach_example();
     ubs_mem_share_delete_example();
+
+    UbsMemShmFaultRegisterExample();
 }

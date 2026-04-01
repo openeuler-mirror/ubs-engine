@@ -13,6 +13,8 @@
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mem_controller_fault_handle.h"
+#include "ubse_mem_controller_module.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
@@ -505,6 +507,7 @@ UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std
         UBSE_LOG_ERROR << "fault info is invalid. ";
         return ret;
     }
+    mem::controller::UbseMemFaultManager::MemReportWhenExportNodeOnFault(faultType, faultNodeId);
     SwitchRoleWhenMasterFault(faultNodeId);
 
     UbseRoleInfo roleInfo;

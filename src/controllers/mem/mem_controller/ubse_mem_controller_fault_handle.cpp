@@ -26,6 +26,7 @@
 #include "ubse_json_util.h"
 #include "ubse_mem_controller_share_api.h"
 #include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_info_query.h"
 #include "ubse_serial_util.h"
 
 namespace ubse::mem::controller {
@@ -335,6 +336,93 @@ static void StartResponseCheckTask(const UbseMemFaultMsg &msg)
         .detach();
 }
 
+static bool ValidateAndGetShareHandleInfo(const std::string &faultId,
+                                          std::shared_ptr<UbseApiServerModule> &apiServerPtr,
+                                          debt::ShareHandleInfoVec &handleInfo)
+{
+    auto &ctxRef = UbseContext::GetInstance();
+    apiServerPtr = ctxRef.GetModule<UbseApiServerModule>();
+    if (apiServerPtr == nullptr) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get api server module." << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return false;
+    }
+
+    std::string currentNodeId;
+    auto ret = UbseGetCurrentNodeId(currentNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node id, ret=" << ret;
+        return false;
+    }
+    if (currentNodeId == faultId) {
+        UBSE_LOG_INFO << "Current node id is faultId, stop reporting.";
+        return false;
+    }
+
+    ret = UbseQueryShareImportHandleByExportNodeId(currentNodeId, faultId, handleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get share handle info in faultId." << FormatRetCode(ret);
+        return false;
+    }
+    if (handleInfo.empty()) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Share handle vec is empty in faultId, stop reporting.";
+        return false;
+    }
+    return true;
+}
+
+static void SendFaultShareHandleMessages(std::shared_ptr<UbseApiServerModule> &apiServerPtr,
+    const debt::ShareHandleInfoVec &handleInfo,
+    std::shared_ptr<std::atomic<uint32_t>> respCount)
+{
+    UbseRequestMessage longLinkReq{};
+    longLinkReq.header.opCode = UBSE_LONGLINK_FAULT;
+    longLinkReq.header.moduleCode = ubse_ipc_module_code_t::UBSE_LONG_LINK_REGISTER;
+    std::vector<uint64_t> reqList;
+
+    auto respHandler = [respCount](void *, const UbseResponseMessage &) {
+        respCount->fetch_add(1);
+    };
+
+    for (const auto &info : handleInfo) {
+        for (const auto &memId : info.memIds) {
+            UbseShmFault shmFault{
+                .shmName = info.name,
+                .memId = memId,
+                .type = static_cast<UbseIpcMemFaultType>(MEM_EXPORT_FAULT),
+            };
+            uint8_t *buffer = nullptr;
+            size_t size = 0;
+            auto ret = SerializeShmFault(shmFault, buffer, size);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to generate share handle info message, "
+                               << FormatRetCode(ret);
+                continue;
+            }
+            longLinkReq.body = buffer;
+            longLinkReq.header.bodyLen = size;
+            ret = apiServerPtr->AsyncSendLongLink(longLinkReq, nullptr, respHandler, reqList);
+            SafeDelete(buffer);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send long link message." << FormatRetCode(ret);
+                return;
+            }
+        }
+    }
+}
+
+static void StartFaultMemResponseCheckTask(const std::string &faultId)
+{
+    std::thread([faultId] {
+        std::shared_ptr<UbseApiServerModule> apiServerPtr;
+        debt::ShareHandleInfoVec handleInfo;
+        if (!ValidateAndGetShareHandleInfo(faultId, apiServerPtr, handleInfo)) {
+            return;
+        }
+        auto respCount = std::make_shared<std::atomic<uint32_t>>(0);
+        SendFaultShareHandleMessages(apiServerPtr, handleInfo, respCount);
+    }).detach();
+}
+
 UbseResult UbseMemFaultManager::CreateTaskExecutor(const std::string &name)
 {
     auto &ctxRef = UbseContext::GetInstance();
@@ -477,6 +565,17 @@ UbseResult UbseMemFaultManager::DeInitMemFaultManager()
     }
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Succeed to unregister mem fault alarm.";
     return ret;
+}
+UbseResult UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string &faultId)
+{
+    if (faultId.empty()) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] faultNodeId is empty..";
+        return UBSE_ERROR_INVAL;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Starting to handle mem reports caused by export node failures, faultId="
+                  << faultId << ".";
+    StartFaultMemResponseCheckTask(faultId);
+    return UBSE_OK;
 }
 
 UbseResult UbseMemFaultManager::GetMemNameById(uint64_t memId, std::string &memName)

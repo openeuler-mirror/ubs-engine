@@ -14,14 +14,13 @@
 #include <cstdint>
 #include "securec.h"
 #include "src/controllers/node/ubse_node_com_urma_collector.h"
+#include "ubse_context.h"
 #include "ubse_election.h"
-#include "ubse_lcne_module.h"
-#include "ubse_logger_module.h"
-#include "ubse_node_controller.h"
+#include "ubse_logger.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_controller.h"
+#include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
-#include "ubse_context.h"
 
 namespace ubse::urmaController {
 using namespace ubse::election;
@@ -69,7 +68,11 @@ UbseResult UbseUrmaControllerManager::GetAllUrmaInfo(std::vector<std::string> &u
         return UBSE_ERROR;
     }
     // 查询设备激活状态
-    (void)QueryUrmaInfoStateFromUrma(currentNodeInfo.nodeId);
+    bool isAllPortDown = false;
+    if (QueryAllPortsDown(isAllPortDown) != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to query all ports status, all ports are down should be down";
+        isAllPortDown = true;
+    }
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
@@ -77,7 +80,18 @@ UbseResult UbseUrmaControllerManager::GetAllUrmaInfo(std::vector<std::string> &u
     }
     for (auto &info : nodeInfos[currentNodeInfo.nodeId].urmaList) {
         urmaInfoName.push_back(info.first);
-        status.push_back(static_cast<uint32_t>(info.second.state));
+        bool health = true;
+        for (auto &eidGroup : info.second.eidGroups) {
+            if (isAllPortDown) {
+                health = false;
+                break;
+            }
+            if (QueryUdmaDevHealth(eidGroup.primaryEid) != UBSE_OK) {
+                health = false;
+                break;
+            }
+        }
+        status.push_back(static_cast<uint32_t>(health ? UrmaDevState::ACTIVED : UrmaDevState::INACTIVED));
         hwResIds.push_back(info.second.hwResId);
     }
 
@@ -102,7 +116,6 @@ UbseResult UbseUrmaControllerManager::AllocByUrmaName(const std::string &urmaNam
         UBSE_LOG_ERROR << "Failed to get current node info";
         return UBSE_ERROR;
     }
-    (void)QueryUrmaInfoStateFromUrma(currentNodeInfo.nodeId);
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     if (nodeInfos.find(currentNodeInfo.nodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "There is no urma info for node=" << currentNodeInfo.nodeId;
@@ -140,7 +153,7 @@ void UbseUrmaControllerManager::SetActiveState(const std::string &urmaDevEid, co
         }
         for (auto &info : nodeInfos[nodeId].urmaList) {
             if (info.second.urmaDevEid == urmaDevEid) {
-                UBSE_LOG_INFO << "Success to find urma device by eid, name=" << info.first;
+                UBSE_LOG_DEBUG << "Success to find urma device by eid, name=" << info.first;
                 urmaName = info.first;
                 break;
             }
@@ -155,7 +168,7 @@ void UbseUrmaControllerManager::SetActiveState(const std::string &urmaDevEid, co
         UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
         return;
     }
-    UBSE_LOG_INFO << "Success to set urma active, name=" << urmaName;
+    UBSE_LOG_DEBUG << "Success to set urma active, name=" << urmaName;
     nodeInfos[nodeId].urmaList[urmaName].state = UrmaDevState::ACTIVED;
 }
 
@@ -170,7 +183,7 @@ void UbseUrmaControllerManager::SetInactiveState(const std::string &urmaDevEid, 
         }
         for (auto &info : nodeInfos[nodeId].urmaList) {
             if (info.second.urmaDevEid == urmaDevEid) {
-                UBSE_LOG_INFO << "Success to find urma device by eid, name=" << info.first;
+                UBSE_LOG_DEBUG << "Success to find urma device by eid, name=" << info.first;
                 urmaName = info.first;
                 break;
             }
@@ -185,7 +198,7 @@ void UbseUrmaControllerManager::SetInactiveState(const std::string &urmaDevEid, 
         UBSE_LOG_WARN << "There is no urma info for node=" << nodeId;
         return;
     }
-    UBSE_LOG_INFO << "Success to set urma inactive, name=" << urmaName;
+    UBSE_LOG_DEBUG << "Success to set urma inactive, name=" << urmaName;
     nodeInfos[nodeId].urmaList[urmaName].state = UrmaDevState::INACTIVED;
 }
 
@@ -387,9 +400,9 @@ void UbseUrmaControllerManager::PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo)
     UBSE_LOG_DEBUG << "URMA List:";
     for (const auto &urma : nodeInfo.urmaList) {
         UBSE_LOG_DEBUG << "  URMA Name=" << urma.first << ", URMA Sub Path=" << urma.second.subPath
-                      << ", URMA Dev EID=" << urma.second.urmaDevEid
-                      << ", URMA Dev Type=" << static_cast<int>(urma.second.urmaDevType)
-                      << ", URMA State=" << static_cast<int>(urma.second.state);
+                       << ", URMA Dev EID=" << urma.second.urmaDevEid
+                       << ", URMA Dev Type=" << static_cast<int>(urma.second.urmaDevType)
+                       << ", URMA State=" << static_cast<int>(urma.second.state);
     }
 }
 
