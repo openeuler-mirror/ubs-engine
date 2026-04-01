@@ -567,6 +567,28 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::v
     return UBSE_OK;
 }
 
+std::string GenerateSubPathFromUrmaName(const std::string &urmaName)
+{
+    const std::string subPathPrefix = "bonding_dev_";
+    // urmaName格式为urmaName_{index}，将index提取出来拼接到subPathPrefix后面，校验index是否在uint32_t范围内
+    auto indexPos = urmaName.find('_');
+    if (indexPos == std::string::npos) {
+        UBSE_LOG_ERROR << "urmaName format error, urmaName=" << urmaName;
+        return "";
+    }
+    try {
+        auto index = std::stoul(urmaName.substr(indexPos + 1));
+        if (index > UINT32_MAX) {
+            UBSE_LOG_ERROR << "urmaName index out of range, urmaName=" << urmaName;
+            return "";
+        }
+    } catch (const std::invalid_argument &e) {
+        UBSE_LOG_ERROR << "urmaName format error, urmaName=" << urmaName;
+        return "";
+    }
+    return subPathPrefix + urmaName.substr(indexPos + 1);
+}
+
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
                                                       std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
@@ -760,7 +782,7 @@ UbseResult UrmaController::ActivateSpecifyUrmaBonding(const std::string &urmaNam
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::lock_guard<std::mutex> lock(g_invokeUrmaMutex);
-    bool isActivated = UbseActiveBonding(urmaInfo.urmaDevEid) == UBSE_OK;
+    bool isActivated = UbseActiveBonding(urmaInfo.urmaDevEid, GenerateSubPathFromUrmaName(urmaName)) == UBSE_OK;
     SetUrmaInfoState(urmaInfo.urmaDevEid, isActivated, curNode.nodeId);
     if (!isActivated) {
         UBSE_LOG_WARN << "Failed to activate bonding device for eid=" << urmaInfo.urmaDevEid;

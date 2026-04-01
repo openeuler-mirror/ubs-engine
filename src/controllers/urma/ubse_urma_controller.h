@@ -59,6 +59,7 @@ private:
     UbseResult DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
     UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &urmaInfo);
+    std::string GenerateSubPathFromUrmaName(const std::string &urmaName);
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
