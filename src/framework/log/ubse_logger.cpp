@@ -51,26 +51,37 @@ static std::thread::id GetThreadId()
 
 static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
 {
-    constexpr int dateTimeBufferSize = 32;
-    constexpr uint64_t microsecondsPerSecond = 1000000;
-    constexpr uint64_t microsecondsPerMillisecond = 1000;
-    constexpr int millisecondWidth = 3;
+    // 定义日期时间缓冲区大小、每秒微秒数、每毫秒微秒数
+    constexpr int dateTimeBufferSize = 32; // 日期时间缓冲区的大小
+    constexpr uint64_t microsecondsPerSecond = 1000000; // 1秒 = 1000000微秒
+    constexpr uint64_t microsecondsPerMillisecond = 1000; // 1毫秒 = 1000微秒
+    constexpr int millisecondWidth = 3; // 毫秒部分的宽度
+    // 将时间戳从微秒转换为秒
     std::time_t seconds = static_cast<std::time_t>(timestamp / microsecondsPerSecond);
-    std::tm localTime {};
-    std::tm gmtTime {};
-    localtime_r(&seconds, &localTime);
-    gmtime_r(&seconds, &gmtTime);
+    // 定义本地时间和GMT时间的时间结构
+    std::tm localTime {}; // 本地时间
+    std::tm gmtTime {}; // GMT时间
+    // 根据秒数获取本地时间和GMT时间
+    localtime_r(&seconds, &localTime); // 获取本地时间（本地时区）
+    gmtime_r(&seconds, &gmtTime); // 获取GMT时间（全球协调时间）
+    // 初始化一个缓冲区来存储格式化后的日期时间
     char dateTimeBuffer[dateTimeBufferSize] = {0};
+    // 使用本地时间格式化日期时间到缓冲区
     strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime);
+    // 将本地时间和GMT时间转换回秒
     std::time_t localSeconds = mktime(&localTime);
-    std::time_t gmtSeconds   = mktime(&gmtTime);
+    std::time_t gmtSeconds = mktime(&gmtTime);
+    // 计算时区偏移量（本地时间 - GMT时间）
     int offsetSeconds = static_cast<int>(difftime(localSeconds, gmtSeconds));
-    int offsetHours = offsetSeconds / 3600;
-    int offsetMinutes = (std::abs(offsetSeconds) % 3600) / 60;
-    char tzBuffer[7] = {0}; // "+08:00"
+    // 将偏移量转换为小时和分钟
+    int offsetHours = offsetSeconds / 3600; // 小时
+    int offsetMinutes = (std::abs(offsetSeconds) % 3600) / 60; // 分钟
+    // 初始化一个缓冲区存储时区偏移量字符串
+    char tzBuffer[7] = {0}; // 格式："+08:00"
     std::snprintf(tzBuffer, sizeof(tzBuffer), "%+03d:%02d", offsetHours, offsetMinutes);
-    uint64_t milliseconds =
-        (timestamp % microsecondsPerSecond) / microsecondsPerMillisecond;
+    // 计算时间戳中的毫秒部分
+    uint64_t milliseconds = (timestamp % microsecondsPerSecond) / microsecondsPerMillisecond;
+    // 时间戳格式为：[YYYY-MM-DD HH:MM:SS.mmm+HH:MM]
     oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzBuffer << ']';
 }
 
