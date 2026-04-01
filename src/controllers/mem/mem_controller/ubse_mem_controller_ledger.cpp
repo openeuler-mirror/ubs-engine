@@ -104,36 +104,25 @@ void GetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebt
     }
 }
 
-void GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
-                             const NodeMemDebtInfo &masterDebtInfo, const std::string &targetNodeId)
+UbseResult GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
+                                   const NodeMemDebtInfo &masterDebtInfo, const std::string &targetNodeId)
 {
     NodeMemDebtInfo agentDebtInfo{};
     std::string currentNodeId = GetCurNodeId();
     if (currentNodeId == targetNodeId) {
         allDebtInfoMap[targetNodeId] = masterDebtInfo;
+        return UBSE_OK;
     } else {
-        // 账本目标节点采集失败时，重试，直到数据采集成功为止；若下一次对账周期此次还未采集成功，下一次smoothing直接退出，继续等待本次smoothing
-        uint32_t count = 0;
-        while (!g_globalStop.load()) {
-            if (!CheckNodeIsMaster()) {
-                UBSE_LOG_INFO << "current node not master, skip collect ledger.";
-                break;
-            }
-            auto ret = CollectLedge(targetNodeId, agentDebtInfo);
-            if (ret == UBSE_OK) {
-                allDebtInfoMap[targetNodeId] = agentDebtInfo;
-                break;
-            }
-            UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, will retry, " << FormatRetCode(ret);
-            std::unique_lock<std::mutex> lock(mtx_target_ledger_global);
-            auto sleep_ms = GetExponentialBackOffSleepTime(count);
-            auto timeout_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(sleep_ms);
-            if (g_globalCv.wait_until(lock, timeout_time, [&] { return g_globalStop.load(); })) {
-                UBSE_LOG_INFO << "get target ledger timer exit by stop ubse";
-                break;
-            }
-            count++;
+        // 账本目标节点采集失败时，直接返回失败
+        if (!CheckNodeIsMaster()) {
+            UBSE_LOG_INFO << "current node not master, skip collect ledger.";
+            return UBSE_OK;
         }
+        auto ret = CollectLedge(targetNodeId, agentDebtInfo);
+        if (ret == UBSE_OK) {
+            allDebtInfoMap[targetNodeId] = agentDebtInfo;
+        }
+        return ret;
     }
 }
 
@@ -162,7 +151,10 @@ UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo> &al
             return UBSE_OK;
         }
     }
-    GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
+    ret = GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, " << FormatRetCode(ret);
+    }
     return ret;
 }
 
