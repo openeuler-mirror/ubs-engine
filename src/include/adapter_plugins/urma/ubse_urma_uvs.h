@@ -69,9 +69,10 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string &urmaEid, bool &isAc
 /**
  * @brief 下发信息到urma_uvs激活聚合设备
  * @param [in] urmaEid：聚合设备Eid, 格式为 0000:0000:0000:0000:0000:0000:0100:0000
+ * @param [in] aggrDevName：聚合设备名称，最大长度为AGGR_DEV_NAME_LEN-1，不包含'\0'
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbseActiveBonding(const std::string &urmaEid);
+UbseResult UbseActiveBonding(const std::string &urmaEid, const std::string &aggrDevName = "bonding_dev_0");
 
 /**
  * @brief 下发信息到urma_uvs取消激活聚合设备
