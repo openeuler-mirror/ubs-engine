@@ -206,7 +206,7 @@ UbseResult SmbiosStructureType131::FillSmbiosStructFromBuf()
     this->podId = static_cast<uint16_t>(rawData[NO_6] << NO_8) | rawData[NO_5]; // 小端存储
     this->slotId = rawData[NO_7];
     this->meshType = rawData[NO_8];
-    this->superPodId = static_cast<uint32_t>(rawData[NO_10] << NO_8 | rawData[NO_9]);
+    this->superPodId = static_cast<uint32_t>((rawData[NO_10] << NO_8) | rawData[NO_9]);
     LogSmbiosStructTypeInfo();
     return UBSE_OK;
 }
