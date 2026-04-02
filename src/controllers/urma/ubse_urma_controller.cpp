@@ -19,14 +19,13 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
 #include "ubse_smbios_def.h"
-#include "ubse_smbios_default_interface.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_module.h"
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
-#include "src/adapter_plugins/smbios/ubse_smbios_default_interface.h"
+#include "src/include/adapter_plugins/smbios/ubse_smbios.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -500,8 +499,12 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::v
 
 static bool IsColsType()
 {
-    auto typeInfo = UbseSmbiosDefaultInterface::GetInstance().GetMeshType();
-    return typeInfo == UbseMeshType::CLOS;
+    UbseMeshType meshTpye = UbseMeshType::FULL_MESH;
+    auto ret = UbseSmbios::GetInstance().GetMeshType(meshTpye);
+    if (ret != UBSE_OK) {
+       UBSE_LOG_ERROR << "get meshType from smbios failed, defalut to full mesh";
+    }
+    return meshTpye == UbseMeshType::CLOS;
 }
 
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
@@ -623,7 +626,7 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
         return UBSE_ERROR;
     }
     UbseMeshType meshType;
-    auto ret = UbseSmbiosDefaultInterface::GetInstance().GetMeshType(meshType);
+    auto ret = UbseSmbios::GetInstance().GetMeshType(meshType);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get smbios method type, ret=" << ret;
         return ret;

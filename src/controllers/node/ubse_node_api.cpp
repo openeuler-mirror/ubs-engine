@@ -22,7 +22,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_election_module.h"
-#include "src/adapter_plugins/smbios/ubse_smbios_default_interface.h"
+#include "src/include/adapter_plugins/smbios/ubse_smbios.h"
 
 
 namespace ubse::node::api {
@@ -302,9 +302,14 @@ static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage &req,
 
 static bool IsColsType()
 {
-    auto typeInfo = UbseSmbiosDefaultInterface::GetInstance().GetMeshType();
-    return typeInfo == UbseMeshType::CLOS;
+    UbseMeshType meshTpye = UbseMeshType::FULL_MESH;
+    auto ret = UbseSmbios::GetInstance().GetMeshType(meshTpye);
+    if (ret != UBSE_OK) {
+       UBSE_LOG_ERROR << "get meshType from smbios failed, defalut to full mesh";
+    }
+    return meshTpye == UbseMeshType::CLOS;
 }
+
 
 static uint32_t EnsureTargetNodeIdStrict(std::string &targetNodeId,
                                          const UbseRequestContext &context)
