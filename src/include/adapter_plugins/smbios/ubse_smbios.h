@@ -37,7 +37,18 @@ public:
      */
     uint32_t GetMeshType(UbseMeshType &meshType);
 
+    /**
+     * @brief 判断组网是否为CLOS类型
+     */
     bool IsClosType();
+
+    /**
+     * @brief 获取超节点ID
+     * @param superNodeId 超节点ID
+     * @return UBSE_OK 标识成功
+     * @return UBSE_ERROR 表示失败
+     */
+    uint32_t GetSuperPodId(uint32_t superNodeId);
 
 private:
     UbseSmbios() = default;

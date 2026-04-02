@@ -31,6 +31,7 @@
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 
 namespace ubse::nodeController {
@@ -39,6 +40,7 @@ using namespace ubse::election;
 using namespace ubse::serial;
 using namespace ubse::config;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::adapter_plugins::smbios;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t LOCAL_HANDLER_RETRY_DURATION = 2;
@@ -59,7 +61,13 @@ std::vector<UbseNodeInfo> UbseNodeController::GetStaticNodeInfo()
         UBSE_LOG_ERROR << "get all node infos from lcne failed, " << FormatRetCode(ret);
         return {};
     }
+
     for (const auto& node : ubseNodeInfos) {
+        if (UbseSmbios::GetInstance().IsClosType()) {
+            if (auto curnode = GetCurNode(); node.nodeId != curnode.nodeId) {
+                continue;
+            }
+        }
         UbseNodeInfo ubseNodeInfo{node.nodeId};
         auto cpyRet = strcpy_s(ubseNodeInfo.bondingEid, sizeof(ubseNodeInfo.bondingEid), node.eid.c_str());
         if (cpyRet != EOK) {
@@ -511,10 +519,10 @@ std::string CreateLinkIdAndPhysicalLink(const LinkInfo &linkInfo, PhysicalLink &
                    + linkInfo.slotId + "/" + linkInfo.socketId + "/" + linkInfo.portId;
         }
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
-                       << "slotId is " << linkInfo.slotId << "socketId is " << linkInfo.socketId << "portId is "
-                       << linkInfo.portId << "peerSlotId is " << linkInfo.peerSlotId << "peerSocketId is "
-                       << linkInfo.peerSocketId << "peerPortId is " << linkInfo.peerPortId;
+        UBSE_LOG_WARN << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
+                       << "slotId=" << linkInfo.slotId << ", socketId=" << linkInfo.socketId << ", portId="
+                       << linkInfo.portId << ", peerSlotId=" << linkInfo.peerSlotId << ", peerSocketId="
+                       << linkInfo.peerSocketId << ", peerPortId=" << linkInfo.peerPortId;
     }
     return "ERROR-LINK";
 }

@@ -24,8 +24,6 @@ using namespace ubse::http;
 using namespace ubse::adapter_plugins::mti;
 using namespace ubse::log;
 
-uint32_t CheckEidGroup(std::vector<UbseMtiEidGroup> &eidGroups, const std::string type, uint32_t portId);
-
 UbseResult UbseLcneVfeEid::GetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)
 {
     // 第一步先下发消息查询消息获取所有Vfe列表
@@ -221,7 +219,7 @@ UbseResult UbseLcneVfeEid::ParseGetFeEidResponse(const std::string &responseStr,
 UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseMtiFeInfo &feInfo)
 {
     uint32_t i = 0;
-    std::vector<UbseMtiEidGroup> eidGroups;
+    std::map<std::string, UbseMtiEidGroup> eidGroups;
     while (ubseEidXml->Next("urma-communication-info", i) != nullptr) {
         if (ubseEidXml->Next("urma-eid") == nullptr) {
             i++;
@@ -231,34 +229,27 @@ UbseResult UbseLcneVfeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ub
         std::string eid = ubseEidXml->Text();
         ubseEidXml->Previous();
         if (ubseEidXml->Next("port-group-id") != nullptr) {
-            uint32_t portId;
-            try {
-                portId = std::stoul(ubseEidXml->Text());
-            } catch (const std::invalid_argument &e) {
-                return UBSE_ERROR;
-            } catch (const std::out_of_range &e) {
-                return UBSE_ERROR;
-            }
-            auto n = CheckEidGroup(eidGroups, "port-group-id", portId);
-            eidGroups[n].primaryEid = eid;
+            eidGroups[eid.substr(NO_15, NO_4)].primaryEid = eid;
             ubseEidXml->Previous();
         } else if (ubseEidXml->Next("interface-name") != nullptr) {
             std::string interfaceName = ubseEidXml->Text();
             uint32_t portId;
-            auto ret = GetPortIdFromInterfaceName(interfaceName, portId);
-            if (ret != UBSE_OK) {
-                return ret;
+            if (GetPortIdFromInterfaceName(interfaceName, portId) != UBSE_OK) {
+                UBSE_LOG_ERROR << "[MTI] get portId from interfaceName " << interfaceName << " failed";
+                return UBSE_ERROR;
             }
-            auto n = CheckEidGroup(eidGroups, "interface-name", portId);
-            eidGroups[n].portEids[std::to_string(portId)] = eid;
+            eidGroups[eid.substr(NO_15, NO_4)].portEids[std::to_string(portId)] = eid;
             ubseEidXml->Previous();
         } else {
+            UBSE_LOG_ERROR << "[MTI] Xml parse communication-info failed, which label is not supported";
             return UBSE_ERROR;
         }
         i++;
         ubseEidXml->Previous();
     }
-    feInfo.eidGroups= std::move(eidGroups);
+    for (auto &group : eidGroups) {
+        feInfo.eidGroups.push_back(group.second);
+    }
     return UBSE_OK;
 }
 
@@ -290,24 +281,5 @@ UbseResult UbseLcneVfeEid::GetPortIdFromInterfaceName(std::string intfaceName, u
         return UBSE_OK;
     }
     return UBSE_ERROR;
-}
-
-uint32_t CheckEidGroup(std::vector<UbseMtiEidGroup> &eidGroups, const std::string type, uint32_t portId)
-{
-    auto group_size = eidGroups.size();
-    uint32_t i = 0;
-    for (i = 0; i < group_size; i++) {
-        if (type == "port-group-id") {
-            if (eidGroups[i].primaryEid.empty()) {
-                return i;
-            }
-        } else if (type == "interface-name") {
-            if (eidGroups[i].portEids.find(std::to_string(portId)) == eidGroups[i].portEids.end()) {
-                return i;
-            }
-        }
-    }
-    eidGroups.push_back(UbseMtiEidGroup{});
-    return i;
 }
 } // namespace ubse::lcne

@@ -43,4 +43,15 @@ bool UbseSmbios::IsClosType()
     auto meshType = static_cast<UbseMeshType>(basicInfo->meshType);
     return meshType == UbseMeshType::CLOS;
 }
+
+UbseResult UbseSmbios::GetSuperPodId(uint32_t superPodId)
+{
+    auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
+    if (basicInfo == nullptr) {
+        UBSE_LOG_ERROR << "Get super pod basic info failed";
+        return UBSE_ERROR;
+    }
+    superPodId = static_cast<uint32_t>(basicInfo->superPodId);
+    return UBSE_OK;
+}
 } // namespace ubse::adapter_plugins::smbios
