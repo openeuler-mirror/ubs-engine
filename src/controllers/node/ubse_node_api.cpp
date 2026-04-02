@@ -22,7 +22,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_election_module.h"
-#include "src/include/adapter_plugins/smbios/ubse_smbios.h"
+#include "ubse_smbios.h"
 
 
 namespace ubse::node::api {
