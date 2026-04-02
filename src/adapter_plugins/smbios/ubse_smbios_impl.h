@@ -17,7 +17,7 @@
 #include "ubse_error.h"
 #include "lock/ubse_lock.h"
 #include "ubse_logger.h"
-#include "adapter_plugins/smbios/ubse_smbios_def.h"
+#include "ubse_smbios_def.h"
 
 namespace ubse::adapter_plugins::smbios::impl {
 using namespace ubse::common::def;

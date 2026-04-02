@@ -13,8 +13,11 @@
 #ifndef UBSE_SMBIOS_H
 #define UBSE_SMBIOS_H
 
-#include "ubse_smbios_def.h"
-
+#include <cstdint>
+enum class UbseMeshType {
+    FULL_MESH = 0,
+    CLOS = 1,
+};
 namespace ubse::adapter_plugins::smbios {
 class UbseSmbios {
 public:
@@ -27,29 +30,12 @@ public:
     }
 
     /*
-     * @brief 获取type 131结构类型信息
-     * @param typeInfo SMBIOS结构类型信息
-     * @return UBSE_OK 标识成功
-     * @return UBSE_ERROR_IO 表示读取SMBIOS 3.0入口点或DMI表文件失败
-     * @return UBSE_ERR_NOT_SUPPORTED 表示SMBIOS版本不支持
-     * @return UBSE_ERROR_INVAL 表示文件长度无效
-     * @return UBSE_ERROR 表示失败
-     */
-    std::shared_ptr<SmbiosStructureType131> GetSmbiosType131Info();
-
-    /*
      * @brief 获取组网类型
      * @param networkType 组网类型
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR 表示失败
      */
-    UbseResult GetMeshType(UbseMeshType &meshType);
-
-    /*
-     * @brief 获取组网类型，如果SMBIOS结构类型131获取失败，则返回默认值FULL_MESH
-     * @param networkType 组网类型
-     */
-    UbseMeshType GetMeshType();
+    uint32_t GetMeshType(UbseMeshType &meshType);
 
 private:
     UbseSmbios() = default;

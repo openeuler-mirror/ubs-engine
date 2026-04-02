@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "adapter_plugins/smbios/ubse_smbios_def.h"
+#include "ubse_smbios_def.h"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -64,6 +64,30 @@ inline void CloseFd(int fd, const char *filePath)
         UBSE_LOG_ERROR << "Failed to close " << filePath << ", errno=" << errno;
     }
 }
+
+UbseResult OpenSmbiosFile(const char *filePath, int &fd)
+{
+    std::vector<__u32> caps{CAP_DAC_OVERRIDE};
+    auto result = ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    if (result != UBSE_OK) {
+        ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        UBSE_LOG_ERROR << "Modify Effective Capabilities failed. ret=" << result;
+        return UBSE_ERROR;
+    }
+    if (realpath(filePath, nullptr) == nullptr) {
+        ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        UBSE_LOG_ERROR << "Failed to get real path of " << filePath << ", errno=" << errno;
+        return UBSE_ERROR_IO;
+    }
+    if ((fd = open(filePath, O_RDONLY)) < 0) {
+        ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+        UBSE_LOG_ERROR << "Failed to open " << filePath << ", errno=" << errno;
+        return UBSE_ERROR_IO;
+    }
+    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+    return UBSE_OK;
+}
+
 /*
  * @brief 从SMBIOS文件中读取数据，保存至buf中，并返回读取到的数据指针
  * @param base 偏移量
@@ -78,17 +102,11 @@ std::vector<uint8_t> ReadSmbiosFile(off_t base, const char *filePath, uint32_t &
     int fd;
     uint32_t bufSize = 0;
     uint8_t *ptr = nullptr;
-    std::vector<__u32> caps{CAP_DAC_OVERRIDE};
-    auto result = ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    if (result != UBSE_OK) {
-        UBSE_LOG_ERROR << "Modify Effective Capabilities failed. ret=" << result;
+    auto ret = OpenSmbiosFile(filePath, fd);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to open " << filePath << ", ret=" << ret;
         return {};
     }
-    if ((fd = open(filePath, O_RDONLY)) < 0) {
-        UBSE_LOG_ERROR << "Failed to open " << filePath << ", errno=" << errno;
-        return {};
-    }
-    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     auto statRet = fstat(fd, &statbuf);
     if ((statRet == 0 && base >= statbuf.st_size) || statRet == -1) {
         UBSE_LOG_ERROR << "base=" << base << " is out of file size=" << statbuf.st_size << ", or fstat failed";
@@ -110,14 +128,17 @@ std::vector<uint8_t> ReadSmbiosFile(off_t base, const char *filePath, uint32_t &
     std::vector<uint8_t> buf(ptr, ptr + maxLen);
     if (lseek(fd, base, SEEK_SET) == -1) {
         UBSE_LOG_ERROR << "Failed to lseek " << filePath << ", errno=" << errno;
+        delete[] ptr;
         CloseFd(fd, filePath);
         return {};
     }
     if (auto ret = ReadFromFileDescriptor(fd, buf.data(), maxLen, filePath); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to parse " << filePath << ", ret=" << ret;
+        delete[] ptr;
         CloseFd(fd, filePath);
         return {};
     }
+    delete[] ptr;
     CloseFd(fd, filePath);
     return buf;
 }
@@ -142,9 +163,9 @@ void SmbiosStructureType1::LogSmbiosStructTypeInfo()
     UBSE_LOG_WARN << "Smbios structure type 1 info not supported";
 }
 
-void SmbiosStructureType131::LogSmbiosStructTypeInfo()
+void SmbiosSuperPodBasicInfo::LogSmbiosStructTypeInfo()
 {
-    UBSE_LOG_INFO << "Smbios structure type 131 info: "
+    UBSE_LOG_INFO << "SmbiosSuperPodBasicInfo: "
                   << "flag=" << static_cast<int>(flag) << ", podId=" << static_cast<int>(podId)
                   << ", slotId=" << static_cast<int>(slotId) << ", meshType=" << static_cast<int>(meshType)
                   << ", superPodId=" << static_cast<int>(superPodId);
@@ -178,7 +199,7 @@ UbseResult SmbiosStructureType1::FillSmbiosStructFromBuf()
 }
 
 const size_t NO_24 = 24;
-UbseResult SmbiosStructureType131::FillSmbiosStructFromBuf()
+UbseResult SmbiosSuperPodBasicInfo::FillSmbiosStructFromBuf()
 {
     if (header.data == nullptr) {
         UBSE_LOG_ERROR << "Smbios structure data is null";
