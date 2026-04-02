@@ -34,6 +34,7 @@ static const std::string URMA_NODE_STATE_ERROR = "ERROR: Node state is abnormal,
 static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
+static const std::string URMA_NOT_SUPPORTED_ERROR = "ERROR: URMA feature is not supported.";
 static const std::string URMA_ACTIVATE_OPTION_DES =
     "Query urma information for a specific node. Parameter 'node' between 1 and the maximum node ID.";
 static const std::string URMA_QUERY_OPTION_DES_NODE =
@@ -70,7 +71,7 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaDevInfo()
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevInfoTable(
-    UbseDeSerialization &ubse_de_serial, uint32_t urma_size)
+    UbseDeSerialization& ubse_de_serial, uint32_t urma_size)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_7, UBSE_CLI_NUM_7 * UBSE_CLI_NUM_10);
     size_t row = variable_cell_builder.UbseCliAddRow();
@@ -109,7 +110,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTable(UbseDeSerialization &ubse_de_serial,
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTable(UbseDeSerialization& ubse_de_serial,
                                                                                     uint32_t urma_size)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_5, UBSE_CLI_NUM_4 * UBSE_CLI_NUM_10);
@@ -141,8 +142,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     auto urmaNode = params.find(URMA_NODE_OPT);
     if (urmaNode == params.end()) {
@@ -151,7 +152,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     uint32_t nodeId;
     try {
         nodeId = static_cast<uint32_t>(std::stoul(urmaNode->second));
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
     UbseSerialization ubse_req_serial;
@@ -163,6 +164,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(URMA_NOT_SUPPORTED_ERROR);
+    }
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
     }
@@ -178,7 +182,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc([
     return UbseCliProcessUrmaQosTable(ubse_de_serial, urmaSize);
 }
 
-std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(const std::string &deviceStr)
+std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(const std::string& deviceStr)
 {
     std::vector<std::string> result;
     if (deviceStr.empty()) {
@@ -192,7 +196,7 @@ std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(con
         // 去除首尾空格
         size_t first = token.find_first_not_of(' ');
         if (first == std::string::npos) {
-            continue;  // 整个token都是空格，跳过
+            continue; // 整个token都是空格，跳过
         }
         size_t last = token.find_last_not_of(' ');
         std::string trimmed = token.substr(first, last - first + 1);
@@ -205,23 +209,23 @@ std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(con
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaParams(
-    const std::map<std::string, std::string> &params, uint32_t &nodeId, std::vector<std::string> &deviceNameList)
+    const std::map<std::string, std::string>& params, uint32_t& nodeId, std::vector<std::string>& deviceNameList)
 {
     auto urmaNodeCli = params.find(URMA_NODE_OPT);
     auto urmaDeviceCli = params.find(URMA_DEVICE_OPT);
     // 处理节点参数（可选）
     if (urmaNodeCli == params.end()) {
-        nodeId = UINT32_MAX;  // 默认值：表示查询本节点的 URMA 信息
+        nodeId = UINT32_MAX; // 默认值：表示查询本节点的 URMA 信息
     } else {
         try {
             nodeId = static_cast<uint32_t>(std::stoul(urmaNodeCli->second));
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
         }
     }
     // 处理设备名称参数（可选）
     if (urmaDeviceCli == params.end()) {
-        deviceNameList.clear();  // 不传设备参数，deviceNameList 为空
+        deviceNameList.clear(); // 不传设备参数，deviceNameList 为空
     } else {
         deviceNameList = ParseCommaSeparatedDeviceList(urmaDeviceCli->second);
         if (deviceNameList.empty()) {
@@ -232,11 +236,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaPar
     if (nodeId == UINT32_MAX && urmaNodeCli != params.end()) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
-    return nullptr;  // 解析成功
+    return nullptr; // 解析成功
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     uint32_t nodeId{};
     std::vector<std::string> deviceNameList{};
@@ -249,7 +253,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     // 序列化设备名称列表
     uint32_t deviceListSize = static_cast<uint32_t>(deviceNameList.size());
     ubse_req_serial << deviceListSize;
-    for (const auto &deviceName : deviceNameList) {
+    for (const auto& deviceName : deviceNameList) {
         ubse_req_serial << deviceName;
     }
     if (!ubse_req_serial.Check()) {
@@ -259,6 +263,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(URMA_NOT_SUPPORTED_ERROR);
+    }
     if (ret == UBSE_ERR_NOT_EXIST) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
@@ -280,8 +287,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     return UbseCliProcessUrmaDevInfoTable(ubse_de_serial, urmaSize);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     auto urmaNode = params.find(URMA_NODE_OPT);
     if (urmaNode == params.end()) {
@@ -290,7 +297,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfo
     uint32_t nodeId;
     try {
         nodeId = static_cast<uint32_t>(std::stoul(urmaNode->second));
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
     auto urmaName = params.find(URMA_DEVICE_OPT);
@@ -306,6 +313,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfo
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_ACTIVATE, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(URMA_NOT_SUPPORTED_ERROR);
+    }
     if (ret == UBSE_ERROR_INVAL) {
         return UbseCliStringPromptReply(URMA_NODE_STATE_ERROR);
     }
@@ -321,4 +331,4 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfo
     std::string result = "Activate urma node " + std::to_string(nodeId) + " successfully.";
     return UbseCliStringPromptReply(result);
 }
-}  // namespace ubse::cli::reg
+} // namespace ubse::cli::reg
