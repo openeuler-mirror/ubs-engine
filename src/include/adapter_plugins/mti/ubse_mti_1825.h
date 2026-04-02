@@ -30,6 +30,10 @@ struct UbseMti1825Vf {
     UbseMtiGuid guid;
     uint8_t vfId;
 
+    UbseMti1825Vf() = default;
+
+    UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId, uint8_t vfId);
+
     bool operator==(const UbseMti1825Vf &other) const;
 
     bool operator<(const UbseMti1825Vf &other) const;
@@ -43,6 +47,10 @@ struct UbseMti1825Pf {
     UbseMtiUbController affinityUbController;
     UbseMtiGuid guid;
     std::vector<UbseMti1825Vf> vfList;
+
+    UbseMti1825Pf() = default;
+
+    UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId);
 
     bool operator==(const UbseMti1825Pf &other) const;
 

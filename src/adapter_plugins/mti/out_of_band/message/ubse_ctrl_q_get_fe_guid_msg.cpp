@@ -69,6 +69,44 @@ UbseResult UbseCtrlQGetIdevVfeGuidReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
+UbseCtrlQGet1825PfGuidReqMsg::UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf &pf)
+    : pf_(pf),
+      ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
+{
+}
+
+UbseResult UbseCtrlQGet1825PfGuidReqMsg::EncodeReqMsg()
+{
+    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
+    FeLoc feloc;
+    feloc.slotId = pf_.slotId;
+    feloc.chipId = pf_.chipId;
+    feloc.dieId = pf_.dieId;
+    feloc.pfeId = pf_.pfId;
+    feloc.vfeId = 0xff;
+    ref.fe = feloc;
+    return UBSE_OK;
+}
+
+UbseCtrlQGet1825VfGuidReqMsg::UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf &vf)
+    : vf_(vf),
+      ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
+{
+}
+
+UbseResult UbseCtrlQGet1825VfGuidReqMsg::EncodeReqMsg()
+{
+    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
+    FeLoc feloc;
+    feloc.slotId = vf_.slotId;
+    feloc.chipId = vf_.chipId;
+    feloc.dieId = vf_.dieId;
+    feloc.pfeId = vf_.pfId;
+    feloc.vfeId = vf_.vfId;
+    ref.fe = feloc;
+    return UBSE_OK;
+}
+
 UbseResult UbseCtrlQGetIdevPfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 需要为1

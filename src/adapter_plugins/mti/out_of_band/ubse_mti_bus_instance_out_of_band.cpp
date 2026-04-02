@@ -178,6 +178,8 @@ UbseResult UbseMtiBusInstanceOutOfBand::CreateVmBusInstance(uint16_t upi, UbseMt
         return ret;
     }
     busInstance = respMsg.GetBusInstance();
+    busInstance.upi = upi;
+    busInstance.vendor = DEFAULT_VENDOR;
     return UBSE_OK;
 }
 
