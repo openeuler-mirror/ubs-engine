@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 
@@ -74,16 +75,19 @@ UbseResult OpenSmbiosFile(const char *filePath, int &fd)
         UBSE_LOG_ERROR << "Modify Effective Capabilities failed. ret=" << result;
         return UBSE_ERROR;
     }
-    if (realpath(filePath, nullptr) == nullptr) {
+    auto realPath = realpath(filePath, nullptr);
+    if (realPath == nullptr) {
         ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         UBSE_LOG_ERROR << "Failed to get real path of " << filePath << ", errno=" << errno;
         return UBSE_ERROR_IO;
     }
-    if ((fd = open(filePath, O_RDONLY)) < 0) {
+    if ((fd = open(realPath, O_RDONLY)) < 0) {
         ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
-        UBSE_LOG_ERROR << "Failed to open " << filePath << ", errno=" << errno;
+        UBSE_LOG_ERROR << "Failed to open " << realPath << ", errno=" << errno;
+        free(realPath);
         return UBSE_ERROR_IO;
     }
+    free(realPath);
     ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     return UBSE_OK;
 }
