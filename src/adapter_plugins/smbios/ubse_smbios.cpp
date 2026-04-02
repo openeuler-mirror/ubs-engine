@@ -10,7 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_smbios_default_interface.h"
+#include "adapter_plugins/smbios/ubse_smbios.h"
+#include "adapter_plugins/smbios/ubse_smbios_def.h"
+#include "ubse_logger.h"
+#include "ubse_smbios_impl.h"
 
 namespace ubse::adapter_plugins::smbios {
 using namespace ubse::common::def;
@@ -18,9 +21,14 @@ using namespace ubse::log;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseResult UbseSmbiosDefaultInterface::GetMeshType(UbseMeshType &meshType)
+std::shared_ptr<SmbiosStructureType131> UbseSmbios::GetSmbiosType131Info()
 {
-    auto smbiosType131 = GetSmbiosTypeInfo<UbseSmbiosType::TYPE_131>();
+    return impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::TYPE_131>();
+}
+
+UbseResult UbseSmbios::GetMeshType(UbseMeshType &meshType)
+{
+    auto smbiosType131 = GetSmbiosType131Info();
     if (smbiosType131 == nullptr) {
         UBSE_LOG_ERROR << "Get smbios type 131 failed";
         return UBSE_ERROR;
@@ -29,9 +37,9 @@ UbseResult UbseSmbiosDefaultInterface::GetMeshType(UbseMeshType &meshType)
     return UBSE_OK;
 }
 
-UbseMeshType UbseSmbiosDefaultInterface::GetMeshType()
+UbseMeshType UbseSmbios::GetMeshType()
 {
-    auto smbiosType131 = GetSmbiosTypeInfo<UbseSmbiosType::TYPE_131>();
+    auto smbiosType131 = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::TYPE_131>();
     if (smbiosType131 == nullptr) {
         UBSE_LOG_ERROR << "Get smbios type 131 failed";
         return UbseMeshType::FULL_MESH;
