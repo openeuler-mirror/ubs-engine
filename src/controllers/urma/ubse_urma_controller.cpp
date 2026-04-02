@@ -11,18 +11,22 @@
  */
 
 #include "ubse_urma_controller.h"
+#include <vector>
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_logger.h"
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
+#include "ubse_smbios_def.h"
+#include "ubse_smbios_default_interface.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_module.h"
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
+#include "src/adapter_plugins/smbios/ubse_smbios_default_interface.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -32,6 +36,7 @@ using namespace ubse::urma;
 using namespace ubse::task_executor;
 using namespace ubse::adapter_plugins::mti;
 using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::smbios;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -493,12 +498,21 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::v
     return UBSE_OK;
 }
 
+static bool IsColsType()
+{
+    auto typeInfo = UbseSmbiosDefaultInterface::GetInstance().GetMeshType();
+    return typeInfo == UbseMeshType::CLOS;
+}
+
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
                                                       std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
     if (nodeId == UINT32_MAX) {
         UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(devInfos);
         return UBSE_OK;
+    }
+    if (IsColsType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
     }
     std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
     if (ubseStaticNodeInfos.empty()) {
@@ -584,8 +598,12 @@ std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo()
     std::vector<ubse::nodeController::PhysicalLink> allLinkInfo;
     auto allLinkMap = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
     if (allLinkMap.empty()) {
-        UBSE_LOG_WARN << "GetDirConnectInfo failed";
-        return {};
+        UBSE_LOG_WARN << "GetDirConnectInfo failed, try to get current node topology";
+        if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(allLinkInfo); ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to get current node topology, ret=" << ret;
+            return {};
+        }
+        return allLinkInfo;
     }
     allLinkInfo.reserve(allLinkMap.size());
     for (const auto &link : allLinkMap) {
@@ -604,10 +622,18 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
         UBSE_LOG_ERROR << "Getting UrmaModule failed.";
         return UBSE_ERROR;
     }
+    UbseMeshType meshType;
+    auto ret = UbseSmbiosDefaultInterface::GetInstance().GetMeshType(meshType);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get smbios method type, ret=" << ret;
+        return ret;
+    }
     static std::mutex setUvsInfoMutex; // 加锁避免多线程下发造成竞态条件
     std::lock_guard<std::mutex> lock(setUvsInfoMutex);
     std::string nodeId = current_slot_id;
-    return UbsePushTopoAndBondingToUvs(nodeId, allLinkInfo, bondingInfo);
+    std::vector<PhysicalLink> emptyLinkInfo;
+    return UbsePushTopoAndBondingToUvs(nodeId, meshType == UbseMeshType::CLOS ? emptyLinkInfo : allLinkInfo,
+                                       bondingInfo);
 }
 
 UbseResult UrmaCtlActivateUrmaDeviceForOneNode(UbseUrmaUvsNodeInfo &devInfo)

@@ -22,6 +22,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_election_module.h"
+#include "src/adapter_plugins/smbios/ubse_smbios_default_interface.h"
 
 
 namespace ubse::node::api {
@@ -30,6 +31,7 @@ using namespace ubse::serial;
 using namespace ubse::log;
 using namespace ::api::server;
 using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::smbios;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -247,7 +249,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage &req, const Ubse
     return UBSE_OK;
 }
 
-uint32_t SendErrorResponse(uint32_t errorCode, uint32_t requestId, const std::string& errorMsg)
+uint32_t SendErrorResponse(uint32_t errorCode, uint64_t requestId, const std::string& errorMsg)
 {
     UBSE_LOG_ERROR << errorMsg << ", error: " << FormatRetCode(errorCode);
     auto ubseApiModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -298,9 +300,24 @@ static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage &req,
     return UBSE_OK;
 }
 
+static bool IsColsType()
+{
+    auto typeInfo = UbseSmbiosDefaultInterface::GetInstance().GetMeshType();
+    return typeInfo == UbseMeshType::CLOS;
+}
+
 static uint32_t EnsureTargetNodeIdStrict(std::string &targetNodeId,
                                          const UbseRequestContext &context)
 {
+    if (!targetNodeId.empty()) {
+        if (!IsColsType()) {
+            UBSE_LOG_INFO << "Querying remote node: " << targetNodeId;
+            return UBSE_OK;
+        } else {
+            return SendErrorResponse(UBSE_ERR_NOT_SUPPORTED, context.requestId,
+                                     " param -n is not supported in current topo");
+        }
+    }
     if (!targetNodeId.empty()) {
         UBSE_LOG_INFO << "Querying remote node: " << targetNodeId;
         return UBSE_OK;
@@ -872,7 +889,10 @@ uint32_t UbseNodeApi::UbseQueryCpuTopo(const UbseIpcMessage &request, const Ubse
 {
     (void)request;
     UBSE_LOG_INFO << "enter UbseQueryCpuTopo";
-
+    if (IsColsType()) {
+        return SendErrorResponse(UBSE_ERR_NOT_SUPPORTED, context.requestId,
+                                 "the command is not supported with Current topo ");
+    }
     std::vector<CliPhysicalLink> cpuTopoLinks{};
     auto result = GetCpuTopoLink(cpuTopoLinks);
     if (result != UBSE_OK) {
