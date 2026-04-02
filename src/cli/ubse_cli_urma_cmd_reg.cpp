@@ -89,6 +89,7 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliActivateUrmaDevInfo()
     builder.UbseCliSetCommand("activate")
         .UbseCliSetType("urma")
         .UbseCliAddOption("n", URMA_NODE_OPT, URMA_ACTIVATE_OPTION_DES)
+        .UbseCliAddOption("d", URMA_DEVICE_OPT, URMA_QUERY_OPTION_DES_NAME)
         .UbseCliSetFunc(UbseActivateUrmaDevInfoFunc);
     return builder.UbseCliBuild();
 }
@@ -320,8 +321,12 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfo
     } catch (const std::exception &e) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
+    auto urmaName = params.find(URMA_DEVICE_OPT);
+    if (urmaName == params.end()) {
+        return UbseCliStringPromptReply(URMA_DEVICE_OPT + " is required.");
+    }
     UbseSerialization ubse_req_serial;
-    ubse_req_serial << std::to_string(nodeId);
+    ubse_req_serial << std::to_string(nodeId) << urmaName->second;
     if (!ubse_req_serial.Check()) {
         return UbseCliStringPromptReply(SERIALIZATION_ERROR);
     }

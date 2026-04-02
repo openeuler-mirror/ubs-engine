@@ -28,6 +28,7 @@ namespace ubse::urmaController {
 using namespace ubse::urma;
 using namespace ubse::adapter_plugins::mti;
 
+const uint32_t BEID_PREFIX = 0x44494542;
 struct UbseUrmaInfoForQuery {
     std::string urmaName;
     std::vector<std::string> feNames;
@@ -65,6 +66,8 @@ public:
     // 更新对应节点的fe信息，计算出urmaInfo设备信息
     UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &feInfos);
     UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &&feInfos);
+    // 根据本节点的urma bonding信息，推算出其它所有节点的urma bonding信息
+    UbseResult InferOtherNodesUrmaBondingInfo(const std::string &basedNodeId);
 
     void SetActiveState(const std::string &urmaDevEid, const std::string &nodeId);
     void SetInactiveState(const std::string &urmaDevEid, const std::string &nodeId);
@@ -88,9 +91,11 @@ public:
     uint64_t GetUrmaUpdateTimeStamp(const std::string &nodeId);
 
 private:
-    UbseResult CreateAndInsertUrmaInfo(const std::string &nodeId, UbseMtiFeInfo &lcneFe0, UbseMtiFeInfo &lcneFe1);
+    UbseResult CreateAndInsertUrmaInfo(const std::uint32_t podId, const std::string &nodeId, UbseMtiFeInfo &lcneFe0, UbseMtiFeInfo &lcneFe1);
     UbseResult GenerateUrmaDevEid(const uint32_t superNodeId, const uint32_t slotId, const uint32_t fe0Id,
                                   const uint32_t fe1Id, std::string &devEid);
+    UbseResult InferOneNodeUrmaBondingInfo(uint32_t podId, uint32_t slotId,
+                                           const std::string &basedNodeId);
     uint32_t GenerateUniqueFeId();
     uint64_t GenerateUrmaId();
     void PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo);
