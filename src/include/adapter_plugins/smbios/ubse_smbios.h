@@ -14,7 +14,6 @@
 #define UBSE_SMBIOS_H
 
 #include "ubse_smbios_def.h"
-#include "ubse_smbios_impl.h"
 
 namespace ubse::adapter_plugins::smbios {
 class UbseSmbios {
