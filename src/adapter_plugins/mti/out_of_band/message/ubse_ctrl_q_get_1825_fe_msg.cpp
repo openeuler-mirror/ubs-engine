@@ -93,7 +93,7 @@ static UbseResult GetRespResult(std::vector<UbseMti1825Pf> &pfeList, UbseCtrlQMs
     return UBSE_OK;
 }
 
-UbseResult UbseCtrlQGet1825PfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGet1825PfeRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum
     if (!CheckRespValidation(msg, 0, GET_1825_FE_OP_CODE)) {
@@ -111,5 +111,9 @@ UbseResult UbseCtrlQGet1825PfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage 
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+const std::vector<UbseMti1825Pf> &UbseCtrlQGet1825PfeRespMsg::GetPfList() const
+{
+    return pfList_;
 }
 } // namespace ubse::mti::ctrl_q

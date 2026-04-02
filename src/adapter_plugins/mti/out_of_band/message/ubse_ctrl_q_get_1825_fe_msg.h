@@ -24,9 +24,9 @@ public:
     UbseResult EncodeReqMsg() override;
 };
 
-class UbseCtrlQGet1825PfeGuidRespMsg : public ICtrlQRespMsg {
+class UbseCtrlQGet1825PfeRespMsg : public ICtrlQRespMsg {
 public:
-    UbseCtrlQGet1825PfeGuidRespMsg() = default;
+    UbseCtrlQGet1825PfeRespMsg() = default;
 
     UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
 

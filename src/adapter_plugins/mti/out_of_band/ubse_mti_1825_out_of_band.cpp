@@ -59,7 +59,7 @@ UbseResult UnReg1825FeFromBusInstance(const UbseMtiBusInst &busInstance, UbseMti
 UbseResult UbseMti1825OutOfBand::Get1825FeList(std::vector<UbseMti1825Pf> &pfList)
 {
     UbseCtrlQGet1825FeReqMsg reqMsg;
-    UbseCtrlQGet1825PfeGuidRespMsg respMsg;
+    UbseCtrlQGet1825PfeRespMsg respMsg;
     auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Get 1825 fe list failed";
