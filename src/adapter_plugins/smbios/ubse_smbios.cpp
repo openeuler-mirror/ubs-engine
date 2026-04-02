@@ -33,7 +33,7 @@ UbseResult UbseSmbios::GetMeshType(UbseMeshType &meshType)
 }
 
 // 判断是否为CLOS组网，获取失败时默认为FULL_MESH组网，即默认返回false
-static bool UbseSmbios::IsClosType()
+bool UbseSmbios::IsClosType()
 {
     auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
     if (basicInfo == nullptr) {
@@ -41,6 +41,6 @@ static bool UbseSmbios::IsClosType()
         return false;
     }
     auto meshType = static_cast<UbseMeshType>(basicInfo->meshType);
-    return meshType == UbseMeshType::CLOS_MESH;
+    return meshType == UbseMeshType::CLOS;
 }
 } // namespace ubse::adapter_plugins::smbios
