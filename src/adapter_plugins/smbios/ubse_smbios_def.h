@@ -32,7 +32,7 @@ const uint32_t STRUCTURE_TABLE_MAXIMUM_SIZE = 0x0c;
 const uint32_t STRUCTURE_TABLE_ADDRESS = 0x10;
 const uint32_t OFF_T_SIZE = 8;
 const uint32_t PRODUCT_NAME_MAX_LEN = 64;
-const uint32_t TYPE_131_RESERVED_SIZE = 64;
+const uint32_t SUPER_POD_BASIC_T_RESERVED_SIZE = 64;
 const uint32_t SMBIOS_HEADER_SIZE = 4;
 const std::string SYS_FIRMWARE_DIR = "/sys/firmware/dmi/tables";
 const std::string SYS_ENTRY_FILE = SYS_FIRMWARE_DIR + "/smbios_entry_point";
@@ -43,7 +43,7 @@ const uint32_t FLAG_STOP_AT_EOT = 1 << 1;
 std::vector<uint8_t> LoadSysEntryFile(uint32_t &maxLen);
 enum class UbseSmbiosType {
     TYPE_1 = 1,
-    TYPE_131 = 131,
+    SUPER_POD_BASIC_INFO_T = 131,
     TYPE_INVALID
 };
 
@@ -53,11 +53,6 @@ union SmbiosOffset {
         uint32_t low;  // 低32位
         uint32_t high; // 高32位
     };
-};
-
-enum class UbseMeshType {
-    FULL_MESH = 0,
-    CLOS = 1,
 };
 
 class SmbiosHeader {
@@ -123,9 +118,9 @@ protected:
     UbseResult FillSmbiosStructFromBuf() override;
 };
 
-class SmbiosStructureType131 : public SmbiosStructure {
+class SmbiosSuperPodBasicInfo : public SmbiosStructure {
 public:
-    static constexpr UbseSmbiosType type = UbseSmbiosType::TYPE_131;
+    static constexpr UbseSmbiosType type = UbseSmbiosType::SUPER_POD_BASIC_INFO_T;
     void LogSmbiosStructTypeInfo() override;
 
 public:
@@ -134,7 +129,7 @@ public:
     uint8_t slotId;      // 槽位Id
     uint8_t meshType;    // 组网类型：clos组网或fullmesh组网
     uint16_t superPodId; // 二层超节点Id
-    std::array<uint8_t, TYPE_131_RESERVED_SIZE> reserved; // 保留字段
+    std::array<uint8_t, SUPER_POD_BASIC_T_RESERVED_SIZE> reserved; // 保留字段
 
 protected:
     UbseResult FillSmbiosStructFromBuf() override;
@@ -156,11 +151,11 @@ struct SmbiosTypeMap<UbseSmbiosType::TYPE_1> {
 };
 
 /**
- * @brief SmbiosTypeMap的特化，将TYPE_131映射到SmbiosStructureType131
+ * @brief SmbiosTypeMap的特化，将SUPER_POD_BASIC_INFO_T映射到SmbiosSuperPodBasicInfo
  */
 template <>
-struct SmbiosTypeMap<UbseSmbiosType::TYPE_131> {
-    using Type = SmbiosStructureType131;
+struct SmbiosTypeMap<UbseSmbiosType::SUPER_POD_BASIC_INFO_T> {
+    using Type = SmbiosSuperPodBasicInfo;
 };
 
 /**
