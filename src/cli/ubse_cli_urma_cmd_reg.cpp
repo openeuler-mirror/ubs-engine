@@ -34,10 +34,13 @@ static const std::string URMA_NODE_STATE_ERROR = "ERROR: Node state is abnormal,
 static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
+static const std::string URMA_NODE_NOT_SUPPORT =
+    "ERROR: Invalid request param, param -n is not supported in current topo";
 static const std::string URMA_ACTIVATE_OPTION_DES =
     "Query urma information for a specific node. Parameter 'node' between 1 and the maximum node ID.";
 static const std::string URMA_QUERY_OPTION_DES_NODE =
     "Query urma information for a specific node. Parameter 'node' between 1 and the maximum node ID."
+    "Parameter 'node' is not supported in CLOS mesh type topo. "
     "If omitted, defaults to querying the local node.";
 static const std::string URMA_QUERY_OPTION_DES_NAME =
     "Query urma information for a specific device. Parameter 'dev' expects a valid device name string."
@@ -282,6 +285,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret == UBSE_ERR_NOT_EXIST) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
+    }
+    if (ret == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(URMA_NODE_NOT_SUPPORT);
     }
     if (ret == UBSE_ERROR_INVAL) {
         return UbseCliStringPromptReply(URMA_NODE_STATE_ERROR);
