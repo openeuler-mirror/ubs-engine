@@ -574,7 +574,7 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::v
     return UBSE_OK;
 }
 
-std::string GenerateSubPathFromUrmaName(const std::string &urmaName)
+std::string UrmaController::GenerateSubPathFromUrmaName(const std::string &urmaName)
 {
     const std::string subPathPrefix = "bonding_dev_";
     // urmaName格式为urmaName_{index}，将index提取出来拼接到subPathPrefix后面，校验index是否在uint32_t范围内
