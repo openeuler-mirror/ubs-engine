@@ -75,6 +75,18 @@ public:
     * @return UBSE_OK代表销毁成功，UBSE_ERROR代表销毁失败
     */
     virtual UbseResult DestroyVmBusInstance(const UbseMtiBusInst &busInstance) = 0;
+
+    /**
+    * @brief 查询D2H Ub Memory内存信息
+    * @param busInstance [in] UbseMtiBusInst实例
+    * @param tid [out] tid
+    * @param uba [out] uba
+    * @param size [out] 内存大小
+    *
+    * @return UBSE_OK代表查询成功，UBSE_ERROR代表查询失败
+    */
+    virtual UbseResult GetD2hMemory(const UbseMtiBusInst &busInstance, uint32_t &tid, uint64_t &uba,
+                                    uint64_t &size) = 0;
 };
 } // namespace ubse::mti::bus_instance
 #endif // UBSE_MTI_BUS_INSTANCE_H
