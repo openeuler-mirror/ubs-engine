@@ -153,26 +153,6 @@ fi
     echo "delete %{system_user} semaphores finished" \
 }
 
-# Function to check the file and modify its content
-%define modify_udev_rule() modify_udev_rule() { \
-    local rules_file="/etc/udev/rules.d/99-obmm.rules" \
-    local old_content='KERNEL=="obmm", OWNER="root", GROUP="root", MODE="0600"' \
-    local new_content='KERNEL=="obmm", OWNER="%{system_user}", GROUP="%{system_group}", MODE="0600"' \
-    if [[ -f "$rules_file" ]]; then \
-        sed -i "s|$old_content|$new_content|" "$rules_file" \
-    fi \
-}
-
-# Function to check the file and restore its content
-%define restore_udev_rule() restore_udev_rule() { \
-    local rules_file="/etc/udev/rules.d/99-obmm.rules" \
-    local old_content='KERNEL=="obmm", OWNER="%{system_user}", GROUP="%{system_group}", MODE="0600"' \
-    local new_content='KERNEL=="obmm", OWNER="root", GROUP="root", MODE="0600"' \
-    if [[ -f "$rules_file" ]]; then \
-        sed -i "s|$old_content|$new_content|" "$rules_file" \
-    fi \
-}
-
 %define update_config() update_config() { \
     config_file="$1" \
     if grep -q '^# mempooling=777' "$config_file"; then \
@@ -345,7 +325,6 @@ fi
 %post
 set -e
 %{ensure_directory_owner}
-%{modify_udev_rule}
 %{deleted_semaphore}
 %{update_config}
 systemctl daemon-reload
@@ -360,19 +339,17 @@ chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
 chmod 700 "%{lcne_cert_dir}"
 systemctl enable %{service_name}
-modify_udev_rule
 if [ "$MXE_SCENE" == "vm" ]; then
     update_config /etc/ubse/ubse_plugin_admission.conf
 fi
 deleted_semaphore
 
+
 %preun
 set -e
 if [ "$1" -ne 0 ]; then
-    echo "skip preun"
     exit 0
 fi
-%{restore_udev_rule}
 if systemctl cat %{service_name} >/dev/null 2>&1 ; then
     systemctl stop %{service_name} || true
     systemctl disable %{service_name} || true
@@ -380,12 +357,10 @@ fi
 if systemctl list-units --type=service | grep -q %{service_name}; then
     systemctl reset-failed %{service_name} || true
 fi
-restore_udev_rule
 
 
 %postun
 if [ "$1" -ne 0 ]; then
-    echo "skip postun"
     exit 0
 fi
 %{deleted_semaphore}
