@@ -880,6 +880,10 @@ uint32_t UbseNodeApi::UbseQueryCpuTopo(const UbseIpcMessage &request, const Ubse
 {
     (void)request;
     UBSE_LOG_INFO << "enter UbseQueryCpuTopo";
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return SendErrorResponse(UBSE_ERR_NOT_SUPPORTED, context.requestId,
+                                 "the command is not supported with Current topo ");
+    }
     std::vector<CliPhysicalLink> cpuTopoLinks{};
     auto result = GetCpuTopoLink(cpuTopoLinks);
     if (result != UBSE_OK) {
