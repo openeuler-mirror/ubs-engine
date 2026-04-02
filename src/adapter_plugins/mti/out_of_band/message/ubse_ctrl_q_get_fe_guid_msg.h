@@ -12,11 +12,13 @@
 
 #ifndef UBSE_CTRL_Q_GET_FE_GUID_MSG_H
 #define UBSE_CTRL_Q_GET_FE_GUID_MSG_H
+#include "adapter_plugins/mti/ubse_mti_1825.h"
+#include "adapter_plugins/mti/ubse_mti_urma.h"
 #include "ubse_ictrl_q_req_msg.h"
 #include "ubse_ictrl_q_resp_msg.h"
-#include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::mti::ctrl_q {
 using namespace mti::urma;
+using namespace mti::_1825;
 class UbseCtrlQGetIdevPfeGuidReqMsg : public ICtrlQReqMsg {
 public:
     explicit UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe &pfe);
@@ -52,6 +54,36 @@ private:
 class UbseCtrlQGetIdevVfeGuidRespMsg : public UbseCtrlQGetIdevPfeGuidRespMsg {
 public:
     UbseCtrlQGetIdevVfeGuidRespMsg() = default;
+};
+
+class UbseCtrlQGet1825PfGuidReqMsg : public ICtrlQReqMsg {
+public:
+    explicit UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf &pf);
+
+    UbseResult EncodeReqMsg() override;
+
+private:
+    UbseMti1825Pf pf_;
+};
+
+class UbseCtrlQGet1825PfGuidRespMsg : public UbseCtrlQGetIdevPfeGuidRespMsg {
+public:
+    UbseCtrlQGet1825PfGuidRespMsg() = default;
+};
+
+class UbseCtrlQGet1825VfGuidReqMsg : public ICtrlQReqMsg {
+public:
+    explicit UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf &vf);
+
+    UbseResult EncodeReqMsg() override;
+
+private:
+    UbseMti1825Vf vf_;
+};
+
+class UbseCtrlQGet1825VfGuidRespMsg : public UbseCtrlQGetIdevPfeGuidRespMsg {
+public:
+    UbseCtrlQGet1825VfGuidRespMsg() = default;
 };
 } // namespace ubse::mti::ctrl_q
 #endif // UBSE_CTRL_Q_GET_FE_GUID_MSG_H

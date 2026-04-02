@@ -11,6 +11,7 @@
  */
 #include "ubse_mti_1825_out_of_band.h"
 #include "./message/ubse_ctrl_q_fe_opt_msg.h"
+#include "./message/ubse_ctrl_q_get_1825_fe_msg.h"
 #include "./proxy/ubse_ctrl_q_msg_proxy.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -30,6 +31,7 @@ UbseResult Reg1825FeToBusInstance(const UbseMtiBusInst &busInstance, UbseMtiBusI
     UbseCtrlQReg1825FeToBusInstanceRespMsg respMsg;
     auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Reg 1825 fe to bus instance failed";
         return ret;
     }
     resList = respMsg.GetRetList();
@@ -47,6 +49,7 @@ UbseResult UnReg1825FeFromBusInstance(const UbseMtiBusInst &busInstance, UbseMti
     UbseCtrlQUnReg1825FeFromBusInstanceRespMsg respMsg;
     auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Unreg 1825 fe from bus instance failed";
         return ret;
     }
     resList = respMsg.GetRetList();
@@ -55,6 +58,14 @@ UbseResult UnReg1825FeFromBusInstance(const UbseMtiBusInst &busInstance, UbseMti
 
 UbseResult UbseMti1825OutOfBand::Get1825FeList(std::vector<UbseMti1825Pf> &pfList)
 {
+    UbseCtrlQGet1825FeReqMsg reqMsg;
+    UbseCtrlQGet1825PfeGuidRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get 1825 fe list failed";
+        return ret;
+    }
+    pfList = respMsg.GetPfList();
     return UBSE_OK;
 }
 

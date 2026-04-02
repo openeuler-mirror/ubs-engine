@@ -12,6 +12,24 @@
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "./out_of_band/ubse_mti_1825_out_of_band.h"
 namespace ubse::mti::_1825 {
+
+UbseMti1825Vf::UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId, uint8_t vfId)
+    : slotId(slotId),
+      chipId(chipId),
+      dieId(dieId),
+      pfId(pfId),
+      vfId(vfId)
+{
+}
+
+UbseMti1825Pf::UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId)
+    : slotId(slotId),
+      chipId(chipId),
+      dieId(dieId),
+      pfId(pfId)
+{
+}
+
 bool UbseMti1825Vf::operator==(const UbseMti1825Vf &other) const
 {
     return slotId == other.slotId && chipId == other.chipId && dieId == other.dieId && pfId == other.pfId &&
