@@ -45,8 +45,7 @@ private:
 
     UbseResult ProcessClusterNode(const std::string& curNodeId, uint32_t podId, uint32_t slotId);
 
-    UbseResult ProcessFeDevice(uint32_t podId, uint32_t slotId, 
-                               const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe);
+    UbseResult ProcessFeDevice(uint32_t podId, uint32_t slotId, const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe);
 
     std::map<std::string, UbseUrmaUvsAggrDev> comUrmaInfos;
 };
