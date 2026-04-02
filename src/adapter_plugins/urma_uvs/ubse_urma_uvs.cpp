@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -17,9 +17,11 @@
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
+#include "ubse_smbios_impl.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_uvs_module.h"
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
+#include "adapter_plugins/smbios/ubse_smbios.h"
 
 namespace ubse::urma {
 using namespace ubse::common::def;
@@ -27,6 +29,7 @@ using namespace ubse::context;
 using namespace ubse::log;
 using namespace ubse::nodeController;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::smbios;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
@@ -58,11 +61,12 @@ UbseResult UbsePushTopoAndBondingToUvs(std::string &current_slot_id, const std::
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
         return UBSE_ERROR_NULLPTR;
     }
-    ret = module->uvsSetTopoInfo(nodes.data(), static_cast<uint32_t>(nodes.size()));
+    ret = module->uvsSetTopoInfo(nodes.data(), sizeof(UbcoreTopoNode), static_cast<uint32_t>(nodes.size()));
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
         return ret;
     }
+    UBSE_LOG_INFO << "Set Uvs Info success. node_size=" << nodes.size();
     return UBSE_OK;
 }
 
@@ -252,6 +256,7 @@ UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe> &fes, UbcoreTopoAggrDev &
             UBSE_LOG_ERROR << "Convert ubpuId failed, " << FormatRetCode(ret);
             return ret;
         }
+        aggr_dev.fe[i].die_id = 1;
         ret = ConvertStrToUint32(fes[i].entityId, aggr_dev.fe[i].entity_id);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Convert entityId failed, " << FormatRetCode(ret);
@@ -325,6 +330,7 @@ void InitialNodes(const std::set<std::string> &slotIds, std::unordered_map<std::
             UBSE_LOG_ERROR << "Failed to convert " << id << " to uint32";
         }
         node.is_current = 0;
+        node.type = 0;
 
         for (uint32_t i_iodie = 0; i_iodie < IODIE_NUM; i_iodie++) {
             for (uint32_t j_port = 0; j_port < PORT_NUM; j_port++) {
@@ -335,6 +341,23 @@ void InitialNodes(const std::set<std::string> &slotIds, std::unordered_map<std::
         }
         nodeMap[id] = std::move(node);
     }
+}
+
+UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
+{
+    auto smbiosType131 = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
+    if (smbiosType131 == nullptr) {
+        UBSE_LOG_ERROR << "Get smbios type 131 failed";
+        return UBSE_ERROR;
+    }
+    auto meshType = static_cast<UbseMeshType>(smbiosType131->meshType);
+    uint32_t superNodeId = smbiosType131->superPodId;
+
+    for (auto &pair : nodeMap) {
+        nodeMap[pair.first].super_node_id = superNodeId;
+        nodeMap[pair.first].type = meshType == UbseMeshType::CLOS ?  1 : 0;
+    }
+    return UBSE_OK;
 }
 
 UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
@@ -350,6 +373,11 @@ UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
 
     std::unordered_map<std::string, UbcoreTopoNode> nodeMap;
     InitialNodes(slotIds, nodeMap);
+    ret = FillClusterInfo(nodeMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to fill cluster info";
+        return ret;
+    }
     ret = FillTopo(allLinkInfo, nodeMap);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill topo";

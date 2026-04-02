@@ -17,6 +17,7 @@
 #include <mutex>
 #include <unistd.h>
 
+#include "adapter_plugins/smbios/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -46,6 +47,7 @@ using namespace ubse::timer;
 using namespace ubse::common::def;
 using namespace ubse::com;
 using namespace ubse::serial;
+using namespace ubse::adapter_plugins::smbios;
 
 // Agent端消息处理注册
 UbseResult RegAgentMsgHandler()
@@ -611,9 +613,8 @@ UbseResult UbseGetDirConnectInfoFromRemote(
     return getRet;
 }
 
-UbseResult SetUrmaUvs(bool isBeforeElection = false)
+UbseResult FillLinkAndBondingFM(bool isBeforeElection, std::vector<PhysicalLink> &links)
 {
-    std::vector<PhysicalLink> links;
     if (isBeforeElection) {
         auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(links);
         if (ret != UBSE_OK) {
@@ -635,6 +636,43 @@ UbseResult SetUrmaUvs(bool isBeforeElection = false)
             links.push_back(entry.second);
         }
         UBSE_LOG_INFO << "get cur node topo success, update urma uvs";
+    }
+    return UBSE_OK;
+}
+
+UbseResult FillLinkAndBondingClos(bool isBeforeElection = false)
+{
+    if (!isBeforeElection) {
+        return UBSE_OK;
+    }
+
+    auto ret = UbseNodeComUrmaCollector::GetInstance().FillComUrmaInfoClos();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "fill com urma info failed";
+    }
+    return ret;
+}
+
+UbseResult SetUrmaUvs(bool isBeforeElection = false)
+{
+    UbseMeshType type{};
+    if (auto ret = UbseSmbios::GetInstance().GetMeshType(type); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
+    }
+
+    std::vector<PhysicalLink> links;
+    if (type == UbseMeshType::CLOS) {
+        auto ret = FillLinkAndBondingClos(isBeforeElection);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "fill links and bonding clos failed";
+            return ret;
+        }
+    } else {
+        auto ret = FillLinkAndBondingFM(isBeforeElection, links);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "fill links and bonding failed";
+            return ret;
+        }
     }
     auto ret = UbseNodeComUrmaCollector::GetInstance().SetComUrma(links, isBeforeElection);
     if (ret != UBSE_OK) {

@@ -11,7 +11,11 @@
  */
 
 #include "ubse_node_com_urma_collector.h"
+#include <bitset>
 #include <vector>
+#include "securec.h"
+#include "adapter_plugins/smbios/ubse_smbios.h"
+#include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
@@ -24,6 +28,7 @@ using namespace ubse::utils;
 using namespace ubse::common::def;
 using namespace ubse::context;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::urma;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -62,6 +67,78 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
         }
         comUrmaInfos[nodeId].feList.push_back(fe);
     }
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeComUrmaCollector::FillComUrmaInfoClos()
+{
+    auto ret = FillComUrmaInfo();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FillComUrmaInfo failed, ret=" << FormatRetCode(ret);
+        return ret;
+    }
+    std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    uint32_t podsSize = NO_8;
+    uint32_t clusterNodeSize = NO_8;
+    for (uint32_t podId = 0; podId < podsSize; podId++) {
+        for (uint32_t slotId = 0; slotId < clusterNodeSize; slotId++) {
+            UbseUrmaUvsAggrDev aggr_dev{};
+            uint32_t nodeId = podId * clusterNodeSize + slotId  + 1;
+            if (std::to_string(nodeId) == curNodeId) {
+                continue;
+            }
+            GenerateBondingEid(0x44494542, 0, 0, nodeId, aggr_dev.urmaDevEid);
+
+            for (auto &fe : comUrmaInfos[curNodeId].feList) {
+                UbseUrmaUvsFe fe_aggr_dev{};
+                fe_aggr_dev.ubpuId = fe.ubpuId;
+                ret = OverwriteEid(podId, slotId, fe.primaryEid, fe_aggr_dev.primaryEid);
+                if (ret != UBSE_OK) {
+                    return ret;
+                }
+                fe_aggr_dev.entityId = fe.entityId;
+                for (auto &port : fe.portEid) {
+                    ret = OverwriteEid(podId, slotId, port.second, fe_aggr_dev.portEid[port.first]);
+                    if (ret != UBSE_OK) {
+                        return ret;
+                    }
+                }
+                aggr_dev.feList.push_back(fe_aggr_dev);
+            }
+            comUrmaInfos[std::to_string(nodeId)] = aggr_dev;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult GenerateBondingEid(const uint32_t id0, const uint32_t id1, const uint32_t id2,
+							  const uint32_t id3, std::string &devEid)
+{
+    unsigned char bondingEid[IPV6_BYTE_COUNT];
+    uint32_t copyCnt = 0;
+    // [id0, id1, id2, id3]，每个字段占32位
+    auto ret = memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &id0, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &id1, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &id2, IPV6_SEGMENT_LENGTH);
+    ret |= memcpy_s(bondingEid + IPV6_SEGMENT_LENGTH * copyCnt++, IPV6_SEGMENT_LENGTH, &id3, IPV6_SEGMENT_LENGTH);
+    if (ret != EOK) {
+        UBSE_LOG_ERROR << "Failed to generate bonding eid, ret=" << ret;
+        return UBSE_ERROR;
+    }
+    const uint32_t fullFormatLength = ubse::urma::IPV6_FULL_FORMAT_LENGTH;
+    std::array<char, fullFormatLength + 1> buffer{};
+    // 格式化EID地址，每16位(2字节)为一组，共16组，组间用冒号分隔
+    int res = snprintf_s(buffer.data(), buffer.size(), fullFormatLength,
+                         "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+                         bondingEid[NO_0], bondingEid[NO_1], bondingEid[NO_2], bondingEid[NO_3],
+                         bondingEid[NO_4], bondingEid[NO_5], bondingEid[NO_6], bondingEid[NO_7],
+                         bondingEid[NO_8], bondingEid[NO_9], bondingEid[NO_10], bondingEid[NO_11],
+                         bondingEid[NO_12], bondingEid[NO_13], bondingEid[NO_14], bondingEid[NO_15]);
+    if (res < 0) {
+        UBSE_LOG_ERROR << "Failed to convert bytes to bonding eid string";
+        return UBSE_ERROR;
+    }
+    devEid = buffer.data();
     return UBSE_OK;
 }
 
@@ -117,36 +194,39 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
     }
 
     UbseDevTopology devTopology{};
-    auto ret = lcneModule->UbseGetDevTopology(devTopology);
-    if (ret != UBSE_OK) {
+    if (auto ret = lcneModule->UbseGetDevTopology(devTopology); ret != UBSE_OK) {
         UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
         return ret;
+    }
+    UbseMeshType type{};
+    if (auto ret = UbseSmbios::GetInstance().GetMeshType(type); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
     }
 
     for (const auto &kv : devTopology) {
         std::string nodeId;
         std::string ubpuId;
         kv.first.SplitDevName(nodeId, ubpuId);
-
         for (const auto &portKv : kv.second.second) {
             if (portKv.second.portStatus == UbseMtiCpuTopoPortStatus::DOWN) {
                 continue;
             }
             PhysicalLink link{};
-            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK ||
-                ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK ||
-                ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
+            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK || ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK
+                || ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
                 UBSE_LOG_WARN << "Failed to convert nodeId=" << nodeId << ", ubpuId=" << ubpuId
                               << ", portId=" << portKv.second.portId << ", skip this link";
                 continue;
             }
-            if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK ||
-                ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK ||
-                ConvertStrToUint32(portKv.second.remotePortId, link.peerPortId) != UBSE_OK) {
-                UBSE_LOG_WARN << "Failed to convert nodeId=" << portKv.second.remoteSlotId
-                              << ", ubpuId=" << portKv.second.remoteChipId
-                              << ", portId=" << portKv.second.remotePortId << ", skip this link";
-                continue;
+            if (type != UbseMeshType::CLOS) {
+                if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK ||
+                    ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK ||
+                    ConvertStrToUint32(portKv.second.remotePortId, link.peerPortId) != UBSE_OK) {
+                    UBSE_LOG_WARN << "Failed to convert nodeId=" << portKv.second.remoteSlotId << ", ubpuId="
+                        << portKv.second.remoteChipId << ", portId=" << portKv.second.remotePortId 
+                        << ", skip this link";
+                    continue;
+                }
             }
             link.linkStatus = LinkStatus::init;
             allLinkInfo.push_back(link);
@@ -183,4 +263,82 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     return UBSE_OK;
 }
 
+UbseResult ParseBaseEid(const std::string &baseEid, std::string &bitStr)
+{
+    bitStr.clear();
+    std::stringstream ss(baseEid);
+    std::vector<std::string> segments;
+    std::string segment;
+    while (std::getline(ss, segment, ':')) {
+        segments.push_back(segment);
+    }
+
+    std::vector<uint16_t> values;
+    for (const auto &seg : segments) {
+        try {
+            values.push_back(static_cast<uint16_t>(std::stoul(seg, nullptr, NO_16)));
+        } catch (const std::invalid_argument &e) {
+            UBSE_LOG_ERROR << "Failed to convert segment to uint16_t " << seg;
+            return UBSE_ERROR;
+        }
+    }
+
+    for (auto value : values) {
+        std::bitset<NO_16> bits(value);
+        bitStr += bits.to_string();
+    }
+    return UBSE_OK;
+}
+
+void ConstructEid(const std::string &bitStr, std::string &eid)
+{
+    // eid 4245:4944:0000:0000:0000:0000:0100:0000 格式，bits字符长128位
+    eid.clear();
+    for (size_t i = 0; i < bitStr.size(); i += NO_16) {
+        if (i > 0) {
+            eid += ":";
+        }
+        std::string bitChunk = bitStr.substr(i, NO_16);
+        std::bitset<NO_16> bits(bitChunk);
+        uint16_t value = bits.to_ulong();
+        char hexStr[10];
+        auto res = snprintf_s(hexStr, sizeof(hexStr), sizeof(hexStr) - 1, "%04X", value);
+        if (res == -1) {
+            return;
+        }
+        eid += hexStr;
+    }
+}
+
+
+UbseResult OverwriteEid(const uint32_t podId, const uint32_t serverId, const std::string &baseEid, std::string &result)
+{
+    uint32_t n = 104; // 从第105位开始，8位podId，5位serverId
+    uint8_t podBitSize = NO_8;
+    uint8_t serverBitSize = NO_5;
+    
+    std::string bitStr;
+    auto ret = ParseBaseEid(baseEid, bitStr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ParseBaseEid failed, baseEid=" << baseEid << ", ret=" << FormatRetCode(ret);
+        return ret;
+    }
+
+    if (n + podBitSize + serverBitSize > bitStr.size()) {
+        UBSE_LOG_ERROR << "OverwriteEid failed, baseEid=" << baseEid << ", podId=" << podId
+                       << ", serverId=" << serverId << ", ret=" << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+
+    std::bitset<NO_32> podIdBits(podId);
+    std::bitset<NO_32> serverIdBits(serverId);
+    
+    std::string podIdBitStr = podIdBits.to_string().substr(NO_32 - podBitSize);
+    std::string serverIdBitStr = serverIdBits.to_string().substr(NO_32 - serverBitSize);
+
+    std::string eidBitStr = bitStr.substr(0, n) + podIdBitStr + serverIdBitStr +
+                            bitStr.substr(n + podBitSize + serverBitSize);
+    ConstructEid(eidBitStr, result);
+    return UBSE_OK;
+}
 } // namespace ubse::nodeController

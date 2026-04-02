@@ -34,6 +34,8 @@ public:
 
     UbseResult FillComUrmaInfo();
 
+    UbseResult FillComUrmaInfoClos();
+
     UbseResult SetComUrma(std::vector<PhysicalLink> &allLinkInfo, bool isBeforeElection);
 
     UbseResult GetCurNodeTopo(std::vector<PhysicalLink> &allLinkInfo);
@@ -44,5 +46,9 @@ private:
     std::map<std::string, UbseUrmaUvsAggrDev> comUrmaInfos;
 };
 
+UbseResult OverwriteEid(const uint32_t podId, const uint32_t serverId, const std::string &baseEid, std::string &result);
+
+UbseResult GenerateBondingEid(const uint32_t id0, const uint32_t id1, const uint32_t id2, const uint32_t id3,
+                              std::string &bondingEid);
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_COM_URMA_COLLECTOR_H

@@ -21,6 +21,7 @@
 
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/smbios/ubse_smbios.h"
 #include "securec.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
@@ -39,6 +40,7 @@ using namespace ubse::election;
 using namespace ubse::serial;
 using namespace ubse::config;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::adapter_plugins::smbios;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t LOCAL_HANDLER_RETRY_DURATION = 2;
@@ -59,7 +61,16 @@ std::vector<UbseNodeInfo> UbseNodeController::GetStaticNodeInfo()
         UBSE_LOG_ERROR << "get all node infos from lcne failed, " << FormatRetCode(ret);
         return {};
     }
+	UbseMeshType type{};
+    if (auto ret = UbseSmbios::GetInstance().GetMeshType(type); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
+    }
     for (const auto& node : ubseNodeInfos) {
+		if (type == UbseMeshType::CLOS) {
+			if (auto curnode = GetCurNode(); node.nodeId != curnode.nodeId) {
+				continue;
+			}
+		}
         UbseNodeInfo ubseNodeInfo{node.nodeId};
         auto cpyRet = strcpy_s(ubseNodeInfo.bondingEid, sizeof(ubseNodeInfo.bondingEid), node.eid.c_str());
         if (cpyRet != EOK) {
@@ -511,10 +522,10 @@ std::string CreateLinkIdAndPhysicalLink(const LinkInfo &linkInfo, PhysicalLink &
                    + linkInfo.slotId + "/" + linkInfo.socketId + "/" + linkInfo.portId;
         }
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
-                       << "slotId is " << linkInfo.slotId << "socketId is " << linkInfo.socketId << "portId is "
-                       << linkInfo.portId << "peerSlotId is " << linkInfo.peerSlotId << "peerSocketId is "
-                       << linkInfo.peerSocketId << "peerPortId is " << linkInfo.peerPortId;
+        UBSE_LOG_WARN << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
+                       << "slotId=" << linkInfo.slotId << ", socketId=" << linkInfo.socketId << ", portId="
+                       << linkInfo.portId << ", peerSlotId=" << linkInfo.peerSlotId << ", peerSocketId="
+                       << linkInfo.peerSocketId << ", peerPortId=" << linkInfo.peerPortId;
     }
     return "ERROR-LINK";
 }
