@@ -12,6 +12,7 @@
 #include "ubse_mti_bus_instance_out_of_band.h"
 #include <regex>
 #include "./message/ubse_ctrl_q_businstance_msg.h"
+#include "./message/ubse_ctrl_q_get_d2h_memory_msg.h"
 #include "./message/ubse_ictrl_q_req_msg.h"
 #include "./proxy/ubse_ctrl_q_msg_proxy.h"
 #include "securec.h"
@@ -197,4 +198,21 @@ UbseResult UbseMtiBusInstanceOutOfBand::DestroyVmBusInstance(const UbseMtiBusIns
     }
     return UBSE_OK;
 }
+
+UbseResult UbseMtiBusInstanceOutOfBand::GetD2hMemory(const UbseMtiBusInst &busInstance, uint32_t &tid, uint64_t &uba,
+                                                     uint64_t &size)
+{
+    UbseCtrlQGetD2hMemoryReqMsg reqMsg(busInstance);
+    UbseCtrlQGetD2hMemoryRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetD2hMemory failed, ret: " << FormatRetCode(ret);
+        return ret;
+    }
+    tid = respMsg.GetTid();
+    uba = respMsg.GetUba();
+    size = respMsg.GetSize();
+    return UBSE_OK;
+}
+
 } // namespace ubse::mti::bus_instance

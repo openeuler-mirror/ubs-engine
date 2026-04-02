@@ -20,6 +20,8 @@ class UbseMtiBusInstanceOutOfBand : public UbseMtiBusInstance {
     UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance) override;
 
     UbseResult DestroyVmBusInstance(const UbseMtiBusInst &busInstance) override;
+
+    UbseResult GetD2hMemory(const UbseMtiBusInst &busInstance, uint32_t &tid, uint64_t &uba, uint64_t &size) override;
 };
 } // namespace ubse::mti::bus_instance
 #endif // UBSE_MTI_BUS_INSTANCE_OUT_OF_BAND_H
