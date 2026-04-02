@@ -9,7 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_ctrl_q_msg_helper.h"
+#include "ubse_ctrl_q_msg_proxy.h"
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -41,6 +41,12 @@ constexpr char BANDBRIDGE_IOCTL_BASE = 'x';
 // 计算方式：1 << (16 - 1) = 1 << 15 = 0x8000
 constexpr uint16_t SEQ_MASK = static_cast<uint16_t>(1) << (sizeof(uint16_t) * 8 - 1);
 #define BANDBRIDGE_SEND_REQUEST _IOWR(BANDBRIDGE_IOCTL_BASE, 0, struct BandBridgeMbuf)
+
+CtrlQMsgProxy &CtrlQMsgProxy::GetInstance()
+{
+    static CtrlQMsgProxy instance;
+    return instance;
+}
 
 static UbseResult SendCtrlQMsg(BandBridgeMbuf &msgBuf)
 {
@@ -78,8 +84,48 @@ bool CheckSeq(uint16_t sendSeq, uint16_t recvSeq)
     return sendSeq == recvSeq;
 }
 
-UbseResult SendMsg(const CtrlQReqMessage &msg, CtrlQRespMessage &respMsg)
+UbseResult SendMsg(BandBridgeMbuf &buf, CtrlQRespMessage &respMsg)
 {
+    static UbseSequenceCounter<uint16_t> seqCounter(0, std::numeric_limits<uint16_t>::max() >> 1);
+    auto sendSeq = seqCounter.GetNextSafe();
+    reinterpret_cast<FixedHead *>(buf.sendBuf)->seq = sendSeq;
+
+    if (SendCtrlQMsg(buf) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    auto ret = reinterpret_cast<FixedHead *>(buf.recvBuf)->ret;
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Recv resp failed, seq: " << sendSeq << ", ret: " << ret;
+        return UBSE_ERROR;
+    }
+    auto blockNums = reinterpret_cast<FixedHead *>(buf.recvBuf)->bbNum;
+    // 检查接收的基本块数量是否有效，如果为0或超过接收缓冲区大小，返回错误
+    if (blockNums == 0 || blockNums * BASIC_BLOCK_SIZE > RECV_BUF_SIZE) {
+        UBSE_LOG_ERROR << "Block nums is invalid, blockNums: " << blockNums;
+        return UBSE_ERROR;
+    }
+    auto recvSeq = reinterpret_cast<FixedHead *>(buf.recvBuf)->seq;
+    if (!CheckSeq(sendSeq, recvSeq)) {
+        UBSE_LOG_ERROR << "Seq is invalid, sendSeq: " << sendSeq << ", recvSeq: " << recvSeq;
+        return UBSE_ERROR;
+    }
+    respMsg.blockNums = blockNums;
+    auto msgSize = blockNums * BASIC_BLOCK_SIZE;
+    respMsg.blocks = reinterpret_cast<CtrlQBasicBlock *>(buf.recvBuf);
+    return UBSE_OK;
+}
+
+UbseResult CtrlQMsgProxy::SendRequest(ICtrlQReqMsg &reqMsg, ICtrlQRespMsg &respMsg)
+{
+    auto ret = reqMsg.EncodeReqMsg();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    auto &msg = reqMsg.GetReqMsg();
+    if (msg.blocks.size() > MAX_BASIC_BLOCK_NUM || msg.blocks.empty()) {
+        UBSE_LOG_ERROR << "Block nums is invalid, blockNums: " << msg.blocks.size();
+        return UBSE_ERROR;
+    }
     auto buf = SafeMakeUniqueWithFreeFunc<BandBridgeMbuf>([](BandBridgeMbuf *buf) {
         if (buf->recvBuf != nullptr) {
             free(buf->recvBuf);
@@ -96,82 +142,11 @@ UbseResult SendMsg(const CtrlQReqMessage &msg, CtrlQRespMessage &respMsg)
         return UBSE_ERROR;
     }
     buf->recvBufSize = static_cast<int>(RECV_BUF_SIZE);
-    static UbseSequenceCounter<uint16_t> seqCounter(0, std::numeric_limits<uint16_t>::max() >> 1);
-    auto sendSeq = seqCounter.GetNextSafe();
-    reinterpret_cast<FixedHead *>(buf->sendBuf)->seq = sendSeq;
-
-    if (SendCtrlQMsg(*buf) != UBSE_OK) {
-        return UBSE_ERROR;
+    CtrlQRespMessage respMsgBuf;
+    auto res = SendMsg(*buf, respMsgBuf);
+    if (res != UBSE_OK) {
+        return res;
     }
-    auto ret = reinterpret_cast<FixedHead *>(buf->recvBuf)->ret;
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Recv resp failed, seq: " << sendSeq << ", ret: " << ret;
-        return UBSE_ERROR;
-    }
-    auto blockNums = reinterpret_cast<FixedHead *>(buf->recvBuf)->bbNum;
-    // 检查接收的基本块数量是否有效，如果为0或超过接收缓冲区大小，返回错误
-    if (blockNums == 0 || blockNums * BASIC_BLOCK_SIZE > RECV_BUF_SIZE) {
-        UBSE_LOG_ERROR << "Block nums is invalid, blockNums: " << blockNums;
-        return UBSE_ERROR;
-    }
-    auto recvSeq = reinterpret_cast<FixedHead *>(buf->recvBuf)->seq;
-    if (!CheckSeq(sendSeq, recvSeq)) {
-        UBSE_LOG_ERROR << "Seq is invalid, sendSeq: " << sendSeq << ", recvSeq: " << recvSeq;
-        return UBSE_ERROR;
-    }
-    respMsg.blockNums = blockNums;
-    auto msgSize = blockNums * BASIC_BLOCK_SIZE;
-    respMsg.blocks = new (std::nothrow) CtrlQBasicBlock[blockNums];
-    if (respMsg.blocks == nullptr) {
-        UBSE_LOG_ERROR << "Failed to allocate memory for response blocks, size: " << msgSize;
-        return UBSE_ERROR;
-    }
-    auto copyRet = memcpy_s(respMsg.blocks, msgSize, static_cast<CtrlQBasicBlock *>(buf->recvBuf), msgSize);
-    if (copyRet != EOK) {
-        UBSE_LOG_ERROR << "Memcpy resp failed, ret: " << copyRet;
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
-}
-
-struct RespReader {
-    FixedHead head;
-} __attribute__((packed));
-
-bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opCode)
-{
-    auto &reader = *reinterpret_cast<const RespReader *>(msg.blocks);
-    // bbNum 为0时，不检查bbNum
-    if (reader.head.serviceType != DEFAULT_SERVICE_TYPE || reader.head.opCode != opCode ||
-        (reader.head.bbNum != bbNum && reader.head.bbNum != 0)) {
-        UBSE_LOG_ERROR << "Check resp failed, serviceType: " << reader.head.serviceType
-                       << ", bbNum: " << reader.head.bbNum << ", opCode: " << reader.head.opCode;
-        return false;
-    }
-    return true;
-}
-
-UbseResult GetBatchOptRespResult(const CtrlQRespMessage &msg, uint8_t opCode, std::vector<bool> &resList)
-{
-    auto pos = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(RespReader);
-    auto end = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
-
-    UbseCtrlQMsgReadHelper readHelper(pos, end);
-    try {
-        auto cnt = readHelper.Read<uint8_t>();
-        for (uint8_t i = 0; i < cnt; i++) {
-            uint8_t res = readHelper.Read<uint8_t>();
-            if (res != UBSE_OK) {
-                UBSE_LOG_ERROR << "Opt failed, resp idx: " << i << ", res: " << res << ", opCode: " << opCode;
-                resList.emplace_back(false);
-            } else {
-                resList.emplace_back(true);
-            }
-        }
-    } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Read opt resp failed, opCode: " << opCode;
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
+    return respMsg.DecodeRespMsg(respMsgBuf);
 }
 } // namespace ubse::mti::ctrl_q

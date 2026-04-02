@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_CTRL_Q_BIND_VFE_DAVID_H
-#define UBSE_CTRL_Q_BIND_VFE_DAVID_H
-#include "../ubse_ictrl_q_msg_operation_proxy.h"
-#include "../ubse_ictrl_q_req_msg.h"
+#ifndef UBSE_CTRL_Q_VFE_DAVID_OPT_MSG_H
+#define UBSE_CTRL_Q_VFE_DAVID_OPT_MSG_H
+#include "ubse_ictrl_q_req_msg.h"
+#include "ubse_ictrl_q_resp_msg.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
 
 namespace ubse::mti::ctrl_q {
@@ -25,46 +25,49 @@ public:
 
     explicit UbseCtrlQBindVfeDavidReqMsg(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 
-protected:
+private:
     uint16_t upi_;
     std::vector<UbseMtiIdevVfeDavidPair> vfeDavidList_;
 };
 
-class UbseCtrlQUnBindVfeDavidReqMsg : public UbseCtrlQBindVfeDavidReqMsg {
+class UbseCtrlQUnBindVfeDavidReqMsg : public ICtrlQReqMsg {
 public:
     UbseCtrlQUnBindVfeDavidReqMsg() = delete;
 
     explicit UbseCtrlQUnBindVfeDavidReqMsg(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
-};
-
-class UbseCtrlQBindVfeDavidProxy : public ICtrlQMsgOperationProxy<std::vector<bool>> {
-public:
-    static const uint8_t OP_CODE = 0x9;
-
-    UbseCtrlQBindVfeDavidProxy() = default;
-    ~UbseCtrlQBindVfeDavidProxy() override = default;
+    UbseResult EncodeReqMsg() override;
 
 private:
-    bool CheckReqValidation(const CtrlQReqMessage &msg) override;
-
-    UbseResult ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg) override;
+    uint16_t upi_;
+    std::vector<UbseMtiIdevVfeDavidPair> vfeDavidList_;
 };
 
-class UbseCtrlQUnBindVfeDavidProxy : public ICtrlQMsgOperationProxy<std::vector<bool>> {
+class UbseCtrlQBindVfeDavidRespMsg : public ICtrlQRespMsg {
 public:
-    static const uint8_t OP_CODE = 0xA;
+    UbseCtrlQBindVfeDavidRespMsg() = default;
 
-    UbseCtrlQUnBindVfeDavidProxy() = default;
-    ~UbseCtrlQUnBindVfeDavidProxy() override = default;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const std::vector<bool> &GetRetList() const;
 
 private:
-    bool CheckReqValidation(const CtrlQReqMessage &msg) override;
-
-    UbseResult ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg) override;
+    std::vector<bool> retList_;
 };
+
+class UbseCtrlQUnBindVfeDavidRespMsg : public ICtrlQRespMsg {
+public:
+    UbseCtrlQUnBindVfeDavidRespMsg() = default;
+
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const std::vector<bool> &GetRetList() const;
+
+private:
+    std::vector<bool> retList_;
+};
+
 } // namespace ubse::mti::ctrl_q
-#endif // UBSE_CTRL_Q_BIND_VFE_DAVID_H
+#endif // UBSE_CTRL_Q_VFE_DAVID_OPT_MSG_H

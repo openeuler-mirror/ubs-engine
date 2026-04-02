@@ -10,15 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_ctrl_q_dev_opt_proxy.h"
-#include "../ubse_ctrl_q_message.h"
-#include "../ubse_ctrl_q_msg_helper.h"
+#include "ubse_ctrl_q_fe_opt_msg.h"
 #include "securec.h"
+#include "ubse_ctrl_q_message.h"
+#include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
+static const uint8_t REG_DEV_OP_CODE = 0x7;
+static const uint8_t UNREG_DEV_OP_CODE = 0x8;
 
 struct UbseCtrlQRegDevReqMsg {
     FixedHead head;
@@ -36,9 +38,10 @@ struct RespReader {
     FixedHead head;
 } __attribute__((packed));
 
-static uint32_t CalculateTotalSize(const std::vector<RegInfo> &regInfoList)
+static uint32_t CalculateTotalSize(uint32_t regInfoNum)
 {
-    return sizeof(UbseCtrlQRegDevReqMsg) + static_cast<uint32_t>(regInfoList.size()) * sizeof(RegInfo);
+    uint32_t reSize = sizeof(UbseCtrlQRegDevReqMsg) + regInfoNum * sizeof(RegInfo);
+    return (reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE;
 }
 
 UbseResult SetBusInstance(const UbseMtiBusInst &busInstance, CtrlQReqMessage &msg)
@@ -55,7 +58,8 @@ UbseResult SetBusInstance(const UbseMtiBusInst &busInstance, CtrlQReqMessage &ms
 UbseCtrlQRegDavidFeToBusInstanceReqMsg::UbseCtrlQRegDavidFeToBusInstanceReqMsg(
     const UbseMtiBusInst &busInstance, const std::vector<UbseMtiIdevVfe> &vfeList)
     : busInstance_(busInstance),
-      vfeList_(vfeList)
+      vfeList_(vfeList),
+      ICtrlQReqMsg(REG_DEV_OP_CODE, CalculateTotalSize(vfeList_.size()))
 {
 }
 
@@ -99,43 +103,33 @@ static void IdevVfeListToRegInfoList(const std::vector<UbseMtiIdevVfe> &vfeList,
     }
 }
 
-UbseResult UbseCtrlQRegDavidFeToBusInstanceReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQRegDavidFeToBusInstanceReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQRegDevProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
     std::vector<RegInfo> regInfoList;
     IdevVfeListToRegInfoList(vfeList_, regInfoList);
-    auto reSize = CalculateTotalSize(regInfoList);
-    if (reSize > BASIC_BLOCK_SIZE) {
-        ResizeReqMsg((reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE, msg);
-    }
-    return WriteReqMsg(busInstance_, regInfoList, msg);
+    return WriteReqMsg(busInstance_, regInfoList, reqMsg_);
 }
 
 UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg::UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg(
     const UbseMtiBusInst &busInstance, const std::vector<UbseMtiIdevVfe> &vfeList)
     : busInstance_(busInstance),
-      vfeList_(vfeList)
+      vfeList_(vfeList),
+      ICtrlQReqMsg(UNREG_DEV_OP_CODE, CalculateTotalSize(vfeList_.size()))
 {
 }
 
-UbseResult UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQUnRegDevProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
     std::vector<RegInfo> unRegInfoList;
     IdevVfeListToRegInfoList(vfeList_, unRegInfoList);
-    auto reSize = CalculateTotalSize(unRegInfoList);
-    if (reSize > BASIC_BLOCK_SIZE) {
-        ResizeReqMsg((reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE, msg);
-    }
-    return WriteReqMsg(busInstance_, unRegInfoList, msg);
+    return WriteReqMsg(busInstance_, unRegInfoList, reqMsg_);
 }
 
 UbseCtrlQReg1825FeToBusInstanceReqMsg::UbseCtrlQReg1825FeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
                                                                              const std::vector<UbseMti1825Vf> &vfList)
     : busInstance_(busInstance),
-      vfList_(vfList)
+      vfList_(vfList),
+      ICtrlQReqMsg(REG_DEV_OP_CODE, CalculateTotalSize(vfList_.size()))
 {
 }
 
@@ -156,64 +150,54 @@ static void Mti1825VfListToRegInfoList(const std::vector<UbseMti1825Vf> &vfList,
     }
 }
 
-UbseResult UbseCtrlQReg1825FeToBusInstanceReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQReg1825FeToBusInstanceReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQRegDevProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
     std::vector<RegInfo> regInfoList;
     Mti1825VfListToRegInfoList(vfList_, regInfoList);
-    auto reSize = CalculateTotalSize(regInfoList);
-    if (reSize > BASIC_BLOCK_SIZE) {
-        ResizeReqMsg((reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE, msg);
-    }
-    return WriteReqMsg(busInstance_, regInfoList, msg);
+    return WriteReqMsg(busInstance_, regInfoList, reqMsg_);
 }
 
 UbseCtrlQUnReg1825FeFromBusInstanceReqMsg::UbseCtrlQUnReg1825FeFromBusInstanceReqMsg(
     const UbseMtiBusInst &busInstance, const std::vector<UbseMti1825Vf> &vfList)
     : busInstance_(busInstance),
-      vfList_(vfList)
+      vfList_(vfList),
+      ICtrlQReqMsg(UNREG_DEV_OP_CODE, CalculateTotalSize(vfList_.size()))
 {
 }
 
-UbseResult UbseCtrlQUnReg1825FeFromBusInstanceReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQUnReg1825FeFromBusInstanceReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQUnRegDevProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
     std::vector<RegInfo> unRegInfoList;
     Mti1825VfListToRegInfoList(vfList_, unRegInfoList);
-    auto reSize = CalculateTotalSize(unRegInfoList);
-    if (reSize > BASIC_BLOCK_SIZE) {
-        ResizeReqMsg((reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE, msg);
-    }
-    return WriteReqMsg(busInstance_, unRegInfoList, msg);
+    return WriteReqMsg(busInstance_, unRegInfoList, reqMsg_);
 }
 
-bool UbseCtrlQRegDevProxy::CheckReqValidation(const CtrlQReqMessage &msg)
-{
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQRegDevProxy::OP_CODE;
-}
-
-UbseResult UbseCtrlQRegDevProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQRegDavidFeToBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum
-    if (!CheckRespValidation(msg, 0, UbseCtrlQRegDevProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 0, REG_DEV_OP_CODE)) {
         return UBSE_ERROR;
     }
-    return GetBatchOptRespResult(msg, UbseCtrlQRegDevProxy::OP_CODE, resp_);
+    return GetBatchOptRespResult(msg, REG_DEV_OP_CODE, retList_);
 }
 
-bool UbseCtrlQUnRegDevProxy::CheckReqValidation(const CtrlQReqMessage &msg)
+const std::vector<bool> &UbseCtrlQRegDavidFeToBusInstanceRespMsg::GetRetList() const
 {
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQUnRegDevProxy::OP_CODE;
+    return retList_;
 }
 
-UbseResult UbseCtrlQUnRegDevProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum
-    if (!CheckRespValidation(msg, 0, UbseCtrlQUnRegDevProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 0, UNREG_DEV_OP_CODE)) {
         return UBSE_ERROR;
     }
-    return GetBatchOptRespResult(msg, UbseCtrlQUnRegDevProxy::OP_CODE, resp_);
+    return GetBatchOptRespResult(msg, UNREG_DEV_OP_CODE, retList_);
 }
+
+const std::vector<bool> &UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg::GetRetList() const
+{
+    return retList_;
+}
+
 } // namespace ubse::mti::ctrl_q

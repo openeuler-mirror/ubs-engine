@@ -11,8 +11,9 @@
  */
 #include "ubse_mti_bus_instance_out_of_band.h"
 #include <regex>
-#include "../ctrl_q/protocol/ubse_ctrl_q_businstance_opt_proxy.h"
-#include "../ctrl_q/ubse_ictrl_q_req_msg.h"
+#include "./message/ubse_ctrl_q_businstance_msg.h"
+#include "./message/ubse_ictrl_q_req_msg.h"
+#include "./proxy/ubse_ctrl_q_msg_proxy.h"
 #include "securec.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -170,24 +171,27 @@ UbseResult UbseMtiBusInstanceOutOfBand::GetBusInstanceList(std::vector<UbseMtiBu
 UbseResult UbseMtiBusInstanceOutOfBand::CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance)
 {
     UbseCtrlQCreateBusInstanceReqMsg reqMsg(upi, DEFAULT_VENDOR);
-    UbseCtrlQCreateBusInstanceProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQCreateBusInstanceRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "CreateVmBusInstance failed, ret: " << FormatRetCode(ret);
         return ret;
     }
-    busInstance = proxy.GetResponse();
+    busInstance = respMsg.GetBusInstance();
     return UBSE_OK;
 }
 
 UbseResult UbseMtiBusInstanceOutOfBand::DestroyVmBusInstance(const UbseMtiBusInst &busInstance)
 {
     UbseCtrlQDestroyBusInstanceReqMsg reqMsg(busInstance);
-    UbseCtrlQDestroyBusInstanceProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQDestroyBusInstanceRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "DestroyVmBusInstance failed, ret: " << FormatRetCode(ret);
         return ret;
+    }
+    if (!respMsg.GetRet()) {
+        return UBSE_ERROR;
     }
     return UBSE_OK;
 }

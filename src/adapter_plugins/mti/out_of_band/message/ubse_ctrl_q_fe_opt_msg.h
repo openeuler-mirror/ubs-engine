@@ -10,13 +10,13 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_CTRL_Q_DEV_OPT_PROXY_H
-#define UBSE_CTRL_Q_DEV_OPT_PROXY_H
-#include "../ubse_ictrl_q_msg_operation_proxy.h"
-#include "../ubse_ictrl_q_req_msg.h"
+#ifndef UBSE_CTRL_Q_FE_OPT_MSG_H
+#define UBSE_CTRL_Q_FE_OPT_MSG_H
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
+#include "ubse_ictrl_q_req_msg.h"
+#include "ubse_ictrl_q_resp_msg.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace mti::urma;
@@ -28,11 +28,23 @@ public:
     explicit UbseCtrlQRegDavidFeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
                                                     const std::vector<UbseMtiIdevVfe> &vfeList);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 
 private:
     UbseMtiBusInst busInstance_;
     std::vector<UbseMtiIdevVfe> vfeList_;
+};
+
+class UbseCtrlQRegDavidFeToBusInstanceRespMsg : public ICtrlQRespMsg {
+public:
+    UbseCtrlQRegDavidFeToBusInstanceRespMsg() = default;
+
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const std::vector<bool> &GetRetList() const;
+
+private:
+    std::vector<bool> retList_;
 };
 
 class UbseCtrlQReg1825FeToBusInstanceReqMsg : public ICtrlQReqMsg {
@@ -40,11 +52,16 @@ public:
     explicit UbseCtrlQReg1825FeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
                                                    const std::vector<UbseMti1825Vf> &vfList);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 
 private:
     UbseMtiBusInst busInstance_;
     std::vector<UbseMti1825Vf> vfList_;
+};
+
+class UbseCtrlQReg1825FeToBusInstanceRespMsg : public UbseCtrlQRegDavidFeToBusInstanceRespMsg {
+public:
+    UbseCtrlQReg1825FeToBusInstanceRespMsg() = default;
 };
 
 class UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg : public ICtrlQReqMsg {
@@ -52,11 +69,23 @@ public:
     explicit UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
                                                         const std::vector<UbseMtiIdevVfe> &vfeList);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 
 private:
     UbseMtiBusInst busInstance_;
     std::vector<UbseMtiIdevVfe> vfeList_;
+};
+
+class UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg : public ICtrlQRespMsg {
+public:
+    UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg() = default;
+
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const std::vector<bool> &GetRetList() const;
+
+private:
+    std::vector<bool> retList_;
 };
 
 class UbseCtrlQUnReg1825FeFromBusInstanceReqMsg : public ICtrlQReqMsg {
@@ -64,35 +93,16 @@ public:
     explicit UbseCtrlQUnReg1825FeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
                                                        const std::vector<UbseMti1825Vf> &vfList);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 
 private:
     UbseMtiBusInst busInstance_;
     std::vector<UbseMti1825Vf> vfList_;
 };
 
-class UbseCtrlQRegDevProxy : public ICtrlQMsgOperationProxy<std::vector<bool>> {
+class UbseCtrlQUnReg1825FeFromBusInstanceRespMsg : public UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg {
 public:
-    static const uint8_t OP_CODE = 0x7;
-    UbseCtrlQRegDevProxy() = default;
-    ~UbseCtrlQRegDevProxy() override = default;
-
-private:
-    bool CheckReqValidation(const CtrlQReqMessage &msg) override;
-
-    UbseResult ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg) override;
-};
-
-class UbseCtrlQUnRegDevProxy : public ICtrlQMsgOperationProxy<std::vector<bool>> {
-public:
-    static const uint8_t OP_CODE = 0x8;
-    UbseCtrlQUnRegDevProxy() = default;
-    ~UbseCtrlQUnRegDevProxy() override = default;
-
-private:
-    bool CheckReqValidation(const CtrlQReqMessage &msg) override;
-
-    UbseResult ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg) override;
+    UbseCtrlQUnReg1825FeFromBusInstanceRespMsg() = default;
 };
 } // namespace ubse::mti::ctrl_q
-#endif // UBSE_CTRL_Q_DEV_OPT_PROXY_H
+#endif // UBSE_CTRL_Q_FE_OPT_MSG_H

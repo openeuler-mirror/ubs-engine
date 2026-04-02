@@ -67,8 +67,6 @@ private:
     uint8_t *end_;
 };
 
-UbseResult SendMsg(const CtrlQReqMessage &msg, CtrlQRespMessage &respMsg);
-
 UbseResult GetBatchOptRespResult(const CtrlQRespMessage &msg, uint8_t opCode, std::vector<bool> &resList);
 
 bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opCode);

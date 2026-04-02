@@ -21,24 +21,30 @@ class ICtrlQReqMsg {
 public:
     virtual ~ICtrlQReqMsg() = default;
 
-    virtual UbseResult GetReqMsg(CtrlQReqMessage &msg) = 0;
+    ICtrlQReqMsg() = delete;
+
+    explicit ICtrlQReqMsg(uint8_t opCode, uint8_t bbNum = 1);
+
+    virtual UbseResult EncodeReqMsg() = 0;
+
+    const CtrlQReqMessage &GetReqMsg() const;
 
 protected:
-    void SetVersion(uint8_t version, CtrlQReqMessage &msg);
+    void SetVersion(uint8_t version);
 
-    void SetOpCode(uint8_t opcode, CtrlQReqMessage &msg);
+    void SetOpCode(uint8_t opCode);
 
-    void SetRet(uint8_t ret, CtrlQReqMessage &msg);
+    void SetRet(uint8_t ret);
 
-    void SetSeq(uint16_t seq, CtrlQReqMessage &msg);
+    void SetSeq(uint16_t seq);
 
-    void SetResv(uint8_t resv, CtrlQReqMessage &msg);
+    void SetResv(uint8_t resv);
 
-    void SetServiceType(uint8_t serviceType, CtrlQReqMessage &msg);
+    void SetServiceType(uint8_t serviceType);
 
-    void SetBBNum(uint8_t bbNum, CtrlQReqMessage &msg);
+    void SetBBNum(uint8_t bbNum);
 
-    void ResizeReqMsg(uint8_t size, CtrlQReqMessage &msg);
+    CtrlQReqMessage reqMsg_;
 };
 } // namespace ubse::mti::ctrl_q
 #endif // UBSE_ICTRL_Q_REQ_MSG_H
