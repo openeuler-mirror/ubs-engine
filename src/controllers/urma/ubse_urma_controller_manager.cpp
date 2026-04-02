@@ -803,33 +803,33 @@ UbseResult ParseBondingEidString(const std::string &devEid, std::pair<uint32_t, 
 
 UbseResult InferEidGroup(uint32_t podId, uint32_t serverId, EidGroup &group)
 {
-    // if (group.feInfo == nullptr) {
-    //     UBSE_LOG_ERROR << "FeInfo is null";
-    //     return UBSE_ERROR_INVAL;
-    // }
-    // std::string primaryEid;
-    // if (UbseNodeComUrmaCollector::GetInstance().OverwriteEid(podId, serverId, group.primaryEid, primaryEid) !=
-    //     UBSE_OK) {
-    //     UBSE_LOG_ERROR << "Failed to overwrite primaryEid: " << group.primaryEid;
-    //     return UBSE_ERROR_INVAL;
-    // }
-    // std::map<std::string, std::string> portEids;
-    // for (auto &kv : group.portEids) {
-    //     std::string portEid;
-    //     if (UbseNodeComUrmaCollector::GetInstance().OverwriteEid(podId, serverId, kv.second, portEid) != UBSE_OK) {
-    //         UBSE_LOG_ERROR << "Failed to overwrite portEid: " << kv.first << ", portEid=" << kv.second;
-    //         return UBSE_ERROR_INVAL;
-    //     }
-    //     portEids[kv.first] = portEid;
-    // }
-    // group.primaryEid = primaryEid;
-    // group.portEids = std::move(portEids);
-    // group.feInfo = std::make_shared<UbseFeInfo>(*group.feInfo);
-    // if (group.feInfo == nullptr) {
-    //     UBSE_LOG_ERROR << "FeInfo is null";
-    //     return UBSE_ERROR_INVAL;
-    // }
-    // group.feInfo->slotId = serverId;
+    if (group.feInfo == nullptr) {
+        UBSE_LOG_ERROR << "FeInfo is null";
+        return UBSE_ERROR_INVAL;
+    }
+    std::string primaryEid;
+    if (UbseNodeComUrmaCollector::GetInstance().OverwriteEid(podId, serverId, group.primaryEid, primaryEid) !=
+        UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to overwrite primaryEid: " << group.primaryEid;
+        return UBSE_ERROR_INVAL;
+    }
+    std::map<std::string, std::string> portEids;
+    for (auto &kv : group.portEids) {
+        std::string portEid;
+        if (UbseNodeComUrmaCollector::GetInstance().OverwriteEid(podId, serverId, kv.second, portEid) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to overwrite portEid: " << kv.first << ", portEid=" << kv.second;
+            return UBSE_ERROR_INVAL;
+        }
+        portEids[kv.first] = portEid;
+    }
+    group.primaryEid = primaryEid;
+    group.portEids = std::move(portEids);
+    group.feInfo = std::make_shared<UbseFeInfo>(*group.feInfo);
+    if (group.feInfo == nullptr) {
+        UBSE_LOG_ERROR << "FeInfo is null";
+        return UBSE_ERROR_INVAL;
+    }
+    group.feInfo->slotId = serverId;
     return UBSE_OK;
 }
 
