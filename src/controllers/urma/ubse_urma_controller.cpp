@@ -17,13 +17,12 @@
 #include "ubse_logger.h"
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
-#include "ubse_smbios_def.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_module.h"
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_uvs_module.h"
-#include "src/include/adapter_plugins/smbios/ubse_smbios.h"
+#include "ubse_smbios.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -495,16 +494,6 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::v
     return UBSE_OK;
 }
 
-static bool IsColsType()
-{
-    UbseMeshType meshTpye = UbseMeshType::FULL_MESH;
-    auto ret = UbseSmbios::GetInstance().GetMeshType(meshTpye);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get meshType from smbios failed, defalut to full mesh";
-    }
-    return meshTpye == UbseMeshType::CLOS;
-}
-
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
                                                       std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
@@ -512,7 +501,7 @@ UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
         UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(devInfos);
         return UBSE_OK;
     }
-    if (IsColsType()) {
+    if (UbseSmbios::GetInstance().IsClosType()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();

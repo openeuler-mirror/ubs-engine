@@ -29,6 +29,8 @@ ubsectl display urma --node {node-id} --dev {urma_name}
 | dev2_eid  | bounding设备绑定的fe2 Eid    | 字符串                       |
 | status    | urma设备状态                 | 字符串（active/inactive等）  |
 
+- **注意事项**
+1. 该命令在CLOS组网下不支持传入node-id字段，即在CLOS组网下只支持查本节点的urma设备信息。
 - **示例**
 
 查询指定节点的所有URMA设备：

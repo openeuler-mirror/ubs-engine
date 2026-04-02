@@ -300,32 +300,18 @@ static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage &req,
     return UBSE_OK;
 }
 
-static bool IsColsType()
-{
-    UbseMeshType meshTpye = UbseMeshType::FULL_MESH;
-    auto ret = UbseSmbios::GetInstance().GetMeshType(meshTpye);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get meshType from smbios failed, defalut to full mesh";
-    }
-    return meshTpye == UbseMeshType::CLOS;
-}
-
-
 static uint32_t EnsureTargetNodeIdStrict(std::string &targetNodeId,
                                          const UbseRequestContext &context)
 {
     if (!targetNodeId.empty()) {
-        if (!IsColsType()) {
+        if (!UbseSmbios::GetInstance().IsClosType()) {
             UBSE_LOG_INFO << "Querying remote node: " << targetNodeId;
+            // 获取组网类型失败时，默认为FULL_MESH组网类型
             return UBSE_OK;
         } else {
             return SendErrorResponse(UBSE_ERR_NOT_SUPPORTED, context.requestId,
                                      " param -n is not supported in current topo");
         }
-    }
-    if (!targetNodeId.empty()) {
-        UBSE_LOG_INFO << "Querying remote node: " << targetNodeId;
-        return UBSE_OK;
     }
 
     auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
@@ -894,10 +880,6 @@ uint32_t UbseNodeApi::UbseQueryCpuTopo(const UbseIpcMessage &request, const Ubse
 {
     (void)request;
     UBSE_LOG_INFO << "enter UbseQueryCpuTopo";
-    if (IsColsType()) {
-        return SendErrorResponse(UBSE_ERR_NOT_SUPPORTED, context.requestId,
-                                 "the command is not supported with Current topo ");
-    }
     std::vector<CliPhysicalLink> cpuTopoLinks{};
     auto result = GetCpuTopoLink(cpuTopoLinks);
     if (result != UBSE_OK) {

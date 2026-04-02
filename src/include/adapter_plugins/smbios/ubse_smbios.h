@@ -37,6 +37,8 @@ public:
      */
     uint32_t GetMeshType(UbseMeshType &meshType);
 
+    static bool IsClosType();
+
 private:
     UbseSmbios() = default;
 };
