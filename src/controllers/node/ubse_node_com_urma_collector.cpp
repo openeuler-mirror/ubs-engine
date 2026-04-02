@@ -84,7 +84,7 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfoClos()
         for (uint32_t slotId = 0; slotId < clusterNodeSize; slotId++) {
             ret = ProcessClusterNode(curNodeId, podId, slotId);
             if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Process ClusterNode failed, podId=" << podId << ", slotId=" 
+                UBSE_LOG_ERROR << "Process ClusterNode failed, podId=" << podId << ", slotId="
                                << slotId << ", ret=" << ret;
                 return ret;
             }
@@ -95,7 +95,8 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfoClos()
 
 UbseResult UbseNodeComUrmaCollector::ProcessClusterNode(const std::string& curNodeId, uint32_t podId, uint32_t slotId)
 {
-    uint32_t nodeId = podId * NO_8 + slotId + 1; // clusterNodeSize固定为NO_8，直接使用字面量避免参数传递
+    uint32_t clusterNodeSize = NO_8;
+    uint32_t nodeId = podId * clusterNodeSize + slotId + 1;
     std::string targetNodeId = std::to_string(nodeId);
     if (targetNodeId == curNodeId) {
         return UBSE_OK; // 当前节点跳过处理
@@ -123,7 +124,7 @@ UbseResult UbseNodeComUrmaCollector::ProcessClusterNode(const std::string& curNo
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t podId, uint32_t slotId, 
+UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t podId, uint32_t slotId,
                                                      const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe)
 {
     destFe.ubpuId = srcFe.ubpuId;
@@ -140,7 +141,7 @@ UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t podId, uint32_t sl
     for (const auto& port : srcFe.portEid) {
         ret = OverwriteEid(podId, slotId, port.second, destFe.portEid[port.first]);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Overwrite portEid failed, podId=" << podId << ", slotId=" << slotId 
+            UBSE_LOG_ERROR << "Overwrite portEid failed, podId=" << podId << ", slotId=" << slotId
                            << ", port=" << port.first << ", ret=" << ret;
             return ret;
         }
