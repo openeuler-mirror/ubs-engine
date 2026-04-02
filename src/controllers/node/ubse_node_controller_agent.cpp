@@ -16,7 +16,6 @@
 #include <condition_variable>
 #include <mutex>
 
-#include "adapter_plugins/smbios/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -25,6 +24,7 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_timer.h"
 
 const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;
@@ -642,13 +642,8 @@ UbseResult FillLinkAndBondingClos(bool isBeforeElection = false)
 
 UbseResult SetUrmaUvs(bool isBeforeElection = false)
 {
-    UbseMeshType type{};
-    if (auto ret = UbseSmbios::GetInstance().GetMeshType(type); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
-    }
-
     std::vector<PhysicalLink> links;
-    if (type == UbseMeshType::CLOS) {
+    if (UbseSmbios::GetInstance().IsClosType()) {
         auto ret = FillLinkAndBondingClos(isBeforeElection);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "fill links and bonding clos failed";
