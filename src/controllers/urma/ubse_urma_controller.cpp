@@ -11,7 +11,6 @@
  */
 
 #include "ubse_urma_controller.h"
-#include <vector>
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -23,7 +22,6 @@
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_module.h"
 #include "ubse_urma_controller_rpc.h"
-#include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
 #include "src/include/adapter_plugins/smbios/ubse_smbios.h"
 
