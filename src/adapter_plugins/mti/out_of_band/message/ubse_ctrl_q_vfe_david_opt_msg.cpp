@@ -9,14 +9,16 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_ctrl_q_vfe_david_proxy.h"
-#include "../ubse_ctrl_q_message.h"
-#include "../ubse_ctrl_q_msg_helper.h"
+#include "ubse_ctrl_q_vfe_david_opt_msg.h"
+#include "ubse_ctrl_q_message.h"
+#include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
+static const uint8_t BIND_VFE_OP_CODE = 0x9;
+static const uint8_t UNBIND_VFE_OP_CODE = 0xA;
 
 struct CtrlQBindVfeDavidReqMsg {
     FixedHead head;
@@ -34,9 +36,11 @@ struct BindInfo {
     DavidLoc david;
 } __attribute__((packed));
 
-static uint32_t CalculateTotalSize(const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList)
+static uint32_t CalculateTotalSize(uint32_t regInfoNum)
+
 {
-    return sizeof(CtrlQBindVfeDavidReqMsg) + static_cast<uint32_t>(vfeDavidList.size()) * sizeof(BindInfo);
+    uint32_t reSize = sizeof(CtrlQBindVfeDavidReqMsg) + regInfoNum * sizeof(BindInfo);
+    return (reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE;
 }
 
 static void SetUpi(uint16_t upi, CtrlQReqMessage &msg)
@@ -80,66 +84,54 @@ UbseResult WriteReqMsg(CtrlQReqMessage &msg, const std::vector<UbseMtiIdevVfeDav
 UbseCtrlQBindVfeDavidReqMsg::UbseCtrlQBindVfeDavidReqMsg(uint16_t upi,
                                                          const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList)
     : upi_(upi),
-      vfeDavidList_(vfeDavidList)
+      vfeDavidList_(vfeDavidList),
+      ICtrlQReqMsg(BIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList_.size()))
 {
 }
 
-UbseResult UbseCtrlQBindVfeDavidReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQBindVfeDavidReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQBindVfeDavidProxy::OP_CODE, msg);
-    SetUpi(upi_, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
-    auto reSize = CalculateTotalSize(vfeDavidList_);
-    if (reSize > BASIC_BLOCK_SIZE) {
-        ResizeReqMsg((reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE, msg);
-    }
-    return WriteReqMsg(msg, vfeDavidList_);
+    SetUpi(upi_, reqMsg_);
+    return WriteReqMsg(reqMsg_, vfeDavidList_);
 }
 
 UbseCtrlQUnBindVfeDavidReqMsg::UbseCtrlQUnBindVfeDavidReqMsg(uint16_t upi,
                                                              const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList)
-    : UbseCtrlQBindVfeDavidReqMsg(upi, vfeDavidList)
+    : upi_(upi),
+      vfeDavidList_(vfeDavidList),
+      ICtrlQReqMsg(UNBIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList_.size()))
 {
 }
 
-UbseResult UbseCtrlQUnBindVfeDavidReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQUnBindVfeDavidReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQUnBindVfeDavidProxy::OP_CODE, msg);
-    SetUpi(upi_, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
-    auto reSize = CalculateTotalSize(vfeDavidList_);
-    if (reSize > BASIC_BLOCK_SIZE) {
-        ResizeReqMsg((reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE, msg);
-    }
-    return WriteReqMsg(msg, vfeDavidList_);
+    SetUpi(upi_, reqMsg_);
+    return WriteReqMsg(reqMsg_, vfeDavidList_);
+}
+const std::vector<bool> &UbseCtrlQBindVfeDavidRespMsg::GetRetList() const
+{
+    return retList_;
 }
 
-bool UbseCtrlQBindVfeDavidProxy::CheckReqValidation(const CtrlQReqMessage &msg)
-{
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQBindVfeDavidProxy::OP_CODE;
-}
-
-UbseResult UbseCtrlQBindVfeDavidProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQBindVfeDavidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum
-    if (!CheckRespValidation(msg, 0, UbseCtrlQBindVfeDavidProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 0, BIND_VFE_OP_CODE)) {
         return UBSE_ERROR;
     }
-    return GetBatchOptRespResult(msg, UbseCtrlQBindVfeDavidProxy::OP_CODE, resp_);
+    return GetBatchOptRespResult(msg, BIND_VFE_OP_CODE, retList_);
 }
-
-bool UbseCtrlQUnBindVfeDavidProxy::CheckReqValidation(const CtrlQReqMessage &msg)
+const std::vector<bool> &UbseCtrlQUnBindVfeDavidRespMsg::GetRetList() const
 {
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQUnBindVfeDavidProxy::OP_CODE;
+    return retList_;
 }
 
-UbseResult UbseCtrlQUnBindVfeDavidProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg,
-                                                                  const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQUnBindVfeDavidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum
-    if (!CheckRespValidation(msg, 0, UbseCtrlQUnBindVfeDavidProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 0, UNBIND_VFE_OP_CODE)) {
         return UBSE_ERROR;
     }
-    return GetBatchOptRespResult(msg, UbseCtrlQUnBindVfeDavidProxy::OP_CODE, resp_);
+    return GetBatchOptRespResult(msg, UNBIND_VFE_OP_CODE, retList_);
 }
 } // namespace ubse::mti::ctrl_q

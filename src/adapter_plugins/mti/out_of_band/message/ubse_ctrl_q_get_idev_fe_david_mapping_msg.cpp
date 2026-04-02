@@ -9,37 +9,40 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_ctrl_q_get_idev_fe_david_mapping_proxy.h"
-#include "../ubse_ctrl_q_message.h"
-#include "../ubse_ctrl_q_msg_helper.h"
+#include "ubse_ctrl_q_get_idev_fe_david_mapping_msg.h"
 #include "securec.h"
+#include "ubse_ctrl_q_message.h"
+#include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
+static const uint8_t GET_IDEV_FE_DAVID_MAPPING_OP_CODE = 0x3;
 
 struct RespReader {
     FixedHead head;
 } __attribute__((packed));
 
-UbseResult UbseCtrlQGetIdevFeDavidMappingReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseCtrlQGetIdevFeDavidMappingReqMsg::UbseCtrlQGetIdevFeDavidMappingReqMsg()
+    : ICtrlQReqMsg(GET_IDEV_FE_DAVID_MAPPING_OP_CODE)
 {
-    SetOpCode(UbseCtrlQGetIdevFeDavidMappingProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
+}
+
+UbseResult UbseCtrlQGetIdevFeDavidMappingReqMsg::EncodeReqMsg()
+{
     return UBSE_OK;
 }
 
-bool UbseCtrlQGetIdevFeDavidMappingProxy::CheckReqValidation(const CtrlQReqMessage &msg)
+const UbseMtiIdevFeDavidMapping &UbseCtrlQGetIdevFeDavidMappingRespMsg::GetMapping() const
 {
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQGetIdevFeDavidMappingProxy::OP_CODE;
+    return mapping_;
 }
 
-UbseResult UbseCtrlQGetIdevFeDavidMappingProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg,
-                                                                         const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGetIdevFeDavidMappingRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum
-    if (!CheckRespValidation(msg, 0, UbseCtrlQGetIdevFeDavidMappingProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 0, GET_IDEV_FE_DAVID_MAPPING_OP_CODE)) {
         return UBSE_ERROR;
     }
     auto pos = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(RespReader);
@@ -61,7 +64,7 @@ UbseResult UbseCtrlQGetIdevFeDavidMappingProxy::ConvertRespMsgToUserData(const I
             UbseMtiUbController ubController(chipId, dieId);
             UbseMtiIdevPfe pfe(ubController, pfeId);
             UbseMtiDavid david(davidSlotId, davidChipId);
-            resp_.emplace(david, pfe);
+            mapping_.emplace(david, pfe);
         }
         return UBSE_OK;
     } catch (const std::exception &e) {

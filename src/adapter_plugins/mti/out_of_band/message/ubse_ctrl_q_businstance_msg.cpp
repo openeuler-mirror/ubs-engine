@@ -9,15 +9,17 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_ctrl_q_businstance_opt_proxy.h"
-#include "../ubse_ctrl_q_message.h"
-#include "../ubse_ctrl_q_msg_helper.h"
+#include "ubse_ctrl_q_businstance_msg.h"
 #include "securec.h"
+#include "ubse_ctrl_q_message.h"
+#include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
+static const uint8_t CREATE_BUSINSTANCE_OP_CODE = 0x4;
+static const uint8_t DESTROY_BUSINSTANCE_OP_CODE = 0x5;
 
 struct UbseCtrlQCreateBusInstanceReq {
     FixedHead head;
@@ -36,15 +38,14 @@ struct UbseCtrlQCreateBusInstanceRespReader {
 
 UbseCtrlQCreateBusInstanceReqMsg::UbseCtrlQCreateBusInstanceReqMsg(uint16_t upi, uint16_t vendor)
     : upi_(upi),
-      vendor_(vendor)
+      vendor_(vendor),
+      ICtrlQReqMsg(CREATE_BUSINSTANCE_OP_CODE)
 {
 }
 
-UbseResult UbseCtrlQCreateBusInstanceReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQCreateBusInstanceReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQCreateBusInstanceProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
-    auto &ref = *reinterpret_cast<UbseCtrlQCreateBusInstanceReq *>(&msg.blocks.front());
+    auto &ref = *reinterpret_cast<UbseCtrlQCreateBusInstanceReq *>(&reqMsg_.blocks.front());
     ref.upi = upi_;
     ref.vendor = vendor_;
     return UBSE_OK;
@@ -60,39 +61,30 @@ uint16_t UbseCtrlQCreateBusInstanceReqMsg::GetVendor()
     return vendor_;
 }
 
-bool UbseCtrlQCreateBusInstanceProxy::CheckReqValidation(const CtrlQReqMessage &msg)
-{
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQCreateBusInstanceProxy::OP_CODE;
-}
-
-UbseResult UbseCtrlQCreateBusInstanceProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg,
-                                                                     const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQCreateBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // Check resp validation, bbNum is 1.
-    if (!CheckRespValidation(msg, 1, UbseCtrlQCreateBusInstanceProxy::OP_CODE)) {
-        return UBSE_ERROR;
-    }
-    try {
-        auto req = dynamic_cast<const UbseCtrlQCreateBusInstanceReqMsg &>(reqMsg);
-        resp_.upi = req.GetUpi();
-        resp_.vendor = req.GetVendor();
-    } catch (const std::bad_cast &e) {
-        UBSE_LOG_ERROR << "Req msg not UbseCtrlQCreateBusInstanceReqMsg";
+    if (!CheckRespValidation(msg, 1, CREATE_BUSINSTANCE_OP_CODE)) {
         return UBSE_ERROR;
     }
     auto &body = *reinterpret_cast<UbseCtrlQCreateBusInstanceRespReader *>(msg.blocks);
     uint32_t tmpEid = body.eid.eid;
-    auto ret = memcpy_s(resp_.eid.data(), resp_.eid.size(), &tmpEid, sizeof(tmpEid));
+    auto ret = memcpy_s(busInstance_.eid.data(), busInstance_.eid.size(), &tmpEid, sizeof(tmpEid));
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Copy eid failed, ret: " << ret;
         return UBSE_ERROR;
     }
-    ret = memcpy_s(resp_.guid.data(), resp_.guid.size(), &body.guid.content, sizeof(body.guid.content));
+    ret = memcpy_s(busInstance_.guid.data(), busInstance_.guid.size(), &body.guid.content, sizeof(body.guid.content));
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Copy guid failed, ret: " << ret;
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+const UbseMtiBusInst &UbseCtrlQCreateBusInstanceRespMsg::GetBusInstance() const
+{
+    return busInstance_;
 }
 
 struct UbseCtrlQDestroyBusInstanceReq {
@@ -104,15 +96,14 @@ struct UbseCtrlQDestroyBusInstanceReq {
 } __attribute__((packed));
 
 UbseCtrlQDestroyBusInstanceReqMsg::UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst &busInstance)
-    : busInstance_(busInstance)
+    : busInstance_(busInstance),
+      ICtrlQReqMsg(DESTROY_BUSINSTANCE_OP_CODE)
 {
 }
 
-UbseResult UbseCtrlQDestroyBusInstanceReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseResult UbseCtrlQDestroyBusInstanceReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQDestroyBusInstanceProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
-    auto &ref = *reinterpret_cast<UbseCtrlQDestroyBusInstanceReq *>(&msg.blocks.front());
+    auto &ref = *reinterpret_cast<UbseCtrlQDestroyBusInstanceReq *>(&reqMsg_.blocks.front());
     // 从EID数组的前4个字节提取32位整数
     uint32_t eidValue = 0;
     auto ret = memcpy_s(&eidValue, sizeof(eidValue), busInstance_.eid.data(), sizeof(uint32_t));
@@ -126,18 +117,19 @@ UbseResult UbseCtrlQDestroyBusInstanceReqMsg::GetReqMsg(CtrlQReqMessage &msg)
     return UBSE_OK;
 }
 
-bool UbseCtrlQDestroyBusInstanceProxy::CheckReqValidation(const CtrlQReqMessage &msg)
-{
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQDestroyBusInstanceProxy::OP_CODE;
-}
-
-UbseResult UbseCtrlQDestroyBusInstanceProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg,
-                                                                      const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQDestroyBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // Check resp validation, bbNum is 1.
-    if (!CheckRespValidation(msg, 1, UbseCtrlQDestroyBusInstanceProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 1, DESTROY_BUSINSTANCE_OP_CODE)) {
         return UBSE_ERROR;
     }
+    ret_ = true;
     return UBSE_OK;
 }
+
+const bool &UbseCtrlQDestroyBusInstanceRespMsg::GetRet() const
+{
+    return ret_;
+}
+
 } // namespace ubse::mti::ctrl_q

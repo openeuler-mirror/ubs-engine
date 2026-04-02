@@ -10,11 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_CTRL_Q_CREATE_BUSINSTANCE_PROXY_H
-#define UBSE_CTRL_Q_CREATE_BUSINSTANCE_PROXY_H
-#include "../ubse_ictrl_q_msg_operation_proxy.h"
-#include "../ubse_ictrl_q_req_msg.h"
+#ifndef UBSE_CTRL_Q_BUSINSTANCE_MSG_H
+#define UBSE_CTRL_Q_BUSINSTANCE_MSG_H
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
+#include "ubse_ictrl_q_req_msg.h"
+#include "ubse_ictrl_q_resp_msg.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace mti::bus_instance;
@@ -22,7 +22,7 @@ class UbseCtrlQCreateBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
     explicit UbseCtrlQCreateBusInstanceReqMsg(uint16_t upi, uint16_t vendor);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 
     uint16_t GetUpi();
 
@@ -33,38 +33,38 @@ private:
     uint16_t vendor_;
 };
 
-class UbseCtrlQCreateBusInstanceProxy : public ICtrlQMsgOperationProxy<UbseMtiBusInst> {
+class UbseCtrlQCreateBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
-    static const uint8_t OP_CODE = 0x4;
-    UbseCtrlQCreateBusInstanceProxy() = default;
-    ~UbseCtrlQCreateBusInstanceProxy() override = default;
+    UbseCtrlQCreateBusInstanceRespMsg() = default;
+
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const UbseMtiBusInst &GetBusInstance() const;
 
 private:
-    bool CheckReqValidation(const CtrlQReqMessage &msg) override;
-
-    UbseResult ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg) override;
+    UbseMtiBusInst busInstance_;
 };
 
 class UbseCtrlQDestroyBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
     explicit UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst &busInstance);
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 
 private:
     UbseMtiBusInst busInstance_;
 };
 
-class UbseCtrlQDestroyBusInstanceProxy : public ICtrlQMsgOperationProxy<bool> {
+class UbseCtrlQDestroyBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
-    static const uint8_t OP_CODE = 0x5;
-    UbseCtrlQDestroyBusInstanceProxy() = default;
-    ~UbseCtrlQDestroyBusInstanceProxy() override = default;
+    UbseCtrlQDestroyBusInstanceRespMsg() = default;
+
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const bool &GetRet() const;
 
 private:
-    bool CheckReqValidation(const CtrlQReqMessage &msg) override;
-
-    UbseResult ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg) override;
+    bool ret_ = false;
 };
 } // namespace ubse::mti::ctrl_q
-#endif // UBSE_CTRL_Q_CREATE_BUSINSTANCE_PROXY_H
+#endif // UBSE_CTRL_Q_BUSINSTANCE_MSG_H

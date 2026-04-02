@@ -10,12 +10,13 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_mti_urma_out_of_band.h"
-#include "../ctrl_q/protocol/ubse_ctrl_q_businstance_opt_proxy.h"
-#include "../ctrl_q/protocol/ubse_ctrl_q_dev_opt_proxy.h"
-#include "../ctrl_q/protocol/ubse_ctrl_q_get_idev_fe_david_mapping_proxy.h"
-#include "../ctrl_q/protocol/ubse_ctrl_q_get_idev_fe_proxy.h"
-#include "../ctrl_q/protocol/ubse_ctrl_q_vfe_david_proxy.h"
-#include "../ctrl_q/ubse_ictrl_q_req_msg.h"
+#include "./message/ubse_ctrl_q_businstance_msg.h"
+#include "./message/ubse_ctrl_q_fe_opt_msg.h"
+#include "./message/ubse_ctrl_q_get_idev_fe_david_mapping_msg.h"
+#include "./message/ubse_ctrl_q_get_idev_fe_msg.h"
+#include "./message/ubse_ctrl_q_vfe_david_opt_msg.h"
+#include "./message/ubse_ictrl_q_req_msg.h"
+#include "./proxy/ubse_ctrl_q_msg_proxy.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::urma {
@@ -26,26 +27,26 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseMtiUrmaOutOfBand::GetIdevFeList(std::vector<UbseMtiIdevPfe> &feList)
 {
     UbseCtrlQGetIdevFeReqMsg reqMsg;
-    UbseCtrlQGetIdevFeProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQGetIdevFeRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "GetIdevFeList failed, ret: " << FormatRetCode(ret);
         return ret;
     }
-    feList = proxy.GetResponse();
+    feList = respMsg.GetPfeList();
     return UBSE_OK;
 }
 
 UbseResult UbseMtiUrmaOutOfBand::GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping &mapping)
 {
     UbseCtrlQGetIdevFeDavidMappingReqMsg reqMsg;
-    UbseCtrlQGetIdevFeDavidMappingProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQGetIdevFeDavidMappingRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "GetIdevFeDavidMapping failed, ret: " << FormatRetCode(ret);
         return ret;
     }
-    mapping = proxy.GetResponse();
+    mapping = respMsg.GetMapping();
     return UBSE_OK;
 }
 
@@ -53,13 +54,13 @@ UbseResult UbseMtiUrmaOutOfBand::BindDavid(uint16_t upi, const std::vector<UbseM
                                            std::vector<bool> &resList)
 {
     UbseCtrlQBindVfeDavidReqMsg reqMsg(upi, vfeDavidList);
-    UbseCtrlQBindVfeDavidProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQBindVfeDavidRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "BindDavid failed, ret: " << FormatRetCode(ret);
         return ret;
     }
-    resList = proxy.GetResponse();
+    resList = respMsg.GetRetList();
     return UBSE_OK;
 }
 
@@ -67,13 +68,13 @@ UbseResult UbseMtiUrmaOutOfBand::UnBindDavid(uint16_t upi, const std::vector<Ubs
                                              std::vector<bool> &resList)
 {
     UbseCtrlQUnBindVfeDavidReqMsg reqMsg(upi, vfeDavidList);
-    UbseCtrlQUnBindVfeDavidProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQUnBindVfeDavidRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UnBindDavid failed, ret: " << FormatRetCode(ret);
         return ret;
     }
-    resList = proxy.GetResponse();
+    resList = respMsg.GetRetList();
     return UBSE_OK;
 }
 
@@ -82,13 +83,13 @@ UbseResult UbseMtiUrmaOutOfBand::RegDavidFeToVmBusInstance(const UbseMtiBusInst 
                                                            std::vector<bool> &resList)
 {
     UbseCtrlQRegDavidFeToBusInstanceReqMsg reqMsg(busInstance, vfeList);
-    UbseCtrlQRegDevProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQRegDavidFeToBusInstanceRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegDavidFeToVmBusInstance failed, ret: " << FormatRetCode(ret);
         return ret;
     }
-    resList = proxy.GetResponse();
+    resList = respMsg.GetRetList();
     return UBSE_OK;
 }
 
@@ -97,12 +98,13 @@ UbseResult UbseMtiUrmaOutOfBand::UnRegDavidFeFromVmBusInstance(const UbseMtiBusI
                                                                std::vector<bool> &resList)
 {
     UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg reqMsg(busInstance, vfeList);
-    UbseCtrlQUnRegDevProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UnRegDavidFeFromVmBusInstance failed, ret: " << FormatRetCode(ret);
         return ret;
     }
-    resList = proxy.GetResponse();
+    resList = respMsg.GetRetList();
     return UBSE_OK;
 }
 } // namespace ubse::mti::urma

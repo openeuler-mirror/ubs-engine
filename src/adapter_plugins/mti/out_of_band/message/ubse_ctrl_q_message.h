@@ -16,6 +16,7 @@
 #include <vector>
 namespace ubse::mti::ctrl_q {
 constexpr uint8_t BASIC_BLOCK_SIZE = 32;
+constexpr uint8_t MAX_BASIC_BLOCK_NUM = 32;
 constexpr uint8_t DEFAULT_SERVICE_TYPE = 0x1;
 struct BasicBlock {
     uint8_t data[BASIC_BLOCK_SIZE];
@@ -75,6 +76,11 @@ struct CtrlQReqMessage {
     CtrlQReqMessage()
     {
         blocks.resize(1); // default size 1
+    }
+
+    explicit CtrlQReqMessage(uint8_t bbNum)
+    {
+        blocks.resize(bbNum);
     }
 };
 

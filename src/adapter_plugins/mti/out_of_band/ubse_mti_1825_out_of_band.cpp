@@ -10,7 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_mti_1825_out_of_band.h"
-#include "../ctrl_q/protocol/ubse_ctrl_q_dev_opt_proxy.h"
+#include "./message/ubse_ctrl_q_fe_opt_msg.h"
+#include "./proxy/ubse_ctrl_q_msg_proxy.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::_1825 {
@@ -26,12 +27,12 @@ UbseResult Reg1825FeToBusInstance(const UbseMtiBusInst &busInstance, UbseMtiBusI
         return UBSE_ERROR;
     }
     UbseCtrlQReg1825FeToBusInstanceReqMsg reqMsg(busInstance, vfList);
-    UbseCtrlQRegDevProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQReg1825FeToBusInstanceRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         return ret;
     }
-    resList = proxy.GetResponse();
+    resList = respMsg.GetRetList();
     return UBSE_OK;
 }
 
@@ -43,12 +44,12 @@ UbseResult UnReg1825FeFromBusInstance(const UbseMtiBusInst &busInstance, UbseMti
         return UBSE_ERROR;
     }
     UbseCtrlQUnReg1825FeFromBusInstanceReqMsg reqMsg(busInstance, vfList);
-    UbseCtrlQUnRegDevProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQUnReg1825FeFromBusInstanceRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         return ret;
     }
-    resList = proxy.GetResponse();
+    resList = respMsg.GetRetList();
     return UBSE_OK;
 }
 

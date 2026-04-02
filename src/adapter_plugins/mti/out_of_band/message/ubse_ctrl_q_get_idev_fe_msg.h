@@ -10,31 +10,31 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_CTRL_Q_GET_1825_FE_PROXY_H
-#define UBSE_CTRL_Q_GET_1825_FE_PROXY_H
-#include "../ubse_ictrl_q_msg_operation_proxy.h"
-#include "../ubse_ictrl_q_req_msg.h"
+#ifndef UBSE_CTRL_Q_GET_1825_FE_MSG_H
+#define UBSE_CTRL_Q_GET_1825_FE_MSG_H
+#include "ubse_ictrl_q_req_msg.h"
+#include "ubse_ictrl_q_resp_msg.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::mti::ctrl_q {
 using namespace mti::urma;
 class UbseCtrlQGetIdevFeReqMsg : public ICtrlQReqMsg {
 public:
-    UbseCtrlQGetIdevFeReqMsg() = default;
+    UbseCtrlQGetIdevFeReqMsg();
 
-    UbseResult GetReqMsg(CtrlQReqMessage &msg) override;
+    UbseResult EncodeReqMsg() override;
 };
 
-class UbseCtrlQGetIdevFeProxy : public ICtrlQMsgOperationProxy<std::vector<UbseMtiIdevPfe>> {
+class UbseCtrlQGetIdevFeRespMsg : public ICtrlQRespMsg {
 public:
-    static const uint8_t OP_CODE = 0x1;
+    UbseCtrlQGetIdevFeRespMsg() = default;
 
-    UbseCtrlQGetIdevFeProxy() = default;
-    ~UbseCtrlQGetIdevFeProxy() override = default;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const std::vector<UbseMtiIdevPfe> &GetPfeList() const;
 
 private:
-    bool CheckReqValidation(const CtrlQReqMessage &msg) override;
-
-    UbseResult ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg) override;
+    std::vector<UbseMtiIdevPfe> pfeList_;
 };
+
 } // namespace ubse::mti::ctrl_q
-#endif // UBSE_CTRL_Q_GET_1825_FE_PROXY_H
+#endif // UBSE_CTRL_Q_GET_1825_FE_MSG_H

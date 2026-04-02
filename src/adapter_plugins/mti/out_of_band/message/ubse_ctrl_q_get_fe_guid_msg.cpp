@@ -9,16 +9,17 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_ctrl_q_get_fe_guid_proxy.h"
-#include "../ubse_ctrl_q_message.h"
-#include "../ubse_ctrl_q_msg_helper.h"
+#include "ubse_ctrl_q_get_fe_guid_msg.h"
 #include "securec.h"
+#include "ubse_ctrl_q_message.h"
+#include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 const uint8_t DEFAULT_RESP_BBNUM = 1;
+static const uint8_t GRT_FE_GUID_OP_CODE = 0x2;
 
 struct CtrlQGetFeGuidReqMsg {
     FixedHead head;
@@ -30,13 +31,15 @@ struct RespReader {
     Guid guid;
 } __attribute__((packed));
 
-UbseCtrlQGetIdevPfeGuidReqMsg::UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe &pfe) : pfe_(pfe) {}
-
-UbseResult UbseCtrlQGetIdevPfeGuidReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseCtrlQGetIdevPfeGuidReqMsg::UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe &pfe)
+    : pfe_(pfe),
+      ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
 {
-    SetOpCode(UbseCtrlQGetFeGuidProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
-    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&msg.blocks.front());
+}
+
+UbseResult UbseCtrlQGetIdevPfeGuidReqMsg::EncodeReqMsg()
+{
+    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
     FeLoc feloc;
     feloc.slotId = pfe_.ubController.slotId;
     feloc.chipId = pfe_.ubController.chipId;
@@ -47,13 +50,15 @@ UbseResult UbseCtrlQGetIdevPfeGuidReqMsg::GetReqMsg(CtrlQReqMessage &msg)
     return UBSE_OK;
 }
 
-UbseCtrlQGetIdevVfeGuidReqMsg::UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe &vfe) : vfe_(vfe) {}
-
-UbseResult UbseCtrlQGetIdevVfeGuidReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseCtrlQGetIdevVfeGuidReqMsg::UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe &vfe)
+    : vfe_(vfe),
+      ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
 {
-    SetOpCode(UbseCtrlQGetFeGuidProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
-    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&msg.blocks.front());
+}
+
+UbseResult UbseCtrlQGetIdevVfeGuidReqMsg::EncodeReqMsg()
+{
+    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
     FeLoc feloc;
     feloc.slotId = vfe_.ubController.slotId;
     feloc.chipId = vfe_.ubController.chipId;
@@ -64,22 +69,24 @@ UbseResult UbseCtrlQGetIdevVfeGuidReqMsg::GetReqMsg(CtrlQReqMessage &msg)
     return UBSE_OK;
 }
 
-bool UbseCtrlQGetFeGuidProxy::CheckReqValidation(const CtrlQReqMessage &msg)
-{
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQGetFeGuidProxy::OP_CODE;
-}
-
-UbseResult UbseCtrlQGetFeGuidProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGetIdevPfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 需要为1
-    if (!CheckRespValidation(msg, 1, UbseCtrlQGetFeGuidProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 1, GRT_FE_GUID_OP_CODE)) {
         return UBSE_ERROR;
     }
     auto &reader = *reinterpret_cast<RespReader *>(msg.blocks);
-    auto ret = memcpy_s(resp_.data(), resp_.size(), &reader.guid, resp_.size());
+    auto ret = memcpy_s(guid_.data(), guid_.size(), &reader.guid, guid_.size());
     if (ret != EOK) {
+        UBSE_LOG_ERROR << "Memcpy guid failed, ret: " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
+
+const UbseMtiGuid &UbseCtrlQGetIdevPfeGuidRespMsg::GetGuid() const
+{
+    return guid_;
+}
+
 } // namespace ubse::mti::ctrl_q

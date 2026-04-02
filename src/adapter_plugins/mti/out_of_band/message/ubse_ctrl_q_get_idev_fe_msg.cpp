@@ -9,43 +9,39 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ubse_ctrl_q_get_idev_fe_proxy.h"
+#include "ubse_ctrl_q_get_idev_fe_msg.h"
 #include <set>
-#include "../ubse_ctrl_q_message.h"
-#include "../ubse_ctrl_q_msg_helper.h"
-#include "ubse_ctrl_q_get_fe_guid_proxy.h"
-#include "ubse_ctrl_q_get_idev_fe_david_mapping_proxy.h"
+#include "../proxy/ubse_ctrl_q_msg_proxy.h"
+#include "ubse_ctrl_q_get_fe_guid_msg.h"
+#include "ubse_ctrl_q_get_idev_fe_david_mapping_msg.h"
+#include "ubse_ctrl_q_message.h"
+#include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
+static const uint8_t GET_IDEV_FE_OP_CODE = 0x1;
 
 struct RespReader {
     FixedHead head;
 } __attribute__((packed));
 
-UbseResult UbseCtrlQGetIdevFeReqMsg::GetReqMsg(CtrlQReqMessage &msg)
+UbseCtrlQGetIdevFeReqMsg::UbseCtrlQGetIdevFeReqMsg() : ICtrlQReqMsg(GET_IDEV_FE_OP_CODE) {}
+
+UbseResult UbseCtrlQGetIdevFeReqMsg::EncodeReqMsg()
 {
-    SetOpCode(UbseCtrlQGetIdevFeProxy::OP_CODE, msg);
-    SetServiceType(DEFAULT_SERVICE_TYPE, msg);
     return UBSE_OK;
 }
 
-bool UbseCtrlQGetIdevFeProxy::CheckReqValidation(const CtrlQReqMessage &msg)
+static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGetIdevPfeGuidRespMsg &respMsg, UbseMtiGuid &guid)
 {
-    return !msg.blocks.empty() && msg.blocks.front().head.opCode == UbseCtrlQGetIdevFeProxy::OP_CODE;
-}
-
-static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseMtiGuid &guid)
-{
-    UbseCtrlQGetFeGuidProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Get guid failed";
         return ret;
     }
-    guid = proxy.GetResponse();
+    guid = respMsg.GetGuid();
     return UBSE_OK;
 }
 
@@ -62,7 +58,8 @@ static UbseResult AddPfe(uint8_t pfeNum, const UbseMtiUbController &ubController
             continue;
         }
         UbseCtrlQGetIdevPfeGuidReqMsg getPfeGuidReq(pfe);
-        if (GetGuid(getPfeGuidReq, pfe.guid) != UBSE_OK) {
+        UbseCtrlQGetIdevPfeGuidRespMsg getPfeGuidResp;
+        if (GetGuid(getPfeGuidReq, getPfeGuidResp, pfe.guid) != UBSE_OK) {
             UBSE_LOG_ERROR << "Get pfe guid failed, chipId=  " << ubController.chipId
                            << ", dieId= " << ubController.dieId << ", pfeId=" << pfeId;
             return UBSE_ERROR;
@@ -71,7 +68,8 @@ static UbseResult AddPfe(uint8_t pfeNum, const UbseMtiUbController &ubController
         uint8_t vfeId = 0;
         UbseMtiIdevVfe vfe(ubController, pfeId, vfeId);
         UbseCtrlQGetIdevVfeGuidReqMsg getVfeGuidReq(vfe);
-        if (GetGuid(getVfeGuidReq, vfe.guid) != UBSE_OK) {
+        UbseCtrlQGetIdevVfeGuidRespMsg getVfeGuidResp;
+        if (GetGuid(getVfeGuidReq, getVfeGuidResp, vfe.guid) != UBSE_OK) {
             UBSE_LOG_ERROR << "Get vfe guid failed, chipId=  " << ubController.chipId
                            << ", dieId= " << ubController.dieId << ", pfeId=" << pfeId << ", vfeId=" << vfeId;
             return UBSE_ERROR;
@@ -106,23 +104,28 @@ static UbseResult GetRespResult(const std::set<UbseMtiIdevPfe> &pfeSet, std::vec
 UbseResult GetPfeMappingDavidSet(std::set<UbseMtiIdevPfe> &pfeSet)
 {
     UbseCtrlQGetIdevFeDavidMappingReqMsg reqMsg;
-    UbseCtrlQGetIdevFeDavidMappingProxy proxy;
-    auto ret = proxy.SendRequest(reqMsg);
+    UbseCtrlQGetIdevFeDavidMappingRespMsg respMsg;
+    auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Get fe david mapping failed";
         return ret;
     }
-    auto mapping = proxy.GetResponse();
+    auto mapping = respMsg.GetMapping();
     for (auto &pair : mapping) {
         pfeSet.emplace(pair.second);
     }
     return UBSE_OK;
 }
 
-UbseResult UbseCtrlQGetIdevFeProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg &reqMsg, const CtrlQRespMessage &msg)
+const std::vector<UbseMtiIdevPfe> &UbseCtrlQGetIdevFeRespMsg::GetPfeList() const
+{
+    return pfeList_;
+}
+
+UbseResult UbseCtrlQGetIdevFeRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum
-    if (!CheckRespValidation(msg, 0, UbseCtrlQGetIdevFeProxy::OP_CODE)) {
+    if (!CheckRespValidation(msg, 0, GET_IDEV_FE_OP_CODE)) {
         return UBSE_ERROR;
     }
 
@@ -136,7 +139,7 @@ UbseResult UbseCtrlQGetIdevFeProxy::ConvertRespMsgToUserData(const ICtrlQReqMsg 
         return UBSE_ERROR;
     }
     try {
-        return GetRespResult(pfeSet, resp_, readHelper);
+        return GetRespResult(pfeSet, pfeList_, readHelper);
     } catch (const std::exception &e) {
         UBSE_LOG_ERROR << "Read get idev fe opt resp failed: " << e.what();
         return UBSE_ERROR;
