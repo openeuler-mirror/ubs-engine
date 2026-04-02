@@ -10,26 +10,25 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_SMBIOS_DEFAULT_INTERFACE_H
-#define UBSE_SMBIOS_DEFAULT_INTERFACE_H
+#ifndef UBSE_SMBIOS_H
+#define UBSE_SMBIOS_H
 
-#include "ubse_smbios.h"
+#include "ubse_smbios_def.h"
+#include "ubse_smbios_impl.h"
 
 namespace ubse::adapter_plugins::smbios {
-class UbseSmbiosDefaultInterface {
+class UbseSmbios {
 public:
-    UbseSmbiosDefaultInterface(const UbseSmbiosDefaultInterface &) = delete;
-    UbseSmbiosDefaultInterface &operator=(const UbseSmbiosDefaultInterface &) = delete;
-    static UbseSmbiosDefaultInterface &GetInstance()
+    UbseSmbios(const UbseSmbios &) = delete;
+    UbseSmbios &operator=(const UbseSmbios &) = delete;
+    static UbseSmbios &GetInstance()
     {
-        static UbseSmbiosDefaultInterface instance;
+        static UbseSmbios instance;
         return instance;
     }
 
     /*
-     * @brief 先加载SMBIOS 3.0入口点文件，获取DMI文件大小，再加载DMI文件、根据指定类型解析SMBIOS结构类型信息。
-     *        为避免重复解析，先从缓存中查询是否已解析过该类型结构，若已解析，则直接返回缓存中的结构类型信息
-     * @param type SMBIOS结构类型
+     * @brief 获取type 131结构类型信息
      * @param typeInfo SMBIOS结构类型信息
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR_IO 表示读取SMBIOS 3.0入口点或DMI表文件失败
@@ -37,8 +36,7 @@ public:
      * @return UBSE_ERROR_INVAL 表示文件长度无效
      * @return UBSE_ERROR 表示失败
      */
-    template <UbseSmbiosType type>
-    std::shared_ptr<SmbiosStructType<type>> GetSmbiosTypeInfo();
+    std::shared_ptr<SmbiosStructureType131> GetSmbiosType131Info();
 
     /*
      * @brief 获取组网类型
@@ -55,14 +53,8 @@ public:
     UbseMeshType GetMeshType();
 
 private:
-    UbseSmbiosDefaultInterface() = default;
+    UbseSmbios() = default;
 };
-
-template <UbseSmbiosType type>
-std::shared_ptr<SmbiosStructType<type>> UbseSmbiosDefaultInterface::GetSmbiosTypeInfo()
-{
-    return implement::UbseSmbios::GetInstance().GetSmbiosTypeInfo<type>();
-}
 } // namespace ubse::adapter_plugins::smbios
 
-#endif // UBSE_SMBIOS_DEFAULT_INTERFACE_H
+#endif // UBSE_SMBIOS_H
