@@ -305,7 +305,7 @@ static bool IsColsType()
     UbseMeshType meshTpye = UbseMeshType::FULL_MESH;
     auto ret = UbseSmbios::GetInstance().GetMeshType(meshTpye);
     if (ret != UBSE_OK) {
-       UBSE_LOG_ERROR << "get meshType from smbios failed, defalut to full mesh";
+        UBSE_LOG_ERROR << "get meshType from smbios failed, defalut to full mesh";
     }
     return meshTpye == UbseMeshType::CLOS;
 }
