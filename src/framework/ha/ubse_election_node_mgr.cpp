@@ -157,6 +157,12 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
     return topoLinkedNodes;
 }
 
+void UbseElectionNodeMgr::UpdateCurrentNode()
+{
+    currentAllNodes_.push_back(currentNode_);
+    nodeIpMap_.emplace(currentNode_.ip, currentNode_.id);
+}
+
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     bool ubEnable = true;
@@ -172,6 +178,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
         std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
         if (ubseNodeInfos.empty()) {
             UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
+            UpdateCurrentNode();
             return;
         }
         auto topoLinkedNodes = GetTopoLinkedNodes();
