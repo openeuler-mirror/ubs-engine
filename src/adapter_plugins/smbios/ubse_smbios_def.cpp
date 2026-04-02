@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_smbios_def.h"
+#include "adapter_plugins/smbios/ubse_smbios_def.h"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>

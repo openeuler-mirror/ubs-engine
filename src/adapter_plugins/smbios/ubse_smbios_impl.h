@@ -10,28 +10,28 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_SMBIOS_H
-#define UBSE_SMBIOS_H
+#ifndef UBSE_SMBIOS_IMPL_H
+#define UBSE_SMBIOS_IMPL_H
 
 #include <memory>
 #include "ubse_error.h"
 #include "lock/ubse_lock.h"
 #include "ubse_logger.h"
-#include "ubse_smbios_def.h"
+#include "adapter_plugins/smbios/ubse_smbios_def.h"
 
-namespace ubse::adapter_plugins::smbios::implement {
+namespace ubse::adapter_plugins::smbios::impl {
 using namespace ubse::common::def;
 using namespace ubse::utils;
 using namespace ubse::log;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-class UbseSmbios {
+class UbseSmbiosImpl {
 public:
-    UbseSmbios(const UbseSmbios &) = delete;
-    UbseSmbios &operator=(const UbseSmbios &) = delete;
-    static UbseSmbios &GetInstance()
+    UbseSmbiosImpl(const UbseSmbiosImpl &) = delete;
+    UbseSmbiosImpl &operator=(const UbseSmbiosImpl &) = delete;
+    static UbseSmbiosImpl &GetInstance()
     {
-        static UbseSmbios instance;
+        static UbseSmbiosImpl instance;
         return instance;
     }
 
@@ -50,7 +50,7 @@ public:
     std::shared_ptr<SmbiosStructType<type>> GetSmbiosTypeInfo();
 
 private:
-    UbseSmbios() = default;
+    UbseSmbiosImpl() = default;
 
 private:
     std::map<UbseSmbiosType, std::shared_ptr<SmbiosStructure>> smbiosTypeInfoMap;
@@ -58,7 +58,7 @@ private:
 };
 
 template <UbseSmbiosType type>
-std::shared_ptr<SmbiosStructType<type>> UbseSmbios::GetSmbiosTypeInfo()
+std::shared_ptr<SmbiosStructType<type>> UbseSmbiosImpl::GetSmbiosTypeInfo()
 {
     {
         ReadLocker<ReadWriteLock> locker(&readWriteLock);
@@ -101,6 +101,6 @@ std::shared_ptr<SmbiosStructType<type>> UbseSmbios::GetSmbiosTypeInfo()
     UBSE_LOG_ERROR << "The Smbios version is not 3.0";
     return nullptr;
 }
-} // namespace ubse::adapter_plugins::smbios::implement
+} // namespace ubse::adapter_plugins::smbios::impl
 
-#endif // UBSE_SMBIOS_H
+#endif // UBSE_SMBIOS_IMPL_H
