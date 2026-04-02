@@ -21,7 +21,6 @@
 
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
-#include "adapter_plugins/smbios/ubse_smbios.h"
 #include "securec.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
@@ -32,6 +31,7 @@
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 
 namespace ubse::nodeController {
@@ -61,16 +61,13 @@ std::vector<UbseNodeInfo> UbseNodeController::GetStaticNodeInfo()
         UBSE_LOG_ERROR << "get all node infos from lcne failed, " << FormatRetCode(ret);
         return {};
     }
-	UbseMeshType type{};
-    if (auto ret = UbseSmbios::GetInstance().GetMeshType(type); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
-    }
+
     for (const auto& node : ubseNodeInfos) {
-		if (type == UbseMeshType::CLOS) {
-			if (auto curnode = GetCurNode(); node.nodeId != curnode.nodeId) {
-				continue;
-			}
-		}
+        if (UbseSmbios::GetInstance().IsClosType()) {
+            if (auto curnode = GetCurNode(); node.nodeId != curnode.nodeId) {
+                continue;
+            }
+        }
         UbseNodeInfo ubseNodeInfo{node.nodeId};
         auto cpyRet = strcpy_s(ubseNodeInfo.bondingEid, sizeof(ubseNodeInfo.bondingEid), node.eid.c_str());
         if (cpyRet != EOK) {

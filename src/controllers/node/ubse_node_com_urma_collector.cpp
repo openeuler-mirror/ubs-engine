@@ -14,12 +14,12 @@
 #include <bitset>
 #include <vector>
 #include "securec.h"
-#include "adapter_plugins/smbios/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_uvs_module.h"
 
@@ -82,37 +82,75 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfoClos()
     uint32_t clusterNodeSize = NO_8;
     for (uint32_t podId = 0; podId < podsSize; podId++) {
         for (uint32_t slotId = 0; slotId < clusterNodeSize; slotId++) {
-            UbseUrmaUvsAggrDev aggr_dev{};
-            uint32_t nodeId = podId * clusterNodeSize + slotId  + 1;
-            if (std::to_string(nodeId) == curNodeId) {
-                continue;
+            ret = ProcessClusterNode(curNodeId, podId, slotId);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Process ClusterNode failed, podId=" << podId << ", slotId=" 
+                               << slotId << ", ret=" << ret;
+                return ret;
             }
-            GenerateBondingEid(0x44494542, 0, 0, nodeId, aggr_dev.urmaDevEid);
-
-            for (auto &fe : comUrmaInfos[curNodeId].feList) {
-                UbseUrmaUvsFe fe_aggr_dev{};
-                fe_aggr_dev.ubpuId = fe.ubpuId;
-                ret = OverwriteEid(podId, slotId, fe.primaryEid, fe_aggr_dev.primaryEid);
-                if (ret != UBSE_OK) {
-                    return ret;
-                }
-                fe_aggr_dev.entityId = fe.entityId;
-                for (auto &port : fe.portEid) {
-                    ret = OverwriteEid(podId, slotId, port.second, fe_aggr_dev.portEid[port.first]);
-                    if (ret != UBSE_OK) {
-                        return ret;
-                    }
-                }
-                aggr_dev.feList.push_back(fe_aggr_dev);
-            }
-            comUrmaInfos[std::to_string(nodeId)] = aggr_dev;
         }
     }
     return UBSE_OK;
 }
 
+UbseResult UbseNodeComUrmaCollector::ProcessClusterNode(const std::string& curNodeId, uint32_t podId, uint32_t slotId)
+{
+    uint32_t nodeId = podId * NO_8 + slotId + 1; // clusterNodeSize固定为NO_8，直接使用字面量避免参数传递
+    std::string targetNodeId = std::to_string(nodeId);
+    if (targetNodeId == curNodeId) {
+        return UBSE_OK; // 当前节点跳过处理
+    }
+
+    UbseUrmaUvsAggrDev aggr_dev{};
+    auto ret = GenerateBondingEid(0x44494542, 0, 0, nodeId, aggr_dev.urmaDevEid);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Generate bondingEid failed, nodeId=" << nodeId << ", ret=" << ret;
+        return ret;
+    }
+
+    // 处理当前节点的FE列表，生成聚合设备的FE信息
+    for (auto& fe : comUrmaInfos[curNodeId].feList) {
+        UbseUrmaUvsFe fe_aggr_dev{};
+        ret = ProcessFeDevice(podId, slotId, fe, fe_aggr_dev);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "ProcessFeDevice failed, podId=" << podId << ", slotId=" << slotId << ", ret=" << ret;
+            return ret;
+        }
+        aggr_dev.feList.push_back(fe_aggr_dev);
+    }
+
+    comUrmaInfos[targetNodeId] = aggr_dev;
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t podId, uint32_t slotId, 
+                                                     const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe)
+{
+    destFe.ubpuId = srcFe.ubpuId;
+    destFe.entityId = srcFe.entityId;
+
+    // 处理primaryEID
+    auto ret = OverwriteEid(podId, slotId, srcFe.primaryEid, destFe.primaryEid);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Overwrite primaryEid failed, podId=" << podId << ", slotId=" << slotId << ", ret=" << ret;
+        return ret;
+    }
+
+    // 处理portEID列表
+    for (const auto& port : srcFe.portEid) {
+        ret = OverwriteEid(podId, slotId, port.second, destFe.portEid[port.first]);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Overwrite portEid failed, podId=" << podId << ", slotId=" << slotId 
+                           << ", port=" << port.first << ", ret=" << ret;
+            return ret;
+        }
+    }
+
+    return UBSE_OK;
+}
+
 UbseResult GenerateBondingEid(const uint32_t id0, const uint32_t id1, const uint32_t id2,
-							  const uint32_t id3, std::string &devEid)
+                              const uint32_t id3, std::string &devEid)
 {
     unsigned char bondingEid[IPV6_BYTE_COUNT];
     uint32_t copyCnt = 0;
@@ -198,11 +236,6 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
         UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
         return ret;
     }
-    UbseMeshType type{};
-    if (auto ret = UbseSmbios::GetInstance().GetMeshType(type); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
-    }
-
     for (const auto &kv : devTopology) {
         std::string nodeId;
         std::string ubpuId;
@@ -218,12 +251,12 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
                               << ", portId=" << portKv.second.portId << ", skip this link";
                 continue;
             }
-            if (type != UbseMeshType::CLOS) {
+            if (!UbseSmbios::GetInstance().IsClosType()) {
                 if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK ||
                     ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK ||
                     ConvertStrToUint32(portKv.second.remotePortId, link.peerPortId) != UBSE_OK) {
                     UBSE_LOG_WARN << "Failed to convert nodeId=" << portKv.second.remoteSlotId << ", ubpuId="
-                        << portKv.second.remoteChipId << ", portId=" << portKv.second.remotePortId 
+                        << portKv.second.remoteChipId << ", portId=" << portKv.second.remotePortId
                         << ", skip this link";
                     continue;
                 }
