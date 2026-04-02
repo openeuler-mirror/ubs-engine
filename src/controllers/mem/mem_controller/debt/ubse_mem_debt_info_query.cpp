@@ -116,18 +116,21 @@ uint32_t UbseMemNodeBorrowQuery(std::vector<UbseNodeBorrowInfo> &nodeBorrowInfo)
     return UBSE_OK;
 }
 
-template <typename ImportObjMap>
-void CollectImportHandleDebtInfo(const ImportObjMap &importObjMap, const std::string &exportNodeId,
-                                 ShareHandleInfoVec &importHandleInfo)
+void CollectImportHandleDebtInfo(const UbseSharedPtrMap<UbseMemShareBorrowImportObj> &importObjMap,
+                                 const std::string &exportNodeId, ShareHandleInfoVec &importHandleInfo)
 {
-    for (const auto &[name, importObj] : importObjMap) {
+    for (const auto &[name, importObjPtr] : importObjMap) {
+        if (!importObjPtr) {
+            continue;
+        }
+        const auto &importObj = *importObjPtr;
         if (importObj.status.state != UBSE_MEM_IMPORT_SUCCESS &&
             importObj.status.state != UBSE_MEM_IMPORT_RUNNING) {
             UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Skip " << name
                            << ", state=" << static_cast<uint32_t>(importObj.status.state)
                            << ", expect UBSE_MEM_IMPORT_SUCCESS or UBSE_MEM_IMPORT_RUNNING.";
             continue;
-            }
+        }
         if (importObj.algoResult.exportNumaInfos.empty()) {
             UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Skip " << name << ", export info is empty.";
             continue;
@@ -158,16 +161,13 @@ UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNod
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] importNodeId or exportNodeId is empty";
         return UBSE_ERROR_INVAL;
     }
-    mapLock.LockRead();
-    const auto it = nodeMemDebtInfoMap.find(importNodeId);
-    if (it == nodeMemDebtInfoMap.end()) {
-        mapLock.UnLock();
-        UBSE_LOG_INFO << "[MEM_CONTROLLER] Import node " << importNodeId << " has no debt info";
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto nodeMap = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().FindNodeMap(importNodeId);
+    if (!nodeMap) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Import node " << importNodeId << " has no share import debt info";
         return UBSE_OK;
     }
-    const auto &debtInfo = it->second;
-    CollectImportHandleDebtInfo(debtInfo.shareImportObjMap, exportNodeId, importHandleInfo);
-    mapLock.UnLock();
+    CollectImportHandleDebtInfo(nodeMap->GetAll(), exportNodeId, importHandleInfo);
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller::debt
