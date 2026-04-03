@@ -825,14 +825,22 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint
                            << cnaTopoInfo.exportNodeId;
             return UBSE_ERROR;
         }
+        std::pair<uint32_t, uint32_t> chipDiePair{};
+        auto res = mem::decoder::utils::MemDecoderUtils::GetChipAndDieId(cnaTopoInfo.importSocketId, chipDiePair);
         UbseCpuLocation location{cnaTopoInfo.exportNodeId, cnaTopoInfo.exportSocketId};
         auto cpuInfos = nodeInfo->second.cpuInfos.find(location);
-        if (cpuInfos == nodeInfo->second.cpuInfos.end()) {
+        if (res != UBSE_OK || cpuInfos == nodeInfo->second.cpuInfos.end()) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to find cpu info in all cpu infos, node id is " << location.nodeId
                            << ", socket id is " << location.chipId;
             return UBSE_ERROR;
         }
         for (const auto &portInfo : cpuInfos->second.portInfos) {
+            if (portInfo.second.portStatus == PortStatus::DOWN ||
+                portInfo.second.remoteSlotId != cnaTopoInfo.importNodeId ||
+                portInfo.second.remoteChipId != std::to_string(chipDiePair.first)) {
+                continue;
+            }
+
             if (GetDcna(portInfo.second, cnaTopoInfo, obmmPreImportInfos, preImportSize, isPoc) != UBSE_OK) {
                 return UBSE_ERROR;
             }
