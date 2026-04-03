@@ -118,7 +118,7 @@ struct EidGroup {
 
 struct UbseUrmaInfo {
     std::string subPath;    // 对应uvs中的boundingname，用于组成设备path
-    std::string urmaDevEid; // [slotId, fe0Id, fe1Id, 0000]，每个字段占32位
+    std::string urmaDevEid; // [BEID+podId, slotId, fe0Id, fe1Id]，每个字段占32位
     std::vector<EidGroup> eidGroups;
     UrmaQosProfile urmaQosProfile;
     UrmaDevType urmaDevType;

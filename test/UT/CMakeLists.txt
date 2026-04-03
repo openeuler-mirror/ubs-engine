@@ -44,6 +44,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_timer
         ubse_context
         ubse_security
+        ubse_smbios
         ubse_controller
         api_server
         syssentry
@@ -89,6 +90,7 @@ add_subdirectory(plugin_mgr)
 add_subdirectory(adapter_plugins/mmi)
 add_subdirectory(adapter_plugins/mti)
 add_subdirectory(adapter_plugins/syssentry)
+add_subdirectory(adapter_plugins/smbios)
 add_subdirectory(storage)
 add_subdirectory(virt_agent)
 add_subdirectory(sdk)

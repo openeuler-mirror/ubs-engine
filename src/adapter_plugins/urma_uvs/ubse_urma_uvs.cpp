@@ -21,6 +21,8 @@
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_uvs_module.h"
+#include "lock/ubse_lock.h"
+#include "ubse_urma_uvs.h"
 
 namespace ubse::urma {
 using namespace ubse::common::def;
@@ -31,6 +33,9 @@ using namespace ubse::utils;
 using namespace ubse::adapter_plugins::smbios;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
+
+utils::ReadWriteLock g_invokeUrmaMutex;
+
 UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
@@ -60,6 +65,7 @@ UbseResult UbsePushTopoAndBondingToUvs(std::string &current_slot_id, const std::
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsSetTopoInfo(nodes.data(), sizeof(UbcoreTopoNode), static_cast<uint32_t>(nodes.size()));
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
@@ -88,6 +94,7 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string &urmaEid, std::string &urma
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to get device name";
@@ -116,6 +123,7 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string &urmaEid, bool &isAc
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         isActive = false;
@@ -125,9 +133,13 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string &urmaEid, bool &isAc
     return UBSE_OK;
 }
 
-UbseResult UbseActiveBonding(const std::string &urmaEid)
+UbseResult UbseActiveBonding(const std::string &urmaEid, const std::string &aggrDevName)
 {
-    UBSE_LOG_DEBUG << "Activate Bonding Device, Eid =" << urmaEid;
+    UBSE_LOG_DEBUG << "Activate Bonding Device, Eid =" << urmaEid << ", aggrDevName=" << aggrDevName;
+    if (aggrDevName.empty() || aggrDevName.size() >= AGGR_DEV_NAME_LEN) {
+        UBSE_LOG_ERROR << "aggrDevName is empty or too long";
+        return UBSE_ERROR_INVAL;
+    }
     bool isActivate = false;
     if (UbseGetBondingActiveStateByEid(urmaEid, isActivate) == UBSE_OK && isActivate) {
         UBSE_LOG_WARN << "UrmaEid=" << urmaEid << " is already active, skipping.";
@@ -148,7 +160,8 @@ UbseResult UbseActiveBonding(const std::string &urmaEid)
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_create_agg_dev'";
         return UBSE_ERROR_NULLPTR;
     }
-    ret = module->uvsCreateAggrDev(bondingEid);
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
+    ret = module->uvsCreateAggrDev(bondingEid, aggrDevName.c_str());
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to activate bonding device, ErrorCode=" << ret;
         return ret;
@@ -174,6 +187,7 @@ UbseResult UbseDeactiveBonding(const std::string &urmaEid)
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_delete_agg_dev'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsDeleteAggrDev(bondingEid);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to deactivate bonding device, ErrorCode=" << ret;

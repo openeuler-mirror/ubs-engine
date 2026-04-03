@@ -39,8 +39,6 @@ private:
     static uint32_t UbseUrmaDevGet(const ubse::ipc::UbseIpcMessage &req, const ubse::ipc::UbseRequestContext &context);
     static uint32_t UbseUrmaCliDevGet(const ubse::ipc::UbseIpcMessage &req,
                                       const ubse::ipc::UbseRequestContext &context);
-    static uint32_t UbseUrmaCliDevActivate(const ubse::ipc::UbseIpcMessage &req,
-                                           const ubse::ipc::UbseRequestContext &context);
     static uint32_t UbseUrmaDevAlloc(const ubse::ipc::UbseIpcMessage &req,
                                      const ubse::ipc::UbseRequestContext &context);
     static uint32_t UbseUrmaDevFree(const ubse::ipc::UbseIpcMessage &req, const ubse::ipc::UbseRequestContext &context);
