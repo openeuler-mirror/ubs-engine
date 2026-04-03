@@ -9,7 +9,7 @@ find_library(HCOM_SHARED_LIBRARY
         NO_DEFAULT_PATH
 )
 
-if(NOT HCOM_INCLUDE_DIR OR NOT HCOM_LIBRARY)
+if(NOT HCOM_INCLUDE_DIR OR NOT HCOM_SHARED_LIBRARY)
     message(FATAL_ERROR "hcom not found! Please execute:
                 sudo yum install 'ubs-comm-devel >= 1.0.0-15'")
 endif()

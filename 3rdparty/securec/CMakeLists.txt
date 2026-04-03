@@ -10,7 +10,7 @@ find_library(LIBBOUNDCHECK_SHARED_LIBRARY
         NO_DEFAULT_PATH
 )
 
-if(NOT SECUREC_INCLUDE_DIR OR NOT SECUREC_LIBRARY)
+if(NOT LIBBOUNDCHECK_INCLUDE_DIR OR NOT LIBBOUNDCHECK_SHARED_LIBRARY)
     message(FATAL_ERROR "libboundscheck not found! Please execute:
                 sudo yum install libboundscheck-v1.1.11")
 endif()
