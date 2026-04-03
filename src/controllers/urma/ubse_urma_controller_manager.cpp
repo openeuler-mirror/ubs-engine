@@ -796,8 +796,7 @@ UbseResult InferEidGroup(uint32_t podId, uint32_t serverId, EidGroup &group)
         return UBSE_ERROR_INVAL;
     }
     std::string primaryEid;
-    if (OverwriteEid(podId, serverId, group.primaryEid, primaryEid) !=
-        UBSE_OK) {
+    if (OverwriteEid(podId, serverId, group.primaryEid, primaryEid) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to overwrite primaryEid: " << group.primaryEid;
         return UBSE_ERROR_INVAL;
     }
@@ -824,7 +823,7 @@ UbseResult InferEidGroup(uint32_t podId, uint32_t serverId, EidGroup &group)
 constexpr uint32_t POD_NUM = NO_8;
 constexpr uint32_t NODE_NUM_PER_POD = NO_8;
 UbseResult UbseUrmaControllerManager::InferOneNodeUrmaDevInfo(uint32_t podId, uint32_t slotId,
-                                                                  const std::string &basedNodeId)
+                                                              const std::string &basedNodeId)
 {
     uint32_t nodeId = podId * NODE_NUM_PER_POD + slotId + 1;
     std::string nodeIdStr = std::to_string(nodeId);

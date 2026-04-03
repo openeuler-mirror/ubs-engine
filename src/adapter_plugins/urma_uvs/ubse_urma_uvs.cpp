@@ -21,8 +21,8 @@
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_uvs_module.h"
-#include "adapter_plugins/urma/ubse_urma_uvs.h"
 #include "lock/ubse_lock.h"
+#include "ubse_urma_uvs.h"
 
 namespace ubse::urma {
 using namespace ubse::common::def;
