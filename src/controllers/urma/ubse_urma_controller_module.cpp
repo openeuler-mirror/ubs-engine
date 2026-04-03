@@ -71,10 +71,8 @@ UbseResult RpcReg()
 
     UbseComBaseMessageHandlerPtr pQueryDevHandler = new (std::nothrow) UbseUrmaDevQueryMessageHandler();
 
-    UbseComBaseMessageHandlerPtr pActivateUrmaInfoHandler = new (std::nothrow) UbseUrmaActivateUrmaInfoMessageHandler();
-
     if (pReportUrmaNodeInfoMessageHandler == nullptr || pBrocastUrmaInfoHandler == nullptr ||
-        pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr || pActivateUrmaInfoHandler == nullptr) {
+        pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr) {
         UBSE_LOG_ERROR << "Fail to create UbseComBaseMessageHandler";
         return UBSE_ERROR_NULLPTR;
     }
@@ -104,8 +102,6 @@ UbseResult RpcReg()
         return ret;
     }
 
-    ret = comModule->RegRpcService<UbseUrmaActivateUrmaInfoReqSimpo, UbseUrmaActivateUrmaInfoRspSimpo>(
-        pActivateUrmaInfoHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to register activate urma info handler for rpc";
         return ret;

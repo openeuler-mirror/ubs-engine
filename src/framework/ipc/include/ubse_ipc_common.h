@@ -107,7 +107,6 @@ typedef enum {
     UBSE_URMA_DEV_ALLOC = 0x0006,
     UBSE_URMA_DEV_FREE = 0x0007,
     UBSE_URMA_CLI_DEV_GET = 0x0008,
-    UBSE_URMA_CLI_DEV_ACTIVATE = 0x0009,
     UBSE_URMA_BUTT
 } ubse_ipc_urma_op_code_t;
 #ifdef __cplusplus
