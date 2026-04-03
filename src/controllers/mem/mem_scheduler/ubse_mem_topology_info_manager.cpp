@@ -881,7 +881,6 @@ bool UbseMemTopologyInfoManager::UbseMemTransTopoToNeighborSet(
             UBSE_LOG_ERROR << "neighbors list size is greater than NUM_HOSTS";
             return false;
         }
-        UBSE_LOG_INFO << "UbseMemTransTopoToNeighborSet nodeIdx=" << nodeIdx << ", NodeId=" << nodeId;
         for (const auto &neighbor : pair.second) {
             neighborNodeIdx = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(neighbor.nodeId);
             if (neighborNodeIdx < 0 || neighborNodeIdx >= tc::rs::mem::NUM_HOSTS) {
@@ -890,8 +889,6 @@ bool UbseMemTopologyInfoManager::UbseMemTransTopoToNeighborSet(
                 continue;
             }
             neighborNodes[nodeIdx].insert(neighborNodeIdx); // 插入邻居节点到集合中
-            UBSE_LOG_INFO << "UbseMemTransTopoToNeighborSet neighborNodeIdx=" << neighborNodeIdx
-                          << ", NodeId=" << neighbor.nodeId;
         }
     }
     return true;

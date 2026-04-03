@@ -36,6 +36,7 @@ constexpr uint64_t FILTER_LEND_TIME_OUT = 1 << 9;
 constexpr uint64_t FILTER_SHARE_NODE_LIST = 1 << 10;
 constexpr uint64_t FILTER_SOCKET_BORROW_SIZE_LIMIT = 1 << 11;
 constexpr uint64_t FILTER_SHARE_BY_LENDER = 1 << 12;
+constexpr uint64_t FILTER_LINK_PORT_DOWN = 1 << 13;
 
 // 指定借出节点
 constexpr uint64_t CHECK_BORROW_SIZE_MEET_LIMIT = 1 << 15;
@@ -89,6 +90,7 @@ private:
     UbseResult FilterInvalidSocketLendTimes();
     UbseResult FilterByLenderInfo();
     UbseResult FilterShareBySamePlane();
+    UbseResult FilterByLinkPortDown();
 
     UbseResult CheckMemoryConfigIsValid();
     UbseResult CheckBorrowSizeMeetLimit();
@@ -125,7 +127,8 @@ private:
         {CHECK_NODE_IS_DOWN, &UbseMemValidator::CheckLendNodeIsDown},
         {FILTER_NUMA_BY_LEND_SOCKET, &UbseMemValidator::FilterNumaByLendSocket},
         {FILTER_LEND_TIME_OUT, &UbseMemValidator::FilterInvalidSocketLendTimes},
-        {FILTER_SHARE_BY_LENDER, &UbseMemValidator::FilterByLenderInfo}
+        {FILTER_SHARE_BY_LENDER, &UbseMemValidator::FilterByLenderInfo},
+        {FILTER_LINK_PORT_DOWN, &UbseMemValidator::FilterByLinkPortDown}
     };
 };
 } // namespace ubse::mem::strategy

@@ -258,6 +258,46 @@ void GetLinkMap(std::unordered_map<int16_t, std::set<int16_t>> &linkMap, const s
     }
 }
 
+bool CheckPeerIsConnect(const std::vector<MemNodeData> &memNodeDatas, const std::string &key)
+{
+    for (const auto &nodeData : memNodeDatas) {
+        if (nodeData.nodeId + "-" + nodeData.socket.socketId == key) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+void GetLinkMap(const std::string &key, std::unordered_map<int16_t, std::set<int16_t>> &linkMap,
+                std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+{
+    auto topologyIter = nodeTopology.find(key);
+    if (topologyIter == nodeTopology.end()) {
+        UBSE_LOG_WARN << "nodeTopology not found!, key=" << key;
+        return;
+    }
+    for (auto it = topologyIter->second.begin(); it != topologyIter->second.end();) {
+        auto& linkSock = *it;
+        std::string peerKey = linkSock.nodeId + "-" + linkSock.socket.socketId;
+        auto peerTopologyIter = nodeTopology.find(peerKey);
+        if (peerTopologyIter == nodeTopology.end()) {
+            UBSE_LOG_WARN << "nodeTopology not found!, peerKey=" << peerKey;
+            it = topologyIter->second.erase(it);
+            continue;
+        }
+
+        if (!CheckPeerIsConnect(peerTopologyIter->second, key)) {
+            UBSE_LOG_WARN << "peerKey=" << peerKey << " is not connect key=" << key;
+            it = topologyIter->second.erase(it);
+            continue;
+        }
+        ++it;
+    }
+    GetLinkMap(linkMap, topologyIter->second);
+}
+
+
 UbseResult CheckLenderNumaInSameSocket(const std::vector<ubse::adapter_plugins::mmi::UbseNumaLocation> &lenderLocs)
 {
     int socket = -1;
@@ -850,6 +890,47 @@ UbseResult UbseMemValidator::FilterByLenderInfo()
     }
     if (lenderInfo_.numaId != UINT32_MAX) {
         FilterByLenderNuma(lenderInfo_, ubseStatus_);
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseMemValidator::FilterByLinkPortDown()
+{
+    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
+    auto ret = UbseMemGetTopologyInfo(nodeTopology);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "get nodeTopology failed!";
+        return ret;
+    }
+
+    auto nodeInfo = UbseMemTopologyInfoManager::GetInstance().GetNodeInfoById(importNodeId_);
+    if (nodeInfo == nullptr) {
+        UBSE_LOG_ERROR << "nodeInfo is nullptr, importNodeId=" << importNodeId_;
+        return UBSE_ERROR;
+    }
+    auto socketList = nodeInfo->GetSocketList();
+    std::unordered_map<int16_t, std::set<int16_t>> linkMap;
+    for (const auto& socketId : socketList) {
+        std::string key = importNodeId_ + "-" + socketId;
+        GetLinkMap(key, linkMap, nodeTopology);
+    }
+
+    auto importNodeIndex = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(importNodeId_);
+
+    for (auto &status : ubseStatus_.numaStatus) {
+        auto it = linkMap.find(status.numa.hostId);
+        if (status.numa.hostId == INVALID_META_ID || status.numa.hostId == importNodeIndex) {
+            continue;
+        }
+
+        if (it == linkMap.end() || it->second.find(status.numa.socketId) == it->second.end()) {
+            UBSE_LOG_INFO << "[hostId=" << status.numa.hostId << ", sockIndex=" << int16_t(status.numa.socketId)
+                      << ", numaIndex=" << int16_t(status.numa.numaId)
+                      << " can not find link to importNodeId=" << importNodeId_;
+            status.memFree = INVALID_VALUE64;
+            status.memTotal = INVALID_VALUE64;
+            status.memUsed = INVALID_VALUE64;
+        }
     }
     return UBSE_OK;
 }
