@@ -1,5 +1,13 @@
-find_path(HCOM_INCLUDE_DIR hcom/hcom.h PATHS /usr/include NO_DEFAULT_PATH)
-find_library(HCOM_LIBRARY libhcom.so PATHS /usr/lib64 /usr/lib NO_DEFAULT_PATH)
+find_path(HCOM_INCLUDE_DIR
+        NAMES hcom/hcom.h
+        PATHS /usr/include
+        NO_DEFAULT_PATH
+)
+find_library(HCOM_SHARED_LIBRARY
+        NAMES hcom libhcom.so
+        PATHS /usr/lib64 /usr/lib
+        NO_DEFAULT_PATH
+)
 
 if(NOT HCOM_INCLUDE_DIR OR NOT HCOM_LIBRARY)
     message(FATAL_ERROR "hcom not found! Please execute:

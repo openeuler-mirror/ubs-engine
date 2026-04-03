@@ -1,5 +1,14 @@
-find_path(SECUREC_INCLUDE_DIR securec.h PATHS /usr/include NO_DEFAULT_PATH)
-find_library(SECUREC_LIBRARY libboundscheck.so PATHS /usr/lib64 /usr/lib NO_DEFAULT_PATH)
+find_path(LIBBOUNDCHECK_INCLUDE_DIR
+        NAMES securec.h
+        PATHS /usr/include
+        NO_DEFAULT_PATH
+)
+
+find_library(LIBBOUNDCHECK_SHARED_LIBRARY
+        NAMES libboundscheck.so boundscheck
+        PATHS /usr/lib64 /usr/lib
+        NO_DEFAULT_PATH
+)
 
 if(NOT SECUREC_INCLUDE_DIR OR NOT SECUREC_LIBRARY)
     message(FATAL_ERROR "libboundscheck not found! Please execute:
