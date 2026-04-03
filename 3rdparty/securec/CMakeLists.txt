@@ -15,4 +15,4 @@ if(NOT LIBBOUNDCHECK_INCLUDE_DIR OR NOT LIBBOUNDCHECK_SHARED_LIBRARY)
                 sudo yum install libboundscheck-v1.1.11")
 endif()
 
-message(STATUS "Found libboundscheck: ${SECUREC_INCLUDE_DIR}, ${SECUREC_LIBRARY}")
+message(STATUS "Found libboundscheck: ${LIBBOUNDCHECK_INCLUDE_DIR}, ${LIBBOUNDCHECK_SHARED_LIBRARY}")

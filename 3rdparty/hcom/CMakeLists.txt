@@ -14,9 +14,9 @@ if(NOT HCOM_INCLUDE_DIR OR NOT HCOM_SHARED_LIBRARY)
                 sudo yum install 'ubs-comm-devel >= 1.0.0-15'")
 endif()
 
-message(STATUS "Found hcom: ${HCOM_INCLUDE_DIR}, ${HCOM_LIBRARY}")
+message(STATUS "Found hcom: ${HCOM_INCLUDE_DIR}, ${HCOM_SHARED_LIBRARY}")
 
 # 定义统一的 hcom 接口供上层使用
 add_library(hcom INTERFACE)
 target_include_directories(hcom SYSTEM INTERFACE ${HCOM_INCLUDE_DIR})
-target_link_libraries(hcom INTERFACE ${HCOM_LIBRARY})
+target_link_libraries(hcom INTERFACE ${HCOM_SHARED_LIBRARY})

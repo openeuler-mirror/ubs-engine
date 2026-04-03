@@ -107,6 +107,9 @@ git clone https://atomgit.com/openeuler/ubs-engine.git
 **推荐**：在 openEuler Linux (ARM64) 下执行项目构建
 
 ```shell
+# 安装构建依赖
+yum install -y libboundscheck libxml2-devel numactl-libs openssl-devel rapidjson-devel patch cpp-httplib-devel-0.27.0 ubs-comm-devel-1.0.0-15
+
 # 执行 Release 构建（没有调试信息，-O2 优化）
 bash build.sh
 
