@@ -101,7 +101,6 @@ UbseResult UbseUrmaControllerApi::Register()
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, UbseUrmaBandWidthCliGet);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGet);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, UbseUrmaCliDevGet);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_ACTIVATE, UbseUrmaCliDevActivate);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_ALLOC, UbseUrmaDevAlloc);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_FREE, UbseUrmaDevFree);
     if (ret != UBSE_OK) {
@@ -368,42 +367,6 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << " TopologyInfoQuery response send failed," << FormatRetCode(ret);
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
-}
-
-uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage &req, const UbseRequestContext &context)
-{
-    if (req.buffer == nullptr) {
-        UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
-        return UBSE_ERROR_NULLPTR;
-    }
-    UbseDeSerialization out{req.buffer, req.length};
-    std::string nodeId;
-    std::string urmaName;
-
-    out >> nodeId >> urmaName;
-    if (!out.Check()) {
-        UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaCliDevActivate deserialiazation fail";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
-    }
-    uint32_t ret = UrmaController::GetInstance().UbseUrmaCliDevActivate(nodeId, urmaName);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaCliDevActivate failed," << FormatRetCode(ret);
-        return ret;
-    }
-    UbseSerialization ubse_req_serial;
-    ubse_req_serial << ret;
-    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
-    if (apiServerModule == nullptr) {
-        UBSE_LOG_ERROR << "Get api server module failed";
-        return UBSE_ERROR_NULLPTR;
-    }
-    UbseIpcMessage response = {ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
-    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " Send activate response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;

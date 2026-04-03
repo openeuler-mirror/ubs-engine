@@ -41,7 +41,6 @@ const int INDEX_NO_2 = 2;
 const std::string PATH_PREFIX = "/dev/uburma/";
 const uint32_t BYTE_TO_BIT = 8;
 
-std::mutex g_invokeUrmaMutex;
 std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup)
 {
     if (eidGroup.feInfo) {
@@ -284,7 +283,7 @@ bool IsUdmaDevHealthy(const std::string &feEid)
     return UbseGetUrmaSubpathByEid(feEid, dummyName) == UBSE_OK && !dummyName.empty();
 }
 
-bool IsUrmaBondingActivated(const std::string &urmaName)
+bool IsUrmaDevActivated(const std::string &urmaName)
 {
     UbseUrmaInfo urmaInfo;
     auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
@@ -295,18 +294,18 @@ bool IsUrmaBondingActivated(const std::string &urmaName)
     return true;
 }
 
-UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::string &urmaName)
+UbseResult SetUrmaDevState(const std::string &nodeId, const std::string &urmaName)
 {
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to query all ports status, ret=" << ret;
         return ret;
     }
-    bool isQueryOneUrma = !urmaName.empty();
+    bool isSetOneUrma = !urmaName.empty();
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
         UBSE_LOG_INFO << "All ports are down, set URMA info to inactive";
-        if (isQueryOneUrma) {
+        if (isSetOneUrma) {
             if (auto urmaDevEid = GetUrmaDevEidByUrmaName(urmaName); !urmaDevEid.empty()) {
                 SetUrmaInfoState(urmaDevEid, false, nodeId);
                 return UBSE_OK;
@@ -324,7 +323,7 @@ UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::stri
     }
     auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
     // 查询指定urma的状态，如果为空则查询所有urma
-    if (isQueryOneUrma) {
+    if (isSetOneUrma) {
         if (auto urmaDevEid = GetUrmaDevEidByUrmaName(urmaName); !urmaDevEid.empty()) {
             bool isUrmaActive = false;
             if (UbseGetBondingActiveStateByEid(urmaDevEid, isUrmaActive) != UBSE_OK) {
@@ -332,7 +331,7 @@ UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::stri
                 return UBSE_ERROR;
             }
             UBSE_LOG_INFO << "urma name=" << urmaName << ", isActive=" << static_cast<int>(isUrmaActive);
-            SetUrmaInfoState(urmaDevEid, isUrmaActive && IsUrmaBondingActivated(urmaName), nodeId);
+            SetUrmaInfoState(urmaDevEid, isUrmaActive && IsUrmaDevActivated(urmaName), nodeId);
             return UBSE_OK;
         }
         return UBSE_ERR_NOT_EXIST;
@@ -343,7 +342,7 @@ UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::stri
         if (UbseGetBondingActiveStateByEid(urmaEid, isUrmaActive) != UBSE_OK) {
             continue;
         }
-        SetUrmaInfoState(urmaEid, isUrmaActive && IsUrmaBondingActivated(urmaInfo.first), nodeId);
+        SetUrmaInfoState(urmaEid, isUrmaActive && IsUrmaDevActivated(urmaInfo.first), nodeId);
     }
     return UBSE_OK;
 }
@@ -363,7 +362,7 @@ UbseResult UrmaController::DoTopoLinkChange()
         return ret;
     }
     // 向urma重新查询bounding状态，并更新状态
-    if (auto ret = QueryUrmaInfoStateFromUrma(curNode.nodeId); ret != UBSE_OK) {
+    if (auto ret = SetUrmaDevState(curNode.nodeId); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to query urma info state from urma, ret=" << ret;
         return ret;
     }
@@ -489,13 +488,13 @@ UbseResult UrmaController::UbseAllocUrmaDev(const std::string &urmaName, UbseUrm
         UBSE_LOG_ERROR << "Failed to get current node info";
         return UBSE_ERROR;
     }
-    (void)QueryUrmaInfoStateFromUrma(currentNodeInfo.nodeId, urmaName);
+    (void)SetUrmaDevState(currentNodeInfo.nodeId, urmaName);
     UbseUrmaInfo urmaInfo;
     auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     if (ret != UBSE_OK || urmaInfo.state != UrmaDevState::ACTIVED || urmaInfo.subPath.empty()) {
         UBSE_LOG_WARN << "Failed to query urma info state from urma, nodeId=" << currentNodeInfo.nodeId
                       << ", urmaName=" << urmaName << ", try to activate it";
-        if (ActivateSpecifyUrmaBonding(urmaName) != UBSE_OK) {
+        if (ActivateSpecifyUrmaDev(urmaName) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to activate urma bonding, urmaName=" << urmaName;
             return UBSE_ERROR;
         }
@@ -567,28 +566,6 @@ UbseResult UrmaController::UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::v
     return UBSE_OK;
 }
 
-std::string UrmaController::GenerateSubPathFromUrmaName(const std::string &urmaName)
-{
-    const std::string subPathPrefix = "bonding_dev_";
-    // urmaName格式为urmaName_{index}，将index提取出来拼接到subPathPrefix后面，校验index是否在uint32_t范围内
-    auto indexPos = urmaName.find('_');
-    if (indexPos == std::string::npos) {
-        UBSE_LOG_ERROR << "urmaName format error, urmaName=" << urmaName;
-        return "";
-    }
-    try {
-        auto index = std::stoul(urmaName.substr(indexPos + 1));
-        if (index > UINT32_MAX) {
-            UBSE_LOG_ERROR << "urmaName index out of range, urmaName=" << urmaName;
-            return "";
-        }
-    } catch (const std::invalid_argument &e) {
-        UBSE_LOG_ERROR << "urmaName format error, urmaName=" << urmaName;
-        return "";
-    }
-    return subPathPrefix + urmaName.substr(indexPos + 1);
-}
-
 UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
                                                       std::vector<UbseUrmaInfoForQuery> &devInfos)
 {
@@ -637,48 +614,6 @@ UbseResult UrmaController::UbseGetUrmaDevInfoByNodeId(const uint32_t &nodeId,
     return UbseQueryUrmaInfoByRpc(nodeId, devInfos);
 }
 
-UbseResult UrmaController::UbseUrmaCliDevActivate(const std::string &nodeId, const std::string &urmaName)
-{
-    UBSE_LOG_INFO << "UbseUrmaCliDevActivate nodeId = " << nodeId;
-    ubse::election::UbseRoleInfo currentNodeInfo{};
-    ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
-    if (nodeId == currentNodeInfo.nodeId) {
-        return ActivateSpecifyUrmaBonding(urmaName);
-    }
-    // 转发至主节点处理
-    UBSE_LOG_INFO << "Foward activate nodeId=" << nodeId << " request to master";
-    auto ubseComModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
-    if (ubseComModule == nullptr) {
-        UBSE_LOG_ERROR << "UbseComModule is null";
-        return UBSE_ERROR_NULLPTR;
-    }
-    UbseUrmaActivateUrmaInfoReqSimpoPtr req = new (std::nothrow) UbseUrmaActivateUrmaInfoReqSimpo();
-    UbseUrmaActivateUrmaInfoRspSimpoPtr rsp = new (std::nothrow) UbseUrmaActivateUrmaInfoRspSimpo();
-    if (req == nullptr || rsp == nullptr) {
-        UBSE_LOG_WARN << "Failed to allocate memory for request or response";
-        return UBSE_ERROR_NULLPTR;
-    }
-    req->SetNodeId(nodeId);
-    req->SetUrmaName(urmaName);
-    ubse::election::UbseRoleInfo masterInfo{};
-    auto ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseGetMasterInfo failed";
-        return ret;
-    }
-    SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_URMA),
-                        static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_DEV_ACTIVATE)};
-    ret = ubseComModule->RpcSend(sendParam, req, rsp);
-    if (ret != UBSE_OK || rsp->GetErrCode() != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to do rpc send, ret=" << ret << ", " << FormatRetCode(rsp->GetErrCode());
-        if (ret != UBSE_OK) {
-            return ret;
-        }
-        return rsp->GetErrCode();
-    }
-    return UBSE_OK;
-}
-
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo()
 {
     std::vector<ubse::nodeController::PhysicalLink> allLinkInfo;
@@ -714,15 +649,13 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
         UBSE_LOG_ERROR << "Failed to get smbios method type, ret=" << ret;
         return ret;
     }
-    // 加锁避免多线程下发造成竞态条件
-    std::lock_guard<std::mutex> lock(g_invokeUrmaMutex);
     std::string nodeId = current_slot_id;
     std::vector<PhysicalLink> emptyLinkInfo;
     return UbsePushTopoAndBondingToUvs(nodeId, meshType == UbseMeshType::CLOS ? emptyLinkInfo : allLinkInfo,
                                        bondingInfo);
 }
 
-UbseResult RecoverOneUrmaDeviceForOneNode(const std::string &nodeId, UbseUrmaUvsAggrDev &dev)
+UbseResult FillUrmaDevByUvsInfo(const std::string &nodeId, UbseUrmaUvsAggrDev &dev)
 {
     std::string subPath;
     if (auto ret = UbseGetUrmaSubpathByEid(dev.urmaDevEid, subPath); ret != UBSE_OK) {
@@ -748,7 +681,7 @@ UbseResult RecoverOneUrmaDeviceForOneNode(const std::string &nodeId, UbseUrmaUvs
     return UBSE_OK;
 }
 
-void UrmaController::RecoverUrmaDeviceForOneNode(const std::string &nodeId, std::vector<UbseUrmaUvsNodeInfo> &uvsInfos)
+void UrmaController::FillUrmaDevsByUvsInfo(const std::string &nodeId, std::vector<UbseUrmaUvsNodeInfo> &uvsInfos)
 {
     auto it =
         std::find_if(uvsInfos.begin(), uvsInfos.end(), [&nodeId](const auto &info) { return info.nodeId == nodeId; });
@@ -766,14 +699,14 @@ void UrmaController::RecoverUrmaDeviceForOneNode(const std::string &nodeId, std:
         if (ubse::context::g_globalStop) {
             return;
         }
-        if (RecoverOneUrmaDeviceForOneNode(nodeId, dev) != UBSE_OK) {
+        if (FillUrmaDevByUvsInfo(nodeId, dev) != UBSE_OK) {
             continue;
         }
     }
     return;
 }
 
-UbseResult UrmaController::ActivateSpecifyUrmaBonding(const std::string &urmaName)
+UbseResult UrmaController::ActivateSpecifyUrmaDev(const std::string &urmaName)
 {
     UbseUrmaInfo urmaInfo;
     if (auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo); ret != UBSE_OK) {
@@ -781,8 +714,7 @@ UbseResult UrmaController::ActivateSpecifyUrmaBonding(const std::string &urmaNam
         return ret;
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    std::lock_guard<std::mutex> lock(g_invokeUrmaMutex);
-    bool isActivated = UbseActiveBonding(urmaInfo.urmaDevEid, GenerateSubPathFromUrmaName(urmaName)) == UBSE_OK;
+    bool isActivated = UbseActiveBonding(urmaInfo.urmaDevEid, urmaName) == UBSE_OK;
     SetUrmaInfoState(urmaInfo.urmaDevEid, isActivated, curNode.nodeId);
     if (!isActivated) {
         UBSE_LOG_WARN << "Failed to activate bonding device for eid=" << urmaInfo.urmaDevEid;

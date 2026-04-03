@@ -49,8 +49,8 @@ public:
     static UbseResult UbseTopoLinkChangeHandler(std::string &eventId, const std::string &eventMessage);
     static UbseResult UbseNodeJoinHandler(std::string &eventId, const std::string &eventMessage);
 
-    void RecoverUrmaDeviceForOneNode(const std::string &nodeId, std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
-    UbseResult ActivateSpecifyUrmaBonding(const std::string &urmaName);
+    void FillUrmaDevsByUvsInfo(const std::string &nodeId, std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
+    UbseResult ActivateSpecifyUrmaDev(const std::string &urmaName);
 
 private:
     UbseResult DoNodeJoin(const std::string &joinNodeId);
@@ -59,7 +59,6 @@ private:
     UbseResult DoTopoLinkChange();
     bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
     UbseResult UbseQueryUrmaInfoByRpc(const uint32_t &nodeId, std::vector<UbseUrmaInfoForQuery> &urmaInfo);
-    std::string GenerateSubPathFromUrmaName(const std::string &urmaName);
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
@@ -72,7 +71,7 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
  * @param urmaName: urma name，为空时查询所有urma
  * @return 成功返回0, 失败返回非0
  */
-UbseResult QueryUrmaInfoStateFromUrma(const std::string &nodeId, const std::string &urmaName = "");
+UbseResult SetUrmaDevState(const std::string &nodeId, const std::string &urmaName = "");
 bool IsUdmaDevHealthy(const std::string &feEid);
 UbseResult QueryAllPortsDown(bool &isAllPortDown);
 } // namespace ubse::urmaController

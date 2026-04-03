@@ -36,8 +36,6 @@ static const std::string URMA_NODE_ID_ERROR =
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
 static const std::string URMA_NODE_NOT_SUPPORT =
     "ERROR: Invalid request param, param -n is not supported in current topo";
-static const std::string URMA_ACTIVATE_OPTION_DES =
-    "Query urma information for a specific node. Parameter 'node' between 1 and the maximum node ID.";
 static const std::string URMA_QUERY_OPTION_DES_NODE =
     "Query urma information for a specific node. Parameter 'node' between 1 and the maximum node ID."
     "Parameter 'node' is not supported in CLOS mesh type topo. "
@@ -59,7 +57,6 @@ void UbseCliRegUrmaModule::UbseCliSignUp()
 {
     this->cmd_.emplace_back(UbseCliQueryUrmaQos());
     this->cmd_.emplace_back(UbseCliQueryUrmaDevInfo());
-    this->cmd_.emplace_back(UbseCliActivateUrmaDevInfo());
     return;
 }
 UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaQos()
@@ -80,17 +77,6 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaDevInfo()
         .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QUERY_OPTION_DES_NODE)
         .UbseCliAddOption("d", URMA_DEVICE_OPT, URMA_QUERY_OPTION_DES_NAME)
         .UbseCliSetFunc(UbseQueryUrmaDevInfoFunc);
-    return builder.UbseCliBuild();
-}
-
-UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliActivateUrmaDevInfo()
-{
-    UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("activate")
-        .UbseCliSetType("urma")
-        .UbseCliAddOption("n", URMA_NODE_OPT, URMA_ACTIVATE_OPTION_DES)
-        .UbseCliAddOption("d", URMA_DEVICE_OPT, URMA_QUERY_OPTION_DES_NAME)
-        .UbseCliSetFunc(UbseActivateUrmaDevInfoFunc);
     return builder.UbseCliBuild();
 }
 
@@ -306,47 +292,5 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
         return UbseCliStringPromptReply(URMA_EMPTY_ERROR);
     }
     return UbseCliProcessUrmaDevInfoTable(ubse_de_serial, urmaSize);
-}
-
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
-{
-    auto urmaNode = params.find(URMA_NODE_OPT);
-    if (urmaNode == params.end()) {
-        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
-    }
-    uint32_t nodeId;
-    try {
-        nodeId = static_cast<uint32_t>(std::stoul(urmaNode->second));
-    } catch (const std::exception &e) {
-        return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
-    }
-    auto urmaName = params.find(URMA_DEVICE_OPT);
-    if (urmaName == params.end()) {
-        return UbseCliStringPromptReply(URMA_DEVICE_OPT + " is required.");
-    }
-    UbseSerialization ubse_req_serial;
-    ubse_req_serial << std::to_string(nodeId) << urmaName->second;
-    if (!ubse_req_serial.Check()) {
-        return UbseCliStringPromptReply(SERIALIZATION_ERROR);
-    }
-    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
-    ubse_api_buffer_t ubse_res_buffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_ACTIVATE, &ubse_req_buffer, &ubse_res_buffer);
-    UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
-    if (ret == UBSE_ERROR_INVAL) {
-        return UbseCliStringPromptReply(URMA_NODE_STATE_ERROR);
-    }
-    if (ret == UBSE_ERROR_AGAIN) {
-        return UbseCliStringPromptReply(URMA_AGAIN_ERROR);
-    }
-    if (ret == UBSE_ERROR_DESERIALIZE_FAILED) {
-        return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
-    }
-    if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(URMA_INTERNAL_ERROR);
-    }
-    std::string result = "Activate urma node " + std::to_string(nodeId) + " successfully.";
-    return UbseCliStringPromptReply(result);
 }
 }  // namespace ubse::cli::reg
