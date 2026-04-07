@@ -42,6 +42,7 @@ constexpr int UBSE_RPC_TIMEOUT_MS = 60000;  // 5秒超时
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 
 std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
+std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeController {
@@ -197,14 +198,15 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
         },
         UBSE_NODE_LEDGER_INTERVAL);
     isLogAggregationRunning_.store(true);
-    // 防止重复启动ReportAggregation
-    static std::atomic<bool> reportTaskRunning{false};
+    // 防止重复启动 ReportAggregation
     bool expected = false;
-    if (reportTaskRunning.compare_exchange_strong(expected, true)) {
+    if (s_reportTaskRunning.compare_exchange_strong(expected, true)) {
         taskExecutor_->Execute([this]() -> void {
             ReportAggregation();
-            reportTaskRunning.store(false);
+            s_reportTaskRunning.store(false);   // 线程退出时重置
         });
+    } else {
+        UBSE_LOG_WARN << "ReportAggregation already running, skip duplicate start";
     }
     return UBSE_OK;
 }
