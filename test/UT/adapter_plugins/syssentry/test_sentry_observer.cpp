@@ -111,8 +111,8 @@ TEST_F(TestSentryObserver, RegisterSentryEventWhenRegisterInfoIsNotNull)
     struct alarm_register info {};
     struct alarm_register* pInfo = &info;
 
-    XalarmUnRegisterFunc unRegSetVal = [](struct alarm_register* pInfo) {
-        pInfo->register_fd = CHECK_REGISTER_FD;
+    XalarmUnRegisterFunc unRegSetVal = [](struct alarm_register** pInfo) {
+        (*pInfo)->register_fd = CHECK_REGISTER_FD;
     };
     XalarmRegisterFunc RegFuncRet = [](struct alarm_register**, struct alarm_subscription_info) {
         return 1;
@@ -131,7 +131,7 @@ TEST_F(TestSentryObserver, RegisterSentryEventSuccess)
     struct alarm_register* pInfo = &info;
     struct alarm_register* nullPInfo = nullptr;
 
-    XalarmUnRegisterFunc unRegEmpty = [](struct alarm_register* pInfo) {
+    XalarmUnRegisterFunc unRegEmpty = [](struct alarm_register** pInfo) {
     };
     XalarmRegisterFunc RegFuncRet = [](struct alarm_register** pInfo, struct alarm_subscription_info) {
         auto& info = **pInfo;
@@ -157,7 +157,7 @@ TEST_F(TestSentryObserver, UnRegisterXalarm)
     struct alarm_register info {};
     struct alarm_register* pInfo = &info;
     auto& instance = UbseRasObserver::GetInstance();
-    void (*unRegEvent)(alarm_register*) = [](struct alarm_register* reg) {
+    void (*unRegEvent)(alarm_register**) = [](struct alarm_register** reg) {
     };
     instance.xalarmUnRegisterFunc = unRegEvent;
     instance.UnRegisterXalarm(&pInfo);
