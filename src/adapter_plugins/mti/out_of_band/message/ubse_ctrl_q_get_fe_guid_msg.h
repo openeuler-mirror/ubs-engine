@@ -66,10 +66,14 @@ private:
     UbseMti1825Pf pf_;
 };
 
-class UbseCtrlQGet1825PfGuidRespMsg : public UbseCtrlQGetIdevPfeGuidRespMsg {
+class UbseCtrlQGet1825PfGuidRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQGet1825PfGuidRespMsg() = default;
+
     UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const UbseMtiGuid &GetGuid() const;
+    
 private:
     UbseMtiGuid guid_;
 };

@@ -146,4 +146,9 @@ const UbseMtiGuid &UbseCtrlQGetIdevPfeGuidRespMsg::GetGuid() const
     return guid_;
 }
 
+const UbseMtiGuid &UbseCtrlQGet1825PfGuidRespMsg::GetGuid() const
+{
+    return guid_;
+}
+
 } // namespace ubse::mti::ctrl_q
