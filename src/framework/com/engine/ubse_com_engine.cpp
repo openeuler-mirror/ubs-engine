@@ -540,7 +540,8 @@ void UbseComEngine::Stop()
 void UbseComEngine::ParseContextMsg(UBSHcomServiceContext &context, UbseComMessage *msg, UbseComMessageCtx &msgCtx)
 {
     auto remoteNodeid = linkManager_.GetNodeIdByChannelId(GetChannelIdFromNetServiceContext(context));
-    UBSE_LOG_INFO << "Get remote node id: " << remoteNodeid << " by channel id: " << GetChannelIdFromNetServiceContext(context);
+    UBSE_LOG_INFO << "Get remote node id: " << remoteNodeid
+                  << " by channel id: " << GetChannelIdFromNetServiceContext(context);
     UbseUdsIdInfo udsIdInfo;
     if (engineInfo_.IsUds()) {
         GetUdsInfoFromNetServiceContext(context, udsIdInfo);
