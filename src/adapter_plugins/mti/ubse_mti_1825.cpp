@@ -13,7 +13,7 @@
 #include "./out_of_band/ubse_mti_1825_out_of_band.h"
 namespace ubse::mti::_1825 {
 
-UbseMti1825Vf::UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId, uint8_t vfId)
+UbseMti1825Vf::UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint16_t pfId, uint16_t vfId)
     : slotId(slotId),
       chipId(chipId),
       dieId(dieId),
@@ -22,7 +22,7 @@ UbseMti1825Vf::UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint
 {
 }
 
-UbseMti1825Pf::UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId)
+UbseMti1825Pf::UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint16_t pfId)
     : slotId(slotId),
       chipId(chipId),
       dieId(dieId),

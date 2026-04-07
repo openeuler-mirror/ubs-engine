@@ -69,6 +69,9 @@ private:
 class UbseCtrlQGet1825PfGuidRespMsg : public UbseCtrlQGetIdevPfeGuidRespMsg {
 public:
     UbseCtrlQGet1825PfGuidRespMsg() = default;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+private:
+    UbseMtiGuid guid_;
 };
 
 class UbseCtrlQGet1825VfGuidReqMsg : public ICtrlQReqMsg {
@@ -81,7 +84,7 @@ private:
     UbseMti1825Vf vf_;
 };
 
-class UbseCtrlQGet1825VfGuidRespMsg : public UbseCtrlQGetIdevPfeGuidRespMsg {
+class UbseCtrlQGet1825VfGuidRespMsg : public UbseCtrlQGet1825PfGuidRespMsg {
 public:
     UbseCtrlQGet1825VfGuidRespMsg() = default;
 };

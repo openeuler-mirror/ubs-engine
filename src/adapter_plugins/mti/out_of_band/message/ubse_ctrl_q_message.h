@@ -52,6 +52,13 @@ struct FeLoc {
     uint8_t vfeId;
 } __attribute__((packed));
 
+struct FeLoc1825 {
+    uint8_t slotId;
+    uint8_t chipId;
+    uint8_t dieId;
+    uint16_t feId;
+} __attribute__((packed));
+
 struct UbController {
     uint8_t slotId;
     uint8_t chipId;
