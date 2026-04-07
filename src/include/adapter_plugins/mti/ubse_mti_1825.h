@@ -25,14 +25,14 @@ struct UbseMti1825Vf {
     uint8_t slotId{0xFF};
     uint8_t chipId;
     uint8_t dieId;
-    uint8_t pfId;
+    uint16_t pfId;
     UbseMtiUbController affinityUbController;
     UbseMtiGuid guid;
-    uint8_t vfId;
+    uint16_t vfId;
 
     UbseMti1825Vf() = default;
 
-    UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId, uint8_t vfId);
+    UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint16_t pfId, uint16_t vfId);
 
     bool operator==(const UbseMti1825Vf &other) const;
 
@@ -43,14 +43,14 @@ struct UbseMti1825Pf {
     uint8_t slotId{0xFF};
     uint8_t chipId;
     uint8_t dieId;
-    uint8_t pfId;
+    uint16_t pfId;
     UbseMtiUbController affinityUbController;
     UbseMtiGuid guid;
     std::vector<UbseMti1825Vf> vfList;
 
     UbseMti1825Pf() = default;
 
-    UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint8_t pfId);
+    UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint16_t pfId);
 
     bool operator==(const UbseMti1825Pf &other) const;
 

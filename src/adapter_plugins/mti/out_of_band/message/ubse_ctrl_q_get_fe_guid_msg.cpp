@@ -20,10 +20,16 @@ using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 const uint8_t DEFAULT_RESP_BBNUM = 1;
 static const uint8_t GRT_FE_GUID_OP_CODE = 0x2;
+static const uint8_t GRT_1825_FE_GUID_OP_CODE = 0x10;
 
 struct CtrlQGetFeGuidReqMsg {
     FixedHead head;
     FeLoc fe;
+} __attribute__((packed));
+
+struct CtrlQGet1825FeGuidReqMsg {
+    FixedHead head;
+    FeLoc1825 fe;
 } __attribute__((packed));
 
 struct RespReader {
@@ -71,38 +77,36 @@ UbseResult UbseCtrlQGetIdevVfeGuidReqMsg::EncodeReqMsg()
 
 UbseCtrlQGet1825PfGuidReqMsg::UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf &pf)
     : pf_(pf),
-      ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
+      ICtrlQReqMsg(GRT_1825_FE_GUID_OP_CODE)
 {
 }
 
 UbseResult UbseCtrlQGet1825PfGuidReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
-    FeLoc feloc;
+    auto &ref = *reinterpret_cast<CtrlQGet1825FeGuidReqMsg *>(&reqMsg_.blocks.front());
+    FeLoc1825 feloc;
     feloc.slotId = pf_.slotId;
     feloc.chipId = pf_.chipId;
     feloc.dieId = pf_.dieId;
-    feloc.pfeId = pf_.pfId;
-    feloc.vfeId = 0xff;
+    feloc.feId = pf_.pfId;
     ref.fe = feloc;
     return UBSE_OK;
 }
 
 UbseCtrlQGet1825VfGuidReqMsg::UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf &vf)
     : vf_(vf),
-      ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
+      ICtrlQReqMsg(GRT_1825_FE_GUID_OP_CODE)
 {
 }
 
 UbseResult UbseCtrlQGet1825VfGuidReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
-    FeLoc feloc;
+    auto &ref = *reinterpret_cast<CtrlQGet1825FeGuidReqMsg *>(&reqMsg_.blocks.front());
+    FeLoc1825 feloc;
     feloc.slotId = vf_.slotId;
     feloc.chipId = vf_.chipId;
     feloc.dieId = vf_.dieId;
-    feloc.pfeId = vf_.pfId;
-    feloc.vfeId = vf_.vfId;
+    feloc.feId = vf_.vfId;
     ref.fe = feloc;
     return UBSE_OK;
 }
@@ -111,6 +115,21 @@ UbseResult UbseCtrlQGetIdevPfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage 
 {
     // bbNum 需要为1
     if (!CheckRespValidation(msg, 1, GRT_FE_GUID_OP_CODE)) {
+        return UBSE_ERROR;
+    }
+    auto &reader = *reinterpret_cast<RespReader *>(msg.blocks);
+    auto ret = memcpy_s(guid_.data(), guid_.size(), &reader.guid, guid_.size());
+    if (ret != EOK) {
+        UBSE_LOG_ERROR << "Memcpy guid failed, ret: " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseCtrlQGet1825PfGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+{
+    // bbNum 需要为1
+    if (!CheckRespValidation(msg, 1, GRT_1825_FE_GUID_OP_CODE)) {
         return UBSE_ERROR;
     }
     auto &reader = *reinterpret_cast<RespReader *>(msg.blocks);
