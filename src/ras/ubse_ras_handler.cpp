@@ -1,6 +1,7 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "ubse_ras_handler.h"
 #include <dlfcn.h>
+#include <cstring>
 #include <set>
 #include <utility>
 #include <regex>
@@ -274,7 +275,7 @@ UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::stri
         dlclose(xalarmHandle);
         return UBSE_RAS_ERROR_DLSYM_XALARMD;
     }
-    ret = xalarmReportFunc(alarmFaultType, ack);
+    ret = xalarmReportFunc(alarmFaultType, ack, strlen(ack));
     if (ret < 0) {
         SafeDeleteArray(ack, strlen(ack));
         dlclose(xalarmHandle);
