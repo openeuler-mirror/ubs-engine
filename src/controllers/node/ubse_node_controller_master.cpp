@@ -680,7 +680,8 @@ void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
     // 清理节点信息
     UBSE_LOG_INFO << "Cleaning node context...";
     UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
-
+    reportTaskRunning_.store(false);
+    UBSE_LOG_INFO << "Reset report task running flag";
     UBSE_LOG_INFO << "Master cleanup completed";
 }
 
