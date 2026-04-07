@@ -196,9 +196,16 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
             return UBSE_OK;
         },
         UBSE_NODE_LEDGER_INTERVAL);
-
     isLogAggregationRunning_.store(true);
-    taskExecutor_->Execute([this]() -> void { ReportAggregation(); });
+    // 防止重复启动ReportAggregation
+    static std::atomic<bool> reportTaskRunning{false};
+    bool expected = false;
+    if (reportTaskRunning.compare_exchange_strong(expected, true)) {
+        taskExecutor_->Execute([this]() -> void {
+            ReportAggregation();
+            reportTaskRunning.store(false);
+        });
+    }
     return UBSE_OK;
 }
 
