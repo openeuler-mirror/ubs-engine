@@ -42,9 +42,10 @@ constexpr int UBSE_RPC_TIMEOUT_MS = 60000;  // 5秒超时
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 
 std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
-std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
 
 UBSE_DEFINE_THIS_MODULE("ubse");
+
+std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
 namespace ubse::nodeController {
 using namespace ubse::context;
 using namespace ubse::election;
@@ -658,6 +659,9 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
 {
     UBSE_LOG_INFO << "Start cleaning master resources...";
+    // 重置上报任务标志
+    s_reportTaskRunning.store(false);
+    UBSE_LOG_INFO << "Reset report task running flag";
     // 停止日志聚合
     isLogAggregationRunning_.store(false);
     cv_.notify_all();
@@ -680,9 +684,6 @@ void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
     // 清理节点信息
     UBSE_LOG_INFO << "Cleaning node context...";
     UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
-    reportTaskRunning_.store(false);
-    UBSE_LOG_INFO << "Reset report task running flag";
-    UBSE_LOG_INFO << "Master cleanup completed";
 }
 
 void UbseNodeControllerMaster::Stop()
