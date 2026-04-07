@@ -232,6 +232,9 @@ public:
                 ubse::mem::strategy::UbseMemNumaLoc ubseMemNumaLoc = {curNuma.nodeId, curNuma.socketId, curNuma.numaId};
                 ubse::mem::strategy::UbseMemNumaIndexLoc ubseMemNumaIndexLoc = {mNodeIndex, mCurSocketIndex,
                                                                                 mCurNumaIndex};
+                UBSE_LOG_INFO << "Init node data, nodeId=" << curNuma.nodeId << ", socketId=" << curNuma.socketId <<
+                            ", numaId=" << curNuma.numaId << ", mNodeIndex=" << mNodeIndex << ", mCurSocketIndex=" <<
+                            mCurSocketIndex << ", mCurNumaIndex=" << mCurNumaIndex;
                 std::shared_ptr<MemNumaInfo> numa;
                 try {
                     numa = std::make_shared<MemNumaInfo>(ubseMemNumaLoc, ubseMemNumaIndexLoc, beginGlobalIndex);
@@ -259,6 +262,16 @@ public:
         }
         return find->second;
     }
+
+    std::vector<std::string> GetSocketList() const
+    {
+        std::vector<std::string> result;
+        for (const auto &[numaLoc, _] : mNumaInfoIdMap) {
+            result.push_back(std::to_string(numaLoc.socketId));
+        }
+        return result;
+    }
+
     std::vector<std::shared_ptr<MemNumaInfo>> GetAllNumaInfo()
     {
         std::vector<std::shared_ptr<MemNumaInfo>> result{};
