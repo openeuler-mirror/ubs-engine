@@ -153,7 +153,7 @@ std::string GetErrorMessage(uint32_t errorCode)
 std::string UbseBorrowDetailInfo::GetBorrowNodeDisplay(
     const std::unordered_map<std::string, std::string> &node_id_with_hostname) const
 {
-    if ((type == "shm" && status == "single") || (type == "shm" && borrowNode.empty())) {
+    if ((type == "share" && status == "single") || (type == "share" && borrowNode.empty())) {
         return "";
     }
     auto it = node_id_with_hostname.find(borrowNode);
@@ -175,9 +175,9 @@ std::string UbseBorrowDetailInfo::GetLendNodeDisplay(
 
 std::string UbseBorrowDetailInfo::GetStatusDisplay() const
 {
-    if (type == "shm" && status == "single") {
+    if (type == "share" && status == "single") {
         return "done";
-    } else if (type != "shm" && status == "single") {
+    } else if (type != "share" && status == "single") {
         return "fault";
     } else {
         return status;
