@@ -16,6 +16,7 @@
 #include "ubse_npu_resource_collection.h"
 #include "ubse_npu_resource_collection_def.h"
 #include "ubse_npu_source_def.h"
+#include "resource_collection/ubse_npu_resource_collection_def.h"
 
 namespace ubse::npu::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -46,25 +47,26 @@ UbseResult UbseNpuControllerProcess::ProcessNpuDevice(const UbDevice &ubDevice,
 }
 
 UbseResult UbseNpuControllerProcess::ProcessNicDevice(const UbDevice &ubDevice,
-                                                      std::vector<std::shared_ptr<IResource>> &devList)
+                                                      std::vector<std::shared_ptr<IResource> > &devList)
 {
     UBSE_LOG_DEBUG << "ProcessNicDevice start, nic " << ubDevice.slotId << "-" << ubDevice.chipId << "-"
-                   << ubDevice.index;
+        << ubDevice.index;
     auto &collection = ResourceCollection::GetInstance();
-    CollectionDevId locStr = CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC),
-                                                                     ubDevice.slotId, ubDevice.chipId, ubDevice.index);
-    std::shared_ptr<CollectionDeviceNic> nic = CollectionDevice::CollectionToDerived<CollectionDeviceNic>(
-        collection.GetDeviceByDevId(locStr, CollectionDeviceType::NIC));
+    CollectionDevId locStr = CollectionStringUtil::CollectionJoinStr(
+        static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+        ubDevice.slotId, ubDevice.chipId, ubDevice.index);
+    std::shared_ptr<CollectionDeviceNicPfe> nic = CollectionDevice::CollectionToDerived<CollectionDeviceNicPfe>(
+        collection.GetDeviceByDevId(locStr, CollectionDeviceType::NIC_PFE));
     if (nic == nullptr) {
         UBSE_LOG_ERROR << "ProcessNicDevice failed, nic " << ubDevice.slotId << "-" << ubDevice.chipId << "-"
-                       << ubDevice.index << " is not found";
+            << ubDevice.index << " is not found";
         return UBSE_ERROR;
     }
     std::shared_ptr<NicResource> nicRes = std::make_shared<NicResource>();
     DeviceNicToResource(nic, nicRes);
     devList.push_back(nicRes);
     UBSE_LOG_DEBUG << "ProcessNicDevice end, nic " << ubDevice.slotId << "-" << ubDevice.chipId << "-"
-                   << ubDevice.index;
+        << ubDevice.index;
     return UBSE_OK;
 }
 
@@ -141,15 +143,6 @@ UbseResult UbseNpuControllerProcess::DeviceNpuToResource(const std::shared_ptr<C
         return UBSE_ERROR;
     }
 
-    std::vector<std::shared_ptr<CollectionDeviceNic>> affiNics = ubCtl->GetAffiDevNic();
-
-    for (const auto &affiNic : affiNics) {
-        CollectDeviceLoc affinic = affiNic->GetDeviceLoc();
-        npuRes->AddAffinityDevice({ResourceType::NIC, affinic.slotId, affinic.chipId, affinic.pfeId});
-        UBSE_LOG_DEBUG << "DeviceNpuToResource nic " << affinic.slotId << "-" << affinic.chipId << "-"
-                       << affinic.pfeId << " added to npuRes.affinityDevices";
-    }
-
     CollectDeviceLoc ubctl = ubCtl->GetDeviceLoc();
     npuRes->AddAffinityDevice({ResourceType::UBCONTROLLER, ubctl.slotId, ubctl.chipId, ubctl.dieId});
     UBSE_LOG_DEBUG << "DeviceNpuToResource UBctrl " << ubctl.slotId << "-" << ubctl.chipId << "-" << ubctl.dieId
@@ -188,48 +181,6 @@ UbseResult UbseNpuControllerProcess::DeviceNicToResource(const std::shared_ptr<C
     nicRes->SetGuid(nic->GetGuid());
     // 3. 处理绑定的Busi设备
     SetNicBusInstanceGuid(nic, nicRes);
-    std::shared_ptr<CollectionDeviceUbCtrl> ubCtl = nic->GetAffinityDevUbCtrl();
-    if (!ubCtl) {
-        UBSE_LOG_ERROR << "DeviceNicToResource failed, nic " << nic->GetGuid() << " affinity ub is null";
-        return UBSE_ERROR;
-    }
-    std::vector<std::shared_ptr<CollectionDeviceIdevPfe>> pfes = ubCtl->GetSubDevIdev();
-    if (pfes.empty()) {
-        UBSE_LOG_ERROR << "DeviceNicToResource failed, nic " << nic->GetGuid() << " can find UBctrl "
-                       << ubCtl->GetGuid() << ", but sub pfe is empty";
-        return UBSE_ERROR;
-    }
-    for (const auto &pfe : pfes) {
-        if (pfe->GetIsComSharedFe()) {
-            continue;
-        }
-        std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> vfes = pfe->GetSubDevVfe();
-        if (vfes.empty()) {
-            UBSE_LOG_ERROR << "DeviceNicToResource failed, nic " << nic->GetGuid() << " can find pfe " << pfe->GetGuid()
-                           << ", but sub vfe is empty";
-            return UBSE_ERROR;
-        }
-        std::shared_ptr<CollectionDeviceDavid> npu = nullptr;
-        if (vfes[0] != nullptr) {
-            npu = vfes[0]->GetBondingDevDavid();
-        }
-        if (npu == nullptr) {
-            npu = pfe->GetBondingDevDavid();
-            if (npu == nullptr) {
-                UBSE_LOG_ERROR << "DeviceNicToResource failed, nic " << nic->GetGuid()
-                               << " can find pfe and vfe, but no david is bound";
-                return UBSE_ERROR;
-            }
-        }
-        CollectDeviceLoc npuLoc = npu->GetDeviceLoc();
-        nicRes->AddAffinityDevice({ResourceType::NPU, npuLoc.slotId, npuLoc.chipId, npuLoc.dieId});
-        UBSE_LOG_DEBUG << "DeviceNicToResource npu " << npuLoc.slotId << "-" << npuLoc.chipId << "-" << npuLoc.dieId
-                       << " added to nicRes.affinityDevices";
-    }
-    CollectDeviceLoc ubctl = ubCtl->GetDeviceLoc();
-    nicRes->AddAffinityDevice({ResourceType::UBCONTROLLER, ubctl.slotId, ubctl.chipId, ubctl.dieId});
-    UBSE_LOG_DEBUG << "DeviceNicToResource UBctrl: " << ubctl.slotId << "-" << ubctl.chipId << "-" << ubctl.dieId
-                   << " added to nicRes.affinityDevices";
     return UBSE_OK;
 }
 
@@ -238,11 +189,11 @@ UbseResult UbseNpuControllerProcess::BusInstanceToResource(const std::shared_ptr
 {
     UBSE_LOG_DEBUG << "BusInstanceToResource start, bus instance " << busi->GetGuid() << "added to busRes";
     busRes->SetGuid(busi->GetGuid());
-    std::vector<std::shared_ptr<CollectionDeviceNic>> nics = busi->GetSubDevNic();
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nics = busi->GetSubDevNicPfe();
     UBSE_LOG_DEBUG << "BusInstanceToResource nics size: " << nics.size();
     for (auto &nic : nics) {
         CollectDeviceLoc nicLoc = nic->GetDeviceLoc();
-        busRes->AddSubDevice({ResourceType::NIC, nicLoc.slotId, nicLoc.chipId, nicLoc.pfeId});
+        busRes->AddSubDevice({ResourceType::NIC_PFE, nicLoc.slotId, nicLoc.chipId, nicLoc.pfeId});
         UBSE_LOG_DEBUG << "nic: " << nicLoc.slotId << "-" << nicLoc.chipId << "-" << nicLoc.pfeId
                        << " added to busRes.subDevices";
     }

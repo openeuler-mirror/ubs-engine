@@ -10,7 +10,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_npu_resource_collection.h"
-#include <regex>
 #include <utility>
 
 #include "ubse_error.h"
@@ -18,11 +17,14 @@
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
+#include "ubse_os_util.h"
+#include "ubse_str_util.h"
 namespace ubse::npu::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::mti::urma;
 using namespace ubse::mti::_1825;
 using namespace ubse::common::def;
+using namespace ubse::utils;
 ResourceCollection::ResourceCollection()
     : devIdToDevice_(DeviceTypeToUint8(CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT)),
       state_(CollectionState::WAIT_INIT)
@@ -97,8 +99,9 @@ UbseResult SetDeviceWithGuid(std::shared_ptr<CollectionDevice> &dev, CollectionG
         return UBSE_ERROR;
     }
     if (type == CollectionDeviceType::HOST_BUSINSTANCE
-        && type == CollectionDeviceType::VM_BUSINSTANCE
-        && type == CollectionDeviceType::NIC) {
+        || type == CollectionDeviceType::VM_BUSINSTANCE
+        || type == CollectionDeviceType::NIC_PFE
+        || type == CollectionDeviceType::NIC_VFE) {
         auto exist = guidToDevice_.find(dev->GetGuid()) != guidToDevice_.end();
         if (exist) {
             UBSE_LOG_WARN << "Device: " << dev->GetGuid() << " has already existed";
@@ -161,9 +164,10 @@ bool IsIdevFeType(const std::shared_ptr<CollectionDevice> &dev)
 
 enum BindDevType : uint8_t {
     BUSI_VFE = 0,
-    BUSI_NIC = 1,
-    IDEV_DAVID = 2,
-    ERROR_TYPE = 3
+    BUSI_NIC_PFE = 1,
+    BUSI_NIC_VFE = 2,
+    IDEV_DAVID = 3,
+    ERROR_TYPE = 4
 };
 
 BindDevType GetBindDevType(const std::shared_ptr<CollectionDevice> &dev1, const std::shared_ptr<CollectionDevice> &dev2)
@@ -172,9 +176,13 @@ BindDevType GetBindDevType(const std::shared_ptr<CollectionDevice> &dev1, const 
         (IsBusInstanceType(dev2) && dev1->GetType() == CollectionDeviceType::V_IDEV)) {
         return BindDevType::BUSI_VFE;
     }
-    if ((IsBusInstanceType(dev1) && dev2->GetType() == CollectionDeviceType::NIC) ||
-        (IsBusInstanceType(dev2) && dev1->GetType() == CollectionDeviceType::NIC)) {
-        return BindDevType::BUSI_NIC;
+    if ((IsBusInstanceType(dev1) && dev2->GetType() == CollectionDeviceType::NIC_PFE) ||
+        (IsBusInstanceType(dev2) && dev1->GetType() == CollectionDeviceType::NIC_PFE)) {
+        return BindDevType::BUSI_NIC_PFE;
+    }
+    if ((IsBusInstanceType(dev1) && dev2->GetType() == CollectionDeviceType::NIC_VFE) ||
+        (IsBusInstanceType(dev2) && dev1->GetType() == CollectionDeviceType::NIC_VFE)) {
+        return BindDevType::BUSI_NIC_VFE;
     }
     if ((IsIdevFeType(dev1) && dev2->GetType() == CollectionDeviceType::NPU) ||
         (IsIdevFeType(dev2) && dev1->GetType() == CollectionDeviceType::NPU)) {
@@ -245,31 +253,63 @@ UbseResult ManageBusiAndVfeBinding(const std::shared_ptr<CollectionDevice> &dev1
     return UBSE_OK;
 }
 
-UbseResult ManageBusiAndNicBinding(const std::shared_ptr<CollectionDevice> &dev1,
-                                   const std::shared_ptr<CollectionDevice> &dev2, bool isBinding)
+UbseResult ManageBusiAndNicPfeBinding(const std::shared_ptr<CollectionDevice> &dev1,
+                                      const std::shared_ptr<CollectionDevice> &dev2, bool isBinding)
 {
     auto devBusiBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::VM_BUSINSTANCE);
     if (devBusiBase == nullptr) {
         devBusiBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::HOST_BUSINSTANCE);
     }
-    auto devNicBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::NIC);
+    auto devNicBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::NIC_PFE);
     auto devBusi = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(devBusiBase);
-    auto devNic = CollectionDevice::CollectionToDerived<CollectionDeviceNic>(devNicBase);
+    auto devNic = CollectionDevice::CollectionToDerived<CollectionDeviceNicPfe>(devNicBase);
     if (devBusi == nullptr || devNic == nullptr) {
         UBSE_LOG_ERROR << "Device not found, busi: " << static_cast<int>(devBusi == nullptr)
-                       << ", nic: " << static_cast<int>(devNic == nullptr);
+            << ", nic: " << static_cast<int>(devNic == nullptr);
         return UBSE_ERROR;
     }
-    // nicbusi
-    auto preBusi = devNic->GetBondingDevBusi();
-    if (preBusi != nullptr) {
-        preBusi->RemoveSubDevNic(devNic);
-    }
+
     if (isBinding) {
-        devBusi->SetSubDevNic(devNic);
+        // nicbusi
+        auto preBusi = devNic->GetBondingDevBusi();
+        if (preBusi != nullptr) {
+            preBusi->RemoveSubDevNicPfe(devNic);
+        }
+        devBusi->SetSubDevNicPfe(devNic);
         devNic->SetBondingDevBusi(devBusi);
     } else {
         devNic->RemoveBondingDevBusi();
+        devBusi->RemoveSubDevNicPfe(devNic);
+    }
+    return UBSE_OK;
+}
+
+UbseResult ManageBusiAndNicVfeBinding(const std::shared_ptr<CollectionDevice> &dev1,
+                                      const std::shared_ptr<CollectionDevice> &dev2, bool isBinding)
+{
+    auto devBusiBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::VM_BUSINSTANCE);
+    if (devBusiBase == nullptr) {
+        devBusiBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::HOST_BUSINSTANCE);
+    }
+    auto devNicBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::NIC_VFE);
+    auto devBusi = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(devBusiBase);
+    auto devNic = CollectionDevice::CollectionToDerived<CollectionDeviceNicVfe>(devNicBase);
+    if (devBusi == nullptr || devNic == nullptr) {
+        UBSE_LOG_ERROR << "Device not found, busi: " << static_cast<int>(devBusi == nullptr)
+            << ", nic: " << static_cast<int>(devNic == nullptr);
+        return UBSE_ERROR;
+    }
+
+    if (isBinding) {
+        auto preBusi = devNic->GetBondingDevBusi();
+        if (preBusi != nullptr) {
+            preBusi->RemoveSubDevNicVfe(devNic);
+        }
+        devBusi->SetSubDevNicVfe(devNic);
+        devNic->SetBondingDevBusi(devBusi);
+    } else {
+        devNic->RemoveBondingDevBusi();
+        devBusi->RemoveSubDevNicVfe(devNic);
     }
     return UBSE_OK;
 }
@@ -327,9 +367,15 @@ UbseResult ResourceCollection::BindDevice(const std::shared_ptr<CollectionDevice
                            << ", dev2: " << dev2->GetIdStr();
             return ret;
         }
-    } else if (bindDevType == BindDevType::BUSI_NIC) {
-        if (auto ret = ManageBusiAndNicBinding(dev1, dev2, true); ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to bind bus instance and 1825, dev1: " << dev1->GetIdStr()
+    } else if (bindDevType == BindDevType::BUSI_NIC_PFE) {
+        if (auto ret = ManageBusiAndNicPfeBinding(dev1, dev2, true); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to bind bus instance and 1825 pfe, dev1: " << dev1->GetIdStr()
+                           << ", dev2: " << dev2->GetIdStr();
+            return ret;
+        }
+    } else if (bindDevType == BindDevType::BUSI_NIC_VFE) {
+        if (auto ret = ManageBusiAndNicVfeBinding(dev1, dev2, true); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to bind bus instance and 1825 vfe, dev1: " << dev1->GetIdStr()
                            << ", dev2: " << dev2->GetIdStr();
             return ret;
         }
@@ -361,9 +407,14 @@ UbseResult ResourceCollection::UnbindDevice(const std::shared_ptr<CollectionDevi
             UBSE_LOG_ERROR << "Failed to unbind bus instance and vfe";
             return ret;
         }
-    } else if (unbindDevType == BindDevType::BUSI_NIC) {
-        if (auto ret = ManageBusiAndNicBinding(dev1, dev2, false); ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to unbind bus instance and 1825";
+    } else if (unbindDevType == BindDevType::BUSI_NIC_PFE) {
+        if (auto ret = ManageBusiAndNicPfeBinding(dev1, dev2, false); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to unbind bus instance and 1825 pfe";
+            return ret;
+        }
+    } else if (unbindDevType == BindDevType::BUSI_NIC_VFE) {
+        if (auto ret = ManageBusiAndNicVfeBinding(dev1, dev2, false); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to unbind bus instance and 1825 vfe";
             return ret;
         }
     } else {
@@ -398,8 +449,8 @@ UbseResult ResourceCollection::CollectStaticResource()
         ClearAllDevices();
         return ret;
     }
-    if (auto ret = CollectAffinityNic(); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to query 1825 fe affinity with ubctrl";
+    if (auto ret = CollectNic(); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query 1825 fe";
         ClearAllDevices();
         return ret;
     }
@@ -411,6 +462,11 @@ UbseResult ResourceCollection::CollectStaticResource()
     // vfe npu-> upi
     if (auto ret = BindVfeToNpu(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to bind vfe to npu";
+        ClearAllDevices();
+        return ret;
+    }
+    if (auto ret = CollectDavidAffinityNic(); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query david affinity with 1825";
         ClearAllDevices();
         return ret;
     }
@@ -521,9 +577,14 @@ UbseResult ResourceCollection::RemoveDeviceEmptyVmBusi(const std::shared_ptr<Col
         UBSE_LOG_ERROR << "dev is nullptr";
         return UBSE_ERROR_INVAL;
     }
-    auto &subDevNics = dev->GetSubDevNic();
-    if (!subDevNics.empty()) {
-        UBSE_LOG_ERROR << "Sub nic device is not empty";
+    auto &subDevNicPfes = dev->GetSubDevNicPfe();
+    if (!subDevNicPfes.empty()) {
+        UBSE_LOG_ERROR << "Sub nic pfe device is not empty";
+        return UBSE_ERROR;
+    }
+    auto &subDevNicVfes = dev->GetSubDevNicVfe();
+    if (!subDevNicVfes.empty()) {
+        UBSE_LOG_ERROR << "Sub nic vfe device is not empty";
         return UBSE_ERROR;
     }
     auto &subDevIdevs = dev->GetSubDevIdev();
@@ -599,7 +660,7 @@ UbseResult ResourceCollection::CollectUbCtrlIdev()
     std::vector<UbseMtiIdevPfe> feList{};
     // 调用GetIdevFeList 来获取pfeList
     if (const UbseResult ret = UbseMtiUrma::GetInstance().GetIdevFeList(feList); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get fe list, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to get fe list, " << FormatRetCode(ret);
         return ret;
     }
     // 遍历 pfeList
@@ -686,7 +747,7 @@ UbseResult ResourceCollection::CollectIdevPfeDavid()
     UBSE_LOG_INFO << "Start to collect david and bind idev with david";
     UbseMtiIdevFeDavidMapping davidDevMapping{};
     if (const auto ret = UbseMtiUrma::GetInstance().GetIdevFeDavidMapping(davidDevMapping); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get david mapping, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to get david mapping, " << FormatRetCode(ret);
         return ret;
     }
     for (const auto &[david, idevPfe] : davidDevMapping) {
@@ -701,14 +762,8 @@ UbseResult ResourceCollection::CollectIdevPfeDavid()
     UBSE_LOG_INFO << "Success to collect david and bind idev with david";
     return UBSE_OK;
 }
-void GetUbCtrlLoc(const UbseMti1825Pf &feInfo, CollectDeviceLoc &ubCtrlLoc)
-{
-    ubCtrlLoc.slotId = feInfo.affinityUbController.slotId;
-    ubCtrlLoc.chipId = feInfo.affinityUbController.chipId;
-    ubCtrlLoc.dieId = feInfo.affinityUbController.dieId;
-}
 
-void GetNicFeLoc(const UbseMti1825Vf &mti1825Vf, CollectDeviceLoc &nicFeLoc)
+void GetNicVfeLoc(const UbseMti1825Vf &mti1825Vf, CollectDeviceLoc &nicFeLoc)
 {
     nicFeLoc.slotId = mti1825Vf.slotId;
     nicFeLoc.chipId = mti1825Vf.chipId;
@@ -718,44 +773,53 @@ void GetNicFeLoc(const UbseMti1825Vf &mti1825Vf, CollectDeviceLoc &nicFeLoc)
     nicFeLoc.guid = CollectionStringUtil::GuidToStr(mti1825Vf.guid);
 }
 
-UbseResult ResourceCollection::GetDevUbCtrlFromNicFeInfo(const UbseMti1825Pf &feInfo,
-                                                         std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl)
+void GetNicPfeLoc(const UbseMti1825Pf &mti1825Pf, CollectDeviceLoc &nicFeLoc)
 {
-    CollectDeviceLoc ubCtrlLoc;
-    GetUbCtrlLoc(feInfo, ubCtrlLoc);
-    auto devUbCtrlBase =
-        GetDeviceByDevId(CollectionDevice::GetDevIdByDevLoc(ubCtrlLoc, CollectionDeviceType::UBCONTROLLER),
-                         CollectionDeviceType::UBCONTROLLER);
-    devUbCtrl = CollectionDevice::CollectionToDerived<CollectionDeviceUbCtrl>(devUbCtrlBase);
-    if (devUbCtrl == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get ub controller device";
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
+    nicFeLoc.slotId = mti1825Pf.slotId;
+    nicFeLoc.chipId = mti1825Pf.chipId;
+    nicFeLoc.dieId = mti1825Pf.dieId;
+    nicFeLoc.pfeId = mti1825Pf.pfId;
+    nicFeLoc.guid = CollectionStringUtil::GuidToStr(mti1825Pf.guid);
 }
 
-UbseResult ResourceCollection::AddNicFeAndSetAffinity(const UbseMti1825Vf &mti1825Vf,
-                                                      std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl)
+UbseResult ResourceCollection::AddNicFe(const UbseMti1825Pf &mti1825Pf)
 {
-    CollectDeviceLoc nicFeLoc;
-    GetNicFeLoc(mti1825Vf, nicFeLoc);
-    auto devNic = std::make_shared<CollectionDeviceNic>(nicFeLoc);
-    if (!ValidateGuid(nicFeLoc.guid)) {
+    CollectDeviceLoc nicPfeLoc;
+    GetNicPfeLoc(mti1825Pf, nicPfeLoc);
+    auto devNicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    if (!ValidateGuid(nicPfeLoc.guid)) {
         UBSE_LOG_ERROR << "Failed to transfer guid from array to string";
         return UBSE_ERROR;
     }
-    auto device = CollectionDevice::CollectionToBase(devNic);
+    auto device = CollectionDevice::CollectionToBase(devNicPfe);
     auto ret = SetDevice(device);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to add nic device";
+        UBSE_LOG_ERROR << "Failed to add nic pfe: {" << mti1825Pf.slotId << ", " << mti1825Pf.chipId << ", "
+            << mti1825Pf.dieId << ", " << mti1825Pf.pfId << "}";
         return ret;
     }
-    devUbCtrl->SetAffinityDevNic(devNic);
-    devNic->SetAffinityDevUbCtrl(devUbCtrl);
+    for (auto mti1825Vf : mti1825Pf.vfList) {
+        CollectDeviceLoc nicVfeLoc;
+        GetNicVfeLoc(mti1825Vf, nicVfeLoc);
+        auto devNicVfe = std::make_shared<CollectionDeviceNicVfe>(nicVfeLoc);
+        if (!ValidateGuid(nicVfeLoc.guid)) {
+            UBSE_LOG_ERROR << "Failed to transfer guid from array to string";
+            return UBSE_ERROR;
+        }
+        auto device = CollectionDevice::CollectionToBase(devNicVfe);
+        auto ret = SetDevice(device);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to add nic vfe: {" << mti1825Vf.slotId << ", " << mti1825Vf.chipId << ", "
+                << mti1825Vf.dieId << ", " << mti1825Vf.pfId << ", " << mti1825Vf.vfId << "}";
+            return ret;
+        }
+        devNicPfe->SetSubNicVfe(devNicVfe);
+        devNicVfe->SetParentNicPfe(devNicPfe);
+    }
     return UBSE_OK;
 }
 
-UbseResult ResourceCollection::CollectAffinityNic()
+UbseResult ResourceCollection::CollectNic()
 {
     std::vector<UbseMti1825Pf> pfList{};
     auto ret = UbseMti1825::GetInstance().Get1825FeList(pfList);
@@ -764,20 +828,30 @@ UbseResult ResourceCollection::CollectAffinityNic()
         return ret;
     }
     for (auto &feInfo : pfList) {
-        std::shared_ptr<CollectionDeviceUbCtrl> devUbCtrl;
-        if (ret = GetDevUbCtrlFromNicFeInfo(feInfo, devUbCtrl); ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to get ub controller from nic fe info";
+        if (ret = AddNicFe(feInfo); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to add nic fe";
             return ret;
-        }
-        for (auto mti1825Vf : feInfo.vfList) {
-            if (ret = AddNicFeAndSetAffinity(mti1825Vf, devUbCtrl); ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to add nic fe: {" << mti1825Vf.slotId << ", " << mti1825Vf.chipId << ", "
-                               << mti1825Vf.dieId << ", " << mti1825Vf.pfId << ", " << mti1825Vf.vfId << "}";
-                return ret;
-            }
         }
     }
     return UBSE_OK;
+}
+
+UbseResult ResourceCollection::GetDavidSlotId(uint8_t &slotId)
+{
+    CollectionDevIdToDevice davidMap;
+    auto ret = GetDevicesByType(CollectionDeviceType::NPU, davidMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get david device";
+        return ret;
+    }
+    for (auto &davidInfo : davidMap) {
+        auto deviceDavid = CollectionDevice::CollectionToDerived<CollectionDeviceDavid>(davidInfo.second);
+        if (deviceDavid != nullptr) {
+            slotId = deviceDavid->GetDeviceLoc().slotId;
+            return UBSE_OK;
+        }
+    }
+    return UBSE_ERROR;
 }
 std::shared_ptr<CollectionDeviceIdevVfe> ResourceCollection::GetIdevVfeByGuid(const std::string &guid)
 {
@@ -802,13 +876,9 @@ UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiGuid
         }
         // 1825
         if (auto devNicBase = GetDeviceByGuid(guid);
-            devNicBase != nullptr && devNicBase->GetType() == CollectionDeviceType::NIC) {
-            auto devNic = CollectionDevice::CollectionToDerived<CollectionDeviceNic>(devNicBase);
-            if (devNic == nullptr) {
-                UBSE_LOG_ERROR << "Failed to convert to 1825, guid: " << guid;
-                return UBSE_ERROR;
-            }
-            BindDevice(devBusi, devNic);
+            devNicBase != nullptr && (devNicBase->GetType() == CollectionDeviceType::NIC_PFE || devNicBase->GetType() ==
+                                      CollectionDeviceType::NIC_VFE)) {
+            BindDevice(devBusi, devNicBase);
         } else if (auto devVfe = GetIdevVfeByGuid(guid);
                    devVfe != nullptr && devVfe->GetType() == CollectionDeviceType::V_IDEV) {
             if (devBusi->GetType() != CollectionDeviceType::VM_BUSINSTANCE) {
@@ -827,7 +897,7 @@ UbseResult ResourceCollection::CollectBusInstance()
     std::vector<UbseMtiBusInst> busInstanceList{};
     auto ret = UbseMtiBusInstance::GetInstance().GetBusInstanceList(busInstanceList);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "GetBusInstanceList failed, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "GetBusInstanceList failed, " << FormatRetCode(ret);
         return ret;
     }
     for (const auto &busInstanceInfo : busInstanceList) {
@@ -863,164 +933,191 @@ UbseResult ResourceCollection::CollectBusInstance()
     return UBSE_OK;
 }
 
-UbseResult CheckDevTopoIdevVfe(int &cnt, const std::shared_ptr<CollectionDeviceIdevVfe> &devVfe)
+UbseResult ResourceCollection::CollectDavidAffinityNic()
 {
-    auto devDavid = devVfe->GetBondingDevDavid();
-    if (devDavid != nullptr) {
-        if (devDavid->GetBondingIdev() != CollectionDevice::CollectionToBase(devVfe)) {
-            UBSE_LOG_ERROR << "No link from david to vfe";
-            return UBSE_ERROR;
+    UBSE_LOG_INFO << "Start to collect david and nic affinity";
+    ProductType productType;
+    auto ret = GetProductType(productType);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetProductType failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId{};
+    ret = GenerateDavidNicMap(productType, davidDevIdTo1825DevId);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    return SetDavidAffinityNic(davidDevIdTo1825DevId);
+}
+
+UbseResult ResourceCollection::GenerateDavidNicMap(ProductType productType,
+                                                   CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId)
+{
+    uint8_t davidSlotId = 0;
+    auto ret = GetDavidSlotId(davidSlotId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetDavidSlotId failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    switch (productType) {
+        case ProductType::SERVER: {
+            for (const auto &[davidChip, nicSlot, nicChip, nicPf] : SERVER_DAVID_NIC_MAPPING) {
+                davidDevIdTo1825DevId.insert({
+                    CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                            davidSlotId, davidChip),
+                    CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                            nicSlot, nicChip, nicPf)
+                });
+            }
+            break;
         }
-        UBSE_LOG_INFO << "Found a relation, vfe: " << devVfe->GetIdStr() << " to david: " << devDavid->GetIdStr();
-        ++cnt;
+        case ProductType::POD_16_1825:
+        case ProductType::POD_32_1825:
+            const auto &mapping = (productType == ProductType::POD_16_1825) ?
+                                      POD_16_1825_DAVID_NIC_MAPPING :
+                                      POD_32_1825_DAVID_NIC_MAPPING;
+            for (const auto &[davidSlot, davidChip, nicSlot, nicChip, nicPf] : mapping) {
+                if (davidSlot == davidSlotId) {
+                    davidDevIdTo1825DevId.insert({
+                        CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                                davidSlot, davidChip),
+                        CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                                nicSlot, nicChip, nicPf)
+                    });
+                }
+            }
+            break;
     }
     return UBSE_OK;
 }
 
-UbseResult CheckDevTopoIdevPfe(int &cnt, const std::shared_ptr<CollectionDeviceIdevPfe> &devPfe)
+UbseResult ResourceCollection::SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId)
 {
-    for (auto &devVfe : devPfe->GetSubDevVfe()) {
-        if (devVfe == nullptr) {
-            UBSE_LOG_ERROR << "devVfe is nullptr";
-            return UBSE_ERROR;
-        }
-        if (devVfe->GetParentPfe() != devPfe) {
-            UBSE_LOG_ERROR << "No link from pfe to ub ctrl";
-            return UBSE_ERROR;
-        }
-        if (CheckDevTopoIdevVfe(cnt, devVfe) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Check idev vfe fail";
-            return UBSE_ERROR;
-        }
-        ++cnt;
+    CollectionDevIdToDevice davidMap;
+    auto ret = GetDevicesByType(CollectionDeviceType::NPU, davidMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get david device";
+        return ret;
     }
-    auto devDavid = devPfe->GetBondingDevDavid();
-    if (devDavid != nullptr) {
-        if (devDavid->GetBondingIdev() != CollectionDevice::CollectionToBase(devPfe)) {
-            UBSE_LOG_ERROR << "No link from david to pfe";
-            return UBSE_ERROR;
-        }
-        UBSE_LOG_INFO << "Found a relation, pfe: " << devPfe->GetIdStr() << " to david: " << devDavid->GetIdStr();
-        ++cnt;
+    CollectionDevIdToDevice nicMap;
+    ret = GetDevicesByType(CollectionDeviceType::NIC_PFE, nicMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get 1825 device";
+        return ret;
     }
-    return UBSE_OK;
-}
-UbseResult CheckDevTopoForUbCtrlSubIdev(int &cnt, std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl)
-{
-    auto &devSubIdevVec = devUbCtrl->GetSubDevIdev();
-    for (auto &devIdevPfe : devSubIdevVec) {
-        if (devIdevPfe == nullptr) {
-            UBSE_LOG_ERROR << "Idev pfe is nullptr";
-            return UBSE_ERROR;
-        }
-        if (devIdevPfe->GetParentUbCtl() != devUbCtrl) {
-            UBSE_LOG_ERROR << "No link from pfe to ub ctrl";
-            return UBSE_ERROR;
-        }
-        if (CheckDevTopoIdevPfe(cnt, devIdevPfe) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Check pfe fail";
-            return UBSE_ERROR;
-        }
-        ++cnt;
-    }
-    return UBSE_OK;
-}
-UbseResult CheckDevTopoForUbCtrlAffiDevNic(int &cnt, std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl)
-{
-    for (auto &devAffinityNic : devUbCtrl->GetAffiDevNic()) {
-        if (devAffinityNic == nullptr) {
+    for (auto &davidKv : davidMap) {
+        CollectionDavidDevId davidDevId = davidKv.first;
+        auto it = davidDevIdTo1825DevId.find(davidDevId);
+        if (it == davidDevIdTo1825DevId.end()) {
+            UBSE_LOG_WARN << "Cannot find david affinity 1825 , david id: " << davidDevId;
             continue;
         }
-        if (devAffinityNic->GetAffinityDevUbCtrl() != devUbCtrl) {
-            UBSE_LOG_ERROR << "No link from nic to ub ctrl";
-            return UBSE_ERROR;
-        }
-        ++cnt;
-    }
-    return UBSE_OK;
-}
 
-UbseResult CheckDevTopoUbCtrl(int &cnt, CollectionDevIdToDevice &devUbCtrls)
-{
-    for (auto &devUbCtrlKv : devUbCtrls) {
-        auto devUbCtrlBase = devUbCtrlKv.second;
-        auto devUbCtrl = CollectionDevice::CollectionToDerived<CollectionDeviceUbCtrl>(devUbCtrlBase);
-        if (devUbCtrl == nullptr) {
-            UBSE_LOG_ERROR << "ub ctrl is nullptr";
-            return UBSE_ERROR;
-        }
-        UBSE_LOG_INFO << "Check ub ctrl, devId: " << devUbCtrlKv.first;
-        if (CheckDevTopoForUbCtrlSubIdev(cnt, devUbCtrl) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Check ub ctrl sub idev fail";
-            return UBSE_ERROR;
-        }
-        if (CheckDevTopoForUbCtrlAffiDevNic(cnt, devUbCtrl) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Check ub ctrl affi nic fail";
-            return UBSE_ERROR;
-        }
-    }
-    return UBSE_OK;
-}
-
-UbseResult CheckDevTopoBusi(int &cnt, CollectionGuidToDevice &devBusis)
-{
-    for (auto &devBusiKv : devBusis) {
-        auto devBusiBase = devBusiKv.second;
-        if (devBusiBase == nullptr || !IsBusInstanceType(devBusiBase)) {
+        auto nicId = it->second;
+        auto itNic = nicMap.find(nicId);
+        if (itNic == nicMap.end()) {
+            UBSE_LOG_WARN << "Failed to get 1825 device, nic id: " << nicId;
             continue;
         }
-        auto devBusi = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(devBusiBase);
-        if (devBusi == nullptr) {
-            UBSE_LOG_ERROR << "UbCtrl is nullptr";
+
+        auto deviceDavid = CollectionDevice::CollectionToDerived<CollectionDeviceDavid>(davidKv.second);
+        if (deviceDavid == nullptr) {
+            UBSE_LOG_ERROR << "Failed to get david device";
             return UBSE_ERROR;
         }
-        auto &devSubIdevVec = devBusi->GetSubDevIdev();
-        for (auto &devIdevVfe : devSubIdevVec) {
-            if (devIdevVfe == nullptr) {
-                UBSE_LOG_ERROR << "Idev vfe is nullptr";
-                return UBSE_ERROR;
-            }
-            auto bondingBusiVec = devIdevVfe->GetBondingDevBusi();
-            if (std::find(bondingBusiVec.begin(), bondingBusiVec.end(), devBusi) == bondingBusiVec.end()) {
-                UBSE_LOG_ERROR << "No link from vfe to bus instance";
-                return UBSE_ERROR;
-            }
-            if (CheckDevTopoIdevVfe(cnt, devIdevVfe) != UBSE_OK) {
-                UBSE_LOG_ERROR << "Check idev vfe fail";
-                return UBSE_ERROR;
-            }
-            ++cnt;
+        auto deviceNic = CollectionDevice::CollectionToDerived<CollectionDeviceNicPfe>(itNic->second);
+        if (deviceNic == nullptr) {
+            UBSE_LOG_ERROR << "Failed to get 1825 device";
+            return UBSE_ERROR;
         }
-        for (auto &devNic : devBusi->GetSubDevNic()) {
-            if (devNic == nullptr) {
-                UBSE_LOG_ERROR << "Nic is nullptr";
-                return UBSE_ERROR;
-            }
-            if (devNic->GetBondingDevBusi() != devBusi) {
-                UBSE_LOG_ERROR << "No link from nic to bus instance";
-                return UBSE_ERROR;
-            }
-            if (devNic->GetAffinityDevUbCtrl() == nullptr) {
-                UBSE_LOG_ERROR << "No link from nic to ub ctrl";
-                return UBSE_ERROR;
-            }
-            ++cnt;
+        deviceDavid->SetAffinityDevNicPfe(deviceNic);
+        deviceNic->SetAffinityDevDavid(deviceDavid);
+        if (!deviceNic->GetSubNicVfe().empty() && deviceNic->GetSubNicVfe()[0] != nullptr) {
+            deviceDavid->SetAffinityDevNicVfe(deviceNic->GetSubNicVfe()[0]);
+            deviceNic->GetSubNicVfe()[0]->SetAffinityDevDavid(deviceDavid);
         }
-    }
-    return UBSE_OK;
-}
-UbseResult ResourceCollection::CheckDevTopo(int &cnt)
-{
-    cnt = 0;
-    if (CheckDevTopoUbCtrl(cnt, devIdToDevice_[static_cast<uint8_t>(CollectionDeviceType::UBCONTROLLER)]) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Check ub ctrl fail";
-        return UBSE_ERROR;
-    }
-    if (CheckDevTopoBusi(cnt, guidToDevice_) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Check bus instance fail";
-        return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
+std::vector<std::string> ResourceCollection::SplitLines(std::string result)
+{
+    std::istringstream iss(result);
+    std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(iss, line)) {
+        line = Trim(line);
+        if (!line.empty()) {
+            lines.push_back(line);
+        }
+    }
+    return lines;
+}
+
+std::vector<std::string> ResourceCollection::SplitFields(std::vector<std::string> lines)
+{
+    std::string firstLine = lines[0];
+    std::vector<std::string> fields;
+    size_t start = 0;
+    size_t end = firstLine.find(' ');
+    while (end != std::string::npos) {
+        fields.push_back(firstLine.substr(start, end - start));
+        start = end + 1;
+        end = firstLine.find(' ', start);
+    }
+    fields.push_back(firstLine.substr(start));
+    return fields;
+}
+
+/**
+ * @brief 查询产品类型
+ * 使用ipmitool命令获取产品类型，如果命令输出的第一行的第十一个字段为ff，则当前环境是server环境；如果为00则为POD环境；否则返回失败。
+ * 若当前为POD环境，查看此命令输出的第二行的第一个字段，如果值为10，则当前环境为POD 16 1825环境；如果值为20，则当前环境为POD 32 1825环境；
+ * 否则返回失败。
+ * @param [in/out] productType: 产品类型
+ * @return 成功返回0, 失败返回非0
+ */
+UbseResult ResourceCollection::GetProductType(ProductType &productType)
+{
+    constexpr char realCmd[] = "ipmitool raw 0x30 0x94 0xdb 0x07 0x00 0x6a 0x08 0x00 0x00 0x00 0xff";
+    std::string result;
+    UbseResult ret = ubse::utils::UbseOsUtil::Exec(realCmd, result);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "impitool query product type failed, " << FormatRetCode(ret) << " ,output: " << result;
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_INFO << "Impitool query product type successfully, output: " << result;
+    std::vector<std::string> lines = SplitLines(result);
+    if (lines.empty()) {
+        return UBSE_ERROR;
+    }
+    std::vector<std::string> fields = SplitFields(lines);
+    if (fields.size() < 11) { // 11:第一行不能少于11个字段，第11个字段用来区分产品类型
+        UBSE_LOG_ERROR << "Invalid output format: not enough fields";
+        return UBSE_ERROR;
+    }
+    const std::string eleventhField = fields[10];
+    if (eleventhField == "ff") {
+        productType = ProductType::SERVER;
+        return UBSE_OK;
+    } else if (eleventhField == "00") {
+        if (lines.size() < 2) { // 2: pod类型此命令两行输出
+            UBSE_LOG_ERROR << "Invalid output format: wrong number of lines";
+            return UBSE_ERROR;
+        }
+        std::string field1 = lines[1].substr(0, 2);
+        if (field1 == "10") {
+            productType = ProductType::POD_16_1825;
+        } else if (field1 == "20") {
+            productType = ProductType::POD_32_1825;
+        } else {
+            UBSE_LOG_ERROR << "Unknown product type";
+            return UBSE_ERROR;
+        }
+    } else {
+        UBSE_LOG_ERROR << "Unknown product type";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
 } // namespace ubse::npu::controller
