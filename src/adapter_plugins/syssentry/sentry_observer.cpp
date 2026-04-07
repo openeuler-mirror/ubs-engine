@@ -250,7 +250,7 @@ void UbseRasObserver::RegisterSentryEvent(alarm_register **registerInfo)
         return;
     }
     if (*registerInfo != nullptr) {
-        xalarmUnRegisterFunc(*registerInfo);
+        xalarmUnRegisterFunc(registerInfo);
         *registerInfo = nullptr;
     }
     auto ret = xalarmRegisterFunc(registerInfo, idFilter);
@@ -272,7 +272,7 @@ void UbseRasObserver::RegisterSentryEvent(alarm_register **registerInfo)
 void UbseRasObserver::UnRegisterXalarm(alarm_register **registerInfo)
 {
     if (registerInfo != nullptr && *registerInfo != nullptr) {
-        xalarmUnRegisterFunc(*registerInfo);
+        xalarmUnRegisterFunc(registerInfo);
         *registerInfo = nullptr;
     }
 }
