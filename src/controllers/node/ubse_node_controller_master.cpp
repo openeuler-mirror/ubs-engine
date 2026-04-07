@@ -45,7 +45,6 @@ std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
 namespace ubse::nodeController {
 using namespace ubse::context;
 using namespace ubse::election;
@@ -54,6 +53,8 @@ using namespace ubse::ras;
 using namespace ubse::event;
 using namespace ubse::timer;
 using namespace ubse::serial;
+
+std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
 
 // Master端消息处理注册
 UbseResult RegMasterMsgHandler()
