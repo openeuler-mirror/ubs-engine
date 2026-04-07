@@ -29,7 +29,7 @@ enum class AccountType {
 namespace AccountTypeUtil {
 const std::unordered_map<AccountType, std::string> enumToStringMap = { { AccountType::NUMA, "numa" },
                                                                        { AccountType::FD, "fd" },
-                                                                       { AccountType::SHM, "shm" },
+                                                                       { AccountType::SHM, "share" },
                                                                        { AccountType::ADDR, "addr" } };
 inline std::string AccountTypeToString(AccountType type)
 {
