@@ -13,7 +13,6 @@
 #include <src/adapter_plugins/mmi/ubse_mmi_module.h>
 #include <ubse_mem_scheduler.h>
 #include <iostream>
-#include "debt/ubse_mem_debt_ledger.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
@@ -27,16 +26,14 @@ namespace ubse::mem_controller::share::ut {
 using namespace ubse::com;
 using namespace mem::controller::message;
 using namespace mem::controller;
-using namespace mem::controller::debt;
 using namespace ubse::utils;
 
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
 const std::string SHM_NAME = "share_test_mem";
-
 void TestUbseMemControllerShareApi::SetUp()
 {
-    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    nodeMemDebtInfoMap.clear();
     Test::SetUp();
 }
 void TestUbseMemControllerShareApi::TearDown()
@@ -73,49 +70,34 @@ void BuildOperationSuccessMock(std::shared_ptr<com::UbseComModule> &module)
         &com::UbseComModule::RpcSend<mem::controller::message::UbseMemOperationRespSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
 }
-
-void PutShareExportObj(const std::string &nodeId, const std::string &name, const UbseMemShareBorrowExportObj &obj)
-{
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetOrCreateNodeMap(nodeId)->Put(
-        name, std::make_shared<UbseMemShareBorrowExportObj>(obj));
-}
-
-void PutShareImportObj(const std::string &nodeId, const std::string &name, const UbseMemShareBorrowImportObj &obj)
-{
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetOrCreateNodeMap(nodeId)->Put(
-        name, std::make_shared<UbseMemShareBorrowImportObj>(obj));
-}
-
-std::shared_ptr<const UbseMemShareBorrowExportObj> GetShareExportObj(const std::string &nodeId, const std::string &name)
-{
-    return UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(nodeId, name);
-}
-
-std::shared_ptr<const UbseMemShareBorrowImportObj> GetShareImportObj(const std::string &nodeId, const std::string &name)
-{
-    return UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(nodeId, name);
-}
-
-bool ShareImportObjExists(const std::string &nodeId, const std::string &name)
-{
-    return GetShareImportObj(nodeId, name) != nullptr;
-}
-
+// 创建并初始化UbseMemShareBorrowExportObj对象，并将其添加到shareExportObjMap中
 void AddToExportObjMap(const std::string &name, const std::string &nodeId,
                        UbseMemShareBorrowExportObj &shareBorrowExportObj)
 {
-    PutShareExportObj(nodeId, name, shareBorrowExportObj);
+    if (nodeMemDebtInfoMap.find(nodeId) == nodeMemDebtInfoMap.end()) {
+        NodeMemDebtInfo nodeMemDebtInfo{};
+        nodeMemDebtInfo.shareExportObjMap.emplace(name, shareBorrowExportObj);
+        nodeMemDebtInfoMap.emplace(nodeId, nodeMemDebtInfo);
+    } else {
+        nodeMemDebtInfoMap[nodeId].shareExportObjMap.emplace(name, shareBorrowExportObj);
+    }
 }
 // 创建并初始化UbseMemShareBorrowImportObj对象，并将其添加到shareImportObjMap中
 void AddToImportObjMap(const std::string &name, const std::string &nodeId,
                        UbseMemShareBorrowImportObj &shareBorrowImportObj)
 {
-    PutShareImportObj(nodeId, name, shareBorrowImportObj);
+    if (nodeMemDebtInfoMap.find(nodeId) == nodeMemDebtInfoMap.end()) {
+        NodeMemDebtInfo nodeMemDebtInfo{};
+        nodeMemDebtInfo.shareImportObjMap.emplace(name, shareBorrowImportObj);
+        nodeMemDebtInfoMap.emplace(nodeId, nodeMemDebtInfo);
+    } else {
+        nodeMemDebtInfoMap[nodeId].shareImportObjMap.emplace(name, shareBorrowImportObj);
+    }
 }
 
 void ConstructShareBorrowAccount()
 {
-    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    nodeMemDebtInfoMap.clear();
     const std::string nodeId = NODE_ONE;
     const std::string name = SHM_NAME;
     UbseMemShareBorrowExportObj shareBorrowExportObj{};
@@ -139,7 +121,7 @@ void ConstructShareBorrowAccount()
 void ExportCallbackExportObjSet(UbseMemShareBorrowExportObj &exportObj, const UbseMemState &memState,
                                 const UbseMemState &expectMemState)
 {
-    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    nodeMemDebtInfoMap.clear();
 
     UbseUdsInfo udsInfo{.uid = 0, .gid = 0, .pid = 0};
     ubse::adapter_plugins::mmi::UbseNodeInfo node1{.nodeId = NODE_ONE};
@@ -167,7 +149,7 @@ void ExportCallbackExportObjSet(UbseMemShareBorrowExportObj &exportObj, const Ub
     UbseMemObmmInfo obmmInfo{};
     obmmInfo.memId = 1;
     exportObj.status.exportObmmInfo.push_back(obmmInfo);
-    PutShareExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, SHM_NAME, exportObj);
+    nodeMemDebtInfoMap[exportObj.algoResult.exportNumaInfos[0].nodeId].shareExportObjMap[SHM_NAME] = exportObj;
 }
 
 void ImportCallbackImportObjSet(UbseMemShareBorrowImportObj &importObj, UbseMemShareBorrowExportObj &exportObj,
@@ -307,7 +289,8 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowAgentFailedByMmi)
     EXPECT_EQ(UBSE_OK, ret);
     auto nodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
     auto name = exportObj.req.name;
-    auto res = !ShareImportObjExists(nodeId, name);
+    auto res = nodeMemDebtInfoMap[nodeId].shareImportObjMap.find(name) ==
+               nodeMemDebtInfoMap[nodeId].shareImportObjMap.end();
     EXPECT_TRUE(res);
 }
 
@@ -339,11 +322,10 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowAgentSuccess)
     auto ret = UbseMemShareBorrowExportObjCallback(exportObj);
     // mmi执行成功，ret结果为UBSE_OK
     EXPECT_EQ(UBSE_OK, ret);
-    auto obj = GetShareExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, exportObj.req.name);
-    EXPECT_TRUE(obj != nullptr);
-    EXPECT_EQ(UBSE_MEM_EXPORT_SUCCESS, obj->status.state);
+    EXPECT_EQ(UBSE_MEM_EXPORT_SUCCESS, nodeMemDebtInfoMap[exportObj.algoResult.exportNumaInfos[0].nodeId]
+                                           .shareExportObjMap[exportObj.req.name]
+                                           .status.state);
 }
-
 void MasterExportCallbackMockSet()
 {
     // 当前节点为1号节点
@@ -414,7 +396,6 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowMasterExportSuccess)
     // mmi执行成功，ret结果为UBSE_OK
     EXPECT_EQ(UBSE_OK, ret);
 }
-
 UbseMemShareAttachReq ConstructAttachReq()
 {
     UbseUdsInfo udsInfo{.uid = 0, .gid = 0, .pid = 0};
@@ -451,7 +432,6 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachSuccess)
     auto ret = UbseMemShareAttach(req, resp);
     EXPECT_EQ(ret, UBSE_OK);
 }
-
 void AgentImportCallbackMockSet()
 {
     // 当前节点为1号节点
@@ -491,15 +471,18 @@ TEST_F(TestUbseMemControllerShareApi, ShareImportAgentFailedByMmi)
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_RUNNING, UBSE_MEM_IMPORT_SUCCESS);
 
+    // 模拟mmi import 执行失败;
     MOCKER(&context::UbseContext::GetModule<mmi::UbseMmiModule>)
         .stubs()
         .will(returnValue(std::make_shared<mmi::UbseMmiModule>()));
     MOCKER(&mmi::UbseMmiModule::UbseMemShmImportExecutor).stubs().will(returnValue(UBSE_ERROR));
     auto ret = UbseMemShareBorrowImportObjCallback(importObj);
+    // mmi执行失败，ret结果为UBSE_OK
     EXPECT_EQ(UBSE_OK, ret);
     auto importNodeId = importObj.importNodeId;
     auto name = importObj.req.name;
-    EXPECT_FALSE(ShareImportObjExists(importNodeId, name));
+    EXPECT_EQ(nodeMemDebtInfoMap[importNodeId].shareImportObjMap.find(name),
+              nodeMemDebtInfoMap[importNodeId].shareImportObjMap.end());
 }
 /*
  * 用例描述：共享内存导入，履行端执行,但已有导入
@@ -522,7 +505,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareImportAgentExisted)
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_RUNNING, UBSE_MEM_IMPORT_SUCCESS);
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
-    PutShareImportObj(importObj.importNodeId, importObj.req.name, importObj);
+    nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name] = importObj;
     auto ret = UbseMemShareBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
 }
@@ -558,9 +541,8 @@ TEST_F(TestUbseMemControllerShareApi, ShareImportAgentSuccess)
     auto ret = UbseMemShareBorrowImportObjCallback(importObj);
     // mmi执行失败，ret结果为UBSE_OK
     EXPECT_EQ(UBSE_OK, ret);
-    auto obj = GetShareImportObj(importObj.importNodeId, importObj.req.name);
-    EXPECT_TRUE(obj != nullptr);
-    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, obj->status.state);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS,
+              nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name].status.state);
 }
 /*
  * 用例描述：共享内存借用，履行端导入失败，发送到主节点测执行
@@ -586,7 +568,8 @@ TEST_F(TestUbseMemControllerShareApi, ShareImportMasterFailed)
     EXPECT_EQ(UBSE_OK, ret);
     auto importNodeId = importObj.importNodeId;
     auto name = importObj.req.name;
-    EXPECT_FALSE(ShareImportObjExists(importNodeId, name));
+    EXPECT_EQ(nodeMemDebtInfoMap[importNodeId].shareImportObjMap.find(name),
+              nodeMemDebtInfoMap[importNodeId].shareImportObjMap.end());
 }
 /*
  * 用例描述：共享内存借用，履行端导入成功，发送到主节点测执行
@@ -612,9 +595,8 @@ TEST_F(TestUbseMemControllerShareApi, ShareImportMasterSuccess)
 
     auto ret = UbseMemShareBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
-    auto obj = GetShareImportObj(importObj.importNodeId, importObj.req.name);
-    EXPECT_TRUE(obj != nullptr);
-    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, obj->status.state);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS,
+              nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name].status.state);
 }
 
 TEST_F(TestUbseMemControllerShareApi, AddShareImportTest)
@@ -749,7 +731,7 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_SUCCESS, UBSE_MEM_IMPORT_SUCCESS);
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
-    PutShareImportObj(importObj.importNodeId, importObj.req.name, importObj);
+    nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name] = importObj;
     UbseUdsInfo invalidUdsInfo{.uid = 1000, .gid = 1000, .pid = 1000, .username = "ubsmd"};
     req.udsInfo = invalidUdsInfo;
     EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
@@ -844,7 +826,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachExistTest)
     MasterExportCallbackMockSet();
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_SUCCESS, UBSE_MEM_IMPORT_SUCCESS);
-    PutShareImportObj(importObj.importNodeId, importObj.req.name, importObj);
+    nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name] = importObj;
 
     std::shared_ptr<com::UbseComModule> module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
@@ -869,7 +851,7 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareBorrowImportObjAgentCallbackTe
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_DESTROYING, UBSE_MEM_IMPORT_SUCCESS);
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
-    PutShareImportObj(importObj.importNodeId, importObj.req.name, importObj);
+    nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name] = importObj;
     auto ret = UbseMemShareBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
     MOCKER(&context::UbseContext::GetModule<mmi::UbseMmiModule>)
@@ -901,7 +883,7 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareBorrowImportObjAgentSendFailed
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_DESTROYING, UBSE_MEM_IMPORT_SUCCESS);
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
-    PutShareImportObj(importObj.importNodeId, importObj.req.name, importObj);
+    nodeMemDebtInfoMap[importObj.importNodeId].shareImportObjMap[importObj.req.name] = importObj;
     auto ret = UbseMemShareBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
 }
@@ -915,13 +897,13 @@ TEST_F(TestUbseMemControllerShareApi, UpdateFaultShareExportObjTest)
     UbseMemShareBorrowExportObj exportObj{};
     auto ret = UpdateFaultShareExportObj(nodeId, memId, memName, type);
     EXPECT_EQ(UBSE_ERROR, ret);
-    PutShareExportObj(nodeId, SHM_NAME, exportObj);
+    nodeMemDebtInfoMap[nodeId].shareExportObjMap[SHM_NAME] = exportObj;
     ret = UpdateFaultShareExportObj(nodeId, memId, memName, type);
     EXPECT_EQ(UBSE_ERROR, ret);
     UbseMemObmmInfo obmmInfo;
     obmmInfo.memId = memId;
     exportObj.status.exportObmmInfo.push_back(obmmInfo);
-    PutShareExportObj(nodeId, SHM_NAME, exportObj);
+    nodeMemDebtInfoMap[nodeId].shareExportObjMap[SHM_NAME] = exportObj;
     ret = UpdateFaultShareExportObj(nodeId, memId, memName, type);
     EXPECT_EQ(UBSE_OK, ret);
 }
