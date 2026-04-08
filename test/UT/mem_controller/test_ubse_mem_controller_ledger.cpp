@@ -499,14 +499,14 @@ TEST_F(TestUbseMemControllerLedger, IsFdImportRunningObjExcess)
     UbseMemFdBorrowExportObj fdBorrowExportObj;
     fdBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     fdBorrowExportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
     std::string key = obj.req.name + "_" + nodeId;
-    debtInfo.fdExportObjMap.insert({key, fdBorrowExportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key, fdBorrowExportObj);
     EXPECT_TRUE(IsFdImportRunningObjExcess(nodeId, obj));
-    nodeMemDebtInfoMap["node1"].fdExportObjMap[key].status.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    fdBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key, fdBorrowExportObj);
     EXPECT_FALSE(IsFdImportRunningObjExcess(nodeId, obj));
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, IsNumaImportRunningObjExcess)
@@ -523,14 +523,14 @@ TEST_F(TestUbseMemControllerLedger, IsNumaImportRunningObjExcess)
     UbseMemNumaBorrowExportObj numaBorrowExportObj;
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     numaBorrowExportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
     std::string key = obj.req.name + "_" + nodeId;
-    debtInfo.numaExportObjMap.insert({key, numaBorrowExportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
     EXPECT_TRUE(IsNumaImportRunningObjExcess(nodeId, obj));
-    nodeMemDebtInfoMap["node1"].numaExportObjMap[key].status.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
     EXPECT_FALSE(IsNumaImportRunningObjExcess(nodeId, obj));
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, IsAddrImportRunningObjExcess)
@@ -547,14 +547,14 @@ TEST_F(TestUbseMemControllerLedger, IsAddrImportRunningObjExcess)
     UbseMemAddrBorrowExportObj numaBorrowExportObj;
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     numaBorrowExportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
     std::string key = obj.req.name + "_" + nodeId;
-    debtInfo.addrExportObjMap.insert({key, numaBorrowExportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
     EXPECT_TRUE(IsAddrImportRunningObjExcess(nodeId, obj));
-    nodeMemDebtInfoMap["node1"].addrExportObjMap[key].status.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
     EXPECT_FALSE(IsAddrImportRunningObjExcess(nodeId, obj));
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningFdExportHandler)

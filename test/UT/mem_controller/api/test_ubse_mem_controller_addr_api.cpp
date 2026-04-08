@@ -14,6 +14,7 @@
 #include <ubse_com_module.h>
 #include <ubse_error.h>
 #include <ubse_mem_scheduler.h>
+#include "debt/ubse_mem_debt_ledger.h"
 #include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_addr_borrow_importobj_simpo.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
@@ -25,6 +26,7 @@
 #include "ubse_mem_controller_msg.h"
 namespace ubse::mem_controller::addr::ut {
 using namespace ubse::mem::controller;
+using namespace ubse::mem::controller::debt;
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
 
@@ -34,6 +36,7 @@ void TestUbseMemControllerAddrApi::SetUp()
 }
 void TestUbseMemControllerAddrApi::TearDown()
 {
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -80,25 +83,15 @@ void AddToExportObjMap(const std::string &name, const std::string &nodeId,
                        UbseMemAddrBorrowExportObj &addrBorrowExportObj)
 {
     auto exportKey = mem::controller::GenerateExportObjKey(name, nodeId);
-    if (mem::controller::nodeMemDebtInfoMap.find(nodeId) == mem::controller::nodeMemDebtInfoMap.end()) {
-        NodeMemDebtInfo nodeMemDebtInfo{};
-        nodeMemDebtInfo.addrExportObjMap.emplace(exportKey, addrBorrowExportObj);
-        mem::controller::nodeMemDebtInfoMap.emplace(nodeId, nodeMemDebtInfo);
-    } else {
-        mem::controller::nodeMemDebtInfoMap[nodeId].addrExportObjMap.emplace(exportKey, addrBorrowExportObj);
-    }
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(nodeId, exportKey,
+                                                                                          addrBorrowExportObj);
 }
 // 创建并初始化UbseMemAddrBorrowImportObj对象，并将其添加到addrImportObjMap中
 void AddToImportObjMap(const std::string &name, const std::string &nodeId,
                        UbseMemAddrBorrowImportObj &addrBorrowImportObj)
 {
-    if (mem::controller::nodeMemDebtInfoMap.find(nodeId) == mem::controller::nodeMemDebtInfoMap.end()) {
-        NodeMemDebtInfo nodeMemDebtInfo{};
-        nodeMemDebtInfo.addrImportObjMap.emplace(name, addrBorrowImportObj);
-        mem::controller::nodeMemDebtInfoMap.emplace(nodeId, nodeMemDebtInfo);
-    } else {
-        mem::controller::nodeMemDebtInfoMap[nodeId].addrImportObjMap.emplace(name, addrBorrowImportObj);
-    }
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(nodeId, name,
+                                                                                          addrBorrowImportObj);
 }
 
 /*
@@ -112,7 +105,7 @@ void AddToImportObjMap(const std::string &name, const std::string &nodeId,
  */
 TEST_F(TestUbseMemControllerAddrApi, CheckAddrResourceStateNoExist)
 {
-    mem::controller::nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     const std::string nodeId = NODE_ONE;
     const std::string name = "addr_test_mem";
 
@@ -139,7 +132,7 @@ TEST_F(TestUbseMemControllerAddrApi, CheckAddrResourceStateNoExist)
  */
 TEST_F(TestUbseMemControllerAddrApi, CheckAddrResourceStateExist)
 {
-    mem::controller::nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     const std::string nodeId = NODE_ONE;
     const std::string name = "addr_test_mem";
 
@@ -151,7 +144,7 @@ TEST_F(TestUbseMemControllerAddrApi, CheckAddrResourceStateExist)
     addrBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     AddToExportObjMap(name, nodeId, addrBorrowExportObj);
     AddToImportObjMap(name, nodeId, addrBorrowImportObj);
-    EXPECT_EQ(mem::controller::CheckAddrResourceState(name, ""), UBSE_ERR_EXISTED);
+    EXPECT_EQ(mem::controller::CheckAddrResourceState(name, ""), UBSE_ERR_NOT_EXIST);
     EXPECT_EQ(mem::controller::CheckAddrResourceState(name, nodeId), UBSE_ERR_EXISTED);
 }
 
@@ -422,7 +415,8 @@ void MasterExportCallbackImportObjSet(const UbseMemAddrBorrowExportObj &exportOb
     importObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     importObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
     importObj.req = exportObj.req;
-    mem::controller::nodeMemDebtInfoMap[exportObj.req.importNodeId].addrImportObjMap[exportObj.req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        exportObj.req.importNodeId, exportObj.req.name, importObj);
 }
 /*
 * 用例描述
@@ -456,9 +450,10 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectSuccessCallbackSuccess)
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
-    auto importObj =
-        mem::controller::nodeMemDebtInfoMap[exportObj.req.importNodeId].addrImportObjMap[exportObj.req.name];
-    EXPECT_EQ(UBSE_MEM_IMPORT_RUNNING, importObj.status.state);
+    auto importObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(
+        exportObj.req.importNodeId, exportObj.req.name);
+    EXPECT_TRUE(importObjPtr != nullptr);
+    EXPECT_EQ(UBSE_MEM_IMPORT_RUNNING, importObjPtr->status.state);
 }
 /*
 * 用例描述
@@ -481,14 +476,15 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectSuccessCallbackFailed)
 
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
-    mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap[exportKey] = exportObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
+                                                                                          exportKey, exportObj);
     MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_TRUE(
-        mem::controller::nodeMemDebtInfoMap[exportObj.req.importNodeId].addrImportObjMap.find(exportObj.req.name) ==
-        mem::controller::nodeMemDebtInfoMap[exportObj.req.importNodeId].addrImportObjMap.end());
+    auto importObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(
+        exportObj.req.importNodeId, exportObj.req.name);
+    EXPECT_TRUE(importObjPtr == nullptr);
 }
 
 /*
@@ -507,12 +503,12 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportMasterCallbackFailed)
     MasterExportCallbackMockSet(exportObj);
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
-    mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap[exportKey] = exportObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
+                                                                                          exportKey, exportObj);
 
     MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
-    // 查不到导入数据，返回UBSE_ERROR
     EXPECT_EQ(UBSE_ERROR, ret);
 }
 
@@ -554,14 +550,15 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectDestroyCallbackSuccess)
     exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
-    mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap[exportKey] = exportObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
+                                                                                          exportKey, exportObj);
     MOCKER(mem::scheduler::UbseMemAddrExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
-    // 查不到导入数据，返回UBSE_OK
     EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_TRUE(mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap.find(exportKey) ==
-                mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap.end());
+    auto exportObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().GetResource(
+        exportObj.req.exportNodeId, exportKey);
+    EXPECT_TRUE(exportObjPtr == nullptr);
 }
 /*
 * 用例描述
@@ -582,16 +579,16 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectDestroyCallbackFailed)
     exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
-    mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap[exportKey] = exportObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
+                                                                                          exportKey, exportObj);
     MOCKER(mem::scheduler::UbseMemAddrExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
-    // 函数返回UBSE_OK,对应状态为UBSE_MEM_EXPORT_SUCCESS
     EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_FALSE(mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap.find(exportKey) ==
-                 mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap.end());
-    EXPECT_EQ(mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap[exportKey].status.state,
-              UBSE_MEM_EXPORT_SUCCESS);
+    auto exportObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().GetResource(
+        exportObj.req.exportNodeId, exportKey);
+    EXPECT_TRUE(exportObjPtr != nullptr);
+    EXPECT_EQ(exportObjPtr->status.state, UBSE_MEM_EXPORT_SUCCESS);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, AddrExportDestroyingAgentCallbackSendFailed)
@@ -654,7 +651,8 @@ void AgentImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
     importObj.status.state = UBSE_MEM_IMPORT_RUNNING;
     importObj.status.expectState = UBSE_MEM_IMPORT_SUCCESS;
     importObj.req = req;
-    mem::controller::nodeMemDebtInfoMap[req.importNodeId].addrImportObjMap[req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(req.importNodeId, req.name,
+                                                                                          importObj);
 }
 /*
 * 用例描述
@@ -676,7 +674,6 @@ TEST_F(TestUbseMemControllerAddrApi, DealAddrAgentImportSuccess)
     importObj.algoResult.exportNumaInfos.resize(1);
     AgentImportCallbackMockSet();
     AgentImportCallbackImportObjSet(importObj);
-    // 模拟mmi import 执行成功;
     MOCKER(&context::UbseContext::GetModule<mmi::UbseMmiModule>)
         .stubs()
         .will(returnValue(std::make_shared<mmi::UbseMmiModule>()));
@@ -686,9 +683,10 @@ TEST_F(TestUbseMemControllerAddrApi, DealAddrAgentImportSuccess)
     MOCKER(ImportToAddDecoderEntry).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId]
-                                           .addrImportObjMap[importObj.req.name]
-                                           .status.state);
+    auto importObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(
+        importObj.req.importNodeId, importObj.req.name);
+    EXPECT_TRUE(importObjPtr != nullptr);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, importObjPtr->status.state);
 }
 /*
 * 用例描述
@@ -730,7 +728,8 @@ TEST_F(TestUbseMemControllerAddrApi, DealAddrAgentImportSendFailed)
     UbseMemAddrBorrowImportObj newObj{};
     newObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS;
     newObj.status.expectState = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS;
-    nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = newObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(importObj.req.importNodeId,
+                                                                                          importObj.req.name, newObj);
     AgentImportCallbackMockSetError();
     MOCKER(&mmi::UbseMmiModule::UbseMemAddrImportExecutor).stubs().will(returnValue(UBSE_ERROR));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
@@ -748,7 +747,7 @@ void MasterImportCallbackMockSet()
     std::vector<UbseMemDebtNumaInfo> numaInfos;
     numaInfos.emplace_back(numaInfo);
     req.requestNodeId = NODE_ONE;
-    req.exportNodeId = NODE_ONE;
+    req.exportNodeId = NODE_TWO;
     req.importNodeId = NODE_ONE;
     UbseMemAddrBorrowExportObj exportObj{};
     exportObj.req = req;
@@ -756,7 +755,8 @@ void MasterImportCallbackMockSet()
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     exportObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
-    mem::controller::nodeMemDebtInfoMap[exportObj.req.exportNodeId].addrExportObjMap[exportKey] = exportObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
+                                                                                          exportKey, exportObj);
 }
 void MasterImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
 {
@@ -784,7 +784,8 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackSuccess)
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
     UbseMemImportResult importResult{};
     importObj.status.importResults.push_back(importResult);
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
@@ -810,14 +811,16 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackFailed)
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
     UbseMemImportResult importResult{};
     importObj.status.importResults.push_back(importResult);
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
     auto exportKey = mem::controller::GenerateExportObjKey(importObj.req.name, importObj.req.importNodeId);
-    EXPECT_TRUE(
-        mem::controller::nodeMemDebtInfoMap[importObj.req.exportNodeId].addrExportObjMap[exportKey].status.state ==
-        UBSE_MEM_EXPORT_DESTROYING);
+    auto exportObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().GetResource(
+        importObj.req.exportNodeId, exportKey);
+    EXPECT_TRUE(exportObjPtr != nullptr);
+    EXPECT_TRUE(exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING);
 }
 
 /*
@@ -840,12 +843,14 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackDestroyedFailed)
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     UbseMemImportResult importResult{};
     importObj.status.importResults.push_back(importResult);
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId]
-                                           .addrImportObjMap[importObj.req.name]
-                                           .status.state);
+    auto importObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(
+        importObj.req.importNodeId, importObj.req.name);
+    EXPECT_TRUE(importObjPtr != nullptr);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, importObjPtr->status.state);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackUnimportFailed)
@@ -857,7 +862,8 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackUnimportFailed)
     UbseMemImportResult importResult{};
     importObj.req.name = "test";
     importObj.status.importResults.push_back(importResult);
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     election::UbseRoleInfo currentInfo{};
     election::UbseRoleInfo masterInfo{};
     std::shared_ptr<com::UbseComModule> module;
@@ -882,8 +888,10 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackSendUnexportFailed)
     UbseMemImportResult importResult{};
     importObj.status.importResults.push_back(importResult);
     auto key = GenerateExportObjKey(importObj.req.name, importObj.req.importNodeId);
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
-    mem::controller::nodeMemDebtInfoMap[importObj.req.exportNodeId].addrExportObjMap[key] = exportObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(importObj.req.exportNodeId,
+                                                                                          key, exportObj);
     election::UbseRoleInfo currentInfo{};
     election::UbseRoleInfo masterInfo{};
     std::shared_ptr<com::UbseComModule> module;
@@ -904,7 +912,8 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackNoExport)
     importObj.req.exportNodeId = NODE_TWO;
     UbseMemImportResult importResult{};
     importObj.status.importResults.push_back(importResult);
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     election::UbseRoleInfo currentInfo{};
     election::UbseRoleInfo masterInfo{};
     std::shared_ptr<com::UbseComModule> module;
@@ -933,17 +942,17 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackSuccess)
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     MOCKER(&mem::decoder::utils::MemDecoderUtils::GetChipAndDieId).stubs().will(returnValue(UBSE_OK));
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
-    // 模拟mmi import 执行成功;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     MOCKER(&context::UbseContext::GetModule<mmi::UbseMmiModule>)
         .stubs()
         .will(returnValue(std::make_shared<mmi::UbseMmiModule>()));
     MOCKER(&mmi::UbseMmiModule::UbseMemAddrUnImportExecutor).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_TRUE(
-        mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap.find(importObj.req.name) ==
-        mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap.end());
+    auto importObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(
+        importObj.req.importNodeId, importObj.req.name);
+    EXPECT_TRUE(importObjPtr == nullptr);
 }
 /*
 * 用例描述
@@ -965,17 +974,18 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackFailed)
     AgentImportCallbackImportObjSet(importObj);
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
-    // 模拟mmi import 执行成功;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     MOCKER(&context::UbseContext::GetModule<mmi::UbseMmiModule>)
         .stubs()
         .will(returnValue(std::make_shared<mmi::UbseMmiModule>()));
     MOCKER(&mmi::UbseMmiModule::UbseMemAddrUnImportExecutor).stubs().will(returnValue(UBSE_ERROR));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId]
-                                           .addrImportObjMap[importObj.req.name]
-                                           .status.state);
+    auto importObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(
+        importObj.req.importNodeId, importObj.req.name);
+    EXPECT_TRUE(importObjPtr != nullptr);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, importObjPtr->status.state);
 }
 /*
 * 用例描述: Addr类型内存的import对象归还回调,master测执行成功；
@@ -998,19 +1008,21 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackDestroyedSuccess)
     UbseMemImportResult importResult{};
     MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
     importObj.status.importResults.push_back(importResult);
-    mem::controller::nodeMemDebtInfoMap[importObj.req.importNodeId].addrImportObjMap[importObj.req.name] = importObj;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
+        importObj.req.importNodeId, importObj.req.name, importObj);
     MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
     auto exportKey = mem::controller::GenerateExportObjKey(importObj.req.name, importObj.req.importNodeId);
-    EXPECT_TRUE(
-        mem::controller::nodeMemDebtInfoMap[importObj.req.exportNodeId].addrExportObjMap[exportKey].status.state ==
-        UBSE_MEM_EXPORT_DESTROYING);
+    auto exportObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().GetResource(
+        importObj.req.exportNodeId, exportKey);
+    EXPECT_TRUE(exportObjPtr != nullptr);
+    EXPECT_TRUE(exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccess)
 {
-    mem::controller::nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
     const std::string nodeId = NODE_ONE;
     const std::string name = "addr_test_mem";

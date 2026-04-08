@@ -15,7 +15,7 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_ledger.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::controller::debt {
@@ -29,75 +29,53 @@ inline uint64_t BytesToMB(uint64_t bytes)
     return bytes / (BYTE_TO_MB);
 }
 
-struct FdCollectorPolicy {
-    static const UbseMemFdExportObjMap &GetExportMap(const NodeMemDebtInfo &debtInfo)
-    {
-        return debtInfo.fdExportObjMap; // 访问fd类型的导出映射
-    }
-    static const UbseMemFdImportObjMap &GetImportMap(const NodeMemDebtInfo &debtInfo)
-    {
-        return debtInfo.fdImportObjMap; // 访问fd类型的导入映射
-    }
+template <typename ImportT, typename ExportT>
+struct DebtTypeTraits {
+    using ImportType = ImportT;
+    using ExportType = ExportT;
 };
 
-struct NumaCollectorPolicy {
-    static const UbseMemNumaExportObjMap &GetExportMap(const NodeMemDebtInfo &debtInfo)
-    {
-        return debtInfo.numaExportObjMap; // 访问numa类型的导出映射
-    }
-    static const UbseMemNumaImportObjMap &GetImportMap(const NodeMemDebtInfo &debtInfo)
-    {
-        return debtInfo.numaImportObjMap; // 访问numa类型的导入映射
-    }
-};
+using FdDebtTraits = DebtTypeTraits<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>;
+using NumaDebtTraits = DebtTypeTraits<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>;
+using AddrDebtTraits = DebtTypeTraits<UbseMemAddrBorrowImportObj, UbseMemAddrBorrowExportObj>;
 
-struct AddrCollectorPolicy {
-    static const UbseMemAddrExportObjMap &GetExportMap(const NodeMemDebtInfo &debtInfo)
-    {
-        return debtInfo.addrExportObjMap; // 访问addr类型的导出映射
-    }
-    static const UbseMemAddrImportObjMap &GetImportMap(const NodeMemDebtInfo &debtInfo)
-    {
-        return debtInfo.addrImportObjMap; // 访问addr类型的导入映射
-    }
-};
-
-/* *
+/**
  * 通用模板：按 Export 遍历并匹配 Import，累加 size 到 nodeBorrows
  * @tparam Policy 定义所有类型差异
  * @param debtInfoMap 全量账本
  * @param nodeBorrows 统计借用数据
  */
-template <typename CollectorPolicy>
-void CollectGenericImportSize(const NodeMemDebtInfoMap &debtInfoMap,
-                              std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> &nodeBorrows)
+template <typename Traits>
+void CollectGenericImportSize(std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> &nodeBorrows)
 {
-    for (const auto &[exportNodeId, debtInfo] : debtInfoMap) {
-        const auto &exportMap = CollectorPolicy::GetExportMap(debtInfo);
-        for (const auto &[_, exportObj] : exportMap) {
-            // 过滤借用未成功账本
-            if (exportObj.status.state != UBSE_MEM_EXPORT_SUCCESS) {
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto &exportMap = ledger.GetDebtMap<typename Traits::ExportType>();
+    auto &importMap = ledger.GetDebtMap<typename Traits::ImportType>();
+    UBSE_LOG_DEBUG << "CollectGenericImportSize start";
+
+    for (const auto &[exportNodeId, nodeExportMap] : exportMap.GetAllNodeMaps()) {
+        if (!nodeExportMap) {
+            continue;
+        }
+        for (const auto &[resId, exportObjPtr] : nodeExportMap->GetAll()) {
+            if (!exportObjPtr) {
                 continue;
             }
-            // 查借入账本是否存在
-            const auto &importNodeId = exportObj.req.importNodeId;
-            const auto importDebtInfoIt = debtInfoMap.find(importNodeId);
-            if (importDebtInfoIt == debtInfoMap.end()) {
+            if (exportObjPtr->status.state != UBSE_MEM_EXPORT_SUCCESS) {
                 continue;
             }
-            const auto &importMap = CollectorPolicy::GetImportMap(importDebtInfoIt->second);
-            auto importObjectIt = importMap.find(exportObj.req.name);
-            if (importObjectIt == importMap.end()) {
+            const auto &importNodeId = exportObjPtr->req.importNodeId;
+            auto importObjPtr = importMap.GetResource(importNodeId, exportObjPtr->req.name);
+            if (!importObjPtr) {
+                UBSE_LOG_DEBUG << "Import resource not found, exportNodeId: " << exportNodeId
+                               << ", importNodeId: " << importNodeId << ", name: " << exportObjPtr->req.name;
                 continue;
             }
-            auto importObj = importObjectIt->second;
-            // 过滤借用未成功账本
-            if (importObj.status.state != UBSE_MEM_IMPORT_SUCCESS) {
+            if (importObjPtr->status.state != UBSE_MEM_IMPORT_SUCCESS) {
                 continue;
             }
-            // 累加
             uint64_t size = 0;
-            for (const auto &numaInfo : importObj.algoResult.exportNumaInfos) {
+            for (const auto &numaInfo : importObjPtr->algoResult.exportNumaInfos) {
                 size += numaInfo.size;
             }
             nodeBorrows[exportNodeId][importNodeId] += BytesToMB(size);
@@ -118,11 +96,10 @@ uint32_t UbseMemNodeBorrowQuery(std::vector<UbseNodeBorrowInfo> &nodeBorrowInfo)
         return UBSE_ERROR;
     }
     // 聚集fd numa addr类型借用size
-    auto debtInfoMap = GetNodeMemDebtInfoMap();
     std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> nodeBorrowSizeMap;
-    CollectGenericImportSize<FdCollectorPolicy>(debtInfoMap, nodeBorrowSizeMap);
-    CollectGenericImportSize<NumaCollectorPolicy>(debtInfoMap, nodeBorrowSizeMap);
-    CollectGenericImportSize<AddrCollectorPolicy>(debtInfoMap, nodeBorrowSizeMap);
+    CollectGenericImportSize<FdDebtTraits>(nodeBorrowSizeMap);
+    CollectGenericImportSize<NumaDebtTraits>(nodeBorrowSizeMap);
+    CollectGenericImportSize<AddrDebtTraits>(nodeBorrowSizeMap);
     // build resp
     auto nodeInfos = nodeController::UbseNodeController::GetInstance().GetAllNodes();
     for (const auto &[exportNodeId, importNodeInfo] : nodeBorrowSizeMap) {
@@ -139,18 +116,21 @@ uint32_t UbseMemNodeBorrowQuery(std::vector<UbseNodeBorrowInfo> &nodeBorrowInfo)
     return UBSE_OK;
 }
 
-template <typename ImportObjMap>
-void CollectImportHandleDebtInfo(const ImportObjMap &importObjMap, const std::string &exportNodeId,
-                                 ShareHandleInfoVec &importHandleInfo)
+void CollectImportHandleDebtInfo(const UbseSharedPtrMap<UbseMemShareBorrowImportObj> &importObjMap,
+                                 const std::string &exportNodeId, ShareHandleInfoVec &importHandleInfo)
 {
-    for (const auto &[name, importObj] : importObjMap) {
+    for (const auto &[name, importObjPtr] : importObjMap) {
+        if (!importObjPtr) {
+            continue;
+        }
+        const auto &importObj = *importObjPtr;
         if (importObj.status.state != UBSE_MEM_IMPORT_SUCCESS &&
             importObj.status.state != UBSE_MEM_IMPORT_RUNNING) {
             UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Skip " << name
                            << ", state=" << static_cast<uint32_t>(importObj.status.state)
                            << ", expect UBSE_MEM_IMPORT_SUCCESS or UBSE_MEM_IMPORT_RUNNING.";
             continue;
-            }
+        }
         if (importObj.algoResult.exportNumaInfos.empty()) {
             UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Skip " << name << ", export info is empty.";
             continue;
@@ -181,16 +161,13 @@ UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNod
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] importNodeId or exportNodeId is empty";
         return UBSE_ERROR_INVAL;
     }
-    mapLock.LockRead();
-    const auto it = nodeMemDebtInfoMap.find(importNodeId);
-    if (it == nodeMemDebtInfoMap.end()) {
-        mapLock.UnLock();
-        UBSE_LOG_INFO << "[MEM_CONTROLLER] Import node " << importNodeId << " has no debt info";
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto nodeMap = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().FindNodeMap(importNodeId);
+    if (!nodeMap) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Import node " << importNodeId << " has no share import debt info";
         return UBSE_OK;
     }
-    const auto &debtInfo = it->second;
-    CollectImportHandleDebtInfo(debtInfo.shareImportObjMap, exportNodeId, importHandleInfo);
-    mapLock.UnLock();
+    CollectImportHandleDebtInfo(nodeMap->GetAll(), exportNodeId, importHandleInfo);
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller::debt
