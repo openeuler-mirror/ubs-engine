@@ -149,7 +149,7 @@ UbseMemFdBorrowExportObj UbseFdExportObjGet(const std::string &nodeId, const std
     const auto exportKey = GenerateExportObjKey(name, importNodeId);
     auto exportObjPtr = UbseMemDebtLedger::GetInstance()
         .GetDebtMap<UbseMemFdBorrowExportObj>()
-        .GetResourceByGlobalKey(exportKey);
+        .GetExportResourceByResId(exportKey);
     if (!exportObjPtr) {
         UBSE_LOG_WARN << "name=" << name << ", importNodeId=" << importNodeId << " is not in debt.";
         return {};

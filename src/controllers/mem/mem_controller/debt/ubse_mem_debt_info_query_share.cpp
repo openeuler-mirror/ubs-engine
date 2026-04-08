@@ -167,7 +167,7 @@ uint32_t UbseMemShmGet(const UbseMemDebtQueryRequest &request, UbseMemShmDesc &s
     bool found = false;
 
     auto &ledger = UbseMemDebtLedger::GetInstance();
-    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResourceByGlobalKey(request.name);
+    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(request.name);
     if (exportObjPtr) {
         found = true;
         // 填充导出数据
@@ -311,7 +311,7 @@ uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, def::UbseMe
     const std::string name = request.name;
 
     auto &ledger = UbseMemDebtLedger::GetInstance();
-    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResourceByGlobalKey(request.name);
+    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(request.name);
     if (!exportObjPtr) {
         UBSE_LOG_WARN << "No export information found. related name: " << name;
     }
@@ -329,7 +329,7 @@ uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, def::UbseMe
 UbseMemResult GetShmExportStageByObj(const std::string &name)
 {
     auto &ledger = UbseMemDebtLedger::GetInstance();
-    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResourceByGlobalKey(name);
+    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(name);
     if (!exportObjPtr) {
         UbseMemResult result{};
         result.name = name;

@@ -44,7 +44,7 @@ std::pair<std::shared_ptr<const ImportType>, std::shared_ptr<const ExportType>> 
 {
     auto importObj = UbseMemDebtLedger::GetInstance().GetDebtMap<ImportType>().GetResource(importNodeId, name);
     auto exportKey = GenerateExportObjKey(name, importNodeId);
-    auto exportObj = UbseMemDebtLedger::GetInstance().GetDebtMap<ExportType>().GetResourceByGlobalKey(exportKey);
+    auto exportObj = UbseMemDebtLedger::GetInstance().GetDebtMap<ExportType>().GetExportResourceByResId(exportKey);
     return {importObj, exportObj};
 }
 
