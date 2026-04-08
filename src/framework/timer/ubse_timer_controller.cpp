@@ -24,6 +24,12 @@
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_logger_module.h"
+#include "ubse_thread_pool_module.h"
+
+
+namespace ubse::timer {
+using namespace ubse::common::def;
 using namespace ubse::log;
 using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
