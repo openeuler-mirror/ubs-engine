@@ -147,10 +147,9 @@ static uint32_t ExecTimerHandler() // 定时器触发位置直接计算需要执
 
 uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler, uint32_t interval)
 {
-    if (g_globalStop.load()) {
-        UBSE_LOG_DEBUG << "Global stop flag is set, skipping register timer.";
-        H
-            return UBSE_ERROR;
+    if (g_globalStop.load(std::memory_order_acquire)) {
+        UBSE_LOG_ERROR << "Global stop flag is set, skipping register timer.";
+        return UBSE_ERROR;
     }
     if (interval < UBSE_REGISTER_MIN_INTERVAL || interval > UBSE_REGISTER_MAX_INTERVAL) {
         UBSE_LOG_ERROR << "Handler=" << name << " interval invalid, interval=" << interval << "s";
@@ -163,12 +162,11 @@ uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler hand
     std::unique_lock<std::shared_mutex> lock(mtx);
     handlers[name] = std::make_pair(interval, handler);
     UBSE_LOG_INFO << "Register handler=" << name;
-    bool expected = false;
-    if (g_isTimerRunning.compare_exchange_strong(expected, true)) {
-        H
-            // 启动独立的超时检查线程
-            g_checkHandlerThread = std::thread(CheckHandlerExecTimeout);
-        g_ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
+    if (!isTimerRunning.load(std::memory_order_relaxed)) {
+        isTimerRunning.store(true, std::memory_order_relaxed);
+        // 启动独立的超时检查线程
+        g_checkHandlerThread = std::thread(CheckHandlerExecTimeout);
+        ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
         UBSE_LOG_INFO << "Ubse timer started.";
     }
     return UBSE_OK;
