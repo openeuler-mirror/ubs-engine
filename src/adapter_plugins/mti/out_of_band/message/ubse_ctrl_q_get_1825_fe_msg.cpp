@@ -35,7 +35,7 @@ UbseResult UbseCtrlQGet1825FeReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGetIdevPfeGuidRespMsg &respMsg, UbseMtiGuid &guid)
+static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGet1825PfGuidRespMsg &respMsg, UbseMtiGuid &guid)
 {
     auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
