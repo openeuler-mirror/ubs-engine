@@ -173,7 +173,14 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const Export
                                         UbseMemBorrowType borrowType)
 {
     auto ret = UBSE_OK;
-    std::string exportDebtName = name + "_" + nodeId;
+    std::string exportDebtName;
+    // 使用 std::decay_t 去除引用和 const 属性，确保匹配核心类型
+    if constexpr (std::is_same_v<std::decay_t<decltype(importObj)>, UbseMemShareBorrowImportObj>) {
+        exportDebtName = name;
+    } else {
+        exportDebtName = name + "_" + nodeId;
+    }
+
     if (exportObjMap.find(exportDebtName) != exportObjMap.end()) {
         return ret;
     }
@@ -265,7 +272,8 @@ UbseResult AgentInvalidateImportDebtHelper(ImportObjMap &importObjMap,
     }
     auto& debtObj = importObjMap.at(name);
     uint8_t decoderId = 0;
-    if constexpr (std::is_same_v<decltype(debtObj), UbseMemShareBorrowImportObj&>) {
+    // 使用 std::decay_t 去除引用和 const 属性，确保匹配核心类型
+    if constexpr (std::is_same_v<std::decay_t<decltype(debtObj)>, UbseMemShareBorrowImportObj>) {
         decoderId = debtObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
     }
 
