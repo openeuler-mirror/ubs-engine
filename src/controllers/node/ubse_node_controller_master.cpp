@@ -44,7 +44,6 @@ constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-
 namespace ubse::nodeController {
 using namespace ubse::context;
 using namespace ubse::election;
@@ -685,6 +684,8 @@ void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
     // 清理节点信息
     UBSE_LOG_INFO << "Cleaning node context...";
     UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
+
+    UBSE_LOG_INFO << "Master cleanup completed";
 }
 
 void UbseNodeControllerMaster::Stop()
