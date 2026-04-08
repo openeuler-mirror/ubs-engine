@@ -17,6 +17,7 @@
 #include "ubse_mem_agent_task_manager.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_node_controller_query_api.h"
 
@@ -39,19 +40,22 @@ uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest &request, UbseMemAddrDesc 
     }
     const std::string name = request.name;
     const std::string importNodeId = request.importNodeId;
+    NodeMemDebtInfo debtInfo = GetNodeMemDebtInfoById(importNodeId);
 
-    auto importObjPtr =
-        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(importNodeId, name);
-    if (!importObjPtr) {
+    auto iterator = debtInfo.addrImportObjMap.find(name);
+    if (iterator == debtInfo.addrImportObjMap.end()) {
         UBSE_LOG_ERROR << "Failed to find no delete debt, name: " << name << "related node id: " << importNodeId;
         return UBSE_ERR_NOT_EXIST;
     }
+
     // 找到目标对象，提取信息
+    auto importObj = iterator->second;
+
     desc.name = name;
-    if (importObjPtr->status.importResults.empty()) {
+    if (importObj.status.importResults.empty()) {
         return UBSE_ERROR;
     }
-    desc.numaId = importObjPtr->status.importResults[0].numaId;
+    desc.numaId = importObj.status.importResults[0].numaId;
     // 填充导入信息
     ubse::nodeController::def::UbseNode importNode;
     ubse::nodeController::UbseNodeGetByNodeId(importNodeId, importNode);
@@ -62,28 +66,71 @@ uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest &request, UbseMemAddrDesc 
         desc.importNode.socketIdList.push_back(static_cast<int16_t>(importNode.socketId[i]));
     }
     // 填充导出信息
-    desc.lender.pid = importObjPtr->req.exportPid;
-    desc.lender.slotId = static_cast<uint32_t>(std::stoul(importObjPtr->req.exportNodeId));
-    desc.lender.socketId = importObjPtr->req.dstSocket;
-    for (const auto &val : importObjPtr->req.exportAddrList) {
+    desc.lender.pid = importObj.req.exportPid;
+    desc.lender.slotId = static_cast<uint32_t>(std::stoul(importObj.req.exportNodeId));
+    desc.lender.socketId = importObj.req.dstSocket;
+    for (auto val : importObj.req.exportAddrList) {
         desc.lender.vaLists.push_back({val.addr, val.size});
     }
-    for (const auto &val : importObjPtr->algoResult.exportNumaInfos) {
+    for (auto val : importObj.algoResult.exportNumaInfos) {
         desc.size += val.size;
     }
-    return UBSE_OK;
+    return UBSE_OK; // 根据查找结果返回
 }
 
-UbseMemResult GetAddrStageByObj(const std::string &name, const std::string &importNodeId)
+UbseMemResult GetAddrStageByObj(const std::string &name, const std::string &importNodeId,
+                                const NodeMemDebtInfoMap &debtInfoMap)
 {
-    return GetStageByObj<UbseMemAddrBorrowImportObj, UbseMemAddrBorrowExportObj>(name, importNodeId);
+    UbseMemAddrBorrowImportObj addrImportObj{};
+    UbseMemAddrBorrowExportObj addrExportObj{};
+    bool importObjExist = false;
+    bool exportObjExist = false;
+    UbseMemResult result{name};
+    for (auto [nodeId, nodeInfo] : debtInfoMap) {
+        if (nodeInfo.addrImportObjMap.find(name) == nodeInfo.addrImportObjMap.end()) {
+            continue;
+        }
+        // 节点级唯一、多个node可能有同一个name
+        if (nodeId != importNodeId) {
+            continue;
+        }
+        addrImportObj = nodeInfo.addrImportObjMap[name];
+        importObjExist = true;
+        break;
+    }
+    auto exportKey = GenerateExportObjKey(name, importNodeId);
+    for (auto [nodeId, nodeInfo] : debtInfoMap) {
+        if (nodeInfo.addrExportObjMap.find(exportKey) == nodeInfo.addrExportObjMap.end()) {
+            continue;
+        }
+        addrExportObj = nodeInfo.addrExportObjMap[exportKey];
+        exportObjExist = true;
+        break;
+    }
+    result.importNodeId = importNodeId;
+    if (!importObjExist && !exportObjExist) {
+        result.name = name;
+        result.stage = UbseMemStage::UBSE_NOT_EXIST;
+        return result;
+    }
+
+    for (auto addrInfo : addrExportObj.req.exportAddrList) {
+        result.realSize += addrInfo.size;
+    }
+    if (!importObjExist && exportObjExist) {
+        result.stage = UbseMemStage::UBSE_ERR_WAIT_UNEXPORT;
+        return result;
+    }
+
+    result.stage = GetOptStageByObjState(addrImportObj, exportObjExist);
+    return result;
 }
 
 UbseMemAddrBorrowExportObj UbseAddrExportObjGet(const std::string &nodeId, const std::string &name,
                                                 const std::string &importNodeId, const bool isFromTaskManager)
 {
+    UbseMemAddrBorrowExportObj obj{};
     if (isFromTaskManager) {
-        UbseMemAddrBorrowExportObj obj{};
         const auto ret = UbseMemAgentTaskManager::GetTaskObj(name, importNodeId, obj);
         if (ret != UBSE_OK) {
             UBSE_LOG_WARN << "name=" << name << ", importNodeId=" << importNodeId << " is not in task manager.";
@@ -92,21 +139,24 @@ UbseMemAddrBorrowExportObj UbseAddrExportObjGet(const std::string &nodeId, const
         }
     }
 
-    const auto exportKey = GenerateExportObjKey(name, importNodeId);
-    auto exportObjPtr =
-        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().GetExportResourceByResId(exportKey);
-    if (!exportObjPtr) {
+    const auto map = GetNodeMemDebtInfoMap();
+    const auto nodeIter = map.find(nodeId);
+    if (nodeIter == map.end()) {
+        return {};
+    }
+    const auto objIter = nodeIter->second.addrExportObjMap.find(GenerateExportObjKey(name, importNodeId));
+    if (objIter == nodeIter->second.addrExportObjMap.end()) {
         UBSE_LOG_WARN << "name=" << name << ", importNodeId=" << importNodeId << " is not in debt.";
         return {};
     }
-    return *exportObjPtr;
+    return objIter->second;
 }
 
 UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string &nodeId, const std::string &name,
                                                 const bool isFromTaskManager)
 {
+    UbseMemAddrBorrowImportObj obj{};
     if (isFromTaskManager) {
-        UbseMemAddrBorrowImportObj obj{};
         const auto ret = UbseMemAgentTaskManager::GetTaskObj(name, "", obj);
         if (ret != UBSE_OK) {
             UBSE_LOG_WARN << "name=" << name << " is not in task manager.";
@@ -115,12 +165,16 @@ UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string &nodeId, const
         }
     }
 
-    auto importObjPtr =
-        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().GetResource(nodeId, name);
-    if (!importObjPtr) {
+    const auto map = GetNodeMemDebtInfoMap();
+    const auto nodeIter = map.find(nodeId);
+    if (nodeIter == map.end()) {
+        return {};
+    }
+    const auto objIter = nodeIter->second.addrImportObjMap.find(name);
+    if (objIter == nodeIter->second.addrImportObjMap.end()) {
         UBSE_LOG_WARN << "name=" << name << " is not in debt.";
         return {};
     }
-    return *importObjPtr;
+    return objIter->second;
 }
 } // namespace ubse::mem::controller::debt
