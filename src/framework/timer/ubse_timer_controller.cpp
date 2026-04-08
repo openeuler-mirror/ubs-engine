@@ -167,8 +167,8 @@ uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler hand
     std::unique_lock<std::shared_mutex> lock(mtx);
     handlers[name] = std::make_pair(interval, handler);
     UBSE_LOG_INFO << "Register handler=" << name;
-    if (!isTimerRunning.load(std::memory_order_relaxed)) {
-        isTimerRunning.store(true, std::memory_order_relaxed);
+    if (!g_isTimerRunning.load(std::memory_order_relaxed)) {
+        g_isTimerRunning.store(true, std::memory_order_relaxed);
         // 启动独立的超时检查线程
         g_checkHandlerThread = std::thread(CheckHandlerExecTimeout);
         g_ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
