@@ -45,54 +45,73 @@ static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGet1825PfGuidRespMsg &r
     guid = respMsg.GetGuid();
     return UBSE_OK;
 }
-
-static UbseResult GetRespResult(std::vector<UbseMti1825Pf> &pfeList, UbseCtrlQMsgReadHelper &readHelper)
+// 处理单个 VF
+static UbseResult ProcessVf(UbseCtrlQMsgReadHelper &readHelper, UbseMti1825Pf &pf)
 {
-    std::unordered_map<uint8_t, UbseMti1825Pf> pfMap;
-    std::unordered_map<uint8_t, std::vector<UbseMti1825Vf>> pfIdVfMap;
-    auto feNum = readHelper.Read<uint8_t>();
-    for (uint8_t feId = 0; feId < feNum; feId++) {
-        auto slotId = readHelper.Read<uint8_t>();
-        auto chipId = readHelper.Read<uint8_t>();
-        auto dieId = readHelper.Read<uint8_t>();
-        auto pfId = readHelper.Read<uint8_t>();
-        auto vfId = readHelper.Read<uint8_t>();
-        if (pfId == 0xFF) {
-            UBSE_LOG_ERROR << "Invalid pfId";
-            return UBSE_ERROR;
-        }
-        if (vfId == INVALID_PF_ID) {
-            auto pf = UbseMti1825Pf(slotId, chipId, dieId, pfId);
-            auto reqMsg = UbseCtrlQGet1825PfGuidReqMsg(pf);
-            auto respMsg = UbseCtrlQGet1825PfGuidRespMsg();
-            auto ret = GetGuid(reqMsg, respMsg, pf.guid);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Get pf guid for pf: " << pfId << " failed";
-                return ret;
-            }
-            pfMap[pfId] = pf;
-        } else {
-            auto vf = UbseMti1825Vf(slotId, chipId, dieId, pfId, vfId);
-            auto reqMsg = UbseCtrlQGet1825VfGuidReqMsg(vf);
-            auto respMsg = UbseCtrlQGet1825VfGuidRespMsg();
-            auto ret = GetGuid(reqMsg, respMsg, vf.guid);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Get vf guid for vf: " << vfId << " failed";
-                return ret;
-            }
-            pfIdVfMap[pfId].emplace_back(vf);
-        }
+    const auto vfId = readHelper.Read<uint16_t>();
+    UbseMti1825Vf vf(pf.slotId, pf.chipId, pf.dieId, pf.pfId, vfId);
+    auto reqMsg = UbseCtrlQGet1825VfGuidReqMsg(vf);
+    auto respMsg = UbseCtrlQGet1825VfGuidRespMsg();
+    if (UbseResult ret = GetGuid(reqMsg, respMsg, vf.guid); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get vf guid failed, vfId: " << vfId;
+        return ret;
     }
-    for (auto &[pfId, pf] : pfMap) {
-        auto tmpPf = pf;
-        if (pfIdVfMap.find(pfId) != pfIdVfMap.end()) {
-            tmpPf.vfList = pfIdVfMap[pfId];
-        }
-        pfeList.emplace_back(tmpPf);
-    }
+    pf.vfList.emplace_back(std::move(vf));
     return UBSE_OK;
 }
 
+// 处理单个 PF
+static UbseResult ProcessPf(UbseCtrlQMsgReadHelper &readHelper, UbseMti1825Pf &pf)
+{
+    auto reqMsg = UbseCtrlQGet1825PfGuidReqMsg(pf);
+    auto respMsg = UbseCtrlQGet1825PfGuidRespMsg();
+    UbseResult ret = GetGuid(reqMsg, respMsg, pf.guid);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get pf guid failed, pfId: " << pf.pfId;
+        return ret;
+    }
+
+    const auto vfNum = readHelper.Read<uint16_t>();
+    pf.vfList.reserve(vfNum);
+    for (uint16_t vfIdx = 0; vfIdx < vfNum; ++vfIdx) {
+        ret = ProcessVf(readHelper, pf);
+        if (ret != UBSE_OK)
+            return ret;
+    }
+    return UBSE_OK;
+}
+static UbseResult ProcessPfs(UbseCtrlQMsgReadHelper &readHelper, const uint8_t &slotId, const uint8_t &chipId,
+                             const uint8_t &dieId, std::vector<UbseMti1825Pf> &pfeList)
+{
+    const auto pfNum = readHelper.Read<uint8_t>();
+    for (uint16_t pfIdx = 0; pfIdx < pfNum; ++pfIdx) {
+        const auto pfId = readHelper.Read<uint16_t>();
+        UbseMti1825Pf pf(slotId, chipId, dieId, pfId);
+        if (const UbseResult ret = ProcessPf(readHelper, pf); ret != UBSE_OK) {
+            return ret;
+        }
+        pfeList.emplace_back(std::move(pf));
+    }
+    return UBSE_OK;
+}
+static UbseResult GetRespResult(std::vector<UbseMti1825Pf> &pfeList, UbseCtrlQMsgReadHelper &readHelper)
+{
+    const auto slotId = readHelper.Read<uint8_t>();
+    const auto chipNum = readHelper.Read<uint8_t>();
+
+    for (uint8_t chipIdx = 0; chipIdx < chipNum; ++chipIdx) {
+        const auto chipId = readHelper.Read<uint8_t>();
+        const auto dieNum = readHelper.Read<uint8_t>();
+
+        for (uint8_t dieIdx = 0; dieIdx < dieNum; ++dieIdx) {
+            const auto dieId = readHelper.Read<uint8_t>();
+            if (auto ret = ProcessPfs(readHelper, slotId, chipId, dieId, pfeList); ret != UBSE_OK) {
+                return ret;
+            }
+        }
+    }
+    return UBSE_OK;
+}
 UbseResult UbseCtrlQGet1825PfeRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 为0时，不检查bbNum

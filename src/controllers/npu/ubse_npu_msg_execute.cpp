@@ -33,7 +33,7 @@ constexpr uint8_t HEX_RADIX = 16;
 // list接口
 uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
 // alloc接口
-uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo);
+uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo, bool isAlloc);
 uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
                               const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
 uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo);
@@ -42,12 +42,7 @@ uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, T
 uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg &resp)
 {
     std::vector<std::shared_ptr<IResource>> devList;
-    auto npuCtrlModule = UbseContext::GetInstance().GetModule<UbseNpuControllerModule>();
-    if (npuCtrlModule == nullptr) {
-        UBSE_LOG_ERROR << "Get npu controller module failed";
-        return UBSE_ERROR_NULLPTR;
-    }
-    auto ret = npuCtrlModule->QueryAllDevices(devList);
+    auto ret = QueryAllDevicesImpl(devList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "QueryLocalUbDevices failed, " << FormatRetCode(ret);
         return ret;
@@ -66,7 +61,7 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
 {
     // 解析接收数据
     UbseAllocRequest requestInfo;
-    auto ret = UbseAllocRequestUnpack(req, requestInfo);
+    auto ret = UbseAllocRequestUnpack(req, requestInfo, true);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -94,7 +89,7 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
 uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp)
 {
     UbseAllocRequest requestInfo{};
-    auto ret = UbseAllocRequestUnpack(req, requestInfo);
+    auto ret = UbseAllocRequestUnpack(req, requestInfo, false);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -259,11 +254,11 @@ uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice> &devL
             UBSE_LOG_ERROR << "Failed to unpack dieId";
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
-        if (!unpackUtil.UnpackUint8(tmpDev.pfId)) {
+        if (!unpackUtil.UnpackUint16(tmpDev.pfId)) {
             UBSE_LOG_ERROR << "Failed to unpack pfId";
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
-        if (!unpackUtil.UnpackUint8(tmpDev.vfId)) {
+        if (!unpackUtil.UnpackUint16(tmpDev.vfId)) {
             UBSE_LOG_ERROR << "Failed to unpack vfId";
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
@@ -272,7 +267,7 @@ uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice> &devL
     return UBSE_OK;
 }
 
-uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo)
+uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo, bool isAlloc)
 {
     UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
     for (size_t i = 0; i < UBSE_UB_UPI_STR_SIZE; i++) {
@@ -281,10 +276,12 @@ uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &req
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
     }
-    std::string upiStr(requestInfo.upis, requestInfo.upis + UBSE_UB_UPI_STR_SIZE);
-    if (ConvertStrToUint16(upiStr, requestInfo.upiStr, HEX_RADIX) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Invalid upi:" << upiStr;
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+    if (isAlloc) {
+        std::string upiStr(requestInfo.upis, requestInfo.upis + UBSE_UB_UPI_STR_SIZE);
+        if (ConvertStrToUint16(upiStr, requestInfo.upiStr, HEX_RADIX) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Invalid upi:" << upiStr;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
     }
     uint8_t tmpGuid[UBSE_UB_DEVICE_GUID_SIZE];
     for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {

@@ -30,15 +30,6 @@ public:
     UbseResult Start() override;
 
     void Stop() override;
-
-    UbseResult AllocDevices(const UbseAllocRequest &request, std::string &newBusInstanceGuid,
-                            std::vector<std::shared_ptr<IResource>> &devList);
-
-    UbseResult FreeUbDevices(const UbseAllocRequest &requestInfo);
-
-    UbseResult QueryAllDevices(std::vector<std::shared_ptr<IResource>> &devList);
-
-    UbseResult QueryUbaTidSize(const std::string &busInstanceGuid, UbaTidSize &info);
 };
 } // namespace ubse::npu::controller
 #endif // UBSE_NPU_CONTROLLER_MODULE_H

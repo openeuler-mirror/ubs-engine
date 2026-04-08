@@ -27,7 +27,7 @@ using namespace ubse::mem::controller::rpc;
 using namespace ubse::mmi;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
-DYNAMIC_CREATE(UbseMemControllerModule, UbseMmiModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseMemControllerModule, UbseMmiModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t CYCLE_CHECK_TIME_S = 300;

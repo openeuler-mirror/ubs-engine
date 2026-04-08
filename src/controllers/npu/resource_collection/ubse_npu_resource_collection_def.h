@@ -55,8 +55,8 @@ struct CollectDeviceLoc {
     uint8_t slotId;
     uint8_t chipId;
     uint8_t dieId;
-    uint8_t pfeId;
-    uint8_t vfeId;
+    uint16_t pfeId;
+    uint16_t vfeId;
     UbseMtiEid eid;
     CollectionGuid guid;
     CollectionUpi upi;
@@ -66,18 +66,20 @@ struct CollectDeviceLoc {
 
 class CollectionStringUtil {
 public:
+    // 辅助元函数：检查一个类型是否是 uint8_t 或 uint16_t
+    template <typename T>
+    struct IsAllowedType : std::integral_constant<bool, std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t>> {};
+
     template <typename... Args>
     static CollectionDevId CollectionJoinStr(Args... args)
     {
         static_assert(sizeof...(Args) > 0, "At least one argument is required");
-        if constexpr (all_same_v<uint8_t, Args...>()) {
-            std::ostringstream oss;
-            ((oss << (oss.tellp() == 0 ? "" : "-") << std::to_string(args)), ...);
-            return oss.str();
-        } else {
-            static_assert(all_same_v<uint8_t, Args...>(), "All arguments must be either uint8_t or CollectionDevId");
-            return "";
-        }
+        // 检查参数包中的每一个类型是否都是允许的
+        static_assert((... && IsAllowedType<Args>::value), "All arguments must be either uint8_t or uint16_t");
+
+        std::ostringstream oss;
+        ((oss << (oss.tellp() == 0 ? "" : "-") << std::to_string(args)), ...);
+        return oss.str();
     }
 
     static CollectionDevId GuidToStr(const UbseMtiGuid &guid);

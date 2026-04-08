@@ -25,7 +25,7 @@
 namespace syssentry {
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mti;
-DYNAMIC_CREATE(SysSentryModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, SysSentryModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult SysSentryModule::Initialize()

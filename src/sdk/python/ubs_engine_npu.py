@@ -31,7 +31,7 @@ def get_host_ub_devices() -> List[DeviceInfo]:
     return _npu_interface.ubs_device_list()
 
 
-def alloc_devices(upi_bytes, bus_guid_bytes, device_list) -> Tuple[str, List[DeviceInfo]]:
+def alloc_devices(upi, bus_guid, device_list) -> Tuple[str, List[DeviceInfo]]:
     """
     分配UB设备
     
@@ -42,7 +42,7 @@ def alloc_devices(upi_bytes, bus_guid_bytes, device_list) -> Tuple[str, List[Dev
         RuntimeError: 绑定失败
         Exception: 其他未知错误
     """
-    return _npu_interface.ubs_device_alloc(upi_bytes, bus_guid_bytes, device_list)
+    return _npu_interface.ubs_device_alloc(upi, bus_guid, device_list)
 
 
 def free_devices(bus_instance_guid, device_list) -> None:

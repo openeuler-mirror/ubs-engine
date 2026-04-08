@@ -25,7 +25,7 @@ using namespace api::server;
 using namespace ubse::config;
 using namespace ubse::node::api;
 
-DYNAMIC_CREATE(UbseNodeControllerModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseNodeControllerModule);
 
 UbseResult UbseNodeControllerModule::Initialize()
 {

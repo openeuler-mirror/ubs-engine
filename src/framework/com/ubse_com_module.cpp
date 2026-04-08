@@ -34,8 +34,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::task_executor;
 using namespace ubse::election;
 using namespace ubse::config;
-BASE_DYNAMIC_CREATE(UbseComModule, UbseConfModule, ubse::task_executor::UbseTaskExecutorModule,
-                    ubse::event::UbseEventModule);
+CONDITION_BASE_DYNAMIC_CREATE(context::GetSceneType() == context::SceneType::COMMON, UbseComModule, UbseConfModule,
+                              ubse::task_executor::UbseTaskExecutorModule, ubse::event::UbseEventModule);
 const std::string UBSE_CERT_SECTION = "ubse.rpc";
 const std::string UBSE_CERT_CONFIG_KEY = "cert.use";
 constexpr uint16_t NODE_UP_STATE = 1;

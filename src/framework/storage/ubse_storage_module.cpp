@@ -22,7 +22,8 @@ using namespace ubse::election;
 using namespace ubse::misc::fs;
 using namespace ubse::security;
 
-BASE_DYNAMIC_CREATE(UbseStorageModule, UbseLoggerModule, UbseElectionModule);
+CONDITION_BASE_DYNAMIC_CREATE(context::GetSceneType() == context::SceneType::COMMON, UbseStorageModule,
+                              UbseLoggerModule, UbseElectionModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 class UbseStorageModule::Impl {

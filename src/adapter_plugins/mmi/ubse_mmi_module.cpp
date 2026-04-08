@@ -26,7 +26,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mmi;
 
-DYNAMIC_CREATE(UbseMmiModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseMmiModule);
 UbseResult UbseMmiModule::Initialize()
 {
     auto ret = RmObmmExecutor::GetInstance().Init();

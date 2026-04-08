@@ -13,7 +13,6 @@
 #include "ubse_npu_controller_module.h"
 #include "vm_state_monitor/ubse_npu_monitor_service_api.h"
 #include "ubse_context.h"
-#include "ubse_env_util.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_npu_controller_dispatcher.h"
@@ -23,16 +22,8 @@ namespace ubse::npu::controller {
 using namespace ubse::log;
 using namespace ubse::context;
 
-static bool ConditionStart();
-
-CONDITION_DYNAMIC_CREATE(ConditionStart(), UbseNpuControllerModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::AI,  UbseNpuControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
-
-bool ConditionStart()
-{
-    auto kindArg = ubse::utils::GetEnv<std::string>("SCENE_TYPE", {});
-    return kindArg == "ai";
-}
 
 UbseResult UbseNpuControllerModule::Initialize()
 {
@@ -55,25 +46,4 @@ UbseResult UbseNpuControllerModule::Start()
 }
 
 void UbseNpuControllerModule::Stop() {}
-
-UbseResult UbseNpuControllerModule::AllocDevices(const UbseAllocRequest &request, std::string &newBusInstanceGuid,
-                                                 std::vector<std::shared_ptr<IResource> > &devList)
-{
-    return AllocDevicesImpl(request, newBusInstanceGuid, devList);
-}
-
-UbseResult UbseNpuControllerModule::FreeUbDevices(const UbseAllocRequest &requestInfo)
-{
-    return FreeUbDevicesImpl(requestInfo);
-}
-
-UbseResult UbseNpuControllerModule::QueryAllDevices(std::vector<std::shared_ptr<IResource> > &devList)
-{
-    return QueryAllDevicesImpl(devList);
-}
-
-UbseResult UbseNpuControllerModule::QueryUbaTidSize(const std::string &busInstanceGuid, UbaTidSize &info)
-{
-    return QueryUbaTidSizeImpl(busInstanceGuid, info);
-}
 } // namespace ubse::npu::controller
