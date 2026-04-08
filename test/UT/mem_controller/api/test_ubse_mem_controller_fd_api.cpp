@@ -14,7 +14,6 @@
 
 #include <ubse_com_module.h>
 #include <ubse_error.h>
-#include "debt/ubse_mem_debt_ledger.h"
 #include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_fd_borrow_importobj_simpo.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
@@ -27,7 +26,6 @@ namespace ubse::mem_controller::fd::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::election;
 using namespace ubse::mem::controller::message;
-using namespace ubse::mem::controller::debt;
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
 
@@ -98,13 +96,23 @@ void ExportCallbackCommonSetup(election::UbseRoleInfo &currentInfo, election::Ub
 void AddToExportObjMap(const std::string &name, const std::string &nodeId, UbseMemFdBorrowExportObj &fdBorrowExportObj)
 {
     auto exportKey = mem::controller::GenerateExportObjKey(name, nodeId);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(nodeId, exportKey,
-                                                                                        fdBorrowExportObj);
+    if (mem::controller::nodeMemDebtInfoMap.find(nodeId) == mem::controller::nodeMemDebtInfoMap.end()) {
+        NodeMemDebtInfo nodeMemDebtInfo{};
+        nodeMemDebtInfo.fdExportObjMap.emplace(exportKey, fdBorrowExportObj);
+        mem::controller::nodeMemDebtInfoMap.emplace(nodeId, nodeMemDebtInfo);
+    } else {
+        mem::controller::nodeMemDebtInfoMap[nodeId].fdExportObjMap[exportKey] = fdBorrowExportObj;
+    }
 }
 void AddToImportObjMap(const std::string &name, const std::string &nodeId, UbseMemFdBorrowImportObj &fdBorrowImportObj)
 {
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(nodeId, name,
-                                                                                        fdBorrowImportObj);
+    if (mem::controller::nodeMemDebtInfoMap.find(nodeId) == mem::controller::nodeMemDebtInfoMap.end()) {
+        NodeMemDebtInfo nodeMemDebtInfo{};
+        nodeMemDebtInfo.fdImportObjMap.emplace(name, fdBorrowImportObj);
+        mem::controller::nodeMemDebtInfoMap.emplace(nodeId, nodeMemDebtInfo);
+    } else {
+        mem::controller::nodeMemDebtInfoMap[nodeId].fdImportObjMap[name] = fdBorrowImportObj;
+    }
 }
 
 void TestUbseMemControllerFdApi::SetUp()
@@ -116,7 +124,6 @@ void TestUbseMemControllerFdApi::SetUp()
 }
 void TestUbseMemControllerFdApi::TearDown()
 {
-    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     Test::TearDown();
     GlobalMockObject::verify();
 }

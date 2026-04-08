@@ -14,9 +14,7 @@
 #define UBS_ENGINE_UBSE_MEM_DEBT_INFO_QUERY_H
 
 #include "ubse_mem_controller.h"
-#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_def.h"
-#include "ubse_mem_debt_ledger.h"
 
 namespace ubse::mem::controller::debt {
 using namespace ubse::mem::def;
@@ -38,62 +36,19 @@ uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, UbseMemShmM
 
 uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest &request, UbseMemAddrDesc &desc);
 
-template <typename ImportType, typename ExportType>
-std::pair<std::shared_ptr<const ImportType>, std::shared_ptr<const ExportType>> FindBorrowObjPair(
-    const std::string &name, const std::string &importNodeId)
-{
-    auto importObj = UbseMemDebtLedger::GetInstance().GetDebtMap<ImportType>().GetResource(importNodeId, name);
-    auto exportKey = GenerateExportObjKey(name, importNodeId);
-    auto exportObj = UbseMemDebtLedger::GetInstance().GetDebtMap<ExportType>().GetExportResourceByResId(exportKey);
-    return {importObj, exportObj};
-}
+UbseMemResult GetFdStageByObj(const std::string &name, const std::string &importNodeId,
+                              const NodeMemDebtInfoMap &nodeMemDebtInfoMap);
 
-template <typename ImportType, typename ExportType>
-UbseMemResult GetStageByObj(const std::string &name, const std::string &importNodeId)
-{
-    UbseMemResult result{};
-    result.name = name;
-    result.importNodeId = importNodeId;
+UbseMemResult GetNumaStageByObj(const std::string &name, const std::string &importNodeId,
+                                const NodeMemDebtInfoMap &debtInfoMap);
 
-    auto [importObjPtr, exportObjPtr] = FindBorrowObjPair<ImportType, ExportType>(name, importNodeId);
-    // 无导入导出
-    if (!importObjPtr && !exportObjPtr) {
-        result.stage = UbseMemStage::UBSE_NOT_EXIST;
-        return result;
-    }
-    // 单导出
-    if (!importObjPtr) {
-        if constexpr (IsAddrTypeV<ExportType>) {
-            for (const auto &addrInfo : exportObjPtr->req.exportAddrList) {
-                result.realSize += addrInfo.size;
-            }
-        } else {
-            result.realSize = exportObjPtr->req.size;
-        }
-        result.stage = UbseMemStage::UBSE_ERR_WAIT_UNEXPORT;
-        return result;
-    }
+UbseMemResult GetShmExportStageByObj(const std::string &name, const NodeMemDebtInfoMap &debtInfoMap);
 
-    if constexpr (IsAddrTypeV<ImportType>) {
-        for (const auto &addrInfo : importObjPtr->req.exportAddrList) {
-            result.realSize += addrInfo.size;
-        }
-    } else {
-        result.realSize = importObjPtr->req.size;
-    }
-    result.stage = GetOptStageByObjState(*importObjPtr, (exportObjPtr != nullptr));
-    return result;
-}
+UbseMemResult GetShmImportStageByObj(const std::string &name, const std::string &importNodeId,
+                                     const NodeMemDebtInfoMap &debtInfoMap);
 
-UbseMemResult GetFdStageByObj(const std::string &name, const std::string &importNodeId);
-
-UbseMemResult GetNumaStageByObj(const std::string &name, const std::string &importNodeId);
-
-UbseMemResult GetShmExportStageByObj(const std::string &name);
-
-UbseMemResult GetShmImportStageByObj(const std::string &name, const std::string &importNodeId);
-
-UbseMemResult GetAddrStageByObj(const std::string &name, const std::string &importNodeId);
+UbseMemResult GetAddrStageByObj(const std::string &name, const std::string &importNodeId,
+                                const NodeMemDebtInfoMap &debtInfoMap);
 
 uint32_t UbseMemNodeBorrowQuery(std::vector<UbseNodeBorrowInfo> &nodeBorrowInfo);
 
