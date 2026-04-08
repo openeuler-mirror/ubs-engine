@@ -60,7 +60,6 @@ static std::mutex g_handlerExecCheckCvMutex{};
 
 static void CheckHandlerExecTimeout()
 {
-
     std::unique_lock<std::mutex> lock(g_handlerExecCheckCvMutex);
     while (g_isTimerRunning.load(std::memory_order_acquire) && !g_globalStop.load(std::memory_order_acquire)) {
         g_handlerExecCheckCv.wait_for(lock, std::chrono::seconds(g_handlerExecCheckInterval));
@@ -172,7 +171,7 @@ uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler hand
         isTimerRunning.store(true, std::memory_order_relaxed);
         // 启动独立的超时检查线程
         g_checkHandlerThread = std::thread(CheckHandlerExecTimeout);
-        ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
+        g_ubseTimer.Start(UBSE_INTERVAL * ONE_SECOND_TO_MILLI_SECONDS, ExecTimerHandler, TIMER_NAME);
         UBSE_LOG_INFO << "Ubse timer started.";
     }
     return UBSE_OK;
