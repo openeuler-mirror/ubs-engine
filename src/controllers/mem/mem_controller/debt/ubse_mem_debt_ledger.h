@@ -210,7 +210,7 @@ private:
  * @brief 单类型账本模板类
  * @tparam T 资源对象类型，支持各种BorrowImportObj和BorrowExportObj类型
  * @note 管理所有节点上某一特定类型的资源，提供节点级别的资源管理能力
- *       对于ExportObj类型，额外维护全局键索引以支持跨节点资源查询
+ *       对于ExportObj类型，额外维护资源ID到节点ID的索引以支持跨节点资源查询
  */
 template <typename T>
 class UbseMemTypeDebtMap {
@@ -288,7 +288,7 @@ public:
      * @param[in] nodeId 节点ID
      * @return 成功删除返回true，节点不存在返回false
      * @note 线程安全，使用写锁保护
-     *       对于ExportObj类型，会同步清理全局键索引中的相关条目
+     *       对于ExportObj类型，会同步清理资源ID索引中的相关条目
      */
     bool RemoveNodeMap(const std::string &nodeId)
     {
@@ -298,7 +298,7 @@ public:
             if (it != nodeMap_.end()) {
                 auto allResources = it->second->GetAll();
                 for (const auto &[resId, _] : allResources) {
-                    globalKeyIndex_.erase(resId);
+                    exportResIdToNodeId_.erase(resId);
                 }
             }
         }
@@ -309,7 +309,7 @@ public:
      * @brief 删除除指定节点外的所有节点账本
      * @param[in] excludeNodeId 要保留的节点ID
      * @note 线程安全，使用写锁保护
-     *       对于ExportObj类型，会同步清理全局键索引中的相关条目
+     *       对于ExportObj类型，会同步清理资源ID索引中的相关条目
      */
     void RemoveOtherNodeMaps(const std::string &excludeNodeId)
     {
@@ -319,7 +319,7 @@ public:
                 if constexpr (IsExportObjTypeV<T>) {
                     auto allResources = it->second->GetAll();
                     for (const auto &[resId, _] : allResources) {
-                        globalKeyIndex_.erase(resId);
+                        exportResIdToNodeId_.erase(resId);
                     }
                 }
                 it = nodeMap_.erase(it);
@@ -345,26 +345,26 @@ public:
     }
 
     /**
-     * @brief 通过全局键查询资源（仅ExportObj类型有效）
-     * @param[in] globalKey 全局键，即资源ID
+     * @brief 通过资源ID查询导出资源（仅ExportObj类型有效）
+     * @param[in] resId 导出资源ID
      * @return 指向常量资源对象的共享指针，如果资源不存在或类型不支持则返回nullptr
      * @note 线程安全，使用读锁保护
      *       仅对ExportObj类型有效，ImportObj类型始终返回nullptr
-     *       利用全局键索引实现跨节点资源快速查询
+     *       利用资源ID到节点ID的索引实现跨节点资源快速查询
      */
-    std::shared_ptr<const T> GetResourceByGlobalKey(const std::string &globalKey)
+    std::shared_ptr<const T> GetExportResourceByResId(const std::string &resId)
     {
         if constexpr (IsExportObjTypeV<T>) {
             std::shared_lock<std::shared_mutex> lock(mutex_);
-            auto indexIt = globalKeyIndex_.find(globalKey);
-            if (indexIt == globalKeyIndex_.end()) {
+            auto indexIt = exportResIdToNodeId_.find(resId);
+            if (indexIt == exportResIdToNodeId_.end()) {
                 return nullptr;
             }
             auto nodeIt = nodeMap_.find(indexIt->second);
             if (nodeIt == nodeMap_.end()) {
                 return nullptr;
             }
-            return nodeIt->second->Get(globalKey);
+            return nodeIt->second->Get(resId);
         } else {
             return nullptr;
         }
@@ -376,7 +376,7 @@ public:
      * @param[in] resId 资源ID
      * @param[in] obj 资源对象的共享指针
      * @note 线程安全，如果节点账本不存在会自动创建
-     *       对于ExportObj类型，会同步更新全局键索引
+     *       对于ExportObj类型，会同步更新资源ID到节点ID的索引
      */
     void PutResource(const std::string &nodeId, const std::string &resId, std::shared_ptr<T> obj)
     {
@@ -390,7 +390,7 @@ public:
                 nodePtr = std::make_shared<UbseMemNodeDebtMap<T>>();
             }
             nodePtr->Put(resId, obj);
-            globalKeyIndex_[resId] = nodeId;
+            exportResIdToNodeId_[resId] = nodeId;
         } else {
             auto nodePtr = GetOrCreateNodeMap(nodeId);
             nodePtr->Put(resId, obj);
@@ -403,7 +403,7 @@ public:
      * @param[in] resId 资源ID
      * @param[in] obj 资源对象的常量引用
      * @note 线程安全，内部会创建资源对象的副本
-     *       对于ExportObj类型，会同步更新全局键索引
+     *       对于ExportObj类型，会同步更新资源ID到节点ID的索引
      */
     void PutResource(const std::string &nodeId, const std::string &resId, const T &obj)
     {
@@ -414,7 +414,7 @@ public:
                 nodePtr = std::make_shared<UbseMemNodeDebtMap<T>>();
             }
             nodePtr->Put(resId, std::make_shared<T>(obj));
-            globalKeyIndex_[resId] = nodeId;
+            exportResIdToNodeId_[resId] = nodeId;
         } else {
             auto nodePtr = GetOrCreateNodeMap(nodeId);
             nodePtr->Put(resId, std::make_shared<T>(obj));
@@ -426,7 +426,7 @@ public:
      * @param[in] nodeId 节点ID
      * @param[in] resId 资源ID
      * @return 成功删除返回true，资源或节点不存在返回false
-     * @note 线程安全，对于ExportObj类型，会同步清理全局键索引
+     * @note 线程安全，对于ExportObj类型，会同步清理资源ID索引
      */
     bool RemoveResource(const std::string &nodeId, const std::string &resId)
     {
@@ -434,7 +434,7 @@ public:
             std::unique_lock<std::shared_mutex> lock(mutex_);
             auto it = nodeMap_.find(nodeId);
             if (it != nodeMap_.end() && it->second && it->second->Remove(resId)) {
-                globalKeyIndex_.erase(resId);
+                exportResIdToNodeId_.erase(resId);
                 return true;
             }
             return false;
@@ -450,21 +450,21 @@ public:
     /**
      * @brief 清空所有节点账本
      * @note 线程安全，使用写锁保护
-     *       对于ExportObj类型，会同步清空全局键索引
+     *       对于ExportObj类型，会同步清空资源ID索引
      */
     void ClearAllNodeMaps()
     {
         std::unique_lock<std::shared_mutex> lock(mutex_);
         nodeMap_.clear();
         if constexpr (IsExportObjTypeV<T>) {
-            globalKeyIndex_.clear();
+            exportResIdToNodeId_.clear();
         }
     }
 
 private:
     mutable std::shared_mutex mutex_;
     NodeMap nodeMap_;
-    std::unordered_map<std::string, std::string> globalKeyIndex_;
+    std::unordered_map<std::string, std::string> exportResIdToNodeId_;
 };
 
 /**
