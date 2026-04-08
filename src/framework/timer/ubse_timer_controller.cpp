@@ -40,15 +40,15 @@ static const uint32_t UBSE_INTERVAL = 1;
 static const uint32_t UBSE_REGISTER_MIN_INTERVAL = 1;
 static const uint32_t UBSE_REGISTER_MAX_INTERVAL = 3600;
 static const uint32_t ONE_SECOND_TO_MILLI_SECONDS = 1000;
-static uint64_t g_handlerExecTimeout = 300;       // handler执行超时时间，单位s
-static uint32_t g_handlerExecCheckInterval = 60; // 检测 handler 执行超时周期，单位s
+static const uint64_t Handler_Exec_Timeout = 300;       // handler执行超时时间，单位s
+static const uint32_t Handler_Exec_Check_Interval = 60; // 检测 handler 执行超时周期，单位s
 
 // map<handlerName, <interval, handler>>
 static std::unordered_map<std::string, std::pair<uint32_t, UbseTimerHandler>> handlers;
 static std::unordered_map<std::string, std::chrono::steady_clock::time_point> handlerExecStartRecord; // 每个handler执行开始时间
 static std::shared_mutex handlerExecStartMtx;
-static std::atomic<uint64_t> g_count{0}; // 周期计数；每隔1s递增1
 static std::shared_mutex mtx;
+static std::atomic<uint64_t> g_count{0}; // 周期计数；每隔1s递增1
 static UbseTimerController g_ubseTimer{};
 static std::atomic<bool> g_isTimerRunning{false};
 
@@ -61,7 +61,7 @@ static void CheckHandlerExecTimeout()
 {
     std::unique_lock<std::mutex> lock(g_handlerExecCheckCvMutex);
     while (g_isTimerRunning.load(std::memory_order_acquire) && !g_globalStop.load(std::memory_order_acquire)) {
-        g_handlerExecCheckCv.wait_for(lock, std::chrono::seconds(g_handlerExecCheckInterval));
+        g_handlerExecCheckCv.wait_for(lock, std::chrono::seconds(Handler_Exec_Check_Interval));
         // 确认线程进入检查状态
         UBSE_LOG_INFO << "Checking handler execution timeouts.";
         if (!g_isTimerRunning.load(std::memory_order_acquire) || g_globalStop.load(std::memory_order_acquire)) {
@@ -75,7 +75,7 @@ static void CheckHandlerExecTimeout()
         std::stringstream oss;
         for (auto &handler : handlerExecStartRecordCopy) {
             auto duration = currentTime - handler.second;
-            if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() > g_handlerExecTimeout) {
+            if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() > Handler_Exec_Timeout) {
                 oss << "handler=" << handler.first << " exec timeout,";  // 超时警告
             }
         }
@@ -152,7 +152,7 @@ static uint32_t ExecTimerHandler() // 定时器触发位置直接计算需要执
 uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler, uint32_t interval)
 {
     if (g_globalStop.load()) {
-        UBSE_LOG_DEBUG << "Global stop flag is set, skipping register timer.";
+        UBSE_LOG_ERROR << "Global stop flag is set, skipping register timer.";
         return UBSE_ERROR;
     }
     if (interval < UBSE_REGISTER_MIN_INTERVAL || interval > UBSE_REGISTER_MAX_INTERVAL) {
