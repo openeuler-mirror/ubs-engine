@@ -160,12 +160,16 @@ class UbsUbAllocDevicesInfoT(ctypes.Structure):
     ]
 
     def __str__(self):
+        dev_list_str = []
+        for i in range(self.ub_dev_list_count):
+            dev = self.ub_dev_list[i]
+            dev_list_str.append(str(dev))
         return (
             f"ubs_alloc_dev_info(\n"
             f"  upi str={list(self.upi_str)[:UBSE_UB_UPI_STR_SIZE]}\n"
             f"  bus instance guid={list(self.bus_instance_guid)[:UBSE_UB_DEVICE_GUID_SIZE]}\n"
             f"  ub dev list count={self.ub_dev_list_count}\n"
-            f"  ub dev list ={self.ub_dev_list.contents[:self.ub_dev_list_count]}\n"
+            f"  ub dev list ={dev_list_str}\n"
             f")"
         )
 

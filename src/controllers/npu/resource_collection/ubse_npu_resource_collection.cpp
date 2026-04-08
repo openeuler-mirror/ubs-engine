@@ -474,11 +474,16 @@ UbseResult ResourceCollection::CollectStaticResource()
     UBSE_LOG_INFO << "Collect static resource successfully";
     return UBSE_OK;
 }
+
+bool IsBusInstanceType(const CollectionDeviceType &type)
+{
+    return type == CollectionDeviceType::VM_BUSINSTANCE || type == CollectionDeviceType::HOST_BUSINSTANCE;
+}
 UbseResult ResourceCollection::BindVfeToNpu()
 {
-    // businstance
+    // 遍历businstance
     for (auto &[devId, device] : guidToDevice_) {
-        if (device->GetType() != CollectionDeviceType::VM_BUSINSTANCE) {
+        if (!IsBusInstanceType(device->GetType())) {
             continue;
         }
         auto busi = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(device);
@@ -486,14 +491,18 @@ UbseResult ResourceCollection::BindVfeToNpu()
             UBSE_LOG_ERROR << "Failed to convert to CollectionDeviceBusi";
             continue;
         }
-        // businstance-vfe;
+        // 获取businstance绑定的vfe;
         auto subIdevs = busi->GetSubDevIdev();
         for (auto &vfeIdev : subIdevs) {
             // vfe-pfe
             auto pfeIdev = vfeIdev->GetParentPfe();
             // pfe-david;
             auto npu = pfeIdev->GetBondingDevDavid();
-            BindDevice(npu, vfeIdev);
+            auto ret = BindDevice(npu, vfeIdev);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Failed to bind vfe to npu, npu: " << npu->GetIdStr()
+                               << ", vfe: " << vfeIdev->GetIdStr();
+            }
         }
     }
     return UBSE_OK;

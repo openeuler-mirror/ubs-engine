@@ -173,7 +173,7 @@ UbseResult NicPfeResource::Pack(UbsePackUtil &packUtil)
         return UBSE_ERROR;
     if (!packUtil.UbsePackUint8(chipId_))
         return UBSE_ERROR;
-    if (!packUtil.UbsePackUint8(pfId_))
+    if (!packUtil.UbsePackUint16(pfId_))
         return UBSE_ERROR;
     for (auto id : StringToArrayForGuid(guid_)) {
         if (!packUtil.UbsePackUint8(id))
@@ -203,7 +203,7 @@ UbseResult NicPfeResource::Unpack(UbsePackUtil &packUtil)
 {
     return UBSE_OK;
 }
-void NicPfeResource::SetLoc(const uint8_t slotId, const uint8_t chipId, const uint8_t pfId)
+void NicPfeResource::SetLoc(const uint8_t slotId, const uint8_t chipId, const uint16_t pfId)
 {
     slotId_ = slotId;
     chipId_ = chipId;
@@ -247,9 +247,9 @@ UbseResult NicVfeResource::Pack(UbsePackUtil &packUtil)
         return UBSE_ERROR;
     if (!packUtil.UbsePackUint8(chipId_))
         return UBSE_ERROR;
-    if (!packUtil.UbsePackUint8(pfId_))
+    if (!packUtil.UbsePackUint16(pfId_))
         return UBSE_ERROR;
-    if (!packUtil.UbsePackUint8(vfId_))
+    if (!packUtil.UbsePackUint16(vfId_))
         return UBSE_ERROR;
     for (auto id : StringToArrayForGuid(guid_)) {
         if (!packUtil.UbsePackUint8(id))
@@ -268,9 +268,9 @@ UbseResult NicVfeResource::Pack(UbsePackUtil &packUtil)
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.dieId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.pfId))
+        if (!packUtil.UbsePackUint16(device.pfId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.vfId))
+        if (!packUtil.UbsePackUint16(device.vfId))
             return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -279,7 +279,7 @@ UbseResult NicVfeResource::Unpack(UbsePackUtil &packUtil)
 {
     return UBSE_OK;
 }
-void NicVfeResource::SetLoc(const uint8_t slotId, const uint8_t chipId, const uint8_t pfId, const uint8_t vfId)
+void NicVfeResource::SetLoc(const uint8_t slotId, const uint8_t chipId, const uint16_t pfId, const uint16_t vfId)
 {
     slotId_ = slotId;
     chipId_ = chipId;

@@ -43,8 +43,8 @@ struct UbDevice {
     uint8_t slotId{};
     uint8_t chipId{};
     uint8_t dieId{};
-    uint8_t pfId{};
-    uint8_t vfId{};
+    uint16_t pfId{};
+    uint16_t vfId{};
 };
 struct UbaTidSize {
     uint64_t uba{};
@@ -117,7 +117,7 @@ public:
     size_t CalculateSize() const override;
     UbseResult Pack(UbsePackUtil &packUtil) override;
     UbseResult Unpack(UbsePackUtil &packUtil) override;
-    void SetLoc(uint8_t slotId, uint8_t chipId, uint8_t pfId);
+    void SetLoc(uint8_t slotId, uint8_t chipId, uint16_t pfId);
     void SetGuid(const std::string& guid);
     void SetBusInstanceGuid(const std::string& busInstanceGuid);
     void AddAffinityDevice(const UbDevice& device);
@@ -126,7 +126,7 @@ private:
     ResourceType type_ = ResourceType::NIC_PFE;
     uint8_t slotId_{};
     uint8_t chipId_{};
-    uint8_t pfId_{};
+    uint16_t pfId_{};
     std::string guid_;
     std::string busInstanceGuid_;
     std::vector<UbDevice> affinityDevices_;
@@ -140,7 +140,7 @@ public:
     size_t CalculateSize() const override;
     UbseResult Pack(UbsePackUtil &packUtil) override;
     UbseResult Unpack(UbsePackUtil &packUtil) override;
-    void SetLoc(uint8_t slotId, uint8_t chipId, uint8_t pfId, uint8_t vfId);
+    void SetLoc(uint8_t slotId, uint8_t chipId, uint16_t pfId, uint16_t vfId);
     void SetGuid(const std::string& guid);
     void SetBusInstanceGuid(const std::string& busInstanceGuid);
     void AddAffinityDevice(const UbDevice& device);
@@ -149,8 +149,8 @@ private:
     ResourceType type_ = ResourceType::NIC_VFE;
     uint8_t slotId_{};
     uint8_t chipId_{};
-    uint8_t pfId_{};
-    uint8_t vfId_{};
+    uint16_t pfId_{};
+    uint16_t vfId_{};
     std::string guid_;
     std::string busInstanceGuid_;
     std::vector<UbDevice> affinityDevices_;

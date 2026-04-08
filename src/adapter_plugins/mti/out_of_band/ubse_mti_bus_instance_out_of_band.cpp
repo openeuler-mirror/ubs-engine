@@ -31,7 +31,7 @@ const std::string LSUB_HEADER = "BusInstance show format: guid type eid upi";
 const std::string LSUB_STATIC_SERVER_TYPE = "Static_Server";
 const std::string LSUB_CLUSTER_SERVER_TYPE = "Static_Cluster";
 const std::string UB_DEVICES_PATH = "/sys/bus/ub/devices/";
-
+const std::string LSUB_SUB_DEVICE_HEADER = "Uents this busInstance:";
 void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst> &busInstanceList, const std::string &output)
 {
     std::istringstream iss(output);
@@ -76,7 +76,7 @@ void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst> &busInstanceList, co
 std::vector<std::string> ParseGetSubDeviceOutput(const std::string &output)
 {
     std::vector<std::string> devices;
-    std::regex header("Devices under this busInstance:");
+    std::regex header(LSUB_SUB_DEVICE_HEADER);
     std::regex deviceRegex("^\\s*([0-9a-fA-F]+)\\s*$");
     bool subDeviceSec = false;
     std::istringstream iss(output);

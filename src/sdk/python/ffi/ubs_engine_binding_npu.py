@@ -59,7 +59,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         finally:
             self._ubs_npu_device_list_free(devlist)
 
-    def ubs_device_alloc(self, upi_bytes, bus_guid_bytes, device_list):
+    def ubs_device_alloc(self, upi, bus_guid, device_list):
         """
         分配NPU设备
         
@@ -71,8 +71,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         try:
             # 调用设备分配函数
             logger.info("Allocating NPU devices...")
-            result, new_guid_str, devlist = self._allocate_npu_device(
-                upi_bytes, bus_guid_bytes, device_list)
+            result, new_guid_str, devlist = self._allocate_npu_device(upi, bus_guid, device_list)
             if result != 0:
                 raise RuntimeError("Allocating devices failed.")
 
@@ -100,13 +99,13 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         if upi_str:
             if len(upi_str) > UBSE_UB_UPI_STR_SIZE:
                 raise ValueError("The UPI is too long")
-            ctypes.memmove(alloc_info.upi_str, upi_str, len(upi_str))
+            ctypes.memmove(alloc_info.upi_str, upi_str.encode("ascii"), len(upi_str))
 
         # 复制总线实例GUID
         raw_bus_instance_guid = UbsBusinstanceId(bus_instance_guid).to_raw()
         if len(raw_bus_instance_guid) > UBSE_UB_DEVICE_GUID_SIZE:
             raise ValueError("The businstance guid is too long")
-        ctypes.memmove(alloc_info.bus_instance_guid, raw_bus_instance_guid, len(raw_bus_instance_guid))
+        ctypes.memmove(alloc_info.bus_instance_guid, raw_bus_instance_guid.encode("ascii"), len(raw_bus_instance_guid))
 
         # 设置设备列表
         alloc_info.ub_dev_list_count = len(device_list)
@@ -114,7 +113,7 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         for i, dev in enumerate(device_list):
             device_array[i] = self.dict_to_ubs_ub_devices_type_t(dev)
         alloc_info.ub_dev_list = ctypes.cast(device_array, POINTER(UbsUbDevicesTypeT))
-
+        logger.debug(f"alloc_info: {alloc_info}")
         return alloc_info
 
     def ubs_device_free(self, bus_instance_guid, device_list):

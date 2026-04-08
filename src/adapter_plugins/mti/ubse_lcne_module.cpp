@@ -41,7 +41,8 @@ using namespace ubse::lcne;
 using namespace ubse::utils;
 using namespace ubse::log;
 using namespace adapter_plugins::mti;
-BASE_DYNAMIC_CREATE(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
+CONDITION_BASE_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseLcneModule, UbseTaskExecutorModule,
+                              UbseEventModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using UvsSetTopoInfo = uint32_t (*)(void *topo, uint32_t topNum);

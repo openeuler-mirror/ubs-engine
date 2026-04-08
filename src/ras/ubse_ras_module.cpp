@@ -10,7 +10,7 @@ namespace ubse::ras {
 using namespace ubse::common;
 using namespace ubse::log;
 
-DYNAMIC_CREATE(UbseRasModule);
+CONDITION_DYNAMIC_CREATE(context::GetSceneType() == context::SceneType::COMMON, UbseRasModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseRasModule::Initialize()
