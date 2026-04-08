@@ -16,6 +16,7 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include "debt/ubse_mem_debt_ledger.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
@@ -29,11 +30,24 @@
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
+using namespace ubse::mem::controller::debt;
 using namespace nodeController;
 using namespace ubse::mem::util;
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::election;
+
+template <typename T>
+void PutDebtObj(const std::string &nodeId, const std::string &key, const T &obj)
+{
+    UbseMemDebtLedger::GetInstance().GetDebtMap<T>().PutResource(nodeId, key, std::make_shared<T>(obj));
+}
+
+template <typename T>
+std::shared_ptr<const T> GetDebtObj(const std::string &nodeId, const std::string &key)
+{
+    return UbseMemDebtLedger::GetInstance().GetDebtMap<T>().GetResource(nodeId, key);
+}
 
 void TestUbseMemControllerLedger::SetUp()
 {
@@ -569,10 +583,8 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningFdExportHandler)
 
     fdBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     fdBorrowExportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
     std::string key = fdBorrowExportObj.req.name + "_" + nodeId;
-    debtInfo.fdExportObjMap.insert({key, fdBorrowExportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, key, fdBorrowExportObj);
     EXPECT_EQ(MasterRunningFdExportHandler(nodeId, masterRunningObjs), UBSE_OK);
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_DESTROYING;
     UbseMemFdBorrowExportObj agentObj;
@@ -587,7 +599,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningFdExportHandler)
     agentObj.req.name = "test1";
     MOCKER(&QueryFdExport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningFdExportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningFdImportHandler)
@@ -602,9 +614,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningFdImportHandler)
 
     fdBorrowImportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     fdBorrowImportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
-    debtInfo.fdImportObjMap.insert({fdBorrowImportObj.req.name, fdBorrowImportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, fdBorrowImportObj.req.name, fdBorrowImportObj);
     EXPECT_EQ(MasterRunningFdImportHandler(nodeId, masterRunningObjs), UBSE_OK);
 
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_RUNNING;
@@ -618,16 +628,16 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningFdImportHandler)
         .with(any(), outBound(agentObj))
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
-    debtInfo.fdImportObjMap[fdBorrowImportObj.req.name].status.state = UBSE_MEM_EXPORT_SUCCESS;
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    fdBorrowImportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    PutDebtObj(nodeId, fdBorrowImportObj.req.name, fdBorrowImportObj);
     EXPECT_EQ(MasterRunningFdImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     EXPECT_EQ(MasterRunningFdImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     MOCKER(&QueryFdImport).reset();
     agentObj.req.name = "test1";
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, fdBorrowImportObj.req.name, fdBorrowImportObj);
     MOCKER(&QueryFdImport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningFdImportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningNumaExportHandler)
@@ -642,10 +652,8 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningNumaExportHandler)
 
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     numaBorrowExportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
     std::string key = numaBorrowExportObj.req.name + "_" + nodeId;
-    debtInfo.numaExportObjMap.insert({key, numaBorrowExportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, key, numaBorrowExportObj);
     EXPECT_EQ(MasterRunningNumaExportHandler(nodeId, masterRunningObjs), UBSE_OK);
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_DESTROYING;
     UbseMemNumaBorrowExportObj agentObj;
@@ -660,7 +668,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningNumaExportHandler)
     agentObj.req.name = "test1";
     MOCKER(&QueryNumaExport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningNumaExportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningNumaImportHandler)
@@ -675,9 +683,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningNumaImportHandler)
 
     numaBorrowImportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     numaBorrowImportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
-    debtInfo.numaImportObjMap.insert({numaBorrowImportObj.req.name, numaBorrowImportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, numaBorrowImportObj.req.name, numaBorrowImportObj);
     EXPECT_EQ(MasterRunningNumaImportHandler(nodeId, masterRunningObjs), UBSE_OK);
 
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_RUNNING;
@@ -691,16 +697,16 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningNumaImportHandler)
         .with(any(), outBound(agentObj))
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
-    debtInfo.numaImportObjMap[numaBorrowImportObj.req.name].status.state = UBSE_MEM_EXPORT_SUCCESS;
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    numaBorrowImportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    PutDebtObj(nodeId, numaBorrowImportObj.req.name, numaBorrowImportObj);
     EXPECT_EQ(MasterRunningNumaImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     EXPECT_EQ(MasterRunningNumaImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     MOCKER(&QueryNumaImport).reset();
     agentObj.req.name = "test1";
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, numaBorrowImportObj.req.name, numaBorrowImportObj);
     MOCKER(&QueryNumaImport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningNumaImportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningAddrExportHandler)
@@ -715,10 +721,8 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningAddrExportHandler)
 
     addrBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     addrBorrowExportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
     std::string key = addrBorrowExportObj.req.name + "_" + nodeId;
-    debtInfo.addrExportObjMap.insert({key, addrBorrowExportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, key, addrBorrowExportObj);
     EXPECT_EQ(MasterRunningAddrExportHandler(nodeId, masterRunningObjs), UBSE_OK);
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_DESTROYING;
     UbseMemAddrBorrowExportObj agentObj;
@@ -733,7 +737,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningAddrExportHandler)
     agentObj.req.name = "test1";
     MOCKER(&QueryAddrExport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningAddrExportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningAddrImportHandler)
@@ -748,9 +752,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningAddrImportHandler)
 
     addrBorrowImportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     addrBorrowImportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
-    debtInfo.addrImportObjMap.insert({addrBorrowImportObj.req.name, addrBorrowImportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, addrBorrowImportObj.req.name, addrBorrowImportObj);
     EXPECT_EQ(MasterRunningAddrImportHandler(nodeId, masterRunningObjs), UBSE_OK);
 
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_RUNNING;
@@ -764,16 +766,16 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningAddrImportHandler)
         .with(any(), outBound(agentObj))
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
-    debtInfo.addrImportObjMap[addrBorrowImportObj.req.name].status.state = UBSE_MEM_EXPORT_SUCCESS;
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    addrBorrowImportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    PutDebtObj(nodeId, addrBorrowImportObj.req.name, addrBorrowImportObj);
     EXPECT_EQ(MasterRunningAddrImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     EXPECT_EQ(MasterRunningAddrImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     MOCKER(&QueryAddrImport).reset();
     agentObj.req.name = "test1";
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, addrBorrowImportObj.req.name, addrBorrowImportObj);
     MOCKER(&QueryAddrImport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningAddrImportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningShareExportHandler)
@@ -787,10 +789,8 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningShareExportHandler)
 
     shmBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     shmBorrowExportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
     std::string key = shmBorrowExportObj.req.name;
-    debtInfo.shareExportObjMap.insert({key, shmBorrowExportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, key, shmBorrowExportObj);
     EXPECT_EQ(MasterRunningShareExportHandler(nodeId, masterRunningObjs), UBSE_OK);
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_DESTROYING;
     UbseMemShareBorrowExportObj agentObj;
@@ -805,7 +805,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningShareExportHandler)
     agentObj.req.name = "test1";
     MOCKER(&QueryShareExport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningShareExportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterRunningShareImportHandler)
@@ -819,9 +819,7 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningShareImportHandler)
 
     shmBorrowImportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     shmBorrowImportObj.req.name = "test1";
-    NodeMemDebtInfo debtInfo;
-    debtInfo.shareImportObjMap.insert({shmBorrowImportObj.req.name, shmBorrowImportObj});
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, shmBorrowImportObj.req.name, shmBorrowImportObj);
     EXPECT_EQ(MasterRunningShareImportHandler(nodeId, masterRunningObjs), UBSE_OK);
 
     masterRunningObjs[0].status.state = UBSE_MEM_EXPORT_SUCCESS;
@@ -831,16 +829,16 @@ TEST_F(TestUbseMemControllerLedger, MasterRunningShareImportHandler)
         .with(any(), outBound(agentObj))
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
-    debtInfo.shareImportObjMap[shmBorrowImportObj.req.name].status.state = UBSE_MEM_EXPORT_SUCCESS;
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    shmBorrowImportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    PutDebtObj(nodeId, shmBorrowImportObj.req.name, shmBorrowImportObj);
     EXPECT_EQ(MasterRunningShareImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     EXPECT_EQ(MasterRunningShareImportHandler(nodeId, masterRunningObjs), UBSE_OK);
     MOCKER(&QueryShareImport).reset();
     agentObj.req.name = "test1";
-    nodeMemDebtInfoMap["node1"] = debtInfo;
+    PutDebtObj(nodeId, shmBorrowImportObj.req.name, shmBorrowImportObj);
     MOCKER(&QueryShareImport).stubs().with(any(), outBound(agentObj)).will(returnValue(UBSE_OK));
     EXPECT_EQ(MasterRunningShareImportHandler(nodeId, masterRunningObjs), UBSE_OK);
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemControllerLedger, ExecuteShareMemoryClean)
