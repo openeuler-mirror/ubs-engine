@@ -32,12 +32,11 @@ public:
     // 获取当前线程的traceId（不存在则生成）
     static inline std::string GetTraceId()
     {
-        ensureInitialized();
-        if (!IsEnable_.load(std::memory_order_acquire)) {
+        if (!ensureInitialized()) {
             return "";
         }
 
-        if (tls_traceId[0] == '\0') {  // 优化：直接用字符判断，避免strlen
+        if (tls_traceId[0] == '\0') {
             generateTraceId();
         }
         return std::string(tls_traceId);
@@ -45,8 +44,7 @@ public:
 
     static inline char* GetTraceIdPtr()
     {
-        ensureInitialized();
-        if (!IsEnable_.load(std::memory_order_acquire)) {
+        if (!ensureInitialized()) {
             return tls_traceId;
         }
 
@@ -59,8 +57,7 @@ public:
     // 手动设置traceId（用于接收外部传递的ID）
     static inline void SetTraceId(const std::string &traceId)
     {
-        ensureInitialized();
-        if (!IsEnable_.load(std::memory_order_acquire)) {
+        if (!ensureInitialized()) {
             return;
         }
 
@@ -68,7 +65,6 @@ public:
             return;
         }
 
-        // 修复：memcpy_s的目标缓冲区大小应该是整个缓冲区大小
         size_t copyLen = std::min(traceId.size(), TRACE_ID_SIZE - 1);
         auto ret = memcpy_s(tls_traceId, TRACE_ID_SIZE, traceId.c_str(), copyLen);
         if (ret == EOK) {
@@ -87,16 +83,14 @@ public:
     static uint32_t InitUuid();
 
 private:
-    // 确保初始化只执行一次（线程安全）
-    static inline void ensureInitialized()
+    // 确保初始化只执行一次
+    static inline bool ensureInitialized()
     {
         static std::once_flag initFlag;
         std::call_once(initFlag, []() {
-            if (!IsInitialized_.load(std::memory_order_acquire)) {
-                InitUuid();
-                IsInitialized_.store(true, std::memory_order_release);
-            }
+            InitUuid();
         });
+        return IsEnabled_.load(std::memory_order_acquire);
     }
 
     // 生成UUID作为traceId
@@ -146,8 +140,7 @@ private:
     static std::atomic<void*> uuidLib_;
     static std::atomic<UuidGenerateRandom> uuidGenerateRandomFunc_;
     static std::atomic<UuidUnparse> uuidUnparseFunc_;
-    static std::atomic<bool> IsEnable_;
-    static std::atomic<bool> IsInitialized_;
+    static std::atomic<bool> IsEnabled_;
 };
 
 #endif // UBSE_MANAGER_TRACE_CONTEXT_H
