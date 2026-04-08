@@ -106,6 +106,8 @@ private:
 
     std::mutex taskExecMutex_;
 
+    static std::atomic<bool> s_reportTaskRunning;
+
     // 故障恢复阈值
     static constexpr int FAULT_REPORT_THRESHOLD = 150;
 

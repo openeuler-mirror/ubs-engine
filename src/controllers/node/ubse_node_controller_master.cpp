@@ -53,6 +53,8 @@ using namespace ubse::event;
 using namespace ubse::timer;
 using namespace ubse::serial;
 
+std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
+
 // Master端消息处理注册
 UbseResult RegMasterMsgHandler()
 {
@@ -196,9 +198,17 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
             return UBSE_OK;
         },
         UBSE_NODE_LEDGER_INTERVAL);
-
     isLogAggregationRunning_.store(true);
-    taskExecutor_->Execute([this]() -> void { ReportAggregation(); });
+    // 防止重复启动 ReportAggregation
+    bool expected = false;
+    if (s_reportTaskRunning.compare_exchange_strong(expected, true)) {
+        taskExecutor_->Execute([this]() -> void {
+            ReportAggregation();
+            s_reportTaskRunning.store(false);   // 线程退出时重置
+        });
+    } else {
+        UBSE_LOG_WARN << "ReportAggregation already running, skip duplicate start";
+    }
     return UBSE_OK;
 }
 
@@ -649,6 +659,9 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
 {
     UBSE_LOG_INFO << "Start cleaning master resources...";
+    // 重置上报任务标志
+    s_reportTaskRunning.store(false);
+    UBSE_LOG_INFO << "Reset report task running flag";
     // 停止日志聚合
     isLogAggregationRunning_.store(false);
     cv_.notify_all();
