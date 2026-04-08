@@ -59,9 +59,16 @@ private:
     std::vector<UbseMti1825Vf> vfList_;
 };
 
-class UbseCtrlQReg1825FeToBusInstanceRespMsg : public UbseCtrlQRegDavidFeToBusInstanceRespMsg {
+class UbseCtrlQReg1825FeToBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQReg1825FeToBusInstanceRespMsg() = default;
+
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const std::vector<bool> &GetRetList() const;
+
+private:
+    std::vector<bool> retList_;
 };
 
 class UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg : public ICtrlQReqMsg {
@@ -100,9 +107,16 @@ private:
     std::vector<UbseMti1825Vf> vfList_;
 };
 
-class UbseCtrlQUnReg1825FeFromBusInstanceRespMsg : public UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg {
+class UbseCtrlQUnReg1825FeFromBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQUnReg1825FeFromBusInstanceRespMsg() = default;
+
+    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+
+    const std::vector<bool> &GetRetList() const;
+
+private:
+    std::vector<bool> retList_;
 };
 } // namespace ubse::mti::ctrl_q
 #endif // UBSE_CTRL_Q_FE_OPT_MSG_H
