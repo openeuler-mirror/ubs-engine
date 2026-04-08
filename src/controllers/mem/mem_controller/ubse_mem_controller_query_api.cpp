@@ -63,10 +63,10 @@ uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest &request, std
     }
     auto retCode = ubseComModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr, false);
     if (retCode != UBSE_OK) {
-        UBSE_LOG_ERROR << "master deal failed, ret: " << FormatRetCode(retCode);
+        UBSE_LOG_ERROR << "master deal failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    UBSE_LOG_INFO << "success to deal rpc request. ubseResponsePtr->GetErrCode:" << ubseResponsePtr->GetErrCode();
+    UBSE_LOG_INFO << "success to deal rpc request. ErrCode=" << ubseResponsePtr->GetErrCode();
     resp = UbseBaseMessage::DeConvert<TSimpo>(ubseResponsePtr);
     return UBSE_OK;
 }
@@ -111,7 +111,7 @@ uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_FD_GET),  // 添加类型转换
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         fdDesc = descSimpoPtr.Get()->GetUbseMemFdDesc();
@@ -119,7 +119,7 @@ uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const
         // 是master，直接查询
         ret = debt::UbseMemFdGet(request, fdDesc);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -134,7 +134,7 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMem
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -148,7 +148,7 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMem
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_FD_LIST),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         fdDescs = descSimpoPtr.Get()->GetUbseMemFdDescList();
@@ -156,7 +156,7 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMem
         // 是master，直接查询
         ret = debt::UbseMemFdList(request, fdDescs);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -170,7 +170,7 @@ uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDe
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -184,7 +184,7 @@ uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDe
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_STATUS_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         shmStatusDesc = descSimpoPtr.Get()->GetUbseMemShmMemStatusDesc();
@@ -192,7 +192,7 @@ uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDe
         // 是master，直接查询
         ret = debt::UbseMemShmStatusGet(request, shmStatusDesc);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -206,7 +206,7 @@ uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc,
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -223,7 +223,7 @@ uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc,
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         numaDesc = descSimpoPtr.Get()->GetUbseMemNumaDesc();
@@ -231,7 +231,7 @@ uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc,
         // 是master，直接查询
         ret = debt::UbseMemNumaGet(request, numaDesc);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -246,7 +246,7 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseM
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -260,7 +260,7 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseM
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_LIST),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         numaDescs = descSimpoPtr.Get()->GetUbseMemNumaDescList();
@@ -268,7 +268,7 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseM
         // 是master，直接查询
         ret = debt::UbseMemNumaList(request, numaDescs);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -282,7 +282,7 @@ uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, co
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -301,7 +301,7 @@ uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, co
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
@@ -309,7 +309,7 @@ uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, co
         // 是master，直接查询
         ret = debt::UbseMemShmGet(request, shmDesc);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -323,7 +323,7 @@ uint32_t UbseMemShmGetByNodeId(const std::string &name, def::UbseMemShmDesc &shm
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -337,7 +337,7 @@ uint32_t UbseMemShmGetByNodeId(const std::string &name, def::UbseMemShmDesc &shm
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
@@ -345,7 +345,7 @@ uint32_t UbseMemShmGetByNodeId(const std::string &name, def::UbseMemShmDesc &shm
         // 是master，直接查询
         ret = debt::UbseMemShmGet(request, shmDesc);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -360,7 +360,7 @@ uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -373,7 +373,7 @@ uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_LIST),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         shmDescs = descSimpoPtr.Get()->GetUbseMemShmDescList();
@@ -381,7 +381,7 @@ uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::
         // 是master，直接查询
         ret = debt::UbseMemShmList(request, shmDescs);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -419,7 +419,7 @@ int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId,
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -433,7 +433,7 @@ int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId,
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_ADDR_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         desc = descSimpoPtr.Get()->GetUbseMemAddrDesc();
@@ -441,7 +441,7 @@ int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId,
         // 是master，直接查询
         ret = debt::UbseMemAddrGet(request, desc);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -456,7 +456,7 @@ int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string 
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
@@ -470,7 +470,7 @@ int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string 
             static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_GET_WITH_IMPORT_NODE),
             descSimpoPtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
         numaDesc = descSimpoPtr.Get()->GetUbseMemNumaDesc();
@@ -478,7 +478,7 @@ int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string 
         // 是master，直接查询
         ret = debt::UbseMemNumaGetWithImportNode(request, numaDesc);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query , ret: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
     }

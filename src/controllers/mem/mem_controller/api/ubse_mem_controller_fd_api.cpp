@@ -85,23 +85,20 @@ UbseResult SendFdExportObj(const UbseMemFdBorrowExportObj &exportObj, const bool
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get comModule."
-                       << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to get comModule, requestId=" << exportObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_EXPORT_OBJ_CALLBACK));
     UbseMemFdBorrowExportobjSimpoPtr ptr = new (std::nothrow) UbseMemFdBorrowExportobjSimpo();
     if (ptr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr."
-                       << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     ptr->SetUbseMemFdBorrowExportobj(exportObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr."
-                       << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     // 主节点向从履行侧发送
@@ -110,17 +107,17 @@ UbseResult SendFdExportObj(const UbseMemFdBorrowExportObj &exportObj, const bool
         for (int i = 0; i < SEND_RETRY_TIMES; i++) {
             ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
             if (ret == UBSE_OK) {
-                UBSE_LOG_INFO << "Success to send exportObj, name is " << exportObj.req.name << "requestNodeId id is "
-                              << exportObj.req.requestNodeId << ";requestId: " << exportObj.req.requestId;
+                UBSE_LOG_INFO << "Success to send exportObj, name=" << exportObj.req.name << ", requestNodeId="
+                              << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId;
                 return UBSE_OK;
             }
-            UBSE_LOG_ERROR << "Failed to Send to exportObj, name is " << exportObj.req.name << "requestNodeId id is "
+            UBSE_LOG_ERROR << "Failed to Send to exportObj, name=" << exportObj.req.name << ", requestNodeId="
                            << exportObj.req.requestNodeId << ", wait to retry"
-                           << ";requestId: " << exportObj.req.requestId;
+                           << ", requestId=" << exportObj.req.requestId;
             sleep(SEND_RETRY_DURATION);
         }
-        UBSE_LOG_ERROR << "Failed to Send to exportObj, name is " << exportObj.req.name << "requestNodeId id is "
-                       << exportObj.req.requestNodeId << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to Send to exportObj, name=" << exportObj.req.name << ", requestNodeId="
+                       << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId;
         return ret;
     }
 
@@ -147,8 +144,8 @@ UbseResult DoSendFdExportObj(const UbseMemFdBorrowReq &req, UbseMemOperationResp
     auto exportObjKey = GenerateExportObjKey(req.name, req.importNodeId);
     auto exportNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
     // 放入导出对象、导入对象
-    UBSE_LOG_INFO << "FdExportObj and importObj stored, name is " << req.name << ", requestNodeId is "
-                  << req.requestNodeId << ";requestId: " << req.requestId;
+    UBSE_LOG_INFO << "FdExportObj and importObj stored, name=" << req.name << ", requestNodeId="
+                  << req.requestNodeId << ", requestId=" << req.requestId;
 
     auto &ledger = UbseMemDebtLedger::GetInstance();
     ledger.GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(exportNodeId, exportObjKey, exportObj);
@@ -172,8 +169,8 @@ UbseResult DoSendFdExportObj(const UbseMemFdBorrowReq &req, UbseMemOperationResp
 
 uint32_t UbseMemFdBorrow(const UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
 {
-    UBSE_LOG_INFO << "Fd borrow begins, name is " << req.name << ", requestNodeId is " << req.requestNodeId
-                  << ";requestId: " << req.requestId;
+    UBSE_LOG_INFO << "Fd borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
+                  << ", requestId=" << req.requestId;
     auto lock = LoggingLockGuard(GenerateExportObjKey(req.name, req.importNodeId));
     resp.requestId = req.requestId;
 
@@ -202,8 +199,8 @@ uint32_t UbseMemFdBorrow(const UbseMemFdBorrowReq &req, UbseMemOperationResp &re
         break;
     }
     if (ret != UBSE_OK || importObj.algoResult.exportNumaInfos.empty()) {
-        UBSE_LOG_ERROR << "[MMC] Failed to allocate, name is " << importObj.req.name << " ,requestNodeId is "
-                       << importObj.req.requestNodeId << FormatRetCode(ret) << ";requestId: " << req.requestId;
+        UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << importObj.req.name << ", requestNodeId="
+                       << importObj.req.requestNodeId << FormatRetCode(ret) << ", requestId=" << req.requestId;
         BorrowFailedAdvice("Borrow Schedule failed", req.name, "WATER_BORROW", req.size, "", req.importNodeId,
                            UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
@@ -231,8 +228,7 @@ UbseResult SendFdImportObjForPermission(const std::string &nodeId, const UbseMem
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get comModule."
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to get comModule, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
@@ -240,15 +236,13 @@ UbseResult SendFdImportObjForPermission(const std::string &nodeId, const UbseMem
                         (UbseMemRespCtrlOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_FOR_PERMISSION_CALLBACK));
     UbseMemFdBorrowImportobjSimpoPtr ptr = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
     if (ptr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr."
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     ptr->SetUbseMemFdBorrowImportobj(importObj);
     UbseMemOperationRespSimpoPtr ubseResponsePtr = new (std::nothrow) UbseMemOperationRespSimpo();
     if (ubseResponsePtr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr."
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     // 主节点向从借用侧发送
@@ -258,21 +252,20 @@ UbseResult SendFdImportObjForPermission(const std::string &nodeId, const UbseMem
         if (ret == UBSE_OK) {
             auto resp = ubseResponsePtr->GetUbseMemOperationResp();
             if (resp.errorCode != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to importObj for permission, name is " << importObj.req.name
-                               << ";requestId: " << importObj.req.requestId;
+                UBSE_LOG_ERROR << "Failed to importObj for permission, name=" << importObj.req.name
+                               << ", requestId=" << importObj.req.requestId;
                 return UBSE_ERROR;
             }
-            UBSE_LOG_INFO << "Success to importObj for permission, name is " << importObj.req.name
-                          << ";requestId: " << importObj.req.requestId;
+            UBSE_LOG_INFO << "Success to importObj for permission, name=" << importObj.req.name
+                          << ", requestId=" << importObj.req.requestId;
             return UBSE_OK;
         }
-        UBSE_LOG_ERROR << "Failed to Send to importObj for permission, name is " << importObj.req.name
-                       << ", wait to retry"
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to Send to importObj for permission, name=" << importObj.req.name
+                       << ", wait to retry, requestId=" << importObj.req.requestId;
         sleep(SEND_RETRY_DURATION);
     }
-    UBSE_LOG_ERROR << "Failed to Send to importObj for permission, name is " << importObj.req.name
-                   << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_ERROR << "Failed to Send to importObj for permission, name=" << importObj.req.name
+                   << ", requestId=" << importObj.req.requestId;
     return ret;
 }
 
@@ -291,22 +284,22 @@ uint32_t UbseMemFdPermission(const UbseMemFdPermissionReq &req, const std::strin
     UbseMemFdBorrowImportObj importObj{};
 
     if (!FindFdBorrowObjByName(req, importObj)) {
-        UBSE_LOG_ERROR << "name:" << req.name << " not exist successfully borrow";
+        UBSE_LOG_ERROR << "name=" << req.name << " not exist successfully borrow";
         return UBSE_ERR_NOT_EXIST;
     }
     if (!CheckCommonReturnPermission(importObj.req.udsInfo, req.udsInfo, realRequestNodeId,
                                      importObj.req.importNodeId)) {
-        UBSE_LOG_ERROR << "name:" << req.name << " auth failed,req username:" << req.udsInfo.username
-                       << ", req uid:" << req.udsInfo.uid << ", import obj username:" << importObj.req.udsInfo.username
-                       << ", import obj uid:" << importObj.req.udsInfo.uid
-                       << ", realRequestNodeId:" << realRequestNodeId;
+        UBSE_LOG_ERROR << "name=" << req.name << " auth failed, req username=" << req.udsInfo.username
+                       << ", req uid=" << req.udsInfo.uid << ", import obj username=" << importObj.req.udsInfo.username
+                       << ", import obj uid=" << importObj.req.udsInfo.uid
+                       << ", realRequestNodeId=" << realRequestNodeId;
         return UBSE_ERR_AUTH_FAILED;
     }
     importObj.req.owner = req.fdOwner;
     //  下发importObj,设置属主和权限
     auto ret = SendFdImportObjForPermission(importObj.req.importNodeId, importObj);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "name:" << req.name << " set permission failed";
+        UBSE_LOG_ERROR << "name=" << req.name << " set permission failed";
         return UBSE_ERR_INTERNAL;
     }
     // 更新FdImport
@@ -355,7 +348,7 @@ uint32_t FdExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemFdBorro
                                       const std::string &name, const std::string &exportNodeId,
                                       const std::string &requestNodeId)
 {
-    UBSE_LOG_INFO << "Fd export running callback. name is " << name << ";requestId: " << exportObj.req.requestId;
+    UBSE_LOG_INFO << "Fd export running callback. name=" << name << ", requestId=" << exportObj.req.requestId;
     auto existingObj = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().GetResource(
         exportNodeId, exportObj.req.name);
     if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
@@ -363,8 +356,8 @@ uint32_t FdExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemFdBorro
     }
     FdExportUpdateState(exportObj, UBSE_MEM_EXPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().FdExportExecutor(exportObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to export, name is " << name << ", requestNodeId is " << requestNodeId
-                       << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to export, name=" << name << ", requestNodeId=" << requestNodeId
+                       << ", requestId=" << exportObj.req.requestId;
         BorrowFailedAdvice("Borrow Schedule failed", name, "WATER_BORROW", exportObj.req.size, exportNodeId,
                            exportObj.req.importNodeId, ret, MemAdvice::OBMM_FAILED);
         exportObj.errorCode = ret;
@@ -373,7 +366,7 @@ uint32_t FdExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemFdBorro
         // 导出失败，从节点不做存储操作，返回通知主节点。
         return SendFdExport(exportObj, name, exportNodeId, false);
     }
-    UBSE_LOG_INFO << "Success to export fd, name is " << name << ";requestId: " << exportObj.req.requestId;
+    UBSE_LOG_INFO << "Success to export fd, name=" << name << ", requestId=" << exportObj.req.requestId;
     UBSE_AUDIT_RUNTIME_ALLOC << name << " on Node: " << exportNodeId << " FdMemory Export "
                              << std::to_string(exportObj.req.size) << " Bytes Success";
     // 高安配置下签名并验签
@@ -399,7 +392,7 @@ uint32_t FdExportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemFdBo
                                          const std::string &name, const std::string &exportNodeId,
                                          const std::string &requestNodeId)
 {
-    UBSE_LOG_INFO << "Fd export destroying callback. name is " << name << ";requestId: " << exportObj.req.requestId;
+    UBSE_LOG_INFO << "Fd export destroying callback. name=" << name << ", requestId=" << exportObj.req.requestId;
     auto exportKey = GenerateExportObjKey(name, exportObj.req.importNodeId);
     // 如果Agent侧不存在或DESTROYED，则直接返回已销毁.
     auto existingObj =
@@ -416,7 +409,7 @@ uint32_t FdExportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemFdBo
     }
     FdExportUpdateState(exportObj, UBSE_MEM_EXPORT_DESTROYING);
     if (auto ret = UbseMmiInterface::GetInstance().FdUnExportExecutor(exportObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to unexport name is " << name << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to unexport name=" << name << ", requestId=" << exportObj.req.requestId;
         exportObj.errorCode = ret;
         BorrowFailedAdvice("UnExport failed", name, "WATER_BORROW", 0, exportNodeId, exportObj.req.importNodeId, ret,
                            MemAdvice::COMM_FAILED);
@@ -428,7 +421,7 @@ uint32_t FdExportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemFdBo
         }
         return ret;
     }
-    UBSE_LOG_INFO << "Success to unexport fd, name is " << name << ";requestId: " << exportObj.req.requestId;
+    UBSE_LOG_INFO << "Success to unexport fd, name=" << name << ", requestId=" << exportObj.req.requestId;
     UBSE_AUDIT_RUNTIME_DEALLOC << name << " on Node: " << exportNodeId << " FdMemory UnExport "
                                << std::to_string(exportObj.req.size) << " Bytes Success";
     // 归还成功
@@ -446,7 +439,7 @@ uint32_t FdExportAgentCallback(const std::string &exportNodeId, UbseMemFdBorrowE
                                const std::string &name)
 {
     UBSE_LOG_INFO << "Fd export agent callback, name=" << name << ", state=" << exportObj.status.state
-                  << ";requestId: " << exportObj.req.requestId;
+                  << ", requestId=" << exportObj.req.requestId;
     auto exportKey = GenerateExportObjKey(name, exportObj.req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
     auto requestNodeId = exportObj.req.requestNodeId;
@@ -474,8 +467,8 @@ uint32_t FdExportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
     // 归还逻辑
     if (exportObj.status.state == UBSE_MEM_EXPORT_SUCCESS) {
         // 归还失败,后续由对账清理
-        UBSE_LOG_INFO << "Export return is unsuccessful, wait to ledger, name is " << name
-                      << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_INFO << "Export return is unsuccessful, wait to ledger, name=" << name
+                      << ", requestId=" << exportObj.req.requestId;
         FdExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
         // requestNodeId为空则当前场景为对账删除导出账本或者借用失败回滚
         if (requestNodeId.empty()) {
@@ -491,7 +484,7 @@ uint32_t FdExportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
         return UBSE_OK;
     }
     // 归还成功,删除导出对象/导入对象
-    UBSE_LOG_INFO << "Export return is successful, name is " << name << ";requestId: " << exportObj.req.requestId;
+    UBSE_LOG_INFO << "Export return is successful, name=" << name << ", requestId=" << exportObj.req.requestId;
     EraseFdExport(exportObj);
     // 导入对象在unimport时，已经删掉。如还存在，就是删除单导出时，对账将导入账本重新加入主节点
     UbseMemFdExportObjStateChangeHandler(exportObj);
@@ -570,23 +563,20 @@ UbseResult SendFdImportObj(const UbseMemFdBorrowImportObj &importObj, const bool
 {
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get comModule."
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to get comModule, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     SendParam sendParam(nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_CALLBACK));
     UbseMemFdBorrowImportobjSimpoPtr ptr = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
     if (ptr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr."
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     ptr->SetUbseMemFdBorrowImportobj(importObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr."
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     // 主节点向从履行侧发送
@@ -595,17 +585,17 @@ UbseResult SendFdImportObj(const UbseMemFdBorrowImportObj &importObj, const bool
         for (int i = 0; i < SEND_RETRY_TIMES; i++) {
             ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
             if (ret == UBSE_OK) {
-                UBSE_LOG_INFO << "Success to send importObj, name is " << importObj.req.name << "requestNodeId id is "
-                              << importObj.req.requestNodeId << ";requestId: " << importObj.req.requestId;
+                UBSE_LOG_INFO << "Success to send importObj, name=" << importObj.req.name << ", requestNodeId="
+                              << importObj.req.requestNodeId << ", requestId=" << importObj.req.requestId;
                 return UBSE_OK;
             }
-            UBSE_LOG_ERROR << "Failed to Send to importObj, name is " << importObj.req.name << "requestNodeId id is "
+            UBSE_LOG_ERROR << "Failed to Send to importObj, name=" << importObj.req.name << ", requestNodeId="
                            << importObj.req.requestNodeId << ", wait to retry"
-                           << ";requestId: " << importObj.req.requestId;
+                           << ", requestId=" << importObj.req.requestId;
             sleep(SEND_RETRY_DURATION);
         }
-        UBSE_LOG_ERROR << "Failed to Send to importObj, name is " << importObj.req.name << "requestNodeId id is "
-                       << importObj.req.requestNodeId << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to Send to importObj, name=" << importObj.req.name << ", requestNodeId="
+                       << importObj.req.requestNodeId << ", requestId=" << importObj.req.requestId;
         return ret;
     }
 
@@ -618,13 +608,13 @@ uint32_t FdExportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
                                              const std::string &exportNodeId, const std::string &importNodeId)
 {
     if (exportObj.status.state == UBSE_MEM_EXPORT_SUCCESS) { // 导出成功 开始导入
-        UBSE_LOG_INFO << "Export is successful, start to import. name is " << name
-                      << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_INFO << "Export is successful, start to import. name=" << name
+                      << ", requestId=" << exportObj.req.requestId;
         importObj.exportObmmInfo = exportObj.status.exportObmmInfo;
         auto ret = GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to get cna info when inport" << FormatRetCode(ret)
-                           << ";requestId: " << exportObj.req.requestId;
+                           << ", requestId=" << exportObj.req.requestId;
             BorrowFailedAdvice("Borrow Schedule failed", name, "WATER_BORROW", exportObj.req.size, exportNodeId,
                                importNodeId, ret, MemAdvice::INTERNAL_FAILED);
             return FdExportRollback(resp, exportObj, importObj, name, exportNodeId);
@@ -636,7 +626,7 @@ uint32_t FdExportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
         UbseMemFdExportObjStateChangeHandler(exportObj);
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
         if (ret = SendFdImportObj(importObj, true, importNodeId); ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to send import, name is " << name << ";requestId: " << exportObj.req.requestId;
+            UBSE_LOG_ERROR << "Failed to send import, name=" << name << ", requestId=" << exportObj.req.requestId;
             BorrowFailedAdvice("Borrow Schedule failed", name, "WATER_BORROW", exportObj.req.size, exportNodeId,
                                importNodeId, ret, MemAdvice::COMM_FAILED);
             return FdExportRollback(resp, exportObj, importObj, name, exportNodeId);
@@ -644,8 +634,8 @@ uint32_t FdExportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
         return UBSE_OK;
     }
     // 导出失败，删除导入/导出记录
-    UBSE_LOG_INFO << "Export is unsuccessful, start to rollback. name is " << name
-                  << ";requestId: " << exportObj.req.requestId;
+    UBSE_LOG_INFO << "Export is unsuccessful, start to rollback. name=" << name
+                  << ", requestId=" << exportObj.req.requestId;
     EraseFdExport(exportObj);
     EraseFdImport(importObj);
     auto copy = exportObj;
@@ -658,7 +648,7 @@ uint32_t FdExportMasterCallback(const std::string &exportNodeId, UbseMemFdBorrow
                                 const std::string &importNodeId, const std::string &name)
 {
     UBSE_LOG_INFO << "Fd export master callback, name=" << name << ", state=" << exportObj.status.state
-                  << ";requestId: " << exportObj.req.requestId;
+                  << ", requestId=" << exportObj.req.requestId;
     auto exportKey = GenerateExportObjKey(name, exportObj.req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemOperationResp resp{
@@ -670,7 +660,7 @@ uint32_t FdExportMasterCallback(const std::string &exportNodeId, UbseMemFdBorrow
     auto importObjPtr =
         UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().GetResource(importNodeId, name);
     if (!importObjPtr) {
-        UBSE_LOG_ERROR << "Failed to find import obj, name is " << name << ";requestId: " << exportObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to find import obj, name=" << name << ", requestId=" << exportObj.req.requestId;
         return UBSE_ERROR;
     }
     importObj = *importObjPtr;
@@ -683,7 +673,7 @@ uint32_t FdExportMasterCallback(const std::string &exportNodeId, UbseMemFdBorrow
 uint32_t FdImportRunningHandler(UbseMemFdBorrowImportObj &importObj, const std::string &name,
                                 const std::string &requestNodeId)
 {
-    UBSE_LOG_INFO << "Fd import running agent callback, name is " << name << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Fd import running agent callback, name=" << name << ", requestId=" << importObj.req.requestId;
     std::pair<uint32_t, uint32_t> chipDiePair{};
     std::pair<uint32_t, uint32_t> remoteChipDiePair{};
     std::string exportNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
@@ -710,20 +700,20 @@ uint32_t FdImportRunningHandler(UbseMemFdBorrowImportObj &importObj, const std::
     importParam.type = "fd";
     res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
     if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res is " << res;
+        UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
         UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
         return UBSE_ERR_INTERNAL;
     }
     importObj.req.trustRingData.ClearLendSignedDataMemory();
     FdImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().FdImportExecutor(importObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to import, name is " << name << ", requestNodeId is " << requestNodeId
-                       << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to import, name=" << name << ", requestNodeId=" << requestNodeId
+                       << ", requestId=" << importObj.req.requestId;
         UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
         EraseFdImport(importObj);
         return ret;
     }
-    UBSE_LOG_INFO << "Success to import fd, name is " << name << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Success to import fd, name=" << name << ", requestId=" << importObj.req.requestId;
     UBSE_AUDIT_RUNTIME_ALLOC << name << " on Node: " << importObj.req.importNodeId << " FdMemory Import "
                              << std::to_string(importObj.req.size) << " Bytes Success";
     return UBSE_OK;
@@ -765,8 +755,7 @@ uint32_t FdImportRunningCallback(UbseMemFdBorrowImportObj &importObj, const std:
 uint32_t FdImportDestroyingHandler(UbseMemFdBorrowImportObj &importObj, const std::string &name,
                                    const std::string &requestNodeId)
 {
-    UBSE_LOG_INFO << "Fd import destroying agent callback, name is " << name
-                  << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Fd import destroying agent callback, name=" << name << ", requestId=" << importObj.req.requestId;
     auto existingObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().GetResource(
         importObj.req.importNodeId, name);
     bool directReply = !existingObjPtr || existingObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYED;
@@ -782,10 +771,10 @@ uint32_t FdImportDestroyingHandler(UbseMemFdBorrowImportObj &importObj, const st
     }
     FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     if (auto ret = UbseMmiInterface::GetInstance().FdUnImportExecutor(importObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to unimport, name is " << name << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to unimport, name=" << name << ", requestId=" << importObj.req.requestId;
         return ret;
     }
-    UBSE_LOG_INFO << "Success to unimport fd, name is " << name << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Success to unimport fd, name=" << name << ", requestId=" << importObj.req.requestId;
     UBSE_AUDIT_RUNTIME_DEALLOC << name << " on Node: " << importObj.req.importNodeId << " FdMemory UnImport "
                                << std::to_string(importObj.req.size) << " Bytes Success";
     UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
@@ -824,7 +813,7 @@ uint32_t FdImportDestroyingAgentCallback(UbseMemFdBorrowImportObj &importObj, co
 
 uint32_t UbseMemFdBorrowExportObjCallback(const UbseMemFdBorrowExportObj &exportObj)
 {
-    UBSE_LOG_INFO << "Fd export callback; requestId: " << exportObj.req.requestId;
+    UBSE_LOG_INFO << "Fd export callback, requestId=" << exportObj.req.requestId;
     UbseRoleInfo currentNodeInfo{};
     UbseGetCurrentNodeInfo(currentNodeInfo);
     auto copy = exportObj;
@@ -844,8 +833,8 @@ uint32_t UbseMemFdBorrowExportObjCallback(const UbseMemFdBorrowExportObj &export
 uint32_t FdImportAgentCallback(const std::string &requestNodeId, UbseMemFdBorrowImportObj &importObj,
                                const std::string &name)
 {
-    UBSE_LOG_INFO << "Fd import agent callback. name is " << name << ", state=" << importObj.status.state
-                  << ", request_id=" << importObj.req.requestId;
+    UBSE_LOG_INFO << "Fd import agent callback. name=" << name << ", state=" << importObj.status.state
+                  << ", requestId=" << importObj.req.requestId;
     auto exportKey = GenerateExportObjKey(name, importObj.req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemOperationResp resp{
@@ -873,8 +862,7 @@ uint32_t FdImportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
                                              const std::string &name, const std::string &importNodeId,
                                              const std::string &exportNodeId)
 {
-    UBSE_LOG_INFO << "Fd import expect success callback, name is " << name
-                  << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Fd import expect success callback, name=" << name << ", requestId=" << importObj.req.requestId;
     if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) { // 导入成功
         FdImportUpdateState(importObj, importObj.status.state);
         FdImportFillResp(resp, importObj);
@@ -882,8 +870,7 @@ uint32_t FdImportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
         return BuildOperationRespWhenSuccess(resp, UBSE_OK);
     }
     // 导入失败 开始回滚
-    UBSE_LOG_INFO << "Failed to import, begin to rollback, name is " << name
-                  << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Failed to import, begin to rollback, name=" << name << ", requestId=" << importObj.req.requestId;
     EraseFdImport(importObj);
     auto copy = importObj;
     copy.status.state = UbseMemState::UBSE_MEM_STATE_FAILED; // 通知算法
@@ -900,7 +887,7 @@ uint32_t FdImportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
                                                                                             exportObj);
         // 回滚发送失败
         if (auto ret = SendFdExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to send rollback expor; requestId: " << importObj.req.requestId;
+            UBSE_LOG_ERROR << "Failed to send rollback export, requestId=" << importObj.req.requestId;
             FdExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
         }
         return BuildOperationRespWhenFail(resp, name, exportObj.req.requestNodeId, "Failed to import.",
@@ -958,7 +945,7 @@ static uint32_t FdImportExpectDestroySuccessPath(UbseMemOperationResp &resp, Ubs
         UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(exportNodeId, exportKey,
                                                                                             exportObj);
         if (auto ret = SendFdExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to send export, name is " << name << ";requestId: " << importObj.req.requestId;
+            UBSE_LOG_ERROR << "Failed to send export, name=" << name << ", requestId=" << importObj.req.requestId;
             BorrowFailedAdvice("Return Schedule failed", name, "WATER_BORROW", 0, exportNodeId, importNodeId, ret,
                                MemAdvice::COMM_FAILED);
             return DealSendFdUnExportObjFailed(resp, req, name, exportObj);
@@ -966,8 +953,7 @@ static uint32_t FdImportExpectDestroySuccessPath(UbseMemOperationResp &resp, Ubs
         return UBSE_OK;
     } else {
         // 删除单导入
-        UBSE_LOG_INFO << "Success to delete single import."
-                      << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_INFO << "Success to delete single import, requestId=" << importObj.req.requestId;
         resp.name = name;
         resp.requestNodeId = req.requestNodeId;
         if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::FD_RETURN); ret != UBSE_OK) {
@@ -986,7 +972,7 @@ static uint32_t FdImportExpectDestroyFailPath(UbseMemOperationResp &resp, UbseMe
 {
     auto req = importObj.returnReq;
 
-    UBSE_LOG_INFO << "Failed to unimport, name is " << name << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Failed to unimport, name=" << name << ", requestId=" << importObj.req.requestId;
     FdImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
 
     if (auto ret = BuildOperationRespWhenFail(resp, name, req.requestNodeId, "Failed to unimport.", importObj.errorCode,
@@ -1168,7 +1154,7 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
         memStage = GetMemStageByExportObjState(exportObjPtr);
     }
     if (memStage == UbseMemStage::UBSE_CREATING || memStage == UbseMemStage::UBSE_DELETING) {
-        UBSE_LOG_INFO << "resource is being borrowed or returned, name is " << req.name;
+        UBSE_LOG_INFO << "resource is being borrowed or returned, name=" << req.name;
         auto ret = (memStage == UbseMemStage::UBSE_CREATING ? UBSE_ERR_CREATING : UBSE_ERR_DELETING);
         result.comErrorCode =
             ReturnFailed(req, resp, "resource being borrowed or returned", ret, MemAdvice::RESOURCE_OPERATION_CONFLICT);
@@ -1179,10 +1165,10 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
     auto importNodeId = result.hasExport ? exportObjPtr->req.importNodeId : importObjPtr->req.importNodeId;
     if (!CheckCommonReturnPermission(udsInfo, req.udsInfo, realRequestNodeId, importNodeId,
                                      exportNodeId)) {
-        UBSE_LOG_ERROR << "Error auth, object username=" << udsInfo.username << "uid=" << udsInfo.uid
-                       << ", current req username=" << req.udsInfo.username << "uid=" << req.udsInfo.uid
+        UBSE_LOG_ERROR << "Error auth, object username=" << udsInfo.username << ", uid=" << udsInfo.uid
+                       << ", current req username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
                        << ", realRequestNodeId=" << realRequestNodeId
-                       << ", importNodeId=" << importNodeId << ", exportNodeId=" << exportNodeId;
+                       << ", importNodeId=" << req.importNodeId << ", exportNodeId=" << exportNodeId;
         result.comErrorCode =
             ReturnFailed(req, resp, "Error auth", UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
         return UBSE_ERR_AUTH_FAILED;
@@ -1194,8 +1180,8 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
 
 uint32_t UbseMemFdReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp, const std::string &realRequestNodeId)
 {
-    UBSE_LOG_INFO << "Start to fd return, name is " << req.name << ", requestNodeId is " << req.requestNodeId
-                  << ";requestId: " << req.requestId << ", realRequestNodeId:" << realRequestNodeId;
+    UBSE_LOG_INFO << "Start to fd return, name=" << req.name << ", requestNodeId=" << req.requestNodeId
+                  << ", requestId=" << req.requestId << ", realRequestNodeId=" << realRequestNodeId;
     BorrowObjResult result{};
     if (auto ret = ValidateBorrowResource(req, resp, realRequestNodeId, result); ret != UBSE_OK) {
         return result.comErrorCode;
@@ -1248,7 +1234,7 @@ uint32_t DeleteFdExport(const UbseMemFdBorrowExportObj &exportObj)
     copy.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     copy.status.state = UBSE_MEM_EXPORT_DESTROYING;
     FdExportUpdateState(copy, UBSE_MEM_EXPORT_DESTROYING);
-    UBSE_LOG_INFO << "Force delete. name=" << copy.req.name << ", importNodeId is " << copy.req.importNodeId;
+    UBSE_LOG_INFO << "Force delete. name=" << copy.req.name << ", importNodeId=" << copy.req.importNodeId;
     if (exportObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_WARN << "The exportObj with no export numa info will be ignored.";
         return UBSE_ERROR;
@@ -1263,7 +1249,7 @@ uint32_t AddFdImport(const UbseMemFdBorrowImportObj &importObj)
         EraseFdImport(copy);
         return UbseMemFdImportObjStateChangeHandler(copy);
     }
-    UBSE_LOG_INFO << "Add fd import, name=" << copy.req.name << ", import node=" << importObj.req.importNodeId;
+    UBSE_LOG_INFO << "Add fd import, name=" << copy.req.name << ", importNodeId=" << importObj.req.importNodeId;
     FdImportUpdateState(copy, copy.status.state);
     return UbseMemFdImportObjStateChangeHandler(copy);
 }
@@ -1275,7 +1261,7 @@ uint32_t AddFdExport(const UbseMemFdBorrowExportObj &exportObj)
         EraseFdExport(copy);
         return UbseMemFdExportObjStateChangeHandler(copy);
     }
-    UBSE_LOG_INFO << "Add fd export, name=" << copy.req.name << ", import node=" << exportObj.req.importNodeId;
+    UBSE_LOG_INFO << "Add fd export, name=" << copy.req.name << ", importNodeId=" << exportObj.req.importNodeId;
     FdExportUpdateState(copy, copy.status.state);
     return UbseMemFdExportObjStateChangeHandler(copy);
 }

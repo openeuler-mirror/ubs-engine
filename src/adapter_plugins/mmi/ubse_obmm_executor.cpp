@@ -163,13 +163,13 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
     mem_id memId = obmmExportFunc(size, obmmFlags, obmmMemDesc);
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
-    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport returned! memid: " << memId
-                  << " obmmFlags: " << obmmFlags;
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport returned! memid=" << memId
+                  << " obmmFlags=" << obmmFlags;
     PrintObmmMemDesc(*obmmMemDesc);
     if (memId == INVALID_MEM_ID) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
-        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport error! memid: "
-                       << ", flag is " << obmmFlags << " errno is " << errno << ", errMsg is "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport error! memid="
+                       << ", flag=" << obmmFlags << ", errno=" << errno << ", errMsg="
                        << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return memId;
@@ -198,12 +198,12 @@ UbseResult RmObmmExecutor::ObmmUnExport(mem_id id)
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
     if (ret && errno != ENOENT) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
-        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmUnExport error! memid: " << id << " ret: " << ret
-                       << ", flag is " << flags << " errno is " << errno << ", errMsg is "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmUnExport error! memid=" << id << ", ret=" << ret
+                       << ", flag=" << flags << ", errno=" << errno << ", errMsg="
                        << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unexport ok memid: " << id << ", flag is " << flags;
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unexport ok memid=" << id << ", flag=" << flags;
     return UBSE_OK;
 }
 
@@ -253,14 +253,14 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc &desc, const Obmm
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
     if (memid == INVALID_MEM_ID) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
-        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmImport error! memid: " << memid
-                       << " flag: " << obmmFlags << " errno is " << errno << "errMsg is "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmImport error! memid=" << memid
+                       << ", flag=" << obmmFlags << ", errno=" << errno << ", errMsg="
                        << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return memid;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_import memid: " << memid << " memid :" << memid
-                  << " opParam: " << opParam.toString();
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_import memid=" << memid
+                  << " opParam " << opParam.toString();
     RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
     return ObmmDevChangeUidGid(memid, true, opParam);
 }
@@ -287,12 +287,12 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id)
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
     if (ret && errno != ENOENT) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
-        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport error! memid:" << id << " ret:" << ret
-                       << " flag:" << obmmFlags << " errno is " << errno << "errMsg is "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport error! memid=" << id << ", ret=" << ret
+                       << ", flag=" << obmmFlags << ", errno=" << errno << ", errMsg="
                        << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport memid=" << id << " ret=" << ret;
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport memid=" << id << ", ret=" << ret;
     return UBSE_OK;
 }
 
@@ -366,7 +366,7 @@ bool SplitObmmExportSize(const size_t size[MAX_NUMA_NODES], const size_t blockSi
     size_t blockNum[MAX_NUMA_NODES]{};
     size_t blockAll{0};
     if (blockSize == 0u) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Block size is 0, is invalid.";
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Block size=0 is invalid.";
         return false;
     }
     for (int i = 0; i < MAX_NUMA_NODES; ++i) {
@@ -374,7 +374,7 @@ bool SplitObmmExportSize(const size_t size[MAX_NUMA_NODES], const size_t blockSi
         blockNum[i] = (RmCommonUtils::GetInstance().SafeAdd(size[i], blockSize, isOverflow) - 1) / blockSize;
         if (isOverflow) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Overflow occurred during addition. size[" << i << "]=" << size[i]
-                           << " blockSize=" << blockSize;
+                           << ", blockSize=" << blockSize;
             return false;
         }
         blockAll += blockNum[i];
@@ -502,14 +502,14 @@ UbseResult RmObmmExecutor::ObmmQueryUBPaByMemId(uint64_t handle, unsigned long o
 UbseResult RmObmmExecutor::ObmmPreImport(struct obmm_preimport_info *preimport_info, unsigned long flags)
 {
     if (preimport_info == nullptr) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmm_preimport_info is nullptr, error code is " << UBSE_ERROR_INVAL;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmm_preimport_info is nullptr, error_code=" << UBSE_ERROR_INVAL;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "Start to use Obmm PreImport interface, preimport_info is scna "
-                  << preimport_info->scna << ", dcna " << preimport_info->dcna << ", length is "
+    UBSE_LOG_INFO << MMI_LOG_INFO << "Start to use Obmm PreImport interface, preimport_info is scna="
+                  << preimport_info->scna << ", dcna=" << preimport_info->dcna << ", length="
                   << preimport_info->length;
     if (obmmPreImportFunc == nullptr) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmmPreImportFunc is nullptr, error code is " << UBSE_ERROR_NULLPTR;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmmPreImportFunc is nullptr, error_code=" << UBSE_ERROR_NULLPTR;
         return UBSE_ERROR_NULLPTR;
     }
 
@@ -518,42 +518,42 @@ UbseResult RmObmmExecutor::ObmmPreImport(struct obmm_preimport_info *preimport_i
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
 
     if (ret == -1 && errno == EEXIST) {
-        UBSE_LOG_INFO << MMI_LOG_INFO << "The cna connect has been preOnline, scna is " << preimport_info->scna
-                      << ", dcna is " << preimport_info->dcna;
+        UBSE_LOG_INFO << MMI_LOG_INFO << "The cna connect has been preOnline, scna=" << preimport_info->scna
+                      << ", dcna=" << preimport_info->dcna;
         return UBSE_OK;
     }
     if (ret != 0) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "obmmPreImportFailed, ret is " << ret << ", scna is " << preimport_info->scna
-                       << ", dcna  is" << preimport_info->dcna << ", errno is " << errno;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "obmmPreImportFailed, ret=" << ret << ", scna= " << preimport_info->scna
+                       << ", dcna=" << preimport_info->dcna << ", errno=" << errno;
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "PreImport success, remote numa_id is " << preimport_info->numa_id << ", scna is "
+    UBSE_LOG_INFO << MMI_LOG_INFO << "PreImport success, remote numa_id=" << preimport_info->numa_id << ", scna="
                   << preimport_info->scna;
     return UBSE_OK;
 }
 UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info *preimport_info, unsigned long flags)
 {
     if (preimport_info == nullptr) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmm_preimport_info is nullptr, error code is " << UBSE_ERROR_INVAL;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmm_preimport_info is nullptr, error_code=" << UBSE_ERROR_INVAL;
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO
                   << "Start to use Obmm UnPreImport interface, preimport_info is scna=" << preimport_info->scna
-                  << ", dcna=" << preimport_info->dcna << ", length is " << preimport_info->length;
+                  << ", dcna=" << preimport_info->dcna << ", length=" << preimport_info->length;
     if (obmmUnPreImportFunc == nullptr) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmmPreImportFunc is nullptr, error code is " << UBSE_ERROR_NULLPTR;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmmPreImportFunc is nullptr, error_code=" << UBSE_ERROR_NULLPTR;
         return UBSE_ERROR_NULLPTR;
     }
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
     auto ret = obmmUnPreImportFunc(preimport_info, flags);
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
     if (ret != 0) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "obmmUnPreImportFailed, ret is " << ret << ", scna is "
-                       << preimport_info->scna << ", dcna is " << preimport_info->dcna;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "obmmUnPreImportFailed, ret=" << ret << ", scna="
+                       << preimport_info->scna << ", dcna=" << preimport_info->dcna;
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UnPreImport success, remote numa_id is " << preimport_info->numa_id
-                  << ", scna is " << preimport_info->scna;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UnPreImport success, remote numa_id=" << preimport_info->numa_id
+                  << ", scna=" << preimport_info->scna;
     return UBSE_OK;
 }
 

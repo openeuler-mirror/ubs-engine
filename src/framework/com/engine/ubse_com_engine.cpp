@@ -96,7 +96,7 @@ UbseResult UbseComLinkManager::GetChannelByRemoteNodeId(const std::string &nodeI
 
     auto chTypeIter = iter->second.find(chType);
     if (chTypeIter == iter->second.end()) {
-        UBSE_LOG_ERROR << "No channel for node " << nodeId << " type is " << static_cast<int>(chType);
+        UBSE_LOG_ERROR << "No channel for node " << nodeId << ", type=" << static_cast<int>(chType);
         LogChannelInfo();
         return UBSE_COM_ERROR_CHANNEL_NOT_FOUND;
     }
@@ -144,8 +144,8 @@ void UbseComLinkManager::InsertChannel(UbseComChannelInfo &channelInfo)
     const auto &remoteIp = channelInfo.GetConnectInfo().GetIp();
     auto engineName = channelInfo.GetEngineName();
     if (IsChannelExists(remoteIp, chType)) {
-        UBSE_LOG_INFO << "Engine " << engineName << " channel already exists, type is " << static_cast<uint16_t>(chType)
-                      << ", remote node is " << remoteIp;
+        UBSE_LOG_INFO << "Engine " << engineName << " channel already exists, type=" << static_cast<uint16_t>(chType)
+                      << ", remote node =" << remoteIp;
         LogChannelInfo();
         auto engine = UbseComEngineManager::GetEngine(engineName);
         if (engine == nullptr) {
@@ -167,9 +167,9 @@ void UbseComLinkManager::InsertChannel(UbseComChannelInfo &channelInfo)
     auto channelId = channelInfo.GetChannel()->GetId();
     channelIdMap_.emplace(channelId, channelInfo);
     nodeIpIdMap_.emplace(remoteIp, remoteNodeId);
-    UBSE_LOG_INFO << "Insert channel id=" << channelId << ", curnode id=" << channelInfo.GetConnectInfo().GetCurNodeId()
-                  << ", remote node id=" << remoteNodeId << ", remote ip = " << remoteIp
-                  << ", channel type=" << ChannelTypeToString(chType);
+    UBSE_LOG_INFO << "Insert channel_id=" << channelId << ", curnode_id=" << channelInfo.GetConnectInfo().GetCurNodeId()
+                  << ", remote_node_id=" << remoteNodeId << ", remote_ip=" << remoteIp
+                  << ", channel_type=" << ChannelTypeToString(chType);
     LogChannelInfo();
 }
 
@@ -273,8 +273,8 @@ const UbseComEngineInfo &UbseComEngine::GetEngineInfo() const
 UbseResult UbseComEngine::RegUbseComMsgHandler(const UbseComMsgHandler &handle)
 {
     if (handle.moduleCode >= MODULES_SIZE || handle.opCode >= OP_CODE_SIZE) {
-        UBSE_LOG_ERROR << "Invalid module code or op code, module code = " << handle.moduleCode
-                       << ", op code = " << handle.opCode;
+        UBSE_LOG_ERROR << "Invalid module code or op code, module code=" << handle.moduleCode
+                       << ", op code=" << handle.opCode;
         return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
     }
     rwHanldeMapLock.LockWrite();
@@ -329,8 +329,8 @@ bool GetEnableTlsValue()
     bool enableTlsValue = true;
     auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
-                      << ", ret: " << ret << ", use default value: true";
+        UBSE_LOG_ERROR << "The value of the key does not exist or is invalid, key=" << UBSE_CERT_CONFIG_KEY
+                      << ", ret=" << ret << ", use default value: true";
         enableTlsValue = true;
     }
     return enableTlsValue;
@@ -351,12 +351,12 @@ UbseResult GetRemoteNodeIdByCall(const std::string &remoteIP, const UBSHcomChann
     UBSHcomResponse rspMsg;
     auto ret = channelPtr->Call(reqMsg, rspMsg);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Call remote node id for " << remoteIP << " fail, ret code:" << ret;
+        UBSE_LOG_ERROR << "Call remote node id for " << remoteIP << " failed, ret=" << ret;
         return UBSE_ERROR;
     }
     std::string msg(std::string(static_cast<const char *>(rspMsg.address), rspMsg.size));
     if (msg == GET_NODE_ID_FAIL_MSG) {
-        UBSE_LOG_ERROR << "Get remote node id for " << remoteIP << " fail";
+        UBSE_LOG_ERROR << "Get remote node id for " << remoteIP << " failed";
         return UBSE_ERROR;
     }
     remoteNodeId = msg;
@@ -381,8 +381,8 @@ UbseResult UbseComEngine::CreateChannel(UbseComChannelConnectInfo &info, UbseCha
     auto &remoteNodeIp = info.GetIp();
     rwLock_.LockRead();
     if (linkManager_.IsChannelExists(remoteNodeIp, chType)) {
-        UBSE_LOG_INFO << "Engine " << engineName << " channel already exists, type is " << ChannelTypeToString(chType)
-                      << ", remote node is " << remoteNodeIp;
+        UBSE_LOG_INFO << "Engine=" << engineName << " channel already exists, type=" << ChannelTypeToString(chType)
+                      << ", remote node=" << remoteNodeIp;
         remoteNodeId = linkManager_.GetNodeIdByIp(remoteNodeIp);
         rwLock_.UnLock();
         RemoveConnectingNode(info.GetIp(), chType);
@@ -423,8 +423,8 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo &info, UbseC
     rwLock_.LockWrite();
     linkManager_.InsertChannel(chInfo);
     rwLock_.UnLock();
-    UBSE_LOG_INFO << "Create channel remote is " << info.GetRemoteNodeId() << " successfully, engine=" << engineName
-                  << ", channel id " << channelPtr->GetId() << ", type=" << ChannelTypeToString(chType);
+    UBSE_LOG_INFO << "Create channel remote=" << info.GetRemoteNodeId() << " successfully, engine=" << engineName
+                  << ", channel id=" << channelPtr->GetId() << ", type=" << ChannelTypeToString(chType);
     RemoveConnectingNode(info.GetIp(), chType);
 
     linkStateNotify_(engineInfo_, remoteNodeId, channelPtr, UbseLinkState::LINK_UP);
@@ -466,7 +466,7 @@ void UbseComEngine::RemoveChannel(std::string remoteNodeId, UbseChannelType type
     UbseResult ret = linkManager_.GetChannelByRemoteNodeId(remoteNodeId, type, channelInfo);
     rwLock_.UnLock();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get channel info" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to get channel info, " << FormatRetCode(ret);
         return;
     }
     rwLock_.LockWrite();
@@ -505,7 +505,7 @@ UbseResult UbseComEngine::Start()
     auto ret = hcomNetService_->Start();
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
-        UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, ret=" << ret << ",will retry";
+        UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, ret=" << ret << ", will retry";
         try {
             std::thread([this]() { DoEngineStart(); }).detach();
         } catch (const std::exception &e) {
@@ -528,7 +528,7 @@ void UbseComEngine::Stop()
     auto engineName = engineInfo_.GetName();
     if (hcomNetService_ != nullptr) {
         while (reconnectThreadNum_ > 0) {
-            UBSE_LOG_INFO << "stoping reconnect thread num: " << reconnectThreadNum_;
+            UBSE_LOG_INFO << "stoping reconnect thread num=" << reconnectThreadNum_;
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
         linkManager_.RemoveAllChannel(this);
@@ -691,7 +691,7 @@ bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyP
 
     errno_t cpyRet = memcpy_s(keyPass, len + 1, keyPassContent.c_str(), len);
     if (cpyRet != EOK) {
-        UBSE_LOG_ERROR << "Failed to translate keyPass file, err code: " << cpyRet;
+        UBSE_LOG_ERROR << "Failed to translate keyPass file, err code=" << cpyRet;
         KeyPassErase(keyPass, len + 1);
         return false;
     }
@@ -762,16 +762,16 @@ UbseResult UbseComEngine::AddConnectingNodeForServer(UbseComChannelInfo &chInfo)
     auto iter = connectingMap_.find(chInfo.GetConnectInfo().GetIp());
     if (iter != connectingMap_.end() && iter->second.find(chInfo.GetChannelType()) != iter->second.end()) {
         if (chInfo.GetConnectInfo().GetRemoteNodeId().compare(chInfo.GetConnectInfo().GetCurNodeId()) >= 0) {
-            UBSE_LOG_WARN << "channel is connectiong, remote nodeId: " << chInfo.GetConnectInfo().GetRemoteNodeId()
-                          << "; cur nodeId: " << chInfo.GetConnectInfo().GetCurNodeId();
+            UBSE_LOG_WARN << "channel is connectiong, remote nodeId=" << chInfo.GetConnectInfo().GetRemoteNodeId()
+                          << ", cur nodeId=" << chInfo.GetConnectInfo().GetCurNodeId();
             conMutex_.unlock();
             return UBSE_ERROR;
         }
     }
     rwLock_.LockRead();
     if (linkManager_.IsChannelExists(chInfo.GetConnectInfo().GetIp(), chInfo.GetChannelType())) {
-        UBSE_LOG_WARN << "channel exists, id: " << chInfo.GetChannel()->GetId()
-                      << ", remoteId: " << chInfo.GetConnectInfo().GetRemoteNodeId();
+        UBSE_LOG_WARN << "channel exists, id=" << chInfo.GetChannel()->GetId()
+                      << ", remoteId=" << chInfo.GetConnectInfo().GetRemoteNodeId();
         conMutex_.unlock();
         rwLock_.UnLock();
         return UBSE_ERROR;
@@ -786,8 +786,8 @@ UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo &chInfo)
 {
     rwLock_.LockRead();
     if (linkManager_.IsChannelExists(chInfo.GetConnectInfo().GetIp(), chInfo.GetChannelType())) {
-        UBSE_LOG_WARN << "channel exists, id: " << chInfo.GetChannel()->GetId()
-                      << ", remoteId: " << chInfo.GetConnectInfo().GetRemoteNodeId();
+        UBSE_LOG_WARN << "channel exists, id=" << chInfo.GetChannel()->GetId()
+                      << ", remoteId=" << chInfo.GetConnectInfo().GetRemoteNodeId();
         rwLock_.UnLock();
         return UBSE_ERROR;
     }
@@ -803,11 +803,11 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     const auto &engineName = engineInfo_.GetName();
     UBSE_LOG_INFO << "Engine " << engineName << " get new channel";
     if (ch == nullptr) {
-        UBSE_LOG_ERROR << "HcomChannelPtr of NewChannel is nullptr ipPort is: " << ipPort << " payload is: " << payload;
+        UBSE_LOG_ERROR << "HcomChannelPtr of NewChannel is nullptr, ipPort=" << ipPort << ", payload=" << payload;
         return UBSE_COM_ERROR_CHANNEL_NULL;
     }
     std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(payload);
-    UBSE_LOG_INFO << "New channel " << ch.Get()->GetId() << " receive from: " << ipPort << ", payload is: " << payload;
+    UBSE_LOG_INFO << "New channel=" << ch.Get()->GetId() << " receive from " << ipPort << ", payload=" << payload;
     UbseComChannelConnectInfo connectInfo;
     connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
     connectInfo.SetRemoteNodeId(payLoadPair.first);
@@ -825,7 +825,7 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     }
     if (engineInfo_.GetNewChannelCb() != nullptr) {
         if (engineInfo_.GetNewChannelCb()(ip, payLoadPair.first) != UBSE_OK) {
-            UBSE_LOG_WARN << "New channel " << ch.Get()->GetId() << ", payload is: " << payload << " ,refused by HA";
+            UBSE_LOG_WARN << "New channel=" << ch.Get()->GetId() << ", payload=" << payload << ", refused by HA";
             return UBSE_ERROR;
         }
     }
@@ -839,8 +839,8 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     UbseComChannelInfo chInfo(true, payLoadPair.second, engineName, ch, connectInfo);
     auto ret = AddConnectingNodeForServer(chInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "New channel " << ch.Get()->GetId() << ", payload is: " << payload
-                      << " ,refused for channel exist";
+        UBSE_LOG_WARN << "New channel=" << ch.Get()->GetId() << ", payload=" << payload
+                      << " , refused for channel exist";
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -851,18 +851,18 @@ void UbseComEngine::BrokenChannel(const UBSHcomChannelPtr &ch)
     const auto &engineName = engineInfo_.GetName();
     UBSE_LOG_INFO << "Engine=" << engineName << " channel broken";
     if (ch == nullptr) {
-        UBSE_LOG_WARN << "Engine " << engineName << " channel broken, and channel is nullptr";
+        UBSE_LOG_WARN << "Engine=" << engineName << " channel broken, and channel is nullptr";
         return;
     }
     auto channelId = ch->GetId();
     UBSE_LOG_INFO << "Engine=" << engineName << " channel broken, id=" << ch->GetId()
-                  << "payload: " << ch->GetPeerConnectPayload();
+                  << ", payload=" << ch->GetPeerConnectPayload();
     std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(ch->GetPeerConnectPayload());
     rwLock_.LockWrite();
     UbseComChannelInfo channelInfo;
     auto ret = linkManager_.GetChannelByChannelId(channelId, channelInfo);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_WARN << "Breaking Channel : " << ch->GetId() << " not found in UbseTransLinkManager.";
+        UBSE_LOG_WARN << "Breaking Channel=" << ch->GetId() << " not found in UbseTransLinkManager.";
         rwLock_.UnLock();
         return;
     }
@@ -958,8 +958,8 @@ UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext &context)
     auto crcNew = CrcUtil::SoftCrc32(msg->GetMessageBody(), msg->GetMessageBodyLen(), NO_1);
     if (crc != crcNew) {
         UBSE_LOG_ERROR << "Engine " << engineInfo_.GetName() << " check crc failed, op=" << opCode
-                       << ", module=" << moduleCode << ", msg body len is " << msg->GetMessageBodyLen() << ", crc is "
-                       << crc << ", crc new is " << crcNew;
+                       << ", module=" << moduleCode << ", msg body len=" << msg->GetMessageBodyLen() << ", crc="
+                       << crc << ", crc new=" << crcNew;
         return UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL;
     }
     UbseComMessageCtx msgCtx;
@@ -969,8 +969,8 @@ UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext &context)
     ParseContextMsg(context, msg, msgCtx);
     auto hdl = GetMessageHandler(moduleCode, opCode);
     if (!hdl.has_value() || hdl->handler == nullptr) {
-        UBSE_LOG_ERROR << "Engine " << engineInfo_.GetName() << ", no handler for module " << moduleCode << ", op code "
-                       << opCode << ", crc " << crc;
+        UBSE_LOG_ERROR << "Engine " << engineInfo_.GetName() << ", no handler for module=" << moduleCode
+                       << ", op code=" << opCode << ", crc=" << crc;
         NoHandlerReply(msgCtx);
         return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
     }
@@ -982,7 +982,7 @@ const std::string GetCurRoleStr()
     ubse::election::UbseRoleInfo currentNode{};
     auto ret = UbseGetCurrentNodeInfo(currentNode);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get Role failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Get Role failed, " << FormatRetCode(ret);
         return "";
     }
     return currentNode.nodeRole;
@@ -1027,14 +1027,14 @@ UbseResult UbseComEngine::NormalRequestHandle(UBSHcomServiceContext &context)
     auto opCode = msg->GetMessageHead().GetOpCode();
     auto crcNew = CrcUtil::SoftCrc32(msg->GetMessageBody(), msg->GetMessageBodyLen(), NO_1);
     if (moduleCode != static_cast<uint16_t>(UbseModuleCode::ELECTION)) {
-        UBSE_LOG_DEBUG << "Engine " << engineInfo_.GetName() << " get new request, op=" << opCode
-                       << ", module=" << moduleCode << ", msg body len is " << msg->GetMessageBodyLen() << ", crc is "
-                       << crc << ", crc new is:" << crcNew;
+        UBSE_LOG_DEBUG << "Engine=" << engineInfo_.GetName() << " get new request, op=" << opCode
+                       << ", module=" << moduleCode << ", msg body len=" << msg->GetMessageBodyLen() << ", crc="
+                       << crc << ", crc new =" << crcNew;
     }
     if (crc != crcNew) {
-        UBSE_LOG_ERROR << "Engine " << engineInfo_.GetName() << " check crc failed, op=" << opCode
-                       << ", module=" << moduleCode << ", msg body len is " << msg->GetMessageBodyLen() << ", crc is "
-                       << crc << ", crc new is " << crcNew;
+        UBSE_LOG_ERROR << "Engine=" << engineInfo_.GetName() << " check crc failed, op=" << opCode
+                       << ", module=" << moduleCode << ", msg body len=" << msg->GetMessageBodyLen() << ", crc="
+                       << crc << ", crc new=" << crcNew;
         return UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL;
     }
     UbseComMessageCtx msgCtx;
@@ -1043,7 +1043,7 @@ UbseResult UbseComEngine::NormalRequestHandle(UBSHcomServiceContext &context)
     ParseContextMsg(context, msg, msgCtx);
     if (moduleCode != static_cast<uint16_t>(UbseModuleCode::ELECTION)) {
         if (!VerifyMsg(msgCtx)) {
-            UBSE_LOG_ERROR << "The message for module " << moduleCode << ", op code " << opCode
+            UBSE_LOG_ERROR << "The message for module=" << moduleCode << ", op code=" << opCode
                            << " , is not the trans between master and agent.";
             VarifyFailReply(msgCtx);
             return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
@@ -1051,8 +1051,8 @@ UbseResult UbseComEngine::NormalRequestHandle(UBSHcomServiceContext &context)
     }
     auto hdl = GetMessageHandler(moduleCode, opCode);
     if (!hdl.has_value() || hdl->handler == nullptr) {
-        UBSE_LOG_ERROR << "Engine " << engineInfo_.GetName() << ", no handler for module " << moduleCode << ", op code "
-                       << opCode << ", crc " << crc;
+        UBSE_LOG_ERROR << "Engine " << engineInfo_.GetName() << ", no handler for module=" << moduleCode
+                       << ", op code=" << opCode << ", crc=" << crc;
         NoHandlerReply(msgCtx);
         return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
     }
@@ -1084,14 +1084,14 @@ UbseResult UbseComEngine::GetChannelById(uint64_t channelId, UbseComChannelInfo 
 UbseResult UbseComEngine::SendRequest(const UBSHcomServiceContext &context)
 {
     int32_t ret = context.Result();
-    UBSE_LOG_INFO << "Send request finish, result is " << ret;
+    UBSE_LOG_INFO << "Send request finish, result=" << ret;
     return UBSE_OK;
 }
 
 UbseResult UbseComEngine::OneSideDoneRequest(const UBSHcomServiceContext &context)
 {
     int32_t ret = context.Result();
-    UBSE_LOG_INFO << "One side done finish, result is " << ret;
+    UBSE_LOG_INFO << "One side done finish, result=" << ret;
     return UBSE_OK;
 }
 void UbseComEngine::AddListenOptions(UBSHcomServiceNewChannelHandler newChannelHandler)
@@ -1199,13 +1199,12 @@ UbseResult CreateChannel(bool isUds, const std::string &engineName, const std::p
         return UBSE_ERROR_INVAL;
     }
     if (nodeIds.first.empty() || nodeIds.second.empty()) {
-        UBSE_LOG_ERROR << "connect node id is empty, curNodeId is " << nodeIds.first << " remoteNodeId is "
-                       << nodeIds.second;
+        UBSE_LOG_ERROR << "connect node id is empty, curNodeId=" << nodeIds.first << " remoteNodeId=" << nodeIds.second;
         return UBSE_ERROR_INVAL;
     }
     UbseComEngine *engine = UbseComEngineManager::GetEngine(engineName);
     if (engine == nullptr) {
-        UBSE_LOG_ERROR << "get engine failed, engineName: " << engineName;
+        UBSE_LOG_ERROR << "get engine failed, engineName=" << engineName;
         return UBSE_COM_ERROR_GET_ENGINE_FAIL;
     }
     UbseComChannelConnectInfo connectInfo(isUds, ipAndPort.first, ipAndPort.second, nodeIds.second, nodeIds.first);
@@ -1224,13 +1223,12 @@ UbseResult CreateUbChannel(bool isUds, const std::string &engineName, const std:
         return UBSE_ERROR_INVAL;
     }
     if (nodeIds.first.empty() || nodeIds.second.empty()) {
-        UBSE_LOG_ERROR << "connect node id is empty, curNodeId is " << nodeIds.first << " remoteNodeId is "
-                       << nodeIds.second;
+        UBSE_LOG_ERROR << "connect node id is empty, curNodeId=" << nodeIds.first << " remoteNodeId=" << nodeIds.second;
         return UBSE_ERROR_INVAL;
     }
     UbseComEngine *engine = UbseComEngineManager::GetEngine(engineName);
     if (engine == nullptr) {
-        UBSE_LOG_ERROR << "get engine failed, engineName: " << engineName;
+        UBSE_LOG_ERROR << "get engine failed, engineName=" << engineName;
         return UBSE_COM_ERROR_GET_ENGINE_FAIL;
     }
     UbseComChannelConnectInfo connectInfo(isUds, ipAndPort.first, ipAndPort.second, nodeIds.second, nodeIds.first);
@@ -1258,7 +1256,7 @@ UbseResult CreateCallBack(const UbseComCallback &usrCb, Callback *&done)
         [usrCb, traceId](UBSHcomServiceContext &context) {
             TraceContext::SetTraceId(traceId);
             if (context.Result() != 0) {
-                UBSE_LOG_ERROR << "callback return failed," << FormatRetCode(context.Result());
+                UBSE_LOG_ERROR << "callback return failed, " << FormatRetCode(context.Result());
             }
             auto ret = context.Result();
             UbseComDataDesc data{static_cast<uint8_t *>(context.MessageData()), context.MessageDataLen()};
@@ -1292,17 +1290,17 @@ UbseResult GetChannel(const std::string &engineName, UbseComMessageCtx &message,
     UbseComChannelInfo channelInfo;
     auto engine = UbseComEngineManager::GetEngine(engineName);
     if (engine == nullptr) {
-        UBSE_LOG_ERROR << "get engine failed, engineName: " << engineName;
+        UBSE_LOG_ERROR << "get engine failed, engineName =" << engineName;
         return UBSE_COM_ERROR_GET_ENGINE_FAIL;
     }
     UbseResult res = engine->GetChannelByRemoteNodeId(nodeId, message.GetChannelType(), channelInfo);
     if (UBSE_RESULT_FAIL(res)) {
-        UBSE_LOG_ERROR << "Channel info is abnormal, nodeId: " << nodeId;
+        UBSE_LOG_ERROR << "Channel info is abnormal, nodeId=" << nodeId;
         return UBSE_COM_ERROR_CHANNEL_NOT_FOUND;
     }
     channel = channelInfo.GetChannel();
     if (channel == nullptr) {
-        UBSE_LOG_ERROR << "Channel is nullptr, nodeId: " << nodeId;
+        UBSE_LOG_ERROR << "Channel is nullptr, nodeId=" << nodeId;
         return UBSE_COM_ERROR_CHANNEL_NULL;
     }
     return UBSE_OK;
@@ -1338,8 +1336,8 @@ UbseResult UbseCommunication::UbseComRpcConnect(const std::string &engineName,
                                                 const std::pair<std::string, std::string> &nodeIds,
                                                 std::string &remoteNodeId, UbseChannelType chType, bool isUb)
 {
-    UBSE_LOG_INFO << "rpc connect start, node ip: " << ipAndPort.first << ", node port: " << ipAndPort.second
-                  << ", channel type: " << static_cast<uint32_t>(chType);
+    UBSE_LOG_INFO << "rpc connect start, node ip=" << ipAndPort.first << ", node port=" << ipAndPort.second
+                  << ", channel type=" << static_cast<uint32_t>(chType);
     UbseResult res;
     if (isUb) {
         res = CreateUbChannel(false, engineName, ipAndPort, nodeIds, chType, remoteNodeId);
@@ -1349,8 +1347,8 @@ UbseResult UbseCommunication::UbseComRpcConnect(const std::string &engineName,
     if (UBSE_RESULT_FAIL(res)) {
         return res;
     }
-    UBSE_LOG_INFO << "create rpc_connect channel successfully , node ip: " << ipAndPort.first
-                  << ", node port: " << ipAndPort.second << ", channel type: " << static_cast<uint32_t>(chType);
+    UBSE_LOG_INFO << "create rpc_connect channel successfully , node ip=" << ipAndPort.first
+                  << ", node port=" << ipAndPort.second << ", channel type=" << static_cast<uint32_t>(chType);
     return UBSE_OK;
 }
 
@@ -1358,7 +1356,7 @@ UbseResult UbseCommunication::RegUbseComMsgHandler(const std::string &engineName
 {
     UbseComEngine *engine = UbseComEngineManager::GetEngine(engineName);
     if (engine == nullptr) {
-        UBSE_LOG_ERROR << "get engine failed, engineName: " << engineName;
+        UBSE_LOG_ERROR << "get engine failed, engineName=" << engineName;
         return UBSE_COM_ERROR_GET_ENGINE_FAIL;
     }
     return engine->RegUbseComMsgHandler(handle);
@@ -1388,7 +1386,7 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string &engineName, Ubse
         return UBSE_COM_ERROR_RESOURCE_TEMPORARILY_UNAVAILABLE;
     }
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Channel syncCallRaw failed, ret," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Channel syncCallRaw failed, " << FormatRetCode(ret);
         return UBSE_COM_ERROR_SYNC_CALL_FAIL;
     }
     retData.data = static_cast<uint8_t *>(rspMsg.address);
@@ -1428,7 +1426,7 @@ UbseResult UbseCommunication::UbseComMsgAsyncSend(const std::string &engineName,
         return UBSE_COM_ERROR_RESOURCE_TEMPORARILY_UNAVAILABLE;
     }
     if (UBSE_RESULT_FAIL(result)) {
-        UBSE_LOG_ERROR << "Channel AsyncCallRaw failed," << FormatRetCode(result);
+        UBSE_LOG_ERROR << "Channel AsyncCallRaw failed, " << FormatRetCode(result);
         return result;
     }
     return UBSE_OK;
@@ -1442,7 +1440,7 @@ size_t HashStringToSize(const std::string &s)
 
 void ReplyWhenChannelNotInMap(UbseComMessageCtx &message, const UbseComCallback &usrCb)
 {
-    UBSE_LOG_ERROR << "Reply fail, channel info is abnormal, channel id: " << message.GetChannelId()
+    UBSE_LOG_ERROR << "Reply fail, channel info is abnormal, channel id=" << message.GetChannelId()
                    << " moduleCode=" << message.GetModuleCode() << " opCode=" << message.GetOpCode();
     UBSHcomRequest reqMsg;
     auto res = (UbseReplyResultToString(UbseReplyResult::ERR_CH_NOT_IN_MAP));
@@ -1463,12 +1461,12 @@ void ReplyWhenChannelNotInMap(UbseComMessageCtx &message, const UbseComCallback 
     message.GetChannelPtr()->SetTraceId(traceId);
     auto ret = message.GetChannelPtr()->Reply(replyContext, reqMsg, done);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Channel reply failed, res: " << FormatRetCode(ret)
-                       << " moduleCode=" << message.GetModuleCode() << " opCode=" << message.GetOpCode();
+        UBSE_LOG_ERROR << "Channel reply failed, " << FormatRetCode(ret)
+                       << ", moduleCode=" << message.GetModuleCode() << ", opCode=" << message.GetOpCode();
         usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_REPLY_FAIL);
     } else {
-        UBSE_LOG_DEBUG << "Channel reply successfully moduleCode=" << message.GetModuleCode()
-                       << " opCode=" << message.GetOpCode();
+        UBSE_LOG_DEBUG << "Channel reply successfully, moduleCode=" << message.GetModuleCode()
+                       << ", opCode=" << message.GetOpCode();
     }
 }
 
@@ -1479,7 +1477,7 @@ void UbseCommunication::UbseComMsgReply(UbseComMessageCtx &message, const UbseCo
     const auto &engineName = message.GetEngineName();
     auto engine = UbseComEngineManager::GetEngine(engineName);
     if (engine == nullptr) {
-        UBSE_LOG_ERROR << "Reply fail, get engine failed, engineName: " << engineName << ", channel id "
+        UBSE_LOG_ERROR << "Reply fail, get engine failed, engineName=" << engineName << ", channel id ="
                        << message.GetChannelId();
         return;
     }
@@ -1490,13 +1488,13 @@ void UbseCommunication::UbseComMsgReply(UbseComMessageCtx &message, const UbseCo
     }
     const UBSHcomChannelPtr &channel = channelInfo.GetChannel();
     if (channel == nullptr) {
-        UBSE_LOG_ERROR << "Channel is nullptr, nodeId: " << message.GetDstId();
+        UBSE_LOG_ERROR << "Channel is nullptr, nodeId=" << message.GetDstId();
         usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_CHANNEL_NULL);
         return;
     }
     UBSHcomRequest reqMsg;
     if (data.len > TCP_SEND_RECEIVE_SIZE) {
-        UBSE_LOG_CRIT << "Too large msg for tcp reply, msg size is " << data.len;
+        UBSE_LOG_CRIT << "Too large msg for tcp reply, msg size=" << data.len;
     }
     reqMsg.address = data.data;
     reqMsg.size = data.len;
@@ -1510,12 +1508,12 @@ void UbseCommunication::UbseComMsgReply(UbseComMessageCtx &message, const UbseCo
     channel->SetTraceId(traceId);
     res = channel->Reply(replyContext, reqMsg, done);
     if (UBSE_RESULT_FAIL(res)) {
-        UBSE_LOG_ERROR << "Channel reply failed, res: " << FormatRetCode(res)
-                       << " moduleCode=" << message.GetModuleCode() << " opCode=" << message.GetOpCode();
+        UBSE_LOG_ERROR << "Channel reply failed, " << FormatRetCode(res)
+                       << ", moduleCode=" << message.GetModuleCode() << ", opCode=" << message.GetOpCode();
         usrCb.cb(usrCb.cbCtx, nullptr, 0, UBSE_COM_ERROR_REPLY_FAIL);
     } else {
         UBSE_LOG_DEBUG << "Channel reply successfully moduleCode=" << message.GetModuleCode()
-                       << " opCode=" << message.GetOpCode();
+                       << ", opCode=" << message.GetOpCode();
     }
 }
 
@@ -1524,7 +1522,7 @@ void UbseCommunication::RemoveChannel(const std::string &engineName, const std::
 {
     auto engine = UbseComEngineManager::GetEngine(engineName);
     if (engine == nullptr) {
-        UBSE_LOG_WARN << "Get engine failed, engineName: " << engineName;
+        UBSE_LOG_WARN << "Get engine failed, engineName=" << engineName;
         return;
     }
     engine->RemoveChannel(remoteNodeId, type);
@@ -1534,7 +1532,7 @@ std::string UbseCommunication::GetNodeIdByIp(const std::string &engineName, cons
 {
     const auto engine = UbseComEngineManager::GetEngine(engineName);
     if (engine == nullptr) {
-        UBSE_LOG_WARN << "Get engine failed, engineName: " << engineName;
+        UBSE_LOG_WARN << "Get engine failed, engineName=" << engineName;
         return "";
     }
     return engine->GetNodeIdByIp(ip);

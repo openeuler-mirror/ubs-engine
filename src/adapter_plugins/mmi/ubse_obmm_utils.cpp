@@ -73,11 +73,11 @@ obmm_mem_desc *ConstructExportMemDesc(
     ret = UbseNodeController::GetInstance().GetLocalEidBySocket(customMeta.exportSocket, deid);
     if (ret != UBSE_OK) {
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "GetLocalEidBySocket error: " << ret << ", exportSocketId is "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "GetLocalEidBySocket error=" << ret << ", exportSocketId="
                        << customMeta.exportSocket;
         return nullptr;
     }
-    UBSE_LOG_INFO << "exportSocketId is " << customMeta.exportSocket << ", deid is " << deid;
+    UBSE_LOG_INFO << "exportSocketId=" << customMeta.exportSocket << ", deid=" << deid;
     ret = memcpy_s(obmmMemDesc->deid, UBSE_EID_LENGTH, &deid, sizeof(deid));
     if (ret != EOK) {
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
@@ -107,11 +107,11 @@ obmm_mem_desc *ConstructImportMemDesc(
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Memory set failed.";
         return nullptr;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "desc.seid: " << desc.seid;
-    UBSE_LOG_INFO << MMI_LOG_INFO << "desc.deid: " << desc.deid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "desc.seid=" << desc.seid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "desc.deid=" << desc.deid;
     CopyObmmMemDescValue(desc, obmmMemDesc, opParam.customMeta.decoderResult.hpa);
     if (!RmCommonUtils::GetInstance().IsValidUint16(priLen)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "PriLen is invalid, value = " << priLen;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "PriLen is invalid, value=" << priLen;
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return nullptr;
     }
@@ -152,12 +152,12 @@ UbseResult GetCustomMetaFromNumaExportObj(
         strcpy_s(customMeta.exportNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, peerNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, exportObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
+                  << ", gid=" << customMeta.gid;
 
     if (exportObj.algoResult.exportNumaInfos.size() != exportObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
@@ -169,8 +169,8 @@ UbseResult GetCustomMetaFromNumaExportObj(
         if (!RmCommonUtils::GetInstance().IsValidUint8(exportObj.algoResult.importNumaInfos[i].numaId) ||
             !RmCommonUtils::GetInstance().IsValidUint8(exportObj.algoResult.exportNumaInfos[i].numaId)) {
             UBSE_LOG_ERROR << MMI_LOG_INFO
-                           << "NumaId is invalid, import numaId = " << exportObj.algoResult.importNumaInfos[i].numaId
-                           << ", export numaId = " << exportObj.algoResult.exportNumaInfos[i].numaId;
+                           << "NumaId is invalid, import numaId=" << exportObj.algoResult.importNumaInfos[i].numaId
+                           << ", export numaId=" << exportObj.algoResult.exportNumaInfos[i].numaId;
             return UBSE_ERROR_INVAL;
         }
         customMeta.importNumaIds[i] = exportObj.algoResult.importNumaInfos[i].numaId;
@@ -200,11 +200,11 @@ UbseResult GetCustomMetaFromNumaImportObj(
         strcpy_s(customMeta.exportNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, peerNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, importObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
                   << ", gid:" << customMeta.gid;
     if (importObj.algoResult.exportNumaInfos.size() != importObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
@@ -216,8 +216,8 @@ UbseResult GetCustomMetaFromNumaImportObj(
         if (!RmCommonUtils::GetInstance().IsValidUint8(importObj.algoResult.importNumaInfos[i].numaId) ||
             !RmCommonUtils::GetInstance().IsValidUint8(importObj.algoResult.exportNumaInfos[i].numaId)) {
             UBSE_LOG_ERROR << MMI_LOG_INFO
-                           << "NumaId is invalid, import numaId = " << importObj.algoResult.importNumaInfos[i].numaId
-                           << ", export numaId = " << importObj.algoResult.exportNumaInfos[i].numaId;
+                           << "NumaId is invalid, import numaId=" << importObj.algoResult.importNumaInfos[i].numaId
+                           << ", export numaId=" << importObj.algoResult.exportNumaInfos[i].numaId;
             return UBSE_ERROR_INVAL;
         }
         customMeta.importNumaIds[i] = importObj.algoResult.importNumaInfos[i].numaId;
@@ -240,12 +240,12 @@ UbseResult GetCustomMetaFromFdExportObj(
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, exportObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
+                  << ", gid=" << customMeta.gid;
     return CopyUbseMemAlgoResult(exportObj.algoResult, exportObj.req.name, customMeta, true);
 }
 
@@ -261,12 +261,12 @@ UbseResult GetCustomMetaFromFdImportObj(
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, importObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << ", username :" << customMeta.username << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", username=" << customMeta.username << " requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
+                  << ", gid=" << customMeta.gid;
     return CopyUbseMemAlgoResult(importObj.algoResult, importObj.req.name, customMeta, false);
 }
 
@@ -297,16 +297,16 @@ UbseResult GetCustomMetaFromShmExportObj(
     customMeta.regionMask = regionMask;
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
     if (strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, exportObj.req.udsInfo.username.c_str()) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "StrCopy fail when copy username to meta, name: " << customMeta.name
-                       << ", username: " << customMeta.username << " requestNodeId: " << customMeta.exportNodeId;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "StrCopy fail when copy username to meta, name=" << customMeta.name
+                       << ", username=" << customMeta.username << " requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
                   << ", gid:" << customMeta.gid;
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, shm exportObj name is "
@@ -339,17 +339,17 @@ UbseResult GetCustomMetaFromShmImportObj(
     customMeta.regionMask = regionMask;
     if (strcpy_s(customMeta.requestNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, requestNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
     if (strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, importObj.req.udsInfo.username.c_str()) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "StrCopy fail when copy username to meta, name: " << customMeta.name
-                       << ", username: " << customMeta.username << " requestNodeId: " << customMeta.exportNodeId;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "StrCopy fail when copy username to meta, name=" << customMeta.name
+                       << ", username=" << customMeta.username << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
+                  << ", gid=" << customMeta.gid;
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, shm importObj name is "
                        << importObj.req.name;
@@ -377,16 +377,16 @@ UbseResult GetCustomMetaFromAddrExportObj(
         strcpy_s(customMeta.importNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, importNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, exportObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
                   << ", gid:" << customMeta.gid;
     if (exportObj.algoResult.exportNumaInfos.size() != exportObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << exportObj.algoResult.importNumaInfos.size()
-                       << " exportSize=" << exportObj.algoResult.exportNumaInfos.size();
+                       << ", exportSize=" << exportObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     for (int i = 0; i < exportObj.algoResult.exportNumaInfos.size(); i++) {
@@ -419,12 +419,12 @@ UbseResult GetCustomMetaFromAddrImportObj(
         strcpy_s(customMeta.importNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, importNodeId.c_str()) != EOK ||
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, importObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "StrCopy fail when copy requestNodeId and name to meta, name: " << customMeta.name
-                       << " requestNodeId: " << customMeta.exportNodeId;
+                       << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
+                       << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username: " << customMeta.username << ", uid: " << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
+                  << ", gid=" << customMeta.gid;
     if (importObj.algoResult.exportNumaInfos.size() != importObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << importObj.algoResult.importNumaInfos.size()
@@ -547,7 +547,7 @@ UbseResult RmObmmUtils::GetBasicPreImportInfos(
     tranRet &= ParsePreOnlineEidStr(tokens[SEID_INDEX], seid);
     tranRet &= ParsePreOnlineEidStr(tokens[DEID_INDEX], deid);
     tranRet &= RmCommonUtils::GetInstance().StrToLong(tokens[NUMAID_INDEX], numaId);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "seid = " << seid << ", deid = " << deid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "seid=" << seid << ", deid=" << deid;
     if (!tranRet) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Tran str to value failed.";
         file.close();
