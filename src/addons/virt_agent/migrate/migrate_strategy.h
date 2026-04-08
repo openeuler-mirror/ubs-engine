@@ -26,6 +26,7 @@ enum class MigrateStrategy : uint32_t {
     MULTICOPY_MIGRATE_POLICY = 0,
     ONECOPY_MIGRATE_POLICY = 1,
     HAM_MIGRATE_POLICY = 2,
+    CROSS_RACK_MULTICOPY_MIGRATE_POLICY = 3,
 };
 
 enum class UbseVmResult : uint32_t {
@@ -83,6 +84,8 @@ private:
     static uint32_t MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string &uuid,
         const std::string &destHostName, uint32_t destNumaId, uint32_t *migrateStrategy);
     static uint32_t GetMigrateOneCopyMemoryBound();
+    static uint32_t MakeHamMigrateDecision(const std::string &uuid, const std::string &destHostName,
+                                           uint32_t destNumaId, uint32_t *migrateStrategy);
     static uint32_t GetLocalMigrateInfo(MigrateInfoBase &migrateInfoLocal, const std::string &uuid);
     static uint32_t GetRemoteMigrateInfo(MigrateInfoBase &migrateInfoRemote, const std::string &destHostName,
                                          uint32_t destNumaId, const std::string &dstNid);
