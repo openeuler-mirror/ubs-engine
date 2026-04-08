@@ -7,7 +7,6 @@
 
 #include "ubse_common_def.h"
 #include "ubse_mem_controller_api.h"
-#include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 
@@ -18,8 +17,6 @@ using namespace ubse::nodeController;
 using namespace ubse::adapter_plugins::mmi;
 using UbseMemShareBorrowExportObjMap =
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>>;
-using UbseMemShareExportWithImports = std::pair<std::shared_ptr<const UbseMemShareBorrowExportObj>,
-                                                 std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>>;
 
 UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node);
 
@@ -199,16 +196,17 @@ std::vector<UbseMemShareBorrowImportObj> CollectImportObjsFromNode(
     const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &importMap, const std::string &name,
     const std::string &baseNodeId);
 
-std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjsByName(const std::string &name);
+std::vector<UbseMemShareBorrowImportObj> GetImportObjsByBaseNode(const NodeMemDebtInfoMap &debtMap,
+                                                                 const std::string &name,
+                                                                 const std::string &baseNodeId);
 
-// 收集指定 name 的导出对象，按 baseNodeId 分组
-std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> CollectExportObjsByName(
-    const std::string &name);
+std::vector<UbseMemShareBorrowImportObj> GetAllImportObjsByName(const NodeMemDebtInfoMap &debtMap,
+                                                                const std::string &name);
 
 UbseResult AgentInvalidateImportDebt(const std::string &name, UbseMemBorrowType type);
 
-// 获取最大引用计数的导出对象
-UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string &name);
+std::pair<UbseMemShareBorrowExportObj, std::vector<UbseMemShareBorrowImportObj>> GetMaxRefCountExportObj(
+    const std::string &name);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_CONTROLLER_LEDGER_H
