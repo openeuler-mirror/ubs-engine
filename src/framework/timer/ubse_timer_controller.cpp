@@ -46,7 +46,8 @@ static const uint32_t UBSE_HANDLER_EXEC_CHECK_INTERVAL_SECONDS = 60;   // 检测
 
 // map<handlerName, <interval, handler>>
 static std::unordered_map<std::string, std::pair<uint32_t, UbseTimerHandler>> g_handlers;
-static std::unordered_map<std::string, std::chrono::steady_clock::time_point> g_handlerExecStartRecord; // 每个handler执行开始时间
+// 每个handler执行开始时间
+static std::unordered_map<std::string, std::chrono::steady_clock::time_point> g_handlerExecStartRecord;
 static std::shared_mutex g_handlerExecStartMtx;
 static std::atomic<uint64_t> g_count{0}; // 周期计数；每隔1s递增1
 static std::shared_mutex g_handlersMtx;
@@ -76,7 +77,8 @@ static void CheckHandlerExecTimeout()
         std::stringstream oss;
         for (auto &handler : handlerExecStartRecordCopy) {
             auto duration = currentTime - handler.second;
-            if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() > UBSE_HANDLER_EXEC_TIMEOUT_SECONDS) {
+            if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() >
+                UBSE_HANDLER_EXEC_TIMEOUT_SECONDS) {
                 oss << "handler=" << handler.first << " exec timeout,";  // 超时警告
             }
         }
