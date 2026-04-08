@@ -25,7 +25,9 @@ class UbseNpuControllerProcess {
 public:
     static UbseResult ProcessNpuDevice(const UbDevice &ubDevice, std::vector<std::shared_ptr<IResource>> &devList);
 
-    static UbseResult ProcessNicDevice(const UbDevice &ubDevice, std::vector<std::shared_ptr<IResource>> &devList);
+    static UbseResult ProcessNicPfeDevice(const UbDevice &ubDevice, std::vector<std::shared_ptr<IResource>> &devList);
+
+    static UbseResult ProcessNicVfeDevice(const UbDevice &ubDevice, std::vector<std::shared_ptr<IResource>> &devList);
 
     static UbseResult ProcessBusiResource(const UbseAllocRequest &requestInfo,
                                           std::vector<std::shared_ptr<IResource>> &devList,
@@ -34,8 +36,11 @@ public:
     static UbseResult DeviceNpuToResource(const std::shared_ptr<CollectionDeviceDavid> &npu,
                                           std::shared_ptr<NpuResource> &npuRes);
 
-    static UbseResult DeviceNicToResource(const std::shared_ptr<CollectionDeviceNic> &nic,
-                                          std::shared_ptr<NicResource> &nicRes);
+    static UbseResult DeviceNicPfeToResource(const std::shared_ptr<CollectionDeviceNicPfe> &nic,
+                                          std::shared_ptr<NicPfeResource> &nicRes);
+
+    static UbseResult DeviceNicVfeToResource(const std::shared_ptr<CollectionDeviceNicVfe> &nic,
+                                          std::shared_ptr<NicVfeResource> &nicRes);
 
     static UbseResult BusInstanceToResource(const std::shared_ptr<CollectionDeviceBusi> &busi,
                                             std::shared_ptr<BusiResource> &busRes);
@@ -44,9 +49,23 @@ private:
     static std::shared_ptr<CollectionDeviceIdevPfe> ProcessBondingDevice(
         const std::shared_ptr<CollectionDeviceDavid> &npu, std::shared_ptr<NpuResource> &npuRes);
 
-    static void SetNicLocation(const std::shared_ptr<CollectionDeviceNic> &nic, std::shared_ptr<NicResource> &nicRes);
+    static void SetNicPfeLocation(const std::shared_ptr<CollectionDeviceNicPfe> &nic,
+                                  std::shared_ptr<NicPfeResource> &nicRes);
+
+    static void SetNicVfeLocation(const std::shared_ptr<CollectionDeviceNicVfe> &nic,
+                                  std::shared_ptr<NicVfeResource> &nicRes);
+
+    template <typename T>
     static void SetNicBusInstanceGuid(const std::shared_ptr<CollectionDeviceNic> &nic,
-                                      std::shared_ptr<NicResource> &nicRes);
+                                      std::shared_ptr<T> &nicRes)
+    {
+        std::shared_ptr<CollectionDeviceBusi> busi = nic->GetBondingDevBusi();
+        if (!busi) {
+            nicRes->SetBusInstanceGuid("");
+        } else {
+            nicRes->SetBusInstanceGuid(busi->GetGuid());
+        }
+    };
 };
 
 } // namespace ubse::npu::controller

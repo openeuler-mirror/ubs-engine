@@ -22,7 +22,11 @@
 namespace ubse::npu::controller {
 constexpr uint8_t UBSE_UB_DEVICE_GUID_SIZE = 32;
 constexpr uint8_t UBSE_UB_UPI_STR_SIZE = 4;
-constexpr uint8_t DEVICE_ID_SIZE = 3;
+constexpr uint8_t NPU_DEVICE_ID_SIZE = 2;
+constexpr uint8_t NIC_PF_DEVICE_ID_SIZE = 3;
+constexpr uint8_t UB_CTRL_DEVICE_ID_SIZE = 3;
+constexpr uint8_t NIC_VFE_DEVICE_ID_SIZE = 4;
+constexpr uint8_t UB_DEVICE_ID_SIZE = 5;
 
 using namespace ubse::common::def;
 using namespace ubse::utils;
@@ -38,7 +42,9 @@ struct UbDevice {
     ResourceType type;
     uint8_t slotId{};
     uint8_t chipId{};
-    uint8_t index{};
+    uint8_t dieId{};
+    uint8_t pfId{};
+    uint8_t vfId{};
 };
 struct UbaTidSize {
     uint64_t uba{};
@@ -74,7 +80,7 @@ public:
     UbseResult Unpack(UbsePackUtil &packUtil) override;
     ResourceType GetType() const override;
 
-    void SetLoc(uint8_t slotId, uint8_t chipId, uint8_t index);
+    void SetLoc(uint8_t slotId, uint8_t chipId);
     void SetGuid(const std::string& npuGuid);
     void SetBusInstanceGuid(const std::string& busInstanceGuid);
     void AddAffinityDevice(const UbDevice& device);
@@ -83,7 +89,6 @@ private:
     ResourceType type_ = ResourceType::NPU;
     uint8_t slotId_{};
     uint8_t chipId_{};
-    uint8_t index_{};
     std::string guid_;
     std::string busInstanceGuid_;
     std::vector<UbDevice> affinityDevices_;
@@ -104,18 +109,16 @@ private:
     std::string guid_;
     std::vector<UbDevice> subDevices_;
 };
-// Nic资源
-class NicResource : public IResource {
+// Nic pfe资源
+class NicPfeResource : public IResource {
 public:
-    NicResource() = default;
-    NicResource(const std::string &guid, uint8_t slotId, uint8_t chipId, uint8_t index,
-                const std::vector<UbDevice> &affinityDevices);
+    NicPfeResource() = default;
     ResourceType GetType() const override;
     size_t CalculateSize() const override;
     UbseResult Pack(UbsePackUtil &packUtil) override;
     UbseResult Unpack(UbsePackUtil &packUtil) override;
-    void SetLoc(uint8_t slotId, uint8_t chipId, uint8_t index);
-    void SetGuid(const std::string& npuGuid);
+    void SetLoc(uint8_t slotId, uint8_t chipId, uint8_t pfId);
+    void SetGuid(const std::string& guid);
     void SetBusInstanceGuid(const std::string& busInstanceGuid);
     void AddAffinityDevice(const UbDevice& device);
 
@@ -123,7 +126,31 @@ private:
     ResourceType type_ = ResourceType::NIC_PFE;
     uint8_t slotId_{};
     uint8_t chipId_{};
-    uint8_t index_{};
+    uint8_t pfId_{};
+    std::string guid_;
+    std::string busInstanceGuid_;
+    std::vector<UbDevice> affinityDevices_;
+};
+
+// Nic vfe资源
+class NicVfeResource : public IResource {
+public:
+    NicVfeResource() = default;
+    ResourceType GetType() const override;
+    size_t CalculateSize() const override;
+    UbseResult Pack(UbsePackUtil &packUtil) override;
+    UbseResult Unpack(UbsePackUtil &packUtil) override;
+    void SetLoc(uint8_t slotId, uint8_t chipId, uint8_t pfId, uint8_t vfId);
+    void SetGuid(const std::string& guid);
+    void SetBusInstanceGuid(const std::string& busInstanceGuid);
+    void AddAffinityDevice(const UbDevice& device);
+
+private:
+    ResourceType type_ = ResourceType::NIC_VFE;
+    uint8_t slotId_{};
+    uint8_t chipId_{};
+    uint8_t pfId_{};
+    uint8_t vfId_{};
     std::string guid_;
     std::string busInstanceGuid_;
     std::vector<UbDevice> affinityDevices_;
@@ -133,13 +160,6 @@ private:
 class UbCtrlResource : public IResource {
 public:
     UbCtrlResource() = default;
-    UbCtrlResource(const std::string &guid, const uint8_t slotId, const uint8_t chipId, const uint8_t index)
-        : guid_(guid),
-          slotId_(slotId),
-          chipId_(chipId),
-          index_(index)
-    {
-    }
     ResourceType GetType() const override;
     size_t CalculateSize() const override;
     UbseResult Pack(UbsePackUtil &packUtil) override;
@@ -150,7 +170,7 @@ private:
     std::string guid_;
     uint8_t slotId_{};
     uint8_t chipId_{};
-    uint8_t index_{};
+    uint8_t dieId_{};
 };
 } // namespace ubse::npu::controller
 #endif // UBSE_NPU_SOURCE_DEF_H
