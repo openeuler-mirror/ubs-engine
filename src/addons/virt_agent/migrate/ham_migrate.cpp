@@ -16,7 +16,6 @@
 #include <regex>
 #include <fstream>
 #include <set>
-#include <climits>
 #include <ubse_election.h>
 #include <ubse_api_server.h>
 #include <ubse_api_server_def.h>
@@ -513,7 +512,8 @@ VmResult HamMigrate::ConvertToBorrow(const Value &msgJson, BorrowInfo &borrowInf
     if (!msgJson.HasMember("valist") || !msgJson["valist"].IsArray()) {
         ret |= VM_ERROR;
     } else {
-        ret |= ConvertToVaList(msgJson["valist"], valist);
+        const auto valBody = msgJson["valist"].GetArray();
+        ret |= ConvertToVaList(valBody, valist);
     }
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "Failed to parse BorrowInfo.";

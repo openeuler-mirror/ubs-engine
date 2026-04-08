@@ -1,8 +1,7 @@
 find_package(LibXml2 REQUIRED)
 
 if(NOT LIBXML2_FOUND)
-    message(FATAL_ERROR "libxml2 not found! Please execute:
-                sudo yum install libxml2-devel-2.11.9")
+    message(FATAL_ERROR "libxml2 not found!")
 endif()
 
 add_library(libxml2 INTERFACE)

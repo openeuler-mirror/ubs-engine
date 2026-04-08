@@ -106,6 +106,19 @@ git clone https://atomgit.com/openeuler/ubs-engine.git
 
 **推荐**：在 openEuler Linux (ARM64) 下执行项目构建
 
+```shell
+# 执行 Release 构建（没有调试信息，-O2 优化）
+bash build.sh
+
+# 执行 Debug 构建（附加调试信息）
+bash build.sh -D
+
+# 执行 RelWithDebInfo 构建（附加调试信息，-O2 优化）
+bash build.sh -T RelWithDebInfo
+
+# 执行 MinSizeRel 构建（没有调试信息，二进制文件最小构建，-Os 优化）
+bash build.sh -T MinSizeRel
+```
 详见 [构建指导](./docs/build_install/构建指导.md)。
 
 #### 3.打包项目
