@@ -22,6 +22,7 @@
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_prehandle_manager.h"
 #include "ubse_mem_scheduler.h"
@@ -55,6 +56,7 @@ using namespace ubse::event;
 using namespace ubse::nodeController;
 using namespace ubse::timer;
 using namespace ubse::mem::util;
+using namespace ubse::mem::controller::debt;
 
 const uint32_t UBSE_MEM_SHM_CLEAN_INTERVAL = 300; // 中心侧共享内存零引用清零周期；单位秒
 const std::string UBSE_MEM_SHM_CLEAN_TIMER = "UbseMemShmClean";
@@ -181,8 +183,7 @@ uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node)
         }
     }
     LoadObjState(nodeMemDebtInfo);
-    // 启动时，无并发请求
-    nodeMemDebtInfoMap[node.nodeId] = nodeMemDebtInfo;
+    UbseMemDebtLedger::GetInstance().LoadFromNodeMemDebtInfo(node.nodeId, nodeMemDebtInfo);
 
     return UBSE_OK;
 }
@@ -353,35 +354,32 @@ uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string
     return UBSE_OK;
 }
 
+template <typename T>
+void ProcessNodeMapWithHandler(UbseMemDebtLedger &ledger, const std::string &nodeId, std::function<void(T &)> handler)
+{
+    auto nodeMap = ledger.GetDebtMap<T>().FindNodeMap(nodeId);
+    if (!nodeMap) {
+        return;
+    }
+    auto allResources = nodeMap->GetAll();
+    for (const auto &[name, _] : allResources) {
+        nodeMap->Modify(name, handler);
+    }
+}
+
 void UpdateSchedulerCache(const std::string &nodeId)
 {
     UbseMemNodeObjChangeHandler(nodeController::UbseNodeController::GetInstance().GetCurNode());
-    mapLock.LockRead();
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].fdExportObjMap) {
-        UbseMemFdExportObjStateChangeHandler(obj);
-    }
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].fdImportObjMap) {
-        UbseMemFdImportObjStateChangeHandler(obj);
-    }
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].numaExportObjMap) {
-        UbseMemNumaExportObjStateChangeHandler(obj);
-    }
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].numaImportObjMap) {
-        UbseMemNumaImportObjStateChangeHandler(obj);
-    }
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].shareExportObjMap) {
-        UbseMemShmExportObjStateChangeHandler(obj);
-    }
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].shareImportObjMap) {
-        UbseMemShmImportObjStateChangeHandler(obj);
-    }
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].addrExportObjMap) {
-        UbseMemAddrExportObjStateChangeHandler(obj);
-    }
-    for (auto [name, obj] : nodeMemDebtInfoMap[nodeId].addrImportObjMap) {
-        UbseMemAddrImportObjStateChangeHandler(obj);
-    }
-    mapLock.UnLock();
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+
+    ProcessNodeMapWithHandler<UbseMemFdBorrowExportObj>(ledger, nodeId, UbseMemFdExportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemFdBorrowImportObj>(ledger, nodeId, UbseMemFdImportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemNumaBorrowExportObj>(ledger, nodeId, UbseMemNumaExportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemNumaBorrowImportObj>(ledger, nodeId, UbseMemNumaImportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemShareBorrowExportObj>(ledger, nodeId, UbseMemShmExportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemShareBorrowImportObj>(ledger, nodeId, UbseMemShmImportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemAddrBorrowExportObj>(ledger, nodeId, UbseMemAddrExportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemAddrBorrowImportObj>(ledger, nodeId, UbseMemAddrImportObjStateChangeHandler);
 }
 
 void ClearNodeMap()
@@ -402,7 +400,8 @@ void ClearNodeMap()
         UpdateSchedulerCache(node.id);
         return;
     }
-    ClearNodeDebtInfoMap();
+    auto curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    UbseMemDebtLedger::GetInstance().ClearOtherNodeMaps(curNodeId);
     ubse::mem::scheduler::ClearCacheValue();
 }
 } // namespace ubse::mem::controller
