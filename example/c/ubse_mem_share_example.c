@@ -13,7 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> // getuid, getgid, getpid
-#include "ubs_engine_mem.h"
+#include "ubse/ubs_engine_mem.h"
+
 static const char *g_shm_name = "demo_shm";
 static const uint64_t g_shm_size = 4 * 1024 * 1024; // 4MB
 static ubs_mem_fd_owner_t g_owner;

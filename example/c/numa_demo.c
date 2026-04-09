@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <securec.h>
 #include "ubse/ubs_engine_mem.h"
+#include "ubse/ubs_error.h"
 
 // 定义结构体
 typedef struct {
@@ -155,7 +156,7 @@ int main(int argc, char* argv[])
 
     const uint64_t alloc_size = 1 * 1024 * 1024;  // 1MB
     // 测试分配内存
-     do_numa_allocate(&handler, &numa_desc, alloc_size);
+    do_numa_allocate(&handler, &numa_desc, alloc_size);
     if (handler.ptr == NULL) {
         printf("Failed to allocate memory on NUMA node.\n");
         return -1;

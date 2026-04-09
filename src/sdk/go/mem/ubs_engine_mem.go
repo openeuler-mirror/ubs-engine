@@ -14,7 +14,7 @@
 package mem
 
 /*
-#cgo CFLAGS: -I/usr/include/ubse
+#cgo CFLAGS: -I/usr/include/ubse -I${SRCDIR}/../../c/include
 #include <stdlib.h>
 #include <netinet/in.h>
 #include "ubs_engine_mem.h"
@@ -97,8 +97,8 @@ import (
 	"net"
 	"unsafe"
 
-	"ubs_engine_go_sdk/dlopen"
-	"ubs_engine_go_sdk/topo"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/dlopen"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/topo"
 )
 
 // 常量定义
