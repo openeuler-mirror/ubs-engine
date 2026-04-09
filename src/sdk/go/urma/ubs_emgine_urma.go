@@ -128,7 +128,7 @@ func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr) ([]Device, error) {
 	var cDevs *C.ubs_urma_dev_t
 	var cCount C.uint32_t
 
-	defer func(){
+	defer func() {
 	    if cDevs != nil {
 	        C.free(unsafe.Pointer(cDevs))
 	    }
