@@ -72,7 +72,7 @@ public:
         // 注册内存迁出策略消息处理器
         auto ret = DeleteFailedBorrowIds();
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MSG] Failed to clean up the deprecated memory resource.";
             // 可靠性保障，不阻塞主功能
         }

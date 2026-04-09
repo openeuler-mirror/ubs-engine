@@ -748,7 +748,7 @@ void GetBorrowIdCompletedValue(const std::string &keyPrefix, const std::string &
                                void *ctx)
 {
     if (ctx == nullptr || buff.data == nullptr || buff.len == 0) {
-        LOG_ERROR << "Ctx or respData is null.";
+        LOG_WARN << "Ctx or respData is null.";
         return;
     }
     std::unordered_set<std::string> &borrowIdsCompleted = *(static_cast<std::unordered_set<std::string> *>(ctx));
@@ -875,7 +875,7 @@ void GetVmInfosCompletedValue(const std::string &keyPrefix, const std::string &k
                               void *ctx)
 {
     if (ctx == nullptr || buff.data == nullptr || buff.len == 0) {
-        LOG_ERROR << "Ctx or respData is null.";
+        LOG_WARN << "Ctx or respData is null.";
         return;
     }
     std::unordered_map<pid_t, std::string> &vmMap = *(static_cast<std::unordered_map<pid_t, std::string> *>(ctx));
@@ -1922,7 +1922,7 @@ void MemManager::UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemo
 void GetAllNodeInfoImmediatelyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Ctx or respData is null.";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "Ctx or respData is null.";
         return;
     }
     std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>> &nodeInfoMap =
@@ -2390,7 +2390,7 @@ void LoadDataBase(const std::string &keyPrefix, const std::string &key, const Ub
     }
 
     if (buff.len == 0) {
-        LOG_ERROR << "The len of buff is invalid.";
+        LOG_WARN << "The len of buff is invalid.";
         return;
     }
 

@@ -556,7 +556,7 @@ uint32_t PidNumaInfoCollectHandler(const turbo::rmrs::PidNumaInfoCollectParam &p
 void PidNumaInfoCollectRpcResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[PidNumaInfoCollectRpcResHandler] Ctx or respData is null.";
         return;
     }

@@ -153,7 +153,7 @@ VmDomainInfo Exporter::genVmDomainInfo(const std::string &vmName)
         ret |= OsHelper::GetVmNumaInfoByPid(info.metaData.pid, info);
         LOG_DEBUG << "GetVmNumaInfoByPid ret=" << ret << ".";
         if (ret != MEM_POOLING_OK) {
-            LOG_ERROR << "Gen vm domain info failed, vm name: " << vmName;
+            LOG_ERROR << "Gen vm domain info by OsHelper failed, vm name: " << vmName;
             fillErrorVmDomainInfo(info);
             return info;
         }
@@ -162,7 +162,7 @@ VmDomainInfo Exporter::genVmDomainInfo(const std::string &vmName)
         ret |= LibvirtHelper::GetInstance().GetVmUuidByDomain(dom, info.metaData.uuid);
         ret |= LibvirtHelper::GetInstance().GetVmStateAndMaxMemByDomain(dom, info);
         if (ret != MEM_POOLING_OK) {
-            LOG_ERROR << "Gen vm domain info failed, vm name: " << vmName;
+            LOG_ERROR << "Gen vm domain info by LibvirtHelper failed, vm name: " << vmName;
             LibvirtHelper::GetInstance().FreeDomain(dom);
             fillErrorVmDomainInfo(info);
             return info;
