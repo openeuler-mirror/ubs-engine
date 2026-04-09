@@ -50,7 +50,8 @@ int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t *device_list)
     ubse_api_buffer_free(&responseBuffer);
 
     IPC_LOG_DEBUG << "Device List: UBCTRL=" << static_cast<uint32_t>(device_list->ubctrl_cnt)
-              << ", NIC=" << static_cast<uint32_t>(device_list->nic_cnt)
+              << ", NIC_PFE=" << static_cast<uint32_t>(device_list->nic_pfe_cnt)
+              << ", NIC_VFE=" << static_cast<uint32_t>(device_list->nic_vfe_cnt)
               << ", NPU=" << static_cast<uint32_t>(device_list->npu_cnt)
               << ", BUSI=" << static_cast<uint32_t>(device_list->busi_cnt);
 
@@ -128,7 +129,8 @@ void ubs_npu_device_list_free(ubs_ub_devices_list_t *device_list)
     FreeBusi(*device_list);
     FreeNpu(*device_list);
     FreeUbctrl(*device_list);
-    FreeNic(*device_list);
+    FreeNicPfe(*device_list);
+    FreeNicVfe(*device_list);
 }
 
 int32_t ubs_uba_tid_size_query(uint8_t *bus_instance_guid, uint32_t *tid, uint64_t *uba, uint64_t *size)

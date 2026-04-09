@@ -25,23 +25,23 @@ extern "C" {
 typedef enum {
     UBS_BUSI = 1,
     UBS_NPU = 2,
-    UBS_NIC = 3,
-    UBS_UBCTRL = 4
+    UBS_NIC_PFE = 3,
+    UBS_NIC_VFE = 4,
+    UBS_UBCTRL = 5
 } ubs_device_type;
+
+typedef struct {
+    ubs_device_type device_type;
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint8_t die_id;
+    uint16_t pf_id;
+    uint16_t vf_id;
+} ubs_ub_devices_type_t;
 
 typedef struct {
     uint8_t slot_id;
     uint8_t chip_id;
-    uint8_t index;
-} ubs_device_id_t; // device id
-
-typedef struct {
-    char device_type;
-    ubs_device_id_t device_id;
-} ubs_ub_devices_type_t;
-
-typedef struct {
-    ubs_device_id_t device_id;
     uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
     uint8_t bus_instance_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
     uint8_t affinity_devices_count;
@@ -55,35 +55,55 @@ typedef struct {
 } busi_attr_t;
 
 typedef struct {
-    ubs_device_id_t device_id;
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint16_t pf_id;
     uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
     uint8_t bus_instance_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
     uint8_t affinity_devices_count;
     ubs_ub_devices_type_t affinity_devices[];
-} nic_attr_t;
+} nic_pfe_attr_t;
 
 typedef struct {
-    ubs_device_id_t device_id;
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint16_t pf_id;
+    uint16_t vf_id;
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t bus_instance_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t affinity_devices_count;
+    ubs_ub_devices_type_t affinity_devices[];
+} nic_vfe_attr_t;
+
+typedef struct {
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint8_t die_id;
     uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
 } ubctrl_attr_t;
 
 typedef struct {
-    char type;
+    ubs_device_type type;
     npu_attr_t *attr;
 } ubs_npu_t;
 
 typedef struct {
-    char type;
+    ubs_device_type type;
     busi_attr_t *attr;
 } ubs_busi_t;
 
 typedef struct {
-    char type;
-    nic_attr_t *attr;
-} ubs_nic_t;
+    ubs_device_type type;
+    nic_pfe_attr_t *attr;
+} ubs_nic_pfe_t;
 
 typedef struct {
-    char type;
+    ubs_device_type type;
+    nic_vfe_attr_t *attr;
+} ubs_nic_vfe_t;
+
+typedef struct {
+    ubs_device_type type;
     ubctrl_attr_t *attr;
 } ubs_ubctrl_t;
 
@@ -97,8 +117,10 @@ typedef struct {
 typedef struct {
     ubs_ubctrl_t *ubctrl_ptr;
     uint8_t ubctrl_cnt;
-    ubs_nic_t *nic_ptr;
-    uint8_t nic_cnt;
+    ubs_nic_pfe_t *nic_pfe_ptr;
+    uint8_t nic_pfe_cnt;
+    ubs_nic_vfe_t *nic_vfe_ptr;
+    uint8_t nic_vfe_cnt;
     ubs_npu_t *npu_ptr;
     uint8_t npu_cnt;
     ubs_busi_t *busi_ptr;

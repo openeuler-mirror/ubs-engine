@@ -119,34 +119,25 @@ class UbsBusinstanceId:
         return not self._is_empty
 
 
-class UbsDeviceIdT(ctypes.Structure):
-    _fields_ = [
-        ("slot_id", ctypes.c_uint8),
-        ("chip_id", ctypes.c_uint8),
-        ("index", ctypes.c_uint8)
-    ]
-
-    def __str__(self):
-        return (
-            f"ubs_ub_device_type(\n"
-            f"  slot id={self.slot_id}\n"
-            f"  chip id={self.chip_id}\n"
-            f"  index={self.index}\n"
-            f")"
-        )
-
-
 class UbsUbDevicesTypeT(ctypes.Structure):
     _fields_ = [
-        ("device_type", ctypes.c_ubyte),
-        ("device_id", UbsDeviceIdT)
+        ("device_type", ctypes.c_uint8),
+        ("slot_id", ctypes.c_uint8),
+        ("chip_id", ctypes.c_uint8),
+        ("die_id", ctypes.c_uint8),
+        ("pf_id", ctypes.c_uint16),
+        ("vf_id", ctypes.c_uint16)
     ]
 
     def __str__(self):
         return (
             f"ubs_ub_device_type(\n"
             f"  device type={self.device_type}\n"
-            f"  device id={self.device_id}\n"
+            f"  slot id={self.slot_id}\n"
+            f"  chip id={self.chip_id}\n"
+            f"  die id={self.die_id}\n"
+            f"  pf id={self.pf_id}\n"
+            f"  vf id={self.vf_id}\n"
             f")"
         )
 
@@ -185,14 +176,15 @@ class BusiAttrT(ctypes.Structure):
 
 class UbsBusiT(ctypes.Structure):
     _fields_ = [
-        ("type", ctypes.c_ubyte),
+        ("type", ctypes.c_uint8),
         ("attr", POINTER(BusiAttrT))
     ]
 
 
 class NpuAttrT(ctypes.Structure):
     _fields_ = [
-        ("device_id", UbsDeviceIdT),
+        ("slot_id", ctypes.c_uint8),
+        ("chip_id", ctypes.c_uint8),
         ("guid", ctypes.c_uint8 * UBSE_UB_DEVICE_GUID_SIZE),
         ("bus_instance_guid", ctypes.c_uint8 * UBSE_UB_DEVICE_GUID_SIZE),
         ("affinity_devices_count", ctypes.c_uint8),
@@ -202,14 +194,16 @@ class NpuAttrT(ctypes.Structure):
 
 class UbsNpuT(ctypes.Structure):
     _fields_ = [
-        ("type", ctypes.c_ubyte),
+        ("type", ctypes.c_uint8),
         ("attr", POINTER(NpuAttrT))
     ]
 
 
-class NicAttrT(ctypes.Structure):
+class NicPfeAttrT(ctypes.Structure):
     _fields_ = [
-        ("device_id", UbsDeviceIdT),
+        ("slot_id", ctypes.c_uint8),
+        ("chip_id", ctypes.c_uint8),
+        ("pf_id", ctypes.c_uint16),
         ("guid", ctypes.c_uint8 * UBSE_UB_DEVICE_GUID_SIZE),
         ("bus_instance_guid", ctypes.c_uint8 * UBSE_UB_DEVICE_GUID_SIZE),
         ("affinity_devices_count", ctypes.c_uint8),
@@ -217,23 +211,45 @@ class NicAttrT(ctypes.Structure):
     ]
 
 
-class UbsNicT(ctypes.Structure):
+class NicVfeAttrT(ctypes.Structure):
     _fields_ = [
-        ("type", ctypes.c_ubyte),
-        ("attr", POINTER(NicAttrT))
+        ("slot_id", ctypes.c_uint8),
+        ("chip_id", ctypes.c_uint8),
+        ("pf_id", ctypes.c_uint16),
+        ("vf_id", ctypes.c_uint16),
+        ("guid", ctypes.c_uint8 * UBSE_UB_DEVICE_GUID_SIZE),
+        ("bus_instance_guid", ctypes.c_uint8 * UBSE_UB_DEVICE_GUID_SIZE),
+        ("affinity_devices_count", ctypes.c_uint8),
+        ("affinity_devices", UbsUbDevicesTypeT * 0)
+    ]
+
+
+class UbsNicPfeT(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_uint8),
+        ("attr", POINTER(NicPfeAttrT))
+    ]
+
+
+class UbsNicVfeT(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_uint8),
+        ("attr", POINTER(NicVfeAttrT))
     ]
 
 
 class UbctrlAttrT(ctypes.Structure):
     _fields_ = [
-        ("device_id", UbsDeviceIdT),
+        ("slot_id", ctypes.c_uint8),
+        ("chip_id", ctypes.c_uint8),
+        ("die_id", ctypes.c_uint8),
         ("guid", ctypes.c_uint8 * UBSE_UB_DEVICE_GUID_SIZE),
     ]
 
 
 class UbsUbctrlT(ctypes.Structure):
     _fields_ = [
-        ("type", ctypes.c_ubyte),
+        ("type", ctypes.c_uint8),
         ("attr", POINTER(UbctrlAttrT))
     ]
 
@@ -242,8 +258,10 @@ class UbsUbDevicesListT(ctypes.Structure):
     _fields_ = [
         ("ubctrl_ptr", POINTER(UbsUbctrlT)),
         ("ubctrl_cnt", ctypes.c_uint8),
-        ("nic_ptr", POINTER(UbsNicT)),
-        ("nic_cnt", ctypes.c_uint8),
+        ("nic_pfe_ptr", POINTER(UbsNicPfeT)),
+        ("nic_pfe_cnt", ctypes.c_uint8),
+        ("nic_vfe_ptr", POINTER(UbsNicVfeT)),
+        ("nic_vfe_cnt", ctypes.c_uint8),
         ("npu_ptr", POINTER(UbsNpuT)),
         ("npu_cnt", ctypes.c_uint8),
         ("busi_ptr", POINTER(UbsBusiT)),
@@ -264,11 +282,31 @@ class DeviceInfo:
         }
 
 
-class NicInfo(DeviceInfo):
-    """NIC设备信息类"""
+class NicPfeInfo(DeviceInfo):
+    """NIC_PFE设备信息类"""
 
     def __init__(self, device_id, guid, bus_instance):
-        super().__init__("NIC")
+        super().__init__("NIC_PFE")
+        self.device_id = device_id
+        self.guid = guid
+        self.bus_instance = bus_instance
+        self.affinity_devs = []
+
+    def to_dict(self):
+        return {
+            "device_type": self.device_type,
+            "device_id": self.device_id,
+            "guid": self.guid,
+            "bus_instance": self.bus_instance,
+            "affinity_devs": self.affinity_devs
+        }
+
+
+class NicVfeInfo(DeviceInfo):
+    """NIC_VFE设备信息类"""
+
+    def __init__(self, device_id, guid, bus_instance):
+        super().__init__("NIC_VFE")
         self.device_id = device_id
         self.guid = guid
         self.bus_instance = bus_instance
@@ -339,8 +377,10 @@ class DeviceFactory:
 
     @staticmethod
     def create_device(device_type, **kwargs):
-        if device_type == "NIC":
-            return NicInfo(**kwargs)
+        if device_type == "NIC_PFE":
+            return NicPfeInfo(**kwargs)
+        if device_type == "NIC_VFE":
+            return NicVfeInfo(**kwargs)
         elif device_type == "NPU":
             return NpuInfo(**kwargs)
         elif device_type == "BUSI":

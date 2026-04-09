@@ -41,6 +41,7 @@ ubs_error_t UbseNpuQueryTidUbaSizeUnpack(const uint8_t *buffer, uint32_t len, ui
 void FreeBusi(ubs_ub_devices_list_t &deviceList);
 void FreeNpu(ubs_ub_devices_list_t &deviceList);
 void FreeUbctrl(ubs_ub_devices_list_t &deviceList);
-void FreeNic(ubs_ub_devices_list_t &deviceList);
+void FreeNicPfe(ubs_ub_devices_list_t &deviceList);
+void FreeNicVfe(ubs_ub_devices_list_t &deviceList);
 
 #endif // LIBUBSE_NPU_HELPER_H
