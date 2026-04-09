@@ -57,17 +57,16 @@ UbseResult UbseMemGetOptResultHandler::Handle(const UbseBaseMessagePtr &req, con
     }
 
     UbseMemResult result;
-    auto debtInfoMap = mem::controller::GetNodeMemDebtInfoMap();
     if (reqPtr->GetType() == UbseMemBorrowType::FD_BORROW) {
-        result = debt::GetFdStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId(), debtInfoMap);
+        result = debt::GetFdStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
     } else if (reqPtr->GetType() == UbseMemBorrowType::NUMA_BORROW) {
-        result = debt::GetNumaStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId(), debtInfoMap);
+        result = debt::GetNumaStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
     } else if (reqPtr->GetType() == UbseMemBorrowType::ADDR_BORROW) {
-        result = debt::GetAddrStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId(), debtInfoMap);
+        result = debt::GetAddrStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
     } else if (reqPtr->GetType() == UbseMemBorrowType::SHM_BORROW) {
-        result = debt::GetShmExportStageByObj(reqPtr->GetName(), debtInfoMap);
+        result = debt::GetShmExportStageByObj(reqPtr->GetName());
     } else if (reqPtr->GetType() == UbseMemBorrowType::SHM_ATTACH) {
-        result = debt::GetShmImportStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId(), debtInfoMap);
+        result = debt::GetShmImportStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
     }
     auto respPtr = UbseBaseMessage::DeConvert<mem::controller::message::UbseMemOptResultSimpo>(rsp);
     if (respPtr == nullptr) {
