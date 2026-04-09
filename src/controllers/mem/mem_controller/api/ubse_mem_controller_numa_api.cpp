@@ -1144,8 +1144,8 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
                                    MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }
-    exportObj = *exportObjPtr;
-    importObj = *importObjPtr;
+    exportObj = status.hasExport ? *exportObjPtr : UbseMemNumaBorrowExportObj{};
+    importObj = status.hasImport ? *importObjPtr : UbseMemNumaBorrowImportObj{};
     return UBSE_OK;
 }
 
