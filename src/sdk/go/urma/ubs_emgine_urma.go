@@ -132,7 +132,7 @@ func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr) ([]Device, error) {
 	    if cDevs != nil {
 	        C.free(unsafe.Pointer(cDevs))
 	    }
-	}
+	}()
 
 	ret := C.call_ubs_urma_dev_get(fn, &cDevs, &cCount)
 	if ret != 0 {
