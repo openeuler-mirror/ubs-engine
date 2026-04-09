@@ -190,7 +190,7 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
     }
     // 本节点对账
     taskExecutor_->Execute([this]() -> void { UbseNodeLedger(UbseNodeController::GetInstance().GetCurrentNodeId()); });
-    // 周期对账，注册对账定时器回调并启动定时器
+    // 周期对账定时器
     UbseTimerHandlerRegister(
         UBSE_NODE_MASTER_LEDGER_TIMER,
         [this]() -> UbseResult {
@@ -198,17 +198,13 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string& 
             return UBSE_OK;
         },
         UBSE_NODE_LEDGER_INTERVAL);
-    isLogAggregationRunning_.store(true);
-    // 防止重复启动 ReportAggregation
-    bool expected = false;
-    if (s_reportTaskRunning.compare_exchange_strong(expected, true)) {
-        taskExecutor_->Execute([this]() -> void {
-            ReportAggregation();
-            s_reportTaskRunning.store(false);   // 线程退出时重置
-        });
-    } else {
-        UBSE_LOG_WARN << "ReportAggregation already running, skip duplicate start";
-    }
+    // 上报聚合定时器替代原来的独立线程
+    UbseTimerHandlerRegister(
+        "UbseReportAggregation",
+        [this]() -> UbseResult {
+            return ReportAggregationTimerHandler();
+        },
+        UBSE_REPORT_LOG_INTERVAL);
     return UBSE_OK;
 }
 
@@ -393,29 +389,18 @@ void UbseNodeControllerMaster::UbseNodeLedger(const std::string& nodeId)
     UBSE_LOG_INFO << "nodeId=" << nodeId << " collect ledger success.";
 }
 
-void UbseNodeControllerMaster::ReportAggregation()
+UbseResult UbseNodeControllerMaster::ReportAggregationTimerHandler()
 {
-    std::unique_lock<std::mutex> cv_lock(cvMutex_);
-    while (!g_globalStop.load() && isLogAggregationRunning_.load()) {
-        cv_.wait_for(cv_lock, std::chrono::seconds(UBSE_REPORT_LOG_INTERVAL));
-        if (g_globalStop.load()) {
-            UBSE_LOG_WARN << "ubse process stop, stop log aggregation.";
-            break;
-        }
-        if (!isLogAggregationRunning_.load()) {
-            UBSE_LOG_WARN << "current node not master, stop log aggregation";
-            break;
-        }
-        std::unique_lock<std::shared_mutex> report_lock(rwReportMutex_);
-        std::stringstream buffer;
-        buffer << "ubse node last 1min report summary:";
-        for (auto &[id, count] : reportCounters_) {
-            int reportCount = count;
-            buffer << "nodeId=" << id << " report=" << reportCount << " times, ";
-            count = 0;
-        }
-        UBSE_LOG_INFO << buffer.str();
+    std::unique_lock<std::shared_mutex> report_lock(rwReportMutex_);
+    std::stringstream buffer;
+    buffer << "ubse node last 1min report summary:";
+    for (auto &[id, count] : reportCounters_) {
+        int reportCount = count;
+        buffer << "nodeId=" << id << " report=" << reportCount << " times, ";
+        count = 0;
     }
+    UBSE_LOG_INFO << buffer.str();
+    return UBSE_OK;
 }
 
 // 清除故障计数器
@@ -659,21 +644,17 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
 {
     UBSE_LOG_INFO << "Start cleaning master resources...";
-    // 重置上报任务标志
-    s_reportTaskRunning.store(false);
-    UBSE_LOG_INFO << "Reset report task running flag";
-    // 停止日志聚合
-    isLogAggregationRunning_.store(false);
-    cv_.notify_all();
-    // 清理主定时器
+    // 停止上报聚合定时器
+    UbseTimerHandlerUnregister("UbseReportAggregation");
+    // 停止主对账定时器
     UBSE_LOG_INFO << "Stopping master ledger timer...";
-    (void)UbseTimerHandlerUnregister(UBSE_NODE_MASTER_LEDGER_TIMER);
+    UbseTimerHandlerUnregister(UBSE_NODE_MASTER_LEDGER_TIMER);
     // 清理所有节点的重试定时器
     UBSE_LOG_INFO << "Cleaning all node retry timers...";
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     for (const auto& node : nodeInfos) {
         std::string timerName = "UbseNodeLedgerRetry_" + node.first;
-        (void)UbseTimerHandlerUnregister(timerName);
+        UbseTimerHandlerUnregister(timerName);
     }
     // 停止任务执行器
     UBSE_LOG_INFO << "Stopping task executor...";
