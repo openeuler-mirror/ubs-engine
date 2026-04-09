@@ -16,10 +16,10 @@ package main
 import (
 	"fmt"
 
-	"ubs_engine_go_sdk/engine"
-	"ubs_engine_go_sdk/log"
-	"ubs_engine_go_sdk/mem"
-	"ubs_engine_go_sdk/topo"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/engine"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/log"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/mem"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/topo"
 )
 
 // 打印单个节点信息

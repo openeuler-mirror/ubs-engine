@@ -14,7 +14,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "ubs_engine.h"
+#include "ubse/ubs_engine_mem.h"
+#include "ubse/ubs_error.h"
 
 void print_mem_fd_desc(const ubs_mem_fd_desc_t *fd_desc)
 {

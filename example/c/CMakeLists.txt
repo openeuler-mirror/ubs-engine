@@ -17,5 +17,17 @@ add_executable(${EXECUTABLE_NAME_numa} ${SOURCE_FILES_numa})
 target_link_libraries(${EXECUTABLE_NAME_fd} PRIVATE ubse-client boundscheck)
 target_link_libraries(${EXECUTABLE_NAME_numa} PRIVATE ubse-client numa boundscheck)
 
+add_executable(ubse_sdk_fd_example ubse_mem_fd_example.c)
+target_link_libraries(ubse_sdk_fd_example PRIVATE ubse-client)
+
+add_executable(ubse_sdk_numa_example ubse_mem_numa_example.c)
+target_link_libraries(ubse_sdk_numa_example PRIVATE ubse-client)
+
+add_executable(ubse_sdk_node_example ubse_node_example.c)
+target_link_libraries(ubse_sdk_node_example PRIVATE ubse-client)
+
+add_executable(ubse_mem_share_example ubse_mem_share_example.c)
+target_link_libraries(ubse_mem_share_example PRIVATE ubse-client)
+
 # 添加编译选项
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O2")
