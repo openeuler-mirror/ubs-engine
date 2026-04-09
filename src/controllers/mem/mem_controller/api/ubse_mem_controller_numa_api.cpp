@@ -1122,7 +1122,7 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
     }
     auto [importObjPtr, exportObjPtr] =
         FindBorrowObjPair<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>(req.name, req.importNodeId);
-    if (!importObjPtr || !exportObjPtr) {
+    if (!importObjPtr && !exportObjPtr) {
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource not found.", UBSE_ERR_NOT_EXIST,
