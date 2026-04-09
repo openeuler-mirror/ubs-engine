@@ -85,10 +85,7 @@ private:
 
     void UbseNodeRetryLedger(const std::string& nodeId);
 
-    /**
-     * 节点上报汇聚，每隔1min，打印一次节点上报记录
-     */
-    void ReportAggregation();
+    UbseResult ReportAggregationTimerHandler();
 
     UbseTaskExecutorPtr taskExecutor_{};
 
