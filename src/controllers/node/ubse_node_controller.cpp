@@ -392,16 +392,12 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
         if (handler == nullptr) {
             continue;
         }
-        UbseResult handlerRet = handler(nodeInfo);
-        if (handlerRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "handler failed, ret=" << FormatRetCode(handlerRet);
-        }
-        ret |= handlerRet;
+        ret |= handler(nodeInfo);
     }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
                        << " update state=" << static_cast<uint32_t>(nodeInfo.clusterState)
-                       << " exec handler failed, ret=" << FormatRetCode(ret);
+                       << " exec handler failed, " << FormatRetCode(ret);
     } else {
         UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId
                       << " update state=" << static_cast<uint32_t>(nodeInfo.clusterState)
