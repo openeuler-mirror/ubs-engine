@@ -33,7 +33,6 @@ extern "C" {
     using VirConnectDomainEventDeregisterAny = int (*)(VirConnectPtr, int);
     using VirDomainGetName = const char* (*)(VirDomainPtr);
     using VirDomainGetXMLDesc = char* (*)(VirDomainPtr, unsigned int);
-    using VirFree = void (*)(void *);
 }
 
 class LibvirtMonitorImpl {
@@ -130,7 +129,6 @@ private:
     VirConnectDomainEventDeregisterAny virConnectDomainEventDeregisterAny_ = nullptr;
     VirDomainGetName virDomainGetName_ = nullptr;
     VirDomainGetXMLDesc virDomainGetXMLDesc_ = nullptr;
-    VirFree virFree_ = nullptr;
 
     std::atomic<bool> running_{false};
     std::thread eventThread_;
@@ -165,8 +163,7 @@ private:
             {"virConnectDomainEventRegisterAny", reinterpret_cast<void *&>(virConnectDomainEventRegisterAny_)},
             {"virConnectDomainEventDeregisterAny", reinterpret_cast<void *&>(virConnectDomainEventDeregisterAny_)},
             {"virDomainGetName", reinterpret_cast<void *&>(virDomainGetName_)},
-            {"virDomainGetXMLDesc", reinterpret_cast<void *&>(virDomainGetXMLDesc_)},
-            {"virFree", reinterpret_cast<void *&>(virFree_)}
+            {"virDomainGetXMLDesc", reinterpret_cast<void *&>(virDomainGetXMLDesc_)}
         };
 
         for (auto &symbol : symbols) {
@@ -199,9 +196,9 @@ private:
         if (!xmlCStr) {
             return UBSE_OK;
         }
-        auto deleter = [this](char *desc) {
+        auto deleter = [](char *desc) {
             if (desc) {
-                virFree_(static_cast<void *>(desc));
+                free(static_cast<void *>(desc));
             }
         };
         std::shared_ptr<char> sp(xmlCStr, deleter);

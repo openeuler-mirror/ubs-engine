@@ -15,14 +15,14 @@ ccflags-y := $(INCLUDE_DIRS) -DDEBUG -Wall
 
 
 all:
-        $(MAKE) -C $(KDIR) M=$(PWD) modules
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
 clean:
-        $(MAKE) -C $(KDIR) M=$(PWD) clean
-        rm -f *.o *.mod.c *.symvers *.order
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	rm -f *.o *.mod.c *.symvers *.order
 install:
-        sudo insmod $(MODULE_NAME).ko
+	sudo insmod $(MODULE_NAME).ko
 uninstall:
-        sudo rmmod $(MODULE_NAME)
+	sudo rmmod $(MODULE_NAME)
 debug: ccflags-y += -DDEBUG -g
 debug: all
 
