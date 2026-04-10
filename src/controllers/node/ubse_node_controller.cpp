@@ -388,30 +388,24 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
     UBSE_LOG_INFO << "ExecClusterStateHandler start, nodeId=" << nodeInfo.nodeId
                   << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
                   << ", handlers count=" << handlers.size();
-
-    int failedCount = 0;
-    for (size_t i = 0; i < handlers.size(); ++i) {
-        auto handler = handlers[i];
+    for (auto handler : handlers) {
         if (handler == nullptr) {
-            UBSE_LOG_WARN << "handler[" << i << "] is nullptr, skip";
             continue;
         }
         UbseResult handlerRet = handler(nodeInfo);
         if (handlerRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "handler[" << i << "] failed, ret=" << FormatRetCode(handlerRet);
-            failedCount++;
+            UBSE_LOG_ERROR << "handler failed, ret=" << FormatRetCode(handlerRet);
         }
         ret |= handlerRet;
     }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
                        << " update state=" << static_cast<uint32_t>(nodeInfo.clusterState)
-                       << " exec handler failed, ret=" << FormatRetCode(ret)
-                       << ", failedCount=" << failedCount << "/" << handlers.size();
+                       << " exec handler failed, ret=" << FormatRetCode(ret);
     } else {
         UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId
                       << " update state=" << static_cast<uint32_t>(nodeInfo.clusterState)
-                      << " exec all handlers success, total=" << handlers.size();
+                      << " exec all handlers success";
     }
     return ret;
 }
