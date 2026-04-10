@@ -1168,10 +1168,10 @@ uint32_t UbseMemNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
     auto importNodeId = status.hasExport ? exportObj.req.importNodeId : importObj.req.importNodeId;
     if (!CheckCommonReturnPermission(udsInfo, req.udsInfo, realRequestNodeId, importNodeId,
                                      exportNodeId)) {
-        UBSE_LOG_ERROR << "Error auth, object username: " << udsInfo.username << "uid: " << udsInfo.uid
-                       << ", current req username: " << req.udsInfo.username << "uid: " << req.udsInfo.uid
-                       << ", realRequestNodeId:" << realRequestNodeId << ", importNodeId:" << importNodeId
-                       << ", exportNodeId: " << exportNodeId;
+        UBSE_LOG_ERROR << "Error auth, object username=" << udsInfo.username << "uid=" << udsInfo.uid
+                       << ", current req username=" << req.udsInfo.username << "uid=" << req.udsInfo.uid
+                       << ", realRequestNodeId=" << realRequestNodeId << ", importNodeId=" << importNodeId
+                       << ", exportNodeId=" << exportNodeId;
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Error auth", UBSE_ERR_AUTH_FAILED,
