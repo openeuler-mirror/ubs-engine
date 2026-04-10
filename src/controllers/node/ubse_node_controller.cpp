@@ -391,7 +391,6 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
             continue;
         }
         ret |= handler(nodeInfo);
-        UBSE_LOG_INFO << "ExecClusterStateHandler handler call";
     }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
