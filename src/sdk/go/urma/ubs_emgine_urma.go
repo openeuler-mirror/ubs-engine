@@ -126,8 +126,14 @@ func UbsAllocateDevice(name string) (DeviceInfo, error) {
 // callAndParseUrmaDevices calls the urma device get function and parses the results.
 func callAndParseUrmaDevices(fn C.ubs_urma_dev_get_ptr) ([]Device, error) {
 	var cDevs *C.ubs_urma_dev_t
-	defer C.free(unsafe.Pointer(cDevs))
 	var cCount C.uint32_t
+
+	defer func() {
+	    if cDevs != nil {
+	        C.free(unsafe.Pointer(cDevs))
+	    }
+	}()
+
 	ret := C.call_ubs_urma_dev_get(fn, &cDevs, &cCount)
 	if ret != 0 {
 		return nil, fmt.Errorf("call_ubs_urma_dev_get_ptr failed with code %d", ret)
