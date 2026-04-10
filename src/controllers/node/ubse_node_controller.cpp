@@ -385,11 +385,13 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
         UBSE_LOG_WARN << "current node not master, skip exec cluster state notify";
         return UBSE_OK;
     }
+    UBSE_LOG_INFO << "ExecClusterStateHandler handlers count=" << handlers.size();
     for (auto handler : handlers) {
         if (handler == nullptr) {
             continue;
         }
         ret |= handler(nodeInfo);
+        UBSE_LOG_INFO << "ExecClusterStateHandler handler call";
     }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
@@ -414,6 +416,7 @@ uint32_t UbseNodeController::UpdateNodeInfo(const std::string &nodeId, UbseNodeI
             ExecLocalStateHandler(info, localNotifyHandlers);
         }
         ret = ExecClusterStateHandler(info, clusterNotifyHandlers);
+        UBSE_LOG_INFO << "nodeId=" << nodeId << ", ExecClusterStateHandler, " << FormatRetCode(ret);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " first add notify cluster state failed, " << FormatRetCode(ret);
         } else {
