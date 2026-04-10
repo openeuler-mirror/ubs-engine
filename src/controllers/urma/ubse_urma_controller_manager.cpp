@@ -725,7 +725,7 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
                 .count();
     }
-    return superPodBasicInfo->meshType == static_cast<uint8_t>(UbseMeshType::CLOS) ?
+    return superPodBasicInfo->meshType == static_cast<uint8_t>(UbseMeshType::CLOS) && hasModified ?
                InferOtherNodesUrmaDevInfo(nodeId) :
                UBSE_OK;
 }
@@ -860,6 +860,10 @@ UbseResult UbseUrmaControllerManager::InferOneNodeUrmaDevInfo(uint32_t podId, ui
 
 UbseResult UbseUrmaControllerManager::InferOtherNodesUrmaDevInfo(const std::string &basedNodeId)
 {
+    if (nodeInfos.find(basedNodeId) == nodeInfos.end()) {
+        UBSE_LOG_WARN << "There is no urma dev info for node=" << basedNodeId << ", skip infer other nodes";
+        return UBSE_ERROR;
+    }
     for (uint32_t podId = 0; podId < POD_NUM; ++podId) {
         for (uint32_t otherSlotId = 0; otherSlotId < NODE_NUM_PER_POD; ++otherSlotId) {
             uint32_t nodeId = podId * NODE_NUM_PER_POD + otherSlotId + 1;
