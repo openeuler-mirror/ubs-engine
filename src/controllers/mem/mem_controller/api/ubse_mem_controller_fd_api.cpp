@@ -1176,12 +1176,13 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
     }
     auto udsInfo = result.hasExport ? exportObjPtr->req.udsInfo : importObjPtr->req.udsInfo;
     auto exportNodeId = result.hasExport ? exportObjPtr->algoResult.exportNumaInfos[0].nodeId : "";
-    if (!CheckCommonReturnPermission(udsInfo, req.udsInfo, realRequestNodeId, req.importNodeId,
+    auto importNodeId = result.hasExport ? exportObjPtr->req.importNodeId : importObjPtr->req.importNodeId;
+    if (!CheckCommonReturnPermission(udsInfo, req.udsInfo, realRequestNodeId, importNodeId,
                                      exportNodeId)) {
         UBSE_LOG_ERROR << "Error auth, object username: " << udsInfo.username << "uid: " << udsInfo.uid
                        << ", current req username: " << req.udsInfo.username << "uid: " << req.udsInfo.uid
                        << ", realRequestNodeId:" << realRequestNodeId
-                       << ", importNodeId:" << req.importNodeId << ", exportNodeId: " << exportNodeId;
+                       << ", importNodeId:" << importNodeId << ", exportNodeId: " << exportNodeId;
         result.comErrorCode =
             ReturnFailed(req, resp, "Error auth", UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
         return UBSE_ERR_AUTH_FAILED;
