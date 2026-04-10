@@ -563,6 +563,9 @@ UbseResult UbseRasHandler::HandlePanicAndRebootFault(ALARM_FAULT_TYPE faultType,
         UBSE_LOG_WARN << "Fault execute failed, " << FormatRetCode(ret);
         return ret;
     }
+    // 故障处理过程中，节点状态可能会被nodeUp事件恢复，需要再次设置fault状态
+    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_HANDLER_TYPE,
+                                                 faultNodeId);
     std::string ackStr = info + "_" + std::to_string(UBSE_OK);
     UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_CLEAR_HANDLER_TYPE,
                                                  faultNodeId);
