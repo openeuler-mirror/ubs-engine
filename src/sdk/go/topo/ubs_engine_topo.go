@@ -14,7 +14,7 @@
 package topo
 
 /*
-#cgo CFLAGS: -I/usr/include/ubse
+#cgo CFLAGS: -I/usr/include/ubse -I${SRCDIR}/../../c/include
 #include <stdlib.h>
 #include <netinet/in.h>
 #include "ubs_engine_topo.h"
@@ -46,7 +46,7 @@ import (
 	"net"
 	"unsafe"
 
-	"ubs_engine_go_sdk/dlopen"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/dlopen"
 )
 
 // 常量定义，与C头文件保持一致

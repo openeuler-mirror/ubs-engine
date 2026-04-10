@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <securec.h>
 #include "ubse/ubs_engine_mem.h"
+#include "ubse/ubs_error.h"
 
 #define DEVICE_PATH "/dev/obmm_shmdev"
 

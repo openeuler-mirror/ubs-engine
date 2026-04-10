@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <securec.h>
 #include "ubse/ubs_engine_mem.h"
+#include "ubse/ubs_error.h"
 
 // 定义结构体
 typedef struct {

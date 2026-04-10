@@ -37,7 +37,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"ubs_engine_go_sdk/dlopen" // 替换为实际的模块路径
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/dlopen" // 替换为实际的模块路径
 )
 
 // UbsEngineClientInitialize 初始化ubse客户端

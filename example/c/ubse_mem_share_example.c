@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> // getuid, getgid, getpid
-#include "ubs_engine_mem.h"
+#include "ubse/ubs_engine_mem.h"
 
 static volatile int g_running = 1;
 static const char *g_shm_name = "demo_shm";
