@@ -226,6 +226,16 @@ UbseResult UbseElectionCommMgr::NewChannelCB(const std::string &remoteIp, const 
 {
     // remoteInfo为对端IP
     UBSE_LOG_DEBUG << "[ELECTION] start to NCCB.";
+    Node currentNode;
+    if (UbseElectionNodeMgr::GetInstance().GetMyselfNode(currentNode) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Get myself node failed";
+        return UBSE_ERROR;
+    }
+    if (remoteIp == currentNode.ip || remoteNodeId == currentNode.id) {
+        UBSE_LOG_ERROR << "[ELECTION] reject self connecting channel, remoteIp =" << remoteIp
+                       << ", remoteNodeId=" << remoteNodeId;
+        return UBSE_ERROR;
+    }
     std::unordered_map<std::string, UBSE_ID_TYPE> nodeIpMap;
     if (UbseElectionNodeMgr::GetInstance().GetNodeIpMap(nodeIpMap) != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Get nodeIpMap failed.";
