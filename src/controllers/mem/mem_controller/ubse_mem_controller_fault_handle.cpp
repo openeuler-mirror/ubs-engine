@@ -142,12 +142,27 @@ static UbseResult GetFaultTypeFromMsg(const UbseMemFaultMsg &msg, UbMemFaultType
     return UBSE_OK;
 }
 
+template <typename ObjType, typename InfoType>
+static std::string QueryMemNameById(const std::unordered_map<std::string, ObjType> &objMap, uint64_t memId,
+                                    const std::function<const std::vector<InfoType> &(const ObjType &)> getInfoVec)
+{
+    auto searchIdLambda = [memId, &getInfoVec](const auto &objPair) -> bool {
+        const auto &infoVec = getInfoVec(objPair.second);
+        auto target = std::find_if(infoVec.begin(), infoVec.end(),
+                                   [memId](const InfoType &info) -> bool { return info.memId == memId; });
+        return target != infoVec.end();
+    };
+    auto itor = std::find_if(objMap.begin(), objMap.end(), searchIdLambda);
+    return itor == objMap.end() ? "" : itor->first;
+}
+
 static std::string QueryMemNameByIdFromImport(
     const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &objMap, uint64_t memId)
 {
     return QueryMemNameById<UbseMemShareBorrowImportObj, UbseMemImportResult>(
         objMap, memId, [](const UbseMemShareBorrowImportObj &obj) -> const auto & { return obj.status.importResults; });
 }
+
 static std::string QueryMemNameByIdFromExport(
     const std::unordered_map<std::string, UbseMemShareBorrowExportObj> &objMap, uint64_t memId)
 {
