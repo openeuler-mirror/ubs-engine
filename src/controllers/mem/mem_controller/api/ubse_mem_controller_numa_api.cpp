@@ -328,7 +328,7 @@ uint32_t CheckReqValid(const UbseMemNumaBorrowReq &req, UbseMemOperationResp &re
 uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp)
 {
     UBSE_LOG_INFO << "Numa borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
-                  << ", request_id=" << req.requestId;
+                  << ", requestId=" << req.requestId;
     auto exportKey = GenerateExportObjKey(req.name, req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
     auto requestNodeId = req.requestNodeId;
@@ -354,7 +354,7 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp
     auto ret = NumaAllocate(req, importObj);
     if (ret != UBSE_OK || importObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << importObj.req.name << ", requestNodeId="
-                       << importObj.req.requestNodeId << FormatRetCode(ret) << ", requestId=" << req.requestId;
+                       << importObj.req.requestNodeId << ", " << FormatRetCode(ret) << ", requestId=" << req.requestId;
         BorrowFailedAdvice("Borrow Schedule failed", name, "APP_NUMA_BORROW", req.size, "", requestNodeId,
                            UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
         return BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
@@ -629,7 +629,7 @@ uint32_t NumaExportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseM
         UBSE_LOG_INFO << "socketId=" << importObj.algoResult.exportNumaInfos[0].socketId;
         auto ret = GetCnaInfoForNumaBorrow(exportNodeId, importNodeId, importObj);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to get cna info when import" << FormatRetCode(ret)
+            UBSE_LOG_ERROR << "Failed to get cna info when import, " << FormatRetCode(ret)
                            << ", requestId=" << exportObj.req.requestId;
             return NumaExportRollback(exportObj, importObj, resp, name, exportNodeId);
         }

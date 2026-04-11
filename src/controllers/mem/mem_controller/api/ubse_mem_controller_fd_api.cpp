@@ -200,7 +200,7 @@ uint32_t UbseMemFdBorrow(const UbseMemFdBorrowReq &req, UbseMemOperationResp &re
     }
     if (ret != UBSE_OK || importObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << importObj.req.name << ", requestNodeId="
-                       << importObj.req.requestNodeId << FormatRetCode(ret) << ", requestId=" << req.requestId;
+                       << importObj.req.requestNodeId << ", " << FormatRetCode(ret) << ", requestId=" << req.requestId;
         BorrowFailedAdvice("Borrow Schedule failed", req.name, "WATER_BORROW", req.size, "", req.importNodeId,
                            UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
@@ -278,7 +278,7 @@ void FdImportUpdatePermission(UbseMemFdBorrowImportObj &importObj)
 uint32_t UbseMemFdPermission(const UbseMemFdPermissionReq &req, const std::string &realRequestNodeId)
 {
     auto name = req.name;
-    UBSE_LOG_INFO << "Fd permission begins, name is" << req.name << ", request_id=" << req.requestId;
+    UBSE_LOG_INFO << "Fd permission begins, name=" << req.name << ", requestId=" << req.requestId;
     auto exportKey = GenerateExportObjKey(req.name, req.requestNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemFdBorrowImportObj importObj{};
@@ -990,7 +990,7 @@ uint32_t FdImportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
                                              const std::string &importNodeId)
 {
     auto req = importObj.returnReq;
-    UBSE_LOG_INFO << "Fd import expect destroy callback, name is " << name << ";requestId: " << req.requestId;
+    UBSE_LOG_INFO << "Fd import expect destroy callback, name=" << name << ", requestId=" << req.requestId;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         return FdImportExpectDestroySuccessPath(resp, importObj, name, exportNodeId, importNodeId);
     }
@@ -1001,7 +1001,7 @@ uint32_t FdImportMasterCallback(const std::string &requestNodeId, UbseMemFdBorro
                                 const std::string &name)
 {
     UBSE_LOG_INFO << "Fd import master callback. name=" << name << ", state=" << importObj.status.state
-                  << ", requset_id=" << importObj.req.requestId;
+                  << ", requestId=" << importObj.req.requestId;
     auto exportKey = GenerateExportObjKey(name, importObj.req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemOperationResp resp{
@@ -1025,7 +1025,7 @@ uint32_t FdImportMasterCallback(const std::string &requestNodeId, UbseMemFdBorro
 
 uint32_t UbseMemFdBorrowImportObjCallback(const UbseMemFdBorrowImportObj &importObj)
 {
-    UBSE_LOG_INFO << "Fd import callback" << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Fd import callback" << ", requestId=" << importObj.req.requestId;
     UbseRoleInfo currentNodeInfo{};
     UbseGetCurrentNodeInfo(currentNodeInfo);
     auto requestNodeId = importObj.req.requestNodeId;
@@ -1044,8 +1044,8 @@ uint32_t UbseMemFdBorrowImportObjCallback(const UbseMemFdBorrowImportObj &import
 uint32_t UbseMemFdBorrowImportObjForPermissionCallback(const UbseMemFdBorrowImportObj &importObj)
 {
     auto name = importObj.req.name;
-    UBSE_LOG_INFO << "Fd import for permission agent callback. name is " << name << ", state=" << importObj.status.state
-                  << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Fd import for permission agent callback. name=" << name << ", state=" << importObj.status.state
+                  << ", requestId=" << importObj.req.requestId;
     UbseRoleInfo masterInfo{};
     uint32_t ret = UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
@@ -1056,10 +1056,10 @@ uint32_t UbseMemFdBorrowImportObjForPermissionCallback(const UbseMemFdBorrowImpo
     auto copy = importObj;
     ret = UbseMmiInterface::GetInstance().FdImportPermissionExecutor(copy);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to permission, name is " << name << ";requestId: " << importObj.req.requestId;
+        UBSE_LOG_ERROR << "Failed to permission, name=" << name << ", requestId=" << importObj.req.requestId;
         return ret;
     }
-    UBSE_LOG_INFO << "Success to permission fd, name is " << name << ";requestId: " << importObj.req.requestId;
+    UBSE_LOG_INFO << "Success to permission fd, name=" << name << ", requestId=" << importObj.req.requestId;
     UBSE_AUDIT_RUNTIME_ALLOC << name << " on Node: " << importObj.req.importNodeId << " FdMemory Set Import permission"
                              << "uid:" << std::to_string(importObj.req.owner.uid)
                              << "gid:" << std::to_string(importObj.req.owner.gid)

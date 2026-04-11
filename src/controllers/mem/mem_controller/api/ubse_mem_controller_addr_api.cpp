@@ -169,7 +169,7 @@ uint32_t DoUbseMemAddrBorrow(const std::string &exportKey, const UbseMemAddrBorr
     if (auto ret = UbseMemAddrImportObjStateChangeHandler(importObj); ret != UBSE_OK) {
         NodeControllerReadUnLock(req);
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << importObj.req.name << ", requestNodeId="
-                       << importObj.req.requestNodeId << FormatRetCode(ret);
+                       << importObj.req.requestNodeId << ", " << FormatRetCode(ret);
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to allocate",
                                           UBSE_ERR_ALLOCATE, MemOperationType::ADDR_BORROW);
     }
@@ -459,7 +459,6 @@ uint32_t AddrExportRunningAgentCallback(UbseMemAddrBorrowExportObj &exportObj, c
     if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
         return SendAddrExportObj(*existingObj, false);
     }
-    mapLock.UnLock();
     AddrExportUpdateState(exportObj, UBSE_MEM_EXPORT_RUNNING);
 
     if (auto ret = UbseMmiInterface::GetInstance().AddrExportExecutor(exportObj); ret != UBSE_OK) {
@@ -641,7 +640,6 @@ uint32_t AddrImportRunningHandler(const std::string &requestNodeId, UbseMemAddrB
     if (existingObjPtr && existingObjPtr->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
         return SendAddrImportObj(*existingObjPtr, false);
     }
-    mapLock.UnLock();
     auto res = DealAddrAgentImport(requestNodeId, importObj, name);
     if (res != UBSE_OK) {
         importObj.errorCode = res;

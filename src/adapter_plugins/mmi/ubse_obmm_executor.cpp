@@ -260,7 +260,7 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc &desc, const Obmm
         return memid;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_import memid=" << memid
-                  << " opParam " << opParam.toString();
+                  << " opParam=" << opParam.toString();
     RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
     return ObmmDevChangeUidGid(memid, true, opParam);
 }

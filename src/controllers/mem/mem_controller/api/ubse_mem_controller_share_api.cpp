@@ -297,7 +297,7 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationRe
     auto ret = ShareAllocate(req, exportObj);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << exportObj.req.name << ", requestNodeId="
-                       << exportObj.req.requestNodeId << FormatRetCode(ret) << ", requestId=" << resp.requestId;
+                       << exportObj.req.requestNodeId << ", " << FormatRetCode(ret) << ", requestId=" << resp.requestId;
         return ShareBorrowFailed(req, resp, "Failed to allocate", UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
     }
     exportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
@@ -611,7 +611,7 @@ uint32_t GetPortInfo(const std::string &importNodeId, const UbseMemShareBorrowIm
     } else {
         GetMinPortInfoByCpuInfo(remoteInfo, importChipId, portId, portCna);
     }
-    UBSE_LOG_INFO << "minPortCna=" << portCna << "min portId=" << portId;
+    UBSE_LOG_INFO << "minPortCna=" << portCna << ", min portId=" << portId;
     if (portCna == UINT32_MAX) {
         UBSE_LOG_ERROR << "Failed Get minPortCna from topoInfo";
         return UBSE_ERROR;
@@ -631,7 +631,7 @@ uint32_t GetCnaTopoByPeerNodeInfo(const UbseMemShareAttachReq &req, const UbseMe
                   << " export socketId=" << exportObj.algoResult.exportNumaInfos[0].socketId;
     auto ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get cna info when import" << FormatRetCode(ret) << ", requestId=" << req.requestId;
+        UBSE_LOG_ERROR << "Failed to get cna info when import, " << FormatRetCode(ret) << ", requestId=" << req.requestId;
         return UBSE_ERROR;
     }
     // 多路径情况下，会给dcna重新赋值，当指定port时以指定port为准，否则选择直连导入socket的最小端口号，作为单路径路由表的配置
@@ -665,7 +665,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     FindShareBorrowObjByName(req.name, exportObjs, importObjs);
     UbseMemShareBorrowImportObj importObj{};
     if (const auto ret = ShmAttachPreCheck(req, resp, exportObjs, importObjs, importObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "precheck failed" << FormatRetCode(ret) << ", requestId=" << req.requestId;
+        UBSE_LOG_ERROR << "precheck failed, " << FormatRetCode(ret) << ", requestId=" << req.requestId;
         UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
         return ret;
     }

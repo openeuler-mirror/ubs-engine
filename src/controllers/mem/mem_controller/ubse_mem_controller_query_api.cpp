@@ -66,7 +66,7 @@ uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest &request, std
         UBSE_LOG_ERROR << "master deal failed, " << FormatRetCode(retCode);
         return retCode;
     }
-    UBSE_LOG_INFO << "success to deal rpc request. ErrCode=" << ubseResponsePtr->GetErrCode();
+    UBSE_LOG_INFO << "success to deal rpc request, response errorcode=" << ubseResponsePtr->GetErrCode();
     resp = UbseBaseMessage::DeConvert<TSimpo>(ubseResponsePtr);
     return UBSE_OK;
 }
@@ -94,7 +94,7 @@ uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
 
