@@ -156,14 +156,14 @@ static std::string QueryMemNameById(const std::unordered_map<std::string, ObjTyp
     return itor == objMap.end() ? "" : itor->first;
 }
 
-static std::string QueryMemNameByIdFromImport(
+static std::string QueryMemNameByIdFromShareMemImport(
     const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &objMap, uint64_t memId)
 {
     return QueryMemNameById<UbseMemShareBorrowImportObj, UbseMemImportResult>(
         objMap, memId, [](const UbseMemShareBorrowImportObj &obj) -> const auto& { return obj.status.importResults; });
 }
 
-static std::string QueryMemNameByIdFromExport(
+static std::string QueryMemNameByIdFromShareMemExport(
     const std::unordered_map<std::string, UbseMemShareBorrowExportObj> &objMap, uint64_t memId)
 {
     return QueryMemNameById<UbseMemShareBorrowExportObj, UbseMemObmmInfo>(
@@ -603,10 +603,10 @@ UbseResult UbseMemFaultManager::GetMemNameById(uint64_t memId, std::string &memN
 
     NodeMemDebtInfo debtInfo = GetNodeMemDebtInfoById(nodeId);
     // 需要保证memId对应的Name唯一性
-    memName = QueryMemNameByIdFromExport(debtInfo.shareExportObjMap, memId);
+    memName = QueryMemNameByIdFromShareMemExport(debtInfo.shareExportObjMap, memId);
     if (memName.empty()) {
         UBSE_LOG_WARN << "[MEM_CONTROLLER] Failed to get mem name form Export";
-        memName = QueryMemNameByIdFromImport(debtInfo.shareImportObjMap, memId);
+        memName = QueryMemNameByIdFromShareMemImport(debtInfo.shareImportObjMap, memId);
     }
     if (memName.empty()) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get mem name. Query result is empty.";
