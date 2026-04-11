@@ -429,7 +429,7 @@ UbseResult UbseMemCallbackMessage::Serialize()
         return UBSE_OK;
     }
     if (auto ret = memcpy_s(mOutputRawData.get(), mOutputRawDataSize, data.data(), mOutputRawDataSize); ret != 0) {
-        UBSE_LOG_ERROR << "Serialize failed with memcpy_s error code: " << ret;
+        UBSE_LOG_ERROR << "Serialize failed with memcpy_s ret=" << ret;
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -460,7 +460,7 @@ UbseResult UbseMemFdBorrowExportObjCallbackMessageHandler::Handle(const UbseBase
         UBSE_LOG_ERROR << "Fd borrow exportObj is invalid, please check the exportObj";
         return ret;
     }
-    UBSE_LOG_INFO << "Received FdexportObj, name is " << exportObj.req.name << ", requestNodeId is "
+    UBSE_LOG_INFO << "Received FdexportObj, name=" << exportObj.req.name << ", requestNodeId="
                   << exportObj.req.requestNodeId;
 
     response->data = SYNC_SUCCESS;
@@ -518,7 +518,7 @@ UbseResult UbseMemFdBorrowImportObjCallbackMessageHandler::Handle(const UbseBase
         UBSE_LOG_ERROR << "Fd borrow importObj is invalid, please check the importObj";
         return ret;
     }
-    UBSE_LOG_INFO << "Received FdImportObj, name is " << importObj.req.name << ", requestNodeId is "
+    UBSE_LOG_INFO << "Received FdImportObj, name=" << importObj.req.name << ", requestNodeId="
                   << importObj.req.requestNodeId << ", request_id=" << importObj.req.requestId;
     response->data = SYNC_SUCCESS;
     auto resourceExecutor = GetExecutor("ubseMemController");
@@ -569,7 +569,7 @@ UbseResult UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler::Handle(c
         return UBSE_ERROR_NULLPTR;
     }
     auto memFdBorrowImportObj = request->GetUbseMemFdBorrowImportObj();
-    UBSE_LOG_INFO << "Received FdImportObjForPermission, name is " << memFdBorrowImportObj.req.name;
+    UBSE_LOG_INFO << "Received FdImportObjForPermission, name=" << memFdBorrowImportObj.req.name;
     UbseMemOperationResp resp{};
     resp.errorCode = UbseMemFdBorrowImportObjForPermissionCallback(memFdBorrowImportObj);
     resp.requestId = memFdBorrowImportObj.req.requestId;
@@ -1188,7 +1188,7 @@ UbseResult UbseMemShmCreateRespMessageHandler::Handle(const UbseBaseMessagePtr &
     }
     auto ret = AsyncMemShmBorrowRespProcessor(request);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "do numa borrow resp async failed. ret:" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "do numa borrow resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;
         return ret;
     }
@@ -1217,7 +1217,7 @@ UbseResult UbseMemShmAttachRespMessageHandler::Handle(const UbseBaseMessagePtr &
     }
     auto ret = AsyncMemShmAttachRespProcessor(request);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "do numa borrow resp async failed. ret:" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "do numa borrow resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;
         return ret;
     }
@@ -1246,7 +1246,7 @@ UbseResult UbseMemShmDetachRespMessageHandler::Handle(const UbseBaseMessagePtr &
     }
     auto ret = AsyncMemShmDetachRespProcessor(request);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "do numa borrow resp async failed. ret:" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "do numa borrow resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;
         return ret;
     }
@@ -1275,7 +1275,7 @@ UbseResult UbseMemReturnRespHandler::Handle(const UbseBaseMessagePtr &req, const
     }
     auto ret = AsyncMemCommonReturnRespProcessor(request);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "do numa borrow resp async failed. ret:" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "do numa borrow resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;
         return ret;
     }
@@ -1303,7 +1303,7 @@ UbseResult UbseMemFdPermissionHandler::Handle(const UbseBaseMessagePtr &req, con
     }
     auto ret = UbseMemFdPermission(request->fdPermissionReq, ctx->GetDstId());
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "ubse mem fd permission set failed. ret:" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "ubse mem fd permission set failed. " << FormatRetCode(ret);
     }
     response->fdPermissionResp = {ret, request->fdPermissionReq.requestId};
     return UBSE_OK;
@@ -1412,8 +1412,8 @@ UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     }
     response->data = SYNC_SUCCESS;
     auto operationResp = request->GetUbseMemOperationResp();
-    UBSE_LOG_INFO << "Receive fd borrow resp. name is " << operationResp.name << "requestId is "
-                  << operationResp.requestId << "errorCode=" << operationResp.errorCode;
+    UBSE_LOG_INFO << "Receive fd borrow resp. name=" << operationResp.name << ", requestId="
+                  << operationResp.requestId << ", response errorcode=" << operationResp.errorCode;
 
     auto apiServer = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServer == nullptr) {
@@ -1441,7 +1441,7 @@ UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     }
     ret = apiServer->SendResponse(status, requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, error code is " << operationResp.errorCode << ", requestId is "
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << operationResp.errorCode << ", requestId="
                        << requestId;
     }
     delete[] message.buffer;
@@ -1468,8 +1468,8 @@ UbseResult UbseMemFdReturnRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     }
     response->data = SYNC_SUCCESS;
     auto operationResp = request->GetUbseMemOperationResp();
-    UBSE_LOG_INFO << "Receive fd return resp. name is " << operationResp.name << ", requestId is "
-                  << operationResp.requestId << ", error code is " << operationResp.errorCode;
+    UBSE_LOG_INFO << "Receive fd return resp. name=" << operationResp.name << ", requestId="
+                  << operationResp.requestId << ", response errorcode=" << operationResp.errorCode;
     auto apiServer = UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         UBSE_LOG_ERROR << "Failed to get api server";
@@ -1481,8 +1481,8 @@ UbseResult UbseMemFdReturnRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     message.length = 0;
     auto ret = apiServer->SendResponse(operationResp.errorCode, requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, error code is " << operationResp.errorCode << "requestId is "
-                       << requestId;
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode="
+                       << operationResp.errorCode << ", requestId=" << requestId;
     }
     return ret;
 }
@@ -1507,7 +1507,7 @@ UbseResult UbseMemNumaBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr 
     }
     auto ret = DoNumaBorrowRespAsync(request->GetUbseMemOperationResp());
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "do numa borrow resp async failed. ret:" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "do numa borrow resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;
         return ret;
     }
@@ -1536,7 +1536,7 @@ UbseResult UbseMemNumaReturnRespMessageHandler::Handle(const UbseBaseMessagePtr 
     }
     auto ret = DoReturnRespAsync(request->GetUbseMemOperationResp());
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "do return resp async failed. ret:" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "do return resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;
         return ret;
     }

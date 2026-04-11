@@ -62,7 +62,7 @@ UbseResult SendToMasterIfNotMaster(std::string &masterNodeId, TReq &requestPtr, 
     }
     auto ret = comModule->RpcSend(sendParam, requestPtr, ubseResponsePtr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to Send to master, ret " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret);
         return ret;
     }
 
@@ -395,7 +395,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmBorrowReq(const UbseIpcMessag
         ret = UbseMemShmCreateReqUnpack(buffer, shmDispatcher);
     }
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm create req unpack failed, ret: " << FormatRetCode(ret) + "; requestId: ";
+        UBSE_LOG_ERROR << "shm create req unpack failed, " << FormatRetCode(ret) + ", requestId=";
         return ret;
     }
     UbseMemShareBorrowReq shareBorrowReq{};
@@ -403,7 +403,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmBorrowReq(const UbseIpcMessag
     SetBaseReqInfo(shareBorrowReq, context);
     ret = ShmDispatcherToShmReq(shmDispatcher, shareBorrowReq);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "ShmDispatcherToShmReq failed, ret: " << FormatRetCode(ret) + "; requestId: ";
+        UBSE_LOG_ERROR << "ShmDispatcherToShmReq failed, " << FormatRetCode(ret) + ", requestId=";
         return ret;
     }
 
@@ -423,7 +423,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmAttachReq(const UbseIpcMessag
     UbseMemShareAttachReq shareAttachReq{};
     auto ret = UbseMemShmAttachReqUnpack(buffer, shareAttachReq);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm create req unpack failed, ret: " << FormatRetCode(ret) + "; requestId: ";
+        UBSE_LOG_ERROR << "shm create req unpack failed, " << FormatRetCode(ret) + ", requestId=";
         return ret;
     }
     shareAttachReq.requestNodeId = requestNodeId;
@@ -440,7 +440,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmAttachReq(const UbseIpcMessag
 UbseResult UbseMemControllerDispatcher::BufferToShmGetReq(const UbseIpcMessage &buffer, std::string &name)
 {
     if (const auto ret = UbseMemShmGetReqUnpack(buffer, name); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm get req unpack failed, ret: " << FormatRetCode(ret) + "; requestId: ";
+        UBSE_LOG_ERROR << "shm get req unpack failed, " << FormatRetCode(ret) + ", requestId=";
         return ret;
     }
     return UBSE_OK;
@@ -448,7 +448,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmGetReq(const UbseIpcMessage &
 UbseResult UbseMemControllerDispatcher::BufferToShmStatusGetReq(const UbseIpcMessage &buffer, std::string &name)
 {
     if (const auto ret = UbseMemShmtatusGetReqUnPack(buffer, name); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm status get req unpack failed, ret: " << FormatRetCode(ret) + "; requestId: ";
+        UBSE_LOG_ERROR << "shm status get req unpack failed, " << FormatRetCode(ret) + ", requestId=";
         return ret;
     }
     return UBSE_OK;
@@ -461,7 +461,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmDetachReq(const UbseIpcMessag
     UbseMemShareDetachReq shareDetachReq{};
     auto ret = UbseMemShmDetachReqUnpack(buffer, shareDetachReq);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm create req unpack failed, ret: " << FormatRetCode(ret) + "; requestId: ";
+        UBSE_LOG_ERROR << "shm create req unpack failed, " << FormatRetCode(ret) + ", requestId=";
         return ret;
     }
     shareDetachReq.requestNodeId = requestNodeId;
@@ -482,7 +482,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmReturnReq(const UbseIpcMessag
 {
     UbseMemReturnReq shareRetrunReq{};
     if (auto ret = UbseMemShmDeleteReqUnpack(buffer, shareRetrunReq); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm create req unpack failed, ret: " << FormatRetCode(ret) + "; requestId: ";
+        UBSE_LOG_ERROR << "shm create req unpack failed, " << FormatRetCode(ret) + ", requestId=";
         return ret;
     }
     shareRetrunReq.requestNodeId = requestNodeId;
@@ -507,7 +507,7 @@ uint32_t UbseMemControllerDispatcher::MemShmBorrowRespDispatcher(UbseMemOperatio
     // 结构转换
     const auto ret = apiServer->SendResponse(resp.errorCode, resp.requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, error code is " << resp.errorCode << "requestId is "
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << resp.errorCode << ", requestId="
                        << resp.requestId;
     }
     return ret;
@@ -523,13 +523,13 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachRespDispatcher(UbseMemOperatio
     def::UbseMemShmDesc shmDesc{};
     auto ret = UbseMemShmGetByNodeId(resp.name, shmDesc, resp.requestNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "failed to get shm desc, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "failed to get shm desc, " << FormatRetCode(ret);
     }
     // 结构转换
     UbseMemShmAttachResponsePack(shmDesc, message);
     ret = apiServer->SendResponse(resp.errorCode, resp.requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, error code is " << resp.errorCode << "requestId is "
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << resp.errorCode << ", requestId="
                        << resp.requestId;
     }
     delete[] message.buffer;
@@ -561,13 +561,13 @@ uint32_t UbseMemControllerDispatcher::MemReturnRespDispatcher(UbseMemOperationRe
 uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessage &buffer,
                                                              const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm create dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm create dispatcher, requestId=" << context.requestId;
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
@@ -576,7 +576,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
     UbseMemShareBorrowReqSimpoPtr reqSimpoPtr{};
     ret = GetInstance().BufferToShmBorrowReq(buffer, reqSimpoPtr, localNodeId, context, false);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
@@ -601,23 +601,23 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to send request, ret: " << FormatRetCode(ret) + "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
-    UBSE_LOG_INFO << "shm create dispatcher send success, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm create dispatcher send success, requestId=" << context.requestId;
     return UBSE_OK;
 }
 
 uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const UbseIpcMessage &buffer,
                                                                          const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm create with affinity dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm create with affinity dispatcher, requestId=" << context.requestId;
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
@@ -626,7 +626,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
     UbseMemShareBorrowReqSimpoPtr reqSimpoPtr{};
     ret = GetInstance().BufferToShmBorrowReq(buffer, reqSimpoPtr, localNodeId, context, true);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
@@ -654,23 +654,23 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
     }
 
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to send request, ret: " << FormatRetCode(ret) + "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
-    UBSE_LOG_INFO << "shm create with affinity dispatcher send success, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm create with affinity dispatcher send success, requestId=" << context.requestId;
     return UBSE_OK;
 }
 
 uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const UbseIpcMessage &buffer,
                                                                        const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm create with lender dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm create with lender dispatcher, requestId=" << context.requestId;
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
@@ -712,17 +712,17 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
     }
 
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to send request, ret: " << FormatRetCode(ret) + "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
-    UBSE_LOG_INFO << "shm create with lender dispatcher send success, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm create with lender dispatcher send success, requestId=" << context.requestId;
     return UBSE_OK;
 }
 
 uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessage &buffer,
                                                              const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm attach dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm attach dispatcher, requestId=" << context.requestId;
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
 
     // 获取主节点以及当前节点
@@ -730,7 +730,7 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
     std::string localNodeId{};
     auto ret = dispatcher.GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
@@ -738,7 +738,7 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
     UbseMemShareAttachReqSimpoPtr reqSimpoPtr{};
     ret = dispatcher.BufferToShmAttachReq(buffer, reqSimpoPtr, localNodeId, context);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
@@ -752,16 +752,16 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to send request, ret: " << FormatRetCode(ret) + "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
-    UBSE_LOG_INFO << "shm attach dispatcher send success, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm attach dispatcher send success, requestId=" << context.requestId;
     return UBSE_OK;
 }
 
 uint32_t UbseMemControllerDispatcher::MemShmMemFaultGet(const UbseIpcMessage &buffer, const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm mem status get dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm mem status get dispatcher, requestId=" << context.requestId;
 
     const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
@@ -772,7 +772,7 @@ uint32_t UbseMemControllerDispatcher::MemShmMemFaultGet(const UbseIpcMessage &bu
     std::string name{};
     auto ret = GetInstance().BufferToShmStatusGetReq(buffer, name);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
@@ -780,14 +780,14 @@ uint32_t UbseMemControllerDispatcher::MemShmMemFaultGet(const UbseIpcMessage &bu
     def::UbseMemShmMemStatusDesc shmStatusDesc{};
     ret = UbseMemShmStatusGet(name, shmStatusDesc);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get shm mem status, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get shm mem status, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
     // 包装响应
     ret = UbseMemShmMemFaultGetResponsePack(shmStatusDesc, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to pack res, ret: " << FormatRetCode(ret) + "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to pack res, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
     ret = apiServer->SendResponse(ret, context.requestId, message);
@@ -799,7 +799,7 @@ uint32_t UbseMemControllerDispatcher::MemShmMemFaultGet(const UbseIpcMessage &bu
 uint32_t UbseMemControllerDispatcher::MemShmGetDispatcher(const UbseIpcMessage &buffer,
                                                           const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm get dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm get dispatcher, requestId=" << context.requestId;
     const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -810,7 +810,7 @@ uint32_t UbseMemControllerDispatcher::MemShmGetDispatcher(const UbseIpcMessage &
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
@@ -818,25 +818,25 @@ uint32_t UbseMemControllerDispatcher::MemShmGetDispatcher(const UbseIpcMessage &
     std::string name{};
     ret = GetInstance().BufferToShmGetReq(buffer, name);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
     // 同步查询
     auto udsInfo = GenUdsInfo(context);
     def::UbseMemShmDesc shmDesc{};
-    UBSE_LOG_INFO << "start to get shm, name: " << name << "; requestId: " << context.requestId;
+    UBSE_LOG_INFO << "start to get shm, name=" << name << ", requestId=" << context.requestId;
     ret = UbseMemShmGet(name, shmDesc, &udsInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get shm, ret: " << FormatRetCode(ret) << ", name: " << name
-                       << "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to get shm, " << FormatRetCode(ret) << ", name=" << name
+                       << ", requestId=" << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
     // 包装响应
     ret = UbseMemShmGetResponsePack(shmDesc, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to pack res, ret: " << FormatRetCode(ret) << ", name: " << name
-                       << "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to pack res, " << FormatRetCode(ret) << ", name=" << name
+                       << ", requestId=" << context.requestId;
     }
     ret = apiServer->SendResponse(ret, context.requestId, message);
     if (ret != UBSE_OK) {
@@ -850,7 +850,7 @@ uint32_t UbseMemControllerDispatcher::MemShmGetDispatcher(const UbseIpcMessage &
 uint32_t UbseMemControllerDispatcher::MemShmListDispatcher(const UbseIpcMessage &buffer,
                                                            const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm list dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm list dispatcher, requestId=" << context.requestId;
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -861,7 +861,7 @@ uint32_t UbseMemControllerDispatcher::MemShmListDispatcher(const UbseIpcMessage 
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
@@ -871,15 +871,15 @@ uint32_t UbseMemControllerDispatcher::MemShmListDispatcher(const UbseIpcMessage 
     std::vector<def::UbseMemShmDesc> shmDescs{};
     ret = UbseMemShmList(debtQueryRequest, shmDescs);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm list get failed. ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "shm list get failed. " << FormatRetCode(ret);
         return apiServer->SendResponse(ret, context.requestId, message);
     }
     ret = UbseMemShmListResponsePack(shmDescs, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "pack list response failed. ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "pack list response failed. " << FormatRetCode(ret);
         return ret;
     }
-    UBSE_LOG_INFO << "shm list dispatcher end, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm list dispatcher end, requestId=" << context.requestId;
     ret = apiServer->SendResponse(ret, context.requestId, message);
     delete[] message.buffer;
     message.buffer = nullptr;
@@ -889,7 +889,7 @@ uint32_t UbseMemControllerDispatcher::MemShmListDispatcher(const UbseIpcMessage 
 uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseIpcMessage &buffer,
                                                                      const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm list dispatcher, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm list dispatcher, requestId=" << context.requestId;
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -900,7 +900,7 @@ uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseI
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
@@ -908,7 +908,7 @@ uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseI
     def::UbseMemDebtQueryRequest debtQueryRequest{};
     ret = BufferToShmGetReq(buffer, debtQueryRequest.name);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return apiServer->SendResponse(ret, context.requestId, message);
     }
@@ -917,15 +917,15 @@ uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseI
     std::vector<def::UbseMemShmDesc> shmDescs{};
     ret = UbseMemShmList(debtQueryRequest, shmDescs);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "shm list get failed. ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "shm list get failed. " << FormatRetCode(ret);
         return ret;
     }
     ret = UbseMemShmListResponsePack(shmDescs, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "pack list response failed. ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "pack list response failed. " << FormatRetCode(ret);
         return ret;
     }
-    UBSE_LOG_INFO << "shm list dispatcher end, requestId: " << context.requestId;
+    UBSE_LOG_INFO << "shm list dispatcher end, requestId=" << context.requestId;
     ret = apiServer->SendResponse(ret, context.requestId, message);
     delete[] message.buffer;
     message.buffer = nullptr;
@@ -935,15 +935,15 @@ uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseI
 uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessage &buffer,
                                                              const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "shm detach dispatcher, requestId: " << context.requestId << "uid: " << context.clientInfo.uid
-                  << "gid: " << context.clientInfo.gid;
+    UBSE_LOG_INFO << "shm detach dispatcher, requestId=" << context.requestId << "uid=" << context.clientInfo.uid
+                  << "gid:=" << context.clientInfo.gid;
     UbseMemControllerDispatcher dispatcher = GetInstance();
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = dispatcher.GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return UBSE_ERROR;
     }
@@ -951,7 +951,7 @@ uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessag
     UbseMemShareDetachReqSimpoPtr reqSimpoPtr{};
     ret = dispatcher.BufferToShmDetachReq(buffer, reqSimpoPtr, localNodeId, context);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return UBSE_ERROR;
     }
@@ -965,7 +965,7 @@ uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to send request, ret: " << FormatRetCode(ret) + "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -974,13 +974,13 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
                                                              const UbseRequestContext &context)
 {
     // 获取主节点以及当前节点
-    UBSE_LOG_INFO << "shm delete dispatcher, requestId: " << context.requestId << "uid: " << context.clientInfo.uid
+    UBSE_LOG_INFO << "shm delete dispatcher, requestId=" << context.requestId << ", uid=" << context.clientInfo.uid
                   << "gid: " << context.clientInfo.gid;
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
@@ -988,12 +988,12 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
     UbseMemReturnReqSimpoPtr reqSimpoPtr{};
     ret = GetInstance().BufferToShmReturnReq(buffer, reqSimpoPtr, localNodeId, context);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
 
-    UBSE_LOG_INFO << "return request name: " << reqSimpoPtr.Get()->GetUbseMemReturnReq().name;
+    UBSE_LOG_INFO << "return request name=" << reqSimpoPtr.Get()->GetUbseMemReturnReq().name;
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
         ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr,
@@ -1005,7 +1005,7 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to send request, ret: " << FormatRetCode(ret) + "; requestId: " << context.requestId;
+        UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
     return UBSE_OK;
@@ -1035,8 +1035,8 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq &req
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
     auto ret = dispatcher.GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id,  "
-                       << FormatRetCode(ret) + "; requestId=" << context.requestId;
+        UBSE_LOG_ERROR << "failed to get master and local node id, "
+                       << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return UBSE_ERROR;
     }
     req.importNodeId = localNodeId;
@@ -1076,14 +1076,14 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq &req
         UBSE_LOG_ERROR << "Failed to Send to fd borrow req to master, " << FormatRetCode(ret);
         return ret;
     }
-    UBSE_LOG_INFO << "Success to Send to fd borrow req to master, request_id=" << req.requestId;
+    UBSE_LOG_INFO << "Success to Send to fd borrow req to master, requestId=" << req.requestId;
     return UBSE_OK;
 }
 
 uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(const UbseIpcMessage &buffer,
                                                               const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemFdBorrowDispatch, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemFdBorrowDispatch, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemFdBorrowReq req{};
     auto ret = UbseMemCreateReqUnpack(buffer, req);
@@ -1097,7 +1097,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(const UbseIpcMessa
 uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(const UbseIpcMessage &buffer,
                                                                         const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemFdBorrowWithLenderDispatch, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemFdBorrowWithLenderDispatch, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemFdBorrowReq req{};
     auto ret = UbseMemCreateWithLenderReqUnpack(buffer, req);
@@ -1111,7 +1111,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(const Ub
 uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowWithCandidate(const UbseIpcMessage &buffer,
                                                                    const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemFdBorrowWithCandidate, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemFdBorrowWithCandidate, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemFdBorrowReq req{};
     auto ret = UbseMemCreateWithCandidateReqUnpack(buffer, req);
@@ -1125,7 +1125,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowWithCandidate(const UbseIpc
 uint32_t UbseMemControllerDispatcher::UbseMemFdReturnDispatch(const UbseIpcMessage &buffer,
                                                               const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemFdReturnDispatch, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemFdReturnDispatch, requestId=" << context.requestId;
     UbseMemReturnReq req{};
     UbseRoleInfo masterInfo{};
     if (auto ret = UbseGetMasterInfo(masterInfo); ret != UBSE_OK) {
@@ -1180,7 +1180,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcM
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
     auto ret = dispatcher.GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, ret: " << FormatRetCode(ret) + "; requestId: "
+        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return UBSE_ERROR;
     }
@@ -1188,7 +1188,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcM
     ret = UbseMemFdPermissionReqUnpack(buffer, fdPermissionReq);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to unpack fd permission, "
-                       << FormatRetCode(ret) + "; requestId=" << context.requestId;
+                       << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
     fdPermissionReq.requestNodeId = localNodeId;
@@ -1206,7 +1206,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcM
 
     ret = comModule->RpcSend(sendParam, reqMessagePtr, respMessagePtr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << "; requestId=" << context.requestId;
+        UBSE_LOG_ERROR << "Failed to Send to master, " << FormatRetCode(ret) << ", requestId=" << context.requestId;
         return ret;
     }
     UBSE_LOG_INFO << "Success to Send to master";
@@ -1223,7 +1223,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcM
 
 uint32_t GetNodeInfo(const std::string &nodeId, ubse::nodeController::UbseNodeInfo &node)
 {
-    UBSE_LOG_INFO << "Node id is " << nodeId;
+    UBSE_LOG_INFO << "Node id=" << nodeId;
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     for (const auto &nodeInfo : nodeInfos) {
         if (nodeInfo.second.nodeId == nodeId) {
@@ -1232,7 +1232,7 @@ uint32_t GetNodeInfo(const std::string &nodeId, ubse::nodeController::UbseNodeIn
         }
     }
     if (node.nodeId.empty()) {
-        UBSE_LOG_ERROR << "Failed to find node info , node is " << nodeId;
+        UBSE_LOG_ERROR << "Failed to find node info , node=" << nodeId;
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -1312,8 +1312,8 @@ uint32_t GetSrcSocketId(UbseMemNumaBorrowReq &req)
     if (req.linkInfo.lenderPort == -1) {
         return UBSE_OK;
     }
-    UBSE_LOG_INFO << "lenderNode is " << req.linkInfo.lenderNode << ", lenderSocketId is "
-                  << req.linkInfo.lenderSocketId << ", lenderPortId is " << req.linkInfo.lenderPort;
+    UBSE_LOG_INFO << "lenderNode=" << req.linkInfo.lenderNode << ", lenderSocketId="
+                  << req.linkInfo.lenderSocketId << ", lenderPortId=" << req.linkInfo.lenderPort;
     const auto exportNodeId = req.linkInfo.lenderNode;
     const auto exportSocketId = req.linkInfo.lenderSocketId;
     const auto exportPort = req.linkInfo.lenderPort;
@@ -1325,16 +1325,16 @@ uint32_t GetSrcSocketId(UbseMemNumaBorrowReq &req)
     UbseCpuLocation importLocation{};
     for (const auto &[cpuLocation, cpuInfo] : exportNodeInfo.cpuInfos) {
         if (cpuInfo.socketId == exportSocketId) {
-            UBSE_LOG_INFO << "Success to find export cpu info, export chip Id is " << cpuLocation.chipId;
+            UBSE_LOG_INFO << "Success to find export cpu info, export chip Id=" << cpuLocation.chipId;
             const auto it = cpuInfo.portInfos.find(std::to_string(exportPort));
             if (it == cpuInfo.portInfos.end() || it->second.portStatus == PortStatus::DOWN) {
-                UBSE_LOG_ERROR << "The link is not exist. " << "lenderSocketId is " << req.linkInfo.lenderSocketId
-                               << ", lenderPortId is " << req.linkInfo.lenderPort;
+                UBSE_LOG_ERROR << "The link is not exist. lenderSocketId=" << req.linkInfo.lenderSocketId
+                               << ", lenderPortId=" << req.linkInfo.lenderPort;
                 return UBSE_ERROR;
             }
             auto ret = ubse::utils::ConvertStrToUint32(it->second.remoteChipId, importLocation.chipId);
             if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to convert, remoteChipId is " << it->second.remoteChipId;
+                UBSE_LOG_ERROR << "Failed to convert, remoteChipId=" << it->second.remoteChipId;
                 return ret;
             }
             importLocation.nodeId = it->second.remoteSlotId;
@@ -1367,14 +1367,14 @@ uint32_t GetSrcNuma(UbseMemNumaBorrowReq &req)
     auto srcSocket = req.srcSocket;
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(importNodeId);
     if (nodeInfo.nodeId.empty()) {
-        UBSE_LOG_ERROR << "Failed to find node info, nodeId is " << importNodeId;
+        UBSE_LOG_ERROR << "Failed to find node info, nodeId=" << importNodeId;
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "Src socket is " << srcSocket << ", import node id is " << importNodeId;
+    UBSE_LOG_INFO << "Src socket=" << srcSocket << ", import node id=" << importNodeId;
     for (const auto &numaInfo : nodeInfo.numaInfos) {
         if (numaInfo.second.socketId == srcSocket) {
             req.srcNuma = numaInfo.first.numaId;
-            UBSE_LOG_INFO << "Src numa is " << req.srcNuma;
+            UBSE_LOG_INFO << "Src numa=" << req.srcNuma;
             return UBSE_OK;
         }
     }
@@ -1408,10 +1408,10 @@ uint32_t MemNumaBorrowRpc(const std::string &masterNodeId, const std::string &lo
         }
         const auto ret = comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to Send to numa borrow req to master, ret " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to Send to numa borrow req to master, " << FormatRetCode(ret);
             return ret;
         }
-        UBSE_LOG_INFO << "Success to Send to numa borrow req to master, request_id=" << req.requestId;
+        UBSE_LOG_INFO << "Success to Send to numa borrow req to master, requestId=" << req.requestId;
         return ret;
     }
     // 是master，切换线程，提交给新线程
@@ -1425,8 +1425,8 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq 
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
     auto ret = dispatcher.GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id,  "
-                       << FormatRetCode(ret) + "; requestId=" << context.requestId;
+        UBSE_LOG_ERROR << "failed to get master and local node id, "
+                       << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return UBSE_ERROR;
     }
     req.importNodeId = localNodeId;
@@ -1453,7 +1453,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq 
 UbseResult UbseMemControllerDispatcher::UbseMemNumaCreateHandler(const UbseIpcMessage &buffer,
                                                                  const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemNumaCreate, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemNumaCreate, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemNumaBorrowReq req{};
     auto ret = UbseMemNumaCreateReqUnpack(buffer, req);
@@ -1467,7 +1467,7 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaCreateHandler(const UbseIpcMe
 UbseResult UbseMemControllerDispatcher::UbseMemNumaCreateWithLender(const UbseIpcMessage &buffer,
                                                                     const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemNumaCreateWithLender, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemNumaCreateWithLender, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemNumaBorrowReq req{};
     auto ret = UbseMemNumaCreateLenderReqUnpack(buffer, req);
@@ -1481,7 +1481,7 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaCreateWithLender(const UbseIp
 uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowWithCandidate(const UbseIpcMessage &buffer,
                                                                      const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemNumaBorrowWithCandidate, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemNumaBorrowWithCandidate, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemNumaBorrowReq req{};
     auto ret = UbseMemNumaCreateWithCandidateReqUnpack(buffer, req);
@@ -1495,15 +1495,15 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowWithCandidate(const UbseI
 UbseResult UbseMemControllerDispatcher::UbseMemNumaDelete(const UbseIpcMessage &buffer,
                                                           const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemNumaDelete, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemNumaDelete, requestId=" << context.requestId;
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
     auto ret = dispatcher.GetMasterAndLocalNodeId(masterNodeId, localNodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id,  "
-                       << FormatRetCode(ret) + "; requestId=" << context.requestId;
+        UBSE_LOG_ERROR << "failed to get master and local node id, "
+                       << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return UBSE_ERROR;
     }
     // buffer 转结构
@@ -1535,7 +1535,7 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaDelete(const UbseIpcMessage &
         }
         ret = comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to Send to numa return req to master, ret " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to Send to numa return req to master, " << FormatRetCode(ret);
             return ret;
         }
         UBSE_LOG_INFO << "Success to Send to numa return req to master";
@@ -1640,14 +1640,14 @@ def::UbseMemNumaDesc ConvertOperationRespToNumaDesc(const UbseMemOperationResp &
 
 UbseResult UbseMemControllerDispatcher::UbseMemNumaBorrowRespHandler(const UbseMemOperationResp &resp)
 {
-    UBSE_LOG_INFO << "Numa Borrow Resp, name=" << resp.name << ", request_id=" << resp.requestId;
+    UBSE_LOG_INFO << "Numa Borrow Resp, name=" << resp.name << ", requestId=" << resp.requestId;
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServer == nullptr) {
         UBSE_LOG_ERROR << "Failed to get api server";
         return UBSE_ERROR_NULLPTR;
     }
     UbseIpcMessage message{nullptr, 0};
-    // 取requestrId， 发给ApiServer
+    // 取requestrId, 发给ApiServer
     const auto requestId = resp.requestId;
     // 结构转换
     uint32_t status = resp.errorCode;
@@ -1674,7 +1674,7 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaBorrowRespHandler(const UbseM
 
 UbseResult UbseMemControllerDispatcher::UbseMemNumaReturnRespHandler(const UbseMemOperationResp &resp)
 {
-    UBSE_LOG_INFO << "Numa Return Resp, name=" << resp.name << ", request_id=" << resp.requestId;
+    UBSE_LOG_INFO << "Numa Return Resp, name=" << resp.name << ", requestId=" << resp.requestId;
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServer == nullptr) {
         UBSE_LOG_ERROR << "Failed to get api server";
@@ -1687,7 +1687,8 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaReturnRespHandler(const UbseM
     message.length = 0;
     auto ret = apiServer->SendResponse(resp.errorCode, requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, error code is " << resp.errorCode << "requestId is " << requestId;
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << resp.errorCode
+                       << ", requestId=" << requestId;
     }
     return ret;
 }
@@ -1695,11 +1696,11 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaReturnRespHandler(const UbseM
 uint32_t UbseMemControllerDispatcher::UbseMemNodeBorrowInfoDispatch(const UbseIpcMessage &buffer,
                                                                     const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemNodeBorrowInfo, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemNodeBorrowInfo, requestId=" << context.requestId;
     std::vector<def::UbseNodeBorrowInfo> nodeBorrowInfo{};
     auto ret = UbseMemNodeBorrowInfoQuery(nodeBorrowInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to query node borrow info, ret " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to query node borrow info, " << FormatRetCode(ret);
         return ret;
     }
     // 优先导入节点排序
@@ -1726,7 +1727,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemNodeBorrowInfoDispatch(const UbseIp
     }
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " NodeBorrowHandle response send failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << " NodeBorrowHandle response send failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -1735,11 +1736,11 @@ uint32_t UbseMemControllerDispatcher::UbseMemNodeBorrowInfoDispatch(const UbseIp
 uint32_t UbseMemControllerDispatcher::UbseMemNodeLendInfoDispatch(const UbseIpcMessage &buffer,
                                                                   const UbseRequestContext &context)
 {
-    UBSE_LOG_INFO << "UbseMemNodeLendInfo, request_id=" << context.requestId;
+    UBSE_LOG_INFO << "UbseMemNodeLendInfo, requestId=" << context.requestId;
     std::vector<def::UbseNodeBorrowInfo> nodeBorrowInfo{};
     auto ret = UbseMemNodeBorrowInfoQuery(nodeBorrowInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to query node borrow info, ret " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Failed to query node borrow info, " << FormatRetCode(ret);
         return ret;
     }
     // 优先导出节点排序
@@ -1766,7 +1767,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemNodeLendInfoDispatch(const UbseIpcM
     }
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " NodeLendHandle response send failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << " NodeLendHandle response send failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;

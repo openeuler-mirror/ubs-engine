@@ -34,7 +34,7 @@ void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos)
         oss << "SlotId=" << item.slotId << ", ChipId=" << item.chipId << ", IODieId=" << item.cardId ;
         oss << ", busNodeCna=" << item.busNodeCna << "\n";
         for (auto &portInfo : item.ports) {
-            oss << " portId=" << portInfo.portId << ", busPortCna=" << portInfo.portCna << "\n";
+            oss << " port_id=" << portInfo.portId << ", bus_port_cna=" << portInfo.portCna << "\n";
         }
         oss << "\n";
     }

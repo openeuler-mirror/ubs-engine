@@ -97,7 +97,7 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
     std::vector<UbseNodeInfo> infos{};
     ret = GetAllNodeInfoFromRemote(masterNode.id, infos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get all node form master=" << masterNode.id << " failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "get all node from master=" << masterNode.id << " failed, " << FormatRetCode(ret);
         return {};
     }
     std::unordered_map<std::string, UbseNodeInfo> maps{};
@@ -527,10 +527,10 @@ std::string CreateLinkIdAndPhysicalLink(const LinkInfo &linkInfo, PhysicalLink &
                    + linkInfo.slotId + "/" + linkInfo.socketId + "/" + linkInfo.portId;
         }
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
-                       << "slotId is " << linkInfo.slotId << "socketId is " << linkInfo.socketId << "portId is "
-                       << linkInfo.portId << "peerSlotId is " << linkInfo.peerSlotId << "peerSocketId is "
-                       << linkInfo.peerSocketId << "peerPortId is " << linkInfo.peerPortId;
+        UBSE_LOG_WARN << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
+                       << "slotId=" << linkInfo.slotId << ", socketId=" << linkInfo.socketId << ", portId="
+                       << linkInfo.portId << ", peerSlotId=" << linkInfo.peerSlotId << ", peerSocketId="
+                       << linkInfo.peerSocketId << ", peerPortId=" << linkInfo.peerPortId;
     }
     return "ERROR-LINK";
 }
@@ -562,7 +562,7 @@ void UbseNodeController::PrintDevDirConnectInfo()
     std::stringstream oss;
     oss << "------ DevDirConnectInfo INFO ------\n";
     for (auto &connect : devDirConnectInfo) {
-        oss << "LinkId= " << connect.first << ", slotId=" << connect.second.slotId << ", chipId="
+        oss << "LinkId=" << connect.first << ", slotId=" << connect.second.slotId << ", chipId="
             << connect.second.chipId << ", portId=" << connect.second.portId << ", peerSlotId="
             << connect.second.peerSlotId << ", peerChipId=" << connect.second.peerChipId << ", peerPortId="
             << connect.second.peerPortId;

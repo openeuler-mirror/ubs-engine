@@ -86,17 +86,17 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::strin
     election::UbseRoleInfo currNodeInfo;
     election::UbseGetCurrentNodeInfo(currNodeInfo);
     if (currNodeInfo.nodeRole != election::ELECTION_ROLE_MASTER) {
-        UBSE_LOG_WARN << "currNode is not master,stop send response";
+        UBSE_LOG_WARN << "currNode is not master, stop send response";
         return UBSE_ERROR;
     }
     UBSE_LOG_INFO << "Build response when fail, name=" << name << ", type=" << static_cast<uint32_t>(type)
-                  << ", request_id=" << resp.requestId;
+                  << ", requestId=" << resp.requestId;
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
         UBSE_LOG_ERROR << "Failed to get com module.";
         return UBSE_ERROR_NULLPTR;
     }
-    UBSE_LOG_ERROR << errMsg << " requestId: " << resp.requestId;
+    UBSE_LOG_ERROR << errMsg << ", requestId=" << resp.requestId;
     resp.errMsg = errMsg;
     resp.name = name;
     resp.requestNodeId = requestNodeId;
@@ -108,25 +108,25 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::strin
     }
     UbseMemOperationRespSimpoPtr ptr = new (std::nothrow) UbseMemOperationRespSimpo();
     if (ptr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr;requestId: " << resp.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     ptr->SetUbseMemOperationResp(resp);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr;requestId: " << resp.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     UbseResult ret = UBSE_OK;
     for (int i = 0; i < RPC_RETRY_TIMES; ++i) {
         ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
         if (ret == UBSE_OK) {
-            UBSE_LOG_INFO << "Success to send resp when action is successful, name is " << resp.name
-                          << ";requestId: " << resp.requestId;
+            UBSE_LOG_INFO << "Success to send resp when action is successful, name=" << resp.name
+                          << ", requestId=" << resp.requestId;
             return ret;
         }
     }
-    UBSE_LOG_ERROR << "Failed to send resp, name is " << resp.name << ";requestId: " << resp.requestId;
+    UBSE_LOG_ERROR << "Failed to send resp, name=" << resp.name << ", requestId=" << resp.requestId;
     return ret;
 }
 
@@ -135,12 +135,12 @@ uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult er
     election::UbseRoleInfo currNodeInfo;
     election::UbseGetCurrentNodeInfo(currNodeInfo);
     if (currNodeInfo.nodeRole != election::ELECTION_ROLE_MASTER) {
-        UBSE_LOG_WARN << "currNode is not master,stop send response";
+        UBSE_LOG_WARN << "currNode is not master, stop send response";
         return UBSE_ERROR;
     }
     auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get com module;requestId: " << resp.requestId;
+        UBSE_LOG_ERROR << "Failed to get com module, requestId=" << resp.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     resp.errorCode = errorCode;
@@ -152,25 +152,25 @@ uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult er
     }
     UbseMemOperationRespSimpoPtr ptr = new (std::nothrow) UbseMemOperationRespSimpo();
     if (ptr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr;requestId: " << resp.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     ptr->SetUbseMemOperationResp(resp);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
-        UBSE_LOG_ERROR << "Failed to new ptr;requestId: " << resp.requestId;
+        UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;
         return UBSE_ERROR_NULLPTR;
     }
     UbseResult ret = UBSE_OK;
     for (int i = 0; i < RPC_RETRY_TIMES; ++i) {
         ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
         if (ret == UBSE_OK) {
-            UBSE_LOG_INFO << "Success to send resp when action is successful, name is " << resp.name
-                          << ";requestId: " << resp.requestId;
+            UBSE_LOG_INFO << "Success to send resp when action is successful, name=" << resp.name
+                          << ", requestId=" << resp.requestId;
             return ret;
         }
     }
-    UBSE_LOG_ERROR << "Failed to send resp, name is " << resp.name << ";requestId: " << resp.requestId;
+    UBSE_LOG_ERROR << "Failed to send resp, name=" << resp.name << ", requestId=" << resp.requestId;
     return ret;
 }
 
@@ -295,8 +295,8 @@ void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
                                         decoderVal.handle};
         auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().DeleteDecoderEntry(mamiDelInfo);
         if (res != UBSE_OK) {
-            UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed, handle is " << decoderVal.handle << " hpa is "
-                           << decoderVal.hpa << " marId is " << decoderVal.marId;
+            UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed, handle=" << decoderVal.handle << ", hpa="
+                           << decoderVal.hpa << ", marId=" << decoderVal.marId;
             failedDecoderResult.push_back(decoderVal);
         }
     }
@@ -309,7 +309,7 @@ uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatu
     std::pair<uint32_t, uint32_t> chipDiePair{attachSocketId, attachSocketId};
     auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(attachSocketId, chipDiePair);
     if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "GetChipAndDieId failed, decoderId is " << decoderId;
+        UBSE_LOG_ERROR << "GetChipAndDieId failed, decoderId=" << decoderId;
         return res;
     }
     for (auto &decoderVal : status.decoderResult) {
@@ -320,8 +320,8 @@ uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatu
                                         decoderVal.handle};
         auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().InvalidateDecoderEntry(mamiDelInfo);
         if (res != UBSE_OK) {
-            UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, handle is " << decoderVal.handle << " hpa is "
-                           << decoderVal.hpa << " marId is " << decoderVal.marId;
+            UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, handle=" << decoderVal.handle << ", hpa="
+                           << decoderVal.hpa << ", marId=" << decoderVal.marId;
             return res;
         }
         decoderVal.valid = true;
@@ -479,14 +479,14 @@ uint32_t WaitNodeStateWork(const std::string& importNode)
             return UBSE_OK;
         }
         if (nodeInfo.clusterState != nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-            UBSE_LOG_ERROR << "nodeId:" << importNode << "state is " << static_cast<int32_t>(nodeInfo.clusterState);
+            UBSE_LOG_ERROR << "nodeId=" << importNode << ", state=" << static_cast<int32_t>(nodeInfo.clusterState);
             return UBSE_ERR_NODE_UNREACHABLE;
         }
         ++nowTime;
         nodeInfo = nodeController::UbseNodeController::GetInstance().GetNodeById(importNode);
         std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
     }
-    UBSE_LOG_WARN << "nodeId:" << importNode << "is still smoothing";
+    UBSE_LOG_WARN << "nodeId=" << importNode << "is still smoothing";
     return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS;
 }
 } // namespace ubse::mem::controller

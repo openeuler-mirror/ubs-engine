@@ -216,8 +216,8 @@ UbseResult UbseComModule::RpcServerStart()
     bool enableTlsValue = true;
     auto ret = UbseGetBool(UBSE_CERT_SECTION, UBSE_CERT_CONFIG_KEY, enableTlsValue);
     if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key: " << UBSE_CERT_CONFIG_KEY
-                      << ", ret: " << ret << ", use default value: true";
+        UBSE_LOG_INFO << "The value of the key does not exist or is invalid, key=" << UBSE_CERT_CONFIG_KEY
+                      << ", ret=" << ret << ", use default value: true";
         enableTlsValue = true;
     }
     if (enableTlsValue) {
@@ -232,7 +232,7 @@ UbseResult UbseComModule::RpcServerStart()
     rpcServer_->SetQueryEidByNodeIdCb(queryCb);
     ret = rpcServer_->Start();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Start UbseMasterRpcServer fail," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Start UbseMasterRpcServer failed, " << FormatRetCode(ret);
         rpcServer_->Stop();
         return UBSE_ERROR_INVAL;
     }
@@ -246,7 +246,7 @@ UbseResult UbseComModule::Start()
     }
     UbseResult ret = CreateRpcExecutor();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Init ComExecutor fail," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Init ComExecutor failed, " << FormatRetCode(ret);
         return ret;
     }
 
@@ -264,7 +264,7 @@ const std::string UbseComModule::GetCurRoleStr()
     ubse::election::UbseRoleInfo roleInfo{};
     UbseResult ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get Role fail," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Get Role failed, " << FormatRetCode(ret);
         return "";
     }
     return roleInfo.nodeRole;
@@ -275,7 +275,7 @@ UbseResult UbseComModule::StartComService(const std::string &localNodeId, const 
 {
     auto ret = InitUbseCom(localNodeId, localIp);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Init ubse com fail," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Init ubse com failed, " << FormatRetCode(ret);
         return ret;
     }
     rpcServer_->RegNewChannelCb(newChannelCb);
@@ -285,7 +285,7 @@ UbseResult UbseComModule::StartComService(const std::string &localNodeId, const 
     if (rpcServer_ != nullptr) {
         ret = RpcServerStart();
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Start rpc fail," << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Start rpc failed, " << FormatRetCode(ret);
             return ret;
         }
     }
@@ -298,7 +298,7 @@ UbseResult UbseComModule::StartComService(const std::string &localNodeId, const 
     }
     ret = queueRef_->StartQueue();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Fail to start queue," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Fail to start queue, " << FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;
@@ -317,7 +317,7 @@ bool UbseComModule::IsCurrentNode(const std::string &nodeId)
     ubse::election::UbseRoleInfo roleInfo{};
     UbseResult ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get Role fail," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Get Role failed, " << FormatRetCode(ret);
         return false;
     }
     return roleInfo.nodeId == nodeId;
@@ -340,7 +340,7 @@ UbseResult GetNodeInfoFromMti(IpAddress &address, std::string &nodeId)
         adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(address.first);
         address.second = TCP_LISTEN_PORT;
     };
-    UBSE_LOG_INFO << "Com ip is " << address.first << ", com port is " << address.second << ", com node id is "
+    UBSE_LOG_INFO << "Com_ip=" << address.first << ", com_port=" << address.second << ", com_node_id="
                   << nodeId;
     return UBSE_OK;
 }

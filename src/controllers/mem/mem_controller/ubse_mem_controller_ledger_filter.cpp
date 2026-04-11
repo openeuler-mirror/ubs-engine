@@ -121,17 +121,17 @@ void PrintShareExportObj(std::string module, std::vector<UbseMemShareBorrowExpor
             continue;
         }
         UBSE_LOG_INFO << module << ", node= " << obj.algoResult.exportNumaInfos[0].nodeId
-                      << ", share export name=" << obj.req.name << ", state=" << TransState(obj.status.state)
-                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+                      << ", share_export_name=" << obj.req.name << ", state=" << TransState(obj.status.state)
+                      << ", origin_state=" << static_cast<uint32_t>(obj.status.state);
     }
 }
 
 void PrintShareImportObj(std::string module, std::vector<UbseMemShareBorrowImportObj> importObjs)
 {
     for (auto obj : importObjs) {
-        UBSE_LOG_INFO << module << ", node= " << obj.importNodeId << ", share import name=" << obj.req.name
+        UBSE_LOG_INFO << module << ", node= " << obj.importNodeId << ", share_import_name=" << obj.req.name
                       << ", state=" << TransState(obj.status.state)
-                      << ", origin state=" << static_cast<uint32_t>(obj.status.state);
+                      << ", origin_state=" << static_cast<uint32_t>(obj.status.state);
     }
 }
 

@@ -98,7 +98,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
     std::string defaultVal;
     auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", defaultVal);
     if (ret != UBSE_OK || defaultVal.empty()) {
-        UBSE_LOG_WARN << "Unable to get cluster.ipList config," << FormatRetCode(ret) << " ,use default tcp";
+        UBSE_LOG_WARN << "Unable to get cluster.ipList config, " << FormatRetCode(ret) << " , use default tcp";
         return;
     }
     std::vector<std::string> ipRangeVec;

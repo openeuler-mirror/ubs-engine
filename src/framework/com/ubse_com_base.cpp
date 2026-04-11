@@ -239,7 +239,7 @@ void UbseComBase::LinkNotify(const UbseComEngineInfo &info, const std::string &c
 void ReplyCallback(void *ctx, void *recv, uint32_t len, int32_t result)
 {
     if (UBSE_RESULT_FAIL(result)) {
-        UBSE_LOG_ERROR << "reply message failed," << FormatRetCode(result);
+        UBSE_LOG_ERROR << "reply message failed, " << FormatRetCode(result);
     }
 }
 
@@ -462,7 +462,7 @@ UbseResult UbseComBaseBufferMessage::Serialize()
     mOutputRawData = SafeMakeUnique(mOutputRawDataSize);
     auto ret = memcpy_s(mOutputRawData.get(), mOutputRawDataSize, data_, len_);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Serialize failed. ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Serialize failed. " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
