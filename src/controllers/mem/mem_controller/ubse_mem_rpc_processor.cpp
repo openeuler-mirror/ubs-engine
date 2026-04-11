@@ -429,7 +429,7 @@ UbseResult UbseMemCallbackMessage::Serialize()
         return UBSE_OK;
     }
     if (auto ret = memcpy_s(mOutputRawData.get(), mOutputRawDataSize, data.data(), mOutputRawDataSize); ret != 0) {
-        UBSE_LOG_ERROR << "Serialize failed with memcpy_s, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Serialize failed with memcpy_s ret=" << ret;
         return UBSE_ERROR;
     }
     return UBSE_OK;
