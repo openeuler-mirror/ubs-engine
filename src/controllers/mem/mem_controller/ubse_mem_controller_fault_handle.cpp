@@ -142,10 +142,24 @@ static UbseResult GetFaultTypeFromMsg(const UbseMemFaultMsg &msg, UbMemFaultType
     return UBSE_OK;
 }
 
-static std::string QueryMemNameById(const std::unordered_map<std::string, UbseMemShareBorrowExportObj> &objMap,
-                                    uint64_t memId)
+static std::string QueryMemNameByIdFromImport(
+    const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &objMap, uint64_t memId)
 {
-    // 查找obj中是否包含目标memId
+    // 查找import obj中是否包含目标memId
+    auto searchIdLambda = [memId](std::pair<std::string, UbseMemShareBorrowImportObj> objPair) -> bool {
+        auto &obmmInfoVec = objPair.second.status.importResults;
+        auto targetObmm = std::find_if(obmmInfoVec.begin(), obmmInfoVec.end(),
+                                       [memId](UbseMemImportResult info) -> bool { return info.memId == memId; });
+        return targetObmm != obmmInfoVec.end();
+    };
+    auto itor = std::find_if(objMap.begin(), objMap.end(), searchIdLambda);
+    return itor == objMap.end() ? "" : itor->first;
+}
+
+static std::string QueryMemNameByIdFromExport(
+    const std::unordered_map<std::string, UbseMemShareBorrowExportObj> &objMap, uint64_t memId)
+{
+    // 查找export obj中是否包含目标memId
     auto searchIdLambda = [memId](std::pair<std::string, UbseMemShareBorrowExportObj> objPair) -> bool {
         auto &obmmInfoVec = objPair.second.status.exportObmmInfo;
         auto targetObmm = std::find_if(obmmInfoVec.begin(), obmmInfoVec.end(),
@@ -279,7 +293,7 @@ static void WaitLongLinkResponse(const UbseMemFaultMsg &faultMsg, const std::vec
     bool asyncRet = fut.get();
     if (asyncRet) {
         SendMemFaultInfo(faultMsg, masterNode,
-                         static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_NOTIFY_REPLY));
+                         static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY_REPLY));
         return;
     }
     UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to reply notification to master which memName=" << faultMsg.info.memName_
@@ -456,7 +470,7 @@ UbseResult UbseMemFaultManager::RemoveTaskExecutor(const std::string &name)
     return UBSE_OK;
 }
 
-void UbseMemFaultManager::MemFaultReportTask(UbseMemFaultMsg msg)
+void UbseMemFaultManager::ShareMemFaultReportTask(UbseMemFaultMsg msg)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to report mem fault to master.";
     // 记录任务信息
@@ -475,7 +489,7 @@ void UbseMemFaultManager::MemFaultReportTask(UbseMemFaultMsg msg)
             continue;
         }
         ret = SendMemFaultInfo(msg, master,
-                               static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_REPORT));
+                               static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT));
         if (ret != UBSE_OK) {
             std::this_thread::sleep_for(std::chrono::seconds(REPORT_WAIT_INTERVAL));
             // 发送失败重试
@@ -513,7 +527,7 @@ void UbseMemFaultManager::MemFaultReportTask(UbseMemFaultMsg msg)
 UbseResult UbseMemFaultManager::InitMemFaultManager()
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to register mem fault alarm.";
-    auto ret = RegisterAlarmFaultHandler(ALARM_MEM_FAULT, MEM_FAULT_ALAUBSE_NAME, MemFaultHandler);
+    auto ret = RegisterAlarmFaultHandler(ALARM_MEM_FAULT, MEM_FAULT_ALAUBSE_NAME, ShareMemFaultHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register mem fault alarm.";
         return UBSE_ERROR;
@@ -526,20 +540,20 @@ UbseResult UbseMemFaultManager::InitMemFaultManager()
     std::vector<UbseResult> regRets;
     // 主节点上报处理函数
     regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_REPORT), ""),
-        MemFaultReportHandler));
+        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT), ""),
+        ShareMemFaultReportHandler));
     // 主节点故障通知回复处理函数
     regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_NOTIFY_REPLY), ""),
-        MemFaultNotifyReplyHandler));
+        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY_REPLY), ""),
+        ShareMemFaultNotifyReplyHandler));
     // 故障内存借入节点通知处理函数
     regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_NOTIFY), ""),
-        MemFaultNotifyHandler));
+        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY), ""),
+        ShareMemFaultNotifyHandler));
     // 故障内存发生节点上报回复函数
     regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_REPORT_REPLY), ""),
-        MemFaultReportReplyHandler));
+        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT_REPLY), ""),
+        ShareMemFaultReportReplyHandler));
     for (auto regRet : regRets) {
         if (regRet != UBSE_OK) {
             UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register handlers. " << FormatRetCode(ret);
@@ -588,17 +602,22 @@ UbseResult UbseMemFaultManager::GetMemNameById(uint64_t memId, std::string &memN
 
     NodeMemDebtInfo debtInfo = GetNodeMemDebtInfoById(nodeId);
     // 需要保证memId对应的Name唯一性
-    memName = QueryMemNameById(debtInfo.shareExportObjMap, memId);
+    memName = QueryMemNameByIdFromExport(debtInfo.shareExportObjMap, memId);
+    if (memName.empty()) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] Failed to get mem name form Export";
+        memName = QueryMemNameByIdFromImport(debtInfo.shareImportObjMap, memId);
+    }
     if (memName.empty()) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get mem name. Query result is empty.";
     }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] YWT memName" << memName;
     return ret;
 }
 
 void UbseMemFaultManager::StartMemFaultReportTask(const UbseMemFaultMsg &msg)
 {
     try {
-        std::thread([=]() { MemFaultReportTask(msg); }).detach();
+        std::thread([=]() { ShareMemFaultReportTask(msg); }).detach();
     } catch (const std::exception &e) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Exception message is " << e.what();
     }
@@ -613,7 +632,7 @@ void UbseMemFaultManager::StartMemFaultDeliverTask(const std::vector<std::string
             updatedMsg.notifiedNode = user;
 
             auto sendRet = SendMemFaultInfo(updatedMsg, user,
-                                            static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_NOTIFY));
+                                            static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY));
             if (sendRet != UBSE_OK) {
                 UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to deliver mem fault to nodeId=" << user << ".";
             }
@@ -621,7 +640,7 @@ void UbseMemFaultManager::StartMemFaultDeliverTask(const std::vector<std::string
     }
 }
 
-uint32_t UbseMemFaultManager::MemFaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)
+uint32_t UbseMemFaultManager::ShareMemFaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to handle ras fault report. faultInfo =" << faultInfo << ".";
     rapidjson::Document doc(rapidjson::kObjectType);
@@ -640,10 +659,10 @@ uint32_t UbseMemFaultManager::MemFaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmF
 
     std::string memName;
     // 将memId转换为memName
-    ret = GetMemNameById(memId, memName);
-    if (ret != UBSE_OK) {
+    GetMemNameById(memId, memName);
+    if (memName.empty()) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get mem name by id.";
-        return ret;
+        return UBSE_ERROR;
     }
     auto msg = UbseMemFaultMsg(memId, memName, faultInfo);
 
@@ -664,15 +683,13 @@ uint32_t UbseMemFaultManager::MemFaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmF
     ret = UpdateFaultShareExportObj(nodeId, memId, memName, static_cast<UbMemFaultType>(type));
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to update object info for memory fault.";
-        return ret;
     }
-
     // 启动异步线程任务进行故障上报
     StartMemFaultReportTask(msg);
     return ret;
 }
 
-void UbseMemFaultManager::MemFaultReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UbseMemFaultManager::ShareMemFaultReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to handle mem fault report.";
     // 确定是主节点才能执行
@@ -703,7 +720,6 @@ void UbseMemFaultManager::MemFaultReportHandler(const UbseByteBuffer &req, UbseB
     ret = UpdateFaultShareExportObj(msg.faultNode, msg.info.memId_, msg.info.memName_, type);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to update object info for memory fault.";
-        return;
     }
     // 根据name查找共享内存使用方
     auto users = GetFaultMemUsers(msg.info.memName_);
@@ -723,7 +739,7 @@ static bool IsReportReplyOver(const UbseMemFaultMsg &msg, ThreadControl &ctrl)
     return ctrl.replyNodes.size() == msg.nodeNum;
 }
 
-void UbseMemFaultManager::MemFaultReportReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UbseMemFaultManager::ShareMemFaultReportReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to handle mem fault report back.";
     UbseMemFaultMsg msg;
@@ -752,7 +768,7 @@ void UbseMemFaultManager::MemFaultReportReplyHandler(const UbseByteBuffer &req, 
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Finished handle mem fault report back.";
 }
 
-void UbseMemFaultManager::MemFaultNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UbseMemFaultManager::ShareMemFaultNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Received notification from master.";
     UbseMemFaultMsg msg;
@@ -768,7 +784,7 @@ void UbseMemFaultManager::MemFaultNotifyHandler(const UbseByteBuffer &req, UbseB
     }
 }
 
-void UbseMemFaultManager::MemFaultNotifyReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UbseMemFaultManager::ShareMemFaultNotifyReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Received reply from notified node.";
     // 确定是主节点才能执行
@@ -785,7 +801,7 @@ void UbseMemFaultManager::MemFaultNotifyReplyHandler(const UbseByteBuffer &req, 
     }
 
     ret = SendMemFaultInfo(msg, msg.faultNode,
-                           static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_REPORT_REPLY));
+                           static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT_REPLY));
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to reply to mem fault node=" << msg.faultNode << ", "
                        << FormatRetCode(UBSE_ERROR_NULLPTR);

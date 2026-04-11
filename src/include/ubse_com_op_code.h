@@ -189,10 +189,10 @@ enum class UbseMemBorrowCallbackOpCode {
 
 // UBSE内存故障处理操作码
 enum class UbseMemFaultOpCode {
-    UBSE_MEM_FAULT_REPORT = 0x0001,           // 内存故障报告
-    UBSE_MEM_FAULT_REPORT_REPLY = 0x0002,     // 内存故障报告回复
-    UBSE_MEM_FAULT_NOTIFY = 0x0003,           // 内存故障通知
-    UBSE_MEM_FAULT_NOTIFY_REPLY = 0x0004,     // 内存故障通知回复
+    UBSE_SHARE_MEM_FAULT_REPORT = 0x0001,           // 共享内存故障报告
+    UBSE_SHARE_MEM_FAULT_REPORT_REPLY = 0x0002,     // 共享内存故障报告回复
+    UBSE_SHARE_MEM_FAULT_NOTIFY = 0x0003,           // 共享内存故障通知
+    UBSE_SHARE_MEM_FAULT_NOTIFY_REPLY = 0x0004,     // 共享内存故障通知回复
 };
 
 // RAS模块操作码
