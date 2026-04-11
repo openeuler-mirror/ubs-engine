@@ -1687,7 +1687,8 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaReturnRespHandler(const UbseM
     message.length = 0;
     auto ret = apiServer->SendResponse(resp.errorCode, requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << resp.errorCode << ", requestId=" << requestId;
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << resp.errorCode
+                       << ", requestId=" << requestId;
     }
     return ret;
 }
