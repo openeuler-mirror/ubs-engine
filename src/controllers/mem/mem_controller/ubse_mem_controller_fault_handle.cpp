@@ -160,7 +160,7 @@ static std::string QueryMemNameByIdFromImport(
     const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &objMap, uint64_t memId)
 {
     return QueryMemNameById<UbseMemShareBorrowImportObj, UbseMemImportResult>(
-        objMap, memId, [](const UbseMemShareBorrowImportObj &obj) -> const auto & { return obj.status.importResults; });
+        objMap, memId, [](const UbseMemShareBorrowImportObj &obj) -> const auto& { return obj.status.importResults; });
 }
 
 static std::string QueryMemNameByIdFromExport(
@@ -168,7 +168,7 @@ static std::string QueryMemNameByIdFromExport(
 {
     return QueryMemNameById<UbseMemShareBorrowExportObj, UbseMemObmmInfo>(
         objMap, memId,
-        [](const UbseMemShareBorrowExportObj &obj) -> const auto & { return obj.status.exportObmmInfo; });
+        [](const UbseMemShareBorrowExportObj &obj) -> const auto& { return obj.status.exportObmmInfo; });
 }
 
 static UbseResult SerializeMemFaultMsg(const UbseMemFaultMsg &msg, UbseByteBuffer &outData)
