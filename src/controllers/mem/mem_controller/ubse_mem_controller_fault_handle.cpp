@@ -145,29 +145,15 @@ static UbseResult GetFaultTypeFromMsg(const UbseMemFaultMsg &msg, UbMemFaultType
 static std::string QueryMemNameByIdFromImport(
     const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &objMap, uint64_t memId)
 {
-    // 查找import obj中是否包含目标memId
-    auto searchIdLambda = [memId](std::pair<std::string, UbseMemShareBorrowImportObj> objPair) -> bool {
-        auto &obmmInfoVec = objPair.second.status.importResults;
-        auto targetObmm = std::find_if(obmmInfoVec.begin(), obmmInfoVec.end(),
-                                       [memId](UbseMemImportResult info) -> bool { return info.memId == memId; });
-        return targetObmm != obmmInfoVec.end();
-    };
-    auto itor = std::find_if(objMap.begin(), objMap.end(), searchIdLambda);
-    return itor == objMap.end() ? "" : itor->first;
+    return QueryMemNameById<UbseMemShareBorrowImportObj, UbseMemImportResult>(
+        objMap, memId, [](const UbseMemShareBorrowImportObj &obj) -> const auto & { return obj.status.importResults; });
 }
-
 static std::string QueryMemNameByIdFromExport(
     const std::unordered_map<std::string, UbseMemShareBorrowExportObj> &objMap, uint64_t memId)
 {
-    // 查找export obj中是否包含目标memId
-    auto searchIdLambda = [memId](std::pair<std::string, UbseMemShareBorrowExportObj> objPair) -> bool {
-        auto &obmmInfoVec = objPair.second.status.exportObmmInfo;
-        auto targetObmm = std::find_if(obmmInfoVec.begin(), obmmInfoVec.end(),
-                                       [memId](UbseMemObmmInfo info) -> bool { return info.memId == memId; });
-        return targetObmm != obmmInfoVec.end();
-    };
-    auto itor = std::find_if(objMap.begin(), objMap.end(), searchIdLambda);
-    return itor == objMap.end() ? "" : itor->first;
+    return QueryMemNameById<UbseMemShareBorrowExportObj, UbseMemObmmInfo>(
+        objMap, memId,
+        [](const UbseMemShareBorrowExportObj &obj) -> const auto & { return obj.status.exportObmmInfo; });
 }
 
 static UbseResult SerializeMemFaultMsg(const UbseMemFaultMsg &msg, UbseByteBuffer &outData)
