@@ -741,7 +741,7 @@ MpResult OverCommitFaultNodeModule::ProcessSingleFaultRemoteNuma(
     if (vmDomainInfos.empty()) {
         LOG_DEBUG << "There is no vm in remote numa" << remoteNumaPair.first << ", begin to free memory.";
         for (auto &record : remoteNumaPair.second) {
-            MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(record.name, true, true, true);
+            MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(record.name, true, false, true);
             if (ret != MEM_POOLING_OK) {
                 LOG_ERROR << "MemFreeWithOps failed, ret=" << ret << ", borrowId=" << record.name << ".";
                 return MEM_POOLING_ERROR;
