@@ -771,6 +771,39 @@ TEST_F(TestUbseMemApi, UbseCliShmCreateDispatch_WhenInvalidParam)
     EXPECT_EQ(UbseMemApi::UbseCliShmCreateDispatch(req, context), UBSE_ERROR_INVAL);
 }
 
+TEST_F(TestUbseMemApi, BuildMemShareCreateReq_WhenRegionEmptyUseAllNodes)
+{
+    UbseIpcMessage req{};
+    UbseRequestContext context{};
+    UbseMemShareBorrowReq shareReq{};
+    std::string testName = "test_shm";
+    uint64_t size = 1024 * 1024;
+
+    UbseSerialization serialization;
+    serialization << size << testName << array_len_insert(0);
+    req.length = serialization.GetLength();
+    req.buffer = serialization.GetBuffer();
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> allNodes;
+    ubse::nodeController::UbseNodeInfo node1{};
+    node1.slotId = 1;
+    node1.nodeId = "1";
+    node1.hostName = "node-1";
+    allNodes.emplace(node1.nodeId, node1);
+
+    ubse::nodeController::UbseNodeInfo node2{};
+    node2.slotId = 2;
+    node2.nodeId = "2";
+    node2.hostName = "node-2";
+    allNodes.emplace(node2.nodeId, node2);
+
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(allNodes));
+
+    EXPECT_EQ(BuildMemShareCreateReq(req, context, shareReq), UBSE_OK);
+    EXPECT_EQ(shareReq.shmRegion.nodeNum, allNodes.size());
+    EXPECT_EQ(shareReq.shmRegion.nodelist.size(), allNodes.size());
+}
+
 TEST_F(TestUbseMemApi, UbseCliShmCreateDispatch_WhenExecutorFailed)
 {
     // 准备有效请求
