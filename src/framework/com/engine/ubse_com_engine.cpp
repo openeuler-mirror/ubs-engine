@@ -801,11 +801,10 @@ UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo &chInfo)
 
 void UbseComEngine::UpdateReceivedNewChannelIdMap(const std::string &nodeId, UbseComChannelInfo &channelInfo)
 {
-    recNewChannelMutex_.lock();
+    std::unique_lock<std::mutex> lock(recNewChannelMutex_);
     if (channelInfo.GetChannel() == nullptr) {
         UBSE_LOG_WARN << "channel does not exist, "
                       << "remote nodeId = " << nodeId;
-        recNewChannelMutex_.unlock();
         return;
     }
     if (receivedNewChannelIdMap_.find(nodeId) != receivedNewChannelIdMap_.end()) {
@@ -815,8 +814,7 @@ void UbseComEngine::UpdateReceivedNewChannelIdMap(const std::string &nodeId, Ubs
         DestroyChannel(receivedNewChannelIdMap_[nodeId].GetChannel());
     }
     receivedNewChannelIdMap_[nodeId] = channelInfo;
-    recNewChannelMutex_.unlock();
-}  
+}
 
 UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomChannelPtr &ch, const std::string &payload)
 {
