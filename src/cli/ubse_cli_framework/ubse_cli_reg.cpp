@@ -131,10 +131,15 @@ bool UbseCliParse::UbseCliProcessOption(size_t &arg_index, const std::vector<std
                 return false;
             }
             const std::string &value = args[arg_index + 1];
-            if (value.size() > UBSE_MAX_VALUE_LENGTH ||
-                (option_name == "dev" || option_name == "d") && value.size() > UBSE_DEV_MAX_VALUE_LENGTH) {
+            if ((option_name != "dev" && option_name != "d") && value.size() > UBSE_MAX_VALUE_LENGTH) {
                 UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
                     "ERROR: The length of the option value has been exceeded " + std::to_string(UBSE_MAX_VALUE_LENGTH) +
+                    ".\n");
+                return false;
+            }
+            if (value.size() > UBSE_DEV_MAX_VALUE_LENGTH) {
+                UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
+                    "ERROR: The length of the option value has been exceeded " + std::to_string(UBSE_DEV_MAX_VALUE_LENGTH) +
                     ".\n");
                 return false;
             }
