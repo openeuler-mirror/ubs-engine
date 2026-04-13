@@ -56,7 +56,6 @@ void UbseCliRegUrmaModule::UbseCliSignUp()
 {
     this->cmd_.emplace_back(UbseCliQueryUrmaQos());
     this->cmd_.emplace_back(UbseCliQueryUrmaDevInfo());
-    this->cmd_.emplace_back(UbseCliActivateUrmaDevInfo());
     return;
 }
 UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaQos()
