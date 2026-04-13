@@ -826,7 +826,6 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     }
     std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(payload);
     UBSE_LOG_INFO << "New channel=" << ch.Get()->GetId() << " receive from " << ipPort << ", payload=" << payload;
-    UBSE_LOG_INFO << "New channel " << ch.Get()->GetId() << " receive from: " << ipPort << ", payload is: " << payload;
     if (payLoadPair.first == engineInfo_.GetNodeId()) {
         UBSE_LOG_ERROR << "reject self connecting channel, payload =" << payload;
         return UBSE_ERROR;
