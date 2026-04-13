@@ -139,8 +139,8 @@ bool UbseCliParse::UbseCliProcessOption(size_t &arg_index, const std::vector<std
             }
             if (value.size() > UBSE_DEV_MAX_VALUE_LENGTH) {
                 UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-                    "ERROR: The length of the option value has been exceeded " + std::to_string(UBSE_DEV_MAX_VALUE_LENGTH) +
-                    ".\n");
+                    "ERROR: The length of the option value has been exceeded " +
+                    std::to_string(UBSE_DEV_MAX_VALUE_LENGTH) + ".\n");
                 return false;
             }
             inputOptionMap_[key] = value;
