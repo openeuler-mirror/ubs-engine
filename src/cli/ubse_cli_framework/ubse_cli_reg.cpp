@@ -112,7 +112,6 @@ bool UbseCliParse::UbseCliValidateOption(const std::string &option_name, bool is
     return false;
 }
 
-constexpr uint32_t UBSE_DEV_MAX_VALUE_LENGTH = 2048;
 bool UbseCliParse::UbseCliProcessOption(size_t &arg_index, const std::vector<std::string> &args,
     const std::string &option_name, bool is_long_option)
 {
@@ -131,16 +130,10 @@ bool UbseCliParse::UbseCliProcessOption(size_t &arg_index, const std::vector<std
                 return false;
             }
             const std::string &value = args[arg_index + 1];
-            if ((option_name != "dev" && option_name != "d") && value.size() > UBSE_MAX_VALUE_LENGTH) {
+            if (value.size() > UBSE_MAX_VALUE_LENGTH) {
                 UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
                     "ERROR: The length of the option value has been exceeded " + std::to_string(UBSE_MAX_VALUE_LENGTH) +
                     ".\n");
-                return false;
-            }
-            if (value.size() > UBSE_DEV_MAX_VALUE_LENGTH) {
-                UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-                    "ERROR: The length of the option value has been exceeded " +
-                    std::to_string(UBSE_DEV_MAX_VALUE_LENGTH) + ".\n");
                 return false;
             }
             inputOptionMap_[key] = value;
