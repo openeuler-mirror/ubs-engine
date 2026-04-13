@@ -480,7 +480,7 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     if (allVmNumaInfoOnBoth.empty()) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "No VM on remoteNuma, return directly.";
         // 直接归还该borrowId
-        auto ret = OverCommitFaultMemIdModule::MemFreeExecuteRpc(borNodeData.borrowId, borrowInNid);
+        auto ret = OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(borNodeData.borrowId, borrowInNid);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << TAG << "No VM on remoteNuma, return " << borNodeData.borrowId << " directly failed.";
