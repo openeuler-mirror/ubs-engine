@@ -449,6 +449,13 @@ uint32_t InitOverCommitReg()
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "MemIdReturnExecuteRecvHandler reg failed res: " << ret;
     }
 
+    // 超分场景memID故障处理 agent节点内存归还
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE};
+    ret = UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "MemIdReturnDirectlyExecuteRecvHandler reg failed res: " << ret;
+    }
+
     // 虚机超分场景故障处理 在借入节点上借用内存、迁出pid、归还内存
     endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_FAULT_NUMA_PROCESS};
     ret = UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler);

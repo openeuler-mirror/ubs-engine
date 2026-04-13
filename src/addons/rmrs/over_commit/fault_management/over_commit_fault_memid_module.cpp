@@ -477,10 +477,15 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
         return MEM_POOLING_ERROR;
     }
 
-    bool directly_return_mem = false;
     if (allVmNumaInfoOnBoth.empty()) {
-        directly_return_mem = true;
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "No VM on remoteNuma, return directly.";
+        // 直接归还该borrowId
+        auto ret = OverCommitFaultMemIdModule::MemFreeExecuteRpc(borNodeData.borrowId, borrowInNid);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << TAG << "No VM on remoteNuma, return " << borNodeData.borrowId << " directly failed.";
+        }
+        return ret;
     }
 
     // 调用碎片接口获取虚拟机列表 pids 和 要借用的内存大小
@@ -496,34 +501,33 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     uint64_t preRemoteSize{0};
     struct GetNumaSizePara preRemoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, preRemoteNumaId, preRemoteNumaId};
 
-    if (!directly_return_mem) { // 故障节点所借出的远端numa上有内存使用，不能直接将其归还
-        MemBorrowExecuteResult borrowExecResult;
-        if (MemBorrowExecute(srcParam, fMVmInfoResult.totalNeedBorrowMem, waterMark, borrowExecResult) !=
-            MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemBorrowExecute failed.";
-            return MEM_POOLING_ERROR;
-        }
-        auto remoteNumaId = borrowExecResult.presentNumaId[0];
-        uint64_t remoteNumaSize{0};
-        bool isDiffRemoteNuma{remoteNumaId != preRemoteNumaId};
-        struct GetNumaSizePara remoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, remoteNumaId, preRemoteNumaId};
-        if (GetRemoteNumaSize(remoteNumaSize, remoteNumaPara, mBindType) != MEM_POOLING_OK) {
-            return MEM_POOLING_ERROR;
-        }
+    // 故障节点所借出的远端numa上有内存使用，不能直接将其归还
+    MemBorrowExecuteResult borrowExecResult;
+    if (MemBorrowExecute(srcParam, fMVmInfoResult.totalNeedBorrowMem, waterMark, borrowExecResult) !=
+        MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemBorrowExecute failed.";
+        return MEM_POOLING_ERROR;
+    }
+    auto remoteNumaId = borrowExecResult.presentNumaId[0];
+    uint64_t remoteNumaSize{0};
+    bool isDiffRemoteNuma{remoteNumaId != preRemoteNumaId};
+    struct GetNumaSizePara remoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, remoteNumaId, preRemoteNumaId};
+    if (GetRemoteNumaSize(remoteNumaSize, remoteNumaPara, mBindType) != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
 
-        OverCommitFaultMemIdExecuteParam executeParam{fMVmInfoResult.pids,
-                                                      oSrcParam.srcNumaId,
-                                                      remoteNumaId,
-                                                      preRemoteNumaId,
-                                                      fMVmInfoResult.totalNeedBorrowMem,
-                                                      remoteNumaSize,
-                                                      preRemoteSize,
-                                                      isDiffRemoteNuma};
-        // 调用rpc消息到远端
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "ExecuteParam=" << executeParam.ToString() << ".";
-        if (MemIdExecuteRpc(executeParam, borrowInNid) != MEM_POOLING_OK) {
-            return MEM_POOLING_ERROR;
-        }
+    OverCommitFaultMemIdExecuteParam executeParam{fMVmInfoResult.pids,
+                                                  oSrcParam.srcNumaId,
+                                                  remoteNumaId,
+                                                  preRemoteNumaId,
+                                                  fMVmInfoResult.totalNeedBorrowMem,
+                                                  remoteNumaSize,
+                                                  preRemoteSize,
+                                                  isDiffRemoteNuma};
+    // 调用rpc消息到远端
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "ExecuteParam=" << executeParam.ToString() << ".";
+    if (MemIdExecuteRpc(executeParam, borrowInNid) != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
     }
 
     if (GetPreRemoteNumaSize(preRemoteSize, preRemoteNumaPara, mBindType) != MEM_POOLING_OK) {
@@ -642,6 +646,29 @@ MpResult OverCommitFaultMemIdModule::MemFreeExecuteRpc(std::string borrowId, std
         return ret;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemFreeExecuteRpc success.";
+    return MEM_POOLING_OK;
+}
+
+MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(std::string borrowId, std::string importNodeId)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Master to invoke the slave MemFreeDirectlyExecuteRpc.";
+    UbseComEndpoint endpoint_fm_memfree_execute = {.moduleId = MP_MODULE_CODE,
+                                                   .serviceId = message::OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE,
+                                                   .address = importNodeId};
+    RmrsOutStream builder;
+    builder << borrowId;
+    UbseByteBuffer reqData = {
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) {
+            delete[] data;
+        }};
+    uint32_t ret = 0;
+    UbseRpcSend(endpoint_fm_memfree_execute, reqData, &ret,
+                over_commit::OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemFreeDirectlyExecuteRpc failed.";
+        return ret;
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemFreeDirectlyExecuteRpc success.";
     return MEM_POOLING_OK;
 }
 
