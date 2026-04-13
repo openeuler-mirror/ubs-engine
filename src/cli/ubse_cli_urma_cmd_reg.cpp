@@ -80,17 +80,6 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaDevInfo()
     return builder.UbseCliBuild();
 }
 
-UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliActivateUrmaDevInfo()
-{
-    UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("activate")
-        .UbseCliSetType("urma")
-        .UbseCliAddOption("n", URMA_NODE_OPT, URMA_ACTIVATE_OPTION_DES)
-        .UbseCliAddOption("d", URMA_DEVICE_OPT, URMA_QUERY_OPTION_DES_NAME)
-        .UbseCliSetFunc(UbseActivateUrmaDevInfoFunc);
-    return builder.UbseCliBuild();
-}
-
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevInfoTable(
     UbseDeSerialization &ubse_de_serial, uint32_t urma_size)
 {
