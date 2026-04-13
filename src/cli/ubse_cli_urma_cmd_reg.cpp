@@ -56,7 +56,6 @@ void UbseCliRegUrmaModule::UbseCliSignUp()
 {
     this->cmd_.emplace_back(UbseCliQueryUrmaQos());
     this->cmd_.emplace_back(UbseCliQueryUrmaDevInfo());
-    this->cmd_.emplace_back(UbseCliActivateUrmaDevInfo());
     return;
 }
 UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaQos()
@@ -77,17 +76,6 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaDevInfo()
         .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QUERY_OPTION_DES_NODE)
         .UbseCliAddOption("d", URMA_DEVICE_OPT, URMA_QUERY_OPTION_DES_NAME)
         .UbseCliSetFunc(UbseQueryUrmaDevInfoFunc);
-    return builder.UbseCliBuild();
-}
-
-UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliActivateUrmaDevInfo()
-{
-    UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("activate")
-        .UbseCliSetType("urma")
-        .UbseCliAddOption("n", URMA_NODE_OPT, URMA_ACTIVATE_OPTION_DES)
-        .UbseCliAddOption("d", URMA_DEVICE_OPT, URMA_QUERY_OPTION_DES_NAME)
-        .UbseCliSetFunc(UbseActivateUrmaDevInfoFunc);
     return builder.UbseCliBuild();
 }
 

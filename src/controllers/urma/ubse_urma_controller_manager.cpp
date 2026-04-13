@@ -559,7 +559,7 @@ UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(const std::string 
                         .portEids = std::move(lcneFe1.eidGroups[idx].portEids),
                         .feInfo = urmaFe1};
         urmaInfo.eidGroups.push_back(group1);
-        std::string urmaName = "urma_" + std::to_string(GenerateUrmaId());
+        std::string urmaName = "bonding_dev_" + std::to_string(GenerateUrmaId());
         UBSE_LOG_INFO << "Add urmaInfo for nodeId=" << nodeId << ", urmaName=" << urmaName << ", devEid=" << devEid
                       << ", fe0's primaryEid=" << group0.primaryEid << ", fe1's primaryEid=" << group1.primaryEid;
         urmaInfo.hwResId = GenerateHwResId(lcneFe0);
