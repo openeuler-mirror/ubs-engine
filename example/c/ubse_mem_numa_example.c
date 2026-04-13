@@ -14,7 +14,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "ubs_engine.h"
+#include "ubse/ubs_engine_mem.h"
+#include "ubse/ubs_error.h"
 
 void print_mem_numa_desc(const ubs_mem_numa_desc_t *numa_desc)
 {

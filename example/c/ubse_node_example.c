@@ -15,7 +15,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "ubs_engine.h"
+#include "ubse/ubs_engine_mem.h"
+#include "ubse/ubs_error.h"
 
 #define UNIT_MB (1024 * 1024)
 
