@@ -181,6 +181,9 @@ uint32_t UbseMemShmGet(const UbseMemDebtQueryRequest &request, UbseMemShmDesc &s
     std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> allImportObjs;
     auto allNodeImportMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
     for (const auto &[nodeId, nodeMap] : allNodeImportMaps) {
+        if (!request.importNodeId.empty() && nodeId != request.importNodeId) {
+            continue;
+        }
         auto importObjPtr = nodeMap->Get(request.name);
         if (importObjPtr && importObjPtr->status.state != UBSE_MEM_IMPORT_DESTROYED) {
             allImportObjs.emplace_back(importObjPtr);

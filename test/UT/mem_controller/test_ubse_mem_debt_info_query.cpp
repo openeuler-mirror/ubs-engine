@@ -134,6 +134,18 @@ void AddAddrObj(const std::string &importNodeId, const std::string &exportNodeId
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(importNodeId, name, addrImportObj);
 }
 
+void AddShareImportObj(const std::string &importNodeId, const std::string &name, uint64_t memId)
+{
+    UbseMemShareBorrowImportObj shareImportObj{};
+    shareImportObj.req.name = name;
+    shareImportObj.importNodeId = importNodeId;
+    shareImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    shareImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = memId});
+
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                            shareImportObj);
+}
+
 void BuildDebtMap()
 {
     std::string importNodeId = "1";
@@ -224,5 +236,22 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemImportObjHasImportResults)
         hasImportResults = false;
     }
     EXPECT_TRUE(hasImportResults);
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmGetShouldFilterImportByRequestImportNodeId)
+{
+    UbseRoleInfo roleInfo{};
+    roleInfo.nodeRole = ELECTION_ROLE_MASTER;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+
+    AddShareImportObj("1", "shareFilter", 101);
+    AddShareImportObj("2", "shareFilter", 202);
+
+    UbseMemDebtQueryRequest request{.name = "shareFilter", .importNodeId = "1"};
+    UbseMemShmDesc shmDesc{};
+    EXPECT_EQ(UbseMemShmGet(request, shmDesc), UBSE_OK);
+    ASSERT_EQ(shmDesc.importDesc.size(), 1);
+    ASSERT_EQ(shmDesc.importDesc[0].memIds.size(), 1);
+    EXPECT_EQ(shmDesc.importDesc[0].memIds[0], 101);
 }
 } // namespace ubse::mem_controller::ut
