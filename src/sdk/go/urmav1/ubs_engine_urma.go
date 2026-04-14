@@ -133,86 +133,6 @@ func UbsAllocateDevice(name string) (DeviceInfo, error) {
 	return ubseUrmaDevInfoUnpack(response)
 }
 
-// UbsFreeDevice frees a bonding URMA device.
-// name: The name of the device to free.
-// Returns an error if the operation fails.
-func UbsFreeDevice(name string) error {
-	if name == "" {
-		return fmt.Errorf("name is empty")
-	}
-
-	if len(name) >= UbsUrmaNameMax {
-		return fmt.Errorf("name length exceeds maximum allowed")
-	}
-
-	_, err := ubseInvokeCall(UbseModuleCode, UbseUrmaDevFree, []byte(name+"\x00"))
-	return err
-}
-
-// UbsSetBandwidth sets the bandwidth for a URMA device.
-// name: The name of the device.
-// minBandwidth: The minimum bandwidth.
-// maxBandwidth: The maximum bandwidth.
-// Returns an error if the operation fails.
-func UbsSetBandwidth(name string, minBandwidth, maxBandwidth uint32) error {
-	if name == "" {
-		return fmt.Errorf("name is empty")
-	}
-
-	if len(name) >= UbsUrmaNameMax {
-		return fmt.Errorf("name length exceeds maximum allowed")
-	}
-
-	if minBandwidth > maxBandwidth {
-		return fmt.Errorf("minBandwidth should be less than or equal to maxBandwidth")
-	}
-
-	// Prepare request buffer
-	request := make([]byte, len(name)+1+8) // name + null terminator + 2 uint32
-	copy(request, []byte(name+"\x00"))
-	binary.LittleEndian.PutUint32(request[len(name)+1:], minBandwidth)
-	binary.LittleEndian.PutUint32(request[len(name)+5:], maxBandwidth)
-
-	_, err := ubseInvokeCall(UbseModuleCode, UbseUrmaQosSet, request)
-	return err
-}
-
-// UbsGetBandwidth gets the bandwidth for a URMA device.
-// name: The name of the device.
-// Returns the minimum and maximum bandwidth, and an error if the operation fails.
-func UbsGetBandwidth(name string) (uint32, uint32, error) {
-	if name == "" {
-		return 0, 0, fmt.Errorf("name is empty")
-	}
-
-	if len(name) >= UbsUrmaNameMax {
-		return 0, 0, fmt.Errorf("name length exceeds maximum allowed")
-	}
-
-	response, err := ubseInvokeCall(UbseModuleCode, UbseUrmaQosGet, []byte(name+"\x00"))
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return ubseUrmaQosUnpack(response)
-}
-
-// UbsResetBandwidth resets the bandwidth for a URMA device.
-// name: The name of the device.
-// Returns an error if the operation fails.
-func UbsResetBandwidth(name string) error {
-	if name == "" {
-		return fmt.Errorf("name is empty")
-	}
-
-	if len(name) >= UbsUrmaNameMax {
-		return fmt.Errorf("name length exceeds maximum allowed")
-	}
-
-	_, err := ubseInvokeCall(UbseModuleCode, UbseUrmaQosReset, []byte(name+"\x00"))
-	return err
-}
-
 // connectToUnixSocket connects to the UBSE Unix domain socket.
 // Returns a connection to the socket and an error if the connection fails.
 func connectToUnixSocket() (net.Conn, error) {
@@ -464,18 +384,4 @@ func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
 		BondingPath: bondingPath,
 		BondingEid:  bondingEid,
 	}, nil
-}
-
-// ubseUrmaQosUnpack unpacks the QoS information from the response.
-// response: The response body from the UBSE daemon.
-// Returns the minimum and maximum bandwidth, and an error if the unpacking fails.
-func ubseUrmaQosUnpack(response []byte) (uint32, uint32, error) {
-	if len(response) < 8 {
-		return 0, 0, fmt.Errorf("invalid response length")
-	}
-
-	minBandwidth := binary.LittleEndian.Uint32(response[0:])
-	maxBandwidth := binary.LittleEndian.Uint32(response[4:])
-
-	return minBandwidth, maxBandwidth, nil
 }
