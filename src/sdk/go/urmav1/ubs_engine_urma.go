@@ -311,7 +311,7 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	devices := make([]Device, 0, count)
 	fmt.Println("response length ", len(response))
 	for i := uint32(0); i < count; i++ {
-		fmt.Println("response length ", lenresponseLen, bytesRead)
+		fmt.Println("response length ", len(response))
 		if len(response) < UbsUrmaNameMax+8+4 {
 			return nil, fmt.Errorf("invalid device information length")
 		}
