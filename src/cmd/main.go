@@ -21,9 +21,9 @@ func main() {
 				fmt.Printf("UbsGetVfeDevice failed: %v\n", err)
 			} else {
 				fmt.Printf("Found %d VFE devices\n", len(devices))
-				for _, dev := range devices {
-					fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
-				}
+				// for _, dev := range devices {
+				// 	fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
+				// }
 			}
 
 			fmt.Println("\n=== Periodic Test UbsGetSharedDevice ===")
@@ -32,9 +32,9 @@ func main() {
 				fmt.Printf("UbsGetSharedDevice failed: %v\n", err)
 			} else {
 				fmt.Printf("Found %d shared devices\n", len(sharedDevices))
-				for _, dev := range sharedDevices {
-					fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
-				}
+				// for _, dev := range sharedDevices {
+				// 	fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
+				// }
 			}
 		}
 	}()
