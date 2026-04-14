@@ -11,6 +11,7 @@
  */
 
 #include "ubse_urma_controller_manager.h"
+#include <algorithm>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -662,8 +663,61 @@ bool UbseUrmaControllerManager::IsLcneFeUsed(const UbseMtiFeInfo &fe0, const Ubs
     return feIdMap.find(feKey0) != feIdMap.end() && feIdMap.find(feKey1) != feIdMap.end();
 }
 
+UbseResult FilterFeInfos(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &feInfos)
+{
+    if (feInfos.size() != UBPU_BOUNDARY_CNT) {
+        UBSE_LOG_ERROR << "FeInfos size is not " << UBPU_BOUNDARY_CNT << ", size=" << feInfos.size();
+        return UBSE_ERROR_INVAL;
+    }
+    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
+    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetAllComUrma(hostUrmaInfos); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get all com urma info";
+        return ret;
+    }
+    auto it = std::find_if(hostUrmaInfos.begin(), hostUrmaInfos.end(),
+                           [&nodeId](const UbseUrmaUvsNodeInfo &info) { return info.nodeId == nodeId; });
+    // 只能有通信用的一个bonding
+    if (it == hostUrmaInfos.end() || it->devList.size() != NO_1) {
+        UBSE_LOG_ERROR << "Failed to find nodeId=" << nodeId << " in host urma infos, or devList size is not 1";
+        return UBSE_ERROR_INVAL;
+    }
+    /*
+     * 1. 非clos组网，只保留与通信bonding同一个entityId的Fe
+     * 2. clos组网，保留所有Fe
+     * 3. 以上情况，都需要过滤与通信bondingfe的primary eid一样的fe
+    */
+    std::set<std::string> filterPrimaryEids; // 需要过滤的primaryEid，过滤含该primaryEid的EidGroup
+    for (const auto &fe : it->devList[NO_0].feList) {
+        filterPrimaryEids.insert(fe.primaryEid);
+    }
+    // 返回true代表需要过滤传入的fe
+    auto filterByEntityId = [&it](const UbseMtiFeInfo &fe) -> bool {
+        if (!UbseSmbios::GetInstance().IsClosType() && (fe.entityId != it->devList[NO_0].feList[NO_0].entityId &&
+                                                        fe.entityId != it->devList[NO_0].feList[NO_1].entityId)) {
+            return true;
+        }
+        return false;
+    };
+    // 返回true代表需要过滤传入的eidGroup
+    auto filterByEidGroup = [&filterPrimaryEids](UbseMtiEidGroup &eidGroup) -> bool {
+        return filterPrimaryEids.find(eidGroup.primaryEid) != filterPrimaryEids.end();
+    };
+    for (auto &feInfoIou : feInfos) {
+        feInfoIou.erase(std::remove_if(feInfoIou.begin(), feInfoIou.end(), filterByEntityId), feInfoIou.end());
+        for (auto &fe : feInfoIou) {
+            fe.eidGroups.erase(std::remove_if(fe.eidGroups.begin(), fe.eidGroups.end(), filterByEidGroup),
+                               fe.eidGroups.end());
+        }
+    }
+    return UBSE_OK;
+}
+
 UbseResult ConstructNewUrmaInfoPreset(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &feInfos)
 {
+    if (FilterFeInfos(nodeId, feInfos) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to filter fe infos";
+        return UBSE_ERROR;
+    }
     if (!ValidateLcneFeInfo(feInfos)) {
         UBSE_LOG_ERROR
             << "Invalid feInfos, there must be at least two set of fes, and all fields must be convertible to uint32_t";
