@@ -21,43 +21,6 @@ import (
 	"time"
 )
 
-// Error codes
-const (
-	UbsSuccess             = 0
-	UbsErrNullPointer      = 1
-	UbsEngineErrInternal   = 2
-	UbsEngineErrOutOfRange = 3
-)
-
-// URMA device types
-const (
-	UrmaUnique = 0
-	UrmaShared = 1
-)
-
-// Constants from ubs_engine_urma.h
-const (
-	UbsUrmaNameMax        = 32
-	UbsMaxUrmaPathLength  = 128
-	UbsUrmaVfeNum         = 2
-)
-
-// URMA command codes
-const (
-	UbseModuleCode    = 0x0005
-	UbseUrmaDevGet    = 0x0005
-	UbseUrmaDevAlloc  = 0x0006
-	UbseUrmaDevFree   = 0x0007
-	UbseUrmaQosSet    = 0x0001
-	UbseUrmaQosGet    = 0x0002
-	UbseUrmaQosReset  = 0x0003
-)
-
-// IPC related constants
-const (
-	UbseIpcSocketPath = "/var/run/ubse/ubse.sock"
-)
-
 // Device represents urma device information.
 type Device struct {
 	// Name is the device id.
@@ -78,7 +41,8 @@ type DeviceInfo struct {
 	BondingEid string
 }
 
-// UbsGetVfeDevice gets the urma device list.
+// UbsGetVfeDevice gets the VFE URMA device list.
+// Returns a list of VFE URMA devices and an error if the operation fails.
 func UbsGetVfeDevice() ([]Device, error) {
 	// According to ubs_urma_dev_get in ubs_engine_urma.cpp
 	// request_buffer.length = sizeof(uint32_t)
@@ -92,7 +56,8 @@ func UbsGetVfeDevice() ([]Device, error) {
 	return ubseUrmaDevUnpack(response)
 }
 
-// UbsGetSharedDevice gets the shared urma device list.
+// UbsGetSharedDevice gets the shared URMA device list.
+// Returns a list of shared URMA devices and an error if the operation fails.
 func UbsGetSharedDevice() ([]Device, error) {
 	// According to ubs_urma_dev_get in ubs_engine_urma.cpp
 	// request_buffer.length = sizeof(uint32_t)
@@ -106,7 +71,9 @@ func UbsGetSharedDevice() ([]Device, error) {
 	return ubseUrmaDevUnpack(response)
 }
 
-// UbsAllocateDevice allocates bonding urma device and returns paths.
+// UbsAllocateDevice allocates a bonding URMA device and returns its paths.
+// name: The name of the device to allocate.
+// Returns the device information and an error if the operation fails.
 func UbsAllocateDevice(name string) (DeviceInfo, error) {
 	if name == "" {
 		return DeviceInfo{}, fmt.Errorf("name is empty")
@@ -124,7 +91,9 @@ func UbsAllocateDevice(name string) (DeviceInfo, error) {
 	return ubseUrmaDevInfoUnpack(response)
 }
 
-// UbsFreeDevice frees bonding urma device.
+// UbsFreeDevice frees a bonding URMA device.
+// name: The name of the device to free.
+// Returns an error if the operation fails.
 func UbsFreeDevice(name string) error {
 	if name == "" {
 		return fmt.Errorf("name is empty")
@@ -138,7 +107,11 @@ func UbsFreeDevice(name string) error {
 	return err
 }
 
-// UbsSetBandwidth sets the bandwidth for a urma device.
+// UbsSetBandwidth sets the bandwidth for a URMA device.
+// name: The name of the device.
+// minBandwidth: The minimum bandwidth.
+// maxBandwidth: The maximum bandwidth.
+// Returns an error if the operation fails.
 func UbsSetBandwidth(name string, minBandwidth, maxBandwidth uint32) error {
 	if name == "" {
 		return fmt.Errorf("name is empty")
@@ -162,7 +135,9 @@ func UbsSetBandwidth(name string, minBandwidth, maxBandwidth uint32) error {
 	return err
 }
 
-// UbsGetBandwidth gets the bandwidth for a urma device.
+// UbsGetBandwidth gets the bandwidth for a URMA device.
+// name: The name of the device.
+// Returns the minimum and maximum bandwidth, and an error if the operation fails.
 func UbsGetBandwidth(name string) (uint32, uint32, error) {
 	if name == "" {
 		return 0, 0, fmt.Errorf("name is empty")
@@ -180,7 +155,9 @@ func UbsGetBandwidth(name string) (uint32, uint32, error) {
 	return ubseUrmaQosUnpack(response)
 }
 
-// UbsResetBandwidth resets the bandwidth for a urma device.
+// UbsResetBandwidth resets the bandwidth for a URMA device.
+// name: The name of the device.
+// Returns an error if the operation fails.
 func UbsResetBandwidth(name string) error {
 	if name == "" {
 		return fmt.Errorf("name is empty")
@@ -195,6 +172,7 @@ func UbsResetBandwidth(name string) error {
 }
 
 // connectToUnixSocket connects to the UBSE Unix domain socket.
+// Returns a connection to the socket and an error if the connection fails.
 func connectToUnixSocket() (net.Conn, error) {
 	// Check if socket exists
 	if _, err := os.Stat(UbseIpcSocketPath); os.IsNotExist(err) {
@@ -210,28 +188,33 @@ func connectToUnixSocket() (net.Conn, error) {
 	// Set read timeout to avoid hanging
 	switch c := conn.(type) {
 	case *net.TCPConn:
-		c.SetReadDeadline(time.Now().Add(30 * time.Second))
+		c.SetReadDeadline(time.Now().Add(DefaultTimeout))
 	case *net.UnixConn:
-		c.SetReadDeadline(time.Now().Add(30 * time.Second))
+		c.SetReadDeadline(time.Now().Add(DefaultTimeout))
 	}
 
 	return conn, nil
 }
 
 // sendRequest sends the request message to the UBSE daemon.
+// conn: The connection to the UBSE daemon.
+// moduleCode: The module code for the request.
+// opCode: The operation code for the request.
+// request: The request body.
+// Returns an error if the request fails.
 func sendRequest(conn net.Conn, moduleCode, opCode uint16, request []byte) error {
 	// Prepare request message according to SerializeRequestMessage function
 	// Message format: isResp (1 byte) + request header (16 bytes) + request body
 	message := make([]byte, 1+16+len(request))
-	
+
 	// Set isResp flag to false (0)
 	message[0] = 0
-	
+
 	// Set request header
 	binary.LittleEndian.PutUint16(message[1:], moduleCode)
 	binary.LittleEndian.PutUint16(message[3:], opCode)
 	binary.LittleEndian.PutUint32(message[5:], uint32(len(request)))
-	
+
 	// Copy request body
 	if len(request) > 0 {
 		copy(message[17:], request)
@@ -246,8 +229,9 @@ func sendRequest(conn net.Conn, moduleCode, opCode uint16, request []byte) error
 }
 
 // receiveResponse receives the response message from the UBSE daemon.
+// conn: The connection to the UBSE daemon.
+// Returns the response body and an error if the reception fails.
 func receiveResponse(conn net.Conn) ([]byte, error) {
-	const MaxMessageSize = 10 * 1024 * 1024 // 10M
 
 	// Read response message header according to SerializeResponseMessage function
 	// Message format: isResp (1 byte) + response header (16 bytes)
@@ -284,7 +268,7 @@ func receiveResponse(conn net.Conn) ([]byte, error) {
 
 	// Read response body
 	response := make([]byte, responseLen)
-	
+
 	bytesRead = 0
 	for bytesRead < int(responseLen) {
 		n, err := conn.Read(response[bytesRead:])
@@ -298,6 +282,10 @@ func receiveResponse(conn net.Conn) ([]byte, error) {
 }
 
 // ubseInvokeCall invokes a call to the UBSE daemon via IPC.
+// moduleCode: The module code for the request.
+// opCode: The operation code for the request.
+// request: The request body.
+// Returns the response body and an error if the call fails.
 func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 	// Connect to the socket
 	conn, err := connectToUnixSocket()
@@ -321,6 +309,8 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 }
 
 // ubseUrmaDevUnpack unpacks the device information from the response.
+// response: The response body from the UBSE daemon.
+// Returns a list of devices and an error if the unpacking fails.
 func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	if len(response) < 4 {
 		return nil, fmt.Errorf("invalid response length")
@@ -331,7 +321,7 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 
 	devices := make([]Device, 0, count)
 	for i := uint32(0); i < count; i++ {
-		name, response, err := unpackString(response, UbsUrmaNameMax) 
+		name, response, err := unpackString(response, UbsUrmaNameMax)
 		if err != nil {
 			return nil, fmt.Errorf("invalid device name length")
 		}
@@ -354,6 +344,9 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 }
 
 // unpackString unpacks a string from the response.
+// response: The response body from the UBSE daemon.
+// maxLen: The maximum length of the string.
+// Returns the unpacked string, the remaining response, and an error if the unpacking fails.
 func unpackString(response []byte, maxLen uint32) (string, []byte, error) {
 	if len(response) < 4 {
 		return "", response, fmt.Errorf("invalid string length")
@@ -372,6 +365,8 @@ func unpackString(response []byte, maxLen uint32) (string, []byte, error) {
 }
 
 // ubseUrmaDevInfoUnpack unpacks the device info from the response.
+// response: The response body from the UBSE daemon.
+// Returns the device information and an error if the unpacking fails.
 func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
 	// Parse bonding path
 	bondingPath, response, err := unpackString(response, UbsMaxUrmaPathLength)
@@ -406,6 +401,8 @@ func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
 }
 
 // ubseUrmaQosUnpack unpacks the QoS information from the response.
+// response: The response body from the UBSE daemon.
+// Returns the minimum and maximum bandwidth, and an error if the unpacking fails.
 func ubseUrmaQosUnpack(response []byte) (uint32, uint32, error) {
 	if len(response) < 8 {
 		return 0, 0, fmt.Errorf("invalid response length")
