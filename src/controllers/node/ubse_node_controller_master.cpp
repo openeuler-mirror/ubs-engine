@@ -644,11 +644,17 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
 {
     UBSE_LOG_INFO << "Start cleaning master resources...";
+
+    // 清理节点信息
+    UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
+
     // 停止上报聚合定时器
     UbseTimerHandlerUnregister("UbseReportAggregation");
+
     // 停止主对账定时器
     UBSE_LOG_INFO << "Stopping master ledger timer...";
     UbseTimerHandlerUnregister(UBSE_NODE_MASTER_LEDGER_TIMER);
+
     // 清理所有节点的重试定时器
     UBSE_LOG_INFO << "Cleaning all node retry timers...";
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
@@ -656,15 +662,13 @@ void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
         std::string timerName = "UbseNodeLedgerRetry_" + node.first;
         UbseTimerHandlerUnregister(timerName);
     }
+
     // 停止任务执行器
     UBSE_LOG_INFO << "Stopping task executor...";
     if (taskExecutor_ != nullptr) {
         taskExecutor_->Stop();
         UBSE_LOG_INFO << "Task executor stopped";
     }
-    // 清理节点信息
-    UBSE_LOG_INFO << "Cleaning node context...";
-    UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
 
     UBSE_LOG_INFO << "Master cleanup completed";
 }
