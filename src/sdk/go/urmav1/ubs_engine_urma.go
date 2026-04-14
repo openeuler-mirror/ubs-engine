@@ -274,8 +274,31 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 	return response, nil
 }
 
+// WriteResponseToFile writes the response to a file.
+func WriteResponseToFile(response []byte, filePath string) error {
+	// Open or create the file
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %v", err)
+	}
+	defer file.Close()
+
+	// Write the response to the file
+	n, err := file.Write(response)
+	if err != nil {
+		return fmt.Errorf("failed to write to file: %v", err)
+	}
+
+	if n != len(response) {
+		return fmt.Errorf("failed to write all data: wrote %d bytes, expected %d bytes", n, len(response))
+	}
+
+	return nil
+}
+
 // ubseUrmaDevUnpack unpacks the device information from the response.
 func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
+	WriteResponseToFile(response, "test.data")
 	if len(response) < 4 {
 		return nil, fmt.Errorf("invalid response length")
 	}
