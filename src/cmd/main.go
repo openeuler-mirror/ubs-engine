@@ -16,7 +16,9 @@ func main() {
 
 		for range ticker.C {
 			fmt.Println("\n=== Periodic Test UbsGetVfeDevice ===")
+			start := time.Now()
 			devices, err := urmav1.UbsGetVfeDevice()
+			duration := time.Since(start)
 			if err != nil {
 				fmt.Printf("UbsGetVfeDevice failed: %v\n", err)
 			} else {
@@ -25,9 +27,12 @@ func main() {
 				// 	fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
 				// }
 			}
+			fmt.Printf("UbsGetVfeDevice took %v\n", duration)
 
 			fmt.Println("\n=== Periodic Test UbsGetSharedDevice ===")
+			start = time.Now()
 			sharedDevices, err := urmav1.UbsGetSharedDevice()
+			duration = time.Since(start)
 			if err != nil {
 				fmt.Printf("UbsGetSharedDevice failed: %v\n", err)
 			} else {
@@ -36,6 +41,7 @@ func main() {
 				// 	fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
 				// }
 			}
+			fmt.Printf("UbsGetSharedDevice took %v\n", duration)
 		}
 	}()
 
@@ -46,7 +52,9 @@ func main() {
 
 		for range ticker.C {
 			fmt.Println("\n=== Periodic Test UbsAllocateDevice ===")
+			start := time.Now()
 			info, err := urmav1.UbsAllocateDevice("urma_96")
+			duration := time.Since(start)
 			if err != nil {
 				fmt.Printf("UbsAllocateDevice failed: %v\n", err)
 			} else {
@@ -57,13 +65,17 @@ func main() {
 
 				// Test UbsFreeDevice
 				fmt.Println("\n=== Periodic Test UbsFreeDevice ===")
+				start = time.Now()
 				err = urmav1.UbsFreeDevice("urma_96")
+				duration = time.Since(start)
 				if err != nil {
 					fmt.Printf("UbsFreeDevice failed: %v\n", err)
 				} else {
 					fmt.Println("UbsFreeDevice succeeded")
 				}
+				fmt.Printf("UbsFreeDevice took %v\n", duration)
 			}
+			fmt.Printf("UbsAllocateDevice took %v\n", duration)
 		}
 	}()
 
