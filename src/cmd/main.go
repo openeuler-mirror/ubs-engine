@@ -2,48 +2,70 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	urmav1 "atomgit.com/openeuler/ubs-engine.git/src/sdk/go/urmav1"
 )
 
 func main() {
-	fmt.Println("Testing URMA functions...")
 
-	// Test UbsGetVfeDevice
-	fmt.Println("\n=== Testing UbsGetVfeDevice ===")
-	devices, err := urmav1.UbsGetVfeDevice()
-	if err != nil {
-		fmt.Printf("UbsGetVfeDevice failed: %v\n", err)
-	} else {
-		fmt.Printf("Found %d VFE devices\n", len(devices))
-		for _, dev := range devices {
-			fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
+	// Start a timer to call UbsGetVfeDevice and UbsGetSharedDevice every 10 seconds
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			fmt.Println("\n=== Periodic Test UbsGetVfeDevice ===")
+			devices, err := urmav1.UbsGetVfeDevice()
+			if err != nil {
+				fmt.Printf("UbsGetVfeDevice failed: %v\n", err)
+			} else {
+				fmt.Printf("Found %d VFE devices\n", len(devices))
+				for _, dev := range devices {
+					fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
+				}
+			}
+
+			fmt.Println("\n=== Periodic Test UbsGetSharedDevice ===")
+			sharedDevices, err := urmav1.UbsGetSharedDevice()
+			if err != nil {
+				fmt.Printf("UbsGetSharedDevice failed: %v\n", err)
+			} else {
+				fmt.Printf("Found %d shared devices\n", len(sharedDevices))
+				for _, dev := range sharedDevices {
+					fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
+				}
+			}
 		}
-	}
+	}()
 
-	// Test UbsGetSharedDevice
-	fmt.Println("\n=== Testing UbsGetSharedDevice ===")
-	sharedDevices, err := urmav1.UbsGetSharedDevice()
-	if err != nil {
-		fmt.Printf("UbsGetSharedDevice failed: %v\n", err)
-	} else {
-		fmt.Printf("Found %d shared devices\n", len(sharedDevices))
-		for _, dev := range sharedDevices {
-			fmt.Printf("Device: %s, Healthy: %v, HwResId: %d\n", dev.Name, dev.Healthy, dev.HwResId)
+	// Start a timer to call UbsAllocateDevice and UbsFreeDevice every minute
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			fmt.Println("\n=== Periodic Test UbsAllocateDevice ===")
+			info, err := urmav1.UbsAllocateDevice("urma_96")
+			if err != nil {
+				fmt.Printf("UbsAllocateDevice failed: %v\n", err)
+			} else {
+				fmt.Printf("Allocated device:\n")
+				fmt.Printf("BondingPath: %s\n", info.BondingPath)
+				fmt.Printf("BondingEid: %s\n", info.BondingEid)
+				fmt.Printf("VfePaths: %v\n", info.VfePaths)
+
+				// Test UbsFreeDevice
+				fmt.Println("\n=== Periodic Test UbsFreeDevice ===")
+				err = urmav1.UbsFreeDevice("urma_96")
+				if err != nil {
+					fmt.Printf("UbsFreeDevice failed: %v\n", err)
+				} else {
+					fmt.Println("UbsFreeDevice succeeded")
+				}
+			}
 		}
-	}
-
-	// Test UbsAllocateDevice
-	fmt.Println("\n=== Testing UbsAllocateDevice ===")
-	info, err := urmav1.UbsAllocateDevice("urma_96")
-	if err != nil {
-		fmt.Printf("UbsAllocateDevice failed: %v\n", err)
-	} else {
-		fmt.Printf("Allocated device:\n")
-		fmt.Printf("BondingPath: %s\n", info.BondingPath)
-		fmt.Printf("BondingEid: %s\n", info.BondingEid)
-		fmt.Printf("VfePaths: %v\n", info.VfePaths)
-	}
+	}()
 
 	// // Test UbsSetBandwidth
 	// fmt.Println("\n=== Testing UbsSetBandwidth ===")
@@ -71,13 +93,6 @@ func main() {
 	// } else {
 	// 	fmt.Println("UbsResetBandwidth succeeded")
 	// }
-
-	// Test UbsFreeDevice
-	fmt.Println("\n=== Testing UbsFreeDevice ===")
-	err = urmav1.UbsFreeDevice("urma_96")
-	if err != nil {
-		fmt.Printf("UbsFreeDevice failed: %v\n", err)
-	} else {
-		fmt.Println("UbsFreeDevice succeeded")
-	}
+	// Keep main goroutine alive
+	select {}
 }

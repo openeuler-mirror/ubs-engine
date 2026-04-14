@@ -375,7 +375,7 @@ func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
 	}
 
 	// Parse bonding eid
-	bondingEid, response, err := unpackString(response, UbsMaxUrmaPathLength)
+	vfePath1, response, err := unpackString(response, UbsMaxUrmaPathLength)
 	if err != nil {
 		return DeviceInfo{}, fmt.Errorf("invalid bonding eid: %v", err)
 	}
@@ -388,7 +388,7 @@ func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
 	}
 
 	// VFE path 2
-	vfePath2, _, err := unpackString(response, UbsMaxUrmaPathLength)
+	bondingEid, response, err := unpackString(response, UbsMaxUrmaPathLength)
 	if err != nil {
 		return DeviceInfo{}, fmt.Errorf("invalid vfe path 2: %v", err)
 	}
