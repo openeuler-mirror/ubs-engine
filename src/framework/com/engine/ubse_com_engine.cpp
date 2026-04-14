@@ -799,6 +799,23 @@ UbseResult UbseComEngine::InsertChannelToMap(UbseComChannelInfo &chInfo)
     return UBSE_OK;
 }
 
+void UbseComEngine::UpdateNewChannelIdMap(const std::string &nodeId, UbseComChannelInfo &channelInfo)
+{
+    if (channelInfo.GetChannel() == nullptr) {
+        UBSE_LOG_WARN << "channel does not exist, "
+                      << "remote nodeId = " << nodeId;
+        return;
+    }
+    std::unique_lock<std::mutex> lock(newChannelMutex_);
+    if (NewChannelIdMap_.find(nodeId) != NewChannelIdMap_.end()) {
+        UBSE_LOG_WARN << "new channel has been received, remote nodeId = " << nodeId
+                      << ", channel id = " << NewChannelIdMap_[nodeId].GetChannel()->GetId()
+                      << " and will be destroyed";
+        DestroyChannel(NewChannelIdMap_[nodeId].GetChannel());
+    }
+    NewChannelIdMap_[nodeId] = channelInfo;
+}
+
 UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomChannelPtr &ch, const std::string &payload)
 {
     const auto &engineName = engineInfo_.GetName();
@@ -809,6 +826,11 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     }
     std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(payload);
     UBSE_LOG_INFO << "New channel=" << ch.Get()->GetId() << " receive from " << ipPort << ", payload=" << payload;
+    // payload格式为：nodeId_channelType，首先解析出nodeId和channelType，校验nodeId是否合法且不是自己，如果合法则继续创建channel
+    if (payLoadPair.first == engineInfo_.GetNodeId()) {
+        UBSE_LOG_ERROR << "reject self connecting channel, payload =" << payload;
+        return UBSE_ERROR;
+    }
     UbseComChannelConnectInfo connectInfo;
     connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
     connectInfo.SetRemoteNodeId(payLoadPair.first);
@@ -838,6 +860,7 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     connectInfo.SetPort(port);
     SetChannelTimeout(payLoadPair.second, ch, timeout_, heartBeatTimeout_);
     UbseComChannelInfo chInfo(true, payLoadPair.second, engineName, ch, connectInfo);
+    UpdateNewChannelIdMap(payLoadPair.first, chInfo);
     auto ret = AddConnectingNodeForServer(chInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "New channel=" << ch.Get()->GetId() << ", payload=" << payload
