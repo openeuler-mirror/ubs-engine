@@ -271,7 +271,7 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 		}
 		bytesRead += n
 	}
-	fmt.Println("response length %d %d", responseLen, bytesRead)
+	fmt.Println("response length ", responseLen, bytesRead)
 	return response, nil
 }
 
@@ -305,10 +305,13 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	}
 
 	count := binary.LittleEndian.Uint32(response[0:])
+	fmt.Println("Count is ", count)
 	response = response[4:]
 
 	devices := make([]Device, 0, count)
+	fmt.Println("response length ", len(response))
 	for i := uint32(0); i < count; i++ {
+		fmt.Println("response length ", lenresponseLen, bytesRead)
 		if len(response) < UbsUrmaNameMax+8+4 {
 			return nil, fmt.Errorf("invalid device information length")
 		}
@@ -323,7 +326,7 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 
 		healthy := binary.LittleEndian.Uint32(response[UbsUrmaNameMax:]) == 0
 		hwResId := binary.LittleEndian.Uint64(response[UbsUrmaNameMax+4:])
-
+		fmt.Println("device is  ", name, healthy, hwResId)
 		devices = append(devices, Device{
 			Name:    name,
 			Healthy: healthy,
