@@ -245,9 +245,6 @@ void UbseHttpServer::GetTcpServerPort(uint32_t &port)
 
 std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
 {
-    if (!cert::UbseSslValidator::CheckAllFileExist()) {
-        return nullptr;
-    }
     password = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
     if (password.size() == 0) {
         UBSE_LOG_ERROR << "Private key password not found.";

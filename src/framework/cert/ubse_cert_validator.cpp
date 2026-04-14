@@ -298,7 +298,9 @@ bool UbseSslValidator::ValidateCRLIfExists()
 bool UbseSslValidator::ValidateAll()
 {
     UBSE_LOG_INFO << "[CERT] Starting SSL certificate validation process...";
-
+    if (!cert::UbseSslValidator::CheckAllFileExist()) {
+        return false;
+    }
     // 1. 加载服务端私钥密码
     SecureBuffer serverKeyPassword = LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
     if (serverKeyPassword.size() == 0) {
