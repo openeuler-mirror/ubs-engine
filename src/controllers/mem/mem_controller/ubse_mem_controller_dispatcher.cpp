@@ -355,23 +355,13 @@ UbseResult UbseMemControllerDispatcher::ShmDispatcherToShmReq(const def::UbseMem
         UBSE_LOG_ERROR << "usrInfo cpy failed, ret:" << cpyRet;
         return UBSE_ERROR;
     }
-    // 当用户指定共享域使用用户指定共享域
-    if (memShmDispatcher.shmRegion.nodeCnt != 0) {
-        shareBorrowReq.shmRegion.nodeNum = memShmDispatcher.shmRegion.nodeCnt;
-        for (int i = 0; i < shareBorrowReq.shmRegion.nodeNum; i++) {
-            ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo;
-            ubseNodeInfo.index = memShmDispatcher.shmRegion.slotIds[i];
-            const std::string shmNodeId = std::to_string(memShmDispatcher.shmRegion.slotIds[i]);
-            ubseNodeInfo.nodeId = shmNodeId;
-            shareBorrowReq.shmRegion.nodelist.push_back(ubseNodeInfo);
-        }
-    } else { // 不指定共享域时使用当前所有集群节点
-        auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-        shareBorrowReq.shmRegion.nodeNum = nodeInfos.size();
-        for (const auto &[_, nodeInfo] : nodeInfos) {
-            ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo{nodeInfo.slotId, nodeInfo.nodeId, nodeInfo.hostName};
-            shareBorrowReq.shmRegion.nodelist.push_back(ubseNodeInfo);
-        }
+    shareBorrowReq.shmRegion.nodeNum = memShmDispatcher.shmRegion.nodeCnt;
+    for (int i = 0; i < shareBorrowReq.shmRegion.nodeNum; i++) {
+        ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo;
+        ubseNodeInfo.index = memShmDispatcher.shmRegion.slotIds[i];
+        const std::string shmNodeId = std::to_string(memShmDispatcher.shmRegion.slotIds[i]);
+        ubseNodeInfo.nodeId = shmNodeId;
+        shareBorrowReq.shmRegion.nodelist.push_back(ubseNodeInfo);
     }
 
     // 回填provider
