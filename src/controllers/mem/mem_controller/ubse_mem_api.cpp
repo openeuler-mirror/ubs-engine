@@ -551,15 +551,6 @@ UbseResult BuildMemShareCreateReq(const UbseIpcMessage &buffer, const UbseReques
         UBSE_LOG_ERROR << "Invalid node number: " << req.shmRegion.nodeNum;
         return UBSE_ERROR_INVAL;
     }
-    if (req.shmRegion.nodeNum == 0) {
-        auto nodeInfos = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
-        req.shmRegion.nodeNum = nodeInfos.size();
-        for (const auto &[_, nodeInfo] : nodeInfos) {
-            ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo{nodeInfo.slotId, nodeInfo.nodeId, nodeInfo.hostName};
-            req.shmRegion.nodelist.push_back(ubseNodeInfo);
-        }
-        return UBSE_OK;
-    }
     for (uint32_t i = 0; i < req.shmRegion.nodeNum; i++) {
         uint32_t slotId;
         deserialization >> slotId;
