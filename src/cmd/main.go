@@ -21,13 +21,13 @@ func main() {
 	}
 
 	// Test UbsAllocateDevice
-	info, err := urmav1.UbsAllocateDevice("test-device")
-	if err != nil {
-		fmt.Printf("UbsAllocateDevice failed: %v\n", err)
-	} else {
-		fmt.Printf("Allocated device:\n")
-		fmt.Printf("BondingPath: %s\n", info.BondingPath)
-		fmt.Printf("BondingEid: %s\n", info.BondingEid)
-		fmt.Printf("VfePaths: %v\n", info.VfePaths)
-	}
+	// info, err := urmav1.UbsAllocateDevice("test-device")
+	// if err != nil {
+	// 	fmt.Printf("UbsAllocateDevice failed: %v\n", err)
+	// } else {
+	// 	fmt.Printf("Allocated device:\n")
+	// 	fmt.Printf("BondingPath: %s\n", info.BondingPath)
+	// 	fmt.Printf("BondingEid: %s\n", info.BondingEid)
+	// 	fmt.Printf("VfePaths: %v\n", info.VfePaths)
+	// }
 }

@@ -67,7 +67,11 @@ type DeviceInfo struct {
 
 // UbsGetVfeDevice gets the urma device list.
 func UbsGetVfeDevice() ([]Device, error) {
-	response, err := ubseInvokeCall(UbseUrmaDevGet, []byte{0, 0, 0, 0})
+	// According to ubs_urma_dev_get in ubs_engine_urma.cpp
+	// request_buffer.length = sizeof(uint32_t)
+	// request_buffer.buffer is allocated but not initialized
+	request := make([]byte, 4) // sizeof(uint32_t)
+	response, err := ubseInvokeCall(0x0005, 0x0005, request)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +81,11 @@ func UbsGetVfeDevice() ([]Device, error) {
 
 // UbsGetSharedDevice gets the shared urma device list.
 func UbsGetSharedDevice() ([]Device, error) {
-	response, err := ubseInvokeCall(UbseUrmaDevGet, []byte{0, 0, 0, 0})
+	// According to ubs_urma_dev_get in ubs_engine_urma.cpp
+	// request_buffer.length = sizeof(uint32_t)
+	// request_buffer.buffer is allocated but not initialized
+	request := make([]byte, 4) // sizeof(uint32_t)
+	response, err := ubseInvokeCall(0, UbseUrmaDevGet, request)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +103,7 @@ func UbsAllocateDevice(name string) (DeviceInfo, error) {
 		return DeviceInfo{}, fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	response, err := ubseInvokeCall(UbseUrmaDevAlloc, []byte(name+"\x00"))
+	response, err := ubseInvokeCall(0, UbseUrmaDevAlloc, []byte(name+"\x00"))
 	if err != nil {
 		return DeviceInfo{}, err
 	}
@@ -113,7 +121,7 @@ func UbsFreeDevice(name string) error {
 		return fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	_, err := ubseInvokeCall(UbseUrmaDevFree, []byte(name+"\x00"))
+	_, err := ubseInvokeCall(0, UbseUrmaDevFree, []byte(name+"\x00"))
 	return err
 }
 
@@ -137,7 +145,7 @@ func UbsSetBandwidth(name string, minBandwidth, maxBandwidth uint32) error {
 	binary.LittleEndian.PutUint32(request[len(name)+1:], minBandwidth)
 	binary.LittleEndian.PutUint32(request[len(name)+5:], maxBandwidth)
 
-	_, err := ubseInvokeCall(UbseUrmaQosSet, request)
+	_, err := ubseInvokeCall(0, UbseUrmaQosSet, request)
 	return err
 }
 
@@ -151,7 +159,7 @@ func UbsGetBandwidth(name string) (uint32, uint32, error) {
 		return 0, 0, fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	response, err := ubseInvokeCall(UbseUrmaQosGet, []byte(name+"\x00"))
+	response, err := ubseInvokeCall(0, UbseUrmaQosGet, []byte(name+"\x00"))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -169,12 +177,14 @@ func UbsResetBandwidth(name string) error {
 		return fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	_, err := ubseInvokeCall(UbseUrmaQosReset, []byte(name+"\x00"))
+	_, err := ubseInvokeCall(0, UbseUrmaQosReset, []byte(name+"\x00"))
 	return err
 }
 
 // ubseInvokeCall invokes a call to the UBSE daemon via IPC.
-func ubseInvokeCall(cmd uint32, request []byte) ([]byte, error) {
+func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
+	const MaxMessageSize = 10 * 1024 * 1024 // 10M
+	
 	// Check if socket exists
 	if _, err := os.Stat(UbseIpcSocketPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("ubse daemon not running: %v", err)
@@ -195,54 +205,62 @@ func ubseInvokeCall(cmd uint32, request []byte) ([]byte, error) {
 		c.SetReadDeadline(time.Now().Add(5 * time.Second))
 	}
 
-	// Prepare header: 4 bytes cmd + 4 bytes length
-	header := make([]byte, 8)
-	binary.LittleEndian.PutUint32(header[0:], cmd)
-	binary.LittleEndian.PutUint32(header[4:], uint32(len(request)))
-
-	// Send header
-	if _, err := conn.Write(header); err != nil {
-		return nil, fmt.Errorf("failed to send header: %v", err)
+	// Prepare request message according to SerializeRequestMessage function
+	// Message format: isResp (1 byte) + request header (16 bytes) + request body
+	message := make([]byte, 1+16+len(request))
+	
+	// Set isResp flag to false (0)
+	message[0] = 0
+	
+	// Set request header
+	binary.LittleEndian.PutUint16(message[1:], moduleCode)
+	binary.LittleEndian.PutUint16(message[3:], opCode)
+	binary.LittleEndian.PutUint32(message[5:], uint32(len(request)))
+	
+	// Copy request body
+	if len(request) > 0 {
+		copy(message[17:], request)
 	}
 
-	// Send request
-	if _, err := conn.Write(request); err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+	// Send entire message at once
+	if _, err := conn.Write(message); err != nil {
+		return nil, fmt.Errorf("failed to send request message: %v", err)
 	}
 
-	// Read response header with proper error handling
-	responseHeader := make([]byte, 12) // 3 * 4 bytes (control code, align code, length)
+	// Read response message header according to SerializeResponseMessage function
+	// Message format: isResp (1 byte) + response header (16 bytes)
+	responseMessageHeader := make([]byte, 1+16)
 	bytesRead := 0
-	for bytesRead < 12 {
-		n, err := conn.Read(responseHeader[bytesRead:])
+	for bytesRead < len(responseMessageHeader) {
+		n, err := conn.Read(responseMessageHeader[bytesRead:])
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response header: %v", err)
+			return nil, fmt.Errorf("failed to read response message header: %v", err)
 		}
 		bytesRead += n
 	}
 
-	// Parse response header according to ubse_serial_util.cpp
-	controlCode := binary.LittleEndian.Uint32(responseHeader[0:])
-	alignCode := binary.LittleEndian.Uint32(responseHeader[4:])
-	responseLen := binary.LittleEndian.Uint32(responseHeader[8:])
-
-	// Check control code
-	if controlCode != 0x01 { // HEAD_CTRL_CODE from ubse_serial_util.cpp
-		return nil, fmt.Errorf("invalid control code: %d", controlCode)
+	// Check isResp flag
+	isResp := responseMessageHeader[0]
+	if isResp != 1 {
+		return nil, fmt.Errorf("invalid response message: isResp flag is not set")
 	}
 
-	// Check align code
-	alignBase := alignCode + 1
-	if alignBase != 1 && alignBase != 2 && alignBase != 4 && alignBase != 8 {
-		return nil, fmt.Errorf("invalid align code: %d", alignCode)
+	// Parse response header
+	statusCode := binary.LittleEndian.Uint32(responseMessageHeader[1:])
+	responseLen := binary.LittleEndian.Uint32(responseMessageHeader[5:])
+	// clientRequestId is at responseMessageHeader[9:], but we don't need it for now
+
+	// Check status code
+	if statusCode != UbsSuccess {
+		return nil, fmt.Errorf("ubse daemon returned error: %d", statusCode)
 	}
 
-	// Check length
-	if responseLen == 0 || responseLen%alignBase != 0 {
-		return nil, fmt.Errorf("invalid response length: %d", responseLen)
+	// Check if response body length exceeds maximum message size
+	if responseLen > MaxMessageSize {
+		return nil, fmt.Errorf("response body length %d exceeds maximum size %d", responseLen, MaxMessageSize)
 	}
 
-	// Read response body with proper error handling
+	// Read response body
 	response := make([]byte, responseLen)
 	bytesRead = 0
 	for bytesRead < int(responseLen) {
@@ -251,16 +269,6 @@ func ubseInvokeCall(cmd uint32, request []byte) ([]byte, error) {
 			return nil, fmt.Errorf("failed to read response: %v", err)
 		}
 		bytesRead += n
-	}
-
-	// Check for error
-	if len(response) >= 4 {
-		errorCode := binary.LittleEndian.Uint32(response[0:])
-		if errorCode != UbsSuccess {
-			return nil, fmt.Errorf("ubse daemon returned error: %d", errorCode)
-		}
-		// Skip error code
-		response = response[4:]
 	}
 
 	return response, nil
