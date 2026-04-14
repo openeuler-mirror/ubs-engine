@@ -271,7 +271,7 @@ protected:
 protected:
     UbseResult InsertChannelToMap(UbseComChannelInfo &chInfo);
     UbseResult AddConnectingNodeForServer(UbseComChannelInfo &chInfo);
-    void UpdateReceivedNewChannelIdMap(const std::string &nodeId, UbseComChannelInfo &channelInfo);
+    void UpdateNewChannelIdMap(const std::string &nodeId, UbseComChannelInfo &channelInfo);
     bool SplitIp(const std::string ipPortStr, std::string &ip);
     bool VerifyMsg(UbseComMessageCtx &msgCtx);
     void HandleGetLocalNodeId(const UBSHcomServiceContext &context);
@@ -288,9 +288,9 @@ protected:
     ubse::utils::ReadWriteLock rwLock_;        // 读写锁
     std::atomic<uint32_t> reconnectThreadNum_{0};
     std::map<std::string, std::set<UbseChannelType>> connectingMap_;
-    std::map<std::string, UbseComChannelInfo> receivedNewChannelIdMap_;
+    std::map<std::string, UbseComChannelInfo> NewChannelIdMap_;
     std::mutex conMutex_;
-    std::mutex rcvNewChannelMutex_;
+    std::mutex NewChannelMutex_;
     int16_t timeout_;
     int16_t heartBeatTimeout_;
     ShouldDoReconnectCb shouldReconnect_ = nullptr;
