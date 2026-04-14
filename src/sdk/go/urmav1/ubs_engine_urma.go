@@ -1,4 +1,16 @@
-// Package urmav1 implements UBS URMA operations without cgo dependency.
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+// Package urmav1 implements UBS URMA operations with go.
 package urmav1
 
 import (
@@ -34,10 +46,10 @@ const (
 const (
 	UbseModuleCode    = 0x0005
 	UbseUrmaDevGet    = 0x0005
-	UbseUrmaDevAlloc  = 0x0001
+	UbseUrmaDevAlloc  = 0x0006
 	UbseUrmaDevFree   = 0x0007
-	UbseUrmaQosSet    = 0x0004
-	UbseUrmaQosGet    =  0x0002
+	UbseUrmaQosSet    = 0x0001
+	UbseUrmaQosGet    = 0x0002
 	UbseUrmaQosReset  = 0x0003
 )
 
@@ -122,7 +134,7 @@ func UbsFreeDevice(name string) error {
 		return fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	_, err := ubseInvokeCall(0, UbseUrmaDevFree, []byte(name+"\x00"))
+	_, err := ubseInvokeCall(UbseModuleCode, UbseUrmaDevFree, []byte(name+"\x00"))
 	return err
 }
 
@@ -146,7 +158,7 @@ func UbsSetBandwidth(name string, minBandwidth, maxBandwidth uint32) error {
 	binary.LittleEndian.PutUint32(request[len(name)+1:], minBandwidth)
 	binary.LittleEndian.PutUint32(request[len(name)+5:], maxBandwidth)
 
-	_, err := ubseInvokeCall(0, UbseUrmaQosSet, request)
+	_, err := ubseInvokeCall(UbseModuleCode, UbseUrmaQosSet, request)
 	return err
 }
 
@@ -160,7 +172,7 @@ func UbsGetBandwidth(name string) (uint32, uint32, error) {
 		return 0, 0, fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	response, err := ubseInvokeCall(0, UbseUrmaQosGet, []byte(name+"\x00"))
+	response, err := ubseInvokeCall(UbseModuleCode, UbseUrmaQosGet, []byte(name+"\x00"))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -178,14 +190,12 @@ func UbsResetBandwidth(name string) error {
 		return fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	_, err := ubseInvokeCall(0, UbseUrmaQosReset, []byte(name+"\x00"))
+	_, err := ubseInvokeCall(UbseModuleCode, UbseUrmaQosReset, []byte(name+"\x00"))
 	return err
 }
 
-// ubseInvokeCall invokes a call to the UBSE daemon via IPC.
-func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
-	const MaxMessageSize = 10 * 1024 * 1024 // 10M
-	
+// connectToUnixSocket connects to the UBSE Unix domain socket.
+func connectToUnixSocket() (net.Conn, error) {
 	// Check if socket exists
 	if _, err := os.Stat(UbseIpcSocketPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("ubse daemon not running: %v", err)
@@ -196,16 +206,20 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ubse daemon: %v", err)
 	}
-	defer conn.Close()
 
 	// Set read timeout to avoid hanging
 	switch c := conn.(type) {
 	case *net.TCPConn:
-		c.SetReadDeadline(time.Now().Add(5 * time.Second))
+		c.SetReadDeadline(time.Now().Add(30 * time.Second))
 	case *net.UnixConn:
-		c.SetReadDeadline(time.Now().Add(5 * time.Second))
+		c.SetReadDeadline(time.Now().Add(30 * time.Second))
 	}
 
+	return conn, nil
+}
+
+// sendRequest sends the request message to the UBSE daemon.
+func sendRequest(conn net.Conn, moduleCode, opCode uint16, request []byte) error {
 	// Prepare request message according to SerializeRequestMessage function
 	// Message format: isResp (1 byte) + request header (16 bytes) + request body
 	message := make([]byte, 1+16+len(request))
@@ -225,8 +239,15 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 
 	// Send entire message at once
 	if _, err := conn.Write(message); err != nil {
-		return nil, fmt.Errorf("failed to send request message: %v", err)
+		return fmt.Errorf("failed to send request message: %v", err)
 	}
+
+	return nil
+}
+
+// receiveResponse receives the response message from the UBSE daemon.
+func receiveResponse(conn net.Conn) ([]byte, error) {
+	const MaxMessageSize = 10 * 1024 * 1024 // 10M
 
 	// Read response message header according to SerializeResponseMessage function
 	// Message format: isResp (1 byte) + response header (16 bytes)
@@ -272,69 +293,53 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 		}
 		bytesRead += n
 	}
-	fmt.Println("response length ", responseLen, bytesRead)
+
 	return response, nil
 }
 
-// WriteResponseToFile writes the response to a file.
-func WriteResponseToFile(response []byte, filePath string) error {
-	// Open or create the file
-	file, err := os.Create(filePath)
+// ubseInvokeCall invokes a call to the UBSE daemon via IPC.
+func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
+	// Connect to the socket
+	conn, err := connectToUnixSocket()
 	if err != nil {
-		return fmt.Errorf("failed to create file: %v", err)
+		return nil, err
 	}
-	defer file.Close()
+	defer conn.Close()
 
-	// Write the response to the file
-	n, err := file.Write(response)
+	// Send request
+	if err := sendRequest(conn, moduleCode, opCode, request); err != nil {
+		return nil, err
+	}
+
+	// Receive response
+	response, err := receiveResponse(conn)
 	if err != nil {
-		return fmt.Errorf("failed to write to file: %v", err)
+		return nil, err
 	}
 
-	if n != len(response) {
-		return fmt.Errorf("failed to write all data: wrote %d bytes, expected %d bytes", n, len(response))
-	}
-
-	return nil
+	return response, nil
 }
 
 // ubseUrmaDevUnpack unpacks the device information from the response.
 func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
-	WriteResponseToFile(response, "test.data")
 	if len(response) < 4 {
 		return nil, fmt.Errorf("invalid response length")
 	}
 
 	count := binary.LittleEndian.Uint32(response[0:])
-	fmt.Println("Count is ", count)
 	response = response[4:]
 
 	devices := make([]Device, 0, count)
-	fmt.Println("response length ", len(response))
 	for i := uint32(0); i < count; i++ {
-		fmt.Println("response length ", len(response))
-
-		// Parse device name (string) - according to unpack_string function
-		if len(response) < 4 {
+		name, response, err := unpackString(response, UbsUrmaNameMax) 
+		if err != nil {
 			return nil, fmt.Errorf("invalid device name length")
 		}
-		strLen := binary.LittleEndian.Uint32(response[0:])
-		response = response[4:]
-
-		if strLen > UbsUrmaNameMax || int(strLen) > len(response) {
-			return nil, fmt.Errorf("invalid device name length")
-		}
-
-		name := string(response[0:strLen])
-		// Move past the string
-		response = response[strLen:]
-
 		// Parse healthy status (uint32)
 		healthy := binary.LittleEndian.Uint32(response[0:]) == 0
 
 		// Parse hardware resource ID (uint64)
 		hwResId := binary.LittleEndian.Uint64(response[4:])
-		fmt.Println("device is  ", name, healthy, hwResId)
 		devices = append(devices, Device{
 			Name:    name,
 			Healthy: healthy,
@@ -348,42 +353,49 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	return devices, nil
 }
 
+// unpackString unpacks a string from the response.
+func unpackString(response []byte, maxLen uint32) (string, []byte, error) {
+	if len(response) < 4 {
+		return "", response, fmt.Errorf("invalid string length")
+	}
+	strLen := binary.LittleEndian.Uint32(response[0:])
+	response = response[4:]
+
+	if strLen > maxLen || int(strLen) > len(response) {
+		return "", response, fmt.Errorf("invalid string length")
+	}
+
+	str := string(response[0:strLen])
+	response = response[strLen:]
+
+	return str, response, nil
+}
+
 // ubseUrmaDevInfoUnpack unpacks the device info from the response.
 func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
-	if len(response) < UbsMaxUrmaPathLength*3 {
-		return DeviceInfo{}, fmt.Errorf("invalid response length")
+	// Parse bonding path
+	bondingPath, response, err := unpackString(response, UbsMaxUrmaPathLength)
+	if err != nil {
+		return DeviceInfo{}, fmt.Errorf("invalid bonding path: %v", err)
 	}
 
-	bondingPath := string(response[0:UbsMaxUrmaPathLength])
-	// Trim null terminator
-	if idx := len(bondingPath); idx > 0 {
-		if nullIdx := 0; nullIdx < idx && bondingPath[nullIdx] == '\x00' {
-			bondingPath = bondingPath[:nullIdx]
-		}
+	// Parse bonding eid
+	bondingEid, response, err := unpackString(response, UbsMaxUrmaPathLength)
+	if err != nil {
+		return DeviceInfo{}, fmt.Errorf("invalid bonding eid: %v", err)
 	}
 
-	bondingEid := string(response[UbsMaxUrmaPathLength : UbsMaxUrmaPathLength*2])
-	// Trim null terminator
-	if idx := len(bondingEid); idx > 0 {
-		if nullIdx := 0; nullIdx < idx && bondingEid[nullIdx] == '\x00' {
-			bondingEid = bondingEid[:nullIdx]
-		}
+	// Parse vfe paths
+	// VFE path 1
+	vfePath1, response, err := unpackString(response, UbsMaxUrmaPathLength)
+	if err != nil {
+		return DeviceInfo{}, fmt.Errorf("invalid vfe path 1: %v", err)
 	}
 
-	vfePath1 := string(response[UbsMaxUrmaPathLength*2 : UbsMaxUrmaPathLength*3])
-	// Trim null terminator
-	if idx := len(vfePath1); idx > 0 {
-		if nullIdx := 0; nullIdx < idx && vfePath1[nullIdx] == '\x00' {
-			vfePath1 = vfePath1[:nullIdx]
-		}
-	}
-
-	vfePath2 := string(response[UbsMaxUrmaPathLength*3:])
-	// Trim null terminator
-	if idx := len(vfePath2); idx > 0 {
-		if nullIdx := 0; nullIdx < idx && vfePath2[nullIdx] == '\x00' {
-			vfePath2 = vfePath2[:nullIdx]
-		}
+	// VFE path 2
+	vfePath2, _, err := unpackString(response, UbsMaxUrmaPathLength)
+	if err != nil {
+		return DeviceInfo{}, fmt.Errorf("invalid vfe path 2: %v", err)
 	}
 
 	return DeviceInfo{
