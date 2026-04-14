@@ -68,8 +68,8 @@ typedef struct {
  * @brief 查询指定节点numa信息，仅返回可用节点的numa信息，当前只支持本地内存，后续会增加远端numa
  *
  * @param slot_id [IN] 节点id
- * @param node_numa_mem_list [OUT] 节点numa信息数组, 调用方需要使用free接口主动释放内存
- * @param node_numa_mem_cnt [OUT] 节点numa信息个数, 范围 [0, UBS_TOPO_NUMA_NUM]
+ * @param numa_mems [OUT] 节点numa信息数组, 调用方需要使用free接口主动释放内存
+ * @param numa_mem_cnt [OUT] 节点numa信息个数, 范围 [0, UBS_TOPO_NUMA_NUM]
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
@@ -91,7 +91,7 @@ typedef struct {
 typedef enum {
     MEM_DISTANCE_L0, // L0对应直连节点
     MEM_DISTANCE_L1, // L1对应通过1跳节点, 暂不支持
-    MEM_DISTANCE_L2  // L2对应过超过1跳节点 , 暂不支持
+    MEM_DISTANCE_L2  // L2对应超过1跳节点 , 暂不支持
 } ubs_mem_distance_t;
 
 typedef struct {
