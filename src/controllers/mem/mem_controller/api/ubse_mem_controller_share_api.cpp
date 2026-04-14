@@ -120,10 +120,10 @@ uint32_t SetNodeIndex(UbseMemShareBorrowReq &req)
     return UBSE_OK;
 }
 
-UbseResult NormalizeShareRegion(UbseMemShareBorrowReq &req)
+void NormalizeShareRegion(UbseMemShareBorrowReq &req)
 {
     if (req.shmRegion.nodeNum != 0 || !req.shmRegion.nodelist.empty()) {
-        return UBSE_OK;
+        return;
     }
 
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
@@ -132,7 +132,6 @@ UbseResult NormalizeShareRegion(UbseMemShareBorrowReq &req)
         ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo{nodeInfo.slotId, nodeInfo.nodeId, nodeInfo.hostName};
         req.shmRegion.nodelist.push_back(ubseNodeInfo);
     }
-    return UBSE_OK;
 }
 
 static UbseResult ShareAllocate(const UbseMemShareBorrowReq &req, UbseMemShareBorrowExportObj &exportObj)
@@ -285,13 +284,7 @@ static uint32_t ShareBorrowFailed(const UbseMemShareBorrowReq &req, UbseMemOpera
 uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationResp &resp)
 {
     UbseMemShareBorrowReq normalizedReq = req;
-    auto ret = NormalizeShareRegion(normalizedReq);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MMC] Failed to normalize share region, name is " << req.name << ", requestNodeId is "
-                       << req.requestNodeId << "; requestId: " << req.requestId;
-        return ShareBorrowFailed(req, resp, "Normalize share region Failed.", UBSE_ERR_INTERNAL,
-                                 MemAdvice::CHECK_FAILED);
-    }
+    NormalizeShareRegion(normalizedReq);
 
     UBSE_LOG_INFO << "Share borrow begins, name=" << normalizedReq.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << normalizedReq.requestId;
@@ -319,7 +312,7 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationRe
                        << exportObj.req.requestNodeId << ", requestId=" << req.requestId;
         return ShareBorrowFailed(normalizedReq, resp, "SetNodeIndex Failed.", UBSE_ERR_INTERNAL, MemAdvice::SCHEDULE_FAILED);
     }
-    ret = ShareAllocate(normalizedReq, exportObj);
+    auto ret = ShareAllocate(normalizedReq, exportObj);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << exportObj.req.name << ", requestNodeId="
                        << exportObj.req.requestNodeId << ", " << FormatRetCode(ret) << ", requestId=" << resp.requestId;
