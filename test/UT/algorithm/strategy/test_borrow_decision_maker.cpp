@@ -823,7 +823,6 @@ TEST_F(BorrowDecisionMakerTest, TestGetBorrowCostCase4)
         ave_host9 += freeRatio_host9[i] / 16;
     }
     double cost_host9 = 0;
-
     for (int i = 0; i < 32; i++) {
         if (i <= 1 || (i >= 4 && i <= 7) || (i >= 16 && i <= 17) || (i >= 20 && i <= 25) || (i >= 28 && i <= 31) ||
             (i >= 10 && i <= 11)) {

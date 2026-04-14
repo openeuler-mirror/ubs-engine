@@ -9,7 +9,8 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
+#include <cstdint>
+#include <set>
 #include "mock_init.h"
 #include <cstdint>
 #include "mem_pool_strategy.h"
@@ -250,6 +251,13 @@ StrategyParam GetRs1D8DefaultParam(int numHosts)
         param.neighborNodes[i].erase(i);
     }
     param.maxMemSizePerBorrow = 4 * 1024;
+    for (int i = 0; i < numHosts; i++) {
+        neighborNodes.insert(i);
+    }
+    for (int i = 0; i < numHosts; i++) {
+        param.neighborNodes[i] = neighborNodes;
+        param.neighborNodes[i].erase(i);
+    }
     param.watermarkGrain = WatermarkGrain::HOST_WATERMARK;
     param.unitMemSize = 128;
 

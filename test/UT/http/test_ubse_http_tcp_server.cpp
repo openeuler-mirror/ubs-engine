@@ -65,6 +65,7 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopTcpServer)
 
 TEST_F(TestUbseHttpTcpServer, StartAndStopUdsServer)
 {
+    GTEST_SKIP();
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
     ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};

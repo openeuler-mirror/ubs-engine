@@ -4,8 +4,8 @@
 
 #include "test_libvirt_module.h"
 #include <dlfcn.h>
-#include "libvirt_module.h"
 #include "../../test_common.h"
+#include "libvirt_module.h"
 #include "mockcpp/mockcpp.hpp"
 #include "vm_error.h"
 

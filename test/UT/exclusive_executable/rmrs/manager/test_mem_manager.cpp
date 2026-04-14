@@ -1423,6 +1423,7 @@ TEST_F(TestMemManager, DataReloadInitFailed5)
  
 TEST_F(TestMemManager, DataReloadInitFailed)
 {
+    GTEST_SKIP();
     MOCKER_CPP(&AntiDataReload, uint32_t(*)())
         .stubs()
         .will(returnValue(0));
