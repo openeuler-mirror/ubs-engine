@@ -509,7 +509,6 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
         return MEM_POOLING_ERROR;
     }
     auto remoteNumaId = borrowExecResult.presentNumaId[0];
-    uint64_t remoteNumaSize{0};
     bool isDiffRemoteNuma{remoteNumaId != preRemoteNumaId};
     struct GetNumaSizePara remoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, remoteNumaId, preRemoteNumaId};
     if (GetRemoteNumaSize(remoteNumaSize, remoteNumaPara, mBindType) != MEM_POOLING_OK) {
