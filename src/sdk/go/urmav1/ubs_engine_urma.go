@@ -44,9 +44,11 @@ func (p *bufferPool) Get(size int) []byte {
 	buf := p.pool.Get().([]byte)
 	if cap(buf) < size {
 		// 如果缓冲区不够大，创建一个新的
+		fmt.Println("allocate ", size)
 		buf = make([]byte, size)
 	} else {
 		// 否则重置缓冲区长度
+		fmt.Println("allocate111 ", size)
 		buf = buf[:size]
 	}
 	return buf
@@ -55,6 +57,7 @@ func (p *bufferPool) Get(size int) []byte {
 // Put 将缓冲区放回池中
 func (p *bufferPool) Put(buf []byte) {
 	// 只放回小于 1MB 的缓冲区，避免池过大
+	fmt.Println("free ", cap(buf))
 	if cap(buf) <= 1024*1024 {
 		p.pool.Put(buf)
 	}
