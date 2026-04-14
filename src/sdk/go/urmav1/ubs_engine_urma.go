@@ -316,7 +316,7 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 			return nil, fmt.Errorf("invalid device information length")
 		}
 
-		name := string(response[0:UbsUrmaNameMax])
+		name := string(response[0:UbsUrmaNameMax-1])
 		// Trim null terminator
 		if idx := len(name); idx > 0 {
 			if nullIdx := 0; nullIdx < idx && name[nullIdx] == '\x00' {
