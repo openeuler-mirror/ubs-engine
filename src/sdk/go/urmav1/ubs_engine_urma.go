@@ -32,12 +32,13 @@ const (
 
 // URMA command codes
 const (
-	UbseUrmaDevGet    = 0
-	UbseUrmaDevAlloc  = 1
-	UbseUrmaDevFree   = 2
-	UbseUrmaQosSet    = 3
-	UbseUrmaQosGet    = 4
-	UbseUrmaQosReset  = 5
+	UbseModuleCode    = 0x0005
+	UbseUrmaDevGet    = 0x0005
+	UbseUrmaDevAlloc  = 0x0001
+	UbseUrmaDevFree   = 0x0007
+	UbseUrmaQosSet    = 0x0004
+	UbseUrmaQosGet    =  0x0002
+	UbseUrmaQosReset  = 0x0003
 )
 
 // IPC related constants
@@ -71,7 +72,7 @@ func UbsGetVfeDevice() ([]Device, error) {
 	// request_buffer.length = sizeof(uint32_t)
 	// request_buffer.buffer is allocated but not initialized
 	request := make([]byte, 4) // sizeof(uint32_t)
-	response, err := ubseInvokeCall(0x0005, 0x0005, request)
+	response, err := ubseInvokeCall(UbseModuleCode, UbseUrmaDevGet, request)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func UbsGetSharedDevice() ([]Device, error) {
 	// request_buffer.length = sizeof(uint32_t)
 	// request_buffer.buffer is allocated but not initialized
 	request := make([]byte, 4) // sizeof(uint32_t)
-	response, err := ubseInvokeCall(0, UbseUrmaDevGet, request)
+	response, err := ubseInvokeCall(UbseModuleCode, UbseUrmaDevGet, request)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +104,7 @@ func UbsAllocateDevice(name string) (DeviceInfo, error) {
 		return DeviceInfo{}, fmt.Errorf("name length exceeds maximum allowed")
 	}
 
-	response, err := ubseInvokeCall(0, UbseUrmaDevAlloc, []byte(name+"\x00"))
+	response, err := ubseInvokeCall(UbseModuleCode, UbseUrmaDevAlloc, []byte(name+"\x00"))
 	if err != nil {
 		return DeviceInfo{}, err
 	}
@@ -312,20 +313,27 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	fmt.Println("response length ", len(response))
 	for i := uint32(0); i < count; i++ {
 		fmt.Println("response length ", len(response))
-		if len(response) < UbsUrmaNameMax+8+4 {
-			return nil, fmt.Errorf("invalid device information length")
+
+		// Parse device name (string) - according to unpack_string function
+		if len(response) < 4 {
+			return nil, fmt.Errorf("invalid device name length")
+		}
+		strLen := binary.LittleEndian.Uint32(response[0:])
+		response = response[4:]
+
+		if strLen > UbsUrmaNameMax || int(strLen) > len(response) {
+			return nil, fmt.Errorf("invalid device name length")
 		}
 
-		name := string(response[0:UbsUrmaNameMax-1])
-		// Trim null terminator
-		if idx := len(name); idx > 0 {
-			if nullIdx := 0; nullIdx < idx && name[nullIdx] == '\x00' {
-				name = name[:nullIdx]
-			}
-		}
+		name := string(response[0:strLen])
+		// Move past the string
+		response = response[strLen:]
 
-		healthy := binary.LittleEndian.Uint32(response[UbsUrmaNameMax:]) == 0
-		hwResId := binary.LittleEndian.Uint64(response[UbsUrmaNameMax+4:])
+		// Parse healthy status (uint32)
+		healthy := binary.LittleEndian.Uint32(response[0:]) == 0
+
+		// Parse hardware resource ID (uint64)
+		hwResId := binary.LittleEndian.Uint64(response[4:])
 		fmt.Println("device is  ", name, healthy, hwResId)
 		devices = append(devices, Device{
 			Name:    name,
@@ -333,7 +341,8 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 			HwResId: hwResId,
 		})
 
-		response = response[UbsUrmaNameMax+12:]
+		// Move to next device
+		response = response[12:]
 	}
 
 	return devices, nil
