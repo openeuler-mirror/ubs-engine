@@ -18,9 +18,9 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
-#include <fstream>
 #include <pwd.h>
 #include <sys/stat.h>
+#include <fstream>
 
 #include "ubse_cert_def.h"
 #include "ubse_file_util.h"
@@ -58,87 +58,23 @@ bool UbseSslValidator::CheckAllFileExist()
 {
     bool res = true;
     if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::ServerCertFile)) {
-        UBSE_LOG_ERROR << "ServerCert file not found: " << UbseSSLConfig::ServerCertFile;
-        res &= false;
-    }
- 
-    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::ServerKeyFile)) {
-        UBSE_LOG_ERROR << "ServerKey file not found: " << UbseSSLConfig::ServerKeyFile;
-        res &= false;
-    }
- 
-    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::TrustCertFile)) {
-        UBSE_LOG_ERROR << "TrustCert file not found: " << UbseSSLConfig::TrustCertFile;
-        res &= false;
-    }
- 
-    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::PasswordFile)) {
-        UBSE_LOG_ERROR << "Password file not found: " << UbseSSLConfig::PasswordFile;
-        res &= false;
-    }
- 
-    CheckAllFilePermission600();
-    return res;
-}
- 
-bool CheckFilePermission600(const std::string &filepath)
-{
-    struct stat fileStat;
-    if (stat(filepath.c_str(), &fileStat) != 0) {
-        UBSE_LOG_ERROR << "Failed to stat file " << filepath;
-        return false;
-    }
- 
-    const std::string user = "ubse";
-    struct passwd *pwuid = getpwnam(user.c_str());
-    if (pwuid == nullptr) {
-        UBSE_LOG_ERROR << "User:ubse does not exist on this system.";
-        return false;
-    }
-    uid_t targetUid = pwuid->pw_uid;
- 
-    if (fileStat.st_uid != targetUid) {
-        UBSE_LOG_ERROR << "File owner mismatch for " << filepath
-                       << ". Expected: " << user << "(" << targetUid << ")"
-                       << ", Actual UID: " << fileStat.st_uid;
-        return false;
-    }
- 
-    mode_t permissions = fileStat.st_mode & (~S_IFMT);
-    if (permissions == FILEPERMISSION) {
-        return true;
-    }
-    return false;
-}
- 
-bool UbseSslValidator::CheckAllFilePermission600()
-{
-    bool res = true;
-    if (!CheckFilePermission600(UbseSSLConfig::ServerCertFile)) {
-        UBSE_LOG_WARN << "ServerCert file : " << UbseSSLConfig::ServerCertFile << "Permission is not 600";
-        res &= false;
-    }
- 
-    if (!CheckFilePermission600(UbseSSLConfig::ServerKeyFile)) {
-        UBSE_LOG_WARN << "ServerKey file : " << UbseSSLConfig::ServerKeyFile << "Permission is not 600";
-        res &= false;
-    }
- 
-    if (!CheckFilePermission600(UbseSSLConfig::TrustCertFile)) {
-        UBSE_LOG_WARN << "TrustCert file : " << UbseSSLConfig::TrustCertFile << "Permission is not 600";
-        res &= false;
-    }
- 
-    if (!CheckFilePermission600(UbseSSLConfig::PasswordFile)) {
-        UBSE_LOG_WARN << "Password file : " << UbseSSLConfig::PasswordFile << "Permission is not 600";
+        UBSE_LOG_ERROR << "ServerCert file not found";
         res &= false;
     }
 
-    if (UbseFileUtil::CheckFileExists(UbseSSLConfig::CrlFile)) {
-        if (!CheckFilePermission600(UbseSSLConfig::CrlFile)) {
-            UBSE_LOG_WARN << "Crl file: " << UbseSSLConfig::CrlFile << "Permission is not 600.";
-            res &= false;
-        }
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::ServerKeyFile)) {
+        UBSE_LOG_ERROR << "ServerKey file not found";
+        res &= false;
+    }
+
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::TrustCertFile)) {
+        UBSE_LOG_ERROR << "TrustCert file not found";
+        res &= false;
+    }
+
+    if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::PasswordFile)) {
+        UBSE_LOG_ERROR << "Password file not found";
+        res &= false;
     }
     return res;
 }
@@ -194,12 +130,12 @@ X509 *UbseSslValidator::LoadAndValidateCert(const char *path, const char *name)
 EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const char *password, const char *name)
 {
     if (!UbseFileUtil::CheckFileExists(keyPath)) {
-        UBSE_LOG_ERROR << "[CERT] " << name << " file not found at path: " << keyPath;
+        UBSE_LOG_ERROR << "[CERT] " << name << " file not found";
         return nullptr;
     }
     FILE *fp = fopen(keyPath, "r");
     if (!fp) {
-        UBSE_LOG_ERROR << "[CERT] Failed to open " << name << " file at path: " << keyPath;
+        UBSE_LOG_ERROR << "[CERT] Failed to open " << name << " file";
         return nullptr;
     }
     ERR_clear_error();
@@ -207,8 +143,7 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
     if (!pkey) {
         int errorCode = ERR_get_error();
         UBSE_LOG_ERROR << "[CERT] Failed to parse " << name
-                       << ". Incorrect password provided. sslErrorCode=" << errorCode << ". Check password at"
-                       << UbseSSLConfig::PasswordFile << " and private key at" << UbseSSLConfig::ServerKeyFile;
+                       << ". Incorrect password provided. sslErrorCode=" << errorCode;
         fclose(fp);
         return nullptr;
     }
@@ -219,13 +154,11 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
 bool UbseSslValidator::VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const char *certName, const char *keyName)
 {
     if (!cert || !pkey) {
-        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " or " << keyName << "at"
-                       << UbseSSLConfig::ServerCertFile << " is invalid";
+        UBSE_LOG_ERROR << "[CERT] " << certName << " or " << keyName << " is invalid";
         return false;
     }
     if (X509_check_private_key(cert, pkey) != 1) {
-        UBSE_LOG_ERROR << "[CERT] " << certName << "at " << UbseSSLConfig::ServerCertFile << " and " << keyName << "at"
-                       << UbseSSLConfig::ServerCertFile << " do not match";
+        UBSE_LOG_ERROR << "[CERT] " << certName << " and " << keyName << " do not match";
         return false;
     }
     UBSE_LOG_INFO << "[CERT] " << certName << " and " << keyName << " match successfully";
@@ -235,37 +168,37 @@ bool UbseSslValidator::VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const c
 X509_STORE *UbseSslValidator::LoadAndValidateCaStore(const char *caPath)
 {
     if (!UbseFileUtil::CheckFileExists(caPath)) {
-        UBSE_LOG_ERROR << "[CERT] CA trust file not found at path: " << caPath;
+        UBSE_LOG_ERROR << "[CERT] CA trust file not found";
         return nullptr;
     }
 
     X509_STORE *store = X509_STORE_new();
     if (!store) {
-        UBSE_LOG_ERROR << "[CERT] Failed to create X509 certificate store at path: " << caPath;
+        UBSE_LOG_ERROR << "[CERT] Failed to create X509 certificate store";
         return nullptr;
     }
 
     if (X509_STORE_load_locations(store, caPath, nullptr) != 1) {
-        UBSE_LOG_ERROR << "[CERT] Failed to load CA certificates from path: " << caPath;
+        UBSE_LOG_ERROR << "[CERT] Failed to load CA certificates";
         X509_STORE_free(store);
         return nullptr;
     }
 
-    UBSE_LOG_INFO << "[CERT] Successfully loaded CA trust certificates from path: " << caPath;
+    UBSE_LOG_INFO << "[CERT] Successfully loaded CA trust certificates";
     return store;
 }
 
 bool UbseSslValidator::ValidateCRLIfExists()
 {
     if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::CrlFile)) {
-        UBSE_LOG_WARN << "[CERT] CRL file not found at path: " << UbseSSLConfig::CrlFile << ", skipping CRL validation";
+        UBSE_LOG_WARN << "[CERT] CRL file not found, skipping CRL validation";
         return true; // CRL 可选
     }
 
     // 尝试加载 CRL
     FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
     if (!fp) {
-        UBSE_LOG_ERROR << "[CERT] Failed to open CRL file at path: " << UbseSSLConfig::CrlFile;
+        UBSE_LOG_ERROR << "[CERT] Failed to open CRL file";
         return false;
     }
 
@@ -273,7 +206,7 @@ bool UbseSslValidator::ValidateCRLIfExists()
     fclose(fp);
 
     if (!crl) {
-        UBSE_LOG_ERROR << "[CERT] Failed to parse CRL file at path: " << UbseSSLConfig::CrlFile;
+        UBSE_LOG_ERROR << "[CERT] Failed to parse CRL file";
         return false;
     }
 
@@ -286,12 +219,12 @@ bool UbseSslValidator::ValidateCRLIfExists()
     }
     if (X509_cmp_time(resultPtr, nullptr) < 0) {
         X509_CRL_free(crl);
-        UBSE_LOG_ERROR << "[CERT] CRL has expired at path: " << UbseSSLConfig::CrlFile;
+        UBSE_LOG_ERROR << "[CERT] CRL has expired";
         return false;
     }
 
     X509_CRL_free(crl);
-    UBSE_LOG_INFO << "[CERT] CRL file is valid at path: " << UbseSSLConfig::CrlFile;
+    UBSE_LOG_INFO << "[CERT] CRL file is valid";
     return true;
 }
 
@@ -348,12 +281,12 @@ bool UbseSslValidator::ConfigureCrlValidation(SSL_CTX *ctx)
     }
     X509_STORE *store = SSL_CTX_get_cert_store(ctx);
     if (!store) {
-        UBSE_LOG_ERROR << "Failed to get certificate store from SSL context. path at" << UbseSSLConfig::CrlFile;
+        UBSE_LOG_ERROR << "Failed to get certificate store from SSL context";
         return false;
     }
     FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
     if (!fp) {
-        UBSE_LOG_ERROR << "Failed to open CRL file: " << UbseSSLConfig::CrlFile;
+        UBSE_LOG_ERROR << "Failed to open CRL file";
         return false;
     }
     ERR_clear_error();
@@ -361,13 +294,12 @@ bool UbseSslValidator::ConfigureCrlValidation(SSL_CTX *ctx)
     fclose(fp);
     if (!crl) {
         int errorCode = ERR_get_error();
-        UBSE_LOG_ERROR << "Failed to parse CRL file  at " << UbseSSLConfig::CrlFile << ", sslErrorCode: " << errorCode;
+        UBSE_LOG_ERROR << "Failed to parse CRL file, sslErrorCode: " << errorCode;
         return false;
     }
     if (X509_STORE_add_crl(store, crl) != 1) {
         int errorCode = ERR_get_error();
-        UBSE_LOG_ERROR << "Failed to add CRL to certificate store at path: " << UbseSSLConfig::CrlFile
-                       << ", sslErrorCode: " << errorCode;
+        UBSE_LOG_ERROR << "Failed to add CRL to certificate store, sslErrorCode: " << errorCode;
         X509_CRL_free(crl);
         return false;
     }

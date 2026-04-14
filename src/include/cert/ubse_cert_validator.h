@@ -49,13 +49,6 @@ public:
     static bool CheckAllFileExist();
 
     /**
-     * @brief 检查对应路径文件权限是否为600
-     *
-     * @return 返回检查结果，true表示所有文件权限合法
-     */
-    static bool CheckAllFilePermission600();
-
-    /**
      * @brief 客户端配置吊销列表，用于校验服务的的证书是否可信
      *
      * @param ctx http client端的ssl ctx
