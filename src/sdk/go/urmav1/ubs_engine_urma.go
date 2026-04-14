@@ -382,7 +382,7 @@ func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
 
 	// Parse vfe paths
 	// VFE path 1
-	vfePath1, response, err := unpackString(response, UbsMaxUrmaPathLength)
+	vfePath2, response, err := unpackString(response, UbsMaxUrmaPathLength)
 	if err != nil {
 		return DeviceInfo{}, fmt.Errorf("invalid vfe path 1: %v", err)
 	}
