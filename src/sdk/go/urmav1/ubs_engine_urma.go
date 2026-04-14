@@ -262,6 +262,7 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 
 	// Read response body
 	response := make([]byte, responseLen)
+	
 	bytesRead = 0
 	for bytesRead < int(responseLen) {
 		n, err := conn.Read(response[bytesRead:])
@@ -270,7 +271,7 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 		}
 		bytesRead += n
 	}
-
+	fmt.Println("response length %d %d", responseLen, bytesRead)
 	return response, nil
 }
 
