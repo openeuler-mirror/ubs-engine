@@ -18,8 +18,50 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
+
+// bufferPool 用于重用网络通信缓冲区
+type bufferPool struct {
+	pool sync.Pool
+}
+
+// newBufferPool 创建一个新的缓冲区池
+func newBufferPool() *bufferPool {
+	return &bufferPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				// 默认创建一个 4KB 的缓冲区
+				return make([]byte, 4096)
+			},
+		},
+	}
+}
+
+// Get 从池中获取一个缓冲区
+func (p *bufferPool) Get(size int) []byte {
+	buf := p.pool.Get().([]byte)
+	if cap(buf) < size {
+		// 如果缓冲区不够大，创建一个新的
+		buf = make([]byte, size)
+	} else {
+		// 否则重置缓冲区长度
+		buf = buf[:size]
+	}
+	return buf
+}
+
+// Put 将缓冲区放回池中
+func (p *bufferPool) Put(buf []byte) {
+	// 只放回小于 1MB 的缓冲区，避免池过大
+	if cap(buf) <= 1024*1024 {
+		p.pool.Put(buf)
+	}
+}
+
+// 全局缓冲区池
+var bp = newBufferPool()
 
 // Device represents urma device information.
 type Device struct {
@@ -185,12 +227,14 @@ func connectToUnixSocket() (net.Conn, error) {
 		return nil, fmt.Errorf("failed to connect to ubse daemon: %v", err)
 	}
 
-	// Set read timeout to avoid hanging
+	// Set read and write timeouts to avoid hanging
 	switch c := conn.(type) {
 	case *net.TCPConn:
 		c.SetReadDeadline(time.Now().Add(DefaultTimeout))
+		c.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 	case *net.UnixConn:
 		c.SetReadDeadline(time.Now().Add(DefaultTimeout))
+		c.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 	}
 
 	return conn, nil
@@ -205,7 +249,9 @@ func connectToUnixSocket() (net.Conn, error) {
 func sendRequest(conn net.Conn, moduleCode, opCode uint16, request []byte) error {
 	// Prepare request message according to SerializeRequestMessage function
 	// Message format: isResp (1 byte) + request header (16 bytes) + request body
-	message := make([]byte, 1+16+len(request))
+	messageSize := 1 + 16 + len(request)
+	message := bp.Get(messageSize)
+	defer bp.Put(message)
 
 	// Set isResp flag to false (0)
 	message[0] = 0
@@ -235,9 +281,12 @@ func receiveResponse(conn net.Conn) ([]byte, error) {
 
 	// Read response message header according to SerializeResponseMessage function
 	// Message format: isResp (1 byte) + response header (16 bytes)
-	responseMessageHeader := make([]byte, 1+16)
+	headerSize := 1 + 16
+	responseMessageHeader := bp.Get(headerSize)
+	defer bp.Put(responseMessageHeader)
+
 	bytesRead := 0
-	for bytesRead < len(responseMessageHeader) {
+	for bytesRead < headerSize {
 		n, err := conn.Read(responseMessageHeader[bytesRead:])
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response message header: %v", err)
@@ -319,12 +368,29 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	count := binary.LittleEndian.Uint32(response[0:])
 	response = response[4:]
 
+	// Check for reasonable device count
+	const MaxDevices = 1024
+	if count > MaxDevices {
+		return nil, fmt.Errorf("device count %d exceeds maximum allowed %d", count, MaxDevices)
+	}
+
 	devices := make([]Device, 0, count)
 	for i := uint32(0); i < count; i++ {
+		// Check if enough data remains for device info
+		if len(response) < 4+12 { // string length + device info
+			return nil, fmt.Errorf("insufficient data for device %d", i)
+		}
+
 		name, response, err := unpackString(response, UbsUrmaNameMax)
 		if err != nil {
-			return nil, fmt.Errorf("invalid device name length")
+			return nil, fmt.Errorf("invalid device name length for device %d: %v", i, err)
 		}
+
+		// Check if enough data remains for healthy status and hwResId
+		if len(response) < 12 {
+			return nil, fmt.Errorf("insufficient data for device %d status", i)
+		}
+
 		// Parse healthy status (uint32)
 		healthy := binary.LittleEndian.Uint32(response[0:]) == 0
 
@@ -358,7 +424,7 @@ func unpackString(response []byte, maxLen uint32) (string, []byte, error) {
 		return "", response, fmt.Errorf("invalid string length")
 	}
 
-	str := string(response[0:strLen])
+	str := string(response[:strLen])
 	response = response[strLen:]
 
 	return str, response, nil
