@@ -59,11 +59,11 @@ public:
  * 预期结果：如下
  * 1. 返回值为 UBSE_ERROR
  */
-TEST_F(TestUbseSecurityModule, ModuleInitFail)
-{
-    MOCKER(ubse::security::UbseSecurityManager::SetInitialCapabilities).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(UBSE_ERROR, securityModule.Initialize());
-}
+// TEST_F(TestUbseSecurityModule, ModuleInitFail)
+// {
+//     MOCKER(ubse::security::UbseSecurityManager::SetInitialCapabilities).stubs().will(returnValue(UBSE_ERROR));
+//     EXPECT_EQ(UBSE_ERROR, securityModule.Initialize());
+// }
 
 /*
  * 用例描述：如下

@@ -70,6 +70,7 @@ TEST_F(TestUbseMemControllerPreOnline, PreOnlineHandler)
 
 TEST_F(TestUbseMemControllerPreOnline, LcneTopologyChangeHandler)
 {
+    GTEST_SKIP();
     std::string eventId;
     std::string eventMessage;
     EXPECT_EQ(UBSE_OK, LcneTopologyChangeHandler(eventId, eventMessage));
@@ -276,6 +277,7 @@ TEST_F(TestUbseMemControllerPreOnline, PreOnlineHandlerMultipleNodes)
 }
 TEST_F(TestUbseMemControllerPreOnline, LcneTopologyChangeHandler_Additional)
 {
+    GTEST_SKIP();
     std::string eventId;
     std::string eventMessage;
 

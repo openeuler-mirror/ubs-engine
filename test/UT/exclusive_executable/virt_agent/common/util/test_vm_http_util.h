@@ -4,8 +4,8 @@
 #ifndef UBSE_MANAGER_TEST_VM_HTTP_UTIL_H
 #define UBSE_MANAGER_TEST_VM_HTTP_UTIL_H
 
-#include "gtest/gtest.h"
 #include "../../test_common.h"
+#include "gtest/gtest.h"
 
 namespace ubse::ut::vm {
 class TestVmHttpUtil : public testing::Test {

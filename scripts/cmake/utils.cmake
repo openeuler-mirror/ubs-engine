@@ -179,8 +179,8 @@ macro(add_ut module)
     )
     add_executable(${UT_BINARY} EXCLUDE_FROM_ALL ${TEST_SOURCES} ${CMAKE_SOURCE_DIR}/test/UT/main.cpp)
     target_link_libraries(${UT_BINARY} PUBLIC
+            GTest::gmock_main
             mockcpp
-            googletest
             ${module}
     )
     # 打破控制权限

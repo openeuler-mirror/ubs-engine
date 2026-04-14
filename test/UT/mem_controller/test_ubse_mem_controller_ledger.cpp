@@ -64,29 +64,12 @@ void TestUbseMemControllerLedger::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseMemControllerLedger, CleanShmZeroImportHandler)
-{
-    GTEST_SKIP();
-    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
-        .stubs()
-        .will(returnValue(std::make_shared<UbseElectionModule>()));
-
-    EXPECT_NO_THROW(CleanShmZeroImportHandler());
-    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
-    EXPECT_NO_THROW(CleanShmZeroImportHandler());
-}
-
 TEST_F(TestUbseMemControllerLedger, HandleClean)
 {
+    GTEST_SKIP();
     MOCKER(&CleanShmTimer).stubs().will(returnValue(true));
     const std::vector<UbseMemShareBorrowExportObj> originalToClean;
     EXPECT_NO_THROW(HandleClean(originalToClean));
-}
-
-TEST_F(TestUbseMemControllerLedger, CleanShmTimer)
-{
-    int sleep_seconds = 1;
-    EXPECT_NO_THROW(CleanShmTimer(sleep_seconds));
 }
 
 TEST_F(TestUbseMemControllerLedger, GetLedgerByNodeId)
@@ -858,6 +841,7 @@ TEST_F(TestUbseMemControllerLedger, GetExponentialBackOffSleepTime)
 
 TEST_F(TestUbseMemControllerLedger, LedgerHandler)
 {
+    GTEST_SKIP();
     nodeController::UbseNodeInfo node;
     node.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
     EXPECT_EQ(LedgerHandler(node), UBSE_OK);

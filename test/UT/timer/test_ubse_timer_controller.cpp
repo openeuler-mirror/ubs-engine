@@ -189,6 +189,7 @@ TEST(TestUbseTimerController, TestRegisterWhenGlobalStop)
 /*
  * 测试注册和取消
  */
+
 TEST(TestUbseTimerController, TestRegisterAndUnregister)
 {
     context::g_globalStop.store(false);

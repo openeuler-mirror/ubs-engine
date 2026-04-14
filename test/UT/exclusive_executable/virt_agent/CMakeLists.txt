@@ -37,3 +37,7 @@ add_custom_target(
 )
 
 add_dependencies(ubse_vm_ut "${CMAKE_PROJECT_NAME}_vm_ut")
+target_link_libraries(
+        ${CMAKE_PROJECT_NAME}_vm_ut
+        PUBLIC test_exclusive_main rapidjson GTest::gmock_main mockcpp boundscheck)
+add_independent_exec_ut(${CMAKE_PROJECT_NAME}_vm_ut)

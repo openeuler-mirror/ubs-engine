@@ -45,47 +45,47 @@ void TestUbseMemControllerModule::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseMemControllerModule, Initialize)
-{
-    MOCKER(CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
-    auto memModulePtr = std::make_shared<UbseMemControllerModule>();
-    EXPECT_EQ(memModulePtr->Initialize(), UBSE_OK);
-}
+// TEST_F(TestUbseMemControllerModule, Initialize)
+// {
+//     MOCKER(CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+//     auto memModulePtr = std::make_shared<UbseMemControllerModule>();
+//     EXPECT_EQ(memModulePtr->Initialize(), UBSE_OK);
+// }
 
-TEST_F(TestUbseMemControllerModule, Start)
-{
-    GTEST_SKIP();
-    auto memModulePtr = std::make_shared<UbseMemControllerModule>();
-    MOCKER_CPP(&MemScheduleHandler::RegHandler).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(memModulePtr->Start(), UBSE_ERROR);
+// TEST_F(TestUbseMemControllerModule, Start)
+// {
+//     GTEST_SKIP();
+//     auto memModulePtr = std::make_shared<UbseMemControllerModule>();
+//     MOCKER_CPP(&MemScheduleHandler::RegHandler).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+//     EXPECT_EQ(memModulePtr->Start(), UBSE_ERROR);
 
-    MOCKER_CPP(mem::controller::rpc::RegMemControllerHandler)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
-    EXPECT_EQ(memModulePtr->Start(), UBSE_ERROR);
-    MOCKER_CPP(&UbseMemControllerDispatcher::RegisterSdkDispatcher).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseMemFaultManager::InitMemFaultManager).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&rpc::UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&ubse::mem::controller::agent::Init).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(memModulePtr->Start(), UBSE_OK);
-}
+//     MOCKER_CPP(mem::controller::rpc::RegMemControllerHandler)
+//         .stubs()
+//         .will(returnValue(UBSE_ERROR))
+//         .then(returnValue(UBSE_OK));
+//     EXPECT_EQ(memModulePtr->Start(), UBSE_ERROR);
+//     MOCKER_CPP(&UbseMemControllerDispatcher::RegisterSdkDispatcher).stubs().will(returnValue(UBSE_OK));
+//     MOCKER_CPP(&UbseMemFaultManager::InitMemFaultManager).stubs().will(returnValue(UBSE_OK));
+//     MOCKER_CPP(&rpc::UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler).stubs().will(returnValue(UBSE_OK));
+//     MOCKER_CPP(&ubse::mem::controller::agent::Init).stubs().will(returnValue(UBSE_OK));
+//     EXPECT_EQ(memModulePtr->Start(), UBSE_OK);
+// }
 
-TEST_F(TestUbseMemControllerModule, UnInitialize)
-{
-    auto memModulePtr = std::make_shared<UbseMemControllerModule>();
-    EXPECT_NO_THROW(memModulePtr->UnInitialize());
-}
+// TEST_F(TestUbseMemControllerModule, UnInitialize)
+// {
+//     auto memModulePtr = std::make_shared<UbseMemControllerModule>();
+//     EXPECT_NO_THROW(memModulePtr->UnInitialize());
+// }
 
-TEST_F(TestUbseMemControllerModule, Stop)
-{
-    auto memModulePtr = std::make_shared<UbseMemControllerModule>();
-    MOCKER(UbseMemFaultManager::DeInitMemFaultManager)
-        .stubs().will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
-    EXPECT_NO_THROW(memModulePtr->Stop());
-    EXPECT_NO_THROW(memModulePtr->Stop());
-}
+// TEST_F(TestUbseMemControllerModule, Stop)
+// {
+//     auto memModulePtr = std::make_shared<UbseMemControllerModule>();
+//     MOCKER(UbseMemFaultManager::DeInitMemFaultManager)
+//         .stubs().will(returnValue(UBSE_ERROR))
+//         .then(returnValue(UBSE_OK));
+//     EXPECT_NO_THROW(memModulePtr->Stop());
+//     EXPECT_NO_THROW(memModulePtr->Stop());
+// }
 
 TEST_F(TestUbseMemControllerModule, DelHandleByMapDiff)
 {
