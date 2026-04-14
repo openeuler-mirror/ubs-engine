@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 )
 
 // Error codes
@@ -41,7 +42,7 @@ const (
 
 // IPC related constants
 const (
-	UbseIpcSocketPath = "/var/run/ubse.sock"
+	UbseIpcSocketPath = "/var/run/ubse/ubse.sock"
 )
 
 // Device represents urma device information.
@@ -186,6 +187,14 @@ func ubseInvokeCall(cmd uint32, request []byte) ([]byte, error) {
 	}
 	defer conn.Close()
 
+	// Set read timeout to avoid hanging
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	case *net.UnixConn:
+		c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	}
+
 	// Prepare header: 4 bytes cmd + 4 bytes length
 	header := make([]byte, 8)
 	binary.LittleEndian.PutUint32(header[0:], cmd)
@@ -201,25 +210,47 @@ func ubseInvokeCall(cmd uint32, request []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 
-	// Read response header
-	responseHeader := make([]byte, 8)
-	if _, err := conn.Read(responseHeader); err != nil {
-		return nil, fmt.Errorf("failed to read response header: %v", err)
+	// Read response header with proper error handling
+	responseHeader := make([]byte, 12) // 3 * 4 bytes (control code, align code, length)
+	bytesRead := 0
+	for bytesRead < 12 {
+		n, err := conn.Read(responseHeader[bytesRead:])
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response header: %v", err)
+		}
+		bytesRead += n
 	}
 
-	// Parse response header
-	responseCmd := binary.LittleEndian.Uint32(responseHeader[0:])
-	responseLen := binary.LittleEndian.Uint32(responseHeader[4:])
+	// Parse response header according to ubse_serial_util.cpp
+	controlCode := binary.LittleEndian.Uint32(responseHeader[0:])
+	alignCode := binary.LittleEndian.Uint32(responseHeader[4:])
+	responseLen := binary.LittleEndian.Uint32(responseHeader[8:])
 
-	// Check if command matches
-	if responseCmd != cmd {
-		return nil, fmt.Errorf("command mismatch: expected %d, got %d", cmd, responseCmd)
+	// Check control code
+	if controlCode != 0x01 { // HEAD_CTRL_CODE from ubse_serial_util.cpp
+		return nil, fmt.Errorf("invalid control code: %d", controlCode)
 	}
 
-	// Read response body
+	// Check align code
+	alignBase := alignCode + 1
+	if alignBase != 1 && alignBase != 2 && alignBase != 4 && alignBase != 8 {
+		return nil, fmt.Errorf("invalid align code: %d", alignCode)
+	}
+
+	// Check length
+	if responseLen == 0 || responseLen%alignBase != 0 {
+		return nil, fmt.Errorf("invalid response length: %d", responseLen)
+	}
+
+	// Read response body with proper error handling
 	response := make([]byte, responseLen)
-	if _, err := conn.Read(response); err != nil {
-		return nil, fmt.Errorf("failed to read response: %v", err)
+	bytesRead = 0
+	for bytesRead < int(responseLen) {
+		n, err := conn.Read(response[bytesRead:])
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response: %v", err)
+		}
+		bytesRead += n
 	}
 
 	// Check for error
