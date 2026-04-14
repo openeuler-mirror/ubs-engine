@@ -3,7 +3,7 @@
 > 提供给UBM通知UBSE，系统topo变化的通知接口
 
 ## 基础信息
-- **服务地址**：`127.0.0.1:8082`，其中端口号8082可通过配置文件修改
+- **服务地址**：`/var/run/ubse/ubse_ubm.socket`
 - **认证方式**：`双向 TLS/SSL 证书认证` 
 - **数据格式**：`application/xml`
 
@@ -16,7 +16,7 @@
 
 #### 请求
 - **方法**：`POST`
-- **路径**：`/topolink/change/` (例: `/users/{id}`)
+- **路径**：`/topolink/change/`
 - **请求头**：
   ```http
   Authorization: Bearer [token]
@@ -53,5 +53,5 @@ paths:
                 example: success
 
         '500':
-          description: internel error
+          description: internal error
   ```
