@@ -220,7 +220,7 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
     if (error != httplib::Error::Success) {
         if (error == httplib::Error::SSLServerVerification) {
             UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
-                              "certificate is revoked (CRL)"
+                              "certificate is revoked (CRL)";
         }
         return MakeError(static_cast<uint32_t>(error));
     }
