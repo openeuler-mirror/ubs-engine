@@ -124,7 +124,7 @@ UBSEngine/
 │   ├── ras                     //故障处理
 │   ├── res_plugins
 │   │   ├── syssentry           //syssentry对接
-│   │   ├── mti                 //lcne对接
+│   │   ├── mti                 //ubm对接
 │   │   └── mmi                 //内存资源接口
 │   │   
 │   └── sdk                     //sdk模块
@@ -317,6 +317,7 @@ export HCOM_CONNECTION_RECV_TIMEOUT_SEC=30
 - 执行 `rpm -ivh ubs-engine-x.x.x-x.aarch64.rpm`
 
 - **安装注意事项**
+  - ubs-engine安装依赖OpenSSL的开发包，通过包管理工具安装openssl-devel。
   - ubs-engine安装依赖libboundscheck.so和libhcom.so.*，需先安装libboundscheck和ubs-comm-lib，否则会安装失败。
   - ubs-engine RPM包安装依赖UBM，如果UBM服务未安装，UBSE服务安装可能会失败。
 
@@ -372,11 +373,10 @@ export HCOM_CONNECTION_RECV_TIMEOUT_SEC=30
 | [ubse.election] | heartbeat.timeInterval | 发送心跳间隔时间，单位毫秒。 | 默认值：2000<br>单位：毫秒<br>取值范围：[1000, 60000]<br>参数配置取值范围之外的值会被重置为默认值。 | 所有节点 |
 | [ubse.election] | heartbeat.lostThreshold | 备节点心跳丢失次数阈值。 | 默认值：3<br>取值范围：[3, 20]<br>参数配置取值范围之外的值会被重置为默认值。 | 所有节点 |
 | [ubse.rpc] | request.timeout | 通信接口的超时时间。 | 默认值：60<br>单位：秒<br>取值范围：[0,65535]<br>如果取值超过范围，则取默认值60。 | 所有节点 |
-| [ubse.rpc] | cluster.ipList | rpc使用tcp协议时的集群各节点ip地址。 | 默认值：192.168.100.100-192.168.100.103<br>开启urma时，注释此配置。 | 所有节点 |
-| [ubse.rpc] | cert.use | rpc安全证书能力开关（仅TCP支持）。 | 默认值：true（开启证书能力）<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。 | 所有节点（仅开启TCP时支持） |
+| [ubse.rpc] | cluster.ipList | rpc使用tcp协议时的集群各节点ip地址。 | 默认用#注释该参数，即默认使用urma通信<br>若使用tcp通信，取消#注释并配置该参数<br>参考值：192.168.100.100-192.168.100.103。 | 所有节点 |
+| [ubse.rpc] | cert.use | rpc安全证书能力开关。 | 默认值：true（开启证书能力）<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。 | 所有节点 |
 | [ubse.ubfm] | ubse.server.port | HTTP TCP服务器端口号。 | 默认开启该配置项，配置UBSE与UBM的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8082。<br>若关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
-| [ubse.ubfm] | lcne.server.port | 向LCNE进程发送消息的端口。 | 如果UBM部署到高安环境，开启该配置项，配置UBSE与LCNE的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8799。<br>默认关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
-| [ubse.memory] | system.pool.memory.ratio | 内存池化率 | 不涉及，不需要修改 | 所有节点 |
+| [ubse.ubfm] | ubm.server.port | 向UBM进程发送消息的端口。 | 如果UBM部署到高安环境，开启该配置项，配置UBSE与UBM的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8799。<br>默认关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
 | [ubse.memory] | obmm.memory.block.size | 内存块大小 | 不涉及，不需要修改| 所有节点 |
 
 #### 4.3.2 配置示例
@@ -429,19 +429,16 @@ cert.use=true
 #Port number of the http tcp server. The value range is [1024, 65535]. Any invalid value will be reset to 8082.
 ubse.server.port=8082
 
-#Set the Port for Sending Messages to the lcne. The value range is [1024, 65535]. Any value out of range is reset to 8799
-The value must match the lcne listening port.
-lcne.server.port=8799
+#Set the Port for Sending Messages to the ubm. The value range is [1024, 65535]. Any value out of range is reset to 8799
+The value must match the ubm listening port.
+ubm.server.port=8799
 
 [ubse.memory]
 
-#pool memory ratio of all node, it take effect when there isnot node.pool.memory.ratio configuration, unit is %.
-system.pool.memory.ratio = 100
-
 #The default value is 128. If this parameter is set, the value must be greater than 128 MB.
 obmm.memory.block.size=128
-```
 
+```
 
 ### 4.4 常用命令
 
@@ -470,74 +467,6 @@ obmm.memory.block.size=128
   cat /etc/ubse/ubse.conf
   ```
 
-### 4.5 高安环境部署
-
-#### 4.5.1 高安场景说明
-
-高安部署模式的背景，当攻击者攻破单个节点时，可二次导入普通借用已导出的内存，为消减该安全风险，设计了高安部署方案
-高安部署模式下，使用UBSE进行普通借用(单导出单导入)时，导出的内存，通过签名验签机制只允许在申请的节点导入; 共享借用(单导出多导入)时，可以被多个节点导入
-高安部署模式下，ubse将运行在Host主机，ubm将运行在机密虚机，UBSE通过https + tls，vsock + tls的方式与虚机内的ubm等相关组件进行交互
- 
-#### 4.5.2 相关配置说明
-
-```
-[ubse.ubfm]
-# Port number of the https tcp server. The value range is [1024, 65535]. Any invalid value will be reset to 8082.
-# ubse.server.port=8082
-# Set the Port for Sending Messages to the UBM. The value range is [1024, 65535]. Any value out of range is reset to 8799
-# The value must match the UBM listening port.
-# ubm.server.port=8799
-# This value must match the user-provided VM cid for vsock communication to work.
-# ubm.server.cid=1
-```
-
-| 序号 | 参数             | 说明                                             | 取   值                                                                                                                    |
-| ---- | ---------------- | ------------------------------------------------ |-----------------------------------------------------------------------------------------------------------------------|
-| 1    | ubm.server.cid | 此配置项作为高安模式的使能开关。配置启用时，为高安模式，此时UBM部署在机密虚机，ubse与ubm之间采用vsock通信，本配置同时作为vsock的cid地址，配置项ubm.server.port作为vsock的端口; 配置关闭时，ubm和ubse共部署在host主机，两者之间使用uds通信,取值范围：uint32_t，配置非法值，将导致与ubm通信失败，ubse无法对外提供服务     | 默认关闭该配置，<br>开启该配置项，配置虚机启动时候使用的cid, 取值：uint32_t, 配置非法值，与虚机使用vsock通信会失败 <br> |
-| 2    | ubse.server.port | UBSE暴露给UBM的通信端口，在该端口开启HTTP服务。 | 当ubm.server.cid配置开启时才生效，取值范围：[1024, 65535]，如果配置非法值会被重置为默认值8799      |
-| 3    | ubm.server.port | UBM暴露的通信端口，UBSE通过该端口与UBM交互     | 当ubm.server.cid配置开启时才生效，取值范围：[1024, 65535]，如果配置非法值会被重置为默认值8082 |
-
-#### 4.5.3 证书路径配置
-
-UBSE在高安场景下，使用的tls证书路径在/var/lib/ubse/lcne_cert，当安装UBSE的rpm包时，路径会被自动创建，权限为700
-需将证书文件配置在如下对应路径，并设置文件权限为600：
-- `/var/lib/ubse/lcne_cert/server.pem` ：公钥证书；
-- `/var/lib/ubse/lcne_cert/trust.pem` ：CA 根证书；
-- `/var/lib/ubse/lcne_cert/ca.crl` ：证书吊销列表；
-- `/var/lib/ubse/lcne_cert/server_key.pem` ：与 server.pem 配对的私钥文件；
-- `/var/lib/ubse/lcne_cert/key_pwd.txt` ：存储 server_key.pem 的解密密码。
-
-UBM部署在虚机当中，使用的证书路径一般在/etc/certs/communication
-UBM使用的证书如下：
-- ca_root.crt ：根证书，ubm与ubse使用同一份根证书，所以ca_root.crt 要与trust.pem保持一致
-- certificate.crt：公钥证书
-- private.key：私钥
-- key_pwd.txt：私钥密码
-
-#### 4.5.4 东西向证书配置
-
-UBSE节点间通信可以开启tls模式，证书路径在/var/lib/ubse/cert目录下，高安模式开启时，建议同时开启东西向的TLS模式，配置UBSE之间通信的证书
-
-##### 4.5.4.1 东西向tls置开启说明
-```
-[ubse.rpc]
-#Whether to enable TLS certificate authentication
-true: Enable TLS authentication and use certificates for secure communication.
-false: Disable TLS authentication, communication will be unencrypted.
-Note: This feature can only be enabled under the TCP protocol.
-cert.use=true
-```
-
-##### 4.5.4.2 东西向tls证书路径
-
-需将证书文件配置在如下对应路径，并设置文件权限为600：
-- `/var/lib/ubse/cert/server.pem` ：公钥证书；
-- `/var/lib/ubse/cert/trust.pem` ：CA 根证书；
-- `/var/lib/ubse/cert/ca.crl` ：证书吊销列表；
-- `/var/lib/ubse/cert/server_key.pem` ：与 server.pem 配对的私钥文件；
-- `/var/lib/ubse/cert/key_pwd.txt` ：存储 server_key.pem 的解密密码。
-
----
 ## 5 问题排查定位指导
 
 ### 5.1 日志说明
