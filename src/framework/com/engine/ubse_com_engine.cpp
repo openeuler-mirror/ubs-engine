@@ -806,7 +806,7 @@ void UbseComEngine::UpdateNewChannelIdMap(const std::string &nodeId, UbseComChan
                       << "remote nodeId = " << nodeId;
         return;
     }
-    std::unique_lock<std::mutex> lock(NewChannelMutex_);
+    std::unique_lock<std::mutex> lock(newChannelMutex_);
     if (NewChannelIdMap_.find(nodeId) != NewChannelIdMap_.end()) {
         UBSE_LOG_WARN << "new channel has been received, remote nodeId = " << nodeId
                       << ", channel id = " << NewChannelIdMap_[nodeId].GetChannel()->GetId()

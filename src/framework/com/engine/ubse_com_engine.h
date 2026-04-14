@@ -290,7 +290,7 @@ protected:
     std::map<std::string, std::set<UbseChannelType>> connectingMap_;
     std::map<std::string, UbseComChannelInfo> NewChannelIdMap_;
     std::mutex conMutex_;
-    std::mutex NewChannelMutex_;
+    std::mutex newChannelMutex_;
     int16_t timeout_;
     int16_t heartBeatTimeout_;
     ShouldDoReconnectCb shouldReconnect_ = nullptr;
