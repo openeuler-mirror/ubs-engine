@@ -383,15 +383,6 @@ uint32_t UbseMemShmCreateWithLenderReqUnpack(const UbseIpcMessage &buffer, UbseM
         UBSE_LOG_ERROR << "unpack failed.";
         return ret;
     }
-    // 不指定共享域时使用当前所有集群节点
-    if (memShmBorrowReq.shmRegion.nodeNum == 0) {
-        auto nodeInfos = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
-        memShmBorrowReq.shmRegion.nodeNum = nodeInfos.size();
-        for (const auto &[_, nodeInfo] : nodeInfos) {
-            ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo{nodeInfo.slotId, nodeInfo.nodeId, nodeInfo.hostName};
-            memShmBorrowReq.shmRegion.nodelist.push_back(ubseNodeInfo);
-        }
-    }
 
     UbseNumaLocation numaLocation{};
     uint64_t lenderSize{};

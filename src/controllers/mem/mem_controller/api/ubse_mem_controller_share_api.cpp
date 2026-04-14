@@ -120,6 +120,21 @@ uint32_t SetNodeIndex(UbseMemShareBorrowReq &req)
     return UBSE_OK;
 }
 
+UbseResult NormalizeShareRegion(UbseMemShareBorrowReq &req)
+{
+    if (req.shmRegion.nodeNum != 0 || !req.shmRegion.nodelist.empty()) {
+        return UBSE_OK;
+    }
+
+    auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
+    req.shmRegion.nodeNum = nodeInfos.size();
+    for (const auto &[_, nodeInfo] : nodeInfos) {
+        ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo{nodeInfo.slotId, nodeInfo.nodeId, nodeInfo.hostName};
+        req.shmRegion.nodelist.push_back(ubseNodeInfo);
+    }
+    return UBSE_OK;
+}
+
 static UbseResult ShareAllocate(const UbseMemShareBorrowReq &req, UbseMemShareBorrowExportObj &exportObj)
 {
     uint8_t retryTimes = ALLOCATE_RETRY_TIME;
@@ -269,45 +284,55 @@ static uint32_t ShareBorrowFailed(const UbseMemShareBorrowReq &req, UbseMemOpera
 
 uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq &req, UbseMemOperationResp &resp)
 {
-    UBSE_LOG_INFO << "Share borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
-                  << ", requestId=" << req.requestId;
-    auto lock = LoggingLockGuard(req.name);
-    auto requestNodeId = req.requestNodeId;
-    auto name = req.name;
+    UbseMemShareBorrowReq normalizedReq = req;
+    auto ret = NormalizeShareRegion(normalizedReq);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MMC] Failed to normalize share region, name is " << req.name << ", requestNodeId is "
+                       << req.requestNodeId << "; requestId: " << req.requestId;
+        return ShareBorrowFailed(req, resp, "Normalize share region Failed.", UBSE_ERR_INTERNAL,
+                                 MemAdvice::CHECK_FAILED);
+    }
+
+    UBSE_LOG_INFO << "Share borrow begins, name=" << normalizedReq.name << ", requestNodeId=" << req.requestNodeId
+                  << ", requestId=" << normalizedReq.requestId;
+    auto lock = LoggingLockGuard(normalizedReq.name);
+    auto requestNodeId = normalizedReq.requestNodeId;
+    auto name = normalizedReq.name;
     resp.name = name;
-    resp.requestId = req.requestId;
+    resp.requestId = normalizedReq.requestId;
     std::vector<UbseMemShareBorrowExportObj> exportObjs;
     std::vector<UbseMemShareBorrowImportObj> importObjs;
     FindShareBorrowObjByNameWhenBorrow(name, exportObjs, importObjs);
     if (!exportObjs.empty() || !importObjs.empty()) {
-        return ShareBorrowFailed(req, resp, "Resource Exist.", UBSE_ERR_EXISTED, MemAdvice::RESOURCE_EXIST);
+        return ShareBorrowFailed(normalizedReq, resp, "Resource Exist.", UBSE_ERR_EXISTED, MemAdvice::RESOURCE_EXIST);
     }
-    if (!ValidateAffinityParams(req)) {
-        return ShareBorrowFailed(req, resp, "Invalid Affinity parameters", UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL,
+    if (!ValidateAffinityParams(normalizedReq)) {
+        return ShareBorrowFailed(normalizedReq, resp, "Invalid Affinity parameters",
+                                 UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL,
                                  MemAdvice::CHECK_FAILED);
     }
     UbseMemShareBorrowExportObj exportObj;
-    exportObj.req = req;
+    exportObj.req = normalizedReq;
     exportObj.status.state = UBSE_MEM_SCHEDULING;
     if (SetNodeIndex(exportObj.req) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MMC] Failed to SetNodeIndex, name=" << exportObj.req.name << ", requestNodeId="
                        << exportObj.req.requestNodeId << ", requestId=" << req.requestId;
-        return ShareBorrowFailed(req, resp, "SetNodeIndex Failed.", UBSE_ERR_INTERNAL, MemAdvice::SCHEDULE_FAILED);
+        return ShareBorrowFailed(normalizedReq, resp, "SetNodeIndex Failed.", UBSE_ERR_INTERNAL, MemAdvice::SCHEDULE_FAILED);
     }
-    auto ret = ShareAllocate(req, exportObj);
+    ret = ShareAllocate(normalizedReq, exportObj);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << exportObj.req.name << ", requestNodeId="
                        << exportObj.req.requestNodeId << ", " << FormatRetCode(ret) << ", requestId=" << resp.requestId;
-        return ShareBorrowFailed(req, resp, "Failed to allocate", UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
+        return ShareBorrowFailed(normalizedReq, resp, "Failed to allocate", UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
     }
     exportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
     exportObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
     RegisterExportObjectDebtInfo(exportObj, name);
     ret = SendShareExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
     if (ret != UBSE_OK) {
-        BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size,
+        BorrowFailedAdvice("Borrow Schedule failed", normalizedReq.name, "SHARE_BORROW", normalizedReq.size,
                            exportObj.algoResult.exportNumaInfos[0].nodeId, "", ret, MemAdvice::COMM_FAILED);
-        return HandleSendExportError(resp, req, exportObj);
+        return HandleSendExportError(resp, normalizedReq, exportObj);
     }
     return UBSE_OK;
 }
