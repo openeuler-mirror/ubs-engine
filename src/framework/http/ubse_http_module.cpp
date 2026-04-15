@@ -12,20 +12,20 @@
 
 #include "ubse_http_module.h"
 
-#include <httplib.h>           // for Error, Response, Request, Client
+#include <httplib.h> // for Error, Response, Request, Client
 #include <openssl/x509.h>
-#include <securec.h>           // for memcpy_s, EOK, errno_t
-#include <map>                 // for map, operator!=, _Rb_tree_con...
-#include <mutex>               // for mutex, lock_guard
+#include <securec.h> // for memcpy_s, EOK, errno_t
+#include <map>       // for map, operator!=, _Rb_tree_con...
+#include <mutex>     // for mutex, lock_guard
 
 #include "ubse_cert_def.h"
 #include "ubse_cert_validator.h"
-#include "ubse_conf_module.h"  // for UbseConfModule
-#include "ubse_context.h"      // for UbseContext, ProcessMode, BAS...
-#include "ubse_error.h"        // for UBSE_OK, UBSE_ERROR, UBSE_ERR...
-#include "ubse_http_common.h"  // for UbseHttpMethodToString, Chang...
-#include "ubse_http_server.h"  // for UbseHttpServer
-#include "ubse_logger.h"       // for UbseLoggerEntry, FormatRetCode
+#include "ubse_conf_module.h" // for UbseConfModule
+#include "ubse_context.h"     // for UbseContext, ProcessMode, BAS...
+#include "ubse_error.h"       // for UBSE_OK, UBSE_ERROR, UBSE_ERR...
+#include "ubse_http_common.h" // for UbseHttpMethodToString, Chang...
+#include "ubse_http_server.h" // for UbseHttpServer
+#include "ubse_logger.h"      // for UbseLoggerEntry, FormatRetCode
 #include "ubse_net_util.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h" // for UbseTaskExecutorModule
@@ -58,7 +58,12 @@ UbseResult UbseHttpModule::Initialize()
     } else {
         isTcpServer = true;
         uint32_t portValue = 0;
-        module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.port", portValue);
+        ret = module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.port", portValue);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Get ubm.server.port failed, will use default value: " << DEFAULT_UBM_SERVER_PORT;
+            portValue = DEFAULT_UBM_SERVER_PORT;
+        }
+
         if (!UbseNetUtil::IsPortVaLid(portValue)) {
             UBSE_LOG_ERROR << "ubm.server.port=" << portValue
                            << " is out of range[1024, 65535], will use default value: " << DEFAULT_UBM_SERVER_PORT;
@@ -215,7 +220,7 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
     if (error != httplib::Error::Success) {
         if (error == httplib::Error::SSLServerVerification) {
             UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
-                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+                              "certificate is revoked (CRL)";
         }
         return MakeError(static_cast<uint32_t>(error));
     }
@@ -244,7 +249,7 @@ UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, cons
     if (error != Error::Success) {
         if (error == Error::SSLServerVerification) {
             UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
-                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+                              "certificate is revoked (CRL)";
         }
         return MakeError(static_cast<uint32_t>(error));
     }
