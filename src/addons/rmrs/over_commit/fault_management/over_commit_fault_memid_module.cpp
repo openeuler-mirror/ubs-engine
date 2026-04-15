@@ -495,8 +495,9 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     }
     // 关闭pid级别冷热流动
     if (!fMVmInfoResult.pids.empty() &&
-        DisableSmapProcessMigrateRpc(fMVmInfoResult.pids, borrowInNid) == MEM_POOLING_ERROR) {
+        DisableSmapProcessMigrateRpc(fMVmInfoResult.pids, borrowInNid) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Disable Smap Process Migrate failed.";
+        return MEM_POOLING_ERROR;
     }
 
     // 为虚拟机组合进行内存借用
@@ -673,7 +674,7 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
     UbseRpcSend(endpoint_fm_disable_pid, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "DisableSmapProcessMigrate failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "DisableSmapProcessMigrate failed, ret = " << ret;
         return ret;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "DisableSmapProcessMigrate success.";
