@@ -65,6 +65,16 @@ std::vector<std::filesystem::directory_entry> SafeDirectoryEntries(const std::fi
     }
 }
 
+bool IsSymlink(const std::filesystem::path& path)
+{
+    try {
+        return std::filesystem::is_symlink(path);
+    } catch (...) {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "Failed to check symlink for path: " << path.string();
+        return false;
+    }
+}
+
 // 一次性扫描 /proc，构建 {file_path -> [pids]} 映射
 FileToPidsMap BuildFileToPidsMap(const std::unordered_set<std::string> &targetPaths)
 {
@@ -80,7 +90,7 @@ FileToPidsMap BuildFileToPidsMap(const std::unordered_set<std::string> &targetPa
 
         std::filesystem::path fdDir = procEntry.path() / "fd";
         for (const auto &fdEntry : SafeDirectoryEntries(fdDir)) {
-            if (!std::filesystem::is_symlink(fdEntry.path())) continue;
+            if (!IsSymlink(fdEntry.path())) continue;
 
             std::string target;
             if (!SafeReadSymlink(fdEntry.path(), target)) {
