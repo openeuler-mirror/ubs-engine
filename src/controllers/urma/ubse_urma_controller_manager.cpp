@@ -677,8 +677,9 @@ UbseResult FilterFeInfos(const std::string &nodeId, std::vector<std::vector<Ubse
     auto it = std::find_if(hostUrmaInfos.begin(), hostUrmaInfos.end(),
                            [&nodeId](const UbseUrmaUvsNodeInfo &info) { return info.nodeId == nodeId; });
     // 只能有通信用的一个bonding
-    if (it == hostUrmaInfos.end() || it->devList.size() != NO_1) {
-        UBSE_LOG_ERROR << "Failed to find nodeId=" << nodeId << " in host urma infos, or devList size is not 1";
+    if (it == hostUrmaInfos.end() || it->devList.size() != NO_1 || it->devList[NO_0].feList.size() != NO_2) {
+        UBSE_LOG_ERROR << "Failed to find nodeId=" << nodeId
+                       << " in host urma infos, or devList size is not 1, or feList size is not 2";
         return UBSE_ERROR_INVAL;
     }
     /*
