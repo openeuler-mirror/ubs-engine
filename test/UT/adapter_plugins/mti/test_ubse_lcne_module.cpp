@@ -123,16 +123,16 @@ TEST_F(TestUbseLcneModule, GetAllSocketComEid)
 {
     UbseLcneModule module;
     UbseDevName devName("1", "1");
-    adapter_plugins::mti::UbseUrmaEidInfo info;
+    adapter_plugins::mti::UbseMtiEidGroup info;
     info.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    info.portEidList.emplace("2", urmaEid);
+    info.portEids.emplace("2", urmaEid);
     module.allSocketComEid.emplace(devName, info);
 
     auto ret = module.GetAllSocketComEid();
     EXPECT_EQ(ret.size(), 1);
     EXPECT_EQ(ret[devName].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4321");
-    EXPECT_EQ(ret[devName].portEidList["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
+    EXPECT_EQ(ret[devName].portEids["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
 }
 
 TEST_F(TestUbseLcneModule, GetLocalBoardIOInfo)
@@ -158,10 +158,10 @@ TEST_F(TestUbseLcneModule, GetTopologyInfo)
     std::map<std::string, std::vector<IODieInfo>> allNodeIOdieInfo;
 
     UbseDevName devName("1", "1");
-    adapter_plugins::mti::UbseUrmaEidInfo info;
+    adapter_plugins::mti::UbseMtiEidGroup info;
     info.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    info.portEidList.emplace("2", urmaEid);
+    info.portEids.emplace("2", urmaEid);
     module.allSocketComEid.emplace(devName, info);
 
     UbseResult ret = module.GetTopologyInfo(allNodeIOdieInfo);
@@ -174,10 +174,10 @@ TEST_F(TestUbseLcneModule, GetTopologyInfo_ParseFailed)
     std::map<std::string, std::vector<IODieInfo>> allNodeIOdieInfo;
 
     UbseDevName devName("1", "1");
-    adapter_plugins::mti::UbseUrmaEidInfo info;
+    adapter_plugins::mti::UbseMtiEidGroup info;
     info.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    info.portEidList.emplace("2", urmaEid);
+    info.portEids.emplace("2", urmaEid);
     module.allSocketComEid.emplace(devName, info);
 
     MOCKER_CPP(&ubse::utils::ConvertStrToInt).stubs().will(returnValue(UBSE_ERROR_PARSE_ARGS_FAILED));
@@ -191,10 +191,10 @@ TEST_F(TestUbseLcneModule, GetTopologyInfo_GetIoDiePortEidFailed)
     std::map<std::string, std::vector<IODieInfo>> allNodeIOdieInfo;
 
     UbseDevName devName("1", "1");
-    adapter_plugins::mti::UbseUrmaEidInfo info;
+    adapter_plugins::mti::UbseMtiEidGroup info;
     info.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    info.portEidList.emplace("2", urmaEid);
+    info.portEids.emplace("2", urmaEid);
     module.allSocketComEid.emplace(devName, info);
 
     MOCKER_CPP(&UbseLcneModule::GetIoDiePortEid).stubs().will(returnValue(UBSE_ERROR_INVAL));
@@ -202,23 +202,23 @@ TEST_F(TestUbseLcneModule, GetTopologyInfo_GetIoDiePortEidFailed)
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
-TEST_F(TestUbseLcneModule, GetTopologyInfo_PortEidListOutRange)
+TEST_F(TestUbseLcneModule, GetTopologyInfo_portEidsOutRange)
 {
     UbseLcneModule module;
     std::map<std::string, std::vector<IODieInfo>> allNodeIOdieInfo;
 
     UbseDevName devName("1", "1");
-    adapter_plugins::mti::UbseUrmaEidInfo info;
+    adapter_plugins::mti::UbseMtiEidGroup info;
     info.primaryEid = "";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    info.portEidList.emplace("2", urmaEid);
+    info.portEids.emplace("2", urmaEid);
     module.allSocketComEid.emplace(devName, info);
     UbseDevName devName1("1", "2");
-    adapter_plugins::mti::UbseUrmaEidInfo info1;
+    adapter_plugins::mti::UbseMtiEidGroup info1;
     info1.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     for (int i = 1; i <= 12; ++i) {
         urmaEid = "1234:5678:8765:4321:1234:5678:8765:" + std::to_string(4324 + i);
-        info1.portEidList.emplace(std::to_string(i), urmaEid);
+        info1.portEids.emplace(std::to_string(i), urmaEid);
     }
     module.allSocketComEid.emplace(devName1, info1);
 
@@ -229,12 +229,12 @@ TEST_F(TestUbseLcneModule, GetTopologyInfo_PortEidListOutRange)
 TEST_F(TestUbseLcneModule, GetIoDiePortEid_Success)
 {
     UbseLcneModule module;
-    std::map<std::string, std::string> portEidList;
+    std::map<std::string, std::string> portEids;
     IODieInfo ioDieInfo;
 
     UbseDevName devName("1", "1");
     std::string portInfo;
-    portEidList.emplace("236", portInfo);
+    portEids.emplace("236", portInfo);
 
     UbseDeviceInfo deviceInfo;
     UbseMtiCpuTopoPortInfo portInfo1;
@@ -253,39 +253,39 @@ TEST_F(TestUbseLcneModule, GetIoDiePortEid_Success)
         .with(outBound(topology.ubseTopologyInfo))
         .will(returnValue(UBSE_OK));
 
-    adapter_plugins::mti::UbseUrmaEidInfo socketInfo;
+    adapter_plugins::mti::UbseMtiEidGroup socketInfo;
     std::string remotePortInfo;
-    socketInfo.portEidList.emplace("236", remotePortInfo);
+    socketInfo.portEids.emplace("236", remotePortInfo);
     module.allSocketComEid.emplace(UbseDevName("1", "2"), socketInfo);
     MOCKER_CPP(&UbseLcneModule::ParseColonHexString).stubs().will(returnValue(UBSE_OK));
 
-    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEidList);
+    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEids);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
 TEST_F(TestUbseLcneModule, GetIoDiePortEid_UrmaEidParseFailed)
 {
     UbseLcneModule module;
-    std::map<std::string, std::string> portEidList;
+    std::map<std::string, std::string> portEids;
     IODieInfo ioDieInfo;
 
     UbseDevName devName("1", "1");
     std::string urmaEid = "abcd";
-    portEidList.emplace("236", urmaEid);
+    portEids.emplace("236", urmaEid);
 
-    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEidList);
+    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEids);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseLcneModule, GetIoDiePortEid_PortNameNotFound)
 {
     UbseLcneModule module;
-    std::map<std::string, std::string> portEidList;
+    std::map<std::string, std::string> portEids;
     IODieInfo ioDieInfo;
 
     UbseDevName devName("1", "1");
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    portEidList.emplace("236", urmaEid);
+    portEids.emplace("236", urmaEid);
 
     UbseDeviceInfo deviceInfo;
     UbseMtiCpuTopoPortInfo portInfo1;
@@ -301,19 +301,19 @@ TEST_F(TestUbseLcneModule, GetIoDiePortEid_PortNameNotFound)
         .with(outBound(topology.ubseTopologyInfo))
         .will(returnValue(UBSE_OK));
 
-    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEidList);
+    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEids);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseLcneModule, GetIoDiePortEid_DevNameNotFound)
 {
     UbseLcneModule module;
-    std::map<std::string, std::string> portEidList;
+    std::map<std::string, std::string> portEids;
     IODieInfo ioDieInfo;
 
     UbseDevName devName("1", "1");
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    portEidList.emplace("235", urmaEid);
+    portEids.emplace("235", urmaEid);
 
     UbseDeviceInfo deviceInfo;
     UbseMtiCpuTopoPortInfo portInfo1;
@@ -331,24 +331,24 @@ TEST_F(TestUbseLcneModule, GetIoDiePortEid_DevNameNotFound)
         .with(outBound(topology.ubseTopologyInfo))
         .will(returnValue(UBSE_OK));
 
-    adapter_plugins::mti::UbseUrmaEidInfo socketInfo;
+    adapter_plugins::mti::UbseMtiEidGroup socketInfo;
     std::string remotePortInfo;
-    socketInfo.portEidList.emplace("236", remotePortInfo);
+    socketInfo.portEids.emplace("236", remotePortInfo);
     module.allSocketComEid.emplace(UbseDevName("1", "3"), socketInfo);
 
-    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEidList);
+    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEids);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseLcneModule, GetIoDiePortEid_PortIdNotFound)
 {
     UbseLcneModule module;
-    std::map<std::string, std::string> portEidList;
+    std::map<std::string, std::string> portEids;
     IODieInfo ioDieInfo;
 
     UbseDevName devName("1", "1");
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    portEidList.emplace("236", urmaEid);
+    portEids.emplace("236", urmaEid);
 
     UbseDeviceInfo deviceInfo;
     UbseMtiCpuTopoPortInfo portInfo1;
@@ -368,25 +368,25 @@ TEST_F(TestUbseLcneModule, GetIoDiePortEid_PortIdNotFound)
         .with(outBound(topology.ubseTopologyInfo))
         .will(returnValue(UBSE_OK));
 
-    adapter_plugins::mti::UbseUrmaEidInfo socketInfo{};
+    adapter_plugins::mti::UbseMtiEidGroup socketInfo{};
     std::string remotePortInfo{};
-    socketInfo.portEidList.emplace("236", remotePortInfo);
+    socketInfo.portEids.emplace("236", remotePortInfo);
     module.allSocketComEid.clear();
     module.allSocketComEid.emplace(UbseDevName("1", "2"), socketInfo);
 
-    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEidList);
+    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEids);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseLcneModule, GetIoDiePortEid_PeerPortEidParseFailed)
 {
     UbseLcneModule module;
-    std::map<std::string, std::string> portEidList;
+    std::map<std::string, std::string> portEids;
     IODieInfo ioDieInfo;
 
     UbseDevName devName("1", "1");
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    portEidList.emplace("236", urmaEid);
+    portEids.emplace("236", urmaEid);
 
     UbseDeviceInfo deviceInfo;
     UbseMtiCpuTopoPortInfo portInfo1;
@@ -406,13 +406,13 @@ TEST_F(TestUbseLcneModule, GetIoDiePortEid_PeerPortEidParseFailed)
         .with(outBound(topology.ubseTopologyInfo))
         .will(returnValue(UBSE_OK));
 
-    adapter_plugins::mti::UbseUrmaEidInfo socketInfo{};
+    adapter_plugins::mti::UbseMtiEidGroup socketInfo{};
     std::string remoteUrmaEid = "ABCD";
-    socketInfo.portEidList.emplace("236", remoteUrmaEid);
+    socketInfo.portEids.emplace("236", remoteUrmaEid);
     module.allSocketComEid.clear();
     module.allSocketComEid.emplace(UbseDevName("1", "2"), socketInfo);
 
-    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEidList);
+    UbseResult ret = module.GetIoDiePortEid(devName, ioDieInfo, portEids);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
@@ -726,7 +726,7 @@ TEST_F(TestUbseLcneModule, FillNodeComInfo_Success)
     UbseLcneModule module;
     std::string localNodeId = "1";
     module.ubseLcneBusInstanceInfo.localNodeId = localNodeId;
-    module.allSocketComEid.emplace(UbseDevName("1", "2"), adapter_plugins::mti::UbseUrmaEidInfo{});
+    module.allSocketComEid.emplace(UbseDevName("1", "2"), adapter_plugins::mti::UbseMtiEidGroup{});
 
     MOCKER_CPP(&UbseLcneModule::IsPrimaryEidExist).stubs().will(returnValue(false));
     MOCKER_CPP(&UbseLcneModule::GenerateBondingEid).stubs().will(returnValue(UBSE_OK));

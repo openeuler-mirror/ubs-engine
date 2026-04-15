@@ -36,9 +36,9 @@ public:
 
     common::def::UbseResult GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo& queryInfo,
                                              std::vector<mami::UbseMamiMemHandleValue>& handleValues) override;
-    common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo> &socketInfoMap) override;
+    common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseMtiEidGroup> &socketInfoMap) override;
 
-    common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos) override;
+    common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos) override;
 
     common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile) override;
 

@@ -111,17 +111,6 @@ struct DevName {
     }
 };
 
-// 查询全量规划的urma通信EID
-struct UbseLcnePortInfo {
-    std::string urmaEid; // 端口eid
-};
-
-struct UbseLcneSocketInfo {
-    std::string primaryEid;                              // port-group-id 字段对应的 urma-eid
-    std::map<std::string, UbseLcnePortInfo> portEidList; // 此处为由于框内通信端口的eid（feid最小的部分）
-    // key为port-id
-};
-
 struct IODieInfo {
     char primaryEid[16];
     char portEid[9][16];
