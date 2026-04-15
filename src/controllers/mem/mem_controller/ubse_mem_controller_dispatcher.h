@@ -45,6 +45,7 @@ private:
     static uint32_t MemShmReturnDispatcher(const UbseIpcMessage &buffer, const UbseRequestContext &context);
     static uint32_t MemShmMemFaultGet(const UbseIpcMessage &buffer, const UbseRequestContext &context);
     static uint32_t MemShmListWithPrefixDispatcher(const UbseIpcMessage &buffer, const UbseRequestContext &context);
+    static uint32_t UbseMemShmGetMemIdByImportDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
 
     // fd
     static uint32_t UbseMemFdBorrowDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
@@ -54,6 +55,7 @@ private:
     static uint32_t UbseMemFdPermissionDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
     static uint32_t UbseMemFdGetDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
     static uint32_t UbseMemFdListDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
+    static uint32_t UbseMemFdGetMemIdByImportDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
 
     // numa
     static uint32_t UbseMemNumaCreateHandler(const UbseIpcMessage &buffer, const UbseRequestContext &context);
@@ -62,6 +64,8 @@ private:
     static uint32_t UbseMemNumaDelete(const UbseIpcMessage &buffer, const UbseRequestContext &context);
     static uint32_t UbseMemNumaGetDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
     static uint32_t UbseMemNumaListDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
+    static uint32_t UbseMemNumaGetMemIdByImportDispatch(const UbseIpcMessage &buffer,
+                                                        const UbseRequestContext &context);
 
     // cli
     static uint32_t UbseMemNodeBorrowInfoDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
@@ -82,11 +86,18 @@ private:
                                     std::string &requestNodeId, const UbseRequestContext &context);
     UbseResult ShmDispatcherToShmReq(const def::UbseMemShmDispatcher &memShmDispatcher,
                                      UbseMemShareBorrowReq &shareBorrowReq);
-    static UbseResult RegisterFdBorrowSdkDispatcher(const std::shared_ptr<UbseApiServerModule>& apiServer);
+    static UbseResult RegisterFdSdkDispatcherCreate();
+    static UbseResult RegisterFdSdkDispatcherDelete();
+    static UbseResult RegisterFdSdkDispatcherQuery();
     static UbseResult RegisterFdSdkDispatcher();
+    static UbseResult RegisterNumaSdkDispatcherCreate();
+    static UbseResult RegisterNumaSdkDispatcherDelete();
+    static UbseResult RegisterNumaSdkDispatcherQuery();
     static UbseResult RegisterNumaSdkDispatcher();
+    static UbseResult RegisterShmSdkDispatcherCreate();
+    static UbseResult RegisterShmSdkDispatcherDelete();
+    static UbseResult RegisterShmSdkDispatcherQuery();
     static UbseResult RegisterShmSdkDispatcher();
-    static UbseResult RegisterShmQuerySdkDispatcher();
     static UbseResult RegisterCliDispatcher();
     static uint32_t UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq &req, const UbseRequestContext &context);
     static uint32_t UbseMemFdBorrowRpc(UbseMemFdBorrowReq &req, const UbseRequestContext &context);

@@ -285,6 +285,29 @@ public:
         return true;
     }
 };
+
+class UbseMemIdInfoGetHandler : public UbseComBaseMessageHandler {
+public:
+    UbseMemIdInfoGetHandler() = default;
+
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_ID_DEBINFO_QUERY);
+    }
+
+    uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY);
+    }
+
+    bool NeedReply() override
+    {
+        return true;
+    }
+};
 }; // namespace ubse::mem::controller::rpc
 
 #endif // UBSE_MEM_DEBT_INFO_QUERY_HANDLER_H

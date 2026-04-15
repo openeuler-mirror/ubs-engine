@@ -259,8 +259,9 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc &desc, const Obmm
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return memid;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_import memid=" << memid
-                  << ", opParam=" << opParam.toString();
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << " name=" <<  std::string(opParam.customMeta.name)
+                  << ", opParam=" << opParam.toString() << ", obmm importMemid=" << memid << ", obmm exportMemid="
+                  << opParam.customMeta.exportMemid << ", exportNodeId=" << opParam.customMeta.exportNodeId;
     RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
     return ObmmDevChangeUidGid(memid, true, opParam);
 }

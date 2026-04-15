@@ -12,6 +12,7 @@
 
 #ifndef UBSE_MEM_CONTROLLER_DEF_H
 #define UBSE_MEM_CONTROLLER_DEF_H
+#include <cstdint>
 #include <string>
 #include <vector>
 #include "ubs_engine_mem.h"
@@ -84,6 +85,13 @@ struct UbseMemDebtQueryRequest {
     std::string exportNodeId{}; // 导出节点, 为空表示查全量
     UbseUdsInfo udsInfo{};      // 调用用户信息, 用于权限校验
 };
+struct UbseMemIdQueryRequest {
+    std::string name{};         // 账本名称
+    std::string importNodeId{}; // 导入节点
+    uint64_t importMemId{};     // 导入内存id
+    uint32_t borrowType{}; // 借用类型
+    UbseUdsInfo udsInfo{};      // 调用用户信息, 用于权限校验
+};
 
 struct UbseNodeBorrowInfo {
     uint32_t borrowSlotId;
@@ -96,6 +104,11 @@ struct UbseNodeBorrowInfo {
 struct LedgerResp {
     uint32_t ret = 0;
     NodeMemDebtInfoMap debtInfoMap;
+};
+
+struct UbseExportMemDesc {
+    uint32_t exportSlotId;
+    uint64_t exportMemId;
 };
 } // namespace ubse::mem::def
 

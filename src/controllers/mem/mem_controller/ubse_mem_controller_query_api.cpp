@@ -70,6 +70,37 @@ uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest &request, std
     resp = UbseBaseMessage::DeConvert<TSimpo>(ubseResponsePtr);
     return UBSE_OK;
 }
+
+uint32_t SendMemIdQueryToMaster(def::UbseMemIdQueryRequest &request, std::string &masterNodeId,
+                                UbseMemExportMemDescSimpoPtr &resp)
+{
+    auto ubseComModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (ubseComModule == nullptr) {
+        UBSE_LOG_ERROR << "Communication module not init, " << FormatRetCode(UBSE_ERROR_MODULE_LOAD_FAILED);
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    SendParam sendParam{masterNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_ID_DEBINFO_QUERY)};
+    UbseMemIdQueryRequestSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemIdQueryRequestSimpo();
+    if (ubseRequestPtr == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    ubseRequestPtr->SetUbseMemIdQueryRequest(request);
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemExportMemDescSimpo();
+    if (ubseResponsePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new ubseResponsePtr.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto retCode = ubseComModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr, false);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "master deal failed, master node id =" << masterNodeId << ", " << FormatRetCode(retCode);
+        return retCode;
+    }
+    UBSE_LOG_INFO << "success to deal rpc request. ubseResponsePtr->GetErrCode:" << ubseResponsePtr->GetErrCode();
+    resp = UbseBaseMessage::DeConvert<UbseMemExportMemDescSimpo>(ubseResponsePtr);
+    return UBSE_OK;
+}
+
 UbseResult GetMasterAndLocalNodeId(std::string &masterNodeId, std::string &localNodeId)
 {
     // 获取主节点以及当前节点
@@ -603,6 +634,23 @@ uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo> &nodeBo
             return ret;
         }
     }
+    return UBSE_OK;
+}
+
+uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &exportMemDesc)
+{
+    UbseRoleInfo masterInfo{};
+    if (const auto ret = UbseGetMasterInfo(masterInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get master info, " << FormatRetCode(ret);
+        return UBSE_ERR_DAEMON_UNREACHABLE;
+    }
+    UbseMemExportMemDescSimpoPtr descSimpoPtr;
+    auto ret = SendMemIdQueryToMaster(request, masterInfo.nodeId, descSimpoPtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deal query , " << FormatRetCode(ret);
+        return ret;
+    }
+    exportMemDesc = descSimpoPtr.Get()->GetUbseMemExportMemDesc();
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller

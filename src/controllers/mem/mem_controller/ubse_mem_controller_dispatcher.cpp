@@ -25,9 +25,11 @@
 #include "ubse_mem_buffer_convert.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_debt_info.h"
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_mem_util.h"
 #include "ubse_mem_sign_verifier.h"
+#include "ubse_mmi_def.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_str_util.h"
@@ -42,6 +44,8 @@ using namespace api::server;
 using namespace ubse::nodeController;
 using namespace ubse::node::api;
 using namespace ubse::mem::util;
+using namespace ubse::mem::controller;
+using namespace ubse::context;
 
 const std::string MEM_FD_PERMISSION = "mem.fd";
 const std::string MEM_NUMA_PERMISSION = "mem.numa";
@@ -70,9 +74,12 @@ UbseResult SendToMasterIfNotMaster(std::string &masterNodeId, TReq &requestPtr, 
     return ret;
 }
 
-UbseResult UbseMemControllerDispatcher::RegisterFdBorrowSdkDispatcher(
-    const std::shared_ptr<UbseApiServerModule> &apiServer)
+UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherCreate()
 {
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
     auto ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
         static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_FD_CREATE), UbseMemFdBorrowDispatch, MEM_FD_PERMISSION);
     if (ret != UBSE_OK) {
@@ -91,33 +98,38 @@ UbseResult UbseMemControllerDispatcher::RegisterFdBorrowSdkDispatcher(
         UBSE_LOG_ERROR << "Registration of UbseMemFdBorrowWithCandidate IPC-API failed," << FormatRetCode(ret);
         return ret;
     }
+    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+    static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_FD_PERMISSION), UbseMemFdPermissionDispatch, MEM_FD_PERMISSION);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseMemFdPermissionDispatch IPC-API failed," << FormatRetCode(ret);
+        return ret;
+    }
     return UBSE_OK;
 }
 
-UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcher()
+UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherDelete()
 {
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = RegisterFdBorrowSdkDispatcher(apiServer);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+    auto ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
         static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_FD_DELETE),
         UbseMemFdReturnDispatch, MEM_FD_PERMISSION);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of UbseMemFdReturnDispatch IPC-API failed," << FormatRetCode(ret);
         return ret;
     }
-    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
-        static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_FD_PERMISSION), UbseMemFdPermissionDispatch, MEM_FD_PERMISSION);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Registration of UbseMemFdPermissionDispatch IPC-API failed," << FormatRetCode(ret);
-        return ret;
+    return UBSE_OK;
+}
+
+UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherQuery()
+{
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
     }
-    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+    auto ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
         static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_FD_GET), UbseMemFdGetDispatch, MEM_FD_PERMISSION);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of UbseMemFdGetDispatch IPC-API failed," << FormatRetCode(ret);
@@ -129,10 +141,34 @@ UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcher()
         UBSE_LOG_ERROR << "Registration of UbseMemFdListDispatch IPC-API failed," << FormatRetCode(ret);
         return ret;
     }
+    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+    static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_FD_GET_MEM_ID_BY_IMPORT), UbseMemFdGetMemIdByImportDispatch,
+    MEM_FD_PERMISSION);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseMemFdGetMemIdByImportDispatch IPC-API failed," << FormatRetCode(ret);
+        return ret;
+    }
     return UBSE_OK;
 }
 
-UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcher()
+UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcher()
+{
+    auto ret = RegisterFdSdkDispatcherCreate();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterFdSdkDispatcherDelete();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterFdSdkDispatcherQuery();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherCreate()
 {
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
@@ -159,14 +195,32 @@ UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcher()
         UBSE_LOG_ERROR << "Registration of UbseMemNumaBorrowWithCandidate IPC-API failed," << FormatRetCode(ret);
         return ret;
     }
-    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
-        static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_NUMA_DELETE),
-        UbseMemNumaDelete, MEM_NUMA_PERMISSION);
+    return UBSE_OK;
+}
+
+UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherDelete()
+{
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+    static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_NUMA_DELETE),
+    UbseMemNumaDelete, MEM_NUMA_PERMISSION);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of UbseMemNumaDelete IPC-API failed," << FormatRetCode(ret);
         return ret;
     }
-    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+    return UBSE_OK;
+}
+
+UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherQuery()
+{
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
         static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_NUMA_GET),
         UbseMemNumaGetDispatch, MEM_NUMA_PERMISSION);
     if (ret != UBSE_OK) {
@@ -180,10 +234,34 @@ UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcher()
         UBSE_LOG_ERROR << "Registration of UbseMemNumaListDispatch IPC-API failed," << FormatRetCode(ret);
         return ret;
     }
+    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+        static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_NUMA_GET_MEM_ID_BY_IMPORT),
+        UbseMemNumaGetMemIdByImportDispatch, MEM_NUMA_PERMISSION);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseMemNumaGetMemIdByImportDispatch IPC-API failed," << FormatRetCode(ret);
+        return ret;
+    }
     return UBSE_OK;
 }
 
-UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcher()
+UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcher()
+{
+    auto ret = RegisterNumaSdkDispatcherCreate();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterNumaSdkDispatcherDelete();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterNumaSdkDispatcherQuery();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherCreate()
 {
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
@@ -217,9 +295,18 @@ UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcher()
         UBSE_LOG_ERROR << "Registration of MemShmAttachDispatcher IPC-API failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
-    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
-                                        static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_SHM_DETACH),
-                                        MemShmDetachDispatcher, MEM_SHM_PERMISSION);
+    return UBSE_OK;
+}
+
+UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherDelete()
+{
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+    static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_SHM_DETACH),
+    MemShmDetachDispatcher, MEM_SHM_PERMISSION);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of MemShmDetachDispatcher IPC-API failed," << FormatRetCode(ret);
         return UBSE_ERROR;
@@ -231,10 +318,10 @@ UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcher()
         UBSE_LOG_ERROR << "Registration of MemShmReturnDispatcher IPC-API failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
-    return RegisterShmQuerySdkDispatcher();
+    return UBSE_OK;
 }
 
-UbseResult UbseMemControllerDispatcher::RegisterShmQuerySdkDispatcher()
+UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherQuery()
 {
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
@@ -267,6 +354,30 @@ UbseResult UbseMemControllerDispatcher::RegisterShmQuerySdkDispatcher()
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of MemShmMemFaultGet IPC-API failed," << FormatRetCode(ret);
         return UBSE_ERROR;
+    }
+    ret = apiServer->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
+        static_cast<uint16_t>(UbseMemOpCode::UBSE_MEM_SHM_GET_MEM_ID_BY_IMPORT),
+        UbseMemShmGetMemIdByImportDispatch, MEM_SHM_PERMISSION);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseMemShmGetMemIdByImportDispatch IPC-API failed," << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcher()
+{
+    auto ret = RegisterShmSdkDispatcherCreate();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterShmSdkDispatcherDelete();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = RegisterShmSdkDispatcherQuery();
+    if (ret != UBSE_OK) {
+        return ret;
     }
     return UBSE_OK;
 }
@@ -548,6 +659,50 @@ uint32_t UbseMemControllerDispatcher::MemReturnRespDispatcher(UbseMemOperationRe
     // 结构转换
     return apiServer->SendResponse(resp.errorCode, resp.requestId, message);
 }
+
+uint32_t UbseMemGetMemIdByImportDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context,
+                                         const uint32_t &borrowType)
+{
+    if (buffer.buffer == nullptr) {
+        UBSE_LOG_ERROR << "buffer.buffer is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    def::UbseMemIdQueryRequest request{};
+    if (UbseMemGetMemIdByImportReqUnpack(buffer, request) != UBSE_OK) {
+        UBSE_LOG_ERROR << "deserialize failed";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    UbseUdsInfo udsInfo = GenUdsInfo(context);
+    UbseRoleInfo currentRoleInfo{};
+    if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node info, " << FormatRetCode(ret);
+        return ret;
+    }
+    request.importNodeId = currentRoleInfo.nodeId;
+    request.udsInfo = udsInfo;
+    request.borrowType = borrowType;
+    def::UbseExportMemDesc memDesc{};
+    auto ret = UbseMemIdGetByImportMemId(request, memDesc);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseMemGetMemIdByImport failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UbseIpcMessage resp{};
+    UbseMemGetMemIdByImportResponsePack(memDesc, resp);
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "Get api server module failed";
+        SafeDeleteArray(resp.buffer);
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << " UbseMemGetMemIdByImport response send failed, " << FormatRetCode(ret);
+    }
+    SafeDeleteArray(resp.buffer);
+    return ret;
+}
+
 uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessage &buffer,
                                                              const UbseRequestContext &context)
 {
@@ -920,6 +1075,12 @@ uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseI
     delete[] message.buffer;
     message.buffer = nullptr;
     return ret;
+}
+
+uint32_t UbseMemControllerDispatcher::UbseMemShmGetMemIdByImportDispatch(const UbseIpcMessage &buffer,
+    const UbseRequestContext &context)
+{
+    return UbseMemGetMemIdByImportDispatch(buffer, context, static_cast<uint32_t>(UbseMemBorrowType::SHM_BORROW));
 }
 
 uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessage &buffer,
@@ -1297,6 +1458,12 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdListDispatch(const UbseIpcMessage
     return ret;
 }
 
+uint32_t UbseMemControllerDispatcher::UbseMemFdGetMemIdByImportDispatch(const UbseIpcMessage &buffer,
+    const UbseRequestContext &context)
+{
+    return UbseMemGetMemIdByImportDispatch(buffer, context, static_cast<uint32_t>(UbseMemBorrowType::FD_BORROW));
+}
+
 uint32_t GetSrcSocketId(UbseMemNumaBorrowReq &req)
 {
     if (req.linkInfo.lenderPort == -1) {
@@ -1626,7 +1793,13 @@ def::UbseMemNumaDesc ConvertOperationRespToNumaDesc(const UbseMemOperationResp &
     }
     numaDesc.numaId = resp.remoteNumaId;
     return numaDesc;
-};
+}
+
+uint32_t UbseMemControllerDispatcher::UbseMemNumaGetMemIdByImportDispatch(const UbseIpcMessage &buffer,
+    const UbseRequestContext &context)
+{
+    return UbseMemGetMemIdByImportDispatch(buffer, context, static_cast<uint32_t>(UbseMemBorrowType::NUMA_BORROW));
+}
 
 UbseResult UbseMemControllerDispatcher::UbseMemNumaBorrowRespHandler(const UbseMemOperationResp &resp)
 {

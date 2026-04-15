@@ -242,6 +242,56 @@ private:
     def::UbseMemDebtQueryRequest debtQueryRequest_;
 };
 
+class UbseMemIdQueryRequestSimpo : public UbseBaseMessage {
+public:
+    UbseMemIdQueryRequestSimpo() = default;
+    explicit UbseMemIdQueryRequestSimpo(uint8_t* data, uint32_t size)
+    {
+        SetInputRawData(data, size);
+    }
+
+    void SetUbseMemIdQueryRequest(def::UbseMemIdQueryRequest request)
+    {
+        memIdQueryRequest_ = std::move(request);
+    }
+
+    def::UbseMemIdQueryRequest GetUbseMemIdQueryRequest()
+    {
+        return memIdQueryRequest_;
+    }
+    UbseResult Serialize() override;
+
+    UbseResult Deserialize() override;
+
+private:
+    def::UbseMemIdQueryRequest memIdQueryRequest_;
+};
+
+class UbseMemExportMemDescSimpo : public UbseBaseMessage {
+public:
+    UbseMemExportMemDescSimpo() = default;
+    explicit UbseMemExportMemDescSimpo(uint8_t* data, uint32_t size)
+    {
+        SetInputRawData(data, size);
+    }
+
+    void SetUbseMemExportMemDesc(def::UbseExportMemDesc request)
+    {
+        exportMemDesc_ = std::move(request);
+    }
+
+    def::UbseExportMemDesc GetUbseMemExportMemDesc()
+    {
+        return exportMemDesc_;
+    }
+    UbseResult Serialize() override;
+
+    UbseResult Deserialize() override;
+
+private:
+    def::UbseExportMemDesc exportMemDesc_;
+};
+
 class UbseMemNodeBorrowInfoMessage : public UbseBaseMessage {
 public:
     UbseMemNodeBorrowInfoMessage() = default;
@@ -285,6 +335,8 @@ using UbseMemShmDescSimpoPtr = Ref<UbseMemShmDescSimpo>;
 using UbseMemShmDescListSimpoPtr = Ref<UbseMemShmDescListSimpo>;
 using UbseMemShmMemStatusDescSimpoPtr = Ref<UbseMemShmMemStatusDescSimpo>;
 using UbseMemDebtQueryRequestSimpoPtr = Ref<UbseMemDebtQueryRequestSimpo>;
+using UbseMemIdQueryRequestSimpoPtr = Ref<UbseMemIdQueryRequestSimpo>;
+using UbseMemExportMemDescSimpoPtr = Ref<UbseMemExportMemDescSimpo>;
 using UbseMemNodeBorrowInfoMessagePtr = Ref<UbseMemNodeBorrowInfoMessage>;
 using UbseMemNodeBorrowInfoReqMessagePtr = Ref<UbseMemNodeBorrowInfoReqMessage>;
 } // namespace ubse::mem::controller::message
