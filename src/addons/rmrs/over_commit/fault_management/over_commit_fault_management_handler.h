@@ -29,6 +29,9 @@ public:
     // 执行直接归还
     static uint32_t MemIdReturnDirectlyExecuteRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
     static void MemIdReturnDirectlyExecuteResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+    // 停止pid冷热流动
+    static uint32_t DisableSmapProcessMigrateRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static void DisableSmapProcessMigrateResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
     // 处理涉及故障借出节点的借入节点
     static uint32_t FaultNumaProcessRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
     static void FaultNumaProcessResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);

@@ -120,6 +120,7 @@ public:
     MpResult GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList);
 
     MpResult MemFreeExecuteRpc(std::string borrowId, std::string importNodeId);
+    MpResult DisableSmapProcessMigrateRpc(std::vector<pid_t> pids, std::string importNodeId);
     MpResult MemFreeDirectlyExecuteRpc(std::string borrowId, std::string importNodeId);
     MpResult MemIdExecuteRpc(OverCommitFaultMemIdExecuteParam param, std::string importNodeId);
     MpResult MemIdExecute(OverCommitFaultMemIdExecuteParam param);

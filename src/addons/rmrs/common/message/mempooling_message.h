@@ -61,6 +61,7 @@ const uint32_t OPCODE_SYNC_BIND_TYPE_DATA_TO_NODE = 48;
 const uint32_t OPCODE_OVER_COMMIT_MEM_ID_FAULT_RETURN_EXECUTE = 49;
 const uint32_t OPCODE_OVER_COMMIT_FAULT_NUMA_PROCESS = 50;
 const uint32_t OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE = 51;
+const uint32_t OPCODE_SMAP_PROCESS_MIGRATE_DISABLE = 52;
 
 
 using OSTurboFunctionCaller = uint32_t (*)(const std::string &function, const TurboByteBuffer &params,

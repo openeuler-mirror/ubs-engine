@@ -493,6 +493,11 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     if (GetSelectPids(fMVmInfoResult, faultSize, allVmNumaInfoOnBoth) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
+    // 关闭pid级别冷热流动
+    if (!fMVmInfoResult.pids.empty() &&
+        DisableSmapProcessMigrateRpc(fMVmInfoResult.pids, borrowInNid) == MEM_POOLING_ERROR) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Disable Smap Process Migrate failed.";
+    }
 
     // 为虚拟机组合进行内存借用
 
@@ -526,6 +531,13 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     // 调用rpc消息到远端
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "ExecuteParam=" << executeParam.ToString() << ".";
     if (MemIdExecuteRpc(executeParam, borrowInNid) != MEM_POOLING_OK) {
+        // // 如果迁失败，新借的内存还掉
+        // for(auto bid : borrowExecResult.borrowIds){
+        //     if(OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(bid, borrowInNid) != MEM_POOLING_OK){
+        //         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemIdExecute failed and return " << bid <<  " directly failed.";
+        //     }
+        //     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemIdExecute failed, return " << bid <<  " directly successed.";
+        // }
         return MEM_POOLING_ERROR;
     }
 
@@ -645,6 +657,26 @@ MpResult OverCommitFaultMemIdModule::MemFreeExecuteRpc(std::string borrowId, std
         return ret;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemFreeExecuteRpc success.";
+    return MEM_POOLING_OK;
+}
+
+MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pid_t> pids, std::string importNodeId)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Master to invoke the slave DisableSmapProcessMigrate.";
+    UbseComEndpoint endpoint_fm_disable_pid = {
+        .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_SMAP_PROCESS_MIGRATE_DISABLE, .address = importNodeId};
+    RmrsOutStream builder;
+    builder << pids;
+    UbseByteBuffer reqData = {
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) { delete[] data; }};
+    uint32_t ret = 0;
+    UbseRpcSend(endpoint_fm_disable_pid, reqData, &ret,
+                over_commit::OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "DisableSmapProcessMigrate failed.";
+        return ret;
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "DisableSmapProcessMigrate success.";
     return MEM_POOLING_OK;
 }
 

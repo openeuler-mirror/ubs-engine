@@ -449,6 +449,13 @@ uint32_t InitOverCommitReg()
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "MemIdReturnExecuteRecvHandler reg failed res: " << ret;
     }
 
+    // 超分场景memID故障处理 agent节点停止冷热流动
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_SMAP_PROCESS_MIGRATE_DISABLE};
+    ret = UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "DisableSmapProcessMigrateRecvHandler reg failed res: " << ret;
+    }
+
     // 超分场景memID故障处理 agent节点内存归还
     endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE};
     ret = UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler);
