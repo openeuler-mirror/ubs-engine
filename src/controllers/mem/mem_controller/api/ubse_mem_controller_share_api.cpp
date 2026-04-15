@@ -652,7 +652,7 @@ uint32_t GetCnaTopoByPeerNodeInfo(const UbseMemShareAttachReq &req, const UbseMe
     auto ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get cna info when import, " << FormatRetCode(ret)
-                        << ", requestId=" << req.requestId;
+                       << ", requestId=" << req.requestId;
         return UBSE_ERROR;
     }
     // 多路径情况下，会给dcna重新赋值，当指定port时以指定port为准，否则选择直连导入socket的最小端口号，作为单路径路由表的配置
@@ -843,8 +843,8 @@ uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemShar
     auto curNode = GetCurNodeId();
     auto &ledger = UbseMemDebtLedger::GetInstance();
     auto existingObj = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(curNode, exportObj.req.name);
-    if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
-        return SendShareExport(*existingObj, name, exportNodeId, false);
+    if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
+        return UBSE_OK;
     }
     ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().ShmExportExecutor(exportObj); ret != UBSE_OK) {
