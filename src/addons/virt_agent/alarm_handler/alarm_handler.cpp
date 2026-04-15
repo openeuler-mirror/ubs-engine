@@ -15,14 +15,14 @@
 
 #include <rapidjson/document.h>
 #include <securec.h>
+#include <ubse_error.h>
 #include <ubse_event.h>
 #include <ubse_logger.h>
-#include <ubse_error.h>
 #include "escape_algorithm_helper.h"
-#include "vm_string_util.h"
-#include "status_manager.h"
 #include "resource_collect.h"
 #include "resource_query.h"
+#include "status_manager.h"
+#include "vm_string_util.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("vm_plugin");
@@ -67,7 +67,7 @@ VmResult AlarmHandler::GenAlarmNumaInfo(const Notify &notify, std::vector<UbsVir
     std::vector<UbseNodeNumaInfo> numaNodeInfoList{};
     auto res = UbseGetNodeNumaInfoByNodeId(notify.nodeId, numaNodeInfoList);
     if (res != UBSE_OK || numaNodeInfoList.empty()) {
-        UBSE_LOG_ERROR << "UbseGetNodeNumaInfoByNodeId failed, res: " << static_cast<uint32_t>(res);
+        UBSE_LOG_ERROR << "UbseGetNodeNumaInfoByNodeId failed, res=" << static_cast<uint32_t>(res);
         return VM_ERROR;
     }
 
@@ -112,7 +112,7 @@ VmResult AlarmHandler::ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<Ubs
             i++;
         }
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Failed to convert debt infos. Error: " << e.what();
+        UBSE_LOG_ERROR << "Failed to convert debt infos. Error is " << e.what();
         return VM_ERROR;
     }
     UBSE_LOG_DEBUG << "Input debtInfo size=" << debtInfos.size();
@@ -125,7 +125,7 @@ VmResult AlarmHandler::GetVirtDebtInfos(std::vector<UbsVirtNumaMemoryDebtInfo> &
     std::vector<UbseNumaMemoryImportDebtInfo> debtInfos{};
     auto res = UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
     if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get numaMemDebtInfo by nodeId failed, res: " << static_cast<uint32_t>(res);
+        UBSE_LOG_ERROR << "Get numaMemDebtInfo by nodeId failed, res=" << static_cast<uint32_t>(res);
         return VM_ERROR;
     }
 
@@ -146,13 +146,13 @@ VmResult AlarmHandler::MemNotifyEventHandler(std::string &eventId, std::string &
     } else if (eventId == UBSE_MEM_CLEAR_EVENT_ID) {
         eventType = WatermarkWarningType::CLEAR_BORROW;
     } else {
-        UBSE_LOG_ERROR << "Invalid eventId:" << eventId;
+        UBSE_LOG_ERROR << "Invalid eventId=" << eventId;
         return VM_ERROR_INVAL;
     }
     Notify notify{};
     VmResult ret = MemHandler::TransNotify(eventMessage, notify);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to parse notify messages:" << eventMessage;
+        UBSE_LOG_ERROR << "Failed to parse notify messages=" << eventMessage;
         return ret;
     }
     // oom
@@ -162,12 +162,12 @@ VmResult AlarmHandler::MemNotifyEventHandler(std::string &eventId, std::string &
     }
 
     if (StatusManager::StillInTask(notify.nodeId, notify.socketId, notify.numaId)) {
-        UBSE_LOG_DEBUG << "[alarm] StillInTask. notify: " << notify.ToJson();
+        UBSE_LOG_DEBUG << "[alarm] StillInTask. notify=" << notify.ToJson();
         return VM_OK;
     }
     std::lock_guard<std::mutex> lockGuard(alarmLock);
     if (StatusManager::StillInTask(notify.nodeId, notify.socketId, notify.numaId)) {
-        UBSE_LOG_DEBUG << "[alarm] StillInTask. notify: " << notify.ToJson();
+        UBSE_LOG_DEBUG << "[alarm] StillInTask. notify=" << notify.ToJson();
         return VM_OK;
     }
     // get debt infos about alarm numa
@@ -198,15 +198,15 @@ VmResult AlarmHandler::BorrowClearEventHandler(const AlarmNumaInfo &alarmNumaInf
     escapeAction.curNodeLoc = alarmNumaInfo.numaLoc;
     BorrowItemInfo borrowItemInfo = alarmNumaInfo.borrowItemInfo;
     if (borrowItemInfo.borrowItem.empty()) {
-        UBSE_LOG_ERROR << "[alarm] Numa borrowed is none, numaId = " << alarmNumaInfo.numaLoc.numaId
-                       << ", hostId = " << alarmNumaInfo.numaLoc.hostId;
+        UBSE_LOG_ERROR << "[alarm] Numa borrowed is none, numaId=" << alarmNumaInfo.numaLoc.numaId
+                       << ", hostId=" << alarmNumaInfo.numaLoc.hostId;
         return VM_INVALID_PARAM_ERROR;
     }
     escapeAction.strategyTips.emplace_back(StrategyTip::NOPE);
     for (size_t i = 0; i < borrowItemInfo.borrowItem.size(); i++) {
         escapeAction.returnMemNames.emplace_back(borrowItemInfo.borrowItem[i].name);
     }
-    UBSE_LOG_INFO << "[alarm] Build borrow clear strategy : " << escapeAction.ToString();
+    UBSE_LOG_INFO << "[alarm] Build borrow clear strategy=" << escapeAction.ToString();
     StatusManager::GetInstance().EscapeStrategyHandle(escapeAction);
     UBSE_LOG_INFO << "[alarm] Handle borrow clear strategy end.";
     return VM_OK;
@@ -224,8 +224,7 @@ bool AlarmHandler::HandlerNoUsedBorrowIds(const AlarmNumaInfo &alarmNumaInfo, Wa
     VMNodeLocInfo alarmNumaLoc = alarmNumaInfo.numaLoc;
     // Resolve the problem that the recorded status is inconsistent with the actual status during the first startup.
     // Perform a memory migration.
-    bool isFirstMig = (eventType == WatermarkWarningType::HIGH_WATERMARK &&
-                      StatusManager::isFirstMigOperation());
+    bool isFirstMig = (eventType == WatermarkWarningType::HIGH_WATERMARK && StatusManager::isFirstMigOperation());
     for (auto &[borrowId, borrowIdStatus] : borrowMap) {
         if (borrowIdStatus.nodeLocInfo.hostId == alarmNumaLoc.hostId &&
             borrowIdStatus.nodeLocInfo.numaId == alarmNumaLoc.numaId &&
@@ -298,7 +297,7 @@ VmResult AlarmHandler::AlarmEventHandler(AlarmNumaInfo &alarmNumaInfo,
     alarmNumaInfo.vmBasicInfos = sampleVmInfoOfNuma;
 
     EscapeAction escapeActionFromStrategy;
-    UBSE_LOG_INFO << "[alarm] Get vm strategy start";
+    UBSE_LOG_INFO << "[alarm] Get vm strategy start.";
     EscapeAlgorithmFunc getStrategyAlgorithm = EscapeAlgorithmModule::GetStrategyAlgorithm();
     if (getStrategyAlgorithm == nullptr) {
         return VM_ERROR;
@@ -307,7 +306,7 @@ VmResult AlarmHandler::AlarmEventHandler(AlarmNumaInfo &alarmNumaInfo,
     EscapeAlgorithmHelper::GetStrategyConf(strategyConf);
     auto res = getStrategyAlgorithm(strategyConf, alarmNumaInfo, globalNumaInfoMap, escapeActionFromStrategy);
     if (res != 0) {
-        UBSE_LOG_WARN << "[alarm] getStrategyAlgorithm failed, res: " << res;
+        UBSE_LOG_WARN << "[alarm] getStrategyAlgorithm failed, res=" << res;
     }
     UBSE_LOG_INFO << "[alarm] getStrategyAlgorithm succeeded.";
     StatusManager::GetInstance().EscapeStrategyHandle(escapeActionFromStrategy);
@@ -344,7 +343,7 @@ void AlarmHandler::FillGlobalWithNumaMemInfo(const AlarmNumaInfo &alarmNumaInfo,
         return;
     }
     if (debtInfos.empty()) {
-        UBSE_LOG_DEBUG << "DebtInfos is empty";
+        UBSE_LOG_DEBUG << "DebtInfos is empty.";
     }
 
     UBSE_LOG_INFO << "Fill global numa info for escape strategy.";
@@ -368,7 +367,7 @@ void AlarmHandler::FillGlobalWithNumaMemInfo(const AlarmNumaInfo &alarmNumaInfo,
     std::vector<UbseNodeNumaInfo> numaNodeInfoList{};
     auto ret = UbseGetNodeNumaInfoByNodeId(alarmNumaLoc.hostId, numaNodeInfoList);
     if (ret != UBSE_OK || numaNodeInfoList.empty()) {
-        UBSE_LOG_ERROR << "Get nodeNumaInfo by nodeId failed, ret: " << static_cast<uint32_t>(ret);
+        UBSE_LOG_ERROR << "Get nodeNumaInfo by nodeId failed, ret=" << static_cast<uint32_t>(ret);
         return;
     }
     for (auto numaNodeInfo : numaNodeInfoList) {
@@ -396,7 +395,7 @@ VmResult ParseNodeLocInfo(const std::string &nodeLocInfoStr, Notify &notify)
     uint32_t i = 0;
 
     if (nodeLocInfoStr.empty()) {
-        UBSE_LOG_ERROR << "empty nodeLoc str";
+        UBSE_LOG_ERROR << "empty nodeLoc str.";
         return VM_ERROR_INVAL;
     }
 
@@ -409,11 +408,11 @@ VmResult ParseNodeLocInfo(const std::string &nodeLocInfoStr, Notify &notify)
             } else if (i == NodeLocLevel::NUMAID) {
                 notify.numaId = VmStringUtil::SafeStoi16(level);
             } else {
-                UBSE_LOG_WARN << "invalid nodeLoc str:" << nodeLocInfoStr;
+                UBSE_LOG_WARN << "invalid nodeLoc str=" << nodeLocInfoStr;
                 break;
             }
         } catch (std::exception &e) {
-            UBSE_LOG_ERROR << "VM parse nodeLoc info failed, error:" << e.what();
+            UBSE_LOG_ERROR << "VM parse nodeLoc info failed, error=" << e.what();
             return VM_ERROR;
         }
 
@@ -432,7 +431,7 @@ VmResult ParseNodeLocInfoJson(Value &pstJson, const std::string &key, Notify &no
 
     auto ret = ParseNodeLocInfo(nodeLocInfoStr, notify);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to parse numaLoc:" << nodeLocInfoStr;
+        UBSE_LOG_ERROR << "Failed to parse numaLoc=" << nodeLocInfoStr;
         return ret;
     }
     return VM_OK;
@@ -443,16 +442,16 @@ VmResult AlarmHandler::ParseOomMessage(const std::string &eventMessage, Notify &
     Document msgBody;
     msgBody.Parse(eventMessage.c_str());
     if (msgBody.HasParseError()) {
-        UBSE_LOG_ERROR << "Bad Json Format:" << eventMessage;
+        UBSE_LOG_ERROR << "Bad Json Format=" << eventMessage;
         return VM_ERROR_INVAL;
     }
     auto ret = ParseNodeLocInfoJson(msgBody, "notifyNumaLoc", notify);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to parse notifyNumaLoc:" << eventMessage;
+        UBSE_LOG_ERROR << "Failed to parse notifyNumaLoc=" << eventMessage;
         return VM_ERROR_INVAL;
     }
     if (!msgBody.HasMember("oomEventFlag") || !msgBody["oomEventFlag"].IsNumber()) {
-        UBSE_LOG_WARN << "null oomEventFlag: " << eventMessage;
+        UBSE_LOG_WARN << "null oomEventFlag=" << eventMessage;
         return VM_OK;
     }
     notify.oomEventFlag = static_cast<int32_t>(msgBody["oomEventFlag"].GetInt64());

@@ -27,22 +27,21 @@
 #include "ubse_logger_module.h"
 #include "ubse_thread_pool_module.h"
 
-
 namespace ubse::timer {
 using namespace ubse::common::def;
 using namespace ubse::log;
 using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-static const uint32_t UBSE_THREAD_NUM = 2;                      // 线程池线程数量为2
-static const uint32_t UBSE_QUEUE_CAPACITY = 25;                 // 线程池队列数量为25
+static const uint32_t UBSE_THREAD_NUM = 2;      // 线程池线程数量为2
+static const uint32_t UBSE_QUEUE_CAPACITY = 25; // 线程池队列数量为25
 static const std::string UBSE_TIMER_NAME = "UbseTimer";
 static const uint32_t UBSE_TIMER_INTERVAL_SECONDS = 1;
 static const uint32_t UBSE_REGISTER_MIN_INTERVAL_SECONDS = 1;
 static const uint32_t UBSE_REGISTER_MAX_INTERVAL_SECONDS = 3600;
 static const uint32_t UBSE_SECOND_TO_MILLISECONDS = 1000;
-static const uint32_t UBSE_HANDLER_EXEC_TIMEOUT_SECONDS = 300;        // handler执行超时时间，单位s
-static const uint32_t UBSE_HANDLER_EXEC_CHECK_INTERVAL_SECONDS = 60;   // 检测 handler 执行超时周期，单位s
+static const uint32_t UBSE_HANDLER_EXEC_TIMEOUT_SECONDS = 300;       // handler执行超时时间，单位s
+static const uint32_t UBSE_HANDLER_EXEC_CHECK_INTERVAL_SECONDS = 60; // 检测 handler 执行超时周期，单位s
 
 // map<handlerName, <interval, handler>>
 static std::unordered_map<std::string, std::pair<uint32_t, UbseTimerHandler>> g_handlers;
@@ -79,17 +78,17 @@ static void CheckHandlerExecTimeout()
             auto duration = currentTime - handler.second;
             if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() >
                 UBSE_HANDLER_EXEC_TIMEOUT_SECONDS) {
-                oss << "handler=" << handler.first << " exec timeout,";  // 超时警告
+                oss << "handler=" << handler.first << " exec timeout,"; // 超时警告
             }
         }
         if (!oss.str().empty()) {
-            UBSE_LOG_ERROR << oss.str();  // 打印超时错误信息
+            UBSE_LOG_ERROR << oss.str(); // 打印超时错误信息
         }
     }
 }
 
 // 执行单个handler，包含超时记录
-static void ExecuteSingleHandler(const std::string& name, const UbseTimerHandler& handler)
+static void ExecuteSingleHandler(const std::string &name, const UbseTimerHandler &handler)
 {
     try {
         {
@@ -103,10 +102,10 @@ static void ExecuteSingleHandler(const std::string& name, const UbseTimerHandler
 
         uint32_t ret = handler();
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Handler=" << name << " exec failed: " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Handler=" << name << " exec failed," << FormatRetCode(ret);
         }
     } catch (const std::exception &exp) {
-        UBSE_LOG_ERROR << "Handler=" << name << " exec encounter exception: " << exp.what();
+        UBSE_LOG_ERROR << "Handler=" << name << " exec encounter exception=" << exp.what();
     }
 
     {
@@ -144,10 +143,9 @@ static uint32_t ExecTimerHandler() // 定时器触发位置直接计算需要执
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     // 将每个handler提交到线程池执行
-    for (const auto& handlerPair : handlersToExecute) {
-        taskExecutor->Execute([name = handlerPair.first, handler = handlerPair.second]() {
-            ExecuteSingleHandler(name, handler);
-        });
+    for (const auto &handlerPair : handlersToExecute) {
+        taskExecutor->Execute(
+            [name = handlerPair.first, handler = handlerPair.second]() { ExecuteSingleHandler(name, handler); });
     }
     return UBSE_OK;
 }

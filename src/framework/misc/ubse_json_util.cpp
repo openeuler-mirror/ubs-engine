@@ -21,7 +21,7 @@ using namespace ubse::log;
 UbseResult UbseJsonUtil::GetStrFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, std::string &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsString()) {
-        UBSE_LOG_ERROR << "[JSON] Get string from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get string from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     value = jsonPtr[key.c_str()].GetString();
@@ -31,7 +31,7 @@ UbseResult UbseJsonUtil::GetStrFromJsonPtr(const rapidjson::Value &jsonPtr, cons
 UbseResult UbseJsonUtil::GetUintFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, uint32_t &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
-        UBSE_LOG_ERROR << "[JSON] Get uint from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get uint from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
 
@@ -42,7 +42,7 @@ UbseResult UbseJsonUtil::GetUintFromJsonPtr(const rapidjson::Value &jsonPtr, con
 UbseResult UbseJsonUtil::GetDoubleFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, double &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
-        UBSE_LOG_ERROR << "[JSON] Get double from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get double from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     value = jsonPtr[key.c_str()].GetDouble();
@@ -52,7 +52,7 @@ UbseResult UbseJsonUtil::GetDoubleFromJsonPtr(const rapidjson::Value &jsonPtr, c
 UbseResult UbseJsonUtil::GetFloatFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, float &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
-        UBSE_LOG_ERROR << "[JSON] Get float from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get float from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     value = jsonPtr[key.c_str()].GetFloat();
@@ -63,7 +63,7 @@ UbseResult UbseJsonUtil::GetArrayFromJsonPtr(const rapidjson::Value &jsonPtr, co
                                              Allocator &allocator, rapidjson::Value &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsArray()) {
-        UBSE_LOG_ERROR << "[JSON] Get array from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get array from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     const rapidjson::Value &array = jsonPtr[key.c_str()].GetArray();
@@ -75,7 +75,7 @@ UbseResult UbseJsonUtil::GetObjectFromJsonPtr(const rapidjson::Value &jsonPtr, c
                                               Allocator &allocator, rapidjson::Value &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsObject()) {
-        UBSE_LOG_ERROR << "[JSON] Get object from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get object from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     const rapidjson::Value &object = jsonPtr[key.c_str()].GetObject();
@@ -99,7 +99,7 @@ UbseResult UbseJsonUtil::GetStrFromJsonPtr(const std::string &jsonPtr, const std
     rapidjson::Document doc;
     doc.Parse(jsonPtr.c_str());
     if (doc.HasParseError()) {
-        UBSE_LOG_ERROR << "[JSON] Get string from json string, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get string from json string, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     return GetStrFromJsonPtr(doc, key, value);
@@ -108,7 +108,7 @@ UbseResult UbseJsonUtil::GetStrFromJsonPtr(const std::string &jsonPtr, const std
 UbseResult UbseJsonUtil::GetUint64FromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, uint64_t &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsUint64()) {
-        UBSE_LOG_ERROR << "[JSON] Get uint64 from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get uint64 from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     value = jsonPtr[key.c_str()].GetUint64();
@@ -119,9 +119,9 @@ UbseResult UbseJsonUtil::GetUint16FromJsonPtr(const rapidjson::Value &jsonPtr, c
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsUint() ||
         jsonPtr[key.c_str()].GetUint() > UINT16_MAX) {
-        UBSE_LOG_ERROR << "[JSON] Get uint16 from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get uint16 from json, the key=" << key;
         return UBSE_ERROR_INVAL;
-        }
+    }
     value = jsonPtr[key.c_str()].GetUint();
     return UBSE_OK;
 }
@@ -130,9 +130,9 @@ UbseResult UbseJsonUtil::GetUint8FromJsonPtr(const rapidjson::Value &jsonPtr, co
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsUint() ||
         jsonPtr[key.c_str()].GetUint() > UINT8_MAX) {
-        UBSE_LOG_ERROR << "[JSON] Get uint8 from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get uint8 from json, the key=" << key;
         return UBSE_ERROR_INVAL;
-        }
+    }
     value = jsonPtr[key.c_str()].GetUint();
     return UBSE_OK;
 }
@@ -140,7 +140,7 @@ UbseResult UbseJsonUtil::GetUint8FromJsonPtr(const rapidjson::Value &jsonPtr, co
 UbseResult UbseJsonUtil::GetIntFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, int &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
-        UBSE_LOG_ERROR << "[JSON] Get int from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get int from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     value = jsonPtr[key.c_str()].GetInt();
@@ -150,7 +150,7 @@ UbseResult UbseJsonUtil::GetIntFromJsonPtr(const rapidjson::Value &jsonPtr, cons
 UbseResult UbseJsonUtil::GetBoolFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, bool &value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsBool()) {
-        UBSE_LOG_ERROR << "[JSON] Get bool from json, the key is:" << key;
+        UBSE_LOG_ERROR << "[JSON] Get bool from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
     value = jsonPtr[key.c_str()].GetBool();

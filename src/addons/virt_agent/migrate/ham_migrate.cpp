@@ -13,30 +13,30 @@
 
 #include "ham_migrate.h"
 
-#include <regex>
-#include <fstream>
-#include <set>
-#include <ubse_election.h>
 #include <ubse_api_server.h>
 #include <ubse_api_server_def.h>
-#include <ubse_logger.h>
 #include <ubse_com.h>
+#include <ubse_election.h>
 #include <ubse_error.h>
-#include <ubse_node.h>
+#include <ubse_logger.h>
 #include <ubse_mem_controller.h>
-#include "ubs_virt_agent_object_def.h"
+#include <ubse_node.h>
+#include <fstream>
+#include <regex>
+#include <set>
+#include "ham_migrate_dst_info_message.h"
 #include "ham_migrate_vm_info_storage.h"
 #include "libvirt_helper.h"
 #include "migrate_strategy.h"
 #include "resource_query.h"
 #include "response_info_message.h"
+#include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_http_util.h"
 #include "vm_json_util.h"
 #include "vm_migrate_handler.h"
 #include "vm_sdk_def.h"
 #include "vm_string_util.h"
-#include "ham_migrate_dst_info_message.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("vm_plugin");
@@ -96,8 +96,8 @@ VmResult HamMigrate::Start()
 
     ret = RegisterAlarmFaultHandler(ALARM_PANIC_EVENT, HAM_MIGRATE, PanicEventHandler, AlarmHandlerPriority::HIGH);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "RegisterAlarmFaultHandler failed, name = " << HAM_MIGRATE
-                       << ", ALARM_FAULT_TYPE = " << ALARM_PANIC_EVENT;
+        UBSE_LOG_ERROR << "RegisterAlarmFaultHandler failed, name=" << HAM_MIGRATE
+                       << ", ALARM_FAULT_TYPE=" << ALARM_PANIC_EVENT;
         return ret;
     }
 
@@ -107,7 +107,7 @@ VmResult HamMigrate::Start()
         return ret;
     }
 
-    UBSE_LOG_INFO << "HamMigrateMaxTimeout = " << VmConfiguration::GetInstance().GetHamMigrateMaxTimeout();
+    UBSE_LOG_INFO << "HamMigrateMaxTimeout=" << VmConfiguration::GetInstance().GetHamMigrateMaxTimeout();
     return VM_OK;
 }
 
@@ -164,7 +164,7 @@ void HamMigrate::ClearQueueOperation()
             until_time = hamMigrateVmInfo.timeout;
         }
         if (exitFlag.load()) {
-            UBSE_LOG_INFO << "[ham migrate] ClearQueue exit, flag = " << exitFlag.load();
+            UBSE_LOG_INFO << "[ham migrate] ClearQueue exit, flag=" << exitFlag.load();
             exitFlag.store(false);
             return;
         }
@@ -172,7 +172,7 @@ void HamMigrate::ClearQueueOperation()
         if (clearQueue.Empty() || clearQueue.Top().timeout > system_clock::now()) {
             continue;
         }
-        UBSE_LOG_INFO << "[ham migrate] ClearQueue size = " << clearQueue.Size();
+        UBSE_LOG_INFO << "[ham migrate] ClearQueue size=" << clearQueue.Size();
         HamMigrateVmInfo hamMigrateVmInfo = clearQueue.Top();
         clearQueue.Pop();
         VmResult ret = Rollback(hamMigrateVmInfo);
@@ -200,7 +200,7 @@ VmResult HamMigrate::ProcessResponse(const RespInfo &respInfo, UbseIpcMessage &r
     }
     errno_t copy_result = memcpy_s(resp.buffer, resp.length, res, node_id_len + 1);
     if (copy_result != 0) {
-        UBSE_LOG_ERROR << "memcpy_s failed with error code: " << copy_result;
+        UBSE_LOG_ERROR << "memcpy_s failed with error code=" << copy_result;
         SafeDeleteArray(resp.buffer);
         return VM_ERROR;
     }
@@ -222,16 +222,16 @@ uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage &req, const UbseReques
         return VM_ERROR;
     }
     std::string body(reinterpret_cast<char *>(req.buffer), req.length);
-    UBSE_LOG_INFO << "HamMigrate request: " << body;
+    UBSE_LOG_INFO << "HamMigrate request=" << body;
     Document msgJson;
     msgJson.Parse(body.c_str());
     if (msgJson.HasParseError()) {
-        UBSE_LOG_ERROR << "Bad Json Format: " << body;
+        UBSE_LOG_ERROR << "Bad Json Format=" << body;
         return VM_ERROR;
     }
     std::string action;
     if (VMJsonUtil::GetString(msgJson, "action", action) != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to get action from json str: " << body;
+        UBSE_LOG_ERROR << "Failed to get action from json str=" << body;
         return VM_ERROR;
     }
     RespInfo respInfo;
@@ -245,7 +245,7 @@ uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage &req, const UbseReques
             ret = Borrow(borrowInfo, borrowResponse);
             if (ret == VM_OK) {
                 respInfo.message = borrowResponse.ToJson();
-                UBSE_LOG_INFO << "HamMigrate borrowResponse = " << respInfo.ToJson();
+                UBSE_LOG_INFO << "HamMigrate borrowResponse=" << respInfo.ToJson();
                 return ProcessResponse(respInfo, resp, context.requestId);
             }
         }
@@ -259,10 +259,10 @@ uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage &req, const UbseReques
             }
         }
     } else {
-        UBSE_LOG_ERROR << "unknown for action: " << action;
+        UBSE_LOG_ERROR << "unknown for action=" << action;
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "HamMigrate response error";
+    UBSE_LOG_INFO << "HamMigrate response error.";
     return VM_ERROR;
 }
 
@@ -274,13 +274,13 @@ void HamMigrate::HamMigrateCancel(const UbseByteBuffer &req, UbseByteBuffer &res
         HttpUtil::SetResp(resp, VM_ERROR_INVAL, "");
         return;
     }
-    std::string nodeId{ req.data, req.data + req.len };
+    std::string nodeId{req.data, req.data + req.len};
     UBSE_LOG_INFO << "req nodeId = " << nodeId;
     std::vector<HamMigrateVmInfo> hamMigrateVmInfos;
 
     HamMigrateVmInfoStorage::GetHamMigrateVmInfosByDstNodeId(nodeId, hamMigrateVmInfos);
     if (hamMigrateVmInfos.empty()) {
-        UBSE_LOG_WARN << "hamMigrateVmInfos is empty";
+        UBSE_LOG_WARN << "hamMigrateVmInfos is empty.";
         HttpUtil::SetResp(resp, VM_OK, nodeId);
         return;
     }
@@ -291,9 +291,10 @@ void HamMigrate::HamMigrateCancel(const UbseByteBuffer &req, UbseByteBuffer &res
             UBSE_LOG_WARN << "req uuid is empty.";
             continue;
         }
-        UBSE_LOG_INFO << "hamMigrateVmInfo.uuid = " << hamMigrateVmInfo.uuid;
-        auto ret = LibvirtHelper::GetInstance().DomainAbortJobFlags(hamMigrateVmInfo.uuid,
-            libvirt::VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_HAM, TRY_ABORT_HAM_MIGRATE_TIMES);
+        UBSE_LOG_INFO << "hamMigrateVmInfo.uuid=" << hamMigrateVmInfo.uuid;
+        auto ret = LibvirtHelper::GetInstance().DomainAbortJobFlags(
+            hamMigrateVmInfo.uuid, libvirt::VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_HAM,
+            TRY_ABORT_HAM_MIGRATE_TIMES);
         if (ret != VM_OK) {
             time_point<system_clock> timeZero;
             hamMigrateVmInfo.timeout = timeZero;
@@ -443,16 +444,16 @@ void HamMigrate::HamMigrateCancelReply(void *ctx, const UbseByteBuffer &respData
     }
     const auto [code, nodeId] = responseInfoMessage.GetResponseInfo();
     if (code == VM_OK) {
-        UBSE_LOG_INFO << "reply nodeId: " << nodeId << ", success.";
+        UBSE_LOG_INFO << "reply nodeId=" << nodeId << ", success.";
     } else {
-        UBSE_LOG_ERROR << "reply nodeId: " << nodeId << ", " << FormatRetCode(code);
+        UBSE_LOG_ERROR << "reply nodeId=" << nodeId << ", " << FormatRetCode(code);
     }
     UBSE_LOG_INFO << "[HamMigrateCancel] reply end.";
 }
 
 VmResult HamMigrate::PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)
 {
-    UBSE_LOG_INFO << "PanicEventHandler alarmFaultEvent = " << alarmFaultEvent << ", faultInfo = " << faultInfo;
+    UBSE_LOG_INFO << "PanicEventHandler alarmFaultEvent=" << alarmFaultEvent << ", faultInfo=" << faultInfo;
     std::string dstNodeId = faultInfo;
     std::vector<UbseMemAddrDesc> debtInfos;
     std::set<std::string> srcNodes;
@@ -462,9 +463,9 @@ VmResult HamMigrate::PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::st
         return VM_ERROR;
     }
     for (const auto &debtInfo : debtInfos) {
-        if (debtInfo.name.length() > HAM_BORROW_START_WITH.length()
-            && debtInfo.name.substr(0, HAM_BORROW_START_WITH.length()) == HAM_BORROW_START_WITH
-            && std::to_string(debtInfo.importNode.slotId) != dstNodeId) {
+        if (debtInfo.name.length() > HAM_BORROW_START_WITH.length() &&
+            debtInfo.name.substr(0, HAM_BORROW_START_WITH.length()) == HAM_BORROW_START_WITH &&
+            std::to_string(debtInfo.importNode.slotId) != dstNodeId) {
             srcNodes.insert(std::to_string(debtInfo.importNode.slotId));
         }
     }
@@ -475,10 +476,7 @@ VmResult HamMigrate::PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::st
     bool isFail = false;
     for (auto &srcNode : srcNodes) {
         const UbseComEndpoint endpoint = {
-            .moduleId = VM_MODULE_CODE,
-            .serviceId = HAM_MIGRATE_CANCEL,
-            .address = srcNode
-        };
+            .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_CANCEL, .address = srcNode};
         UbseByteBuffer reqData;
         auto ret = HttpUtil::ToUbseByteBuffer(dstNodeId, reqData);
         if (ret != VM_OK) {
@@ -521,16 +519,16 @@ VmResult HamMigrate::ConvertToBorrow(const Value &msgJson, BorrowInfo &borrowInf
     }
     ret = UbseNodeGetNodeIdByHostname(srcHostname, srcNodeId);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to GetNodeIdByHostname: " << srcHostname;
+        UBSE_LOG_ERROR << "Failed to GetNodeIdByHostname=" << srcHostname;
         return VM_ERROR;
     }
     ret = UbseNodeGetNodeIdByHostname(dstHostname, dstNodeId);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to GetNodeIdByHostname: " << dstHostname;
+        UBSE_LOG_ERROR << "Failed to GetNodeIdByHostname=" << dstHostname;
         return VM_ERROR;
     }
     if (srcPid > INT_MAX || srcPid < 0 || dstPid > INT_MAX || dstPid < 0) {
-        UBSE_LOG_ERROR << "srcPid or dstPid out of range, srcPid = " << srcPid << ", dstPid = " << dstPid;
+        UBSE_LOG_ERROR << "srcPid or dstPid out of range, srcPid=" << srcPid << ", dstPid=" << dstPid;
         return VM_ERROR;
     }
     borrowInfo.srcPid = static_cast<int>(srcPid);
@@ -538,7 +536,7 @@ VmResult HamMigrate::ConvertToBorrow(const Value &msgJson, BorrowInfo &borrowInf
     borrowInfo.dstPid = static_cast<int>(dstPid);
     borrowInfo.dstNodeId = dstNodeId;
     borrowInfo.valist = valist;
-    UBSE_LOG_INFO << "ConvertToBorrow: " << borrowInfo.ToJson();
+    UBSE_LOG_INFO << "ConvertToBorrow=" << borrowInfo.ToJson();
     return VM_OK;
 }
 
@@ -592,17 +590,17 @@ VmResult HamMigrate::ConvertToClear(const Value &msgJson, ClearInfo &clearInfo)
     }
     ret = UbseNodeGetNodeIdByHostname(srcHostname, srcNodeId);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to GetNodeIdByHostname: " << srcHostname;
+        UBSE_LOG_ERROR << "Failed to GetNodeIdByHostname=" << srcHostname;
         return VM_ERROR;
     }
     double intPart;
     double fracPart = std::modf(srcPid, &intPart);
     if (fracPart != 0.0) {
-        UBSE_LOG_ERROR << "Invalid srcPid: not an integer, srcPid = " << srcPid;
+        UBSE_LOG_ERROR << "Invalid srcPid: not an integer, srcPid=" << srcPid;
         return VM_ERROR;
     }
     if (srcPid > INT_MAX || srcPid < 0) {
-        UBSE_LOG_ERROR << "Invalid srcPid: out of valid range, srcPid = " << srcPid;
+        UBSE_LOG_ERROR << "Invalid srcPid: out of valid range, srcPid=" << srcPid;
         return VM_ERROR;
     }
     clearInfo.srcPid = static_cast<int>(srcPid);
@@ -778,7 +776,7 @@ void HamMigrate::UpdateHamMigrateVmInfo(const BorrowInfo &borrowInfo, const VmDo
 {
     hamMigrateVmInfo.dstNodeId = borrowInfo.dstNodeId;
     size_t remoteNumaCount = 0;
-    for (const auto& [numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
+    for (const auto &[numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
         if (!vmDomainNumaInfo.isLocal) {
             remoteNumaCount++;
         }
@@ -820,10 +818,10 @@ VmResult HamMigrate::DoProcessMigrate(HamMigrateVmInfo &hamMigrateVmInfo)
     // Call memory subsystem interface to disable cold-hot page migration
     VmResult ret = HttpUtil::EnableProcessMigrate(hamMigrateVmInfo.pid, false);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "[ham migrate] enable_process_migrate: false, " << vmInfoPrefixLog << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "[ham migrate] enable_process_migrate is false, " << vmInfoPrefixLog << FormatRetCode(ret);
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "[ham migrate] enable_process_migrate: false, " << vmInfoPrefixLog << FormatRetCode(ret);
+    UBSE_LOG_INFO << "[ham migrate] enable_process_migrate is false, " << vmInfoPrefixLog << FormatRetCode(ret);
     UpdateDstNodeState(hamMigrateVmInfo);
     hamMigrateVmInfo.vmOpState = VmOpState::DISABLE_PROCESS_MIGRATE;
     if (hamMigrateVmInfo.dstNodeState == NodeState::PANIC) {
@@ -1025,11 +1023,11 @@ VmResult HamMigrate::RollbackProcessMigrate(HamMigrateVmInfo &hamMigrateVmInfo)
     std::string vmPrefixLog = GetPrefixLog(hamMigrateVmInfo);
     VmResult ret = HttpUtil::EnableProcessMigrate(hamMigrateVmInfo.pid, true);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "[ham migrate] [rollback] enable_process_migrate: true, " << vmPrefixLog
+        UBSE_LOG_ERROR << "[ham migrate] [rollback] enable_process_migrate is true, " << vmPrefixLog
                        << FormatRetCode(ret);
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "[ham migrate] [rollback] enable_process_migrate: true, " << vmPrefixLog << FormatRetCode(ret);
+    UBSE_LOG_INFO << "[ham migrate] [rollback] enable_process_migrate is true, " << vmPrefixLog << FormatRetCode(ret);
     return VM_OK;
 }
 
@@ -1097,7 +1095,7 @@ void HamMigrate::EnterClearQueue(std::vector<HamMigrateVmInfo> &hamMigrateVmInfo
     clearCv.notify_all();
 }
 
-void HamMigrate::EnterClearQueue(HamMigrateVmInfo &hamMigrateVmInfo, const bool& isUpdate)
+void HamMigrate::EnterClearQueue(HamMigrateVmInfo &hamMigrateVmInfo, const bool &isUpdate)
 {
     std::unique_lock<std::mutex> clearLock(clearMutex);
     if (isUpdate) {
@@ -1107,4 +1105,4 @@ void HamMigrate::EnterClearQueue(HamMigrateVmInfo &hamMigrateVmInfo, const bool&
     }
     clearCv.notify_all();
 }
-}
+} // namespace vm
