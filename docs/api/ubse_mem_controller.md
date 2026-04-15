@@ -77,6 +77,20 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 
 ---
 
+### `UbseNumaMemoryImportDebtInfo`
+表示 NUMA 内存导入账本信息。
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `name` | `std::string` | - | 资源名称标识 |
+| `borrowNodeId` | `std::string` | - | 借入节点 ID |
+| `borrowSocketIdList` | `std::vector<int>` | - | 借入 socket ID 列表 |
+| `size` | `uint64_t` | - | 总借用内存大小（字节） |
+| `usrInfo` | `uint8_t[UBSE_MAX_USR_INFO_LEN]` | - | 调用方私有数据 |
+| `remoteNumaId` | `int64_t` | `-1` | 远端 NUMA ID |
+
+---
+
 ### `UbseMemBorrower`
 表示借用方信息。
 
@@ -271,6 +285,22 @@ UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos
 
 ---
 
+### `UbseGetNumaMemImportDebtInfoWithLocalNode`
+返回当前节点导入账本信息。本地节点账本已经从 OBMM 恢复完成则返回成功，否则返回部分成功。
+
+```cpp
+UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos);
+```
+
+**参数:**
+- `debtInfos`: 借用账本对象集合
+
+**返回值:**
+- `UBSE_OK`: 成功
+- 其他: 失败，详见 `ubse_error.h`
+
+---
+
 ### `UbseGetAllNodeNumaInfo`
 返回所有采集到的节点相关的 NUMA 信息。
 
@@ -427,6 +457,23 @@ UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::strin
 - `srcNodeId`: 借入 NodeId
 - `dstNodeId`: 借出 NodeId
 - `isCircle`: 是否成环
+
+**返回值:**
+- `UBSE_OK`: 成功
+- 其他: 失败，详见 `ubse_error.h`
+
+---
+
+### `UbseGetAddrMemDebtInfoWithNode`
+返回和传入节点相关的地址借用账本信息。传入节点对账完成则返回成功，传入节点未对账完成，如果剩余节点全部对账完成返回成功，否则返回部分成功。
+
+```cpp
+UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseMemAddrDesc> &debtInfos);
+```
+
+**参数:**
+- `nodeId`: 节点 ID
+- `debtInfos`: 地址借用账本对象集合
 
 **返回值:**
 - `UBSE_OK`: 成功
