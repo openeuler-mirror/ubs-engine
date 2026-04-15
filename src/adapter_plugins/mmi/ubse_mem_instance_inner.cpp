@@ -290,6 +290,9 @@ uint32_t MemInstanceInnerShm::MemShmImportExecutor(UbseMemShareBorrowImportObj &
         importObj.realExe = false;
         for (size_t i = 0; i < importObj.exportObmmInfo.size(); i++) {
             importObj.status.importResults.push_back({importObj.exportObmmInfo[i].memId, -1});
+            UBSE_LOG_INFO << MMI_LOG_INFO << " name=" << importObj.req.name
+            << ", opParam=BorrowType=SHARE_BORROW, obmm importMemid=" << importObj.exportObmmInfo[i].memId
+            << ", obmm exportMemid=" << importObj.exportObmmInfo[i].memId << ", exportNodeId=" <<exportNodeId;
         }
         importObj.status.errCode = UBSE_OK;
         UBSE_LOG_INFO << MMI_LOG_INFO << "self Node has export memid,so return.";

@@ -113,5 +113,7 @@ int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string 
                                      UbseMemNumaDesc &numaDesc);
 
 uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo> &nodeBorrowInfo);
+
+uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &exportMemDesc);
 } // namespace ubse::mem::controller
 #endif

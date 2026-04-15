@@ -61,6 +61,7 @@ enum class UbseMemOpCode {
     UBSE_MEM_FD_GET = 0x0005,                      // FD信息获取
     UBSE_MEM_FD_LIST = 0x0006,                     // FD列表查询
     UBSE_MEM_FD_DELETE = 0x0007,                   // FD删除/归还
+    UBSE_MEM_FD_GET_MEM_ID_BY_IMPORT = 0x0008,     // 根据导入信息查询导出的memid信息
 
     // NUMA操作
     UBSE_MEM_NUMA_CREATE = 0x0010,                 // NUMA内存创建
@@ -69,6 +70,7 @@ enum class UbseMemOpCode {
     UBSE_MEM_NUMA_GET = 0x0013,                    // NUMA信息获取
     UBSE_MEM_NUMA_LIST = 0x0014,                   // NUMA列表查询
     UBSE_MEM_NUMA_DELETE = 0x0015,                 // NUMA删除/归还
+    UBSE_MEM_NUMA_GET_MEM_ID_BY_IMPORT = 0x0016,   // 根据导入信息查询导出的memid信息
 
     // 共享内存(SHM)操作
     UBSE_MEM_SHM_CREATE = 0x0020,                  // 共享内存创建
@@ -81,6 +83,7 @@ enum class UbseMemOpCode {
     UBSE_MEM_SHM_CREATE_WITH_AFFINITY = 0x0027,    // 带亲和的共享内存创建
     UBSE_MEM_SHM_LIST_WITH_PREFIX = 0x0028,        // 带前缀的共享内存列表查询
     UBSE_MEM_SHM_CREATE_WITH_LENDER = 0x0029,      // 带指定借出方的共享内存创建
+    UBSE_MEM_SHM_GET_MEM_ID_BY_IMPORT = 0x002A,    // 根据导入信息查询导出的memid信息
 
     // 命令行(CLI)操作
     UBSE_MEM_CLI_NODE_BORROW = 0x0030,             // 节点借用信息查询(CLI)
@@ -164,6 +167,7 @@ enum class UbseMemQueryOpCode {
     UBSE_MEM_QUERY_ADDR_IMPORT = 0x0013,      // 查询地址导入
     UBSE_MEM_QUERY_SHARE_EXPORT = 0x0014,     // 查询共享内存导出
     UBSE_MEM_QUERY_SHARE_IMPORT = 0x0015,     // 查询共享内存导入
+    UBSE_MEM_ID_DEBINFO_QUERY = 0x00016,      // 内存账本信息查询
 };
 
 // UBSE内存借用回调操作码

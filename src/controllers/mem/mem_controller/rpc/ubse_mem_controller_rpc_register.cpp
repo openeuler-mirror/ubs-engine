@@ -183,6 +183,22 @@ UbseResult RegNodeBorrowQueryHandler(const std::shared_ptr<com::UbseComModule> &
     return retCode;
 }
 
+UbseResult RegMemIdQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+{
+    UbseComBaseMessageHandlerPtr memIdInfoGetHandler = new (std::nothrow) UbseMemIdInfoGetHandler();
+    if (memIdInfoGetHandler == nullptr) {
+        UBSE_LOG_ERROR << "new register UbseMemIdInfoGetHandler failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto retCode =
+        comModule->RegRpcService<UbseMemIdQueryRequestSimpo, UbseMemExportMemDescSimpo>(memIdInfoGetHandler);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "memIdInfoGetHandler register fail," << FormatRetCode(retCode);
+        return UBSE_ERROR;
+    }
+    return retCode;
+}
+
 UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComModule> &comModule)
 {
     UbseComBaseMessageHandlerPtr debtInfoQueryHandler = new (std::nothrow) UbseMemDebtInfoQueryHandler();
@@ -224,6 +240,11 @@ UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComMo
     ret = RegNodeBorrowQueryHandler(comModule);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Unable to register node borrow query handler, ret: " << FormatRetCode(ret);
+        return ret;
+    }
+    ret = RegMemIdQueryHandler(comModule);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Unable to register mem id query handler, " << FormatRetCode(ret);
         return ret;
     }
     return UBSE_OK;

@@ -128,5 +128,7 @@ struct ShareHandleInfo {
 using ShareHandleInfoVec = std::vector<ShareHandleInfo>;
 UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNodeId, const std::string &exportNodeId,
                                                     ShareHandleInfoVec &importHandInfo);
+
+uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &memDesc);
 } // namespace ubse::mem::controller::debt
 #endif // UBS_ENGINE_UBSE_MEM_DEBT_INFO_QUERY_H

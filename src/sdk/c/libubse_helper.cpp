@@ -942,6 +942,17 @@ size_t ubse_mem_numa_create_with_candidate_req_calc_size(const char *name, uint3
     return len;
 }
 
+ size_t ubse_mem_get_memid_by_import_req_calc_size(const char *name)
+{
+    size_t len = 0;
+ 
+    // 1. 计算name参数的长度
+    len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    // 2. 计算import_memid参数长度
+    len += sizeof(uint64_t);
+    return len;
+}
+
 size_t ubse_mem_shm_create_req_calc_size(const char *name, const ubs_mem_nodes_t *region,
                                          const ubs_mem_nodes_t *provider)
 {
@@ -1974,5 +1985,66 @@ ubs_error_t ubse_urma_qos_unpack(const uint8_t *buffer, uint32_t len, uint32_t *
     }
     *minBandWidth = min_net;
     *maxBandWidth = max_net;
+    return UBS_SUCCESS;
+}
+ 
+ubs_error_t ubse_mem_get_memid_by_import_req_build(const char *name, ubse_api_buffer_t *ptr)
+{
+    if (!ptr) {
+        IPC_LOG_ERROR << "ptr is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    size_t total_len = ubse_mem_get_memid_by_import_req_calc_size(name);
+    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    if (!ptr->buffer) {
+        IPC_LOG_ERROR << "Failed to allocate memory for get memid by import request with size " << total_len;
+        ubse_api_buffer_free(ptr);
+        return UBS_ERR_NULL_POINTER;
+    }
+    ptr->length = total_len;
+    return UBS_SUCCESS;
+}
+ 
+ubs_error_t ubse_mem_get_memid_by_import_req_pack(const char *name, uint64_t import_memid, uint8_t *buffer)
+{
+    if (buffer == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    uint8_t *ptr = buffer;
+    // 打包name
+    ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
+        return ret;
+    }
+    // 打包import_memid
+    pack_uint64(&ptr, import_memid);
+    return UBS_SUCCESS;
+}
+ 
+ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t *buffer, uint32_t len, ubs_mem_export_memid_t *mem_info)
+{
+    if (!buffer) {
+        IPC_LOG_ERROR << "buffer is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    if (!mem_info) {
+        IPC_LOG_ERROR << "mem_info is null";
+        return UBS_ERR_NULL_POINTER;
+    }
+    unpack_ctx_t ctx = {buffer, len};
+ 
+    // 解包export_slot_id
+    ubs_error_t ret = unpack_uint32(&ctx, &mem_info->export_slot_id);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack export_slot_id. Error code: " << ret;
+        return ret;
+    }
+    // 解包export_memid
+    ret = unpack_uint64(&ctx, &mem_info->export_memid);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack export_memid. Error code: " << ret;
+        return ret;
+    }
     return UBS_SUCCESS;
 }

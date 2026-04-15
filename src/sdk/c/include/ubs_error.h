@@ -89,6 +89,7 @@ typedef enum {
     UBS_ENGINE_ERR_NUMA_ID_IS_NOT_IN_SOCKET = 1026,     // 当前的numaId不在socketId中
     UBS_ENGINE_ERR_NODE_NOT_EXIST = 1027,               // 节点不存在
     UBS_ENGINE_ERR_NODE_FAULT = 1028,                   // 节点故障
+    UBS_ENGINE_ERR_EXPORT_LEDGERING = 1029,             // 导出节点对账中
 } ubs_error_t;
 
 /* ====================== 错误处理接口 ====================== */

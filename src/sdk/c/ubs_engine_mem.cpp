@@ -936,3 +936,56 @@ int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler)
     }
     return static_cast<int32_t>(ubse_shm_fault_register(handler));
 }
+
+int32_t ubs_mem_get_memid_by_import(const char *name, const uint64_t import_memid,
+                                    ubs_mem_export_memid_t *mem_info, const uint16_t op_code)
+{
+    // 参数校验
+    auto ret = ubse_mem_name_is_valid(name);
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+    if (mem_info == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    // 构造buffer
+    ubse_api_buffer_t request_buffer{.buffer = nullptr, .length = 0};
+    ret = ubse_mem_get_memid_by_import_req_build(name, &request_buffer);
+    if (ret != UBS_SUCCESS) {
+        ubse_api_buffer_free(&request_buffer);
+        return ret;
+    }
+    // 打包
+    ret = ubse_mem_get_memid_by_import_req_pack(name, import_memid, request_buffer.buffer);
+    if (ret != UBS_SUCCESS) {
+        ubse_api_buffer_free(&request_buffer);
+        return ret;
+    }
+    // 调用接口
+    ubse_api_buffer_t response_buffer{.buffer = nullptr, .length = 0};
+    uint32_t ipc_ret = ubse_invoke_call(UBSE_MEM, op_code, &request_buffer, &response_buffer);
+    ubse_api_buffer_free(&request_buffer);
+    if (ipc_ret != UBS_SUCCESS) {
+        ubse_api_buffer_free(&response_buffer);
+        return ubse_map_daemon_error(ipc_ret);
+    }
+    // 解包
+    ret = ubse_mem_get_memid_by_import_resp_unpack(response_buffer.buffer, response_buffer.length, mem_info);
+    ubse_api_buffer_free(&response_buffer);
+    return ret;
+}
+ 
+int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info)
+{
+    return ubs_mem_get_memid_by_import(name, import_memid, mem_info, UBSE_MEM_FD_GET_MEM_ID_BY_IMPORT);
+}
+ 
+int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info)
+{
+    return ubs_mem_get_memid_by_import(name, import_memid, mem_info, UBSE_MEM_NUMA_GET_MEM_ID_BY_IMPORT);
+}
+ 
+int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info)
+{
+    return ubs_mem_get_memid_by_import(name, import_memid, mem_info, UBSE_MEM_SHM_GET_MEM_ID_BY_IMPORT);
+}

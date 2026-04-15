@@ -372,6 +372,72 @@ UbseResult UbseMemDebtQueryRequestSimpo::Deserialize()
     return UBSE_OK;
 }
 
+
+UbseResult UbseMemIdQueryRequestSimpo::Serialize()
+{
+    serial::UbseSerialization out;
+    out << memIdQueryRequest_.name << memIdQueryRequest_.importNodeId <<
+        memIdQueryRequest_.importMemId << memIdQueryRequest_.borrowType;
+    UbseUdsInfoSerialization(out, memIdQueryRequest_.udsInfo);
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Serialize failed.";
+        return UBSE_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+UbseResult UbseMemIdQueryRequestSimpo::Deserialize()
+{
+    if (mInputRawData == nullptr) {
+        UBSE_LOG_ERROR << "InputRawData is null.";
+        return UBSE_ERROR;
+    }
+    serial::UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
+    in >> memIdQueryRequest_.name >> memIdQueryRequest_.importNodeId >>
+          memIdQueryRequest_.importMemId >> memIdQueryRequest_.borrowType;
+    if (!UbseUdsInfoDeserialization(in, memIdQueryRequest_.udsInfo)) {
+        UBSE_LOG_ERROR << "Failed to deserialize UbseUdsInfo";
+        return UBSE_ERROR;
+    }
+
+    return UBSE_OK;
+}
+
+UbseResult UbseMemExportMemDescSimpo::Serialize()
+{
+    serial::UbseSerialization out;
+    UbseErrCodeSerialization(out, mErrCode);
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Serialize ErrCode failed.";
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    out << exportMemDesc_.exportSlotId << exportMemDesc_.exportMemId;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Serialize failed.";
+        return UBSE_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+UbseResult UbseMemExportMemDescSimpo::Deserialize()
+{
+    if (mInputRawData == nullptr) {
+        UBSE_LOG_ERROR << "InputRawData is null.";
+        return UBSE_ERROR;
+    }
+    serial::UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
+    if (!UbseErrCodeDeserialization(in, mErrCode)) {
+        UBSE_LOG_ERROR << "Failed to deserialize ErrCode";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    in >> exportMemDesc_.exportSlotId >> exportMemDesc_.exportMemId;
+    return UBSE_OK;
+}
+
 UbseResult UbseMemNodeBorrowInfoMessage::Serialize()
 {
     UbseSerialization serialization{};

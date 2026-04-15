@@ -507,7 +507,7 @@ UbseResult UrmaController::UbseAllocUrmaDev(const std::string &urmaName, UbseUrm
             return UBSE_ERROR;
         }
     }
-    if (auto ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid); ret != UBSE_OK) {
+    if (ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to alloc urma dev, ret=" << ret;
         return ret;
     }

@@ -11,10 +11,14 @@
  */
 
 #include "ubse_mem_debt_info_query.h"
+#include <cstdint>
+#include <string>
 
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mem_controller_api_common.h"
+#include "ubse_str_util.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_node_controller.h"
 
@@ -169,5 +173,142 @@ UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNod
     }
     CollectImportHandleDebtInfo(nodeMap->GetAll(), exportNodeId, importHandleInfo);
     return UBSE_OK;
+}
+
+template <typename ImportObjType>
+uint32_t GetExportErrorCode(ImportObjType &importObj, const def::UbseMemIdQueryRequest &request)
+{
+    auto nodeInfo = nodeController::UbseNodeController::GetInstance().GetNodeById(
+        importObj.algoResult.exportNumaInfos[0].nodeId);
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_ERROR << "Failed to find exportObj by name=" << request.name
+            << ", importNodeId=" << request.importNodeId << ", importMemId=" << request.importMemId
+            << ", exportNodeId=" << importObj.algoResult.exportNumaInfos[0].nodeId << " is not in cluster";
+        return UBSE_ENGINE_ERR_EXPORT_LEDGERING;
+    }
+    if (nodeInfo.clusterState == nodeController::UbseNodeClusterState::UBSE_NODE_INIT ||
+        nodeInfo.clusterState == nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+        nodeInfo.clusterState == nodeController::UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
+            UBSE_LOG_ERROR << "Failed to find exportObj by name=" << request.name
+                << ", importNodeId=" << request.importNodeId << ", importMemId=" << request.importMemId
+                << ", nodeId=" << importObj.algoResult.exportNumaInfos[0].nodeId << " state="
+                << static_cast<uint32_t>(nodeInfo.clusterState);
+            return UBSE_ENGINE_ERR_EXPORT_LEDGERING;
+    }
+    UBSE_LOG_ERROR << "Failed to find exportObj by name=" << request.name
+                    << ", importNodeId=" << request.importNodeId << ", importMemId=" << request.importMemId
+                    << ", exportNodeId=" << importObj.algoResult.exportNumaInfos[0].nodeId
+                    << " state=" << static_cast<uint32_t>(nodeInfo.clusterState);
+    return UBSE_ERR_NOT_EXIST;
+}
+
+template <typename ImportObjType, typename ExportObjType>
+uint32_t ValidateObjs(const std::shared_ptr<const ImportObjType> &importObjPtr,
+                      const std::shared_ptr<const ExportObjType> &exportObjPtr,
+                      const def::UbseMemIdQueryRequest &request)
+{
+    if (!importObjPtr) {
+        UBSE_LOG_ERROR << "Failed to find importObj by name=" << request.name
+                       << ", importNodeId=" << request.importNodeId
+                       << ", importMemId=" << request.importMemId;
+        return UBSE_ERR_NOT_EXIST;
+    }
+    const auto &importObj = *importObjPtr;
+    if (importObj.exportObmmInfo.empty() || importObj.algoResult.exportNumaInfos.empty()) {
+        UBSE_LOG_ERROR << "Failed to find export mem id by importNodeId=" << request.importNodeId
+                       << ", importMemId=" << request.importMemId << ", name=" << request.name
+                       << ", exportNumaInfosSize=" << importObj.algoResult.exportNumaInfos.size()
+                       << ", exportObmmInfoSize=" << importObj.exportObmmInfo.size();
+        return UBSE_ERR_NOT_EXIST;
+    }
+    if (!importObj.req.udsInfo.CheckPermission(request.udsInfo)) {
+        UBSE_LOG_ERROR << "Permission denied. src_username=" << request.udsInfo.username
+                       << ", src_uid=" << request.udsInfo.uid
+                       << ", dst_username=" << importObj.req.udsInfo.username
+                       << ", dst_uid=" << importObj.req.udsInfo.uid << ", importNodeId=" << request.importNodeId
+                       << ", importMemId=" << request.importMemId << ", name=" << request.name;
+        return UBSE_ERR_AUTH_FAILED;
+    }
+    if (!exportObjPtr) {
+        return GetExportErrorCode(importObj, request);
+    }
+    UbseMemStage memStage = GetMemStageByImportObjState(importObjPtr);
+    if (memStage != UbseMemStage::UBSE_CREATING && memStage != UbseMemStage::UBSE_DELETING) {
+        memStage = GetMemStageByExportObjState(exportObjPtr);
+    }
+    if (memStage == UbseMemStage::UBSE_CREATING || memStage == UbseMemStage::UBSE_DELETING) {
+        UBSE_LOG_ERROR << "resource is being borrowed or returned, name is "
+                       << request.name << ", memStage=" << static_cast<uint32_t>(memStage)
+                       << ", importNodeId=" << request.importNodeId << ", importMemId=" << request.importMemId;
+        auto ret = (memStage == UbseMemStage::UBSE_CREATING) ? UBSE_ERR_CREATING : UBSE_ERR_DELETING;
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+template <typename ImportObjType, typename ExportObjType>
+uint32_t ProcessImportObjByPtr(const std::pair<std::shared_ptr<const ImportObjType>,
+                               std::shared_ptr<const ExportObjType>> &objPair,
+                               const def::UbseMemIdQueryRequest &request,
+                               def::UbseExportMemDesc &memDesc)
+{
+    auto [importObjPtr, exportObjPtr] = objPair;
+    if (auto ret = ValidateObjs(importObjPtr, exportObjPtr, request); ret != UBSE_OK) {
+        return ret;
+    }
+    const auto &importObj = *importObjPtr;
+    bool isFind = false;
+    int64_t index = 0;
+    for (const auto &obmmInfo : importObj.status.importResults) {
+        if (request.importMemId == obmmInfo.memId) {
+            isFind = true;
+            break;
+        }
+        index++;
+    }
+    if (!isFind || index >= importObj.exportObmmInfo.size()) {
+        UBSE_LOG_ERROR << "Failed to find export mem id by importNodeId=" << request.importNodeId
+                       << ", importMemId=" << request.importMemId << ", name="
+                       << request.name<< ", exportNumaInfosSize="
+                       << importObj.algoResult.exportNumaInfos.size() << ", index=" << index;
+        return UBSE_ERR_NOT_EXIST;
+    }
+    if (ConvertStrToUint32(importObj.algoResult.exportNumaInfos[0].nodeId, memDesc.exportSlotId) != UBSE_OK) {
+        UBSE_LOG_ERROR << "ConvertStrToUint32 failed, str=" << importObj.algoResult.exportNumaInfos[0].nodeId;
+        return UBSE_ERROR;
+    }
+    memDesc.exportMemId = importObj.exportObmmInfo[index].memId; // importMemId的索引值和exportMemId的索引值一一对应
+    return UBSE_OK;
+}
+
+uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &memDesc)
+{
+    switch (static_cast<UbseMemBorrowType>(request.borrowType)) {
+        case UbseMemBorrowType::FD_BORROW:
+            return ProcessImportObjByPtr(
+                FindBorrowObjPair<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>(
+                    request.name, request.importNodeId),
+                request, memDesc);
+        case UbseMemBorrowType::NUMA_BORROW:
+            return ProcessImportObjByPtr(
+                FindBorrowObjPair<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>(
+                    request.name, request.importNodeId),
+                request, memDesc);
+        case UbseMemBorrowType::SHM_ATTACH:
+        case UbseMemBorrowType::SHM_BORROW: {
+            auto importObj = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(
+                request.importNodeId, request.name);
+            auto exportObj = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>()
+            .GetExportResourceByResId(request.name);
+            return ProcessImportObjByPtr<UbseMemShareBorrowImportObj, UbseMemShareBorrowExportObj>(
+                {importObj, exportObj}, request, memDesc);
+        }
+        default:
+            UBSE_LOG_ERROR << "Unsupported borrow type=" << static_cast<uint32_t>(request.borrowType)
+                           << ",name=" << request.name << ",importNodeId=" << request.importNodeId
+                           << ",importMemId=" << request.importMemId;
+            return UBSE_ERROR_INVAL;
+    }
+    return UBSE_ERROR;
 }
 } // namespace ubse::mem::controller::debt
