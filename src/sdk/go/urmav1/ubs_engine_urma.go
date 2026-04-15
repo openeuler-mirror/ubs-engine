@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
-// Package urmav1 implements UBS URMA operations with go.
+// Package urmav1 implements UBS URMA operations with Go.
 package urmav1
 
 import (
@@ -282,7 +282,7 @@ func ubseInvokeCall(moduleCode, opCode uint16, request []byte) ([]byte, error) {
 // Returns a list of devices and an error if the unpacking fails.
 func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	if len(response) < 4 {
-		return nil, fmt.Errorf("invalid response length")
+		return nil, fmt.Errorf("invalid response length: expected at least 4 bytes, got %d", len(response))
 	}
 
 	count := binary.LittleEndian.Uint32(response[0:])
@@ -298,17 +298,17 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	for i := uint32(0); i < count; i++ {
 		// Check if enough data remains for device info
 		if len(response) < 4+12 { // string length + device info
-			return nil, fmt.Errorf("insufficient data for device %d", i)
+			return nil, fmt.Errorf("insufficient data for device %d: expected at least 16 bytes, got %d", i, len(response))
 		}
 
 		name, response, err := unpackString(response, UbsUrmaNameMax)
 		if err != nil {
-			return nil, fmt.Errorf("invalid device name length for device %d: %v", i, err)
+			return nil, fmt.Errorf("invalid device name for device %d: %v", i, err)
 		}
 
 		// Check if enough data remains for healthy status and hwResId
 		if len(response) < 12 {
-			return nil, fmt.Errorf("insufficient data for device %d status", i)
+			return nil, fmt.Errorf("insufficient data for device %d status: expected at least 12 bytes, got %d", i, len(response))
 		}
 
 		// Parse healthy status (uint32)
@@ -335,13 +335,16 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 // Returns the unpacked string, the remaining response, and an error if the unpacking fails.
 func unpackString(response []byte, maxLen uint32) (string, []byte, error) {
 	if len(response) < 4 {
-		return "", response, fmt.Errorf("invalid string length")
+		return "", response, fmt.Errorf("invalid string length: expected at least 4 bytes, got %d", len(response))
 	}
 	strLen := binary.LittleEndian.Uint32(response[0:])
 	response = response[4:]
 
-	if strLen > maxLen || int(strLen) > len(response) {
-		return "", response, fmt.Errorf("invalid string length")
+	if strLen > maxLen {
+		return "", response, fmt.Errorf("string length %d exceeds maximum allowed %d", strLen, maxLen)
+	}
+	if int(strLen) > len(response) {
+		return "", response, fmt.Errorf("string length %d exceeds available data %d", strLen, len(response))
 	}
 
 	str := string(response[:strLen])
@@ -360,23 +363,22 @@ func ubseUrmaDevInfoUnpack(response []byte) (DeviceInfo, error) {
 		return DeviceInfo{}, fmt.Errorf("invalid bonding path: %v", err)
 	}
 
-	// Parse bonding eid
+	// Parse VFE path 1
 	vfePath1, response, err := unpackString(response, UbsMaxUrmaPathLength)
-	if err != nil {
-		return DeviceInfo{}, fmt.Errorf("invalid bonding eid: %v", err)
-	}
-
-	// Parse vfe paths
-	// VFE path 1
-	vfePath2, response, err := unpackString(response, UbsMaxUrmaPathLength)
 	if err != nil {
 		return DeviceInfo{}, fmt.Errorf("invalid vfe path 1: %v", err)
 	}
 
-	// VFE path 2
-	bondingEid, response, err := unpackString(response, UbsMaxUrmaPathLength)
+	// Parse VFE path 2
+	vfePath2, response, err := unpackString(response, UbsMaxUrmaPathLength)
 	if err != nil {
 		return DeviceInfo{}, fmt.Errorf("invalid vfe path 2: %v", err)
+	}
+
+	// Parse bonding eid
+	bondingEid, response, err := unpackString(response, UbsMaxUrmaPathLength)
+	if err != nil {
+		return DeviceInfo{}, fmt.Errorf("invalid bonding eid: %v", err)
 	}
 
 	return DeviceInfo{
