@@ -786,7 +786,7 @@ std::string ToLowerEid(const std::string &eid)
 std::string QueryNodeIdByEid(const std::string &eid)
 {
     const std::string lowerEid = ToLowerEid(eid);
-    std::map<UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> socketInfoMap{};
     auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "Get all socket eid failed, " << ubse::log::FormatRetCode(result);

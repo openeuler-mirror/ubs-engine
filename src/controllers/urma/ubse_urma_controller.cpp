@@ -420,7 +420,7 @@ UbseResult UrmaController::DoNodeJoin(const std::string &joinNodeId)
     UBSE_LOG_INFO << "Get current node VFE EID";
     for (auto &iou : iouList) {
         std::vector<UbseMtiFeInfo> tmpFeInfos;
-        if (ret = UbseMtiInterface::GetInstance().UbseGetVfeEid(iou, tmpFeInfos); ret != UBSE_OK) {
+        if (ret = UbseMtiInterface::GetInstance().UbseGetFeEid(iou, tmpFeInfos); ret != UBSE_OK) {
             UBSE_LOG_WARN << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
             return ret;
         }

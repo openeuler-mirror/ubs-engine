@@ -14,14 +14,14 @@
 #define UBSE_MTI_DEF_H
 #include <cstdint>
 #include <map>
-#include <vector>
 #include <string>
 #include <unordered_map>
+#include <vector>
 namespace ubse::adapter_plugins::mti {
-struct UbseUrmaEidInfo {
+struct UbseMtiEidGroup {
     std::string entityId;
     std::string primaryEid;                              // port-group-id 字段对应的 urma-eid
-    std::map<std::string, std::string> portEidList; // 此处为用于框内通信端口的eid（feid最小的部分） key为portId, value为eid
+    std::map<std::string, std::string> portEids; // 此处为用于框内通信端口的eid（feid最小的部分） key为portId, value为eid
 };
 
 struct UbseDecoderTrustRingData {
@@ -33,9 +33,7 @@ struct UbseDecoderTrustRingData {
 
 struct UbseDevName {
     std::string devName;
-    UbseDevName()
-    {
-    }
+    UbseDevName() {}
     UbseDevName(const std::string& name);
     UbseDevName(std::string&& name);
     UbseDevName(const std::string& nodeId, const std::string& socketId);
@@ -52,9 +50,7 @@ struct UbseDevName {
 // 端口名称
 struct UbseDevPortName {
     std::string name;
-    UbseDevPortName()
-    {
-    }
+    UbseDevPortName() {}
     UbseDevPortName(const std::string& slotId, const std::string& chipId, const std::string& cardId,
                     const std::string& portId);
     explicit UbseDevPortName(const std::string& name);
@@ -67,40 +63,51 @@ struct UbseMtiNodeInfo {
     std::string nodeId;
     std::string eid;
 };
-enum class UbseMtiCpuTopoPortStatus { UP = 0, DOWN = 1 };
+enum class UbseMtiCpuTopoPortStatus
+{
+    UP = 0,
+    DOWN = 1
+};
 struct UbseMtiCpuTopoPortInfo {
     // 端口信息
-    uint32_t portCna;  // 本端端口cna
-    std::string portId;  // 端口ID
-    std::string ifName;  // 端口名（带宽）
-    std::string portRole;  // 表示框内/框外
-    std::string urmaEid;  // urma Eid
-    UbseMtiCpuTopoPortStatus portStatus;  // 端口状态
-    UbseDevPortName devPortName;  // 端口名称(当前即端口ID)
+    uint32_t portCna;                    // 本端端口cna
+    std::string portId;                  // 端口ID
+    std::string ifName;                  // 端口名（带宽）
+    std::string portRole;                // 表示框内/框外
+    std::string urmaEid;                 // urma Eid
+    UbseMtiCpuTopoPortStatus portStatus; // 端口状态
+    UbseDevPortName devPortName;         // 端口名称(当前即端口ID)
     // 对端信息
     std::string remoteSlotId;  // LCNE提供的对端槽位号
     std::string remoteChipId;  // LCNE提供的对端chipID
     std::string remoteCardId;  // LCNE提供的对端IOdie-ID
     std::string remoteIfName;  // 对端端口名（带宽）
     std::string remotePortId;  // 对端端口名
-    UbseDevName remoteDevName;  // 对端设备名称
+    UbseDevName remoteDevName; // 对端设备名称
 };
 // 设备类型
-enum class UbseDevType { SSU = 0, DPU = 1, CPU = 2, NPU = 3, ALL = 4 };
+enum class UbseDevType
+{
+    SSU = 0,
+    DPU = 1,
+    CPU = 2,
+    NPU = 3,
+    ALL = 4
+};
 class UbseDeviceInfo {
 public:
     // 本设备信息(物理意义)
     // 拓扑
-    UbseDevName devName;  // 本设备名称
+    UbseDevName devName; // 本设备名称
     std::string slotId;  // 槽位号(NodeId)
     std::string chipId;  // 模组号(SocketId)
     std::string cardId;  // 卡号(IODieId)
-    UbseDevType type;  // 设备类型
+    UbseDevType type;    // 设备类型
     // IODie
     std::string eid;  // 本设备eid(UB-Controller-Eid),不在本节点拓扑中
-    std::string guid;  // 本设备guid(IODie-guid)，不在本节点拓扑中
+    std::string guid; // 本设备guid(IODie-guid)，不在本节点拓扑中
     // 本设备cna信息
-    uint32_t busNodeCna;  // 本设备cna标识
+    uint32_t busNodeCna; // 本设备cna标识
 };
 
 struct UbseDevPortNameHash {
@@ -113,14 +120,14 @@ struct UbseDevNameHash {
 using UbsePortMap = std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>;
 using UbseDeviceInfoPair = std::pair<UbseDeviceInfo, UbsePortMap>;
 struct UbseMtiCpuTopoInfo {
-    uint32_t slotId;  // 槽位号
-    uint32_t socketId;  // os文件的socketId
-    uint32_t busNodeCna;  // 本设备cna标识
-    std::string primaryEid;  // cpu对应的urma通信eid
-    std::string chipId;  // LCNE提供的chipid
-    std::string cardId;  // IOdie-ID
-    std::string eid;  // 本设备eid
-    std::string guid;  // 本设备guid
+    uint32_t slotId;        // 槽位号
+    uint32_t socketId;      // os文件的socketId
+    uint32_t busNodeCna;    // 本设备cna标识
+    std::string primaryEid; // cpu对应的urma通信eid
+    std::string chipId;     // LCNE提供的chipid
+    std::string cardId;     // IOdie-ID
+    std::string eid;        // 本设备eid
+    std::string guid;       // 本设备guid
     UbsePortMap portInfos;  // port信息,k:DevPortName,v:边信息
 };
 
@@ -130,16 +137,11 @@ struct UbseMtiIouInfo {
     std::string iouId;
 };
 
-enum class UbseMtiFeType {
+enum class UbseMtiFeType
+{
     PHYSICAL_TYPE = 0, // pfe0, 物理类型FE用于集群通信
     VIRTUAL_TYPE = 1,  // vfe1, 虚拟类型VFE
     BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示
-};
-
-struct UbseMtiEidGroup {
-    std::string entityId;
-    std::string primaryEid;
-    std::map<std::string, std::string> portEids;
 };
 
 struct UbseMtiFeInfo {
@@ -162,5 +164,5 @@ struct UbseMtiQosProfile {
  */
 using UbseDevTopology = std::unordered_map<UbseDevName, UbseDeviceInfoPair, UbseDevNameHash>;
 using UbseMtiCpuTopoInfoMap = std::unordered_map<UbseDevName, UbseMtiCpuTopoInfo, UbseDevNameHash>;
-}  // namespace ubse::adapter_plugins::mti
-#endif  // UBSE_MTI_DEF_H
+} // namespace ubse::adapter_plugins::mti
+#endif // UBSE_MTI_DEF_H
