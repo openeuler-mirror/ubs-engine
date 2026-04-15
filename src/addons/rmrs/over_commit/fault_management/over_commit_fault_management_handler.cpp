@@ -177,12 +177,33 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
     if (MEM_POOLING_OK != static_cast<MpResult>(retSmap)) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "SmapEnableProcessMigrateHelper faild enable=" << 0 << ", retSmap=" << retSmap << ".";
-        return MEM_POOLING_ERROR;
+        resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(retSmap);
+        resp.data[1] = 0;
     } else {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "SmapEnableProcessMigrateHelper successed, enable=" << 0 << ".";
+        resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(retSmap);
     }
-    return MEM_POOLING_OK;
+    resp.freeFunc = [](uint8_t *p) {
+        if (p != nullptr) {
+            delete[] p;
+        }
+    };
+    return retSmap;
 }
 
 void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void *ctx, const UbseByteBuffer &respData,

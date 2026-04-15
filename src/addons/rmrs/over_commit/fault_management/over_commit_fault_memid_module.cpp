@@ -675,7 +675,7 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
                 over_commit::OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "DisableSmapProcessMigrate failed, ret = " << ret;
-        return ret;
+        return MEM_POOLING_ERROR;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "DisableSmapProcessMigrate success.";
     return MEM_POOLING_OK;
