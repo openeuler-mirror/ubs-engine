@@ -62,11 +62,11 @@ TEST_F(TestNodeControllerCollector, CollectNodeBaseInfoWhenConfModuleIsNull)
 }
 TEST_F(TestNodeControllerCollector, CollectCpuInfo)
 {
-    std::map<std::string, std::string> portEidList;
+    std::map<std::string, std::string> portEids;
 
     UbseDevName devName("1", "1");
     std::string portInfo;
-    portEidList.emplace("236", portInfo);
+    portEids.emplace("236", portInfo);
 
     UbseDeviceInfo deviceInfo;
     deviceInfo.slotId = "1";
@@ -83,10 +83,10 @@ TEST_F(TestNodeControllerCollector, CollectCpuInfo)
     UbseDevTopology topology{};
     topology[devName] = entry;
     auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
-    UbseUrmaEidInfo socketInfo;
+    UbseMtiEidGroup socketInfo;
     std::string remotePortInfo{};
     socketInfo.primaryEid = "1";
-    socketInfo.portEidList.emplace("236", remotePortInfo);
+    socketInfo.portEids.emplace("236", remotePortInfo);
 
     lcneModule->allSocketComEid.emplace(devName, socketInfo);
     mti::UbseLcneIODieInfo info;

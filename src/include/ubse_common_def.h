@@ -46,6 +46,7 @@ constexpr int16_t NO_13 = 13;
 constexpr int16_t NO_14 = 14;
 constexpr int16_t NO_15 = 15;
 constexpr int16_t NO_16 = 16;
+constexpr int16_t NO_20 = 20;
 constexpr int16_t NO_32 = 32;
 constexpr int16_t NO_50 = 50;
 constexpr int16_t NO_60 = 60;

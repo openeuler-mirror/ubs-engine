@@ -123,16 +123,16 @@ TEST_F(TestUbseLcneModule, GetAllSocketComEid)
 {
     UbseLcneModule module;
     UbseDevName devName("1", "1");
-    adapter_plugins::mti::UbseUrmaEidInfo info;
+    adapter_plugins::mti::UbseMtiEidGroup info;
     info.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    info.portEidList.emplace("2", urmaEid);
+    info.portEids.emplace("2", urmaEid);
     module.allSocketComEid.emplace(devName, info);
 
     auto ret = module.GetAllSocketComEid();
     EXPECT_EQ(ret.size(), 1);
     EXPECT_EQ(ret[devName].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4321");
-    EXPECT_EQ(ret[devName].portEidList["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
+    EXPECT_EQ(ret[devName].portEids["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
 }
 
 TEST_F(TestUbseLcneModule, GetLocalBoardIOInfo)
@@ -277,7 +277,7 @@ TEST_F(TestUbseLcneModule, FillNodeComInfo_Success)
     UbseLcneModule module;
     std::string localNodeId = "1";
     module.ubseLcneBusInstanceInfo.localNodeId = localNodeId;
-    module.allSocketComEid.emplace(UbseDevName("1", "2"), adapter_plugins::mti::UbseUrmaEidInfo{});
+    module.allSocketComEid.emplace(UbseDevName("1", "2"), adapter_plugins::mti::UbseMtiEidGroup{});
 
     MOCKER_CPP(&UbseLcneModule::IsPrimaryEidExist).stubs().will(returnValue(false));
     MOCKER_CPP(&UbseLcneModule::GenerateBondingEid).stubs().will(returnValue(UBSE_OK));

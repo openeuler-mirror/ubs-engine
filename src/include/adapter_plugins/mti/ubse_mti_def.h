@@ -18,11 +18,10 @@
 #include <unordered_map>
 #include <vector>
 namespace ubse::adapter_plugins::mti {
-struct UbseUrmaEidInfo {
+struct UbseMtiEidGroup {
     std::string entityId;
-    std::string primaryEid; // port-group-id 字段对应的 urma-eid
-    std::map<std::string, std::string>
-        portEidList; // 此处为用于框内通信端口的eid（feid最小的部分） key为portId, value为eid
+    std::string primaryEid;                              // port-group-id 字段对应的 urma-eid
+    std::map<std::string, std::string> portEids; // 此处为用于框内通信端口的eid（feid最小的部分） key为portId, value为eid
 };
 
 struct UbseDecoderTrustRingData {
@@ -143,12 +142,6 @@ enum class UbseMtiFeType
     PHYSICAL_TYPE = 0, // pfe0, 物理类型FE用于集群通信
     VIRTUAL_TYPE = 1,  // vfe1, 虚拟类型VFE
     BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示
-};
-
-struct UbseMtiEidGroup {
-    std::string entityId;
-    std::string primaryEid;
-    std::map<std::string, std::string> portEids;
 };
 
 struct UbseMtiFeInfo {

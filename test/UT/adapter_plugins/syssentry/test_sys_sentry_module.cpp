@@ -114,7 +114,7 @@ TEST_F(TestSysSentryModule, GetEidsFailWhenDevVecSizeError)
         .with(outBound(localNodeInfo))
         .will(returnValue(UBSE_OK));
     UbseDevName dev1("1-");
-    UbseUrmaEidInfo info1{.primaryEid = "192.168.1.1"};
+    UbseMtiEidGroup info1{.primaryEid = "192.168.1.1"};
     lcneModule->allSocketComEid.clear();
     lcneModule->allSocketComEid[dev1] = info1;
     auto res = GetEids(clientEid, serverEids);
@@ -146,10 +146,10 @@ TEST_F(TestSysSentryModule, GetEidsSuccess)
     UbseDevName dev2("1-2");
     UbseDevName dev3("2-1");
     UbseDevName dev4("2-2");
-    UbseUrmaEidInfo info1{.primaryEid = "192.168.1.1"};
-    UbseUrmaEidInfo info2{.primaryEid = "192.168.1.2"};
-    UbseUrmaEidInfo info3{.primaryEid = "192.168.1.3"};
-    UbseUrmaEidInfo info4{.primaryEid = "192.168.1.4"};
+    UbseMtiEidGroup info1{.primaryEid = "192.168.1.1"};
+    UbseMtiEidGroup info2{.primaryEid = "192.168.1.2"};
+    UbseMtiEidGroup info3{.primaryEid = "192.168.1.3"};
+    UbseMtiEidGroup info4{.primaryEid = "192.168.1.4"};
     lcneModule->allSocketComEid.clear();
     lcneModule->allSocketComEid[dev1] = info1;
     lcneModule->allSocketComEid[dev2] = info2;

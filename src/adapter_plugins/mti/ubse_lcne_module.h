@@ -61,7 +61,7 @@ public:
 
     UbseResult GetBondingEidByNodeId(std::string& bondingEid, const std::string& nodeId);
 
-    const std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> GetAllSocketComEid();
+    const std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> GetAllSocketComEid();
     const std::map<adapter_plugins::mti::UbseDevName, UbseLcneIODieInfo> GetLocalBoardIOInfo();
 
     std::vector<std::string> GetClusterIpList();
@@ -75,6 +75,8 @@ private:
 
     UbseResult GetLcneData();
 
+    UbseResult GetComUrmaEid();
+
     UbseResult FillNodeComInfo();
 
     static std::string BytesToIPv6String(const unsigned char inBytes[IPV6_BYTE_COUNT]);
@@ -86,8 +88,8 @@ private:
     // lcne获取的本节点拓扑信息（物理意义）
     UbseLcneTopology ubseLcneTopology;
     // 查询全量规划的urma通信EID（物理意义）
-    std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo>
-        allSocketComEid; // key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
+    std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseMtiEidGroup>
+        allSocketComEid;  // key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
     // 查询节点信息（物理意义）
     std::map<adapter_plugins::mti::UbseDevName, UbseLcneIODieInfo>
         localBoardIOInfo; // key为devName: nodeId+socketId 值为当前设备的UbseLcneIODieInfo

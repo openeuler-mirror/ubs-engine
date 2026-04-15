@@ -77,7 +77,7 @@ public:
      * @return UBSE_ERROR_MODULE_LOAD_FAILED mti模块未加载
      * @return UBSE_ERROR 表示失败
      */
-    virtual common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo>& socketInfoMap) = 0;
+    virtual common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseMtiEidGroup>& socketInfoMap) = 0;
     /**
      * 增加Decoder表项
      * @param importInfo decoder表项内容
@@ -126,7 +126,7 @@ public:
      * @param [out] allFeInfos: 本节点的Vfe及对应的Eid信息
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) = 0;
+    virtual common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)  = 0;
 
     /**
      * @brief 下发xml消息到Lcne上创建QosProfile

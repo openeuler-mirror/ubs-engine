@@ -19,7 +19,7 @@
 #include "lcne/ubse_lcne_decoder_entry.h"
 #include "lcne/ubse_lcne_decoder_handle.h"
 #include "lcne/ubse_lcne_qos.h"
-#include "lcne/ubse_lcne_vfe_eid.h"
+#include "lcne/ubse_lcne_fe_eid.h"
 
 namespace ubse::adapter_plugins::mti {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -82,7 +82,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& top
     if (ret != UBSE_OK) {
         return ret;
     }
-    std::map<UbseDevName, UbseUrmaEidInfo> allSocketComEid = module->GetAllSocketComEid();
+    std::map<UbseDevName, UbseMtiEidGroup> allSocketComEid = module->GetAllSocketComEid();
     std::map<UbseDevName, UbseLcneIODieInfo> localBoardIOInfo = module->GetLocalBoardIOInfo();
     for (const auto& [devName, devicInfoPair] : devTopology) {
         std::string devNodeId, socketId;
@@ -103,7 +103,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& top
         info.guid = localBoardIOInfo[devName].guid;           // LCNE获取时能保证key存在
         info.portInfos = devicInfoPair.second;
         for (auto& portInfo : info.portInfos) {
-            portInfo.second.urmaEid = allSocketComEid[devName].portEidList[portInfo.second.portId];
+            portInfo.second.urmaEid = allSocketComEid[devName].portEids[portInfo.second.portId];
         }
         topo[devName] = info;
     }
@@ -152,7 +152,7 @@ UbseResult UbseMtiInterfaceDefault::GetAllMemHandles(const mami::UbseMamiMemHand
     return lcne::UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, handleValues);
 }
 
-UbseResult UbseMtiInterfaceDefault::GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo>& socketInfoMap)
+UbseResult UbseMtiInterfaceDefault::GetAllSocketComEid(std::map<UbseDevName, UbseMtiEidGroup>& socketInfoMap)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -162,9 +162,9 @@ UbseResult UbseMtiInterfaceDefault::GetAllSocketComEid(std::map<UbseDevName, Ubs
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos)
+UbseResult UbseMtiInterfaceDefault::UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)
 {
-    return lcne::UbseLcneVfeEid::GetInstance().GetVfeEid(iouInfo, allFeInfos);
+    return lcne::UbseLcneFeEid::GetInstance().GetFeEid(iouInfo, allFeInfos);
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile)
