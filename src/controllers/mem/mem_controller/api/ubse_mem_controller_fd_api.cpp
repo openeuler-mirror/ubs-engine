@@ -349,10 +349,11 @@ uint32_t FdExportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemFdBorro
                                       const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Fd export running callback. name=" << name << ", requestId=" << exportObj.req.requestId;
-    auto existingObj = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().GetResource(
-        exportNodeId, exportObj.req.name);
-    if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
-        return SendFdExport(*existingObj, name, exportNodeId, false);
+    auto exportKey = GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
+    auto existingObj =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().GetResource(exportNodeId, exportKey);
+    if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
+        return UBSE_OK;
     }
     FdExportUpdateState(exportObj, UBSE_MEM_EXPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().FdExportExecutor(exportObj); ret != UBSE_OK) {

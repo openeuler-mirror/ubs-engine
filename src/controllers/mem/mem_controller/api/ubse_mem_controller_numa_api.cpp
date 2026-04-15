@@ -434,11 +434,12 @@ uint32_t NumaExportRunningCallback(UbseMemOperationResp &resp, UbseMemNumaBorrow
                                    const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Numa export running callback. name=" << name << ", requestId=" << exportObj.req.requestId;
+    auto exportKey = GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
     auto existingObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().GetResource(
-        exportObj.req.importNodeId, exportObj.req.name);
+        exportObj.req.importNodeId, exportKey);
     if (existingObjPtr != nullptr &&
-        existingObjPtr->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
-        return SendNumaExport(*existingObjPtr, name, exportNodeId, false);
+        existingObjPtr->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
+        return UBSE_OK;
     }
     NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().NumaExportExecutor(exportObj); ret != UBSE_OK) {
@@ -922,7 +923,7 @@ uint32_t NumaImportExpectSuccessMasterCallBack(UbseMemOperationResp &resp, const
         UbseMemNumaImportObjStateChangeHandler(copy); // 通知算法
         if (auto ret = SendNumaExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to send rollback export. name=" << name << ", requestId="
-                       << ", requestId=" << importObj.req.requestId;
+                           << ", requestId=" << importObj.req.requestId;
             NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
         }
     }

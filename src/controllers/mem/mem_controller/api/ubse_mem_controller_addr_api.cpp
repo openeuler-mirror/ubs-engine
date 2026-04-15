@@ -454,10 +454,11 @@ uint32_t AddrExportRunningAgentCallback(UbseMemAddrBorrowExportObj &exportObj, c
                                         const std::string &exportNodeId, const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Addr export running callback. name=" << name;
-    auto existingObj = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().GetResource(
-        exportNodeId, exportObj.req.name);
-    if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
-        return SendAddrExportObj(*existingObj, false);
+    auto exportKey = GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
+    auto existingObj =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().GetResource(exportNodeId, exportKey);
+    if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
+        return UBSE_OK;
     }
     AddrExportUpdateState(exportObj, UBSE_MEM_EXPORT_RUNNING);
 
