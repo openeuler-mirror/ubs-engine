@@ -37,14 +37,13 @@ public:
 
     // 发送请求
     UbseResult GetUrmaEid(
-        std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo>& allSocketComEid);
+        std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseMtiEidGroup>& allSocketComEid);
 
 private:
     UbseLcneUrmaEid(std::string host, int port) : host_(std::move(host)), port_(port) {}
 
-    UbseResult ParseGetUrmaEidResponse(
-        const std::string& responseStr,
-        std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo>& ss);
+    UbseResult ParseGetUrmaEidResponse(const std::string& responseStr,
+        std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseMtiEidGroup>& ss);
 
     std::string host_;
     int port_;

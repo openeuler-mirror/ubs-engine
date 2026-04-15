@@ -62,7 +62,7 @@ public:
 
     UbseResult GetBondingEidByNodeId(std::string &bondingEid, const std::string &nodeId);
 
-    const std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> GetAllSocketComEid();
+    const std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> GetAllSocketComEid();
     const std::map<adapter_plugins::mti::UbseDevName, UbseLcneIODieInfo> GetLocalBoardIOInfo();
 
     std::vector<std::string> GetClusterIpList();
@@ -76,14 +76,14 @@ private:
 
     UbseResult GetLcneData();
 
+    UbseResult GetComUrmaEid();
+
     UbseResult FillNodeComInfo();
 
     UbseResult GetIoDiePortEid(const adapter_plugins::mti::UbseDevName &devName, IODieInfo &ioDieInfo,
-                               const std::map<std::string, std::string> &portEidList);
+                               const std::map<std::string, std::string> &portEids);
 
     UbseResult GetTopologyInfo(std::map<std::string, std::vector<IODieInfo>> &allNodeIOdieInfo);
-
-    UbseResult SetUvsComInfo();
 
     static UbseResult ParseColonHexString(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
 
@@ -96,7 +96,7 @@ private:
     // lcne获取的本节点拓扑信息（物理意义）
     UbseLcneTopology ubseLcneTopology;
     // 查询全量规划的urma通信EID（物理意义）
-    std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo>
+    std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseMtiEidGroup>
         allSocketComEid;  // key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
     // 查询节点信息（物理意义）
     std::map<adapter_plugins::mti::UbseDevName, UbseLcneIODieInfo>

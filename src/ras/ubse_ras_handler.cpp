@@ -725,7 +725,7 @@ UbseResult HandleCnaAndEidMsg(const std::string &faultInfo, std::string &faultNo
 
 std::string QueryNodeIdByEid(const std::string& eid)
 {
-    std::map<UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> socketInfoMap{};
     auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "Get all socket eid failed, " << ubse::log::FormatRetCode(result);

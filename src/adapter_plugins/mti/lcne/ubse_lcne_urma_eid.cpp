@@ -26,12 +26,12 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace adapter_plugins::mti;
-void OutPutUrmaEidResultToLog(std::map<UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> &urmaEidMap)
+void OutPutUrmaEidResultToLog(std::map<UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> &urmaEidMap)
 {
     std::ostringstream oss;
     for (auto &item : urmaEidMap) {
         oss << "DevName=" << item.first.devName << ", " << "PrimaryEid=" << item.second.primaryEid << "\n";
-        for (auto &portEid : item.second.portEidList) {
+        for (auto &portEid : item.second.portEids) {
             oss << "portId=" << portEid.first << ", urmaEid=" << portEid.second << "\n";
         }
         oss << "\n";
@@ -73,7 +73,7 @@ bool IsValidUrmaEid(const std::string &eid)
 }
 
 // 校验整个 socketInfoMap
-UbseResult ValidateAllComEid(const std::map<UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> &socketInfoMap)
+UbseResult ValidateAllComEid(const std::map<UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> &socketInfoMap)
 {
     for (const auto &pair : socketInfoMap) {
         const auto &socketInfo = pair.second;
@@ -83,8 +83,8 @@ UbseResult ValidateAllComEid(const std::map<UbseDevName, adapter_plugins::mti::U
             return UBSE_ERROR_INVAL;
         }
 
-        // 校验 portEidList 中的每个 urmaEid
-        for (const auto &portPair : socketInfo.portEidList) {
+        // 校验 portEids 中的每个 urmaEid
+        for (const auto &portPair : socketInfo.portEids) {
             const std::string &urmaEid = portPair.second;
 
             if (!urmaEid.empty() && !IsValidUrmaEid(urmaEid)) {
@@ -95,7 +95,7 @@ UbseResult ValidateAllComEid(const std::map<UbseDevName, adapter_plugins::mti::U
     return UBSE_OK;
 }
 
-UbseResult UbseLcneUrmaEid::GetUrmaEid(std::map<UbseDevName, UbseUrmaEidInfo> &allSocketComEid)
+UbseResult UbseLcneUrmaEid::GetUrmaEid(std::map<UbseDevName, UbseMtiEidGroup> &allSocketComEid)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -136,9 +136,9 @@ UbseResult UbseLcneUrmaEid::GetUrmaEid(std::map<UbseDevName, UbseUrmaEidInfo> &a
 }
 
 UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string& responseStr,
-                                                    std::map<UbseDevName, UbseUrmaEidInfo>& ss)
+                                                    std::map<UbseDevName, UbseMtiEidGroup>& ss)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseDevName, UbseMtiEidGroup> socketInfoMap{};
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
@@ -164,14 +164,14 @@ UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string& responseS
         if (ubseXml == nullptr) {
             return UBSE_ERROR;
         }
-        adapter_plugins::mti::UbseUrmaEidInfo socketInfo{};
+        adapter_plugins::mti::UbseMtiEidGroup socketInfo{};
         socketInfo.entityId = entityId;
         int urmaEidInfoIndex = 0;
         while (ubseXml->Next("urma-eid-info", urmaEidInfoIndex) != nullptr) {
             if (ubseXml->Next("physical-port") != nullptr) {
                 ubseXml->Previous();
                 std::string port = ubseXml->Child("physical-port")->Text();
-                socketInfo.portEidList[port] = ubseXml->Child("urma-eid")->Text();
+                socketInfo.portEids[port] = ubseXml->Child("urma-eid")->Text();
             } else if (ubseXml->Next("port-group-id") != nullptr) {
                 ubseXml->Previous();
                 socketInfo.primaryEid = ubseXml->Child("urma-eid")->Text();

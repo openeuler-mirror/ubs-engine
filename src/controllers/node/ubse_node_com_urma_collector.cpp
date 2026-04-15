@@ -62,7 +62,7 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
         fe.ubpuId = ubpuId;
         fe.primaryEid = socketComEid.second.primaryEid;
         fe.entityId = socketComEid.second.entityId;
-        for (auto &port : socketComEid.second.portEidList) {
+        for (auto &port : socketComEid.second.portEids) {
             fe.portEid[port.first] = port.second;
         }
         comUrmaInfos[nodeId].feList.push_back(fe);

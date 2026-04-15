@@ -86,7 +86,7 @@ std::vector<std::string> SplitString(const std::string &str, char delimiter)
     return result;
 }
 
-UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketComEid,
+UbseResult ProcessEids(const std::map<UbseDevName, UbseMtiEidGroup> &allSocketComEid,
                        const std::string& nodeId, std::unordered_map<std::string, std::vector<std::string>>& eids,
                        std::vector<std::string>& eidGroup)
 {
@@ -128,7 +128,7 @@ UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketCo
 
 UbseResult GetEids(std::string &clientEid, std::string &serverEids)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseDevName, UbseMtiEidGroup> socketInfoMap{};
     auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "Get all socket eid failed, " << ubse::log::FormatRetCode(result);
