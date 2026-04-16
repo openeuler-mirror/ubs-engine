@@ -585,7 +585,7 @@ void ProcessNodeInfo(const std::unordered_map<std::string, UbseNodeInfo>& allNod
 
         std::stringstream ss;
         ss << info.hostName << "(" << info.slotId << ")";
-        if (info.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
+        if (!IsOnlineStrict(info)) {
             continue;
         }
         hostMap[info.slotId] = ss.str();
@@ -833,7 +833,7 @@ uint32_t GetCpuTopoLink(std::vector<CliPhysicalLink> &cpuTopoLinks)
     for (const auto& nodePair : allNodesInfo) {
         const auto& node = nodePair.second;
 
-        if (node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING) {
+        if (IsOnlineStrict(node)) {
             activeNodeSlots.insert(node.slotId);
             UBSE_LOG_INFO << "Active node: slot=" << node.slotId << ", host=" << node.hostName;
         } else {
