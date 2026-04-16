@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
+ #include <cstdint>
 #include "securec.h"
-
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_module.h"     // for UbseModule
@@ -23,7 +23,6 @@
 #include "ubse_urma_uvs_module.h"
 #include "lock/ubse_lock.h"
 #include "ubse_urma_uvs.h"
-#include <cstdint>
 
 namespace ubse::urma {
 using namespace ubse::common::def;
