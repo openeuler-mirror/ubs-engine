@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
- #include <cstdint>
+#include <cstdint>
 #include "securec.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
