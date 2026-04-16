@@ -15,10 +15,12 @@
 #include "src/framework/http/ubse_http_module.h"
 #include "ubse_lcne_topology.h"
 #include "ubse_lcne_def.h"
+#include "ubse_xml.h"
 
 namespace ubse::lcne {
 using namespace ubse::http;
 using namespace ubse::mti;
+using namespace ubse::utils;
 
 class UbseLcneTopologyClient {
 public:
@@ -40,6 +42,8 @@ private:
     std::string GetLcneNodeInfoString(const LcneNodeInfo &node);
 
     std::string GetLcneNodesString(const std::vector<LcneNodeInfo> &lcneNodes);
+
+    LcnePortInfo ParsePortInfo(std::shared_ptr<UbseXml> &ubseXml);
 
     std::string host;
     int port;
