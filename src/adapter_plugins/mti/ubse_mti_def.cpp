@@ -10,9 +10,17 @@
 * See the Mulan PSL v2 for more details.
 */
 #include "adapter_plugins/mti/ubse_mti_def.h"
+#include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_logger.h"
+#include "ubse_smbios.h"
+#include "ubse_str_util.h"
 
 namespace ubse::adapter_plugins::mti {
+UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::log;
+using namespace ubse::common::def;
+
 UbseDevName::UbseDevName(const std::string& name) : devName(name) {}
 UbseDevName::UbseDevName(std::string&& name) : devName(std::move(name)) {}
 UbseDevName::UbseDevName(const std::string& nodeId, const std::string& socketId) : devName(nodeId + "-" + socketId) {}
@@ -58,5 +66,34 @@ std::size_t UbseDevNameHash::operator()(const UbseDevName& obj) const
 {
     auto hash = std::hash<std::string>{}(obj.devName);
     return hash;
+}
+
+bool ConvertSlotIdToNodeId(const std::string &slotId, std::string &nodeId)
+{
+    uint32_t slot;
+    if (utils::ConvertStrToUint32(slotId, slot) != UBSE_OK) {
+        UBSE_LOG_ERROR << "slotId is not a number: " << slotId;
+        return false;
+    }
+    uint16_t podId;
+    if (auto ret = adapter_plugins::smbios::UbseSmbios::GetInstance().GetPodId(podId); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "get bios data pod_id failed, " << FormatRetCode(ret);
+        return false;
+    }
+
+    nodeId = std::to_string(slot + (podId * NO_8));
+    return true;
+}
+
+bool ConvertNodeIdToSlotId(const std::string &nodeId, std::string &slotId)
+{
+    uint32_t node;
+    if (utils::ConvertStrToUint32(nodeId, node) != UBSE_OK) {
+        UBSE_LOG_ERROR << "nodeId is not a number: " << nodeId;
+        return false;
+    }
+    uint16_t podId = node / NO_8;
+    slotId = std::to_string(node - (podId * NO_8));
+    return true;
 }
 } // namespace ubse::adapter_plugins::mti
