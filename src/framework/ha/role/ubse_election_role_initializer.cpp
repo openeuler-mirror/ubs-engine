@@ -91,6 +91,7 @@ void Initializer::ProcTimer()
 {
     UbseNodeLocalState localState = UbseElectionNodeMgr::GetInstance().GetLocalNodeState();
     if (localState == UbseNodeLocalState::UBSE_NODE_READY) {
+        UBSE_LOG_INFO << "[ELECTION] local node state is ready, start to elect.";
         if (!isStartTimeSet_) {
             auto ret = GetBootTime(startTimeMs_);
             if (ret != UBSE_OK) {

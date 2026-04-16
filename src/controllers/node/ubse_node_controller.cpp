@@ -97,7 +97,7 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
     std::vector<UbseNodeInfo> infos{};
     ret = GetAllNodeInfoFromRemote(masterNode.id, infos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get all node form master=" << masterNode.id << " failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "get all node from master=" << masterNode.id << " failed, " << FormatRetCode(ret);
         return {};
     }
     std::unordered_map<std::string, UbseNodeInfo> maps{};
@@ -385,16 +385,32 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
         UBSE_LOG_WARN << "current node not master, skip exec cluster state notify";
         return UBSE_OK;
     }
+
+    UBSE_LOG_INFO << "ExecClusterStateHandler start, nodeId=" << nodeInfo.nodeId
+                  << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                  << ", handlers count=" << handlers.size();
+    int failedCount = 0;
     for (auto handler : handlers) {
         if (handler == nullptr) {
             continue;
         }
-        ret |= handler(nodeInfo);
+        UbseResult handlerRet = handler(nodeInfo);
+        if (handlerRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
+                           << " handler failed, ret=" << FormatRetCode(handlerRet);
+            failedCount++;
+        }
+        ret |= handlerRet;
     }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
-                       << " update state=" << static_cast<uint32_t>(nodeInfo.clusterState) << " exec handler failed, "
-                       << FormatRetCode(ret);
+                       << " update state=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                       << " exec handler failed, total ret=" << FormatRetCode(ret)
+                       << ", failedCount=" << failedCount << "/" << handlers.size();
+    } else {
+        UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId
+                      << " update state=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                      << " exec all handlers success, total=" << handlers.size();
     }
     return ret;
 }
@@ -511,10 +527,10 @@ std::string CreateLinkIdAndPhysicalLink(const LinkInfo &linkInfo, PhysicalLink &
                    + linkInfo.slotId + "/" + linkInfo.socketId + "/" + linkInfo.portId;
         }
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
-                       << "slotId is " << linkInfo.slotId << "socketId is " << linkInfo.socketId << "portId is "
-                       << linkInfo.portId << "peerSlotId is " << linkInfo.peerSlotId << "peerSocketId is "
-                       << linkInfo.peerSocketId << "peerPortId is " << linkInfo.peerPortId;
+        UBSE_LOG_WARN << "LCNE provides data that cannot be converted to uint32, with the specific data being: "
+                       << "slotId=" << linkInfo.slotId << ", socketId=" << linkInfo.socketId << ", portId="
+                       << linkInfo.portId << ", peerSlotId=" << linkInfo.peerSlotId << ", peerSocketId="
+                       << linkInfo.peerSocketId << ", peerPortId=" << linkInfo.peerPortId;
     }
     return "ERROR-LINK";
 }
@@ -546,7 +562,7 @@ void UbseNodeController::PrintDevDirConnectInfo()
     std::stringstream oss;
     oss << "------ DevDirConnectInfo INFO ------\n";
     for (auto &connect : devDirConnectInfo) {
-        oss << "LinkId= " << connect.first << ", slotId=" << connect.second.slotId << ", chipId="
+        oss << "LinkId=" << connect.first << ", slotId=" << connect.second.slotId << ", chipId="
             << connect.second.chipId << ", portId=" << connect.second.portId << ", peerSlotId="
             << connect.second.peerSlotId << ", peerChipId=" << connect.second.peerChipId << ", peerPortId="
             << connect.second.peerPortId;

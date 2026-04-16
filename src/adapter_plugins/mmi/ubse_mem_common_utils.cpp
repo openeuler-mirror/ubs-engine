@@ -141,10 +141,10 @@ UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t> &regionNodeIndex, 
 {
     for (int i = 0; i < regionNodeIndex.size(); i++) {
         if (regionNodeIndex[i] >= 0 && regionNodeIndex[i] < 32u) {
-            UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit[" << i << "] is " << regionNodeIndex[i];
+            UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit[" << i << "]=" << regionNodeIndex[i];
             mask |= (1u << regionNodeIndex[i]); // 1 << bit 转为无符号操作
         } else {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "Region bit[" << i << "] is " << regionNodeIndex[i];
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Region bit[" << i << "]=" << regionNodeIndex[i];
             return UBSE_ERROR_INVAL;
         }
     }
@@ -166,6 +166,6 @@ void RmCommonUtils::GenerateNodeChipPortStr(const NodeId &lendNodeId, const Chip
     std::ostringstream str;
     str << lendNodeId << "-" << lendChipId << "-" << portId;
     nodeChipPortStr = str.str();
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "GenerateNodeChipPortStr: " << nodeChipPortStr;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "GenerateNodeChipPortStr=" << nodeChipPortStr;
 }
 } // namespace ubse::mmi

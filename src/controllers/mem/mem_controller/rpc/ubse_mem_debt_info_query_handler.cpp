@@ -379,4 +379,27 @@ UbseResult UbseMemNodeBorrowQueryHandler::Handle(const UbseBaseMessagePtr &req, 
     respPtr->SetUbseNodeBorrowInfos(nodeBorrowInfo);
     return UBSE_OK;
 }
+
+UbseResult UbseMemIdInfoGetHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                                           UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto reqPtr = UbseBaseMessage::DeConvert<UbseMemIdQueryRequestSimpo>(req);
+    if (reqPtr == nullptr) {
+        UBSE_LOG_ERROR << "new UbseMemIdQueryRequestSimpo failed!";
+        return UBSE_ERROR_NULLPTR;
+    }
+    def::UbseMemIdQueryRequest request = reqPtr->GetUbseMemIdQueryRequest();
+    def::UbseExportMemDesc exportMemDesc{};
+    if (const auto ret = mem::controller::debt::UbseMemGetMemIdByImport(request, exportMemDesc); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "mem id get failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    auto respPtr = UbseBaseMessage::DeConvert<UbseMemExportMemDescSimpo>(rsp);
+    if (respPtr == nullptr) {
+        UBSE_LOG_ERROR << "new UbseMemExportMemDescSimpo failed!";
+        return UBSE_ERROR_NULLPTR;
+    }
+    respPtr->SetUbseMemExportMemDesc(exportMemDesc);
+    return UBSE_OK;
+}
 } // namespace ubse::mem::controller::rpc

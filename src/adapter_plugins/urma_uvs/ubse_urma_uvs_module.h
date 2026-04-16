@@ -27,7 +27,7 @@ using namespace ubse::nodeController;
 
 using UvsSetTopoInfo = uint32_t (*)(void *topo, uint32_t topNum);
 using UvsGetDeviceNameByUrmaEid = uint32_t (*)(char *urmaEid, char *buf, size_t len);
-using UvsCreateAggrDev = uint32_t (*)(char *aggrDevEid);
+using UvsCreateAggrDev = uint32_t (*)(char *aggrDevEid, const char *aggrDevName);
 using UvsDeleteAggrDev = uint32_t (*)(char *aggrDevEid);
 
 constexpr uint32_t EID_LEN = 16;
@@ -40,6 +40,8 @@ constexpr uint32_t IPV6_FULL_FORMAT_LENGTH = 39;
 constexpr uint32_t IPV6_BYTE_COUNT = 16;
 constexpr size_t IPV6_SEGMENT_COUNT = 8;
 constexpr size_t IPV6_SEGMENT_LENGTH = 4;
+
+constexpr uint32_t AGGR_DEV_NAME_LEN = 64; // 聚合设备名最大长度，包含'\0'
 
 struct UbcoreTopoFe {
     uint32_t chip_id;

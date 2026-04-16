@@ -51,3 +51,5 @@ if __name__ == '__main__':
     print(f"When memory of vm less then 8G, result is : {result}")
     result = make_migrate_strategy_decision("1863ec26-3fda-4f6f-97b2-fcaf9139ac7d", 8 * unit_gb, "computer02", 1)
     print(f"When node0 - node1, result is : {result}")
+    result = make_migrate_strategy_decision("1863ec26-3fda-4f6f-97b2-fcaf9139ac7d", 8 * unit_gb, "computer32", 0)
+    print(f"When destHostName is not exists, result is : {result}")

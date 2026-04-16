@@ -174,7 +174,7 @@ MpResult OverCommitMsg::GetLocalNumaVms(uint16_t localNumaId,
 void OverCommitMsg::GetVmNumaInfoMapResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        LOG_ERROR << "[OverCommit][FaultManagement] GetVmNumaInfoMapResHandler ctx or respData is null.";
+        LOG_WARN << "[OverCommit][FaultManagement] GetVmNumaInfoMapResHandler ctx or respData is null.";
         return;
     }
     OverCommitFaultVmNumaInfoResult result;

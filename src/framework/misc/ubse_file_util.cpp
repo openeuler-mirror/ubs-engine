@@ -122,21 +122,21 @@ bool UbseFileUtil::IsDirectory(const string &dir)
 UbseResult UbseFileUtil::CreateAndChmodDirectory(const string &dir, mode_t permission)
 {
     if (IsAbsolutePath(dir) != UBSE_OK) {
-        UBSE_LOG_ERROR << "The directory must be an absolute path, current path: " << dir;
+        UBSE_LOG_ERROR << "The directory must be an absolute path, current path=" << dir;
         return UBSE_ERROR;
     }
     if (!IsDirectory(dir)) { // 检查是否为目录
         if (mkdir(dir.c_str(), permission) == 0) {
-            UBSE_LOG_INFO << "Success to create directory: " << dir;
+            UBSE_LOG_INFO << "Success to create directory=" << dir;
         } else {
-            UBSE_LOG_ERROR << "Failed to create directory: " << dir;
+            UBSE_LOG_ERROR << "Failed to create directory=" << dir;
             return UBSE_ERROR;
         }
     }
     // 目录存在也要确保权限为755
     auto ret = chmod(dir.c_str(), permission);
     if (ret != 0) {
-        UBSE_LOG_ERROR << "Failed to chmod to directory: " << dir << "ret=" << strerror(errno);
+        UBSE_LOG_ERROR << "Failed to chmod to directory=" << dir << ", ret=" << strerror(errno);
         return UBSE_ERROR_ACCES;
     }
     return UBSE_OK;

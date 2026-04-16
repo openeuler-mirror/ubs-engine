@@ -19,26 +19,12 @@ namespace ubse::mem::controller {
 using namespace ubse::utils;
 using namespace ubse::adapter_plugins::mmi;
 
-extern ReadWriteLock mapLock;
-extern NodeMemDebtInfoMap nodeMemDebtInfoMap;
-
 /**
 * 获取全量账本
 * @return 账本
 *
 */
 NodeMemDebtInfoMap GetNodeMemDebtInfoMap();
-
-UbseMemShareBorrowExportObj GetNodeMemShareExpDebtInfoMap(const std::string &nodeId, const std::string &name);
-
-std::vector<UbseMemShareBorrowImportObj> GetNodeMemShareImportDebtInfoMap(const std::string &nodeId,
-                                                                          const std::string &name);
-
-/**
-* 获取全量未删除账本
-* @return 未删除账本
-*/
-NodeMemDebtInfoMap GetNoDeletedNodeMemDebtInfoMap();
 
 /**
 * 根据节点id查询账本
@@ -53,7 +39,5 @@ NodeMemDebtInfo GetNodeMemDebtInfoById(const std::string& nodeId);
 * @return 账本
 */
 NodeMemDebtInfo GetNoDeletedNodeMemDebtInfoById(const std::string& nodeId);
-
-void ClearNodeDebtInfoMap();
 }  // namespace ubse::mem::controller
 #endif  // UBSE_MEM_DEBT_INFO_H

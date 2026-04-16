@@ -437,7 +437,7 @@ public:
             if (account.type == AccountType::SHM) {
                 std::string key = account.name + "_" + account.lendId + " S";
                 shm_export_account.insert({ key,
-                    { false, UbseBorrowDetailInfo{ account.name, "shm", account.importId, account.lendId,
+                    { false, UbseBorrowDetailInfo{ account.name, "share", account.importId, account.lendId,
                     account.numaLendInfos, "fault", "-" } } });
 
                 if (UbseMemStateMap.find(static_cast<ubse::adapter_plugins::mmi::UbseMemState>(account.status)) !=
@@ -463,7 +463,7 @@ public:
                 std::string key = account.name + "_" + account.lendId + " S";
                 auto new_key = key + account.importId;
                 if (shm_export_account.find(key) == shm_export_account.end()) {
-                    ubse_borrow_details.insert({ new_key, UbseBorrowDetailInfo{ account.name, "shm", account.importId,
+                    ubse_borrow_details.insert({ new_key, UbseBorrowDetailInfo{ account.name, "share", account.importId,
                         account.lendId, account.numaLendInfos, "fault", account.handle } });
                     continue;
                 }

@@ -1,6 +1,18 @@
-// Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #include "ubse_ras_handler.h"
 #include <dlfcn.h>
+#include <cstring>
 #include <set>
 #include <utility>
 #include <regex>
@@ -13,6 +25,8 @@
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mem_controller_fault_handle.h"
+#include "ubse_mem_controller_module.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
@@ -191,7 +205,7 @@ void LogMemDebtInfoWithNode(ALARM_FAULT_TYPE faultType, const std::string &nodeI
 
     // 检查节点是否存在
     if (!IsNodeInStaticList(nodeId, staticNodeInfoList)) {
-        UBSE_LOG_ERROR << "Invalid argument, nodeId not exist static node list!nodeId:" << nodeId;
+        UBSE_LOG_ERROR << "Invalid argument, nodeId not exist static node list!nodeId=" << nodeId;
         return;
     }
 
@@ -241,7 +255,7 @@ UbseResult UbseRasHandler::NodeFaultHandle(alarm_msg *alarmMsgPtr)
         case TOPOLOGY_FAULT_TYPE::MEM_FAULT:
             return HandleMemoryFault(ALARM_MEM_FAULT, faultInfo);
         default:
-            UBSE_LOG_WARN << "fault type is invalid, type: " << alarmMsgPtr->usAlarmId << ", info: " << faultInfo;
+            UBSE_LOG_WARN << "fault type is invalid, type=" << alarmMsgPtr->usAlarmId << ", info=" << faultInfo;
             return UBSE_ERROR;
     }
 }
@@ -272,7 +286,7 @@ UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::stri
         dlclose(xalarmHandle);
         return UBSE_RAS_ERROR_DLSYM_XALARMD;
     }
-    ret = xalarmReportFunc(alarmFaultType, ack);
+    ret = xalarmReportFunc(alarmFaultType, ack, strlen(ack));
     if (ret < 0) {
         SafeDeleteArray(ack, strlen(ack));
         dlclose(xalarmHandle);
@@ -346,8 +360,8 @@ UbseResult ReportBMCFaultToMaster(const std::string &info, const std::string &fa
         UBSE_LOG_WARN << "Fault node is master, cannot process BMC itself";
         return UBSE_ERROR;
     }
-    UbseRasMessagePtr request = new(std::nothrow) UbseRasMessage();
-    UbseRasMessagePtr response = new(std::nothrow) UbseRasMessage();
+    UbseRasMessagePtr request = new (std::nothrow) UbseRasMessage();
+    UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
     if (request == nullptr || response == nullptr) {
         UBSE_LOG_ERROR << "new ubse ras message failed. ";
         return UBSE_ERROR_NULLPTR;
@@ -487,13 +501,13 @@ void SwitchRoleWhenMasterFault(std::string &faultInfo)
 UbseResult UbseRasHandler::HandleMemoryFault(ALARM_FAULT_TYPE faultType, std::string info)
 {
     auto ret = ExecuteFaultHandler(faultType, info);
-    UBSE_LOG_DEBUG << "Received alarm message : " << info;
+    UBSE_LOG_DEBUG << "Received alarm message=" << info;
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Fault execute failed, " << FormatRetCode(ret);
         return ret;
     }
     std::string ackStr = info + "_" + std::to_string(ret);
-    UBSE_LOG_DEBUG << "Fault execute result is : " << ackStr;
+    UBSE_LOG_DEBUG << "Fault execute result is " << ackStr;
     return ret;
 }
 
@@ -505,6 +519,7 @@ UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std
         UBSE_LOG_ERROR << "fault info is invalid. ";
         return ret;
     }
+    mem::controller::UbseMemFaultManager::MemReportWhenExportNodeOnFault(faultType, faultNodeId);
     SwitchRoleWhenMasterFault(faultNodeId);
 
     UbseRoleInfo roleInfo;
@@ -538,13 +553,11 @@ UbseResult UbseRasHandler::HandlePanicAndRebootFault(ALARM_FAULT_TYPE faultType,
 {
     std::string faultNodeId;
     std::string msgId;
-    if (auto ret = HandlePanicAndRebootFaultPreSet(faultType, info, faultNodeId, msgId);
-            ret != UBSE_OK) {
+    if (auto ret = HandlePanicAndRebootFaultPreSet(faultType, info, faultNodeId, msgId); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Handle panic and reboot fault preset failed, " << FormatRetCode(ret);
         return ret;
     }
-    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_HANDLER_TYPE,
-                                                 faultNodeId);
+    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_HANDLER_TYPE, faultNodeId);
     auto nodeModule = ubse::context::UbseContext::GetInstance().GetModule<UbseNodeControllerModule>();
     if (nodeModule == nullptr) {
         UBSE_LOG_ERROR << "Get node controller module failed. ";
@@ -559,9 +572,10 @@ UbseResult UbseRasHandler::HandlePanicAndRebootFault(ALARM_FAULT_TYPE faultType,
         UBSE_LOG_WARN << "Fault execute failed, " << FormatRetCode(ret);
         return ret;
     }
+    // 故障处理过程中，节点状态可能会被nodeUp事件恢复，需要再次设置fault状态
+    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_HANDLER_TYPE, faultNodeId);
     std::string ackStr = info + "_" + std::to_string(UBSE_OK);
-    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_CLEAR_HANDLER_TYPE,
-                                                 faultNodeId);
+    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_CLEAR_HANDLER_TYPE, faultNodeId);
     return ReportAckToSysSentry(faultType + 1, ackStr);
 }
 
@@ -587,7 +601,7 @@ UbseResult UbseRasHandler::StartRasHandler()
     // 初始化oom处理流程
     InitOomHandler();
     std::string eventId = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
-    ret = UbseSubEvent(eventId, [](std::string& eventId, const std::string& eventMessage) {
+    ret = UbseSubEvent(eventId, [](std::string &eventId, const std::string &eventMessage) {
         auto ret = UbseRasHandler::GetInstance().ExecuteFaultHandler(ALARM_NET_FAULT, eventMessage);
         UBSE_LOG_INFO << "Execute net fault finish. ";
         return ret;
@@ -653,7 +667,7 @@ UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const
     return GetResultFromHandlersByMsg(msg);
 }
 
-UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string& faultInfo)
+UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string &faultInfo)
 {
     if (faultHandlerMap.find(faultType) == faultHandlerMap.end()) {
         UBSE_LOG_WARN << "No handler register, type=" << faultType << "; info=" << faultInfo;
@@ -664,11 +678,11 @@ UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const
     for (const auto &handlers : handlersMap) {
         for (const auto &handler : handlers.second) {
             UBSE_LOG_DEBUG << "Handler execute, type=" << faultType << "; priority=" << static_cast<int>(handlers.first)
-                         << "; name=" << handler.first;
+                           << "; name=" << handler.first;
             auto retTmp = handler.second(faultType, faultInfo);
             result |= retTmp;
             UBSE_LOG_INFO << "Handler execute finished, type=" << faultType << "; name=" << handler.first
-                        << "; priority=" << static_cast<int>(handlers.first) << "; result=" << retTmp;
+                          << "; priority=" << static_cast<int>(handlers.first) << "; result=" << retTmp;
         }
     }
     return result;
@@ -712,18 +726,18 @@ UbseResult HandleCnaAndEidMsg(const std::string &faultInfo, std::string &faultNo
     uint64_t msgId;
     auto ret = ubse::utils::SplitSysSentryMsg(faultInfo, msgId, cna, eid);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "split panic sysSentry msg fail, faultInfo: " << faultInfo;
+        UBSE_LOG_ERROR << "split panic sysSentry msg fail, faultInfo=" << faultInfo;
         return UBSE_RAS_PANIC_REBOOT_MSG_INVALID;
     }
     faultNodeId = QueryNodeIdByEid(eid);
     if (faultNodeId.empty() || !IsDigitString(faultNodeId)) {
-        UBSE_LOG_ERROR << "query node id by eid fail, please check lcne, eid: " << eid;
+        UBSE_LOG_ERROR << "query node id by eid fail, please check lcne, eid=" << eid;
         return UBSE_RAS_ERROR_QUERY_NODE_BY_EID;
     }
     return UBSE_OK;
 }
 
-std::string QueryNodeIdByEid(const std::string& eid)
+std::string QueryNodeIdByEid(const std::string &eid)
 {
     std::map<UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> socketInfoMap{};
     auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
@@ -732,7 +746,7 @@ std::string QueryNodeIdByEid(const std::string& eid)
         return "";
     }
     std::unordered_map<std::string, std::string> eids;
-    for (const auto& info : socketInfoMap) {
+    for (const auto &info : socketInfoMap) {
         std::vector<std::string> devVec;
         ubse::utils::Split(info.first.devName, "-", devVec);
         if (devVec.size() < NO_2) {
@@ -742,7 +756,7 @@ std::string QueryNodeIdByEid(const std::string& eid)
         eids[info.second.primaryEid] = devVec[0];
     }
     if (eids.find(eid) == eids.end()) {
-        for (const auto& item : socketInfoMap) {
+        for (const auto &item : socketInfoMap) {
             UBSE_LOG_DEBUG << "DevName=" << item.first.devName << "; eid=" << item.second.primaryEid;
         }
         return "";
@@ -750,7 +764,7 @@ std::string QueryNodeIdByEid(const std::string& eid)
     return eids[eid];
 }
 
-UbseResult UbseRasHandler::RegisterNodeHandler(const NodeHandlerType &handlerType, const NodeHandler& handler)
+UbseResult UbseRasHandler::RegisterNodeHandler(const NodeHandlerType &handlerType, const NodeHandler &handler)
 {
     if (static_cast<int>(handlerType) >= static_cast<int>(NodeHandlerType::NODE_HANDLER_TYPE_NUM)) {
         UBSE_LOG_ERROR << "Handler type invalid, type=" << static_cast<int>(handlerType);

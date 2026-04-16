@@ -62,7 +62,7 @@ uint32_t UbseFs::DeleteFile(const std::string &fileName)
     std::lock_guard<std::mutex> lock(*fileLock);
     const std::filesystem::path dataDir(rootPath_);
     const std::filesystem::path filePath = dataDir / fileName;
-    const std::filesystem::path tmpPath   = dataDir / (fileName + ".tmp");
+    const std::filesystem::path tmpPath = dataDir / (fileName + ".tmp");
     if (RemoveFile(filePath, fileName) && RemoveFile(tmpPath, fileName + ".tmp")) {
         RemoveLock(fileName);
         return UBSE_OK;
@@ -81,7 +81,7 @@ uint32_t UbseFs::ReadFile(const std::string &fileName, uint8_t *&data, uint32_t 
     std::error_code ec;
     bool exists = std::filesystem::exists(filePath, ec);
     if (ec) {
-        UBSE_LOG_ERROR << "Cannot determine if file=" << fileName << " exists: " << ec.message();
+        UBSE_LOG_ERROR << "Cannot determine if file=" << fileName << ", exists=" << ec.message();
         dataLen = 0;
         data = nullptr;
         return UBSE_ERROR;
@@ -161,7 +161,7 @@ uint32_t UbseFs::WriteFile(const std::string &fileName, const uint8_t *data, con
     // 使用 std::filesystem 安全构建路径
     const std::filesystem::path dataDir(rootPath_);
     const std::filesystem::path filePath = dataDir / fileName;
-    const std::filesystem::path tmpPath   = dataDir / (fileName + ".tmp");
+    const std::filesystem::path tmpPath = dataDir / (fileName + ".tmp");
 
     std::error_code ec;
     if (WriteTmpFile(tmpPath, data, dataLen) != UBSE_OK) {

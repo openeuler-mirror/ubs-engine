@@ -301,13 +301,13 @@ UbseResult CheckReconciliationStatus(const std::set<uint32_t> &staticNodeInfoLis
 
         auto it = nodeMap.find(tmpNodeId);
         if (it == nodeMap.end()) {
-            UBSE_LOG_WARN << "Node:" << tmpNodeId << "not exist in node controller";
+            UBSE_LOG_WARN << "Node=" << tmpNodeId << " does not exist in node controller.";
             return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不存在
         }
 
         if (it->second.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
-            UBSE_LOG_WARN << "Node:" << tmpNodeId
-                          << "not working, clusterState:" << static_cast<uint32_t>(it->second.clusterState);
+            UBSE_LOG_WARN << "Node=" << tmpNodeId
+                          << " does not working, clusterState=" << static_cast<uint32_t>(it->second.clusterState);
             return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不在工作状态
         }
     }
@@ -330,15 +330,15 @@ UbseResult CheckReconciliationStatusWithFault(
 
         auto it = nodeMap.find(tmpNodeId);
         if (it == nodeMap.end()) {
-            UBSE_LOG_WARN << "Node:" << tmpNodeId << "not exist in node controller";
+            UBSE_LOG_WARN << "Node=" << tmpNodeId << " does not exist in node controller.";
             return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不存在
         }
 
         if (it->second.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
             it->second.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT &&
             it->second.clusterState != UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
-            UBSE_LOG_WARN << "Node:" << tmpNodeId
-                          << "not working, clusterState:" << static_cast<uint32_t>(it->second.clusterState);
+            UBSE_LOG_WARN << "Node=" << tmpNodeId
+                          << " does not working, clusterState=" << static_cast<uint32_t>(it->second.clusterState);
             return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不在工作状态
         }
     }
@@ -362,7 +362,7 @@ UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector
 
     // 检查节点是否存在
     if (!IsNodeInStaticList(nodeId, staticNodeInfoList)) {
-        UBSE_LOG_ERROR << "Invalid argument, nodeId not exist static node list!nodeId:" << nodeId;
+        UBSE_LOG_ERROR << "Invalid argument, nodeId does not exist static node list! nodeId=" << nodeId;
         return UBSE_ERR_INVALID_ARG;
     }
 
@@ -379,7 +379,7 @@ UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector
 
     // 检查对账完成状态
     auto retCode = CheckReconciliationStatusWithFault(staticNodeInfoList, nodeMap, nodeId);
-    UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfoWithNode method has been executed end, return code: " << retCode;
+    UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfoWithNode method has been executed end, return code=" << retCode;
     return retCode;
 }
 
@@ -403,7 +403,7 @@ UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos
 
     // 检查对账完成状态
     auto retCode = CheckReconciliationStatus(staticNodeInfoList, nodeMap, "");
-    UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfo method has been executed end, return code:"
+    UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfo method has been executed end, return code="
                   << static_cast<uint32_t>(retCode);
     return retCode;
 }
@@ -457,7 +457,7 @@ UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryI
         }
         debtInfos.emplace_back(debtInfo);
     }
-    UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfoWithLocalNodeImport method has been executed end, return code:";
+    UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfoWithLocalNodeImport method has been executed end.";
     return UBSE_OK;
 }
 
@@ -480,7 +480,7 @@ UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBor
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemNumaBorrow(numaBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {
-        UBSE_LOG_INFO << "numa create with lender failed, return code:" << resp.errorCode;
+        UBSE_LOG_INFO << "numa create with lender failed, return code=" << resp.errorCode;
         return resp.errorCode;
     }
     int32_t retCode = ubse::mem::controller::UbseMemNumaGetWithImportNode(resp.name, borrower.nodeId, desc);
@@ -508,7 +508,7 @@ UbseResult UbseMemNumaCreate(const std::string &name, const UbseMemBorrower &bor
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemNumaBorrow(numaBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {
-        UBSE_LOG_INFO << "numa create failed, return code:" << resp.errorCode;
+        UBSE_LOG_INFO << "numa create failed, return code=" << resp.errorCode;
         return resp.errorCode;
     }
     int32_t retCode = ubse::mem::controller::UbseMemNumaGetWithImportNode(resp.name, borrower.nodeId, desc);
@@ -536,7 +536,7 @@ UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMem
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemNumaBorrow(numaBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {
-        UBSE_LOG_ERROR << "numa create with candidate failed, return code:" << resp.errorCode;
+        UBSE_LOG_ERROR << "numa create with candidate failed, return code=" << resp.errorCode;
         return resp.errorCode;
     }
     int32_t retCode = ubse::mem::controller::UbseMemNumaGetWithImportNode(resp.name, borrower.nodeId, desc);
@@ -560,7 +560,7 @@ UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &bor
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemReturn(returnReq, MemOperationType::NUMA_RETURN, resp);
     if (resp.errorCode != UBSE_OK) {
-        UBSE_LOG_INFO << "numa delete failed, return code:" << resp.errorCode;
+        UBSE_LOG_INFO << "numa delete failed, return code=" << resp.errorCode;
         return resp.errorCode;
     }
     return resp.errorCode;
@@ -581,7 +581,7 @@ UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &bor
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemAddrBorrow(addrBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {
-        UBSE_LOG_INFO << "addr create failed, return code:" << resp.errorCode;
+        UBSE_LOG_INFO << "addr create failed, return code=" << resp.errorCode;
         return resp.errorCode;
     }
     int32_t retCode = ubse::mem::controller::UbseMemAddrGet(resp.name, borrower.nodeId, desc);
@@ -605,7 +605,7 @@ UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &bor
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemReturn(returnReq, MemOperationType::ADDR_RETURN, resp);
     if (resp.errorCode != UBSE_OK) {
-        UBSE_LOG_INFO << "addr delete failed, return code:" << resp.errorCode;
+        UBSE_LOG_INFO << "addr delete failed, return code=" << resp.errorCode;
         return resp.errorCode;
     }
     return UBSE_OK;
@@ -843,7 +843,7 @@ UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector
 
     // 检查节点是否存在
     if (!IsNodeInStaticList(nodeId, staticNodeInfoList)) {
-        UBSE_LOG_ERROR << "Invalid argument, nodeId not exist static node list!nodeId:" << nodeId;
+        UBSE_LOG_ERROR << "Invalid argument, nodeId does not exist static node list! nodeId=" << nodeId;
         return UBSE_ERR_INVALID_ARG;
     }
 
@@ -860,7 +860,7 @@ UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector
 
     // 检查对账完成状态
     UbseResult retCode = CheckReconciliationStatus(staticNodeInfoList, nodeMap, nodeId);
-    UBSE_LOG_INFO << "The UbseGetAddrMemDebtInfoWithNode method has been executed end, return code:" << retCode;
+    UBSE_LOG_INFO << "The UbseGetAddrMemDebtInfoWithNode method has been executed end, return code=" << retCode;
     return retCode;
 }
 } // namespace ubse::mem::controller

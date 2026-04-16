@@ -40,7 +40,7 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
     std::vector<mti::MtiNodeInfo> ubseNodeInfos{};
     auto ret = lcneModule->UbseGetAllNodeInfos(ubseNodeInfos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseGetAllNodeInfos failed, ret=" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseGetAllNodeInfos failed, " << FormatRetCode(ret);
         return ret;
     }
     for (const auto &ubseNodeInfo : ubseNodeInfos) {
@@ -87,7 +87,8 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLi
     }
 
     if (isBeforeElection) {
-        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid);
+        const std::string aggrDevName = "bonding_dev_0";
+        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid, aggrDevName);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Activate urmaDevEid=" << comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid << " failed.";
         }
@@ -119,7 +120,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
     UbseDevTopology devTopology{};
     auto ret = lcneModule->UbseGetDevTopology(devTopology);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "get topology info not successful, " << FormatRetCode(ret);
         return ret;
     }
 
@@ -166,7 +167,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     UbseDevTopology devTopology{};
     auto ret = lcneModule->UbseGetDevTopology(devTopology);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "get topology info failed, " << FormatRetCode(ret);
         return ret;
     }
     iouList.clear();

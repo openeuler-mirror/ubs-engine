@@ -38,7 +38,7 @@ void TestUbseMemDebtInfoQuery::SetUp()
 
 void TestUbseMemDebtInfoQuery::TearDown()
 {
-    nodeMemDebtInfoMap.clear();
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -63,8 +63,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseGetMemDebtInfo)
     EXPECT_EQ(UbseGetMemDebtInfo(nodeId, memDebtInfoMap), UBSE_OK);
 }
 
-void AddFdObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name,
-              NodeMemDebtInfoMap &nodeDebtInfoMap)
+void AddFdObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name)
 {
     // 构造 fdImportObj
     UbseMemFdBorrowImportObj fdImportObj{};
@@ -84,13 +83,12 @@ void AddFdObj(const std::string &importNodeId, const std::string &exportNodeId, 
     fdExportObj.algoResult = fdImportObj.algoResult;
     fdExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
-    // 填充 nodeDebtInfoMap
-    nodeDebtInfoMap[exportNodeId].fdExportObjMap[name + "_" + importNodeId] = fdExportObj;
-    nodeDebtInfoMap[importNodeId].fdImportObjMap[name] = fdImportObj;
+    // 填充 ledger
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, fdExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
 }
 
-void AddNumaObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name,
-                NodeMemDebtInfoMap &nodeDebtInfoMap)
+void AddNumaObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name)
 {
     // 构造 numaImportObj
     UbseMemNumaBorrowImportObj numaImportObj{};
@@ -108,13 +106,12 @@ void AddNumaObj(const std::string &importNodeId, const std::string &exportNodeId
     numaExportObj.algoResult = numaImportObj.algoResult;
     numaExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
-    // 填充 nodeDebtInfoMap
-    nodeDebtInfoMap[exportNodeId].numaExportObjMap[name + "_" + importNodeId] = numaExportObj;
-    nodeDebtInfoMap[importNodeId].numaImportObjMap[name] = numaImportObj;
+    // 填充 ledger
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, numaExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name, numaImportObj);
 }
 
-void AddAddrObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name,
-                NodeMemDebtInfoMap &nodeDebtInfoMap)
+void AddAddrObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name)
 {
     // 构造 addrImportObj
     UbseMemAddrBorrowImportObj addrImportObj{};
@@ -132,24 +129,34 @@ void AddAddrObj(const std::string &importNodeId, const std::string &exportNodeId
     addrExportObj.algoResult = addrImportObj.algoResult;
     addrExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
-    // 填充 nodeDebtInfoMap
-    nodeDebtInfoMap[exportNodeId].addrExportObjMap[name + "_" + importNodeId] = addrExportObj;
-    nodeDebtInfoMap[importNodeId].addrImportObjMap[name] = addrImportObj;
+    // 填充 ledger
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, addrExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(importNodeId, name, addrImportObj);
 }
 
-NodeMemDebtInfoMap BuildDebtMap()
+void AddShareImportObj(const std::string &importNodeId, const std::string &name, uint64_t memId)
 {
-    NodeMemDebtInfoMap nodeDebtInfoMap{};
+    UbseMemShareBorrowImportObj shareImportObj{};
+    shareImportObj.req.name = name;
+    shareImportObj.importNodeId = importNodeId;
+    shareImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    shareImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = memId});
+
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                            shareImportObj);
+}
+
+void BuildDebtMap()
+{
     std::string importNodeId = "1";
     std::string exportNodeId = "2";
     // 添加Fd账本
-    AddFdObj("1", "2", "fdSuccess", nodeDebtInfoMap);
-    AddFdObj("3", "1", "fdSuccess", nodeDebtInfoMap);
+    AddFdObj("1", "2", "fdSuccess");
+    AddFdObj("3", "1", "fdSuccess");
     // 添加Numa账本
-    AddNumaObj("1", "2", "numaSuccess", nodeDebtInfoMap);
+    AddNumaObj("1", "2", "numaSuccess");
     // 添加Addr账本
-    AddAddrObj("1", "2", "addrSuccess", nodeDebtInfoMap);
-    return nodeDebtInfoMap;
+    AddAddrObj("1", "2", "addrSuccess");
 }
 
 std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> BuildNodeInfos()
@@ -166,12 +173,13 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemNodeBorrowQueryWhenSuccess)
     UbseRoleInfo roleInfo{};
     roleInfo.nodeRole = ELECTION_ROLE_MASTER;
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
-    nodeMemDebtInfoMap = BuildDebtMap();
+    BuildDebtMap();
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos = BuildNodeInfos();
     MOCKER_CPP(&nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
     auto ret = UbseMemNodeBorrowQuery(nodeBorrowInfo);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(nodeBorrowInfo.size(), 2); // 1向2借用 3向1借用
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemNodeBorrowQueryWhenNotMaster)
@@ -191,12 +199,13 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemNodeBorrowQueryWhenGetNodeInfoFailed)
     UbseRoleInfo roleInfo{};
     roleInfo.nodeRole = ELECTION_ROLE_MASTER;
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
-    nodeMemDebtInfoMap = BuildDebtMap();
+    BuildDebtMap();
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos{};
     MOCKER_CPP(&nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
     auto ret = UbseMemNodeBorrowQuery(nodeBorrowInfo);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_TRUE(nodeBorrowInfo.empty());
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemNodeBorrowQueryWhenGetCurrentNodeInfoFailed)
@@ -227,5 +236,22 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemImportObjHasImportResults)
         hasImportResults = false;
     }
     EXPECT_TRUE(hasImportResults);
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmGetShouldFilterImportByRequestImportNodeId)
+{
+    UbseRoleInfo roleInfo{};
+    roleInfo.nodeRole = ELECTION_ROLE_MASTER;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+
+    AddShareImportObj("1", "shareFilter", 101);
+    AddShareImportObj("2", "shareFilter", 202);
+
+    UbseMemDebtQueryRequest request{.name = "shareFilter", .importNodeId = "1"};
+    UbseMemShmDesc shmDesc{};
+    EXPECT_EQ(UbseMemShmGet(request, shmDesc), UBSE_OK);
+    ASSERT_EQ(shmDesc.importDesc.size(), 1);
+    ASSERT_EQ(shmDesc.importDesc[0].memIds.size(), 1);
+    EXPECT_EQ(shmDesc.importDesc[0].memIds[0], 101);
 }
 } // namespace ubse::mem_controller::ut

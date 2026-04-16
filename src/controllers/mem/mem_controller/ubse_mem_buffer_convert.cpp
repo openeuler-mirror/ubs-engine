@@ -383,15 +383,6 @@ uint32_t UbseMemShmCreateWithLenderReqUnpack(const UbseIpcMessage &buffer, UbseM
         UBSE_LOG_ERROR << "unpack failed.";
         return ret;
     }
-    // 不指定共享域时使用当前所有集群节点
-    if (memShmBorrowReq.shmRegion.nodeNum == 0) {
-        auto nodeInfos = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
-        memShmBorrowReq.shmRegion.nodeNum = nodeInfos.size();
-        for (const auto &[_, nodeInfo] : nodeInfos) {
-            ubse::adapter_plugins::mmi::UbseNodeInfo ubseNodeInfo{nodeInfo.slotId, nodeInfo.nodeId, nodeInfo.hostName};
-            memShmBorrowReq.shmRegion.nodelist.push_back(ubseNodeInfo);
-        }
-    }
 
     UbseNumaLocation numaLocation{};
     uint64_t lenderSize{};
@@ -1026,6 +1017,44 @@ uint32_t UbseMemNumaDescListPack(const std::vector<ubse::mem::def::UbseMemNumaDe
         }
     }
     buffer.length = requiredLength;
+    return UBSE_OK;
+}
+
+uint32_t UbseMemGetMemIdByImportReqUnpack(const UbseIpcMessage &buffer, def::UbseMemIdQueryRequest &req)
+{
+    if (!buffer.buffer) {
+        UBSE_LOG_ERROR << "buffer.buffer is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
+    // 解包 name
+    if (auto ret = UnpackMemName(req.name, unpackUtil); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "unpack name failed.";
+        return ret;
+    }
+    // 解包import_memid
+    if (!unpackUtil.UnpackUint64(req.importMemId)) {
+        UBSE_LOG_ERROR << "unpack importMemId failed.";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+ 
+uint32_t UbseMemGetMemIdByImportResponsePack(const def::UbseExportMemDesc &memDesc, UbseIpcMessage &buffer)
+{
+    uint32_t len = 0;
+    len += sizeof(uint32_t); // for exportSlotId
+    len += sizeof(uint64_t); // for exportMemId
+ 
+    buffer.length = len;
+    buffer.buffer = new (std::nothrow) uint8_t[len];
+
+    if (buffer.buffer == nullptr) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    UbsePackUtil packUtil(buffer.buffer, len);
+    packUtil.UbsePackUint32(memDesc.exportSlotId);
+    packUtil.UbsePackUint64(memDesc.exportMemId);
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller

@@ -85,10 +85,7 @@ private:
 
     void UbseNodeRetryLedger(const std::string& nodeId);
 
-    /**
-     * 节点上报汇聚，每隔1min，打印一次节点上报记录
-     */
-    void ReportAggregation();
+    UbseResult ReportAggregationTimerHandler();
 
     UbseTaskExecutorPtr taskExecutor_{};
 
@@ -105,6 +102,8 @@ private:
     std::mutex faultCountersMutex_;
 
     std::mutex taskExecMutex_;
+
+    static std::atomic<bool> s_reportTaskRunning;
 
     // 故障恢复阈值
     static constexpr int FAULT_REPORT_THRESHOLD = 150;

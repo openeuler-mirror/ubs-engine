@@ -37,13 +37,12 @@ UbseResult UbseLcneNodeInfo::QueryAllLcneIODieInfo(UbseLcneIODieInfoMap &ubseLcn
 
     auto res = UbseHttpModule::HttpSend(req, rsp);
     if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MTI] Access the LCNE IO DIE information interface via HTTP failed. "
-                       << FormatRetCode(res);
+        UBSE_LOG_ERROR << "[MTI] Access the LCNE IO DIE information interface via HTTP failed." << FormatRetCode(res);
         return res;
     }
     if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
         UBSE_LOG_ERROR << "[MTI] Access the LCNE IO DIE information interface failed. The HTTP status code is "
-                     << rsp.status;
+                       << rsp.status;
         return UBSE_ERROR;
     }
     if (rsp.body.empty()) {
@@ -121,7 +120,7 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string &r
         }
     }
     UBSE_LOG_DEBUG << "[MTI] IO DIE information printing: " << "\n"
-                << UbseLcneIODieInfoMapToString(ubseLcneIODieInfoMap);
+                   << UbseLcneIODieInfoMapToString(ubseLcneIODieInfoMap);
     return UBSE_OK;
 }
 } // namespace ubse::lcne

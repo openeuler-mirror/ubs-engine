@@ -247,29 +247,27 @@ uint32_t IsBorrowCircle(const std::string &hostname, bool &isCircle)
 
     return VM_OK;
 }
-uint32_t VirtMigrateStrategy::MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string &uuid,
-                                                          const std::string &destHostName, uint32_t destNumaId,
-                                                          uint32_t *migrateStrategy)
+
+uint32_t IsSameRack(const std::string &destHostName, bool &isSameRack)
 {
-    if (migrateStrategy == nullptr) {
-        return static_cast<uint32_t>(UbseVmResult::VM_MIGRATE_STRATEGY_NULL_POINTER);
+    std::vector<NodeInfo> nodeInfos;
+    auto ret = UbseGetNodeInfos(nodeInfos);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Get UbseGetNodeInfos failed. " << FormatRetCode(ret);
+        return ret;
     }
-    if (uuid.empty()) {
-        return static_cast<uint32_t>(UbseVmResult::VM_DEST_UUID_EMPTY);
+    for (auto &nodeInfo : nodeInfos) {
+        if (nodeInfo.hostName == destHostName) {
+            isSameRack = true;
+            break;
+        }
     }
-    // Check whether the target host name is empty.
-    if (destHostName.empty()) {
-        return static_cast<uint32_t>(UbseVmResult::VM_DEST_HOST_NAME_EMPTY);
-    }
+    return VM_OK;
+}
 
-    *migrateStrategy = static_cast<uint32_t>(MigrateStrategy::MULTICOPY_MIGRATE_POLICY);
-    uint32_t migrateOneCopyMemoryBound = GetMigrateOneCopyMemoryBound();
-    // If the VM specifications are smaller than those required for OneCopy migration, use the OneCopy migration method.
-    if (vmMemoryMB <= migrateOneCopyMemoryBound) {
-        *migrateStrategy = static_cast<uint32_t>(MigrateStrategy::ONECOPY_MIGRATE_POLICY);
-        return VM_OK;
-    }
-
+uint32_t VirtMigrateStrategy::MakeHamMigrateDecision(const std::string &uuid, const std::string &destHostName,
+                                                     uint32_t destNumaId, uint32_t *migrateStrategy)
+{
     // Obtain the scenario; if the acquisition fails or it is not ham migration scenario, disable ham migration.
     bool isEnableHamMigrate = false;
     auto hamMigrationRet = UbseGetBool("plugin_vm", "mig.isEnableHamMigrate", isEnableHamMigrate);
@@ -300,5 +298,39 @@ uint32_t VirtMigrateStrategy::MakeMigrateStrategyDecision(uint32_t vmMemoryMB, c
         return VM_OK;
     }
     return ret;
+}
+
+uint32_t VirtMigrateStrategy::MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string &uuid,
+                                                          const std::string &destHostName, uint32_t destNumaId,
+                                                          uint32_t *migrateStrategy)
+{
+    if (migrateStrategy == nullptr) {
+        return static_cast<uint32_t>(UbseVmResult::VM_MIGRATE_STRATEGY_NULL_POINTER);
+    }
+    if (uuid.empty()) {
+        return static_cast<uint32_t>(UbseVmResult::VM_DEST_UUID_EMPTY);
+    }
+    // Check whether the target host name is empty.
+    if (destHostName.empty()) {
+        return static_cast<uint32_t>(UbseVmResult::VM_DEST_HOST_NAME_EMPTY);
+    }
+    bool isSameRack = false;
+    auto ret = IsSameRack(destHostName, isSameRack);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Get UbseGetNodeInfos failed. " << FormatRetCode(ret);
+        return ret;
+    }
+    if (!isSameRack) {
+        *migrateStrategy = static_cast<uint32_t>(MigrateStrategy::CROSS_RACK_MULTICOPY_MIGRATE_POLICY);
+        return VM_OK;
+    }
+    *migrateStrategy = static_cast<uint32_t>(MigrateStrategy::MULTICOPY_MIGRATE_POLICY);
+    uint32_t migrateOneCopyMemoryBound = GetMigrateOneCopyMemoryBound();
+    // If the VM specifications are smaller than those required for OneCopy migration, use the OneCopy migration method.
+    if (vmMemoryMB <= migrateOneCopyMemoryBound) {
+        *migrateStrategy = static_cast<uint32_t>(MigrateStrategy::ONECOPY_MIGRATE_POLICY);
+        return VM_OK;
+    }
+    return MakeHamMigrateDecision(uuid, destHostName, destNumaId, migrateStrategy);
 }
 }

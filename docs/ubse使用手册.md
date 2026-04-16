@@ -34,6 +34,8 @@
 
 [4.4 常用命令](#常用命令)
 
+[4.5 高安环境部署](#安装部署)
+
 [5 问题排查定位指导](#问题排查定位指导)
 
 [5.1 日志说明](#日志说明)
@@ -122,7 +124,7 @@ UBSEngine/
 │   ├── ras                     //故障处理
 │   ├── res_plugins
 │   │   ├── syssentry           //syssentry对接
-│   │   ├── mti                 //lcne对接
+│   │   ├── mti                 //ubm对接
 │   │   └── mmi                 //内存资源接口
 │   │   
 │   └── sdk                     //sdk模块
@@ -315,6 +317,7 @@ export HCOM_CONNECTION_RECV_TIMEOUT_SEC=30
 - 执行 `rpm -ivh ubs-engine-x.x.x-x.aarch64.rpm`
 
 - **安装注意事项**
+  - ubs-engine安装依赖OpenSSL的开发包，通过包管理工具安装openssl-devel。
   - ubs-engine安装依赖libboundscheck.so和libhcom.so.*，需先安装libboundscheck和ubs-comm-lib，否则会安装失败。
   - ubs-engine RPM包安装依赖UBM，如果UBM服务未安装，UBSE服务安装可能会失败。
 
@@ -370,11 +373,10 @@ export HCOM_CONNECTION_RECV_TIMEOUT_SEC=30
 | [ubse.election] | heartbeat.timeInterval | 发送心跳间隔时间，单位毫秒。 | 默认值：2000<br>单位：毫秒<br>取值范围：[1000, 60000]<br>参数配置取值范围之外的值会被重置为默认值。 | 所有节点 |
 | [ubse.election] | heartbeat.lostThreshold | 备节点心跳丢失次数阈值。 | 默认值：3<br>取值范围：[3, 20]<br>参数配置取值范围之外的值会被重置为默认值。 | 所有节点 |
 | [ubse.rpc] | request.timeout | 通信接口的超时时间。 | 默认值：60<br>单位：秒<br>取值范围：[0,65535]<br>如果取值超过范围，则取默认值60。 | 所有节点 |
-| [ubse.rpc] | cluster.ipList | rpc使用tcp协议时的集群各节点ip地址。 | 默认值：192.168.100.100-192.168.100.103<br>开启urma时，注释此配置。 | 所有节点 |
-| [ubse.rpc] | cert.use | rpc安全证书能力开关（仅TCP支持）。 | 默认值：true（开启证书能力）<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。 | 所有节点（仅开启TCP时支持） |
+| [ubse.rpc] | cluster.ipList | rpc使用tcp协议时的集群各节点ip地址。 | 默认用#注释该参数，即默认使用urma通信<br>若使用tcp通信，取消#注释并配置该参数<br>参考值：192.168.100.100-192.168.100.103。 | 所有节点 |
+| [ubse.rpc] | cert.use | rpc安全证书能力开关。 | 默认值：true（开启证书能力）<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。 | 所有节点 |
 | [ubse.ubfm] | ubse.server.port | HTTP TCP服务器端口号。 | 默认开启该配置项，配置UBSE与UBM的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8082。<br>若关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
-| [ubse.ubfm] | lcne.server.port | 向LCNE进程发送消息的端口。 | 如果UBM部署到高安环境，开启该配置项，配置UBSE与LCNE的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8799。<br>默认关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
-| [ubse.memory] | system.pool.memory.ratio | 内存池化率 | 不涉及，不需要修改 | 所有节点 |
+| [ubse.ubfm] | ubm.server.port | 向UBM进程发送消息的端口。 | 如果UBM部署到高安环境，开启该配置项，配置UBSE与UBM的通信端口，取值范围：[1024,65535]<br>参数配置取值范围之外或错误值都会被重置为8799。<br>默认关闭该配置，UBSE与UBM之间节点内采用UDS通信。 | 所有节点 |
 | [ubse.memory] | obmm.memory.block.size | 内存块大小 | 不涉及，不需要修改| 所有节点 |
 
 #### 4.3.2 配置示例
@@ -427,19 +429,16 @@ cert.use=true
 #Port number of the http tcp server. The value range is [1024, 65535]. Any invalid value will be reset to 8082.
 ubse.server.port=8082
 
-#Set the Port for Sending Messages to the lcne. The value range is [1024, 65535]. Any value out of range is reset to 8799
-The value must match the lcne listening port.
-lcne.server.port=8799
+#Set the Port for Sending Messages to the ubm. The value range is [1024, 65535]. Any value out of range is reset to 8799
+The value must match the ubm listening port.
+ubm.server.port=8799
 
 [ubse.memory]
 
-#pool memory ratio of all node, it take effect when there isnot node.pool.memory.ratio configuration, unit is %.
-system.pool.memory.ratio = 100
-
 #The default value is 128. If this parameter is set, the value must be greater than 128 MB.
 obmm.memory.block.size=128
-```
 
+```
 
 ### 4.4 常用命令
 
@@ -468,7 +467,6 @@ obmm.memory.block.size=128
   cat /etc/ubse/ubse.conf
   ```
 
----
 ## 5 问题排查定位指导
 
 ### 5.1 日志说明

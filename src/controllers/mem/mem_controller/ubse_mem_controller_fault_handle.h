@@ -51,20 +51,21 @@ public:
 
     static UbseResult DeInitMemFaultManager();
 
+    static UbseResult MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string &faultId);
 private:
     static UbseResult GetMemNameById(uint64_t memId, std::string &memName);
 
-    static uint32_t MemFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
+    static uint32_t ShareMemFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
-    static void MemFaultReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static void ShareMemFaultReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
-    static void MemFaultReportReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static void ShareMemFaultReportReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
-    static void MemFaultNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static void ShareMemFaultNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
-    static void MemFaultNotifyReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static void ShareMemFaultNotifyReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
-    static void MemFaultReportTask(UbseMemFaultMsg msg);
+    static void ShareMemFaultReportTask(UbseMemFaultMsg msg);
 
     static void StartMemFaultReportTask(const UbseMemFaultMsg &msg);
 

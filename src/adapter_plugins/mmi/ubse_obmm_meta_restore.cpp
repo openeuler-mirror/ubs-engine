@@ -65,6 +65,16 @@ std::vector<std::filesystem::directory_entry> SafeDirectoryEntries(const std::fi
     }
 }
 
+bool IsSymlink(const std::filesystem::path& path)
+{
+    try {
+        return std::filesystem::is_symlink(path);
+    } catch (...) {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "Failed to check symlink for path=" << path.string();
+        return false;
+    }
+}
+
 // 一次性扫描 /proc，构建 {file_path -> [pids]} 映射
 FileToPidsMap BuildFileToPidsMap(const std::unordered_set<std::string> &targetPaths)
 {
@@ -80,7 +90,7 @@ FileToPidsMap BuildFileToPidsMap(const std::unordered_set<std::string> &targetPa
 
         std::filesystem::path fdDir = procEntry.path() / "fd";
         for (const auto &fdEntry : SafeDirectoryEntries(fdDir)) {
-            if (!std::filesystem::is_symlink(fdEntry.path())) continue;
+            if (!IsSymlink(fdEntry.path())) continue;
 
             std::string target;
             if (!SafeReadSymlink(fdEntry.path(), target)) {
@@ -140,12 +150,12 @@ UbseResult RmObmmMetaRestore::ReadAgentLocalObmmMetaData(
     UbseRoleInfo currentNode{};
     auto ret = UbseGetCurrentNodeInfo(currentNode);
     if (UBSE_RESULT_FAIL(ret) || currentNode.nodeId.empty()) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get current node id fail, ret = " << ret;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get current node id fail, ret=" << ret;
         return ret;
     }
 
     for (int i = 0; i < obmmShmDevPath.size(); ++i) {
-        UBSE_LOG_DEBUG << MMI_LOG_INFO << "Restoring obmm meta info, path: " << obmmShmDevPath[i];
+        UBSE_LOG_DEBUG << MMI_LOG_INFO << "Restoring obmm meta info, path=" << obmmShmDevPath[i];
         UbseMemLocalObmmMetaData obmmMetaData;
         obmmMetaData.localNodeId = currentNode.nodeId;
         obmmMetaData.usedPidCount = usedPidCounts[i];
@@ -153,7 +163,7 @@ UbseResult RmObmmMetaRestore::ReadAgentLocalObmmMetaData(
         auto ret = RestoreAgentLocalObmmMetaData(obmmShmDevPath[i], obmmMetaData);
         if (ret != UBSE_OK) {
             // 正在删除文件的时候采集可能会失败，其他的元数据不受影响
-            UBSE_LOG_WARN << MMI_LOG_INFO << "Obmm Meta collect fail, path: " << obmmShmDevPath[i];
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Obmm Meta collect fail, path=" << obmmShmDevPath[i];
             continue;
         }
         ubseMemLocalObmmMetaDatas.push_back(obmmMetaData);
@@ -190,7 +200,7 @@ std::vector<std::string> RmObmmMetaRestore::ReadAllObmmShmDevPath()
             }
             result.push_back(dirname);
         } catch (const std::regex_error &e) {
-            UBSE_LOG_ERROR << "ReadAllObmmShmDevPath regex error! dirname:" << dirname << ", error: " << e.what();
+            UBSE_LOG_ERROR << "ReadAllObmmShmDevPath regex error! dirname=" << dirname << ", error=" << e.what();
             closedir(dir);
             return result;
         }
@@ -229,40 +239,40 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string &p
 {
     auto ret = RmObmmDevRead::GetMemIdType(OBMM_META_PATH + path, localObmmMetaData.memIdType);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memory type fail! Path: " << path;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memory type fail! Path=" << path;
         return ret;
     }
 
     ret = RmObmmDevRead::GetRemoteNuma(OBMM_META_PATH + path,
         localObmmMetaData.memIdType, localObmmMetaData.remoteNumaId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get remote numaId fail! Path: " << path;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get remote numaId fail! Path=" << path;
         return ret;
     }
 
     ret = RmObmmDevRead::GetTotalSize(OBMM_META_PATH + path, localObmmMetaData.totalSize);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get ub memory info fail! Path: " << path;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get ub memory info fail! Path=" << path;
         return ret;
     }
 
     ret = RmObmmDevRead::GetLocalMemId(OBMM_META_PATH + path, localObmmMetaData.localMemId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get local memId fail! Path: " << path;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get local memId fail! Path=" << path;
         return ret;
     }
 
     ret = RmObmmDevRead::GetMemUbMemInfo(OBMM_META_PATH + path,
         localObmmMetaData.memIdType, localObmmMetaData.obmmMemExportInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get ub memory info fail! Path: " << path;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get ub memory info fail! Path=" << path;
         return ret;
     }
 
     ret = RmObmmDevRead::GetCustomMeta(OBMM_META_PATH + path,
         localObmmMetaData.customMeta, localObmmMetaData.privData);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get custom meta fail! Path: " << path;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get custom meta fail! Path=" << path;
         return ret;
     }
 
@@ -275,7 +285,7 @@ UbseResult RmObmmDevRead::GetMemIdType(const std::string &path, uint8_t &memIdTy
     std::string type;
     auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2type, type);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get type from obmm meta. path: " << path2type;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get type from obmm meta. Path=" << path2type;
         return ret;
     }
     if (type == "export") {
@@ -283,7 +293,7 @@ UbseResult RmObmmDevRead::GetMemIdType(const std::string &path, uint8_t &memIdTy
     } else if (type == "import") {
         memIdType = 0; // 0 means import
     } else {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Read memId type from " << path << " fail, value: " << type;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Read memId type from " << path << " fail, value=" << type;
         return UBSE_MMI_OPEN_FAILED;
     }
     return UBSE_OK;
@@ -299,14 +309,14 @@ UbseResult RmObmmDevRead::GetRemoteNuma(const std::string &path, uint8_t memIdTy
     std::string numaId;
     auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2remoteNuma, numaId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_DEBUG << MMI_LOG_INFO << "Failed to get remote numaId from obmm meta. path: " << path2remoteNuma;
+        UBSE_LOG_DEBUG << MMI_LOG_INFO << "Failed to get remote numaId from obmm meta. Path=" << path2remoteNuma;
         // 有些属性可能仅在特定条件满足时适用。例如 import_info/numa_id 文件仅在以 NUMA 方式引入时才会出现
         remoteNuma = -1; // invalid value
         return UBSE_OK;
     }
     int64_t tmpRemoteNuma;
     if (!RmCommonUtils::GetInstance().StrToLong(numaId, tmpRemoteNuma)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to number fail, numaId: " << numaId;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to number fail, numaId=" << numaId;
         return UBSE_ERROR_INVAL;
     }
     remoteNuma = static_cast<int16_t>(tmpRemoteNuma);
@@ -320,7 +330,7 @@ static bool IsFileOpenByProc(const std::filesystem::path &procFdPath, const std:
         list = std::filesystem::directory_iterator(procFdPath);
     } catch (const std::filesystem::filesystem_error &e) {
         // 捕获并处理directory_iterator可能抛出的异常，比如权限问题
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Directory iteration failed: " << e.what();
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Directory iteration failed=" << e.what();
         return false;
     }
     for (const auto &entry : list) {
@@ -345,11 +355,11 @@ UbseResult RmObmmDevRead::GetTotalSize(const std::string &path, uint64_t &totalS
     std::string strSize;
     auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2totalSize, strSize);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get total size from obmm meta. path: " << path2totalSize;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get total size from obmm meta. Path=" << path2totalSize;
         return ret;
     }
     if (!RmCommonUtils::GetInstance().StrToULL(strSize, totalSize, 16U)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to number fail, string  size: " << strSize;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to number fail, string  size=" << strSize;
         return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
@@ -362,17 +372,17 @@ UbseResult RmObmmDevRead::GetLocalMemId(const std::string &path, uint64_t &local
 
     try {
         if (!std::regex_search(path, match, pattern)) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memId from path fail! Path: " << path;
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memId from path fail! Path=" << path;
             return UBSE_ERROR_INVAL;
         }
     } catch (const std::regex_error &e) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memId from path regex error! Path: " << path << ", error: " << e.what();
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memId from path regex error! Path=" << path << ", error=" << e.what();
         return UBSE_ERROR_INVAL;
     }
 
     std::string strMemId = match.str();
     if (!RmCommonUtils::GetInstance().StrToULong(strMemId, localMemId)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to memId fail! Str: " << strMemId;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to memId fail! Str=" << strMemId;
         return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
@@ -388,22 +398,22 @@ UbseResult RmObmmDevRead::GetUbMemInfoFromFile(const std::string &path, std::str
 
     auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2uba, uba);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get uba from obmm meta. path: " << path2uba;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get uba from obmm meta. Path=" << path2uba;
         return ret;
     }
     ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2length, length);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get length from obmm meta. path: " << path2length;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get length from obmm meta. Path=" << path2length;
         return ret;
     }
     ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2tokenid, tokenid);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get tokenid from obmm meta. path: " << path2tokenid;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get tokenid from obmm meta. Path=" << path2tokenid;
         return ret;
     }
     ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2deid, deid);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get deid from obmm meta. path: " << path2deid;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get deid from obmm meta. Path=" << path2deid;
         return ret;
     }
 
@@ -433,8 +443,8 @@ UbseResult RmObmmDevRead::GetMemUbMemInfo(const std::string &path,
     if (!parseRes || !RmCommonUtils::GetInstance().StrToULL(uba, ubMemInfo.addr, 16U) ||
         !RmCommonUtils::GetInstance().StrToULL(length, ubMemInfo.length, 16U) ||
         !RmCommonUtils::GetInstance().StrToULL(tokenid, tmpTokenId, 16U)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to number fail. uba: " << uba << ", length: " << length
-                     << ", tokenid: " << tokenid << ", deid: " << deid;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to number fail. uba=" << uba << ", length=" << length
+                     << ", tokenid=" << tokenid << ", deid=" << deid;
         return UBSE_ERROR_INVAL;
     }
 
@@ -452,12 +462,12 @@ UbseResult RmObmmDevRead::GetCustomMeta(const std::string &path,
     std::string tmpPrivLen;
     auto ret = RmCommonUtils::GetInstance().GetFileFirstLine(path2privLen, tmpPrivLen);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get priv_len from obmm meta. path: " << path2privLen;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get priv_len from obmm meta. Path=" << path2privLen;
         return ret;
     }
     uint64_t length;
     if (!RmCommonUtils::GetInstance().StrToULL(tmpPrivLen, length)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert str to long error, tmpPrivLen is " << tmpPrivLen;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert str to long error, tmpPrivLen=" << tmpPrivLen;
         return UBSE_ERROR_INVAL;
     }
     if (length == 0) {
@@ -468,12 +478,12 @@ UbseResult RmObmmDevRead::GetCustomMeta(const std::string &path,
     auto fd = open(path2priv.c_str(), O_RDONLY);
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     if (fd == -1) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Open sysfs_priv failed, path: " << path2priv;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Open sysfs_priv failed, Path=" << path2priv;
         return UBSE_MMI_OPEN_FAILED;
     }
     auto buffer = new (std::nothrow) uint8_t[length];
     if (buffer == nullptr) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to malloc memory, path is " << path;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to malloc memory, path=" << path;
         close(fd);
         return UBSE_ERROR_INVAL;
     }
@@ -503,7 +513,7 @@ UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
     std::string line;
     auto ret = RmCommonUtils::GetFileFirstLine(filePath, line);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get node_mem_size from obmm meta. path" << filePath;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get node_mem_size from obmm meta. Path=" << filePath;
         return ret;
     }
     int index = 0; // 记录当前值的索引
@@ -527,7 +537,7 @@ UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
     }
 
     if (!isNonZero) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get numa failed. memid=" << memid;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Get numa failed, memid=" << memid;
         return UBSE_ERROR_INVAL;
     }
     numa = index;

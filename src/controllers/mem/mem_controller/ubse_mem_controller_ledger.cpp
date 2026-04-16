@@ -104,36 +104,25 @@ void GetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebt
     }
 }
 
-void GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
-                             const NodeMemDebtInfo &masterDebtInfo, const std::string &targetNodeId)
+UbseResult GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
+                                   const NodeMemDebtInfo &masterDebtInfo, const std::string &targetNodeId)
 {
     NodeMemDebtInfo agentDebtInfo{};
     std::string currentNodeId = GetCurNodeId();
     if (currentNodeId == targetNodeId) {
         allDebtInfoMap[targetNodeId] = masterDebtInfo;
+        return UBSE_OK;
     } else {
-        // 账本目标节点采集失败时，重试，直到数据采集成功为止；若下一次对账周期此次还未采集成功，下一次smoothing直接退出，继续等待本次smoothing
-        uint32_t count = 0;
-        while (!g_globalStop.load()) {
-            if (!CheckNodeIsMaster()) {
-                UBSE_LOG_INFO << "current node not master, skip collect ledger.";
-                break;
-            }
-            auto ret = CollectLedge(targetNodeId, agentDebtInfo);
-            if (ret == UBSE_OK) {
-                allDebtInfoMap[targetNodeId] = agentDebtInfo;
-                break;
-            }
-            UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, will retry, " << FormatRetCode(ret);
-            std::unique_lock<std::mutex> lock(mtx_target_ledger_global);
-            auto sleep_ms = GetExponentialBackOffSleepTime(count);
-            auto timeout_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(sleep_ms);
-            if (g_globalCv.wait_until(lock, timeout_time, [&] { return g_globalStop.load(); })) {
-                UBSE_LOG_INFO << "get target ledger timer exit by stop ubse";
-                break;
-            }
-            count++;
+        // 账本目标节点采集失败时，直接返回失败
+        if (!CheckNodeIsMaster()) {
+            UBSE_LOG_INFO << "current node not master, skip collect ledger.";
+            return UBSE_OK;
         }
+        auto ret = CollectLedge(targetNodeId, agentDebtInfo);
+        if (ret == UBSE_OK) {
+            allDebtInfoMap[targetNodeId] = agentDebtInfo;
+        }
+        return ret;
     }
 }
 
@@ -162,7 +151,10 @@ UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo> &al
             return UBSE_OK;
         }
     }
-    GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
+    ret = GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, " << FormatRetCode(ret);
+    }
     return ret;
 }
 
@@ -181,7 +173,14 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const Export
                                         UbseMemBorrowType borrowType)
 {
     auto ret = UBSE_OK;
-    std::string exportDebtName = name + "_" + nodeId;
+    std::string exportDebtName;
+    // 使用 std::decay_t 去除引用和 const 属性，确保匹配核心类型
+    if constexpr (std::is_same_v<std::decay_t<decltype(importObj)>, UbseMemShareBorrowImportObj>) {
+        exportDebtName = name;
+    } else {
+        exportDebtName = name + "_" + nodeId;
+    }
+
     if (exportObjMap.find(exportDebtName) != exportObjMap.end()) {
         return ret;
     }
@@ -273,7 +272,8 @@ UbseResult AgentInvalidateImportDebtHelper(ImportObjMap &importObjMap,
     }
     auto& debtObj = importObjMap.at(name);
     uint8_t decoderId = 0;
-    if constexpr (std::is_same_v<decltype(debtObj), UbseMemShareBorrowImportObj&>) {
+    // 使用 std::decay_t 去除引用和 const 属性，确保匹配核心类型
+    if constexpr (std::is_same_v<std::decay_t<decltype(debtObj)>, UbseMemShareBorrowImportObj>) {
         decoderId = debtObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
     }
 
@@ -312,9 +312,7 @@ UbseResult AgentInvalidateImportDebt(const std::string &name,
         UBSE_LOG_ERROR << "InvalidateImportDebt failed, " << FormatRetCode(ret);
         return ret;
     }
-    mapLock.LockWrite();
-    nodeMemDebtInfoMap[curNode.nodeId] = debtInfo;
-    mapLock.UnLock();
+    UbseMemDebtLedger::GetInstance().LoadFromNodeMemDebtInfo(curNode.nodeId, debtInfo);
     return ret;
 }
 
@@ -2215,59 +2213,124 @@ std::vector<UbseMemShareBorrowImportObj> CollectImportObjsFromNode(
     return matchedObjs;
 }
 
-// 获取与 baseNodeId 匹配的导入对象
-std::vector<UbseMemShareBorrowImportObj> GetImportObjsByBaseNode(const NodeMemDebtInfoMap &debtMap,
-                                                                 const std::string &name, const std::string &baseNodeId)
-{
-    std::vector<UbseMemShareBorrowImportObj> importObjs;
-
-    for (const auto &[nodeId, nodeDebt] : debtMap) {
-        auto matchedObjs = CollectImportObjsFromNode(nodeDebt.shareImportObjMap, name, baseNodeId);
-        importObjs.insert(importObjs.end(), matchedObjs.begin(), matchedObjs.end());
-    }
-    return importObjs;
-}
-
 // 获取name下所有导入对象的子函数
-std::vector<UbseMemShareBorrowImportObj> GetAllImportObjsByName(const NodeMemDebtInfoMap &debtMap,
-                                                                const std::string &name)
+std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjsByName(const std::string &name)
 {
-    std::vector<UbseMemShareBorrowImportObj> allImportObjs;
-    for (const auto &[nodeId, nodeDebt] : debtMap) {
-        for (const auto &[resId, importObj] : nodeDebt.shareImportObjMap) {
-            if (resId == name) {
-                allImportObjs.emplace_back(importObj);
-            }
+    std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> allImportObjs;
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto allNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
+    for (const auto &[nodeId, nodeMap] : allNodeMaps) {
+        auto importObjPtr = nodeMap->Get(name);
+        if (importObjPtr && importObjPtr->status.state != UBSE_MEM_IMPORT_DESTROYED) {
+            allImportObjs.emplace_back(importObjPtr);
         }
     }
     UBSE_LOG_INFO << "Total import objects found for name=" << name << ": " << allImportObjs.size();
     return allImportObjs;
 }
-// 获取最大引用计数的导出对象
-std::pair<UbseMemShareBorrowExportObj, std::vector<UbseMemShareBorrowImportObj>> GetMaxRefCountExportObj(
+
+// 收集指定 name 的导出对象，按 baseNodeId 分组
+std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> CollectExportObjsByName(
     const std::string &name)
 {
-    NodeMemDebtInfoMap debtMap = GetNodeMemDebtInfoMap();
-    std::unordered_map<std::string, std::unordered_map<std::string, size_t>> refCountMap =
-        CountShareMemoryRefCount(debtMap);
-    // 收集该 name 下的所有 baseNodeId 和对应的导出对象
-    auto baseToObjs = GetExportObjsByBaseNode(debtMap, name);
-    // 如果没有找到对应的导出对象，返回该 name 的所有导入对象
-    if (baseToObjs.empty()) {
-        UBSE_LOG_INFO << "name=" << name << " no shared memory object found, returning all import objects";
-        return { UbseMemShareBorrowExportObj{}, GetAllImportObjsByName(debtMap, name) };
+    auto baseToExportObjs = std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>>();
+
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto allExportNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetAllNodeMaps();
+
+    for (const auto &[nodeId, nodeMap] : allExportNodeMaps) {
+        auto exportObjPtr = nodeMap->Get(name);
+        if (!exportObjPtr) {
+            continue;
+        }
+        if (exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING ||
+            exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYED) {
+            continue;
+        }
+        if (!exportObjPtr->algoResult.exportNumaInfos.empty()) {
+            const std::string &baseNodeId = exportObjPtr->algoResult.exportNumaInfos[0].nodeId;
+            baseToExportObjs[baseNodeId] = exportObjPtr;
+        }
     }
-    // 收集 baseNodeId 和对应的引用计数
-    auto baseRefCount = CollectBaseRefCount(baseToObjs, refCountMap, name);
-    // 找出最大引用计数的 baseNodeId
-    std::string selectedBaseNodeId = FindMaxRefCountBaseNode(baseRefCount);
-    // 获取该 baseNodeId 对应的导出对象
-    UbseMemShareBorrowExportObj exportObj = GetExportObjByBaseNode(baseToObjs, selectedBaseNodeId);
-    // 获取该 baseNodeId 对应的导入对象
-    std::vector<UbseMemShareBorrowImportObj> importObjs = GetImportObjsByBaseNode(debtMap, name, selectedBaseNodeId);
-    UBSE_LOG_INFO << "name=" << name << " baseNodeId=" << selectedBaseNodeId << " found " << importObjs.size() <<
-        " import objects.";
-    return { exportObj, importObjs };
+
+    return baseToExportObjs;
+}
+
+void CollectImportObjsAndRefCount(
+    const std::string &name, std::unordered_map<std::string, size_t> &refCountByBaseNode,
+    std::unordered_map<std::string, std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>> &baseToImportObjs)
+{
+    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto allImportNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
+
+    for (const auto &[nodeId, nodeMap] : allImportNodeMaps) {
+        auto allResources = nodeMap->GetAll();
+        for (const auto &[resId, importObjPtr] : allResources) {
+            if (resId != name) {
+                continue;
+            }
+            if (importObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYED) {
+                continue;
+            }
+            if (!importObjPtr->algoResult.exportNumaInfos.empty()) {
+                const std::string &baseNodeId = importObjPtr->algoResult.exportNumaInfos[0].nodeId;
+                refCountByBaseNode[baseNodeId]++;
+                baseToImportObjs[baseNodeId].emplace_back(importObjPtr);
+            }
+        }
+    }
+}
+
+// 找出最大引用计数的 baseNodeId
+std::string FindMaxRefCountBaseNode(
+    const std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> &baseToExportObjs,
+    const std::unordered_map<std::string, size_t> &refCountByBaseNode)
+{
+    std::string selectedBaseNodeId;
+    size_t maxRefCount = 0;
+
+    for (const auto &[baseNodeId, objs] : baseToExportObjs) {
+        size_t count = refCountByBaseNode.count(baseNodeId) ? refCountByBaseNode.at(baseNodeId) : 0;
+        if (count >= maxRefCount) {
+            maxRefCount = count;
+            selectedBaseNodeId = baseNodeId;
+        }
+    }
+
+    return selectedBaseNodeId;
+}
+
+UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string &name)
+{
+    // 1. 收集该 name 相关的导出对象，按 baseNodeId 分组
+    auto baseToExportObjs = CollectExportObjsByName(name);
+    // 2. 如果没有找到对应的导出对象，返回该 name 的所有导入对象
+    if (baseToExportObjs.empty()) {
+        UBSE_LOG_INFO << "name=" << name << " no shared memory object found, returning all import objects";
+        return {nullptr, GetAllImportObjsByName(name)};
+    }
+
+    // 3. 收集该 name 相关的导入对象，计算引用计数并按 baseNodeId 分组
+    std::unordered_map<std::string, size_t> refCountByBaseNode;
+    std::unordered_map<std::string, std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>> baseToImportObjs;
+    CollectImportObjsAndRefCount(name, refCountByBaseNode, baseToImportObjs);
+
+    // 4. 找出最大引用计数的 baseNodeId
+    std::string selectedBaseNodeId = FindMaxRefCountBaseNode(baseToExportObjs, refCountByBaseNode);
+
+    UBSE_LOG_INFO << "name=" << name << " selectedBaseNodeId=" << selectedBaseNodeId << " maxRefCount="
+                  << (refCountByBaseNode.count(selectedBaseNodeId) ? refCountByBaseNode.at(selectedBaseNodeId) : 0);
+
+    // 5. 构建返回结果
+    auto exportObjPtr = baseToExportObjs[selectedBaseNodeId];
+    auto importObjPtrs = std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>();
+    if (baseToImportObjs.count(selectedBaseNodeId)) {
+        importObjPtrs = std::move(baseToImportObjs[selectedBaseNodeId]);
+    }
+
+    UBSE_LOG_INFO << "name=" << name << " baseNodeId=" << selectedBaseNodeId << " found " << importObjPtrs.size()
+                  << " import objects.";
+    return {exportObjPtr, importObjPtrs};
 }
 
 } // namespace ubse::mem::controller

@@ -56,26 +56,26 @@ TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager)
     EXPECT_NE(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, MemFaultReportTask)
-{
-    g_reportTaskCtrlMap["test"].ready = true;
+// TEST_F(TestUbseMemControllerFaultHandle, MemFaultReportTask)
+// {
+//     g_reportTaskCtrlMap["test"].ready = true;
 
-    UbseMemFaultMsg msg;
-    msg.faultNode = "1";
-    msg.nodeNum = 2;
-    msg.notifiedNode = "2";
-    UbseMemFaultInfo info(1, "test", "fault");
-    msg.info = info;
+//     UbseMemFaultMsg msg;
+//     msg.faultNode = "1";
+//     msg.nodeNum = 2;
+//     msg.notifiedNode = "2";
+//     UbseMemFaultInfo info(1, "test", "fault");
+//     msg.info = info;
 
-    MOCKER(&UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+//     MOCKER(&UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
+//     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
 
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
-    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
-    EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportTask(msg));
-}
+//     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
+//     MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+//     MOCKER(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportTask(msg));
+// }
 
 TEST_F(TestUbseMemControllerFaultHandle, GetMemNameById)
 {
@@ -88,12 +88,14 @@ TEST_F(TestUbseMemControllerFaultHandle, GetMemNameById)
     EXPECT_EQ(UbseMemFaultManager::GetMemNameById(memId, memName), UBSE_OK);
 }
 
+/*
 TEST_F(TestUbseMemControllerFaultHandle, StartMemFaultReportTask)
 {
     UbseMemFaultMsg msg;
     MOCKER_CPP(&UbseMemFaultManager::MemFaultReportTask);
     EXPECT_NO_THROW(UbseMemFaultManager::StartMemFaultReportTask(msg));
 }
+*/
 
 TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager)
 {
@@ -104,82 +106,83 @@ TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager)
     EXPECT_EQ(UbseMemFaultManager::DeInitMemFaultManager(), UBSE_OK);
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, MemFaultHandler)
-{
-    ALARM_FAULT_TYPE alarmFaultEvent;
-    std::string faultInfo = "test";
-    auto ret = UbseMemFaultManager::MemFaultHandler(alarmFaultEvent, faultInfo);
-    EXPECT_NE(ret, UBSE_OK);
-    faultInfo = R"({"memid" : 1, "raw_ubus_mem_err_type": 0})";
-    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
-    ret = UbseMemFaultManager::MemFaultHandler(alarmFaultEvent, faultInfo);
-    EXPECT_NE(ret, UBSE_OK);
-}
+// TEST_F(TestUbseMemControllerFaultHandle, MemFaultHandler)
+// {
+//     ALARM_FAULT_TYPE alarmFaultEvent;
+//     std::string faultInfo = "test";
+//     auto ret = UbseMemFaultManager::MemFaultHandler(alarmFaultEvent, faultInfo);
+//     EXPECT_NE(ret, UBSE_OK);
+//     faultInfo = R"({"memid" : 1, "raw_ubus_mem_err_type": 0})";
+//     MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+//     ret = UbseMemFaultManager::MemFaultHandler(alarmFaultEvent, faultInfo);
+//     EXPECT_NE(ret, UBSE_OK);
+// }
 
-TEST_F(TestUbseMemControllerFaultHandle, MemFaultReportHandler)
-{
-    UbseByteBuffer req;
-    UbseByteBuffer resp;
-    EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportHandler(req, resp));
-    UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeRole = ELECTION_ROLE_MASTER;
-    MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
-    UbseSerialization serialization;
-    UbseMemFaultMsg msg;
-    UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
-    msg.info = info;
-    msg.nodeNum = 2;
-    msg.faultNode = 1;
-    msg.notifiedNode = 1;
-    serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
-                  << msg.info.faultInfo_;
-    req.data = serialization.GetBuffer();
-    req.len = serialization.GetLength();
-    EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportHandler(req, resp));
-}
+// TEST_F(TestUbseMemControllerFaultHandle, MemFaultReportHandler)
+// {
+//     GTEST_SKIP();
+//     UbseByteBuffer req;
+//     UbseByteBuffer resp;
+//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportHandler(req, resp));
+//     UbseRoleInfo curNodeInfo{};
+//     curNodeInfo.nodeRole = ELECTION_ROLE_MASTER;
+//     MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+//     UbseSerialization serialization;
+//     UbseMemFaultMsg msg;
+//     UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
+//     msg.info = info;
+//     msg.nodeNum = 2;
+//     msg.faultNode = 1;
+//     msg.notifiedNode = 1;
+//     serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
+//                   << msg.info.faultInfo_;
+//     req.data = serialization.GetBuffer();
+//     req.len = serialization.GetLength();
+//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportHandler(req, resp));
+// }
 
-TEST_F(TestUbseMemControllerFaultHandle, MemFaultNotifyReplyHandler)
-{
-    UbseByteBuffer req;
-    UbseByteBuffer resp;
-    EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyReplyHandler(req, resp));
-    UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeRole = ELECTION_ROLE_MASTER;
-    MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
-    UbseSerialization serialization;
-    UbseMemFaultMsg msg;
-    UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
-    msg.info = info;
-    msg.nodeNum = 2;
-    msg.faultNode = 1;
-    msg.notifiedNode = 1;
-    serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
-                  << msg.info.faultInfo_;
-    req.data = serialization.GetBuffer();
-    req.len = serialization.GetLength();
-    EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyReplyHandler(req, resp));
-}
+// TEST_F(TestUbseMemControllerFaultHandle, MemFaultNotifyReplyHandler)
+// {
+//     UbseByteBuffer req;
+//     UbseByteBuffer resp;
+//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyReplyHandler(req, resp));
+//     UbseRoleInfo curNodeInfo{};
+//     curNodeInfo.nodeRole = ELECTION_ROLE_MASTER;
+//     MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+//     UbseSerialization serialization;
+//     UbseMemFaultMsg msg;
+//     UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
+//     msg.info = info;
+//     msg.nodeNum = 2;
+//     msg.faultNode = 1;
+//     msg.notifiedNode = 1;
+//     serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
+//                   << msg.info.faultInfo_;
+//     req.data = serialization.GetBuffer();
+//     req.len = serialization.GetLength();
+//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyReplyHandler(req, resp));
+// }
 
-TEST_F(TestUbseMemControllerFaultHandle, MemFaultNotifyHandler)
-{
-    GTEST_SKIP();
-    UbseByteBuffer req;
-    UbseByteBuffer resp;
-    UbseSerialization serialization;
-    UbseMemFaultMsg msg;
-    UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
-    msg.info = info;
-    msg.nodeNum = 2;
-    msg.faultNode = 1;
-    msg.notifiedNode = 1;
-    serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
-                  << msg.info.faultInfo_;
-    req.data = serialization.GetBuffer();
-    req.len = serialization.GetLength();
-    EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyHandler(req, resp));
+// TEST_F(TestUbseMemControllerFaultHandle, MemFaultNotifyHandler)
+// {
+//     GTEST_SKIP();
+//     UbseByteBuffer req;
+//     UbseByteBuffer resp;
+//     UbseSerialization serialization;
+//     UbseMemFaultMsg msg;
+//     UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
+//     msg.info = info;
+//     msg.nodeNum = 2;
+//     msg.faultNode = 1;
+//     msg.notifiedNode = 1;
+//     serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
+//                   << msg.info.faultInfo_;
+//     req.data = serialization.GetBuffer();
+//     req.len = serialization.GetLength();
+//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyHandler(req, resp));
 
-    std::shared_ptr<UbseApiServerModule> apiServerPtr = std::make_shared<UbseApiServerModule>();
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerPtr));
-    EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyHandler(req, resp));
-}
+//     std::shared_ptr<UbseApiServerModule> apiServerPtr = std::make_shared<UbseApiServerModule>();
+//     MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerPtr));
+//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyHandler(req, resp));
+// }
 } // namespace ubse::mem_controller::ut

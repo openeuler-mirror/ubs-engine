@@ -10,17 +10,24 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_TIMER_H
-#define UBSE_TIMER_H
+#ifndef UBSE_TIMER_CONTROLLER_H
+#define UBSE_TIMER_CONTROLLER_H
 
 #include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <string>
 #include <thread>
 #include "ubse_common_def.h"
 
 namespace ubse::timer {
 using namespace ubse::common::def;
+
+using UbseTimerHandler = std::function<UbseResult()>;
+
+uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler, uint32_t interval);
+
+void UbseTimerHandlerUnregister(const std::string &name);
 
 class UbseTimerController {
 public:
@@ -49,4 +56,4 @@ private:
 };
 } // namespace ubse::timer
 
-#endif // UBSE_TIMER_H
+#endif // UBSE_TIMER_CONTROLLER_H

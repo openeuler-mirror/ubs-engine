@@ -64,7 +64,7 @@ std::string ThreadTaskManager::AddTask(const std::string &taskType)
     taskInfo.threadId = std::thread::id();
 
     taskMap_[taskId] = taskInfo;
-    UBSE_LOG_INFO << "Add new async task, taskId: " << taskId << ", type: " << taskType;
+    UBSE_LOG_INFO << "Add new async task, taskId=" << taskId << ", type=" << taskType;
 
     return taskId;
 }
@@ -96,10 +96,10 @@ void ThreadTaskManager::UpdateTaskStatus(const std::string &taskId, AsyncTaskSta
             it->second.endTime = std::chrono::system_clock::now();
         }
 
-        UBSE_LOG_INFO << "INFO: Update task status, taskId: " << taskId << ", status: " << static_cast<int>(status)
+        UBSE_LOG_INFO << "INFO: Update task status, taskId=" << taskId << ", status=" << static_cast<int>(status)
                       << ", resultCode: " << resultCode;
     } else {
-        UBSE_LOG_WARN << "WARN: Update task status failed, task not found: " << taskId;
+        UBSE_LOG_WARN << "WARN: Update task status failed, task not found=" << taskId;
     }
 }
 
@@ -172,7 +172,7 @@ void ThreadTaskManager::CleanupCompletedTasks()
 
     while (it != taskMap_.end()) {
         if (it->second.status == AsyncTaskStatus::SUCCESS || it->second.status == AsyncTaskStatus::FAILED) {
-            UBSE_LOG_INFO << "INFO: Cleanup completed task, taskId: " << it->first;
+            UBSE_LOG_INFO << "INFO: Cleanup completed task, taskId=" << it->first;
             SafeDeleteArray(it->second.msgRawData);
             it = taskMap_.erase(it);
             cleanedCount++;
@@ -182,7 +182,7 @@ void ThreadTaskManager::CleanupCompletedTasks()
     }
 
     if (cleanedCount > 0) {
-        UBSE_LOG_INFO << "INFO: Cleanup " << cleanedCount << " completed tasks";
+        UBSE_LOG_INFO << "INFO: Cleanup " << cleanedCount << " completed tasks.";
     }
 }
 
@@ -191,7 +191,7 @@ void ThreadTaskManager::ClearAllTasks()
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = taskMap_.begin();
     while (it != taskMap_.end()) {
-        UBSE_LOG_INFO << "INFO: Cleanup all task, taskId: " << it->first;
+        UBSE_LOG_INFO << "INFO: Cleanup all task, taskId=" << it->first;
         SafeDeleteArray(it->second.msgRawData);
         it = taskMap_.erase(it);
     }
@@ -202,12 +202,12 @@ uint32_t ThreadTaskManager::SetMemBorrowResult(const std::string &taskId, const 
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = taskMap_.find(taskId);
     if (it == taskMap_.end()) {
-        UBSE_LOG_WARN << "Set mem borrow result failed, task not found: " << taskId;
+        UBSE_LOG_WARN << "Set mem borrow result failed, task not found, taskId=" << taskId;
         return VM_ERROR;
     }
     auto ret = PackMemBorrowResult(result, it->second);
     if (ret != VM_OK) {
-        UBSE_LOG_ERROR << "PackMemBorrowResult failed for task: " << taskId << ", ret = " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "PackMemBorrowResult failed for task=" << taskId << ", " << FormatRetCode(ret);
         return ret;
     }
     return VM_OK;
@@ -237,7 +237,7 @@ uint32_t ThreadTaskManager::PackMemBorrowResult(const mem_borrow_result_c &memBo
 
     errno_t copy_result = memcpy_s(rawData, dataSize, msg.SerializedData(), dataSize);
     if (copy_result != 0) {
-        UBSE_LOG_ERROR << "memcpy_s failed for serialized data: " << copy_result;
+        UBSE_LOG_ERROR << "memcpy_s failed for serialized data=" << copy_result;
         delete[] rawData;
         return VM_ERROR;
     }
@@ -245,7 +245,7 @@ uint32_t ThreadTaskManager::PackMemBorrowResult(const mem_borrow_result_c &memBo
     asyncTaskInfo.msgRawData = rawData;
     asyncTaskInfo.msgRawDataSize = dataSize;
 
-    UBSE_LOG_INFO << "MemBorrow result packed successfully, dataSize: " << dataSize;
+    UBSE_LOG_INFO << "MemBorrow result packed successfully, dataSize=" << dataSize;
     return VM_OK;
 }
 } // namespace vm

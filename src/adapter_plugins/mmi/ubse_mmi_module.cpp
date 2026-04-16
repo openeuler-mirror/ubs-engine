@@ -129,9 +129,7 @@ uint32_t UbseMmiModule::UbseMemFdImportExecutor(UbseMemFdBorrowImportObj &import
 uint32_t UbseMmiModule::UbseMemFdImportPermissionExecutor(UbseMemFdBorrowImportObj &importObj)
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdImportPermissionExecutor begin, name=" << importObj.req.name
-                  << ", objDetails "
-                     "is "
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(importObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -305,17 +303,17 @@ uint32_t UbseMmiModule::UbseMemShmImportExecutor(UbseMemShareBorrowImportObj &im
         return UBSE_ERROR_INVAL;
     }
     auto ret = MemInstanceInnerShm::GetInstance().MemShmImportExecutor(importObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmImportExecutor end, ret =" << ret << ", name=" << importObj.req.name
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmImportExecutor end, ret=" << ret << ", name=" << importObj.req.name
                   << " memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "privData: (onePth: " << importObj.req.ubseMemPrivData.onePth
-                  << " wrDelayComp: " << importObj.req.ubseMemPrivData.wrDelayComp
-                  << " reduceDelayComp: " << importObj.req.ubseMemPrivData.reduceDelayComp
-                  << " cmoDelayComp: " << importObj.req.ubseMemPrivData.cmoDelayComp
-                  << " so: " << importObj.req.ubseMemPrivData.so
-                  << " adTrOchip: " << importObj.req.ubseMemPrivData.adTrOchip
-                  << " cacheableFlag: " << importObj.req.ubseMemPrivData.cacheableFlag
-                  << " marId: " << importObj.req.ubseMemPrivData.marId
-                  << " marId: " << importObj.req.ubseMemPrivData.rsv0 << ")";
+    UBSE_LOG_INFO << MMI_LOG_INFO << "privData=(onePth=" << importObj.req.ubseMemPrivData.onePth
+                  << ", wrDelayComp=" << importObj.req.ubseMemPrivData.wrDelayComp
+                  << ", reduceDelayComp=" << importObj.req.ubseMemPrivData.reduceDelayComp
+                  << ", cmoDelayComp=" << importObj.req.ubseMemPrivData.cmoDelayComp
+                  << ", so=" << importObj.req.ubseMemPrivData.so
+                  << ", adTrOchip=" << importObj.req.ubseMemPrivData.adTrOchip
+                  << ", cacheableFlag=" << importObj.req.ubseMemPrivData.cacheableFlag
+                  << ", marId=" << importObj.req.ubseMemPrivData.marId
+                  << ", marId=" << importObj.req.ubseMemPrivData.rsv0 << ")";
     return ret;
 }
 
@@ -334,8 +332,8 @@ uint32_t UbseMmiModule::UbseMemShmUnImportExecutor(const UbseMemShareBorrowImpor
         return UBSE_ERROR_INVAL;
     }
     auto ret = MemInstanceInnerShm::GetInstance().MemShmUnImportExecutor(importObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnImportExecutor end, ret =" << ret << ", name=" << importObj.req.name
-                  << " memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnImportExecutor end, ret=" << ret << ", name=" << importObj.req.name
+                  << ", memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
     return ret;
 }
 
@@ -354,8 +352,8 @@ uint32_t UbseMmiModule::UbseMemShmExportExecutor(UbseMemShareBorrowExportObj &ex
         return UBSE_ERROR_INVAL;
     }
     auto ret = MemInstanceInnerShm::GetInstance().MemShmExportExecutor(exportObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmExportExecutor end, ret =" << ret << ", name=" << exportObj.req.name
-                  << " memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmExportExecutor end, ret=" << ret << ", name=" << exportObj.req.name
+                  << ", memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
     return ret;
 }
 
@@ -374,8 +372,8 @@ uint32_t UbseMmiModule::UbseMemShmUnExportExecutor(const UbseMemShareBorrowExpor
         return UBSE_ERROR_INVAL;
     }
     auto ret = MemInstanceInnerShm::GetInstance().MemShmUnExportExecutor(exportObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnExportExecutor end, ret =" << ret << ", name=" << exportObj.req.name
-                  << " memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnExportExecutor end, ret=" << ret << ", name=" << exportObj.req.name
+                  << ", memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
     return ret;
 }
 
@@ -394,8 +392,8 @@ uint32_t UbseMmiModule::UbseMemAddrImportExecutor(UbseMemAddrBorrowImportObj &im
                       << numaInfo.size;
     }
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrImportExecutor(importObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrImportExecutor end, ret =" << ret << ", name=" << importObj.req.name
-                  << " memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrImportExecutor end, ret=" << ret << ", name=" << importObj.req.name
+                  << ", memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
     return ret;
 }
 
@@ -410,8 +408,8 @@ uint32_t UbseMmiModule::UbseMemAddrUnImportExecutor(const UbseMemAddrBorrowImpor
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnImportExecutor, name=" << importObj.req.name << ", objDetails is "
                   << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnImportExecutor(importObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnImportExecutor end, ret =" << ret << ", name=" << importObj.req.name
-                  << " memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnImportExecutor end, ret=" << ret << ", name=" << importObj.req.name
+                  << ", memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
     return ret;
 }
 
@@ -426,8 +424,8 @@ uint32_t UbseMmiModule::UbseMemAddrExportExecutor(UbseMemAddrBorrowExportObj &ex
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrExportExecutor, name=" << exportObj.req.name << ", objDetails is "
                   << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrExportExecutor(exportObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrExportExecutor end, ret =" << ret << ", name=" << exportObj.req.name
-                  << " memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrExportExecutor end, ret=" << ret << ", name=" << exportObj.req.name
+                  << ", memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
     for (const auto &numaInfo : exportObj.algoResult.exportNumaInfos) {
         UBSE_LOG_INFO << MMI_LOG_INFO << numaInfo.nodeId << ", " << numaInfo.socketId << ", " << numaInfo.numaId << ", "
                       << numaInfo.size;
@@ -446,8 +444,8 @@ uint32_t UbseMmiModule::UbseMemAddrUnExportExecutor(const UbseMemAddrBorrowExpor
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnExportExecutor, name=" << exportObj.req.name << ", objDetails is "
                   << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnExportExecutor(exportObj);
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnExportExecutor end, ret =" << ret << ", name=" << exportObj.req.name
-                  << " memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnExportExecutor end, ret=" << ret << ", name=" << exportObj.req.name
+                  << ", memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
     return ret;
 }
 

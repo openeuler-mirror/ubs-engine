@@ -23,7 +23,7 @@ using namespace ubse::task_executor;
 
 using XalarmRegisterFunc = int (*)(struct alarm_register **, struct alarm_subscription_info);
 using XalarmGetEventFunc = int (*)(struct alarm_msg *, struct alarm_register *);
-using XalarmUnRegisterFunc = void (*)(struct alarm_register *);
+using XalarmUnRegisterFunc = void (*)(struct alarm_register **);
 
 const std::string UBSE_RAS_TASK_NAME = "UbseRasTaskName";
 class UbseRasObserver {

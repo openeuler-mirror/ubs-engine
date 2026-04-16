@@ -87,7 +87,7 @@ BResult ShareDecisionMaker::ShareScoreAndFilter(const ShareRequest &shareRequest
         UBSE_LOG_INFO << "ShareScoreAndFilter Done Valid Case\n";
         return UBSE_OK;
     }
-    UBSE_LOG_ERROR << "ShareScoreAndFilter Done Invalid Case\n";
+    UBSE_LOG_WARN << "ShareScoreAndFilter Done Invalid Case\n";
     return UBSE_ERROR;
 }
 

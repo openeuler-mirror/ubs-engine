@@ -62,6 +62,8 @@ size_t ubse_mem_numa_create_with_lender_req_calc_size(const char *name, uint32_t
 
 size_t ubse_mem_numa_create_with_candidate_req_calc_size(const char *name, uint32_t slot_cnt);
 
+size_t ubse_mem_get_memid_by_import_req_calc_size(const char *name);
+
 ubs_error_t ubse_mem_shm_create_req_build(ubse_api_buffer_t *ptr, const char *name, const ubs_mem_nodes_t *region,
                                           const ubs_mem_nodes_t *provider);
 
@@ -83,6 +85,10 @@ ubs_error_t ubse_mem_shm_detach_req_build(ubse_api_buffer_t *ptr, const char *na
 ubs_error_t ubse_mem_shm_delete_req_build(ubse_api_buffer_t *ptr, const char *name);
 
 ubs_error_t ubse_mem_shm_fault_get_req_build(const char *name, ubse_api_buffer_t *ptr);
+
+ubs_error_t ubse_mem_get_memid_by_import_req_pack(const char *name, uint64_t import_memid, uint8_t *buffer);
+
+ubs_error_t ubse_mem_get_memid_by_import_req_build(const char *name, ubse_api_buffer_t *ptr);
 
 ubs_error_t ubse_string_pack(const char *str, size_t max_len, uint8_t *buffer);
 
@@ -171,6 +177,6 @@ ubs_error_t ubse_urma_dev_info_unpack(const uint8_t *buffer, uint32_t len, ubs_u
 
 ubs_error_t ubse_urma_qos_unpack(const uint8_t *buffer, uint32_t len, uint32_t *minBandWidth, uint32_t *maxBandWidth);
 
-
+ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t *buffer, uint32_t len, ubs_mem_export_memid_t *mem_info);
 
 #endif // LIBUBSE_HELPER_H

@@ -358,7 +358,7 @@ uint32_t UbseGetRole(std::string &role)
     UbseRoleInfo currentNode;
     auto ret = UbseGetCurrentNodeInfo(currentNode);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "GetRole failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "GetRole failed, " << FormatRetCode(ret);
         return ret;
     }
     role = currentNode.nodeRole;
@@ -370,7 +370,7 @@ uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
     UbseRoleInfo roleInfo;
     auto ret = UbseGetMasterInfo(roleInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "GetMasterNodeId failed, error code is: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "GetMasterNodeId failed, " << FormatRetCode(ret);
         return ret;
     }
     masterNodeId = roleInfo.nodeId;
@@ -382,7 +382,7 @@ uint32_t UbseGetCurrentNodeId(std::string &currentNodeId)
     UbseRoleInfo currentNode;
     auto ret = UbseGetCurrentNodeInfo(currentNode);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "GetMasterNodeId failed, error code is: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "GetMasterNodeId failed, " << FormatRetCode(ret);
         return ret;
     }
     currentNodeId = currentNode.nodeId;

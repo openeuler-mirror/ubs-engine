@@ -17,18 +17,18 @@
 #include <unordered_set>
 #include "securec.h"
 
-#include "ubse_event_module.h"
-#include "ubse_http_module.h"
-#include "ubse_thread_pool_module.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_busInstance.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_host_info.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_node_info.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_urma_eid.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
+#include "ubse_event_module.h"
+#include "ubse_http_module.h"
 #include "ubse_logger_module.h"
-#include "ubse_str_util.h"
 #include "ubse_net_util.h"
+#include "ubse_str_util.h"
+#include "ubse_thread_pool_module.h"
 
 namespace ubse::mti {
 using namespace ubse::module;
@@ -55,27 +55,30 @@ UbseResult UbseLcneModule::GetLcneConf()
         UBSE_LOG_ERROR << "Failed to get config module";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    uint32_t intCid;
+    if (auto ret = module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.cid", intCid); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to get the configuration for server.cid. Uds protocol will be used.";
+        LcneServer::isTcpServer = false;
+        return UBSE_OK;
+    }
     // 真实lcne端口
     std::string realLcnePortStr{realUbfmDefaultPort}; // 默认为34256
     auto ret = module->GetConf<std::string>("ubse.ubfm", "ubm.server.port", realLcnePortStr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Unable to get the configuration for lcne.port. Uds protocol will be used.";
-        LcneServer::isTcpServer = false;
-        return UBSE_OK;
-    }
-    UBSE_LOG_DEBUG << "The value of the lcne.port field is " << realLcnePortStr;
-    LcneServer::isTcpServer = true;
-    if (ConvertPortConfStrToInt(realLcnePortStr, LcneServer::realPort) != UBSE_OK) {
+        LcneServer::realPort = DEFAULT_UBM_SERVER_PORT;
+        UBSE_LOG_WARN << "The default value for port will be used.";
+    } else if (ConvertPortConfStrToInt(realLcnePortStr, LcneServer::realPort) != UBSE_OK) {
         LcneServer::realPort = DEFAULT_UBM_SERVER_PORT;
         UBSE_LOG_WARN << "The default value for port will be used.";
     };
+    LcneServer::isTcpServer = true;
     return UBSE_OK;
 }
 
 UbseResult UbseLcneModule::ConvertPortConfStrToInt(const std::string &portStr, int &port)
 {
     if (ConvertStrToInt(portStr, port) != UBSE_OK) {
-        UBSE_LOG_ERROR << "The value of portStr " << portStr << " is can not convert to int.";
+        UBSE_LOG_ERROR << "The value of portStr " << portStr << " can not convert to int.";
         return UBSE_ERROR;
     };
     if (port < 1024 || port > 65535) { // 配置校验，要求限定范围在[1024.65535]
@@ -96,7 +99,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
     std::string defaultVal;
     auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", defaultVal);
     if (ret != UBSE_OK || defaultVal.empty()) {
-        UBSE_LOG_WARN << "Unable to get cluster.ipList config," << FormatRetCode(ret) << " ,use default tcp";
+        UBSE_LOG_WARN << "Unable to get cluster.ipList config, " << FormatRetCode(ret) << ", use default tcp.";
         return;
     }
     std::vector<std::string> ipRangeVec;
@@ -108,7 +111,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
         } else if (UbseNetUtil::ValidIpv4Addr(range) || UbseNetUtil::ValidIpv6Addr(range)) {
             ips.emplace_back(range);
         } else {
-            UBSE_LOG_WARN << "Invalid ip range:" << range;
+            UBSE_LOG_WARN << "Invalid ip range=" << range;
         }
     }
     std::sort(ips.begin(), ips.end());
@@ -124,7 +127,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
         }
     }
     if (localIp.empty()) {
-        UBSE_LOG_ERROR << "Get local ip failed";
+        UBSE_LOG_ERROR << "Get local ip failed.";
         return;
     }
     clusterIpList = ips;
@@ -135,7 +138,7 @@ UbseResult UbseLcneModule::Initialize()
     // Init阶段，向lcne设备模块获取信息
     auto ret = GetLcneConf();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MTI] Failed to get mock lcne port";
+        UBSE_LOG_ERROR << "[MTI] Failed to get mock lcne port.";
         return UBSE_ERROR;
     }
     std::unique_lock<std::shared_mutex> lock(rw_mutex);
@@ -194,7 +197,7 @@ UbseResult UbseLcneModule::GenerateBondingEid(const std::string &nodeId, unsigne
     // eid的后4个字节是从第12个字节开始的
     auto res = memcpy_s(bondingEid + NO_12, IPV6_SEGMENT_LENGTH, &slotNumber, IPV6_SEGMENT_LENGTH);
     if (res != EOK) {
-        UBSE_LOG_ERROR << "Failed to generate bonding eid, memcpy_s error";
+        UBSE_LOG_ERROR << "Failed to generate bonding eid, memcpy_s error.";
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -333,7 +336,7 @@ UbseResult UbseLcneModule::GetIoDiePortEid(
         UbseDevName remoteDevName(ubsePortInfo.remoteSlotId, ubsePortInfo.remoteChipId);
         auto socketComEidIter = allSocketComEid.find(remoteDevName);
         if (socketComEidIter == allSocketComEid.end()) {
-            UBSE_LOG_ERROR << "The corresponding device name was not found , devName=" << remoteDevName.devName;
+            UBSE_LOG_ERROR << "The corresponding device name was not found, devName=" << remoteDevName.devName;
             return UBSE_ERROR_INVAL;
         }
 
@@ -379,7 +382,7 @@ UbseResult UbseLcneModule::SetUvsComInfo()
         }
         auto uvsSetTopoInfo = (UvsSetTopoInfo)dlsym(handle, "uvs_set_topo_info");
         if (uvsSetTopoInfo == nullptr) {
-            UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
+            UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'.";
             dlclose(handle);
             return UBSE_ERROR_NULLPTR;
         }
@@ -392,7 +395,7 @@ UbseResult UbseLcneModule::SetUvsComInfo()
         }
         dlclose(handle);
     } catch (const std::bad_alloc &e) {
-        UBSE_LOG_ERROR << "Failed to allocate memory for topoArray";
+        UBSE_LOG_ERROR << "Failed to allocate memory for topoArray.";
         return UBSE_ERROR_NOMEM;
     }
 
@@ -476,9 +479,9 @@ std::string UbseLcneModule::BytesToIPv6String(const unsigned char inBytes[IPV6_B
                           inBytes[NO_6], inBytes[NO_7], inBytes[NO_8], inBytes[NO_9], inBytes[NO_10], inBytes[NO_11],
                           inBytes[NO_12], inBytes[NO_13], inBytes[NO_14], inBytes[NO_15]);
     if (res < 0) {
-        UBSE_LOG_WARN << "Failed to convert bytes to IPv6 string";
+        UBSE_LOG_WARN << "Failed to convert bytes to IPv6 string.";
     } else if (res > IPV6_FULL_FORMAT_LENGTH) {
-        UBSE_LOG_WARN << "IPv6 string is too long";
+        UBSE_LOG_WARN << "IPv6 string is too long.";
     }
 
     return buffer.data();

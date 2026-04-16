@@ -1,4 +1,15 @@
-// Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #include "ubse_ras_oom_handler.h"
 #include <dlfcn.h>
 #include <fstream>
@@ -55,7 +66,7 @@ std::vector<int> SplitNids(const std::string &nid_str)
         try {
             nids.push_back(std::stoi(item));
         } catch (const std::exception &e) {
-            UBSE_LOG_ERROR << "Caught exception: " << e.what();
+            UBSE_LOG_ERROR << "Caught exception=" << e.what();
         }
     }
     return nids;
@@ -113,7 +124,7 @@ UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, i
     try {
         oomReasonId = std::get<int>(messageValue.at("reason"));
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Caught exception: " << e.what();
+        UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
     if (oomReasons.find(oomReasonId) == oomReasons.end()) {
@@ -124,7 +135,7 @@ UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, i
     try {
         nidsSize = std::get<std::vector<int>>(messageValue.at("nid")).size();
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Caught exception: " << e.what();
+        UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
     if (nidsSize > MAX_NUMA_NUM) {
@@ -161,7 +172,7 @@ UbseResult CheckHugePageOomParam(
             return UBSE_ERROR_INVAL;
         }
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Caught exception: " << e.what();
+        UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
@@ -403,8 +414,8 @@ bool IsNumaMemFreeEnough(NumaId numaId, uint64_t startTime, uint64_t memNeed, ui
     UBSE_LOG_DEBUG << "[OOM] startTime=" << startTime << "ms, currentTime=" << currentTime
                    << "ms, oomWaitTime=" << timeOut << "ms.";
     if (startTime > currentTime || timeOut > MAX_OOM_TIMEOUT_MS) {
-        UBSE_LOG_ERROR << "Invalid time parameters, startTime=" << startTime
-                       << "ms, currentTime=" << currentTime << "ms, timeOut=" << timeOut << "ms.";
+        UBSE_LOG_ERROR << "Invalid time parameters, startTime=" << startTime << "ms, currentTime=" << currentTime
+                       << "ms, timeOut=" << timeOut << "ms.";
         return false;
     }
     while (currentTime - startTime <= timeOut) {
@@ -450,8 +461,8 @@ UbseResult SmapUrgentMigrateOut(uint64_t memNeed)
     return UBSE_OK;
 }
 
-UbseResult GetOomNumaId(
-    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue, int &oomNumaId)
+UbseResult GetOomNumaId(const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
+                        int &oomNumaId)
 {
     try {
         auto nids = std::get<std::vector<int>>(messageValue.at("nid"));
@@ -465,7 +476,7 @@ UbseResult GetOomNumaId(
             return UBSE_ERROR_INVAL;
         }
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Caught exception: " << e.what();
+        UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
@@ -513,7 +524,7 @@ uint32_t ProcessHugepageOom(
         uint64_t startTime = static_cast<uint64_t>(timeSec) * NO_1000 + timeUsec / NO_1000;
         isEnough = IsNumaMemFreeEnough(oomNumaId, startTime, memNeed, memFree, timeOut);
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Caught exception: " << e.what();
+        UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_OK; // 已经成功给virt发布事件，返回成功
     }
     if (isEnough) {

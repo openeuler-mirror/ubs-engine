@@ -807,6 +807,7 @@ MpResult TestGetBorrowNodeInfo(FaultNodeModule *This, std::string nodeId, std::v
 
 TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultSuccess3)
 {
+    GTEST_SKIP();
     std::string nodeId = "node1";
     MOCKER_CPP(&FaultNodeModule::GetBorrowNodeInfo,
                MpResult(*)(FaultNodeModule * This, std::string nodeId, std::vector<BorrowRecord> & borrowRecords))

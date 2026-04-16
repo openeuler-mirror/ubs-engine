@@ -166,6 +166,10 @@ SSL_CTX *UbseVsockClient::InitSslCtx()
         return nullptr;
     }
 
+    if (!cert::UbseSslValidator::CheckAllFileExist()) {
+        return nullptr;
+    }
+
     password = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
     SSL_CTX_set_default_passwd_cb(ctx, PemPasswordCallback);
     SSL_CTX_set_default_passwd_cb_userdata(ctx, (void *)(password.c_str()));

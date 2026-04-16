@@ -638,7 +638,7 @@ UbseResult SetUrmaUvs(bool isBeforeElection = false)
     }
     auto ret = UbseNodeComUrmaCollector::GetInstance().SetComUrma(links, isBeforeElection);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "set to urma uvs failed, ret=" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "set to urma uvs failed, " << FormatRetCode(ret);
     }
     return ret;
 }

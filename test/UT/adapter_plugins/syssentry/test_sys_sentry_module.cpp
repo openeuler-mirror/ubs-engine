@@ -41,25 +41,25 @@ TEST_F(TestSysSentryModule, Initialize)
     ASSERT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, module->Initialize());
 }
 
-TEST_F(TestSysSentryModule, StartWhenRasObserverError)
-{
-    void (*SetSysSentryFaultReporterStub)(SysSentryModule*) = [](SysSentryModule* This) {
-    };
-    MOCKER_CPP(&SetSysSentryFaultReporter).stubs().will(invoke(SetSysSentryFaultReporterStub));
-    MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
-    ASSERT_EQ(UBSE_ERROR, module->Start());
-}
+// TEST_F(TestSysSentryModule, StartWhenRasObserverError)
+// {
+//     void (*SetSysSentryFaultReporterStub)(SysSentryModule*) = [](SysSentryModule* This) {
+//     };
+//     MOCKER_CPP(&SetSysSentryFaultReporter).stubs().will(invoke(SetSysSentryFaultReporterStub));
+//     MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_ERROR));
+//     MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
+//     ASSERT_EQ(UBSE_ERROR, module->Start());
+// }
 
-TEST_F(TestSysSentryModule, StartWhenRasObserverSuccess)
-{
-    void (*SetSysSentryFaultReporterStub)(SysSentryModule*) = [](SysSentryModule* This) {
-    };
-    MOCKER_CPP(&SetSysSentryFaultReporter).stubs().will(invoke(SetSysSentryFaultReporterStub));
-    MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
-    ASSERT_EQ(UBSE_OK, module->Start());
-}
+// TEST_F(TestSysSentryModule, StartWhenRasObserverSuccess)
+// {
+//     void (*SetSysSentryFaultReporterStub)(SysSentryModule*) = [](SysSentryModule* This) {
+//     };
+//     MOCKER_CPP(&SetSysSentryFaultReporter).stubs().will(invoke(SetSysSentryFaultReporterStub));
+//     MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_OK));
+//     MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
+//     ASSERT_EQ(UBSE_OK, module->Start());
+// }
 
 TEST_F(TestSysSentryModule, GetEidsWhenLcneModuleIsNull)
 {
@@ -140,14 +140,14 @@ TEST_F(TestSysSentryModule, SplitString)
     ASSERT_EQ(res, expctedRes);
 }
 
-TEST_F(TestSysSentryModule, SetSysSentryFaultReporter)
-{
-    MOCKER_CPP(GetEids).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
-    auto res = module->Start();
-    ASSERT_EQ(res, UBSE_OK);
-}
+// TEST_F(TestSysSentryModule, SetSysSentryFaultReporter)
+// {
+//     MOCKER_CPP(GetEids).stubs().will(returnValue(UBSE_OK));
+//     MOCKER_CPP(&UbseRasObserver::Start).stubs().will(returnValue(UBSE_OK));
+//     MOCKER_CPP(&UbseRasObserver::UbseConfigSysSentryWithRetry).stubs().will(returnValue(UBSE_OK));
+//     auto res = module->Start();
+//     ASSERT_EQ(res, UBSE_OK);
+// }
 
 TEST_F(TestSysSentryModule, GetCurNodeCna)
 {

@@ -64,38 +64,6 @@ inline std::string GenerateExportObjKey(const std::string &name, const std::stri
 
 bool IsSdkRequest(uint64_t requestId);
 
-template <typename ImportObjType, typename ExportObjType>
-void FindBorrowObjByName(
-    const std::string &name, const std::string &importNodeId,
-    ImportObjType &outImportObj, // 输出参数
-    ExportObjType &outExportObj, // 输出参数
-    bool &foundImport,           // 指示是否找到导入对象
-    bool &foundExport,           // 指示是否找到导出对象
-    const std::function<const std::unordered_map<std::string, ImportObjType> &(const NodeMemDebtInfo &)> &getImportMap,
-    const std::function<const std::unordered_map<std::string, ExportObjType> &(const NodeMemDebtInfo &)> &getExportMap)
-{
-    mapLock.LockRead();
-    if (auto info = nodeMemDebtInfoMap.find(importNodeId); info != nodeMemDebtInfoMap.end()) {
-        const auto &importMap = getImportMap(info->second);
-        auto it = importMap.find(name);
-        if (it != importMap.end()) {
-            outImportObj = it->second; // 拷贝对象
-            foundImport = true;
-        }
-    }
-    auto exportKey = GenerateExportObjKey(name, importNodeId);
-    for (const auto &[nodeId, info] : nodeMemDebtInfoMap) {
-        const auto &exportMap = getExportMap(info);
-        auto it = exportMap.find(exportKey);
-        if (it != exportMap.end()) {
-            outExportObj = it->second; // 拷贝对象
-            foundExport = true;
-            break;
-        }
-    }
-    mapLock.UnLock();
-}
-
 template <class importType>
 UbseResult GetErrorCodeByObjState(const importType &importObj, const bool &exportObjExist)
 {
@@ -175,6 +143,43 @@ UbseMemStage GetMemStageByImportObjState(const importType &importObj, const bool
 
     return UbseMemStage::UBSE_EXIST;
 }
+
+template <class ImportType>
+UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType> &importObjPtr)
+{
+    if (!importObjPtr) {
+        return UbseMemStage::UBSE_NOT_EXIST;
+    }
+    if (importObjPtr->status.state == UBSE_MEM_IMPORT_RUNNING ||
+        importObjPtr->status.state == UBSE_MEM_EXPORT_RUNNING) {
+        return UbseMemStage::UBSE_CREATING;
+    }
+
+    if (importObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYING ||
+        importObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING) {
+        return UbseMemStage::UBSE_DELETING;
+    }
+
+    return UbseMemStage::UBSE_EXIST;
+}
+
+template <class ExportType>
+UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType> &exportObjPtr)
+{
+    if (!exportObjPtr) {
+        return UbseMemStage::UBSE_NOT_EXIST;
+    }
+    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_RUNNING) {
+        return UbseMemStage::UBSE_CREATING;
+    }
+
+    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING) {
+        return UbseMemStage::UBSE_DELETING;
+    }
+
+    return UbseMemStage::UBSE_EXIST;
+}
+
 
 UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj &importObj, const bool &importObjExist);
 
