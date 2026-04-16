@@ -677,15 +677,14 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
 MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(std::string borrowId, std::string importNodeId)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Master to invoke the slave MemFreeDirectlyExecuteRpc.";
-    UbseComEndpoint endpoint_fm_memfree_execute = {.moduleId = MP_MODULE_CODE,
-                                                   .serviceId = message::OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE,
-                                                   .address = importNodeId};
+    UbseComEndpoint endpoint_fm_memfree_execute = {
+        .moduleId = MP_MODULE_CODE,
+        .serviceId = message::OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE,
+        .address = importNodeId};
     RmrsOutStream builder;
     builder << borrowId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) {
-            delete[] data;
-        }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) { delete[] data; }};
     uint32_t ret = 0;
     UbseRpcSend(endpoint_fm_memfree_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler);
