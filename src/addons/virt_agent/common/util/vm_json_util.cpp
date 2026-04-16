@@ -20,7 +20,7 @@
 #include <ubse_logger.h>
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 VmResult VMJsonUtil::GetString(const Value &pstJson, const std::string &key, std::string &value)
 {
     if (!pstJson.HasMember(key.c_str()) || !pstJson[key.c_str()].IsString()) {

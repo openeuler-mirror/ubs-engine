@@ -26,7 +26,7 @@
 #include "vm_lock.h"
 
 namespace vm {
-#define MODULE_LOG_NAME "vm_plugin"
+#define MODULE_LOG_NAME "virt_agent_plugin"
 using namespace ubse::config;
 using namespace ubse::log;
 
@@ -61,7 +61,7 @@ const VmConfigRange<uint64_t> OOM_BORROW_MEM_SIZE{1024, {1024, 4096}};
 const VmConfigRange<uint64_t> MAX_PER_TOTAL_MEMBORROW_SIZE{16384, {4096, 20480}};
 // Ham migration timeout period, Unit: seconds. Value range: [10, 10800]. Default value: 60s
 const VmConfigRange<uint32_t> HAM_MIGRATION_MAX_TIMEOUT{60, {10, 10800}};
-const std::string PLUGIN_VM_NAME = "plugin_vm";
+const std::string PLUGIN_VM_NAME = "plugin_virt_agent";
 const std::string PLUGIN_MEM_NAME = "plugin_mem_master";
 const std::string DEFAULT_LOW_WATER_MARK = "80";
 const std::string DEFAULT_HIGH_WATER_MARK = "85";
@@ -168,7 +168,7 @@ public:
 private:
     VmConfiguration() = default;
     ~VmConfiguration() = default;
-    std::string moduleName = "vm_plugin"; // Module Name
+    std::string moduleName = "virt_agent_plugin"; // Module Name
     uint16_t moduleCode = 0;              // Module Code
 
     uint32_t exportInterval = 10; // Export Period

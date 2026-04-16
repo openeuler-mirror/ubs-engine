@@ -52,7 +52,7 @@ uint32_t MpConfiguration::LoadConfig()
         LOG_WARN << "Get config failed, key=rmrs.ipc.timeout.";
     }
     uint32_t rawSceneType{2};
-    ret = UbseGetUInt("plugin_vm", "virt.sceneType", rawSceneType);
+    ret = UbseGetUInt("plugin_virt_agent", "virt.sceneType", rawSceneType);
     if (ret != MEM_POOLING_OK) {
         LOG_WARN << "Get config failed, key=virt.sceneType.";
     }
@@ -65,7 +65,7 @@ uint32_t MpConfiguration::LoadConfig()
 
     LOG_DEBUG << "Before, pageType=" << static_cast<int>(pageType) << ".";
     uint32_t rawPageType{2};
-    ret = UbseGetUInt("plugin_vm", "virt.pageType", rawPageType);
+    ret = UbseGetUInt("plugin_virt_agent", "virt.pageType", rawPageType);
     if (ret != MEM_POOLING_OK) {
         LOG_WARN << "Get config failed, key=virt.pageType.";
     }
