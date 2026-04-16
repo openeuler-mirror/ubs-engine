@@ -43,12 +43,20 @@ public:
     bool IsClosType();
 
     /**
-     * @brief 获取超节点ID
-     * @param superNodeId 超节点ID
+     * @brief 获取二层超节点Id
+     * @param superPodId 二层超节点Id
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR 表示失败
      */
-    uint32_t GetSuperPodId(uint32_t superNodeId);
+    uint32_t GetSuperPodId(uint16_t &superPodId);
+
+    /**
+     * @brief 获取节点所在框号/超节点ID
+     * @param podId 超节点ID
+     * @return UBSE_OK 标识成功
+     * @return UBSE_ERROR 表示失败
+     */
+    uint32_t GetPodId(uint16_t &podId);
 
 private:
     UbseSmbios() = default;

@@ -7,7 +7,7 @@ After=network.target
 [Service]
 Type=simple
 User=ubse
-MemoryMax=256M
+MemoryMax=1024M
 CPUQuota=200%
 CPUAffinity=0-1
 Group=ubse
