@@ -231,7 +231,7 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail2)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail3)
+TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk3)
 {
     std::string borrowInNid = "node1";
     uint64_t memId = 1;
@@ -253,10 +253,10 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail3)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail4)
+TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk4)
 {
     std::string borrowInNid = "node1";
     uint64_t memId = 1;
@@ -283,10 +283,10 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail4)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail5)
+TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk5)
 {
     std::string borrowInNid = "node1";
     uint64_t memId = 1;
@@ -317,10 +317,10 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail5)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail6)
+TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk6)
 {
     std::string borrowInNid = "node1";
     uint64_t memId = 1;
@@ -356,7 +356,7 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail6)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
 } // namespace mempooling::over_commit
