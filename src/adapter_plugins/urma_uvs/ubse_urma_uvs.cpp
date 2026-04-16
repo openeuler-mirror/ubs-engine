@@ -10,16 +10,21 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "adapter_plugins/urma/ubse_urma_uvs.h"
+#include "securec.h"
+
 #include "ubse_common_def.h"
 #include "ubse_context.h"
+#include "ubse_module.h"     // for UbseModule
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_module.h" // for UbseModule
 #include "ubse_node_controller.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_uvs_module.h"
-#include "securec.h"
+#include "lock/ubse_lock.h"
+#include "ubse_urma_uvs.h"
+#include <cstdint>
 
 namespace ubse::urma {
 using namespace ubse::common::def;
@@ -27,14 +32,18 @@ using namespace ubse::context;
 using namespace ubse::log;
 using namespace ubse::nodeController;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::smbios;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-UbseResult FillNodeComInfo(const std::vector<PhysicalLink>& allLinkInfo,
-                           const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes);
-UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
 
-UbseResult UbsePushTopoAndBondingToUvs(std::string& current_slot_id, const std::vector<PhysicalLink>& allLinkInfo,
-                                       const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
+utils::ReadWriteLock g_invokeUrmaMutex;
+
+UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
+                           const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
+UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
+
+UbseResult UbsePushTopoAndBondingToUvs(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
+                                       const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
 {
     UBSE_LOG_DEBUG << "Set Uvs Info";
     std::vector<UbcoreTopoNode> nodes;
@@ -58,6 +67,7 @@ UbseResult UbsePushTopoAndBondingToUvs(std::string& current_slot_id, const std::
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsSetTopoInfo(nodes.data(), sizeof(UbcoreTopoNode), static_cast<uint32_t>(nodes.size()));
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
@@ -86,6 +96,7 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urma
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to get device name";
@@ -114,6 +125,7 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isAc
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         isActive = false;
@@ -150,6 +162,7 @@ UbseResult UbseActiveBonding(const std::string& urmaEid, const std::string& aggr
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_create_agg_dev'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsCreateAggrDev(bondingEid, aggrDevName.c_str());
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to activate bonding device, ErrorCode=" << ret;
@@ -176,6 +189,7 @@ UbseResult UbseDeactiveBonding(const std::string& urmaEid)
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_delete_agg_dev'";
         return UBSE_ERROR_NULLPTR;
     }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsDeleteAggrDev(bondingEid);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to deactivate bonding device, ErrorCode=" << ret;
@@ -305,8 +319,8 @@ UbseResult FillBondingInfo(const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo,
         }
 
         for (size_t i = 0; i < bondingDevSize; i++) {
-            auto ret =
-                ConvertEidStrToHexCharList(info.devList[i].urmaDevEid, nodeMap[info.nodeId].aggr_dev[i].aggr_eid);
+            auto ret = ConvertEidStrToHexCharList(info.devList[i].urmaDevEid,
+                                                  nodeMap[info.nodeId].aggr_dev[i].aggr_eid);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to parse bondingEid=" << info.devList[i].urmaDevEid;
                 return ret;
@@ -346,11 +360,14 @@ void InitialNodes(const std::set<std::string>& slotIds, std::unordered_map<std::
 
 UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
 {
-    uint32_t superNodeId = 0;
+    uint16_t superNodeId = 0;
+    if (auto ret = UbseSmbios::GetInstance().GetSuperPodId(superNodeId); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
+    }
 
     for (auto& pair : nodeMap) {
         nodeMap[pair.first].super_node_id = superNodeId;
-        nodeMap[pair.first].type = 0;
+        nodeMap[pair.first].type = UbseSmbios::GetInstance().IsClosType() ?  1 : 0;
     }
     return UBSE_OK;
 }
