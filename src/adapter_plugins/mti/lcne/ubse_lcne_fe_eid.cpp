@@ -17,6 +17,7 @@
 #include "ubse_pointer_process.h" // for SafeDeleteArray
 #include "ubse_str_util.h"        // for ConvertStrToUint32
 #include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
+#include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -49,7 +50,12 @@ UbseResult UbseLcneFeEid::UpdateFeType(UbseMtiIouInfo &iouInfo, std::vector<Ubse
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     req.method = "GET";
-    req.path = GET_FE_LIST_URI + "/mue-ue-binding-info=" + iouInfo.slotId + "," + iouInfo.ubpuId + "," + iouInfo.iouId;
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(iouInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << iouInfo.slotId;
+        return UBSE_ERROR;
+    }
+    req.path = GET_FE_LIST_URI + "/mue-ue-binding-info=" + slotId + "," + iouInfo.ubpuId + "," + iouInfo.iouId;
     req.headers.emplace("Accept", "application/yang-data+xml");
     req.headers.emplace("Content-Type", "application/yang-data+xml");
     auto ret = UbseHttpModule::HttpSend(req, rsp);
@@ -95,7 +101,12 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiF
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     req.method = "GET";
-    req.path = GET_FE_EID_URI + "/entity-urma-communication-info=" + iouInfo.slotId + "," + iouInfo.ubpuId + "," +
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(iouInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << iouInfo.slotId;
+        return UBSE_ERROR;
+    }
+    req.path = GET_FE_EID_URI + "/entity-urma-communication-info=" + slotId + "," + iouInfo.ubpuId + "," +
                iouInfo.iouId;
     req.headers.emplace("Accept", "application/yang-data+xml");
     req.headers.emplace("Content-Type", "application/yang-data+xml");
@@ -127,9 +138,13 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiF
 
 UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml> &ubseXml, UbseMtiIouInfo &iouInfo)
 {
-    iouInfo.slotId = ubseXml->Child("slot-id")->Text();
-    if (iouInfo.slotId.empty()) {
+    std::string nodeId = ubseXml->Child("slot-id")->Text();
+    if (nodeId.empty()) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
+        return UBSE_ERROR;
+    }
+    if (!ConvertNodeIdToSlotId(nodeId, iouInfo.slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert node id to slot id failed, nodeId: " << nodeId;
         return UBSE_ERROR;
     }
     iouInfo.ubpuId = ubseXml->Child("ubpu-id")->Text();
@@ -228,7 +243,12 @@ UbseResult UbseLcneFeEid::ParseGetFeEidResponse(const std::string &responseStr, 
     uint32_t i = 0;
     while (ubseXml->Next("urma-communication-entity-id", i) != nullptr) {
         std::string entityId = ubseXml->Child("entity-id")->Text();
-        UbseMtiFeInfo ubseFeInfo{iouInfo.slotId, iouInfo.ubpuId, iouInfo.iouId,
+        std::string nodeId;
+        if (!ConvertSlotIdToNodeId(iouInfo.slotId, nodeId)) {
+            UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << iouInfo.slotId;
+            return UBSE_ERROR;
+        }
+        UbseMtiFeInfo ubseFeInfo{nodeId, iouInfo.ubpuId, iouInfo.iouId,
                                  entityId, UbseMtiFeType::PHYSICAL_TYPE};
         ubseXml = ubseXml->Next("urma-communication-infos");
         if (ParseFeEidXml(ubseXml, ubseFeInfo) != UBSE_OK) {

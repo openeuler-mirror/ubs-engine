@@ -15,11 +15,13 @@
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
 #include "ubse_xml.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::mti;
 
 const std::string LCNE_QOS_MODE = "dwrr";
 const std::string LCNE_QOS_URI = "/restconf/data/huawei-vbussw-service:"
@@ -158,8 +160,13 @@ UbseResult UbseLcneQos::DeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(ubseFeInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert node id to slot id failed, nodeId: " << ubseFeInfo.slotId;
+        return UBSE_ERROR;
+    }
 
-    std::string profileApply = "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+    std::string profileApply = "/tqos-entity-profile-apply=" + slotId + "," + ubseFeInfo.ubpuId + "," +
                                ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.method = "DELETE";
     req.path = LCNE_QOS_URI + profileApply;
@@ -186,7 +193,12 @@ UbseResult UbseLcneQos::QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &profi
     UbseHttpResponse rsp;
 
     req.method = "GET";
-    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(ubseFeInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert node id to slot id failed, nodeId: " << ubseFeInfo.slotId;
+        return UBSE_ERROR;
+    }
+    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + slotId + "," + ubseFeInfo.ubpuId + "," +
                ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
     req.headers.emplace("Content-Type", LCNE_QOS_CONTENT_TYPE);
@@ -269,8 +281,13 @@ UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profil
     }
     ubseXml->AddNode("tqos-entity-profile-apply");
     ubseXml->Attr("xmlns", LCNE_QOS_XML);
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(ubseFeInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert node id to slot id failed, nodeId: " << ubseFeInfo.slotId;
+        return UBSE_ERROR;
+    }
     ubseXml->AddNode("slot-id");
-    ubseXml->Child("slot-id")->Text(ubseFeInfo.slotId);
+    ubseXml->Child("slot-id")->Text(slotId);
     ubseXml->AddNode("ubpu-id");
     ubseXml->Child("ubpu-id")->Text(ubseFeInfo.ubpuId);
     ubseXml->AddNode("iou-id");

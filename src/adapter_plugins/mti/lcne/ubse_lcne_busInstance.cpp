@@ -19,12 +19,14 @@
 #include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_pointer_process.h" // for SafeDeleteArray
 #include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
-#include "ubse_str_util.h"
+#include "ubse_str_util.h"        // for ConvertStrToUint32
+#include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::mti;
 
 std::unique_ptr<UbseLcneBusInstance> UbseLcneBusInstance::instance = nullptr;
 
@@ -106,7 +108,13 @@ UbseResult UbseLcneBusInstance::ParseQueryBusinstanceResponse(const std::string 
     if (ubseXml == nullptr) {
         return UBSE_ERROR;
     }
-    busInstanceInfo.localNodeId = ubseXml->Child("slot-id")->Text();
+    std::string slotId = ubseXml->Child("slot-id")->Text();
+    std::string nodeId;
+    if (!ConvertSlotIdToNodeId(slotId, nodeId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
+        return UBSE_ERROR;
+    }
+    busInstanceInfo.localNodeId = nodeId;
     UBSE_LOG_DEBUG << "[MTI] " << "BusInstanceInfo.hostBusinstanceEid=" << busInstanceInfo.hostBusinstanceEid << ", "
                    << "BusInstanceInfo.localNodeId=" << busInstanceInfo.localNodeId;
     return UBSE_OK;
