@@ -516,4 +516,200 @@ TEST_F(TestUbseUdsClient, HandleRequest_InvalidHandler)
     client->HandleRequest(request);
     client->HandleRequest(request);
 }
+
+// 断链自动重连UT
+// 未开启重连时，调用 ReconnectAfterBroken 不应启动重连流程
+TEST_F(TestUbseUdsClient, ReconnectAfterBroken_WhenReconnectDisabled_DoNothing)
+{
+    client->isReConnect_.store(false);
+    client->reconnecting_.store(false);
+
+    client->ReconnectAfterBroken();
+    usleep(100 * 1000); // 等待可能的异步线程启动
+    EXPECT_FALSE(client->reconnecting_.load());
+}
+
+// 已有重连在执行时，重复调用 ReconnectAfterBroken 不应再次进入重连
+TEST_F(TestUbseUdsClient, ReconnectAfterBroken_WhenAlreadyReconnecting_DoNothing)
+{
+    client->isReConnect_.store(true);
+    client->reconnecting_.store(true); // 模拟已有重连在进行
+
+    client->ReconnectAfterBroken();
+    usleep(100 * 1000);
+
+    EXPECT_TRUE(client->reconnecting_.load());
+    client->reconnecting_.store(false);
+}
+
+// 重连锁首次获取成功，第二次获取失败；释放后状态恢复
+TEST_F(TestUbseUdsClient, AcquireReconnectLock_FirstSuccess_SecondFail)
+{
+    client->reconnecting_.store(false);
+
+    EXPECT_TRUE(client->AcquireReconnectLock());
+    EXPECT_FALSE(client->AcquireReconnectLock());
+
+    client->ReleaseReconnectLock();
+    EXPECT_FALSE(client->reconnecting_.load());
+}
+
+// 当前连接本就未运行时，重连线程应直接退出并释放重连锁
+TEST_F(TestUbseUdsClient, ExecuteReconnectThread_WhenConnectionNotRunning_ReleaseLock)
+{
+    client->reconnecting_.store(true);
+    MOCKER_CPP(&UbseUDSClient::StopCurrentConnection).stubs().will(returnValue(false));
+
+    client->ExecuteReconnectThread();
+
+    EXPECT_FALSE(client->reconnecting_.load());
+}
+
+// 停止旧连接成功，但重连尝试失败时，重连线程应退出并释放重连锁
+TEST_F(TestUbseUdsClient, ExecuteReconnectThread_WhenReconnectAttemptsFail_ReleaseLock)
+{
+    client->reconnecting_.store(true);
+    MOCKER_CPP(&UbseUDSClient::StopCurrentConnection).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseUDSClient::PerformReconnectAttempts).stubs().will(returnValue(false));
+
+    client->ExecuteReconnectThread();
+
+    EXPECT_FALSE(client->reconnecting_.load());
+}
+
+// 停止旧连接成功、重连成功后，应继续执行监听注册和事件循环恢复流程
+TEST_F(TestUbseUdsClient, ExecuteReconnectThread_WhenReconnectSuccess_DoRegistrationAndRestart)
+{
+    client->reconnecting_.store(true);
+    client->isReConnect_.store(true);
+    client->sockFd_ = 7;
+    client->running_.store(false);
+
+    MOCKER_CPP(&UbseUDSClient::StopCurrentConnection).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseUDSClient::PerformReconnectAttempts).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseUDSClient::CreateEpoll).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::SendWithWait).stubs().will(returnValue(UBSE_OK));
+
+    // 模拟存在已注册的长连接通知，重连成功后需要重新注册
+    client->longlinkNotifyList_.clear();
+    client->longlinkNotifyList_.emplace_back(1, 2);
+
+    client->ExecuteReconnectThread();
+
+    EXPECT_FALSE(client->reconnecting_.load());
+}
+
+// LongLinkConnect 首次成功时，重连尝试应立即返回成功
+TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenLongLinkConnectSuccess_ReturnTrue)
+{
+    client->isReConnect_.store(true);
+    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(returnValue(UBSE_OK));
+
+    auto ret = client->PerformReconnectAttempts();
+
+    EXPECT_TRUE(ret);
+}
+
+// LongLinkConnect 持续失败时，重连尝试最终返回失败
+TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenAlwaysFail_ReturnFalse)
+{
+    client->isReConnect_.store(true);
+    MOCKER_CPP(&UbseUDSClient::LongLinkConnect)
+        .stubs()
+        .will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+
+    auto ret = client->PerformReconnectAttempts();
+
+    EXPECT_FALSE(ret);
+}
+
+// 用于控制 LongLinkConnect 的调用次数，模拟重连过程中外部停止重连
+static int g_longLinkConnectCallCount = 0;
+static UbseUDSClient *g_testClient = nullptr;
+
+// 模拟：前几次重连失败；从第二次开始关闭重连开关，触发中途停止
+uint32_t MockLongLinkConnectStopOnSecondCall()
+{
+    g_longLinkConnectCallCount++;
+    if (g_longLinkConnectCallCount >= 2 && g_testClient != nullptr) {
+        g_testClient->isReConnect_.store(false);
+    }
+    return UBSE_ERR_IPC_CONNECTION_FAILED;
+}
+
+// 重连过程中如果外部关闭重连开关，应停止后续重试并返回失败
+TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenStoppedMidway_ReturnFalse)
+{
+    g_longLinkConnectCallCount = 0;
+    g_testClient = client.get();
+    client->isReConnect_.store(true);
+
+    MOCKER_CPP(&UbseUDSClient::LongLinkConnect)
+        .stubs()
+        .will(invoke(MockLongLinkConnectStopOnSecondCall));
+
+    auto ret = client->PerformReconnectAttempts();
+
+    EXPECT_FALSE(ret);
+
+    g_testClient = nullptr;
+    g_longLinkConnectCallCount = 0;
+}
+
+// 当前连接处于运行状态时，StopCurrentConnection 应关闭连接并清理运行状态
+TEST_F(TestUbseUdsClient, StopCurrentConnection_WhenRunning_StopThreadAndDisconnect)
+{
+    client->running_.store(true);
+    client->sockFd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    auto ret = client->StopCurrentConnection();
+
+    EXPECT_TRUE(ret);
+    EXPECT_EQ(client->sockFd_, -1);
+    EXPECT_FALSE(client->running_.load());
+}
+
+// 未开启重连或连接无效时，VerifyAndRestartEventLoop 不应重启事件循环
+TEST_F(TestUbseUdsClient, VerifyAndRestartEventLoop_WhenConditionsNotMet_DoNothing)
+{
+    client->isReConnect_.store(false);
+    client->sockFd_ = -1;
+    client->running_.store(false);
+
+    client->VerifyAndRestartEventLoop();
+}
+
+// 满足重启条件时，VerifyAndRestartEventLoop 应尝试重新创建 epoll 监听
+TEST_F(TestUbseUdsClient, VerifyAndRestartEventLoop_WhenNeedRestart_CreateEpoll)
+{
+    client->isReConnect_.store(true);
+    client->sockFd_ = 7;
+    client->running_.store(false);
+
+    MOCKER_CPP(&UbseUDSClient::CreateEpoll).stubs().will(returnValue(UBSE_OK));
+
+    client->VerifyAndRestartEventLoop();
+}
+
+// 无长连接监听项时，PerformListenerRegistration 应直接返回
+TEST_F(TestUbseUdsClient, PerformListenerRegistration_WhenNoListener_DoNothing)
+{
+    client->isReConnect_.store(true);
+    client->longlinkNotifyList_.clear();
+
+    client->PerformListenerRegistration();
+}
+
+// 存在长连接监听项时，PerformListenerRegistration 应逐个重新注册
+TEST_F(TestUbseUdsClient, PerformListenerRegistration_WhenRegisterSuccess)
+{
+    client->isReConnect_.store(true);
+    client->longlinkNotifyList_.clear();
+    client->longlinkNotifyList_.emplace_back(1, 2);
+    client->longlinkNotifyList_.emplace_back(3, 4);
+
+    MOCKER_CPP(&UbseUDSClient::SendWithWait).stubs().will(returnValue(UBSE_OK));
+
+    client->PerformListenerRegistration();
+}
 } // namespace ubse::ut::ipc
