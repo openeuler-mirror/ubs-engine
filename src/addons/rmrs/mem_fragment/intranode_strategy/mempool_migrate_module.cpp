@@ -450,7 +450,7 @@ uint32_t GetVmInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBuff
 void GetVmInfoImmediatelyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrateExecute] Ctx or respData is null.";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrateExecute] Ctx or respData is null.";
         return;
     }
     std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos =

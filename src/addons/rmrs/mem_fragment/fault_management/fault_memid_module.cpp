@@ -936,7 +936,7 @@ uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuff
 void MemIdFaultNotSameNidResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
         return;
     }
     uint32_t *result = static_cast<uint32_t *>(ctx);
@@ -993,7 +993,7 @@ uint32_t MemIdFaultSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuffer 
 void MemIdFaultSameNidResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
         return;
     }
     uint32_t *result = static_cast<uint32_t *>(ctx);
@@ -1037,7 +1037,7 @@ uint32_t MemIdFaultNotSameNidVmInfoRecvHandler(const UbseByteBuffer &req, UbseBy
 void MemIdFaultNotSameNidVmInfoResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
         return;
     }
     FMVmInfoResult result;
