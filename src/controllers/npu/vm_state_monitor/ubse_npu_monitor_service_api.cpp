@@ -39,7 +39,7 @@ UbseResult ResetNpu(const uint8_t &chipId)
         "0x00 0x00 0x00 0x01 0xff";
     char realCmd[128]; // 128:数组长度
     static_assert(sizeof(cmdTemplate) <= sizeof(realCmd) - 1);
-    if (sprintf_s(realCmd, sizeof(realCmd), cmdTemplate, chipId) == -1) { // 不必要考虑chipId + 1绕接
+    if (sprintf_s(realCmd, sizeof(realCmd), cmdTemplate, chipId) == -1) {
         UBSE_LOG_ERROR << "Failed to generate ipmi command.";
         return UBSE_ERROR;
     }

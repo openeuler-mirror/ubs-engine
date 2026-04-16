@@ -16,7 +16,7 @@ Environment=HCOM_CONNECTION_RETRY_TIMES=1
 Environment=HCOM_CONNECTION_SEND_TIMEOUT_SEC=10
 Environment=HCOM_CONNECTION_RECV_TIMEOUT_SEC=10
 Environment=HCOM_SET_LOG_LEVEL=3
-Environment=common
+Environment=SCENE_TYPE=common
 Environment=HCOM_CTX_CAPACITY=1048576
 Environment=LD_LIBRARY_PATH=/usr/lib64/ubse
 ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/sysSentry/ &>/dev/null || echo 'Unable to set sysSentry acl'"
