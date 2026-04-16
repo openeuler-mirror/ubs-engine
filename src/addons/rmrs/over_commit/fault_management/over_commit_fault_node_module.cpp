@@ -43,6 +43,7 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFault(const std::string 
             LOG_ERROR << "ProcessBorrowOutNodeFaultByMemId failed.";
             return ret;
         }
+        OverCommitFaultMemIdModule::Instance().ClearFalutBidBorrowedMap();
     }
 
     LOG_DEBUG << "ProcessBorrowOutNodeFault end.";
@@ -703,12 +704,11 @@ MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
     std::vector<RemoteNumaFault> remoteNumas;
     // 0. 先调Ubturbo，禁用冷热流动, 如果失败，也不借内存了
     vector<pid_t> pids;
-    for (auto pid: vmInfos)
-    {
+    for (auto pid : vmInfos) {
         pids.push_back(pid.first);
     }
     auto ret = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
-    if(ret != MEM_POOLING_OK){
+    if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "Failed to disable smap pid migrate.";
         return MEM_POOLING_ERROR;
     }

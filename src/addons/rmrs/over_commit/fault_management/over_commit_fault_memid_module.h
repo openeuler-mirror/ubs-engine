@@ -141,11 +141,12 @@ public:
     MpResult GetOverCommitScene(const std::string &nodeId);
     MpResult GetPidNumaInfo(outinterface::SrcMemoryBorrowParam oParam,
                             std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList, uint16_t remoteNumaId);
-    
-    MpResult ClearFalutBidBorrowedMap(){
+
+    MpResult ClearFalutBidBorrowedMap()
+    {
         falutBidBorrowedMap.clear();
     }
-    
+
     MpResult GetWaterMark(struct WaterMark &waterMark);
     /**
      * @brief 判断memID是否在本Node上、输出borrowID对应的远端numaID、输出memId对应的borrowID的内存借用大小

@@ -136,7 +136,6 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
             return res;
         }
     }
-    OverCommitFaultMemIdModule::Instance().ClearFalutBidBorrowedMap();
     return MEM_POOLING_OK;
 }
 
@@ -220,7 +219,6 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
             return ret;
         }
     }
-    OverCommitFaultMemIdModule::Instance().ClearFalutBidBorrowedMap();
     return MEM_POOLING_OK;
 }
 
@@ -260,7 +258,6 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
             return ret;
         }
     }
-    OverCommitFaultMemIdModule::Instance().ClearFalutBidBorrowedMap();
     return MEM_POOLING_OK;
 }
 
