@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <cstdint>
 #include "securec.h"
-
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_module.h"     // for UbseModule
@@ -358,7 +358,7 @@ void InitialNodes(const std::set<std::string> &slotIds, std::unordered_map<std::
 
 UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
-    uint32_t superNodeId = 0;
+    uint16_t superNodeId = 0;
     if (auto ret = UbseSmbios::GetInstance().GetSuperPodId(superNodeId); ret != UBSE_OK) {
         UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
     }

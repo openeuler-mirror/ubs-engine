@@ -11,6 +11,7 @@
  */
 
 #include "ubse_smbios.h"
+#include <cstdint>
 #include "ubse_smbios_def.h"
 #include "ubse_logger.h"
 #include "ubse_smbios_impl.h"
@@ -44,14 +45,26 @@ bool UbseSmbios::IsClosType()
     return meshType == UbseMeshType::CLOS;
 }
 
-UbseResult UbseSmbios::GetSuperPodId(uint32_t superPodId)
+UbseResult UbseSmbios::GetSuperPodId(uint16_t &superPodId)
 {
     auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
     if (basicInfo == nullptr) {
         UBSE_LOG_ERROR << "Get super pod basic info failed";
         return UBSE_ERROR;
     }
-    superPodId = static_cast<uint32_t>(basicInfo->superPodId);
+    superPodId = static_cast<uint16_t>(basicInfo->superPodId);
     return UBSE_OK;
 }
+
+UbseResult UbseSmbios::GetPodId(uint16_t &podId)
+{
+    auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
+    if (basicInfo == nullptr) {
+        UBSE_LOG_ERROR << "Get super pod basic info failed";
+        return UBSE_ERROR;
+    }
+    podId = static_cast<uint16_t>(basicInfo->podId);
+    return UBSE_OK;
+}
+
 } // namespace ubse::adapter_plugins::smbios
