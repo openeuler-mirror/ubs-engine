@@ -428,6 +428,13 @@ uint32_t mempooling::outinterface::UBSRMRSMemBorrowRollback(const string &borrow
         return ret;
     }
 
+    for (auto &borrowId : borrowIds) {
+        if (borrowId.empty()) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Incoming borrowIds have empty string.";
+            return ret;
+        }
+    }
+
     auto& mgr = ApiConcurrencyManager::getInstance();
     if (!mgr.TryEnterOtherFunc()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)

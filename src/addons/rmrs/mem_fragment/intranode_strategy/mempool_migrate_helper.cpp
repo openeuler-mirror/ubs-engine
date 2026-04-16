@@ -76,9 +76,28 @@ MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<
     }
 
     bool find = false;
+    bool findRedirect = false;
 
     for (auto &pair : validBorrowIdsPidsMap) {
         std::string inputBorrowId = pair.first;
+        std::string redirectNameKey = inputBorrowId;
+        std::string redirectNameVal = inputBorrowId;
+        do {
+            redirectNameKey = redirectNameVal;
+            redirectNameVal.clear();
+            MpResult retDirect = BorrowIdRedirection::Instance().Query(redirectNameKey, redirectNameVal);
+            if (retDirect != MEM_POOLING_OK) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemFree][MemFreeExecute] Get redirection of borrow_id=" << inputBorrowId << " failed.";
+                return retDirect;
+            }
+        } while (!redirectNameVal.empty());
+        if (redirectNameKey != inputBorrowId) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] BorrowId=" << inputBorrowId << " rediects to borrow_id="
+                << redirectNameKey << ".";
+            findRedirect = true;
+        }
 
         for (auto record : borrowRecords) {
             if (inputBorrowId == record.name) {
@@ -88,12 +107,12 @@ MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<
                 break;
             }
         }
-        if (find) {
+        if (find || findRedirect) {
             break;
         }
     }
 
-    if (find) {
+    if (find || findRedirect) {
         allNotExist = false;
     } else {
         allNotExist = true;
