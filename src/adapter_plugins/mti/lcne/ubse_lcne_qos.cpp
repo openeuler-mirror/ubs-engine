@@ -15,11 +15,13 @@
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
 #include "ubse_xml.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::mti;
 
 const std::string LCNE_QOS_MODE = "dwrr";
 const std::string LCNE_QOS_URI = "/restconf/data/huawei-vbussw-service:"
@@ -90,7 +92,7 @@ UbseResult UbseLcneQos::DeleteQosProfile(std::string profileName)
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::QueryQosProfile(std::string profileName, UbseMtiQosProfile &ubseLcneQosProfile)
+UbseResult UbseLcneQos::QueryQosProfile(std::string profileName, UbseMtiQosProfile& ubseLcneQosProfile)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -158,8 +160,13 @@ UbseResult UbseLcneQos::DeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(ubseFeInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert node id to slot id failed, nodeId: " << ubseFeInfo.slotId;
+        return UBSE_ERROR;
+    }
 
-    std::string profileApply = "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+    std::string profileApply = "/tqos-entity-profile-apply=" + slotId + "," + ubseFeInfo.ubpuId + "," +
                                ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.method = "DELETE";
     req.path = LCNE_QOS_URI + profileApply;
@@ -180,13 +187,18 @@ UbseResult UbseLcneQos::DeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &profileName)
+UbseResult UbseLcneQos::QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& profileName)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
 
     req.method = "GET";
-    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + ubseFeInfo.slotId + "," + ubseFeInfo.ubpuId + "," +
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(ubseFeInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert node id to slot id failed, nodeId: " << ubseFeInfo.slotId;
+        return UBSE_ERROR;
+    }
+    req.path = LCNE_QOS_URI + "/tqos-entity-profile-apply=" + slotId + "," + ubseFeInfo.ubpuId + "," +
                ubseFeInfo.iouId + "," + ubseFeInfo.entityId;
     req.headers.emplace("Accept", LCNE_QOS_ACCEPT);
     req.headers.emplace("Content-Type", LCNE_QOS_CONTENT_TYPE);
@@ -214,7 +226,7 @@ UbseResult UbseLcneQos::QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &profi
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile, std::string &xmlStr)
+UbseResult UbseLcneQos::BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile, std::string& xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -260,7 +272,7 @@ UbseResult UbseLcneQos::BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile,
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr)
+UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profileName, std::string& xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -269,8 +281,13 @@ UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profil
     }
     ubseXml->AddNode("tqos-entity-profile-apply");
     ubseXml->Attr("xmlns", LCNE_QOS_XML);
+    std::string slotId;
+    if (!ConvertNodeIdToSlotId(ubseFeInfo.slotId, slotId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert node id to slot id failed, nodeId: " << ubseFeInfo.slotId;
+        return UBSE_ERROR;
+    }
     ubseXml->AddNode("slot-id");
-    ubseXml->Child("slot-id")->Text(ubseFeInfo.slotId);
+    ubseXml->Child("slot-id")->Text(slotId);
     ubseXml->AddNode("ubpu-id");
     ubseXml->Child("ubpu-id")->Text(ubseFeInfo.ubpuId);
     ubseXml->AddNode("iou-id");
@@ -283,7 +300,7 @@ UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profil
 
     return UBSE_OK;
 }
-UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseMtiQosProfile &ubseLcneQosProfile)
+UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseMtiQosProfile& ubseLcneQosProfile)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {
@@ -314,15 +331,15 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseMtiQosProf
     try {
         ubseLcneQosProfile.minBandWidth = std::stoul(minBandWidthStr) * BYTE_TO_BIT;
         ubseLcneQosProfile.maxBandWidth = std::stoul(maxBandWidthStr) * BYTE_TO_BIT;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return UBSE_ERROR;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::ParseVfeQosResponse(std::string body, std::string &profileName)
+UbseResult UbseLcneQos::ParseVfeQosResponse(std::string body, std::string& profileName)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {

@@ -159,6 +159,10 @@ struct UbseMtiQosProfile {
     uint32_t minBandWidth;
 };
 
+bool ConvertSlotIdToNodeId(const std::string &slotId, std::string &nodeId);
+
+bool ConvertNodeIdToSlotId(const std::string &nodeId, std::string &slotId);
+
 /**
  * 拓扑信息
  */

@@ -104,7 +104,13 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string &r
 
     int index = 0;
     while (ubseXml->Next("iou-info", index++) != nullptr) {
-        UbseDevName devName(ubseXml->Child("slot-id")->Text(), ubseXml->Child("ubpu-id")->Text());
+        std::string slotId = ubseXml->Child("slot-id")->Text();
+        std::string nodeId;
+        if (!ConvertSlotIdToNodeId(slotId, nodeId)) {
+            UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
+            return UBSE_ERROR;
+        }
+        UbseDevName devName(nodeId, ubseXml->Child("ubpu-id")->Text());
         UbseLcneIODieInfo ubseLcneIODieInfo{};
         ParseIODieInfo(ubseXml, ubseLcneIODieInfo);
         if (ubseLcneIODieInfo.chipStatusStr != "normal") {
