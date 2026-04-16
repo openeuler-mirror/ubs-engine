@@ -295,13 +295,14 @@ func ubseUrmaDevUnpack(response []byte) ([]Device, error) {
 	}
 
 	devices := make([]Device, 0, count)
+	var name string
+	var err error
 	for i := uint32(0); i < count; i++ {
 		// Check if enough data remains for device info
 		if len(response) < 4+12 { // string length + device info
 			return nil, fmt.Errorf("insufficient data for device %d: expected at least 16 bytes, got %d", i, len(response))
 		}
-
-		name, response, err := unpackString(response, UbsUrmaNameMax)
+		name, response, err = unpackString(response, UbsUrmaNameMax)
 		if err != nil {
 			return nil, fmt.Errorf("invalid device name for device %d: %v", i, err)
 		}
