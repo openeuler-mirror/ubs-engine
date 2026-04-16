@@ -502,6 +502,8 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
 
     // 为虚拟机组合进行内存借用
     MemBorrowExecuteResult borrowExecResult;
+    uint64_t remoteNumaSize{0};
+    uint64_t preRemoteSize{0};
     // 判断是否已有借用
     if (falutBidBorrowedMap.find(borNodeData.borrowId) != falutBidBorrowedMap.end()) {
         borrowExecResult = falutBidBorrowedMap[borNodeData.borrowId];
@@ -514,8 +516,6 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
         }
         falutBidBorrowedMap[borNodeData.borrowId] = borrowExecResult;
     }
-    uint64_t remoteNumaSize{0};
-    uint64_t preRemoteSize{0};
     struct GetNumaSizePara preRemoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, preRemoteNumaId, preRemoteNumaId};
 
     // 故障节点所借出的远端numa上有内存使用，不能直接将其归还
@@ -526,14 +526,9 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
         return MEM_POOLING_ERROR;
     }
 
-    OverCommitFaultMemIdExecuteParam executeParam{fMVmInfoResult.pids,
-                                                  oSrcParam.srcNumaId,
-                                                  remoteNumaId,
-                                                  preRemoteNumaId,
-                                                  fMVmInfoResult.totalNeedBorrowMem,
-                                                  remoteNumaSize,
-                                                  preRemoteSize,
-                                                  isDiffRemoteNuma};
+    OverCommitFaultMemIdExecuteParam executeParam{
+        fMVmInfoResult.pids, oSrcParam.srcNumaId, remoteNumaId,    preRemoteNumaId, fMVmInfoResult.totalNeedBorrowMem,
+        remoteNumaSize,      preRemoteSize,       isDiffRemoteNuma};
     // 调用rpc消息到远端
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "ExecuteParam=" << executeParam.ToString() << ".";
     if (MemIdExecuteRpc(executeParam, borrowInNid) != MEM_POOLING_OK) {
