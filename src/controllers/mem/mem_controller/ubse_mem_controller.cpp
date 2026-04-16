@@ -334,9 +334,8 @@ UbseResult CheckReconciliationStatusWithFault(
             return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不存在
         }
 
-        if (it->second.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
-            it->second.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT &&
-            it->second.clusterState != UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
+        if (it->second.clusterState == UbseNodeClusterState::UBSE_NODE_INIT ||
+            it->second.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
             UBSE_LOG_WARN << "Node=" << tmpNodeId
                           << " does not working, clusterState=" << static_cast<uint32_t>(it->second.clusterState);
             return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不在工作状态
