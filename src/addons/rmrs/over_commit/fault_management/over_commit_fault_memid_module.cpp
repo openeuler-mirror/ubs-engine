@@ -501,19 +501,24 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     }
 
     // 为虚拟机组合进行内存借用
-
-    SrcMemoryBorrowParam srcParam{borrowInNid, oSrcParam.srcSocketId, oSrcParam.srcNumaId, uid, username};
+    MemBorrowExecuteResult borrowExecResult;
+    // 判断是否已有借用
+    if (falutBidBorrowedMap.find(borNodeData.borrowId) != falutBidBorrowedMap.end()) {
+        borrowExecResult = falutBidBorrowedMap[borNodeData.borrowId];
+    } else {
+        SrcMemoryBorrowParam srcParam{borrowInNid, oSrcParam.srcSocketId, oSrcParam.srcNumaId, uid, username};
+        if (MemBorrowExecute(srcParam, fMVmInfoResult.totalNeedBorrowMem, waterMark, borrowExecResult) !=
+            MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemBorrowExecute failed.";
+            return MEM_POOLING_ERROR;
+        }
+        falutBidBorrowedMap[borNodeData.borrowId] = borrowExecResult;
+    }
     uint64_t remoteNumaSize{0};
     uint64_t preRemoteSize{0};
     struct GetNumaSizePara preRemoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, preRemoteNumaId, preRemoteNumaId};
 
     // 故障节点所借出的远端numa上有内存使用，不能直接将其归还
-    MemBorrowExecuteResult borrowExecResult;
-    if (MemBorrowExecute(srcParam, fMVmInfoResult.totalNeedBorrowMem, waterMark, borrowExecResult) !=
-        MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemBorrowExecute failed.";
-        return MEM_POOLING_ERROR;
-    }
     auto remoteNumaId = borrowExecResult.presentNumaId[0];
     bool isDiffRemoteNuma{remoteNumaId != preRemoteNumaId};
     struct GetNumaSizePara remoteNumaPara = {borrowInNid, oSrcParam.srcNumaId, remoteNumaId, preRemoteNumaId};
@@ -532,13 +537,6 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     // 调用rpc消息到远端
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "ExecuteParam=" << executeParam.ToString() << ".";
     if (MemIdExecuteRpc(executeParam, borrowInNid) != MEM_POOLING_OK) {
-        // // 如果迁失败，新借的内存还掉
-        // for(auto bid : borrowExecResult.borrowIds){
-        //     if(OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(bid, borrowInNid) != MEM_POOLING_OK){
-        //         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemIdExecute failed and return " << bid <<  " directly failed.";
-        //     }
-        //     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemIdExecute failed, return " << bid <<  " directly successed.";
-        // }
         return MEM_POOLING_ERROR;
     }
 

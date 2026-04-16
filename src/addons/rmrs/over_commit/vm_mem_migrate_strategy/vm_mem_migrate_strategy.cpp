@@ -992,7 +992,6 @@ MpResult VMMemMigrateStrategy::processSteps(int16_t srcNumaId, std::vector<Migra
                                             std::map<uint16_t, uint64_t> &remoteMap2Size, std::vector<pid_t> &pidsAll)
 {
     auto ret = MEM_POOLING_OK;
-    OverCommitFaultMemIdModule module;
     for (auto &s : steps) {
         std::vector<pid_t> pids{s.vm};
         auto iter = remoteMap2Size.find(s.to);
