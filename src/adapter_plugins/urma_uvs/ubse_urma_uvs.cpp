@@ -23,6 +23,7 @@
 #include "ubse_urma_uvs_module.h"
 #include "lock/ubse_lock.h"
 #include "ubse_urma_uvs.h"
+#include <cstdint>
 
 namespace ubse::urma {
 using namespace ubse::common::def;
@@ -358,7 +359,7 @@ void InitialNodes(const std::set<std::string> &slotIds, std::unordered_map<std::
 
 UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
-    uint32_t superNodeId = 0;
+    uint16_t superNodeId = 0;
     if (auto ret = UbseSmbios::GetInstance().GetSuperPodId(superNodeId); ret != UBSE_OK) {
         UBSE_LOG_WARN << "get bios data mesh_type failed, ret: " << FormatRetCode(ret);
     }
