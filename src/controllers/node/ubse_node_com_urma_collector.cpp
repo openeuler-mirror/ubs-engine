@@ -45,7 +45,7 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
     std::vector<mti::MtiNodeInfo> ubseNodeInfos{};
     auto ret = lcneModule->UbseGetAllNodeInfos(ubseNodeInfos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseGetAllNodeInfos failed, ret=" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseGetAllNodeInfos failed, " << FormatRetCode(ret);
         return ret;
     }
     for (const auto &ubseNodeInfo : ubseNodeInfos) {
@@ -235,7 +235,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink> &a
 
     UbseDevTopology devTopology{};
     if (auto ret = lcneModule->UbseGetDevTopology(devTopology); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "get topology info not successful, " << FormatRetCode(ret);
         return ret;
     }
     for (const auto &kv : devTopology) {
@@ -281,7 +281,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     UbseDevTopology devTopology{};
     auto ret = lcneModule->UbseGetDevTopology(devTopology);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "get topology info not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "get topology info not successful, " << FormatRetCode(ret);
         return ret;
     }
     iouList.clear();
@@ -348,20 +348,20 @@ void ConstructEid(const std::string &bitStr, std::string &eid)
 
 UbseResult OverwriteEid(const uint32_t podId, const uint32_t serverId, const std::string &baseEid, std::string &result)
 {
-    uint32_t n = 104; // 从第105位开始，8位podId，5位serverId
-    uint8_t podBitSize = NO_8;
-    uint8_t serverBitSize = NO_5;
+    uint32_t n = 116; // 从第117位开始，3位podId，3位serverId
+    uint8_t podBitSize = NO_3;
+    uint8_t serverBitSize = NO_3;
     
     std::string bitStr;
     auto ret = ParseBaseEid(baseEid, bitStr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "ParseBaseEid failed, baseEid=" << baseEid << ", ret=" << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "ParseBaseEid failed, baseEid=" << baseEid << ", " << FormatRetCode(ret);
         return ret;
     }
 
     if (n + podBitSize + serverBitSize > bitStr.size()) {
         UBSE_LOG_ERROR << "OverwriteEid failed, baseEid=" << baseEid << ", podId=" << podId
-                       << ", serverId=" << serverId << ", ret=" << FormatRetCode(ret);
+                       << ", serverId=" << serverId << ", " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
