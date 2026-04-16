@@ -17,6 +17,7 @@
 #include "message/ubse_mem_numa_borrow_importobj_simpo.h"
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
+#include "message/ubse_mem_remote_numa_status.h"
 #include "ubse_com_base.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -56,7 +57,7 @@ void RegRespCtrlHandlers()
     const ubse::com::UbseComEndpoint preOnLineReplyEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_PRE_ONLINE_RESP)};
     const ubse::com::UbseComEndpoint invalidateImportDebtEndpoint = {
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT)};
 
     UbseRegRpcService(collectEndpoint, CollectLedgeHandler);
@@ -89,6 +90,8 @@ void RegQueryHandlers()
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_EXPORT)};
     const ubse::com::UbseComEndpoint getShareImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_IMPORT)};
+    const ubse::com::UbseComEndpoint getNumaStatusEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+        static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_REMOTE_NUMA_STATUS)};
 
     UbseRegRpcService(getNumaInfoByPidEndpoint, GetNumaInfoByPidHandler);
     UbseRegRpcService(getFdExportEndpoint, QueryFdExportHandler);
@@ -99,6 +102,7 @@ void RegQueryHandlers()
     UbseRegRpcService(getAddrImportEndpoint, QueryAddrImportHandler);
     UbseRegRpcService(getShareExportEndpoint, QueryShareExportHandler);
     UbseRegRpcService(getShareImportEndpoint, QueryShareImportHandler);
+    UbseRegRpcService(getNumaStatusEndpoint, QueryRemoteNumaStatusHandler);
 }
 
 void RegUbseMemControllerHandler()
@@ -1122,7 +1126,7 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
 UbseResult SendInvalidateSingleImportDebtRpc(const std::string &nodeId,
                                              const std::string &debtName, UbseMemBorrowType type)
 {
-    const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
                               static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT)};
     UbseMemOptReqSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemOptReqSimpo();
     if (ubseRequestPtr == nullptr) {
@@ -1178,4 +1182,63 @@ UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, U
     }
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
+
+UbseResult QueryRemoteNumaStatus(const std::string &nodeId, const std::vector<std::pair<int64_t, int>> &numaStatus)
+{
+    const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+                              static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_REMOTE_NUMA_STATUS)};
+    UbseMemRemoteNumaStatusPtr ubseRequestPtr = new (std::nothrow) UbseMemRemoteNumaStatus();
+    if (ubseRequestPtr == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    ubseRequestPtr->SetUbseMemRemoteNumaStatus(numaStatus);
+    UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemOptResultSimpo();
+    if (ubseResponsePtr == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto ubseComModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (ubseComModule == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    auto retCode = ubseComModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "rpc sync send query remote numa status failed, " << FormatRetCode(retCode);
+        return retCode;
+    }
+    auto resultPtr = UbseBaseMessage::DeConvert<UbseMemOptResultSimpo>(ubseResponsePtr);
+    return resultPtr->GetResult();
+}
+
+UbseResult QueryRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+{
+    UbseMemRemoteNumaStatus simpo{req.data, static_cast<uint32_t>(req.len)};
+    auto ret = simpo.Deserialize();
+    size_t size = 0;
+    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        SafeDeleteArray(p, size);
+    }};
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Mem query remote numa status deserialize failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    auto numaStatus = simpo.GetUbseRemoteNumaStatus();
+    UBSE_LOG_INFO << "Agent query remote numa status";
+    auto result = AgentNotifySmapNumaStatus(numaStatus);
+    UbseMemOptResultSimpoPtr resultSimpo = new (std::nothrow) UbseMemOptResultSimpo();
+    if (resultSimpo == nullptr) {
+        UBSE_LOG_ERROR << "new simpo failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    resultSimpo->SetResult(result);
+    ret = resultSimpo->Serialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "mem query remote numa status serialize failed, " << FormatRetCode(ret);
+        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+            SafeDeleteArray(p, size);
+        }};
+        return ret;
+    }
+    return CreateRespBuffer(*resultSimpo.Get(), resp);
+}
+
 } // namespace ubse::mem::controller

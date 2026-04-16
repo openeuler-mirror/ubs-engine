@@ -209,6 +209,11 @@ UbseResult AgentInvalidateImportDebt(const std::string &name, UbseMemBorrowType 
 
 // 获取最大引用计数的导出对象
 UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string &name);
+
+void MasterNotifySmapNumaStatus(const std::string &nodeId);
+
+UbseResult AgentNotifySmapNumaStatus(const std::vector<std::pair<int64_t, int>> &numaStatus);
+
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_CONTROLLER_LEDGER_H

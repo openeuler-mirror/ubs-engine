@@ -250,10 +250,13 @@ void ConstructSingleNumaImportObj(
     algoResult.attachSocketId = meta.attachSocket;
     for (int i = 0; i < TOPOLOGY_MAX_NUMA_PER_SOCKET; i++) {
         if (meta.numaSizes[i] != NO_0) {
-            algoResult.exportNumaInfos.push_back(
-                {lendNode, meta.exportSocket, meta.exportNumaIds[i], meta.numaSizes[i]});
-            algoResult.importNumaInfos.push_back(
-                {req.importNodeId, meta.importSocket, meta.importNumaIds[i], meta.numaSizes[i]});
+            algoResult.exportNumaInfos.push_back({
+                lendNode, meta.exportSocket, meta.exportNumaIds[i], meta.numaSizes[i]
+            });
+            algoResult.importNumaInfos.push_back({
+                req.importNodeId, meta.importSocket, meta.importNumaIds[i],
+                meta.numaSizes[i], meta.portId, meta.chipId
+            });
         }
     }
     std::vector<UbseMemObmmInfo> exportObmmInfo{};

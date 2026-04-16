@@ -7,11 +7,13 @@
 #include <ubse_node.h>
 #include <cstdint>
 #include <string>
+#include <thread>
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_debt_info.h"
@@ -29,6 +31,7 @@
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
+#include "src/adapter_plugins/ubturbo/ubse_ubturbo_module.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::util;
@@ -345,6 +348,16 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
         UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " ledger failed, " << FormatRetCode(ret);
     } else {
         UBSE_LOG_INFO << "nodeId=" << node.nodeId << " ledger success.";
+        // Create async thread to execute MasterNotifySmapNumaStatus
+        auto resourceExecutor = GetExecutor("ubseMemController");
+        if (resourceExecutor == nullptr) {
+            UBSE_LOG_ERROR << "Failed to get ubseMemController";
+            return UBSE_ERROR;
+        }
+        resourceExecutor->Execute([nodeId]() {
+            UBSE_LOG_INFO << "Start async thread to notify smap numa status for nodeId=" << nodeId;
+            MasterNotifySmapNumaStatus(nodeId);
+        });
     }
     return ret;
 }
@@ -2331,6 +2344,78 @@ UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string &name)
     UBSE_LOG_INFO << "name=" << name << " baseNodeId=" << selectedBaseNodeId << " found " << importObjPtrs.size()
                   << " import objects.";
     return {exportObjPtr, importObjPtrs};
+}
+
+void MasterNotifySmapNumaStatus(const std::string &nodeId)
+{
+    struct PairHash {
+        std::size_t operator()(const std::pair<uint32_t, uint32_t>& p) const
+        {
+            return std::hash<uint64_t>{}((static_cast<uint64_t>(p.first) << NO_32) | p.second);
+        }
+    };
+
+    auto allLinkInfos = nodeController::UbseNodeController::GetInstance().UbseGetDirConnectInfo();
+    std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> linkInfos;
+    for (const auto &[_, physicalLink] : allLinkInfos) {
+        // interfaceName非空，本端端口UP
+        if (std::to_string(physicalLink.slotId) == nodeId && !physicalLink.interfaceName.empty()) {
+            UBSE_LOG_INFO << "physicalLink=" << physicalLink.interfaceName << ", chipId=" << physicalLink.chipId
+                          << ", portId=" << physicalLink.portId;
+            linkInfos.insert({physicalLink.chipId, physicalLink.portId});
+        }
+    }
+
+    auto allDebtMap = UbseMemDebtLedger::GetInstance().GetAllDebtInfo();
+    std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash> refCountMap;
+    for (const auto &[importNodeId, nodeDebt] : allDebtMap) {
+        if (importNodeId != nodeId) {
+            continue;
+        }
+
+        for (const auto &[resId, importObjs] : nodeDebt.numaImportObjMap) {
+            if (importObjs == nullptr) {
+                continue;
+            }
+            if (importObjs->algoResult.importNumaInfos.empty() || importObjs->status.importResults.empty()) {
+                continue;
+            }
+            auto key = std::make_pair(importObjs->algoResult.importNumaInfos[0].chipId,
+                                      importObjs->algoResult.importNumaInfos[0].portId);
+            refCountMap[key] = importObjs->status.importResults[0].numaId;
+        }
+    }
+
+    std::vector<std::pair<int64_t, int>> numaStatus;
+    numaStatus.reserve(refCountMap.size());
+    for (const auto [linkPair, numaId] : refCountMap) {
+        if (linkInfos.find(linkPair) != linkInfos.end()) {
+            numaStatus.push_back({numaId, 1});
+        } else {
+            numaStatus.push_back({numaId, 0});
+        }
+    }
+    if (numaStatus.empty()) {
+        return;
+    }
+    auto ret = QueryRemoteNumaStatus(nodeId, numaStatus);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "QueryRemoteNumaStatus failed, ret=" << ret;
+        return;
+    }
+}
+
+UbseResult AgentNotifySmapNumaStatus(const std::vector<std::pair<int64_t, int>> &numaStatus)
+{
+    int retry = 2;
+    while (retry--) {
+        auto ret = ubturb::UbseUbturboModule::GetInstance().UbTurboNotifyNumaListStatus(numaStatus);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "UbTurboNotifyNumaListStatus failed, ret=" << ret << ", will retry";
+            continue;
+        }
+    }
+    return UBSE_OK;
 }
 
 } // namespace ubse::mem::controller
