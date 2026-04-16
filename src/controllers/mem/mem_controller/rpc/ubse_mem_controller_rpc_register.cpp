@@ -64,7 +64,7 @@ UbseResult RegisterFdQueryHandler(const std::shared_ptr<com::UbseComModule> &com
     }
     auto ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemFdDescSimpo>(fdGetHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoFdGetHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoFdGetHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
@@ -75,7 +75,7 @@ UbseResult RegisterFdQueryHandler(const std::shared_ptr<com::UbseComModule> &com
     }
     ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemFdDescListSimpo>(fdDescListHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoFdListHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoFdListHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -89,7 +89,7 @@ UbseResult RegisterNumaQueryHandler(const std::shared_ptr<com::UbseComModule> &c
     }
     auto ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>(numaGetHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoNumaGetHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoNumaGetHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
@@ -101,7 +101,7 @@ UbseResult RegisterNumaQueryHandler(const std::shared_ptr<com::UbseComModule> &c
     }
     ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>(numaGetWithImportNodeHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoNumaGetWithImportNodeHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoNumaGetWithImportNodeHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
@@ -112,7 +112,7 @@ UbseResult RegisterNumaQueryHandler(const std::shared_ptr<com::UbseComModule> &c
     }
     ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>(numaDescListHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoNumaListHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoNumaListHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -126,7 +126,7 @@ UbseResult RegisterShmQueryHandler(const std::shared_ptr<com::UbseComModule> &co
     }
     auto ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescSimpo>(shmDescHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoShmGetHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoShmGetHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
@@ -137,7 +137,7 @@ UbseResult RegisterShmQueryHandler(const std::shared_ptr<com::UbseComModule> &co
     }
     ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>(shmDescListHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoShmListHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoShmListHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
@@ -148,7 +148,7 @@ UbseResult RegisterShmQueryHandler(const std::shared_ptr<com::UbseComModule> &co
     }
     ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>(shmStatusGetHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoShmStatusGetHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoShmStatusGetHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -162,7 +162,7 @@ UbseResult RegisterAddrQueryHandler(const std::shared_ptr<com::UbseComModule> &c
     }
     auto ret = comModule->RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemAddrDescSimpo>(addrGetHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoAddrGetHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoAddrGetHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -208,38 +208,38 @@ UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComMo
     }
     auto ret = comModule->RegRpcService<NodeMemDebtInfoQueryReqSimpo, NodeMemDebtInfoSimpo>(debtInfoQueryHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoQueryHandler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register UbseMemDebtInfoQueryHandler, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
     ret = RegisterFdQueryHandler(comModule);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register fd query handler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register fd query handler, " << FormatRetCode(ret);
         return ret;
     }
     ret = RegisterNumaQueryHandler(comModule);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register numa query handler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register numa query handler, " << FormatRetCode(ret);
         return ret;
     }
     ret = RegisterShmQueryHandler(comModule);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register shm query handler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register shm query handler, " << FormatRetCode(ret);
         return ret;
     }
     ret = RegisterAddrQueryHandler(comModule);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register addr query handler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register addr query handler, " << FormatRetCode(ret);
         return ret;
     }
     ret = RegPartialDebtFetchHandler(comModule);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register partial debt fetch handler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register partial debt fetch handler, " << FormatRetCode(ret);
         return ret;
     }
     ret = RegNodeBorrowQueryHandler(comModule);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Unable to register node borrow query handler, ret: " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "Unable to register node borrow query handler, " << FormatRetCode(ret);
         return ret;
     }
     ret = RegMemIdQueryHandler(comModule);

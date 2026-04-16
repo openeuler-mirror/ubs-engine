@@ -187,11 +187,12 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportPermissionExecutor(UbseMemFdBorrow
         if (UbseFileUtil::CheckFileExists(OBMMDevice)) {
             bool res = UbseFileUtil::SetFileAttributes(OBMMDevice, owner.uid, owner.gid, owner.mode);
             if (!res) {
-                UBSE_LOG_ERROR << MMI_LOG_INFO << "OBMMDevice:" << OBMMDevice << ", SetFileAttributes failed!";
+                UBSE_LOG_ERROR << MMI_LOG_INFO << "OBMMDevice=" << OBMMDevice << ", SetFileAttributes failed!";
             }
             success = success && res;
         } else {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "OBMMDevice:" << OBMMDevice << "not exist! SetFileAttributes failed!";
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "OBMMDevice=" << OBMMDevice
+                           << " does not exist! SetFileAttributes failed!";
             success = false;
         }
     }

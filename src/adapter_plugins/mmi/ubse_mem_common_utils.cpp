@@ -166,6 +166,6 @@ void RmCommonUtils::GenerateNodeChipPortStr(const NodeId &lendNodeId, const Chip
     std::ostringstream str;
     str << lendNodeId << "-" << lendChipId << "-" << portId;
     nodeChipPortStr = str.str();
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "GenerateNodeChipPortStr: " << nodeChipPortStr;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "GenerateNodeChipPortStr=" << nodeChipPortStr;
 }
 } // namespace ubse::mmi
