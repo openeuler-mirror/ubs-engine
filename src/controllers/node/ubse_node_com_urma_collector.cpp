@@ -233,18 +233,15 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink>& a
     }
 
     UbseDevTopology devTopology{};
-    auto ret = lcneModule->UbseGetDevTopology(devTopology);
-    if (ret != UBSE_OK) {
+    if (auto ret = lcneModule->UbseGetDevTopology(devTopology); ret != UBSE_OK) {
         UBSE_LOG_WARN << "get topology info not successful, " << FormatRetCode(ret);
         return ret;
     }
-
-    for (const auto& kv : devTopology) {
+    for (const auto &kv : devTopology) {
         std::string nodeId;
         std::string ubpuId;
         kv.first.SplitDevName(nodeId, ubpuId);
-
-        for (const auto& portKv : kv.second.second) {
+        for (const auto &portKv : kv.second.second) {
             if (portKv.second.portStatus == UbseMtiCpuTopoPortStatus::DOWN) {
                 continue;
             }
@@ -292,8 +289,11 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
 
     for (const auto& kv : devTopology) {
         const auto& deviceInfo = kv.second.first;
-        iouList.push_back(
-            UbseMtiIouInfo{.slotId = deviceInfo.slotId, .ubpuId = deviceInfo.chipId, .iouId = deviceInfo.cardId});
+        iouList.push_back(UbseMtiIouInfo{
+            .slotId = deviceInfo.slotId,
+            .ubpuId = deviceInfo.chipId,
+            .iouId  = deviceInfo.cardId
+        });
     }
     return UBSE_OK;
 }
