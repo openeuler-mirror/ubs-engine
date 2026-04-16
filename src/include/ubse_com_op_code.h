@@ -168,6 +168,7 @@ enum class UbseMemQueryOpCode {
     UBSE_MEM_QUERY_SHARE_EXPORT = 0x0014,     // 查询共享内存导出
     UBSE_MEM_QUERY_SHARE_IMPORT = 0x0015,     // 查询共享内存导入
     UBSE_MEM_ID_DEBINFO_QUERY = 0x00016,      // 内存账本信息查询
+    UBSE_MEM_REMOTE_NUMA_STATUS = 0x0017,     // 远端numa状态
 };
 
 // UBSE内存借用回调操作码

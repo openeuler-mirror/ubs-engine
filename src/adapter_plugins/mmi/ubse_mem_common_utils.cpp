@@ -93,6 +93,8 @@ UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult &algoResult,
         customMeta.importNumaIds[i] = algoResult.importNumaInfos[i].numaId;
         customMeta.importSocket = algoResult.importNumaInfos[0].socketId;
         importNodeId = algoResult.importNumaInfos[0].nodeId;
+        customMeta.chipId = algoResult.importNumaInfos[0].chipId;
+        customMeta.portId = algoResult.importNumaInfos[0].portId;
     }
     customMeta.attachSocket = algoResult.attachSocketId;
     customMeta.exportSocket = algoResult.exportNumaInfos[0].socketId;

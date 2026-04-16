@@ -12,6 +12,7 @@
 
 #include "test_ubse_mem_controller_ledger.h"
 
+#include <mockcpp/ProcStub.h>
 #include <ubse_node.h>
 
 #include <mockcpp/mockcpp.hpp>
@@ -27,6 +28,30 @@
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_util.h"
+
+// 用于mock的全局变量
+std::map<std::string, ubse::nodeController::PhysicalLink> g_mockLinkInfos;
+
+// mock UbseGetDirConnectInfo函数 - 正常情况
+std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectInfo_Normal() {
+    std::map<std::string, ubse::nodeController::PhysicalLink> linkInfos;
+    ubse::nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+    linkInfos["link1"] = link1;
+    
+    ubse::nodeController::PhysicalLink link2;
+    link2.slotId = 2;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "eth1";
+    linkInfos["link2"] = link2;
+    
+    return linkInfos;
+}
+
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
@@ -1149,4 +1174,60 @@ TEST_F(TestUbseMemControllerLedger, AgentDiffNumaImportHandler)
     MOCKER_CPP(&AddNumaExport).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(AgentDiffNumaImportHandler(nodeId, objs), UBSE_OK);
 }
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus) {
+    std::string nodeId = "1";
+    
+    // 准备mock数据
+    g_mockLinkInfos.clear();
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+    g_mockLinkInfos["link1"] = link1;
+    
+    nodeController::PhysicalLink link2;
+    link2.slotId = 2;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "eth1";
+    g_mockLinkInfos["link2"] = link2;
+
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    auto connectInfoBak = UbseNodeController::GetInstance().devDirConnectInfo;
+    
+    UbseNodeController::GetInstance().devDirConnectInfo["test"] = link1;
+    
+    // 直接设置devDirConnectInfo成员变量，避免mockcpp的比较问题
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+    nodeController.devDirConnectInfo["link2"] = link2;
+    
+    MOCKER_CPP(QueryRemoteNumaStatus)
+        .stubs()
+        .with(eq(nodeId), any())
+        .will(returnValue(UBSE_OK));
+    
+    MasterNotifySmapNumaStatus(nodeId);
+    
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_EmptyNumaStatus) {
+    std::string nodeId = "1";
+    
+    // 直接设置devDirConnectInfo成员变量为空，避免mockcpp的比较问题
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    
+    MasterNotifySmapNumaStatus(nodeId);
+    
+    SUCCEED();
+}
+
 } // namespace ubse::mem_controller::ut

@@ -88,6 +88,8 @@ struct UbseMemLocalObmmCustomMeta {
     uint8_t exportNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
     int32_t importSocket{};
     int32_t exportSocket{};
+    uint32_t chipId{};
+    uint32_t portId{};
     uint64_t numaSizes[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
     uint8_t usrInfo[UB_MAX_USR_INFO_LEN]{};
     int dstSocket{-1};      // 内存申请借出方节点socket信息 -1 无效
