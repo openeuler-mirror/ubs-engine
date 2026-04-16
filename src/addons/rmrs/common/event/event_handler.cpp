@@ -133,9 +133,10 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
         if (res != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultManager] Process BORROW_OUT node fault failed, eventMessage:" << eventMessage << ".";
+            return res;
         }
     }
-    return res;
+    return MEM_POOLING_OK;
 }
 
 MpResult EventHandler::HandleAlarmUceEvent(ALARM_FAULT_TYPE eventId, std::string eventMessage)

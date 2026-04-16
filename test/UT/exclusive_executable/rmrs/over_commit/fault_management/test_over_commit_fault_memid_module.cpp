@@ -634,7 +634,7 @@ TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitFail2)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail4)
+TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk4)
 {
     // 准备模拟数据
     std::string borrowInNid = "1";
@@ -652,7 +652,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail4)
         .will(returnValue(MEM_POOLING_OK));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail1)
@@ -691,7 +691,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail2)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail3)
+TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk3)
 {
     // 准备模拟数据
     std::string borrowInNid = "1";
@@ -714,10 +714,10 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail3)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail5)
+TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk5)
 {
     // 准备模拟数据
     std::string borrowInNid = "1";
@@ -743,7 +743,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail5)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceSuccess)

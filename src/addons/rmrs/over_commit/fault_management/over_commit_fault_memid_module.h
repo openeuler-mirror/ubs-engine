@@ -14,6 +14,7 @@
 #define MEMPOOLING_OVER_COMMIT_FAULT_MEMID_MODULE_H
 
 #include <string>
+#include <unordered_map>
 #include "fault_memid_module.h"
 #include "mempooling_interface.h"
 #include "over_commit_def.h"
@@ -120,6 +121,8 @@ public:
     MpResult GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList);
 
     MpResult MemFreeExecuteRpc(std::string borrowId, std::string importNodeId);
+    MpResult DisableSmapProcessMigrateRpc(std::vector<pid_t> pids, std::string importNodeId);
+    MpResult MemFreeDirectlyExecuteRpc(std::string borrowId, std::string importNodeId);
     MpResult MemIdExecuteRpc(OverCommitFaultMemIdExecuteParam param, std::string importNodeId);
     MpResult MemIdExecute(OverCommitFaultMemIdExecuteParam param);
     MpResult VmsMigrateOtherRemoteNuma(std::vector<pid_t> &pids, uint16_t preRemoteNumaId, uint16_t remoteNumaId,
@@ -139,6 +142,11 @@ public:
     MpResult GetPidNumaInfo(outinterface::SrcMemoryBorrowParam oParam,
                             std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList, uint16_t remoteNumaId);
 
+    MpResult ClearFalutBidBorrowedMap()
+    {
+        falutBidBorrowedMap.clear();
+    }
+
     MpResult GetWaterMark(struct WaterMark &waterMark);
     /**
      * @brief 判断memID是否在本Node上、输出borrowID对应的远端numaID、输出memId对应的borrowID的内存借用大小
@@ -151,6 +159,7 @@ public:
                                           uint16_t &preRemoteNumaId, uid_t &uid, std::string &username);
 
 private:
+    std::unordered_map<std::string, MemBorrowExecuteResult> falutBidBorrowedMap;
     FaultMemIdModule &baseInstance = FaultMemIdModule::Instance();
     MpSceneType mSceneType{MpSceneType::VIRTUAL_SCENE};
     NumaBindType mBindType{NumaBindType::BIND_INVALID};

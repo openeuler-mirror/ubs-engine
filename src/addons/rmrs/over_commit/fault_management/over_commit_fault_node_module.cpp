@@ -43,6 +43,7 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFault(const std::string 
             LOG_ERROR << "ProcessBorrowOutNodeFaultByMemId failed.";
             return ret;
         }
+        OverCommitFaultMemIdModule::Instance().ClearFalutBidBorrowedMap();
     }
 
     LOG_DEBUG << "ProcessBorrowOutNodeFault end.";
@@ -701,8 +702,18 @@ MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
 {
     LOG_DEBUG << "BorrowIdGroupProcess start.";
     std::vector<RemoteNumaFault> remoteNumas;
+    // 0. 先调Ubturbo，禁用冷热流动, 如果失败，也不借内存了
+    vector<pid_t> pids;
+    for (auto pid : vmInfos) {
+        pids.push_back(pid.first);
+    }
+    auto ret = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "Failed to disable smap pid migrate.";
+        return MEM_POOLING_ERROR;
+    }
     // 1. 根据故障numa上的借用记录，新借来相同借入方、大小、用户的内存
-    auto ret = ExecuteFaultMemoryBorrow(borrowRecords, remoteNumas);
+    ret = ExecuteFaultMemoryBorrow(borrowRecords, remoteNumas);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "ExecuteFaultMemoryBorrow failed, ret=" << ret << ".";
         return MEM_POOLING_ERROR;
@@ -741,7 +752,7 @@ MpResult OverCommitFaultNodeModule::ProcessSingleFaultRemoteNuma(
     if (vmDomainInfos.empty()) {
         LOG_DEBUG << "There is no vm in remote numa" << remoteNumaPair.first << ", begin to free memory.";
         for (auto &record : remoteNumaPair.second) {
-            MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(record.name, true, true, true);
+            MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(record.name, true, false, true);
             if (ret != MEM_POOLING_OK) {
                 LOG_ERROR << "MemFreeWithOps failed, ret=" << ret << ", borrowId=" << record.name << ".";
                 return MEM_POOLING_ERROR;

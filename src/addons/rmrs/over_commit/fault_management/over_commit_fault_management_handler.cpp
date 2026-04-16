@@ -124,6 +124,120 @@ void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void *ctx, const U
     *result = MEM_POOLING_OK;
 }
 
+// memid级别故障处理：不迁回，直接归还
+uint32_t OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler(const UbseByteBuffer &req,
+                                                                                 UbseByteBuffer &resp)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[OverCommit][FaultManagement] MemIdReturnDirectlyExecuteRecvHandler start.";
+
+    std::string borrowId{};
+    RmrsInStream builder(req.data, req.len);
+    builder >> borrowId;
+    MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, true, false, true);
+    if (MEM_POOLING_OK != ret) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] Recv MemIdReturnDirectlyExecuteRecvHandler ret=" << ret << ".";
+        resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(ret);
+        resp.data[1] = 0;
+    } else {
+        resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(ret);
+    }
+
+    resp.freeFunc = [](uint8_t *p) {
+        if (p != nullptr) {
+            delete[] p;
+        }
+    };
+    return ret;
+}
+
+// pid级别关闭冷热流动
+uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(const UbseByteBuffer &req,
+                                                                                UbseByteBuffer &resp)
+{
+    std::vector<pid_t> pids;
+    RmrsInStream builder(req.data, req.len);
+    builder >> pids;
+    int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
+    if (MEM_POOLING_OK != static_cast<MpResult>(retSmap)) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "SmapEnableProcessMigrateHelper faild enable=" << 0 << ", retSmap=" << retSmap << ".";
+        resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(retSmap);
+        resp.data[1] = 0;
+    } else {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "SmapEnableProcessMigrateHelper successed, enable=" << 0 << ".";
+        resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(retSmap);
+    }
+    resp.freeFunc = [](uint8_t *p) {
+        if (p != nullptr) {
+            delete[] p;
+        }
+    };
+    return retSmap;
+}
+
+void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void *ctx, const UbseByteBuffer &respData,
+                                                                           uint32_t resCode)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "DisableSmapProcessMigrateResHandler resCode = " << resCode;
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
+        return;
+    }
+    auto *result = static_cast<uint32_t *>(ctx);
+    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+        *result = MEM_POOLING_ERROR;
+        return;
+    }
+    *result = MEM_POOLING_OK;
+}
+
+void OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler(void *ctx, const UbseByteBuffer &respData,
+                                                                            uint32_t resCode)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "MemIdReturnDirectlyExecuteResHandler resCode = " << resCode;
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
+        return;
+    }
+    auto *result = static_cast<uint32_t *>(ctx);
+    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+        *result = MEM_POOLING_ERROR;
+        return;
+    }
+    *result = MEM_POOLING_OK;
+}
+
 // memid级别故障处理：内存迁回 + 归还
 uint32_t OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(const UbseByteBuffer &req,
                                                                          UbseByteBuffer &resp)
