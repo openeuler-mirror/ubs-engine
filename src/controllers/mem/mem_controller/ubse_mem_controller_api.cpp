@@ -2,6 +2,8 @@
 * Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
 */
 #include "ubse_mem_controller_api.h"
+#include <unistd.h>
+#include <cstdint>
 
 #include "api/ubse_mem_controller_api_common.h"
 #include "message/node_mem_debtInfo_query_req_simpo.h"
@@ -29,6 +31,7 @@
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_mmi_module.h"
+#include "ubse_mem_sign_verifier.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
@@ -159,6 +162,41 @@ void LoadObjState(NodeMemDebtInfo &nodeMemDebtInfo)
     }
 }
 
+bool SignShareExportForRecovery(UbseMemShareBorrowExportObj &exportObj)
+{
+    constexpr uint32_t maxRetries = 5;
+    if (!IsHighSafety()) {
+        return true;
+    }
+    for (uint32_t retry = 0; retry <= maxRetries; ++retry) {
+        if (const auto ret = UbseMemSignVerifier::Sign("share",
+            exportObj.req.trustRingData.reqSignedData,
+            exportObj.req.trustRingData.trustRingId);
+            ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to sign request, " << FormatRetCode(ret)
+                           << ", name=" << exportObj.req.name;
+            continue;
+        }
+        UbseExportSignReq trustReq{
+            exportObj.req.trustRingData.reqSignedData,
+            "share",
+            exportObj.status.exportObmmInfo,
+            exportObj.req.trustRingData.trustRingId
+        };
+        if (const auto ret = UbseMemSignVerifier::SignAndVerify(trustReq,
+            exportObj.req.trustRingData.lendSignedDatas);
+            ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to sign lend information, " << FormatRetCode(ret)
+                           << ", name=" << exportObj.req.name
+                           << ", trustRingId=" << trustReq.trustRingId;
+            sleep(SEND_RETRY_DURATION);
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node)
 {
     UBSE_LOG_INFO << "local node state change, state=" << static_cast<uint32_t>(node.localState);
@@ -175,6 +213,9 @@ uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node)
     for (auto &exportObj : nodeMemDebtInfo.shareExportObjMap) {
         for (auto &nodeInfo : exportObj.second.req.shmRegion.nodelist) {
             nodeInfo.nodeId = std::to_string(nodeInfo.index + 1);
+        }
+        if (!SignShareExportForRecovery(exportObj.second)) {
+            return UBSE_ERROR;
         }
     }
     for (auto &importObj : nodeMemDebtInfo.shareImportObjMap) {
