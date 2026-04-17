@@ -32,7 +32,7 @@ typedef enum {
 } ubs_mem_numa_type_t;
 
 typedef struct {
-    uint32_t slot_id;              // 节点唯一标识, 采用slotid, 与lcne保持一致
+    uint32_t slot_id;              // 节点唯一标识, 采用slotid, 与UBM保持一致
     uint32_t socket_id;            // socket id
     uint32_t numa_id;              // 节点中的numa id
     ubs_mem_numa_type_t numa_type; // numa类型
@@ -1897,10 +1897,10 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
 
 ## 参数 PARAMETERS
 
-| name      | IN/OUT | description                                                                 |
-| --------- | ------ | --------------------------------------------------------------------------- |
-| name      | IN     | 借用标识前缀name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
-| shm\_desc | OUT    | 借用形成的远端共享内存信息，调用成功后需要使用 `free` 接口主动释放内存                                     |
+| name      | IN/OUT | description                                                                |
+| --------- | ------ |----------------------------------------------------------------------------|
+| name      | IN     | 借用标识，name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| shm\_desc | OUT    | 借用形成的远端共享内存信息，调用成功后需要使用 `free` 接口主动释放内存                                    |
 
 ## 返回值 RETURN VALUE
 

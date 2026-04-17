@@ -187,7 +187,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemNumaCandidateOpt`
-表示指定候选借出节点的 NUMA 借用可选项。继承自 `UbseMemNumaCreateOpt`。                               |
+表示指定候选借出节点的 NUMA 借用可选项。继承自 `UbseMemNumaCreateOpt`。
 
 **自有字段：**
 
