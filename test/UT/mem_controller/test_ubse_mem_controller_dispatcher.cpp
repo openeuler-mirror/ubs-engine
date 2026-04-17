@@ -534,4 +534,190 @@ TEST_F(TestUbseMemControllerDispatcher, UbseMemNumaGetDispatch)
     MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(dispatcher.UbseMemNumaGetDispatch(buffer, context), UBSE_ERROR);
 }
+
+
+// Test for UbseMemShmGetMemIdByImportDispatch - normal case
+TEST_F(TestUbseMemControllerDispatcher, UbseMemShmGetMemIdByImportDispatch_NormalCase)
+{
+    UbseIpcMessage buffer{};
+    buffer.buffer = reinterpret_cast<uint8_t *>(malloc(1024)); // 提供非空buffer
+    buffer.length = 1024;
+    
+    UbseRequestContext context{};
+    context.requestId = 12345;
+    
+    ubse::mem::def::UbseMemIdQueryRequest request{};
+    MOCKER(UbseMemGetMemIdByImportReqUnpack)
+        .stubs()
+        .with(any(), outBound(request))
+        .will(returnValue(UBSE_OK));
+    
+    ubse::election::UbseRoleInfo currentRoleInfo{};
+    currentRoleInfo.nodeId = "1";
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(outBound(currentRoleInfo))
+        .will(returnValue(UBSE_OK));
+    
+    ubse::mem::def::UbseExportMemDesc memDesc{};
+    memDesc.exportSlotId = 2;
+    memDesc.exportMemId = 0x1234567890ABCDEF;
+    MOCKER(UbseMemIdGetByImportMemId)
+        .stubs()
+        .with(any(), outBound(memDesc))
+        .will(returnValue(UBSE_OK));
+    
+    UbseIpcMessage resp{};
+    MOCKER(UbseMemGetMemIdByImportResponsePack)
+        .stubs()
+        .with(any(), outBound(resp))
+        .will(returnValue(UBSE_OK));
+    
+    auto apiServerModule = std::make_shared<UbseApiServerModule>();
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+        .stubs()
+        .will(returnValue(apiServerModule));
+    
+    MOCKER_CPP(&UbseApiServerModule::SendResponse)
+        .stubs()
+        .with(UBSE_OK, context.requestId, any())
+        .will(returnValue(UBSE_OK));
+
+    uint32_t ret = UbseMemControllerDispatcher::UbseMemShmGetMemIdByImportDispatch(buffer, context);
+    EXPECT_EQ(ret, UBSE_OK);
+    
+    SafeDeleteArray(resp.buffer);
+    free(buffer.buffer);
+}
+
+// Test for UbseMemFdGetMemIdByImportDispatch - normal case
+TEST_F(TestUbseMemControllerDispatcher, UbseMemFdGetMemIdByImportDispatch_NormalCase)
+{
+    UbseIpcMessage buffer{};
+    buffer.buffer = reinterpret_cast<uint8_t *>(malloc(1024)); // 提供非空buffer
+    buffer.length = 1024;
+    
+    UbseRequestContext context{};
+    context.requestId = 12345;
+    
+    ubse::mem::def::UbseMemIdQueryRequest request{};
+    MOCKER(UbseMemGetMemIdByImportReqUnpack)
+        .stubs()
+        .with(any(), outBound(request))
+        .will(returnValue(UBSE_OK));
+    
+    ubse::election::UbseRoleInfo currentRoleInfo{};
+    currentRoleInfo.nodeId = "1";
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(outBound(currentRoleInfo))
+        .will(returnValue(UBSE_OK));
+    
+    ubse::mem::def::UbseExportMemDesc memDesc{};
+    memDesc.exportSlotId = 2;
+    memDesc.exportMemId = 0x1234567890ABCDEF;
+    MOCKER(UbseMemIdGetByImportMemId)
+        .stubs()
+        .with(any(), outBound(memDesc))
+        .will(returnValue(UBSE_OK));
+    
+    UbseIpcMessage resp{};
+    MOCKER(UbseMemGetMemIdByImportResponsePack)
+        .stubs()
+        .with(any(), outBound(resp))
+        .will(returnValue(UBSE_OK));
+    
+    auto apiServerModule = std::make_shared<UbseApiServerModule>();
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+        .stubs()
+        .will(returnValue(apiServerModule));
+    
+    MOCKER_CPP(&UbseApiServerModule::SendResponse)
+        .stubs()
+        .with(UBSE_OK, context.requestId, any())
+        .will(returnValue(UBSE_OK));
+
+    uint32_t ret = UbseMemControllerDispatcher::UbseMemFdGetMemIdByImportDispatch(buffer, context);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    SafeDeleteArray(resp.buffer);
+    free(buffer.buffer);
+}
+
+// Test for UbseMemNumaGetMemIdByImportDispatch - normal case
+TEST_F(TestUbseMemControllerDispatcher, UbseMemNumaGetMemIdByImportDispatch_NormalCase)
+{
+    UbseIpcMessage buffer{};
+    buffer.buffer = reinterpret_cast<uint8_t *>(malloc(1024)); // 提供非空buffer
+    buffer.length = 1024;
+    
+    UbseRequestContext context{};
+    context.requestId = 12345;
+    
+    ubse::mem::def::UbseMemIdQueryRequest request{};
+    MOCKER(UbseMemGetMemIdByImportReqUnpack)
+        .stubs()
+        .with(any(), outBound(request))
+        .will(returnValue(UBSE_OK));
+    
+    ubse::election::UbseRoleInfo currentRoleInfo{};
+    currentRoleInfo.nodeId = "1";
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(outBound(currentRoleInfo))
+        .will(returnValue(UBSE_OK));
+    
+    ubse::mem::def::UbseExportMemDesc memDesc{};
+    memDesc.exportSlotId = 2;
+    memDesc.exportMemId = 0x1234567890ABCDEF;
+    MOCKER(UbseMemIdGetByImportMemId)
+        .stubs()
+        .with(any(), outBound(memDesc))
+        .will(returnValue(UBSE_OK));
+    
+    UbseIpcMessage resp{};
+    MOCKER(UbseMemGetMemIdByImportResponsePack)
+        .stubs()
+        .with(any(), outBound(resp))
+        .will(returnValue(UBSE_OK));
+    
+    auto apiServerModule = std::make_shared<UbseApiServerModule>();
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+        .stubs()
+        .will(returnValue(apiServerModule));
+    
+    MOCKER_CPP(&UbseApiServerModule::SendResponse)
+        .stubs()
+        .with(UBSE_OK, context.requestId, any())
+        .will(returnValue(UBSE_OK));
+    uint32_t ret = UbseMemControllerDispatcher::UbseMemNumaGetMemIdByImportDispatch(buffer, context);
+    EXPECT_EQ(ret, UBSE_OK);
+    SafeDeleteArray(resp.buffer);
+    free(buffer.buffer);
+}
+
+// Test for UbseMemShmGetMemIdByImportDispatch - null buffer
+TEST_F(TestUbseMemControllerDispatcher, UbseMemShmGetMemIdByImportDispatch_NullBuffer)
+{
+    UbseIpcMessage buffer{};
+    buffer.buffer = nullptr;
+    buffer.length = 0;
+    UbseRequestContext context{};
+    uint32_t ret = UbseMemControllerDispatcher::UbseMemShmGetMemIdByImportDispatch(buffer, context);
+    EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseMemControllerDispatcher, UbseMemShmGetMemIdByImportDispatch_UnpackFailure)
+{
+    UbseIpcMessage buffer{};
+    buffer.buffer = reinterpret_cast<uint8_t *>(malloc(1024));
+    buffer.length = 1024;
+    UbseRequestContext context{};
+    MOCKER(UbseMemGetMemIdByImportReqUnpack)
+        .stubs()
+        .will(returnValue(UBSE_ERROR_DESERIALIZE_FAILED));
+    uint32_t ret = UbseMemControllerDispatcher::UbseMemShmGetMemIdByImportDispatch(buffer, context);
+    EXPECT_EQ(ret, UBSE_ERROR_DESERIALIZE_FAILED);
+    free(buffer.buffer);
+}
 }

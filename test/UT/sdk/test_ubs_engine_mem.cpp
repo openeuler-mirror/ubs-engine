@@ -18,7 +18,6 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_error.h"
-#include "test/UT/mem_controller/message/test_ubse_mem_operation_resp_simpo.h"
 #include "ubs_engine_mem.h"
 #include "ubs_error.h"
 #include "ubse_ipc_client.h"
@@ -1639,6 +1638,159 @@ TEST_F(TestUbsEngineMem, UbsMemShmListWithPrefixTest_UnpackFailureCase)
         .with(_, _, _, outBoundP(&respBuffer))
         .will(returnValue(UBSE_OK));
     int32_t ret = ubs_mem_shm_list_with_prefix(name_prefix, &shm_descs, &shm_desc_cnt);
+    EXPECT_NE(ret, UBS_SUCCESS);
+}
+
+TEST_F(TestUbsEngineMem, UbsMemFdGetMemidByImportTest_ValidParameters)
+{
+    const char *name = "test_fd_memory";
+    uint64_t import_memid = 0x1234567890ABCDEF;
+    ubs_mem_export_memid_t mem_info{};
+
+    // 构造正确的响应数据：export_slot_id(4字节) + export_memid(8字节)
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.buffer = static_cast<uint8_t *>(malloc(sizeof(uint32_t) + sizeof(uint64_t)));
+    respBuffer.length = sizeof(uint32_t) + sizeof(uint64_t);
+    
+    uint32_t expected_slot_id = 123;
+    uint64_t expected_memid = 0x9876543210FEDCBA;
+    
+    // 填充响应数据
+    uint8_t *ptr = respBuffer.buffer;
+    memcpy(ptr, &expected_slot_id, sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+    memcpy(ptr, &expected_memid, sizeof(uint64_t));
+    
+    // 只mock ubse_invoke_call，让内部辅助函数实际执行
+    MOCKER(ubse_invoke_call)
+        .stubs()
+        .with(_, _, _, outBoundP(&respBuffer))
+        .will(returnValue(UBSE_OK));
+
+    int32_t ret = ubs_mem_fd_get_memid_by_import(name, import_memid, &mem_info);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_EQ(mem_info.export_slot_id, expected_slot_id);
+    EXPECT_EQ(mem_info.export_memid, expected_memid);
+}
+
+TEST_F(TestUbsEngineMem, UbsMemFdGetMemidByImportTest_NullName)
+{
+    const char *name = nullptr;
+    uint64_t import_memid = 0x1234567890ABCDEF;
+    ubs_mem_export_memid_t mem_info{};
+
+    int32_t ret = ubs_mem_fd_get_memid_by_import(name, import_memid, &mem_info);
+    EXPECT_NE(ret, UBS_SUCCESS);
+}
+
+TEST_F(TestUbsEngineMem, UbsMemFdGetMemidByImportTest_NullMemInfo)
+{
+    const char *name = "test_fd_memory";
+    uint64_t import_memid = 0x1234567890ABCDEF;
+    ubs_mem_export_memid_t *mem_info = nullptr;
+
+    int32_t ret = ubs_mem_fd_get_memid_by_import(name, import_memid, mem_info);
+    EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
+}
+
+TEST_F(TestUbsEngineMem, UbsMemNumaGetMemidByImportTest_ValidParameters)
+{
+    const char *name = "test_numa_memory";
+    uint64_t import_memid = 0x1234567890ABCDEF;
+    ubs_mem_export_memid_t mem_info{};
+
+    // 构造正确的响应数据
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.buffer = static_cast<uint8_t *>(malloc(sizeof(uint32_t) + sizeof(uint64_t)));
+    respBuffer.length = sizeof(uint32_t) + sizeof(uint64_t);
+    
+    uint32_t expected_slot_id = 456;
+    uint64_t expected_memid = 0xABCDEF0123456789;
+    
+    // 填充响应数据
+    uint8_t *ptr = respBuffer.buffer;
+    memcpy(ptr, &expected_slot_id, sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+    memcpy(ptr, &expected_memid, sizeof(uint64_t));
+    
+    MOCKER(ubse_invoke_call)
+        .stubs()
+        .with(_, _, _, outBoundP(&respBuffer))
+        .will(returnValue(UBSE_OK));
+
+    int32_t ret = ubs_mem_numa_get_memid_by_import(name, import_memid, &mem_info);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_EQ(mem_info.export_slot_id, expected_slot_id);
+    EXPECT_EQ(mem_info.export_memid, expected_memid);
+}
+
+TEST_F(TestUbsEngineMem, UbsMemShmGetMemidByImportTest_ValidParameters)
+{
+    const char *name = "test_shm_memory";
+    uint64_t import_memid = 0x1234567890ABCDEF;
+    ubs_mem_export_memid_t mem_info{};
+
+    // 构造正确的响应数据
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.buffer = static_cast<uint8_t *>(malloc(sizeof(uint32_t) + sizeof(uint64_t)));
+    respBuffer.length = sizeof(uint32_t) + sizeof(uint64_t);
+    
+    uint32_t expected_slot_id = 789;
+    uint64_t expected_memid = 0xFEDCBA0987654321;
+    
+    // 填充响应数据
+    uint8_t *ptr = respBuffer.buffer;
+    memcpy(ptr, &expected_slot_id, sizeof(uint32_t));
+    ptr += sizeof(uint32_t);
+    memcpy(ptr, &expected_memid, sizeof(uint64_t));
+    
+    MOCKER(ubse_invoke_call)
+        .stubs()
+        .with(_, _, _, outBoundP(&respBuffer))
+        .will(returnValue(UBSE_OK));
+
+    int32_t ret = ubs_mem_shm_get_memid_by_import(name, import_memid, &mem_info);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_EQ(mem_info.export_slot_id, expected_slot_id);
+    EXPECT_EQ(mem_info.export_memid, expected_memid);
+}
+
+TEST_F(TestUbsEngineMem, UbsMemGetMemidByImportTest_IpcFailure)
+{
+    const char *name = "test_memory";
+    uint64_t import_memid = 0x1234567890ABCDEF;
+    ubs_mem_export_memid_t mem_info{};
+
+    ubse_api_buffer_t respBuffer{};
+    MOCKER(ubse_invoke_call)
+        .stubs()
+        .with(_, _, _, outBoundP(&respBuffer))
+        .will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+
+    int32_t ret = ubs_mem_fd_get_memid_by_import(name, import_memid, &mem_info);
+    EXPECT_NE(ret, UBS_SUCCESS);
+}
+
+TEST_F(TestUbsEngineMem, UbsMemGetMemidByImportTest_UnpackFailure)
+{
+    const char *name = "test_memory";
+    uint64_t import_memid = 0x1234567890ABCDEF;
+    ubs_mem_export_memid_t mem_info{};
+
+    // 构造不完整的响应数据
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.buffer = static_cast<uint8_t *>(malloc(sizeof(uint32_t))); // 只有export_slot_id，缺少export_memid
+    respBuffer.length = sizeof(uint32_t);
+    
+    uint32_t dummy_slot_id = 123;
+    memcpy(respBuffer.buffer, &dummy_slot_id, sizeof(uint32_t));
+    
+    MOCKER(ubse_invoke_call)
+        .stubs()
+        .with(_, _, _, outBoundP(&respBuffer))
+        .will(returnValue(UBSE_OK));
+
+    int32_t ret = ubs_mem_fd_get_memid_by_import(name, import_memid, &mem_info);
     EXPECT_NE(ret, UBS_SUCCESS);
 }
 } // namespace ubse::sdk::ut
