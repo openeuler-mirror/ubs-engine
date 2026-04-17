@@ -96,9 +96,9 @@ UbseResult SetDevBusInstance(const UbseMtiBusInst &busInstance, CtrlQReqMessage 
 
 UbseCtrlQRegDavidFeToBusInstanceReqMsg::UbseCtrlQRegDavidFeToBusInstanceReqMsg(
     const UbseMtiBusInst &busInstance, const std::vector<UbseMtiIdevVfe> &vfeList)
-    : busInstance_(busInstance),
-      vfeList_(vfeList),
-      ICtrlQReqMsg(REG_IDEV_OP_CODE, CalculateIdevTotalSize(vfeList_.size()))
+    : ICtrlQReqMsg(REG_IDEV_OP_CODE, CalculateIdevTotalSize(vfeList.size())),
+      busInstance_(busInstance),
+      vfeList_(vfeList)
 {
 }
 
@@ -175,9 +175,9 @@ UbseResult UbseCtrlQRegDavidFeToBusInstanceReqMsg::EncodeReqMsg()
 
 UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg::UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg(
     const UbseMtiBusInst &busInstance, const std::vector<UbseMtiIdevVfe> &vfeList)
-    : busInstance_(busInstance),
-      vfeList_(vfeList),
-      ICtrlQReqMsg(UNREG_IDEV_OP_CODE, CalculateIdevTotalSize(vfeList_.size()))
+    : ICtrlQReqMsg(UNREG_IDEV_OP_CODE, CalculateIdevTotalSize(vfeList.size())),
+      busInstance_(busInstance),
+      vfeList_(vfeList)
 {
 }
 
