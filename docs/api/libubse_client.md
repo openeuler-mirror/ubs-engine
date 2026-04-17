@@ -21,7 +21,7 @@ int32_t ubs_engine_client_initialize(const char *ubs_engine_uds_path);
 
 | name                   | IN/OUT | description                                                                                                                                                  |
 | ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ubs\_engine\_uds\_path | IN     | ubse服务端的uds文件路径；传入空路径，则采用ubse默认地址/var/run/ubse/ubse.sock；路径长度限制：遵从linux `sun_path` 的大小是 108 字节 (`#define UNIX_PATH_MAX 108`)，所以路径不能超过 107 个字符（不含结尾的空字符 `\0`） |
+| ubs\_engine\_uds\_path | IN     | ubse服务端的uds文件路径<br>传入空路径，则采用ubse默认地址/var/run/ubse/ubse.sock<br>路径长度限制：遵从linux `sun_path` 的大小是 108 字节 (`#define UNIX_PATH_MAX 108`)，所以路径不能超过 107 个字符（不含结尾的空字符 `\0`） |
 
 ## 返回值 RETURN VALUE
 
@@ -132,4 +132,3 @@ int main(void)
 	return 0;
 }
 ```
-
