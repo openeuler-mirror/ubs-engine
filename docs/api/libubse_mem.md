@@ -66,7 +66,7 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-当前只支持本地numa内存。
+当前只支持本地numa内存
 
 ## 附注 NOTES
 
@@ -131,14 +131,14 @@ int32_t ubs_mem_fd_create(const char *name, uint64_t size, const ubs_mem_fd_owne
 
 ## 参数 PARAMETERS
 
-| name     | IN/OUT | description                                                        |
-| -------- | ------ | ------------------------------------------------------------------ |
-| name     | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name在节点内保持唯一性 |
-| size     | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                             |
-| owner    | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                     |
-| mode     | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                        |
-| distance | IN     | 内存访问距离                                                             |
-| fd\_desc | OUT    | 内存描述信息                                                             |
+| name     | IN/OUT | description                                                                 |
+| -------- | ------ | --------------------------------------------------------------------------- |
+| name     | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| size     | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                      |
+| owner    | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                              |
+| mode     | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                                 |
+| distance | IN     | 内存访问距离                                                                      |
+| fd\_desc | OUT    | 内存描述信息                                                                      |
 
 - 数据结构说明
 
@@ -207,15 +207,15 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-资源使用权限分离与管理权限分离。
+资源使用权限分离与管理权限分离
 
-使用者由参数 `owner` 和 `mode` 标识。
+使用者由参数owner和mode标识
 
-资源的管理权限由 UBSE 系统自动授予，权限属于该接口的调用者。
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
 
-不同节点的用户名需要相同，否则节点间无法进行内存管理动作。
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -284,14 +284,14 @@ int32_t ubs_mem_fd_create_with_lender(const char *name, const ubs_mem_fd_owner_t
 
 ## 参数 PARAMETERS
 
-| name        | IN/OUT | description                                                        |
-| ----------- | ------ | ------------------------------------------------------------------ |
-| name        | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name在节点内保持唯一性 |
-| owner       | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                     |
-| mode        | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                        |
-| lender      | IN     | 借出信息                                                               |
-| lender\_cnt | IN     | 借出信息个数，最大为 `UBS_MEM_MAX_LENDER_CNT`                                |
-| fd\_desc    | OUT    | 内存描述信息                                                             |
+| name        | IN/OUT | description                                                                 |
+| ----------- | ------ | --------------------------------------------------------------------------- |
+| name        | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| owner       | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                              |
+| mode        | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                                 |
+| lender      | IN     | 借出信息                                                                        |
+| lender\_cnt | IN     | 借出信息个数，最大为 `UBS_MEM_MAX_LENDER_CNT`                                         |
+| fd\_desc    | OUT    | 内存描述信息                                                                      |
 
 - 数据结构说明
 
@@ -323,15 +323,15 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-资源使用权限分离与管理权限分离。
+资源使用权限分离与管理权限分离
 
-使用者由参数 `owner` 和 `mode` 标识。
+使用者由参数owner和mode标识
 
-资源的管理权限由 UBSE 系统自动授予，权限属于该接口的调用者。
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
 
-不同节点的用户名需要相同，否则节点间无法进行内存管理动作。
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -405,15 +405,15 @@ int32_t ubs_mem_fd_create_with_candidate(const char *name, uint64_t size, const 
 
 ## 参数 PARAMETERS
 
-| name      | IN/OUT | description                                                        |
-| --------- | ------ | ------------------------------------------------------------------ |
-| name      | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name在节点内保持唯一性 |
-| size      | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                             |
-| owner     | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                     |
-| mode      | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                        |
-| slot\_ids | IN     | 候选借出节点范围，最大为 `UBS_MEM_MAX_SLOT_NUM`                                |
-| slot\_cnt | IN     | 候选借出节点个数                                                           |
-| fd\_desc  | OUT    | 内存描述信息                                                             |
+| name      | IN/OUT | description                                                                 |
+| --------- | ------ | --------------------------------------------------------------------------- |
+| name      | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| size      | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                      |
+| owner     | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                              |
+| mode      | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                                 |
+| slot\_ids | IN     | 候选借出节点范围，最大为 `UBS_MEM_MAX_SLOT_NUM`                                         |
+| slot\_cnt | IN     | 候选借出节点个数                                                                    |
+| fd\_desc  | OUT    | 内存描述信息                                                                      |
 
 - 数据结构说明
 
@@ -445,15 +445,15 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-资源使用权限分离与管理权限分离。
+资源使用权限分离与管理权限分离
 
-使用者由参数 `owner` 和 `mode` 标识。
+使用者由参数owner和mode标识
 
-资源的管理权限由 UBSE 系统自动授予，权限属于该接口的调用者。
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
 
-不同节点的用户名需要相同，否则节点间无法进行内存管理动作。
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -524,11 +524,11 @@ int32_t ubs_mem_fd_permission(const char *name, const ubs_mem_fd_owner_t *owner,
 
 ## 参数 PARAMETERS
 
-| name  | IN/OUT | description                                                        |
-| ----- | ------ | ------------------------------------------------------------------ |
-| name  | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name在节点内保持唯一性 |
-| owner | IN     | 内存资源使用者属主信息，必选参数，不允许为 `NULL`                                       |
-| mode  | IN     | 内存资源使用者访问权限，必选参数，不允许为 `0`                                          |
+| name  | IN/OUT | description                                                                 |
+| ----- | ------ | --------------------------------------------------------------------------- |
+| name  | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| owner | IN     | 内存资源使用者属主信息，必选参数，不允许为 `NULL`                                                |
+| mode  | IN     | 内存资源使用者访问权限，必选参数，不允许为 `0`                                                   |
 
 - 数据结构说明
 
@@ -558,15 +558,15 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-资源使用权限分离与管理权限分离。
+资源使用权限分离与管理权限分离
 
-使用者由参数 `owner` 和 `mode` 标识。
+使用者由参数owner和mode标识
 
-资源的管理权限由 UBSE 系统自动授予，权限属于该接口的调用者。
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
 
-不同节点的用户名需要相同，否则节点间无法进行内存管理动作。
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -627,10 +627,10 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *fd_desc);
 
 ## 参数 PARAMETERS
 
-| name     | IN/OUT | description                                                        |
-| -------- | ------ | ------------------------------------------------------------------ |
-| name     | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name在节点内保持唯一性 |
-| fd\_desc | OUT    | fd内存信息                                                             |
+| name     | IN/OUT | description                                                                 |
+| -------- | ------ | --------------------------------------------------------------------------- |
+| name     | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| fd\_desc | OUT    | fd内存信息                                                                      |
 
 - 数据结构说明
 
@@ -665,9 +665,13 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能查看资源
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -745,9 +749,13 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t **fd_descs, uint32_t *fd_desc_cnt);
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能查看资源
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -805,9 +813,9 @@ int32_t ubs_mem_fd_delete(const char *name);
 
 ## 参数 PARAMETERS
 
-| name | IN/OUT | description                                                        |
-| ---- | ------ | ------------------------------------------------------------------ |
-| name | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name在节点内保持唯一性 |
+| name | IN/OUT | description                                                                 |
+| ---- | ------ | --------------------------------------------------------------------------- |
+| name | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
 
 ## 返回值 RETURN VALUE
 
@@ -831,9 +839,15 @@ int32_t ubs_mem_fd_delete(const char *name);
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能删除资源
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
+
+对于异常场景如username、uid改变或者用户被删除，ubse提供cli命令删除内存能力,具体请参考《ubsectl\_mem.md》文档。
 
 ## 附注 NOTES
 
@@ -888,12 +902,12 @@ int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t 
 
 ## 参数 PARAMETERS
 
-| name       | IN/OUT | description                                                        |
-| ---------- | ------ | ------------------------------------------------------------------ |
-| name       | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name在节点内保持唯一性 |
-| size       | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                             |
-| distance   | IN     | 内存访问跳数                                                             |
-| numa\_desc | OUT    | 借用形成的远端numa信息                                                      |
+| name       | IN/OUT | description                                                                 |
+| ---------- | ------ | --------------------------------------------------------------------------- |
+| name       | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| size       | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                      |
+| distance   | IN     | 内存访问跳数                                                                      |
+| numa\_desc | OUT    | 借用形成的远端numa信息                                                               |
 
 - 数据结构说明
 
@@ -927,9 +941,15 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-资源的管理权限属于该接口调用者。
+资源使用权限分离与管理权限分离
 
-调用者的标识处理原则：能够获取 username，则使用 username；无法获取 username，则使用 uid。
+使用者由操作系统的numa内存管理模块管理
+
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
+
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -1010,7 +1030,15 @@ int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t
 
 ## 约束 CONSTRAINTS
 
-资源的管理权限属于该接口调用者。
+资源使用权限分离与管理权限分离
+
+使用者由操作系统的numa内存管理模块管理
+
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
+
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -1100,7 +1128,17 @@ int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, cons
 
 ## 约束 CONSTRAINTS
 
-候选节点与当前借入节点必须满足直连要求。
+资源使用权限分离与管理权限分离
+
+使用者由操作系统的numa内存管理模块管理
+
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
+
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
+
+候选节点与当前借入节点，必须满足直连要求
 
 ## 附注 NOTES
 
@@ -1179,7 +1217,13 @@ int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc);
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能查看资源
+
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -1257,7 +1301,13 @@ int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t **numa_descs, uint32_t *numa_desc_
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能查看资源
+
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -1341,7 +1391,15 @@ int32_t ubs_mem_numa_delete(const char *name);
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能删除资源
+
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
+
+对于异常场景如username、uid改变或者用户被删除，ubse提供cli命令删除内存能力,具体请参考《ubsectl\_mem.md》文档。
 
 ## 附注 NOTES
 
@@ -1398,10 +1456,10 @@ int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32]
 
 | name      | IN/OUT | description                                                                                     |
 | --------- | ------ | ----------------------------------------------------------------------------------------------- |
-| name      | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name全局保持唯一性                                |
+| name      | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性                       |
 | size      | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                                          |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回                                                                      |
-| flag      | IN     | 额外的内存借用属性，目前支持 `UBS_MEM_FLAG_NO_WR_DELAY`、`UBS_MEM_FLAG_SHM_ANONYMOUS`、`UBS_MEM_FLAG_CACHEABLE` |
+| flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent （按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：  <br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
 | region    | IN     | 后续使用共享内存的节点范围，必选参数                                                                              |
 | provider  | IN     | 资源提供方节点范围，`NULL` 表示不指定                                                                          |
 
@@ -1437,7 +1495,17 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-算法决策借出节点；指定资源提供方时从中选择，没有指定时从 `region` 中选择；确保所有节点均能使用共享内存。
+资源使用权限分离与管理权限分离
+
+使用者由操作系统的numa内存管理模块管理
+
+资源的管理权限由ubse系统自动授予，权限属于该接口的调用者（使用OS的username/uid标识）
+
+调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
+
+借出节点的决策原则：指定provider，则从中选择；没有指定provider，则从region中选择；确保所有节点均能使用共享内存
 
 ## 附注 NOTES
 
@@ -1505,7 +1573,7 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
 | size                 | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024` |
 | affinity\_socket\_id | IN     | 亲和的cpu socket\_id                      |
 | usr\_info            | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回             |
-| flag                 | IN     | 额外的内存借用属性                              |
+| flag                 | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent （按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：  <br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
 | region               | IN     | 使用共享内存的节点范围，必选参数                       |
 | provider             | IN     | 资源提供方节点范围，`NULL` 表示不指定                 |
 
@@ -1525,13 +1593,13 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
 | UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时      |
 | UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误      |
 
-## 约束 CONSTRAINTS
-
-算法决策借出节点；指定资源提供方时从中选择，没有指定时从 `region` 中选择；确保所有节点均能使用共享内存。
-
 ## 附注 NOTES
 
-暂无。
+`affinity_socket_id` 需要是有效的 CPU socket 标识。
+
+`region` 内的节点必须能够通过公共节点直连。
+
+算法决策借出节点；指定资源提供方时从中选择，没有指定时从 `region` 中选择；确保所有节点均能使用共享内存。
 
 ## 样例 EXAMPLES
 
@@ -1591,7 +1659,7 @@ int32_t ubs_mem_shm_create_with_lender(const char *name, uint8_t usr_info[UBS_ME
 | --------- | ------ | -------------------------- |
 | name      | IN     | 借用标识                       |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回 |
-| flag      | IN     | 额外的内存借用属性                  |
+| flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent （按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：  <br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
 | region    | IN     | 使用共享内存的节点范围，必选参数           |
 | lender    | IN     | 指定借出节点数据                   |
 
@@ -1628,11 +1696,11 @@ typedef struct {
 | UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
 | UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
 
-## 约束 CONSTRAINTS
-
-算法决策借出节点；指定资源提供方时从中选择，没有指定时从 `region` 中选择；确保所有节点均能使用共享内存。
-
 ## 附注 NOTES
+
+`region` 内的节点必须能够通过公共节点直连。
+
+借出节点由 `lender` 明确指定，不再从 `region` 自动选择；`lender` 参数需要满足当前硬件拓扑合法性。
 
 `ubs_mem_lender_t` 结构体内部字段支持以下赋值，推荐无效值时填 `UINT32_MAX`：
 
@@ -1711,12 +1779,12 @@ int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mo
 
 ## 参数 PARAMETERS
 
-| name      | IN/OUT | description                                                      |
-| --------- | ------ | ---------------------------------------------------------------- |
-| name      | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name全局保持唯一性 |
-| owner     | IN     | 内存资源属主信息，可选参数，`NULL` 不关注该字段                                      |
-| mode      | IN     | 内存资源访问权限，可选参数，`0` 不关注该字段                                         |
-| shm\_desc | OUT    | 内存描述信息，调用成功后需要使用 `free` 接口主动释放内存                                 |
+| name      | IN/OUT | description                                                               |
+| --------- | ------ | ------------------------------------------------------------------------- |
+| name      | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| owner     | IN     | 内存资源属主信息，可选参数，`NULL` 不关注该字段                                               |
+| mode      | IN     | 内存资源访问权限，可选参数，`0` 不关注该字段                                                  |
+| shm\_desc | OUT    | 内存描述信息，调用成功后需要使用 `free` 接口主动释放内存                                          |
 
 - 数据结构说明
 
@@ -1760,7 +1828,13 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能导入资源
+
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -1823,10 +1897,10 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
 
 ## 参数 PARAMETERS
 
-| name      | IN/OUT | description                                                        |
-| --------- | ------ | ------------------------------------------------------------------ |
-| name      | IN     | 借用标识前缀<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name全局保持唯一性 |
-| shm\_desc | OUT    | 借用形成的远端共享内存信息，调用成功后需要使用 `free` 接口主动释放内存                            |
+| name      | IN/OUT | description                                                                 |
+| --------- | ------ | --------------------------------------------------------------------------- |
+| name      | IN     | 借用标识前缀name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| shm\_desc | OUT    | 借用形成的远端共享内存信息，调用成功后需要使用 `free` 接口主动释放内存                                     |
 
 ## 返回值 RETURN VALUE
 
@@ -1846,7 +1920,13 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能查看资源
+
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -1926,7 +2006,13 @@ int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt)
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能查看资源
+
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -2006,10 +2092,6 @@ int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t
 | UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时        |
 | UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误        |
 
-## 约束 CONSTRAINTS
-
-最多查询到 `UBS_MEM_MAX_DESC_LIST` 条借用内存。
-
 ## 附注 NOTES
 
 暂无。
@@ -2066,9 +2148,9 @@ int32_t ubs_mem_shm_detach(const char *name);
 
 ## 参数 PARAMETERS
 
-| name | IN/OUT | description                                                      |
-| ---- | ------ | ---------------------------------------------------------------- |
-| name | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name全局保持唯一性 |
+| name | IN/OUT | description                                                               |
+| ---- | ------ | ------------------------------------------------------------------------- |
+| name | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
 
 ## 返回值 RETURN VALUE
 
@@ -2090,7 +2172,7 @@ int32_t ubs_mem_shm_detach(const char *name);
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+当前只支持CPU节点
 
 ## 附注 NOTES
 
@@ -2144,9 +2226,9 @@ int32_t ubs_mem_shm_delete(const char *name);
 
 ## 参数 PARAMETERS
 
-| name | IN/OUT | description                                                      |
-| ---- | ------ | ---------------------------------------------------------------- |
-| name | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name全局保持唯一性 |
+| name | IN/OUT | description                                                               |
+| ---- | ------ | ------------------------------------------------------------------------- |
+| name | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
 
 ## 返回值 RETURN VALUE
 
@@ -2168,9 +2250,15 @@ int32_t ubs_mem_shm_delete(const char *name);
 
 ## 约束 CONSTRAINTS
 
-标记删除后，原有 attach 能继续使用，新的 attach 返回失败。
+当前只支持CPU节点
 
-标记删除后，借出节点重启，即使 attach 还存在，也会完成真正删除。
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
+
+对于异常场景如username、uid改变或者用户被删除，ubse提供cli命令删除内存能力,具体请参考《ubsectl\_mem.md》文档。
 
 ## 附注 NOTES
 
@@ -2224,10 +2312,10 @@ int32_t ubs_mem_shm_fault_get(const char *name, ubs_mem_memids_fault_t *fault);
 
 ## 参数 PARAMETERS
 
-| name  | IN/OUT | description                                                      |
-| ----- | ------ | ---------------------------------------------------------------- |
-| name  | IN     | 借用标识<br>name最大长度48字节，含结尾字符 `\0`<br>name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br>name全局保持唯一性 |
-| fault | OUT    | 内存块的健康状态                                                         |
+| name  | IN/OUT | description                                                               |
+| ----- | ------ | ------------------------------------------------------------------------- |
+| name  | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| fault | OUT    | 内存块的健康状态                                                                  |
 
 - 数据结构说明
 
@@ -2280,7 +2368,13 @@ typedef struct {
 
 ## 约束 CONSTRAINTS
 
-调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同。
+ubse自动识别该接口调用方是否为资源管理者，只有管理者能查看资源
+
+资源管理者确定时机：创建资源时UBSE自动确定和记录管理者（使用OS的username/uid标识）
+
+管理者身份识别原则：能够获取username，则使用username；无法获取username，则使用uid
+
+不同节点的用户名需要相同，否则节点间无法进行内存管理动作
 
 ## 附注 NOTES
 
@@ -2353,13 +2447,9 @@ typedef int32_t (*ubs_mem_shm_fault_handler)(const char *name, uint64_t memid, u
 
 当前头文件未公开该接口的细粒度错误码列表。
 
-## 约束 CONSTRAINTS
-
-回调函数需要由调用方自行保证线程安全。
-
 ## 附注 NOTES
 
-暂无。
+回调函数需要由调用方自行保证线程安全。
 
 ## 样例 EXAMPLES
 
@@ -2396,32 +2486,33 @@ int main(void)
 }
 ```
 
-# 26.ubs_mem_fd_get_memid_by_import
- 
+# 26.ubs\_mem\_fd\_get\_memid\_by\_import
+
 ## 库 LIBRARY
- 
+
 ubse库 (/usr/lib64/libubse-client.so)
- 
+
 ## 摘要 SYNOPSIS
- 
+
 ```c
 int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
 ```
- 
+
 ## 描述 DESCRIPTION
- 
+
 在导入节点指定资源名和导入memId, 查询fd形态的远端内存memId
- 
+
 ## 参数 PARAMTERS
- 
-| name               | IN/OUT | description                              |
-|--------------------|--------|------------------------------------------|
-| name               | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| import_memid       | IN     | 导入memId                                  |
-| ubs_mem_export_memid_t   | OUT    | 导出信息的数据结构，包含export_slot_id、 export_memid |
-|
- 
+
+| name                       | IN/OUT | description                                                 |
+| -------------------------- | ------ | ----------------------------------------------------------- |
+| name                       | IN     | 借用标识name最大长度48字节, 含结尾字符\0name仅可包括大小写字母、数字、"."、":"、"-"以及"\_" |
+| import\_memid              | IN     | 导入memId                                                     |
+| ubs\_mem\_export\_memid\_t | OUT    | 导出信息的数据结构，包含export\_slot\_id、 export\_memid                 |
+| <br />                     | <br /> | <br />                                                      |
+
 - 数据结构说明
+
 ```c
  typedef struct {
   uint32_t export_slot_id;                                  // 导出节点的id
@@ -2429,28 +2520,32 @@ int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, 
  } ubs_mem_export_memid_t;
  
 ```
+
 ## 返回值 RETURN VALUE
- 
+
 返回`UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
- 
+
 ## 错误 ERRORS
- 
-| Error                      | Description  |
-|----------------------------|--------------|
-| UBS_ERR_NULL_POINTER       | 空指针          |
-| UBS_ERR_INVALID_ARG        | 参数无效         |
-| UBS_ERR_CONNECTION_FAILED  | 连接UBSE服务端失败  |
-| UBS_ERR_AUTH_FAILED        | UBSE服务端鉴权不通过 |
-| UBS_ENGINE_ERR_NOT_EXIST   | 借用关系不存在      |
-| UBS_ENGINE_ERR_CREATING    | 资源正在创建中        |
-| UBS_ENGINE_ERR_DELETING    | 资源正在删除中        |
-| UBS_ENGINE_ERR_EXPORT_LEDGERING | 导出节点对账中、调用方进行重试 |
-| UBS_ERR_TIMEOUT            | UBSE服务端处理超时  |
-| UBS_ERR_INTERNEL           | UBSE服务端内部错误  |
- 
+
+| Error                               | Description     |
+| ----------------------------------- | --------------- |
+| UBS\_ERR\_NULL\_POINTER             | 空指针             |
+| UBS\_ERR\_INVALID\_ARG              | 参数无效            |
+| UBS\_ERR\_CONNECTION\_FAILED        | 连接UBSE服务端失败     |
+| UBS\_ERR\_AUTH\_FAILED              | UBSE服务端鉴权不通过    |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST        | 借用关系不存在         |
+| UBS\_ENGINE\_ERR\_CREATING          | 资源正在创建中         |
+| UBS\_ENGINE\_ERR\_DELETING          | 资源正在删除中         |
+| UBS\_ENGINE\_ERR\_EXPORT\_LEDGERING | 导出节点对账中、调用方进行重试 |
+| UBS\_ERR\_TIMEOUT                   | UBSE服务端处理超时     |
+| UBS\_ERR\_INTERNEL                  | UBSE服务端内部错误     |
+
 ## 附注 NOTES
+
 无
+
 ## 样例 EXAMPLES
+
 ```c
 #include <stdint.h>
 #include <stdio.h>
@@ -2471,32 +2566,33 @@ static void ubs_mem_fd_get_memid_by_import(void)
     }
 }
 ```
- 
-# 27.ubs_mem_numa_get_memid_by_import
- 
+
+# 27.ubs\_mem\_numa\_get\_memid\_by\_import
+
 ## 库 LIBRARY
- 
+
 ubse库 (/usr/lib64/libubse-client.so)
- 
+
 ## 摘要 SYNOPSIS
- 
+
 ```c
 int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
 ```
- 
+
 ## 描述 DESCRIPTION
- 
+
 在导入节点指定资源名和导入memId, 查询numa形态的远端内存memId
- 
+
 ## 参数 PARAMTERS
- 
-| name               | IN/OUT | description                              |
-|--------------------|--------|------------------------------------------|
-| name               | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| import_memid       | IN     | 导入memId                                  |
-| ubs_mem_export_memid_t   | OUT    | 导出信息的数据结构，包含export_slot_id、 export_memid |
- 
+
+| name                       | IN/OUT | description                                                 |
+| -------------------------- | ------ | ----------------------------------------------------------- |
+| name                       | IN     | 借用标识name最大长度48字节, 含结尾字符\0name仅可包括大小写字母、数字、"."、":"、"-"以及"\_" |
+| import\_memid              | IN     | 导入memId                                                     |
+| ubs\_mem\_export\_memid\_t | OUT    | 导出信息的数据结构，包含export\_slot\_id、 export\_memid                 |
+
 - 数据结构说明
+
 ```c
  typedef struct {
   uint32_t export_slot_id;                                  // 导出节点的id
@@ -2504,28 +2600,32 @@ int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid
  } ubs_mem_export_memid_t;
  
 ```
+
 ## 返回值 RETURN VALUE
- 
+
 返回`UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
- 
+
 ## 错误 ERRORS
- 
-| Error                      | Description  |
-|----------------------------|--------------|
-| UBS_ERR_NULL_POINTER       | 空指针          |
-| UBS_ERR_INVALID_ARG        | 参数无效         |
-| UBS_ERR_CONNECTION_FAILED  | 连接UBSE服务端失败  |
-| UBS_ERR_AUTH_FAILED        | UBSE服务端鉴权不通过 |
-| UBS_ENGINE_ERR_NOT_EXIST   | 借用关系不存在      |
-| UBS_ENGINE_ERR_CREATING    | 资源正在创建中        |
-| UBS_ENGINE_ERR_DELETING    | 资源正在删除中        |
-| UBS_ENGINE_ERR_EXPORT_LEDGERING | 导出节点对账中、调用方进行重试 |
-| UBS_ERR_TIMEOUT            | UBSE服务端处理超时  |
-| UBS_ERR_INTERNEL           | UBSE服务端内部错误  |
- 
+
+| Error                               | Description     |
+| ----------------------------------- | --------------- |
+| UBS\_ERR\_NULL\_POINTER             | 空指针             |
+| UBS\_ERR\_INVALID\_ARG              | 参数无效            |
+| UBS\_ERR\_CONNECTION\_FAILED        | 连接UBSE服务端失败     |
+| UBS\_ERR\_AUTH\_FAILED              | UBSE服务端鉴权不通过    |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST        | 借用关系不存在         |
+| UBS\_ENGINE\_ERR\_CREATING          | 资源正在创建中         |
+| UBS\_ENGINE\_ERR\_DELETING          | 资源正在删除中         |
+| UBS\_ENGINE\_ERR\_EXPORT\_LEDGERING | 导出节点对账中、调用方进行重试 |
+| UBS\_ERR\_TIMEOUT                   | UBSE服务端处理超时     |
+| UBS\_ERR\_INTERNEL                  | UBSE服务端内部错误     |
+
 ## 附注 NOTES
+
 无
+
 ## 样例 EXAMPLES
+
 ```c
 #include <stdint.h>
 #include <stdio.h>
@@ -2547,32 +2647,33 @@ static void ubs_mem_numa_get_memid_by_import(void)
 }
  
 ```
- 
-# 28.ubs_mem_shm_get_memid_by_import
- 
+
+# 28.ubs\_mem\_shm\_get\_memid\_by\_import
+
 ## 库 LIBRARY
- 
+
 ubse库 (/usr/lib64/libubse-client.so)
- 
+
 ## 摘要 SYNOPSIS
- 
+
 ```c
 int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
 ```
- 
+
 ## 描述 DESCRIPTION
- 
+
 在导入节点指定资源名和导入memId, 查询shm形态的远端内存memId
- 
+
 ## 参数 PARAMTERS
- 
-| name               | IN/OUT | description                              |
-|--------------------|--------|------------------------------------------|
-| name               | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| import_memid       | IN     | 导入memId                                  |
-| ubs_mem_export_memid_t   | OUT    | 导出信息的数据结构，包含export_slot_id、 export_memid |
- 
+
+| name                       | IN/OUT | description                                                 |
+| -------------------------- | ------ | ----------------------------------------------------------- |
+| name                       | IN     | 借用标识name最大长度48字节, 含结尾字符\0name仅可包括大小写字母、数字、"."、":"、"-"以及"\_" |
+| import\_memid              | IN     | 导入memId                                                     |
+| ubs\_mem\_export\_memid\_t | OUT    | 导出信息的数据结构，包含export\_slot\_id、 export\_memid                 |
+
 - 数据结构说明
+
 ```c
  typedef struct {
   uint32_t export_slot_id;                                  // 导出节点的id
@@ -2580,28 +2681,32 @@ int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid,
  } ubs_mem_export_memid_t;
  
 ```
+
 ## 返回值 RETURN VALUE
- 
+
 返回`UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
- 
+
 ## 错误 ERRORS
- 
-| Error                      | Description  |
-|----------------------------|--------------|
-| UBS_ERR_NULL_POINTER       | 空指针          |
-| UBS_ERR_INVALID_ARG        | 参数无效         |
-| UBS_ERR_CONNECTION_FAILED  | 连接UBSE服务端失败  |
-| UBS_ERR_AUTH_FAILED        | UBSE服务端鉴权不通过 |
-| UBS_ENGINE_ERR_NOT_EXIST   | 借用关系不存在      |
-| UBS_ENGINE_ERR_CREATING    | 资源正在创建中        |
-| UBS_ENGINE_ERR_DELETING    | 资源正在删除中        |
-| UBS_ENGINE_ERR_EXPORT_LEDGERING | 导出节点对账中、调用方进行重试 |
-| UBS_ERR_TIMEOUT            | UBSE服务端处理超时  |
-| UBS_ERR_INTERNEL           | UBSE服务端内部错误  |
- 
+
+| Error                               | Description     |
+| ----------------------------------- | --------------- |
+| UBS\_ERR\_NULL\_POINTER             | 空指针             |
+| UBS\_ERR\_INVALID\_ARG              | 参数无效            |
+| UBS\_ERR\_CONNECTION\_FAILED        | 连接UBSE服务端失败     |
+| UBS\_ERR\_AUTH\_FAILED              | UBSE服务端鉴权不通过    |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST        | 借用关系不存在         |
+| UBS\_ENGINE\_ERR\_CREATING          | 资源正在创建中         |
+| UBS\_ENGINE\_ERR\_DELETING          | 资源正在删除中         |
+| UBS\_ENGINE\_ERR\_EXPORT\_LEDGERING | 导出节点对账中、调用方进行重试 |
+| UBS\_ERR\_TIMEOUT                   | UBSE服务端处理超时     |
+| UBS\_ERR\_INTERNEL                  | UBSE服务端内部错误     |
+
 ## 附注 NOTES
+
 无
+
 ## 样例 EXAMPLES
+
 ```c
 #include <stdint.h>
 #include <stdio.h>
