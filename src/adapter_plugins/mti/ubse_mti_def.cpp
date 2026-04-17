@@ -102,7 +102,7 @@ bool ConvertNodeIdToSlotId(const std::string &nodeId, std::string &slotId)
         UBSE_LOG_ERROR << "nodeId is not a number: " << nodeId;
         return false;
     }
-    uint16_t podId = node / NO_8;
+    uint16_t podId = (node - NO_1) / NO_8;
     slotId = std::to_string(node - (podId * NO_8));
     return true;
 }
