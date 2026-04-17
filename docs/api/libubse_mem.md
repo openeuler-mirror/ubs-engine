@@ -1007,7 +1007,7 @@ int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t
 
 | name        | IN/OUT | description                         |
 | ----------- | ------ | ----------------------------------- |
-| name        | IN     | 借用标识                                |
+| name        | IN     | 借用标识, name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name节点内保持唯一性 |
 | lender      | IN     | 借出信息                                |
 | lender\_cnt | IN     | 借出信息个数，最大为 `UBS_MEM_MAX_LENDER_CNT` |
 | numa\_desc  | OUT    | 借用形成的远端numa信息                       |
@@ -1104,7 +1104,7 @@ int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, cons
 
 | name       | IN/OUT | description                            |
 | ---------- | ------ | -------------------------------------- |
-| name       | IN     | 借用标识                                   |
+| name       | IN     | 借用标识, name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name在节点内保持唯一性 |
 | size       | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024` |
 | slot\_ids  | IN     | 候选借出节点范围                               |
 | slot\_cnt  | IN     | 候选借出节点个数，最大为 `UBS_MEM_MAX_SLOT_NUM`    |
@@ -1196,7 +1196,7 @@ int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc);
 
 | name       | IN/OUT | description   |
 | ---------- | ------ | ------------- |
-| name       | IN     | 借用标识          |
+| name       | IN     | 借用标识, name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name节点内保持唯一性 |
 | numa\_desc | OUT    | 借用形成的远端numa信息 |
 
 ## 返回值 RETURN VALUE
@@ -1367,7 +1367,7 @@ int32_t ubs_mem_numa_delete(const char *name);
 
 | name | IN/OUT | description |
 | ---- | ------ | ----------- |
-| name | IN     | 借用标识        |
+| name | IN     | 借用标识, name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name节点内保持唯一性 |
 
 ## 返回值 RETURN VALUE
 
@@ -1569,7 +1569,7 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
 
 | name                 | IN/OUT | description                            |
 | -------------------- | ------ | -------------------------------------- |
-| name                 | IN     | 借用标识                                   |
+| name                 | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name全局保持唯一性 |
 | size                 | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024` |
 | affinity\_socket\_id | IN     | 亲和的cpu socket\_id                      |
 | usr\_info            | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回             |
@@ -1657,7 +1657,7 @@ int32_t ubs_mem_shm_create_with_lender(const char *name, uint8_t usr_info[UBS_ME
 
 | name      | IN/OUT | description                |
 | --------- | ------ | -------------------------- |
-| name      | IN     | 借用标识                       |
+| name      | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name全局保持唯一性 |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回 |
 | flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent （按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：  <br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
 | region    | IN     | 使用共享内存的节点范围，必选参数           |
