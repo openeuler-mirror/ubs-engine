@@ -49,16 +49,12 @@ std::ostream &operator<<(std::ostream &os, const UbseNumaLocation &obj)
 std::ostream &operator<<(std::ostream &os, const UbseMemBaseBorrowReq &obj)
 {
     return os << "(name: " << obj.name << " requestNodeId: " << obj.requestNodeId << " requestId: " << obj.requestId
-              << " username: " << obj.udsInfo.username << " uid: " << obj.udsInfo.uid << " trustRingData: "
-              << obj.trustRingData << ")";
+              << " username: " << obj.udsInfo.username << " uid: " << obj.udsInfo.uid << ")";
 }
 
 std::ostream &operator << (std::ostream &os, const UbseTrustRingData &obj)
 {
-    os << "(trustRingId: " << obj.trustRingId << " reqSignedData: " << obj.reqSignedData << " lendSignedDatas: ";
-    for (const auto lendSignedData : obj.lendSignedDatas) {
-        os << lendSignedData << ", ";
-    }
+    os << "(trustRingId: " << obj.trustRingId;
     return os << ")";
 }
 
