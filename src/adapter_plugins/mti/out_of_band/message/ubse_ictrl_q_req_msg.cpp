@@ -11,37 +11,37 @@
  */
 #include "ubse_ictrl_q_req_msg.h"
 namespace ubse::mti::ctrl_q {
-static void SetVersionToBuf(uint8_t version, CtrlQReqMessage reqMsg)
+static void SetVersionToBuf(uint8_t version, CtrlQReqMessage &reqMsg)
 {
     reqMsg.blocks.front().head.version = version;
 }
 
-static void SetOpCodeToBuf(uint8_t opcode, CtrlQReqMessage reqMsg)
+static void SetOpCodeToBuf(uint8_t opcode, CtrlQReqMessage &reqMsg)
 {
     reqMsg.blocks.front().head.opCode = opcode;
 }
 
-static void SetRetToBuf(uint8_t ret, CtrlQReqMessage reqMsg)
+static void SetRetToBuf(uint8_t ret, CtrlQReqMessage &reqMsg)
 {
     reqMsg.blocks.front().head.ret = ret;
 }
 
-static void SetSeqToBuf(uint16_t seq, CtrlQReqMessage reqMsg)
+static void SetSeqToBuf(uint16_t seq, CtrlQReqMessage &reqMsg)
 {
     reqMsg.blocks.front().head.seq = seq;
 }
 
-static void SetResvToBuf(uint8_t resv, CtrlQReqMessage reqMsg)
+static void SetResvToBuf(uint8_t resv, CtrlQReqMessage &reqMsg)
 {
     reqMsg.blocks.front().head.resv = resv;
 }
 
-static void SetServiceTypeToBuf(uint8_t serviceType, CtrlQReqMessage reqMsg)
+static void SetServiceTypeToBuf(uint8_t serviceType, CtrlQReqMessage &reqMsg)
 {
     reqMsg.blocks.front().head.serviceType = serviceType;
 }
 
-static void SetBBNumToBuf(uint8_t bbNum, CtrlQReqMessage reqMsg)
+static void SetBBNumToBuf(uint8_t bbNum, CtrlQReqMessage &reqMsg)
 {
     reqMsg.blocks.front().head.bbNum = bbNum;
 }
@@ -49,6 +49,7 @@ static void SetBBNumToBuf(uint8_t bbNum, CtrlQReqMessage reqMsg)
 ICtrlQReqMsg::ICtrlQReqMsg(uint8_t opCode, uint8_t bbNum)
 {
     reqMsg_ = CtrlQReqMessage(bbNum);
+    SetBBNumToBuf(bbNum, reqMsg_);
     SetOpCodeToBuf(opCode, reqMsg_);
     SetServiceTypeToBuf(DEFAULT_SERVICE_TYPE, reqMsg_);
 }

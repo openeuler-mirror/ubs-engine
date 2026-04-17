@@ -28,7 +28,7 @@ bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opC
     auto &reader = *reinterpret_cast<const RespReader *>(msg.blocks);
     // bbNum 为0时，不检查bbNum
     if (reader.head.serviceType != DEFAULT_SERVICE_TYPE || reader.head.opCode != opCode ||
-        (reader.head.bbNum != bbNum && reader.head.bbNum != 0)) {
+        (bbNum != 0 && reader.head.bbNum != bbNum)) {
         UBSE_LOG_ERROR << "Check resp failed, serviceType: " << reader.head.serviceType
                        << ", bbNum: " << reader.head.bbNum << ", opCode: " << reader.head.opCode;
         return false;

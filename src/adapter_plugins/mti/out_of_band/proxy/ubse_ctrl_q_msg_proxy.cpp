@@ -36,7 +36,7 @@ struct BandBridgeMbuf {
 
 const std::string BANDBRIDGE_DEV_NAME = "/dev/bandbridge";
 const size_t RECV_BUF_SIZE = 1024;
-constexpr char BANDBRIDGE_IOCTL_BASE = 'x';
+constexpr char BANDBRIDGE_IOCTL_BASE = 'X';
 // SEQ_MASK: 0x8000，用于提取最高位（验证标志位）
 // 计算方式：1 << (16 - 1) = 1 << 15 = 0x8000
 constexpr uint16_t SEQ_MASK = static_cast<uint16_t>(1) << (sizeof(uint16_t) * 8 - 1);

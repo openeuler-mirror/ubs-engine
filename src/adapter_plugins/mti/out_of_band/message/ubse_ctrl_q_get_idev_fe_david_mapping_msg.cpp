@@ -50,17 +50,13 @@ UbseResult UbseCtrlQGetIdevFeDavidMappingRespMsg::DecodeRespMsg(const CtrlQRespM
     UbseCtrlQMsgReadHelper readHelper(pos, end);
     try {
         auto pfeNum = readHelper.Read<uint8_t>();
-        while (pfeNum--) {
+        while (pfeNum > 0) {
+            pfeNum--;
             auto chipId = readHelper.Read<uint8_t>();
             auto dieId = readHelper.Read<uint8_t>();
             auto pfeId = readHelper.Read<uint8_t>();
             auto davidSlotId = readHelper.Read<uint8_t>();
             auto davidChipId = readHelper.Read<uint8_t>();
-            // 最后一个PFE，davidSlotId和davidChipId必须为0xff
-            if (pfeNum == 0 && (davidSlotId != 0xff || davidChipId != 0xff)) {
-                UBSE_LOG_ERROR << "Last pfe, davidSlotId and davidChipId must be 0xff";
-                return UBSE_ERROR;
-            }
             UbseMtiUbController ubController(chipId, dieId);
             UbseMtiIdevPfe pfe(ubController, pfeId);
             UbseMtiDavid david(davidSlotId, davidChipId);
