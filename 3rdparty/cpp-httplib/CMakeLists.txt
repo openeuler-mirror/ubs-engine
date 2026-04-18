@@ -1,30 +1,22 @@
-include(FetchContent)
-
-set(CPPHTTPLIB_REPO_DEFAULT "https://gitee.com/mirrors_yhirose/cpp-httplib.git")
-set(CPPHTTPLIB_TAG_DEFAULT "v0.27.0")
-
-if (NOT DEFINED CPPHTTPLIB_REPO)
-    if (DEFINED ENV{CPPHTTPLIB_REPO})
-        set(CPPHTTPLIB_REPO "$ENV{CPPHTTPLIB_REPO}")
-    else ()
-        set(CPPHTTPLIB_REPO "${CPPHTTPLIB_REPO_DEFAULT}")
-    endif ()
-endif ()
-
-if (NOT DEFINED CPPHTTPLIB_TAG)
-    if (DEFINED ENV{CPPHTTPLIB_TAG})
-        set(CPPHTTPLIB_TAG "$ENV{CPPHTTPLIB_TAG}")
-    else ()
-        set(CPPHTTPLIB_TAG "${CPPHTTPLIB_TAG_DEFAULT}")
-    endif ()
-endif ()
-
-message(STATUS "cpp-httplib: REPO=${CPPHTTPLIB_REPO}, TAG=${CPPHTTPLIB_TAG}")
-
-FetchContent_Declare(
-        cpp-httplib
-        GIT_REPOSITORY ${CPPHTTPLIB_REPO}
-        GIT_TAG ${CPPHTTPLIB_TAG}
+find_path(CPPHTTPLIB_INCLUDE_DIR
+        NAMES httplib.h
+        PATHS /usr/include/cpp-httplib /usr/include
+        NO_DEFAULT_PATH
 )
 
-FetchContent_MakeAvailable(cpp-httplib)
+find_library(CPPHTTPLIB_LIBRARY
+        NAMES cpp-httplib libcpp-httplib.so
+        PATHS /usr/lib64 /usr/lib
+        NO_DEFAULT_PATH
+)
+
+if(NOT CPPHTTPLIB_INCLUDE_DIR OR NOT CPPHTTPLIB_LIBRARY)
+    message(FATAL_ERROR "cpp-httplib not found! Please execute:
+                sudo yum install 'cpp-httplib-devel >= 0.27.0'")
+endif()
+
+message(STATUS "Found cpp-httplib: ${CPPHTTPLIB_INCLUDE_DIR}, ${CPPHTTPLIB_LIBRARY}")
+
+add_library(cpp-httplib INTERFACE)
+target_include_directories(cpp-httplib SYSTEM INTERFACE ${CPPHTTPLIB_INCLUDE_DIR})
+target_link_libraries(cpp-httplib INTERFACE ${CPPHTTPLIB_LIBRARY})

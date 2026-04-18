@@ -6,6 +6,6 @@ add_library(ubse_http STATIC
 )
 target_include_directories(ubse_http PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ubse_http
-        PUBLIC httplib::httplib
+        PUBLIC cpp-httplib
         PRIVATE ubse_log ubse_utils ubse_context ubse_config
 )
