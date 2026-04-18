@@ -115,9 +115,9 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
 
 UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
-UbseResult QueryRemoteNumaStatus(const std::string &nodeId, const std::vector<std::pair<int64_t, int>> &numaStatus);
+UbseResult NotifyRemoteNumaStatus(const std::string &nodeId, const std::vector<std::pair<int64_t, int>> &numaStatus);
 
-UbseResult QueryRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+UbseResult NotifyRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H

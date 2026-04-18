@@ -102,7 +102,7 @@ void RegQueryHandlers()
     UbseRegRpcService(getAddrImportEndpoint, QueryAddrImportHandler);
     UbseRegRpcService(getShareExportEndpoint, QueryShareExportHandler);
     UbseRegRpcService(getShareImportEndpoint, QueryShareImportHandler);
-    UbseRegRpcService(getNumaStatusEndpoint, QueryRemoteNumaStatusHandler);
+    UbseRegRpcService(getNumaStatusEndpoint, NotifyRemoteNumaStatusHandler);
 }
 
 void RegUbseMemControllerHandler()
@@ -1183,7 +1183,7 @@ UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, U
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryRemoteNumaStatus(const std::string &nodeId, const std::vector<std::pair<int64_t, int>> &numaStatus)
+UbseResult NotifyRemoteNumaStatus(const std::string &nodeId, const std::vector<std::pair<int64_t, int>> &numaStatus)
 {
     const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_REMOTE_NUMA_STATUS)};
@@ -1209,7 +1209,7 @@ UbseResult QueryRemoteNumaStatus(const std::string &nodeId, const std::vector<st
     return resultPtr->GetResult();
 }
 
-UbseResult QueryRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult NotifyRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UbseMemRemoteNumaStatus simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
