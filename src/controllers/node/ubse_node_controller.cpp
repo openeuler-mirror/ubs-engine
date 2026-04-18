@@ -593,6 +593,9 @@ void UbseNodeController::UpdateDevDirConnectInfo()
 
 void UbseNodeController::CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo)
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return;
+    }
     std::string slotId = topoInfo.first.nodeId;
     std::string chipId = topoInfo.second.chipId;
 
