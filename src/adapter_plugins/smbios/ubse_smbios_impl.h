@@ -63,7 +63,6 @@ std::shared_ptr<SmbiosStructType<type>> UbseSmbiosImpl::GetSmbiosTypeInfo()
     {
         ReadLocker<ReadWriteLock> locker(&readWriteLock);
         if (smbiosTypeInfoMap.find(type) != smbiosTypeInfoMap.end()) {
-            UBSE_LOG_INFO << "Smbios type " << static_cast<int>(type) << " found in cache";
             return std::dynamic_pointer_cast<SmbiosStructType<type>>(smbiosTypeInfoMap[type]);
         }
     }
