@@ -6,7 +6,6 @@ add_subdirectory(libxml2)
 add_subdirectory(secure_c)
 add_subdirectory(cpp-httplib)
 
-if (NOT (SOURCE_COMPILING AND B_VERSION))
-    list(APPEND targets
-            build_mockcpp)
+if (BUILD_TESTS)
+    add_subdirectory(mockcpp)
 endif ()
