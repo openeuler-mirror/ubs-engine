@@ -66,8 +66,7 @@ UbseResult UbseJsonUtil::GetArrayFromJsonPtr(const rapidjson::Value &jsonPtr, co
         UBSE_LOG_ERROR << "[JSON] Get array from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
-    const rapidjson::Value &array = jsonPtr[key.c_str()].GetArray();
-    value.CopyFrom(array, allocator, true);
+    value.CopyFrom(jsonPtr[key.c_str()], allocator);
     return UBSE_OK;
 }
 
@@ -78,8 +77,7 @@ UbseResult UbseJsonUtil::GetObjectFromJsonPtr(const rapidjson::Value &jsonPtr, c
         UBSE_LOG_ERROR << "[JSON] Get object from json, the key=" << key;
         return UBSE_ERROR_INVAL;
     }
-    const rapidjson::Value &object = jsonPtr[key.c_str()].GetObject();
-    value.CopyFrom(object, allocator);
+    value.CopyFrom(jsonPtr[key.c_str()], allocator);
     return UBSE_OK;
 }
 
