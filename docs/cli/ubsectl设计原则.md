@@ -37,9 +37,9 @@ UBS提供统一的命令行工具ubsectl
 ## 5 命令行举例
 
 ```
-# 显示全量配置
-ubsectl display config --all/-a
-# 显示指定配置
-ubsectl display config --name/-n test
+# 查询内存借用账本详细信息
+ubsectl display memory -t borrow_detail
+# 触发内存借用
+ubsectl create memory -t numa -s <size> -n <name>
 ```
 
