@@ -256,12 +256,12 @@ ubsectl display urma --node {node-id}  --dev {urma_name}
 
 | **字段名** | **字段描述** | **取值范围** |
 | :--- | :--- | :--- |
-| urma-name | bounding设备的名称 | 字符串 |
-| dev-eid | bounding设备的 Eid | 字符串 |
-| dev1_name | bounding设备绑定的dev1名称 | 字符串 |
-| dev2_name | bounding设备绑定的dev2名称 | 字符串 |
-| dev1_eid | bounding设备绑定的dev1 Eid | 字符串 |
-| dev2_eid | bounding设备绑定的dev2 Eid | 字符串 |
+| urma-name | bonding设备的名称 | 字符串 |
+| dev-eid | bonding设备的 Eid | 字符串 |
+| dev1_name | bonding设备绑定的dev1名称 | 字符串 |
+| dev2_name | bonding设备绑定的dev2名称 | 字符串 |
+| dev1_eid | bonding设备绑定的dev1 Eid | 字符串 |
+| dev2_eid | bonding设备绑定的dev2 Eid | 字符串 |
 | status | urma设备状态 | active/inactive/unkonwn |
 
 - **输出示例**
@@ -605,7 +605,7 @@ computer02(2) master 4245:4944:0000:0000:0000:0000:0200:0000
 
 - **故障现象**
 
-`urma_admin show` 查看bounding设备不全，缺少部分设备信息。
+`urma_admin show` 查看bonding设备不全，缺少部分设备信息。
 
 - **问题原因**
 

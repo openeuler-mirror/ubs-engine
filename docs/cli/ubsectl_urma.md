@@ -1,8 +1,4 @@
-# UBS Engine CLI 命令行接口 - URMA 设备管理
-
-## 1. 命令行接口（ubsectl）说明
-
-### 提供查询URMA设备
+## 1. 提供查询URMA设备
 
 - **用法**
 ```shell
@@ -11,23 +7,23 @@ ubsectl display urma [--node <node-id>] [--dev <urma_name>]
 
 - **输入参数**
 
-| 字段名           | 字段描述                     | 字段取值                           |
-|---------------| ---------------------------- |--------------------------------|
-| --node<br/>-n | 节点id（和slotid对应）       | 1~max_id                       |
-| --dev<br/>-d  | 设备名称                     | 字符串列表，批量查询用逗号分隔，如urma_1,urma_2 |
+| 字段名           | 字段描述              | 字段取值                           |
+|---------------|-------------------|--------------------------------|
+| --node<br/>-n | 指定要查询的节点ID        | 1~max_id                       |
+| --dev<br/>-d  | 设备名称              | 字符串列表，批量查询用逗号分隔，如urma_1,urma_2 |
 
 - **输出信息说明**
 支持分页
 
-| 字段名       | 字段描述                     | 取值范围                     |
-|-----------| ---------------------------- | ---------------------------- |
-| urma-name | bonding设备的名称           | 字符串                       |
-| dev-eid   | bonding设备的 Eid            | 字符串                       |
-| dev1_name | bonding设备绑定的fe名称     | 字符串                       |
-| dev2_name | bonding设备绑定的fe名称     | 字符串                       |
-| dev1_eid  | bonding设备绑定的fe1 Eid    | 字符串                       |
-| dev2_eid  | bonding设备绑定的fe2 Eid    | 字符串                       |
-| status    | urma设备状态                 | 字符串（active/inactive等）  |
+| 字段名       | 字段描述                     | 取值范围                  |
+|-----------| ---------------------------- |-----------------------|
+| urma-name | bonding设备的名称           | 字符串                   |
+| dev-eid   | bonding设备的 Eid            | 字符串                   |
+| dev1_name | bonding设备绑定的fe名称     | 字符串                   |
+| dev2_name | bonding设备绑定的fe名称     | 字符串                   |
+| dev1_eid  | bonding设备绑定的fe1 Eid    | 字符串                   |
+| dev2_eid  | bonding设备绑定的fe2 Eid    | 字符串                   |
+| status    | urma设备状态                 | 可选值： [ active \| inactive ] |
 
 - **示例**
 
