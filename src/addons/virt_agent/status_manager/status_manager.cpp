@@ -220,8 +220,9 @@ std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vect
         UBSE_LOG_ERROR << "Memory allocation failed: " << e.what();
         return {};
     }
-    float ratio = VmConfiguration::GetInstance().GetMaxMemBorrow() * 100;
-
+    float maxMemBorrow = VmConfiguration::GetInstance().GetMaxMemBorrow();
+    float ratio = maxMemBorrow / (1 + maxMemBorrow) * 100;
+    UBSE_LOG_DEBUG << "Memory_migrate_ratio = " << std::to_string(rario);
     for (pid_t pid : pids) {
         VMPresetParam param{};
         param.pid = pid;
