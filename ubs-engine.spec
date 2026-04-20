@@ -7,8 +7,9 @@ Summary:        RPM package
 Name:           ubs-engine
 Version:        1.0.0
 Release:        1
-License:        MIT
-Source0:        %{name}.tar.gz
+License:        Mulan PSL v2
+URL:            https://atomgit.com/openeuler/ubs-engine
+Source0:        %{name}-%{version}.tar.gz
 Group:          System Environment/Base
 Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
@@ -20,6 +21,11 @@ BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0
 BuildRequires:  numactl-libs >= 2.0
 BuildRequires:  ninja-build >= 1.10 bash bc coreutils sudo util-linux-user patch
 Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl >= 3.0 ubs-comm-lib
+Requires: tar systemd
+Requires(pre): coreutils shadow systemd glibc-common
+Requires(post): coreutils gawk util-linux systemd grep sed
+Requires(preun): systemd grep
+Requires(postun): coreutils gawk util-linux systemd shadow glibc-common
 
 %define _rpmdir %_topdir/RPMS
 %define _srcrpmdir %_topdir/SRPMS
@@ -94,6 +100,7 @@ Development package for ucache plugin
 %package rmrs
 Summary: rmrs plugin
 Requires: %{name} = %{version}-%{release}
+Requires(post): coreutils shadow
 %description rmrs
 Development package for rmrs plugin
 %post rmrs
@@ -317,9 +324,9 @@ fi
 create_user
 
 if getent group %{ubm_group} > /dev/null; then
-    sudo usermod -aG %{ubm_group} %{system_user}
+    usermod -aG %{ubm_group} %{system_user}
 else
-    echo "[WARN] Group '%{ubm_group}' does not exist. Skipping usermod for '%{system_user}'."
+    echo "[WARN] Group '%{ubm_group}' not found. User '%{system_user}' was not added to this group. If UBM is required, please install the corresponding package and run: usermod -aG %{ubm_group} %{system_user}"
 fi
 
 if getent group %{ubturbo_group} > /dev/null; then
