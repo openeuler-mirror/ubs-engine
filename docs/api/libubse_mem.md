@@ -133,7 +133,7 @@ int32_t ubs_mem_fd_create(const char *name, uint64_t size, const ubs_mem_fd_owne
 
 | name     | IN/OUT | description                                                                 |
 | -------- | ------ | --------------------------------------------------------------------------- |
-| name     | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| name     | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name在节点内保持唯一性 |
 | size     | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                      |
 | owner    | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                              |
 | mode     | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                                 |
@@ -286,7 +286,7 @@ int32_t ubs_mem_fd_create_with_lender(const char *name, const ubs_mem_fd_owner_t
 
 | name        | IN/OUT | description                                                                 |
 | ----------- | ------ | --------------------------------------------------------------------------- |
-| name        | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| name        | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name在节点内保持唯一性 |
 | owner       | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                              |
 | mode        | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                                 |
 | lender      | IN     | 借出信息                                                                        |
@@ -407,7 +407,7 @@ int32_t ubs_mem_fd_create_with_candidate(const char *name, uint64_t size, const 
 
 | name      | IN/OUT | description                                                                 |
 | --------- | ------ | --------------------------------------------------------------------------- |
-| name      | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| name      | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name在节点内保持唯一性 |
 | size      | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                      |
 | owner     | IN     | 内存资源使用者属主信息，可选参数，`NULL` 不关注该字段                                              |
 | mode      | IN     | 内存资源使用者访问权限，可选参数，`0` 不关注该字段                                                 |
@@ -526,7 +526,7 @@ int32_t ubs_mem_fd_permission(const char *name, const ubs_mem_fd_owner_t *owner,
 
 | name  | IN/OUT | description                                                                 |
 | ----- | ------ | --------------------------------------------------------------------------- |
-| name  | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| name  | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name在节点内保持唯一性 |
 | owner | IN     | 内存资源使用者属主信息，必选参数，不允许为 `NULL`                                                |
 | mode  | IN     | 内存资源使用者访问权限，必选参数，不允许为 `0`                                                   |
 
@@ -629,7 +629,7 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *fd_desc);
 
 | name     | IN/OUT | description                                                                 |
 | -------- | ------ | --------------------------------------------------------------------------- |
-| name     | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| name     | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name在节点内保持唯一性 |
 | fd\_desc | OUT    | fd内存信息                                                                      |
 
 - 数据结构说明
@@ -815,7 +815,7 @@ int32_t ubs_mem_fd_delete(const char *name);
 
 | name | IN/OUT | description                                                                 |
 | ---- | ------ | --------------------------------------------------------------------------- |
-| name | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| name | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name在节点内保持唯一性 |
 
 ## 返回值 RETURN VALUE
 
@@ -904,7 +904,7 @@ int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t 
 
 | name       | IN/OUT | description                                                                 |
 | ---------- | ------ | --------------------------------------------------------------------------- |
-| name       | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name在节点内保持唯一性 |
+| name       | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name在节点内保持唯一性 |
 | size       | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                      |
 | distance   | IN     | 内存访问跳数                                                                      |
 | numa\_desc | OUT    | 借用形成的远端numa信息                                                               |
@@ -1456,7 +1456,7 @@ int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32]
 
 | name      | IN/OUT | description                                                                                     |
 | --------- | ------ | ----------------------------------------------------------------------------------------------- |
-| name      | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性                       |
+| name      | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name全局保持唯一性                       |
 | size      | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                                          |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回                                                                      |
 | flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent （按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：  <br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
@@ -1781,7 +1781,7 @@ int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mo
 
 | name      | IN/OUT | description                                                               |
 | --------- | ------ | ------------------------------------------------------------------------- |
-| name      | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| name      | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name全局保持唯一性 |
 | owner     | IN     | 内存资源属主信息，可选参数，`NULL` 不关注该字段                                               |
 | mode      | IN     | 内存资源访问权限，可选参数，`0` 不关注该字段                                                  |
 | shm\_desc | OUT    | 内存描述信息，调用成功后需要使用 `free` 接口主动释放内存                                          |
@@ -1897,10 +1897,10 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
 
 ## 参数 PARAMETERS
 
-| name      | IN/OUT | description                                                                |
-| --------- | ------ |----------------------------------------------------------------------------|
+| name      | IN/OUT | description                                                                 |
+| --------- | ------ | --------------------------------------------------------------------------- |
 | name      | IN     | 借用标识，name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
-| shm\_desc | OUT    | 借用形成的远端共享内存信息，调用成功后需要使用 `free` 接口主动释放内存                                    |
+| shm\_desc | OUT    | 借用形成的远端共享内存信息，调用成功后需要使用 `free` 接口主动释放内存                                     |
 
 ## 返回值 RETURN VALUE
 
@@ -2150,7 +2150,7 @@ int32_t ubs_mem_shm_detach(const char *name);
 
 | name | IN/OUT | description                                                               |
 | ---- | ------ | ------------------------------------------------------------------------- |
-| name | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| name | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name全局保持唯一性 |
 
 ## 返回值 RETURN VALUE
 
@@ -2228,7 +2228,7 @@ int32_t ubs_mem_shm_delete(const char *name);
 
 | name | IN/OUT | description                                                               |
 | ---- | ------ | ------------------------------------------------------------------------- |
-| name | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| name | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name全局保持唯一性 |
 
 ## 返回值 RETURN VALUE
 
@@ -2314,7 +2314,7 @@ int32_t ubs_mem_shm_fault_get(const char *name, ubs_mem_memids_fault_t *fault);
 
 | name  | IN/OUT | description                                                               |
 | ----- | ------ | ------------------------------------------------------------------------- |
-| name  | IN     | 借用标识name最大长度48字节，含结尾字符 `\0`name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`name全局保持唯一性 |
+| name  | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_`<br />name全局保持唯一性 |
 | fault | OUT    | 内存块的健康状态                                                                  |
 
 - 数据结构说明
@@ -2506,7 +2506,7 @@ int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, 
 
 | name                       | IN/OUT | description                                                 |
 | -------------------------- | ------ | ----------------------------------------------------------- |
-| name                       | IN     | 借用标识name最大长度48字节, 含结尾字符\0name仅可包括大小写字母、数字、"."、":"、"-"以及"\_" |
+| name                       | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_` |
 | import\_memid              | IN     | 导入memId                                                     |
 | ubs\_mem\_export\_memid\_t | OUT    | 导出信息的数据结构，包含export\_slot\_id、 export\_memid                 |
 | <br />                     | <br /> | <br />                                                      |
@@ -2516,7 +2516,7 @@ int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, 
 ```c
  typedef struct {
   uint32_t export_slot_id;                                  // 导出节点的id
-  uint32_t export_memid;                                    // 导出内存块标识信息
+  uint64_t export_memid;                                    // 导出内存块标识信息
  } ubs_mem_export_memid_t;
  
 ```
@@ -2587,7 +2587,7 @@ int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid
 
 | name                       | IN/OUT | description                                                 |
 | -------------------------- | ------ | ----------------------------------------------------------- |
-| name                       | IN     | 借用标识name最大长度48字节, 含结尾字符\0name仅可包括大小写字母、数字、"."、":"、"-"以及"\_" |
+| name                       | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_` |
 | import\_memid              | IN     | 导入memId                                                     |
 | ubs\_mem\_export\_memid\_t | OUT    | 导出信息的数据结构，包含export\_slot\_id、 export\_memid                 |
 
@@ -2596,7 +2596,7 @@ int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid
 ```c
  typedef struct {
   uint32_t export_slot_id;                                  // 导出节点的id
-  uint32_t export_memid;                                    // 导出内存块标识信息
+  uint64_t export_memid;                                    // 导出内存块标识信息
  } ubs_mem_export_memid_t;
  
 ```
@@ -2668,7 +2668,7 @@ int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid,
 
 | name                       | IN/OUT | description                                                 |
 | -------------------------- | ------ | ----------------------------------------------------------- |
-| name                       | IN     | 借用标识name最大长度48字节, 含结尾字符\0name仅可包括大小写字母、数字、"."、":"、"-"以及"\_" |
+| name                       | IN     | 借用标识，最大长度48字节，含结尾字符 `\0`<br />name仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_` |
 | import\_memid              | IN     | 导入memId                                                     |
 | ubs\_mem\_export\_memid\_t | OUT    | 导出信息的数据结构，包含export\_slot\_id、 export\_memid                 |
 
@@ -2677,7 +2677,7 @@ int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid,
 ```c
  typedef struct {
   uint32_t export_slot_id;                                  // 导出节点的id
-  uint32_t export_memid;                                    // 导出内存块标识信息
+  uint64_t export_memid;                                    // 导出内存块标识信息
  } ubs_mem_export_memid_t;
  
 ```
@@ -2727,3 +2727,4 @@ static void ubs_mem_shm_get_memid_by_import(void)
     }
 }
 ```
+
