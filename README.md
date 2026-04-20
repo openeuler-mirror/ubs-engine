@@ -152,7 +152,7 @@ bash build.sh ut -- --gtest_filter="TestRackHttpClient.*:TestRackHttpReq.*"
 # 只跑一组测试用例
 bash build.sh ut -- --gtest_filter="TestRackHttpClient.*"
 # 只跑一个用例
-bash build.sh ut -- --gtest_filter="ClientSendSuccessfully"
+bash build.sh ut -- --gtest_filter="TestUbseMemControllerAddrApi.CheckAddrResourceStateExist"
 ```
 
 详见 [开发者UT指导](./docs/test/单元测试开发指南.md) 。
