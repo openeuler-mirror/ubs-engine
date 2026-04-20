@@ -222,7 +222,7 @@ std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vect
     }
     float maxMemBorrow = VmConfiguration::GetInstance().GetMaxMemBorrow();
     float ratio = maxMemBorrow / (1 + maxMemBorrow) * 100;
-    UBSE_LOG_DEBUG << "Memory_migrate_ratio = " << std::to_string(rario);
+    UBSE_LOG_DEBUG << "Memory_migrate_ratio = " << std::to_string(ratio);
     for (pid_t pid : pids) {
         VMPresetParam param{};
         param.pid = pid;
