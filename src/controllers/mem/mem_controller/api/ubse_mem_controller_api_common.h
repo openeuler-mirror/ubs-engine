@@ -13,6 +13,7 @@
 #ifndef UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H
 #define UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -20,7 +21,6 @@
 #include <shared_mutex>
 #include <sstream>
 #include <string>
-#include <atomic>
 
 #include "lock/ubse_lock.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
@@ -39,7 +39,7 @@ const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SLEEP_TIME = 200;
 const uint32_t ALLOCATE_RETRY_TIME = 25;
-const uint32_t RETURN_RETRY_TIME = 25;
+const uint32_t RETURN_RETRY_TIME = 150;
 extern std::atomic<uint64_t> g_fdUnimportFailedCount;
 extern std::atomic<uint64_t> g_numaUnimportFailedCount;
 extern std::atomic<uint64_t> g_shareUnimportFailedCount;
@@ -180,7 +180,6 @@ UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType>
     return UbseMemStage::UBSE_EXIST;
 }
 
-
 UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj &importObj, const bool &importObjExist);
 
 template <class exportType>
@@ -229,7 +228,7 @@ bool CheckShareReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &re
 bool CheckShareDetachPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
                                 const std::string &realRequestNodeId, const std::string &importNodeId);
 
-uint32_t WaitNodeStateWork(const std::string& importNode);
+uint32_t WaitNodeStateWork(const std::string &importNode);
 } // namespace ubse::mem::controller
 
 #endif // UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H
