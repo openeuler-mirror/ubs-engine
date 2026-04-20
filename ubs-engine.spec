@@ -117,6 +117,7 @@ fi
 %define system_user ubse
 %define system_group ubse
 %define ubm_group ubm_nuds
+%define ubturbo_group ubturbo
 %define service_name ubse.service
 
 %define ensure_directory_owner() ensure_directory_owner() { \
@@ -321,6 +322,11 @@ else
     echo "[WARN] Group '%{ubm_group}' does not exist. Skipping usermod for '%{system_user}'."
 fi
 
+if getent group %{ubturbo_group} > /dev/null; then
+    sudo usermod -aG %{ubturbo_group} %{system_user}
+else
+    echo "[WARN] Group '%{ubturbo_group}' does not exist. Skipping usermod for '%{system_user}'."
+fi
 
 %post
 set -e
