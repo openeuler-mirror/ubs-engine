@@ -189,7 +189,7 @@ double GetScoreByReliability(MemLoc requestLocBR, const TargetSocket &targetSock
             }
         }
     }
-    const float neverBorrowCost = 1.0;
+    const float neverBorrowCost = 3.0;
     cost = flag ? 0.0 : neverBorrowCost;
     const int maxBorrowCountThreshold = 3;
     const float borrowTimeCostWeight = 0.5;
@@ -261,7 +261,7 @@ double MemPoolStrategyImpl::PenaltyScore(int32_t requestSize, TargetSocket targe
             int numaIdx = mConfig_->GetNumaIndex(targetSocket.resLocs[i]);
             uint64_t numaMemTotal = sysStatus.numaStatus[numaIdx].memLocal * waterLine / HUNDRED;
             uint64_t numaMemUsed = sysStatus.numaStatus[numaIdx].memUsed;
-            if (numaMemUsed + static_cast<uint64_t>(targetSocket.resSizes[i]) * MB_TO_B >= numaMemTotal) {
+            if (numaMemUsed + static_cast<uint64_t>(targetSocket.resSizes[i]) * MB_TO_B > numaMemTotal) {
                 return HALF_MAX_DEBT_COST;
             }
         }
