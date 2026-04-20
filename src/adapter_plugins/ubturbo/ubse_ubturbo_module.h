@@ -118,7 +118,7 @@ public:
      * @param numaStatus Vector of NUMA node status pairs
      * @return UBSE_OK on success, UBSE_ERROR on failure
      */
-    [[nodiscard]] UbseResult UbTurboNotifyNumaListStatus(const std::vector<std::pair<int64_t, int>> &numaStatus);
+    [[nodiscard]] UbseResult UbseNotifyNumaListStatus(const std::vector<std::pair<int64_t, int>> &numaStatus);
 
     /**
      * @brief Check if the module is initialized

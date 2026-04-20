@@ -1208,25 +1208,194 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus) {
     nodeController.devDirConnectInfo["link1"] = link1;
     nodeController.devDirConnectInfo["link2"] = link2;
     
-    MOCKER_CPP(QueryRemoteNumaStatus)
+    MOCKER_CPP(NotifyRemoteNumaStatus)
         .stubs()
         .with(eq(nodeId), any())
         .will(returnValue(UBSE_OK));
     
-    MasterNotifySmapNumaStatus(nodeId);
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
     
     SUCCEED();
 }
 
 TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_EmptyNumaStatus) {
     std::string nodeId = "1";
-    
-    // 直接设置devDirConnectInfo成员变量为空，避免mockcpp的比较问题
+
     auto& nodeController = UbseNodeController::GetInstance();
     nodeController.devDirConnectInfo.clear();
-    
-    MasterNotifySmapNumaStatus(nodeId);
-    
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_InvalidRemoteNuma) {
+    std::string nodeId = "1";
+
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+
+    NodeMemDebtInfo targetNodeDebt;
+    UbseMemNumaBorrowImportObj importObj;
+    importObj.algoResult.importNumaInfos.push_back({});
+    importObj.algoResult.importNumaInfos[0].chipId = 0;
+    importObj.algoResult.importNumaInfos[0].portId = 1;
+    importObj.algoResult.exportNumaInfos.push_back({});
+    importObj.algoResult.exportNumaInfos[0].nodeId = "2";
+    importObj.status.importResults.push_back({});
+    importObj.status.importResults[0].numaId = 10;
+    targetNodeDebt.numaImportObjMap["res1"] = importObj;
+    allDebtInfoMap[nodeId] = targetNodeDebt;
+
+    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_MultipleNuma) {
+    std::string nodeId = "1";
+
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+
+    nodeController::PhysicalLink link2;
+    link2.slotId = 1;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "eth1";
+
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+    nodeController.devDirConnectInfo["link2"] = link2;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+
+    NodeMemDebtInfo targetNodeDebt;
+
+    UbseMemNumaBorrowImportObj importObj1;
+    importObj1.algoResult.importNumaInfos.push_back({});
+    importObj1.algoResult.importNumaInfos[0].chipId = 0;
+    importObj1.algoResult.importNumaInfos[0].portId = 1;
+    importObj1.algoResult.importNumaInfos[0].numaId = 10;
+    importObj1.algoResult.exportNumaInfos.push_back({});
+    importObj1.algoResult.exportNumaInfos[0].nodeId = "2";
+    importObj1.status.importResults.push_back({});
+    importObj1.status.importResults[0].numaId = 10;
+    targetNodeDebt.numaImportObjMap["res1"] = importObj1;
+
+    UbseMemNumaBorrowImportObj importObj2;
+    importObj2.algoResult.importNumaInfos.push_back({});
+    importObj2.algoResult.importNumaInfos[0].chipId = 1;
+    importObj2.algoResult.importNumaInfos[0].portId = 2;
+    importObj2.algoResult.importNumaInfos[0].numaId = 20;
+    importObj2.algoResult.exportNumaInfos.push_back({});
+    importObj2.algoResult.exportNumaInfos[0].nodeId = "3";
+    importObj2.status.importResults.push_back({});
+    importObj2.status.importResults[0].numaId = 20;
+    targetNodeDebt.numaImportObjMap["res2"] = importObj2;
+
+    allDebtInfoMap[nodeId] = targetNodeDebt;
+
+    NodeMemDebtInfo exportNodeDebt1;
+    UbseMemNumaBorrowExportObj exportObj1;
+    exportNodeDebt1.numaExportObjMap["res1"] = exportObj1;
+    allDebtInfoMap["2"] = exportNodeDebt1;
+
+    NodeMemDebtInfo exportNodeDebt2;
+    UbseMemNumaBorrowExportObj exportObj2;
+    exportNodeDebt2.numaExportObjMap["res2"] = exportObj2;
+    allDebtInfoMap["3"] = exportNodeDebt2;
+
+    MOCKER_CPP(NotifyRemoteNumaStatus)
+        .stubs()
+        .with(eq(nodeId), any())
+        .will(returnValue(UBSE_OK));
+
+    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_PartialLinkDown) {
+    std::string nodeId = "1";
+
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+
+    nodeController::PhysicalLink link2;
+    link2.slotId = 1;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "";
+
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+    nodeController.devDirConnectInfo["link2"] = link2;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+
+    NodeMemDebtInfo targetNodeDebt;
+
+    UbseMemNumaBorrowImportObj importObj1;
+    importObj1.algoResult.importNumaInfos.push_back({});
+    importObj1.algoResult.importNumaInfos[0].chipId = 0;
+    importObj1.algoResult.importNumaInfos[0].portId = 1;
+    importObj1.algoResult.importNumaInfos[0].numaId = 10;
+    importObj1.algoResult.exportNumaInfos.push_back({});
+    importObj1.algoResult.exportNumaInfos[0].nodeId = "2";
+    importObj1.status.importResults.push_back({});
+    importObj1.status.importResults[0].numaId = 10;
+    targetNodeDebt.numaImportObjMap["res1"] = importObj1;
+
+    UbseMemNumaBorrowImportObj importObj2;
+    importObj2.algoResult.importNumaInfos.push_back({});
+    importObj2.algoResult.importNumaInfos[0].chipId = 1;
+    importObj2.algoResult.importNumaInfos[0].portId = 2;
+    importObj2.algoResult.importNumaInfos[0].numaId = 20;
+    importObj2.algoResult.exportNumaInfos.push_back({});
+    importObj2.algoResult.exportNumaInfos[0].nodeId = "3";
+    importObj2.status.importResults.push_back({});
+    importObj2.status.importResults[0].numaId = 20;
+    targetNodeDebt.numaImportObjMap["res2"] = importObj2;
+
+    allDebtInfoMap[nodeId] = targetNodeDebt;
+
+    NodeMemDebtInfo exportNodeDebt1;
+    UbseMemNumaBorrowExportObj exportObj1;
+    exportNodeDebt1.numaExportObjMap["res1"] = exportObj1;
+    allDebtInfoMap["2"] = exportNodeDebt1;
+
+    NodeMemDebtInfo exportNodeDebt2;
+    UbseMemNumaBorrowExportObj exportObj2;
+    exportNodeDebt2.numaExportObjMap["res2"] = exportObj2;
+    allDebtInfoMap["3"] = exportNodeDebt2;
+
+    MOCKER_CPP(NotifyRemoteNumaStatus)
+        .stubs()
+        .with(eq(nodeId), any())
+        .will(returnValue(UBSE_OK));
+
+    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+
     SUCCEED();
 }
 

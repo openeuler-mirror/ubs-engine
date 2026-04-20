@@ -64,7 +64,7 @@ TEST_F(TestUbseUbturboModule, Init_Success) {
 TEST_F(TestUbseUbturboModule, UbTurboNotifyNumaListStatus_Empty) {
     auto& instance = UbseUbturboModule::GetInstance();
     std::vector<std::pair<int64_t, int>> numaStatus;
-    auto ret = instance.UbTurboNotifyNumaListStatus(numaStatus);
+    auto ret = instance.UbseNotifyNumaListStatus(numaStatus);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -75,7 +75,7 @@ TEST_F(TestUbseUbturboModule, UbTurboNotifyNumaListStatus_ExceedMax) {
     for (int i = 0; i < UBTURB_MAX_REMOTE_NUMA + 1; i++) {
         numaStatus.emplace_back(i, 1);
     }
-    auto ret = instance.UbTurboNotifyNumaListStatus(numaStatus);
+    auto ret = instance.UbseNotifyNumaListStatus(numaStatus);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
@@ -86,7 +86,7 @@ TEST_F(TestUbseUbturboModule, UbTurboNotifyNumaListStatus_Normal) {
     for (int i = 0; i < 2; i++) {
         numaStatus.emplace_back(i, 1);
     }
-    auto ret = instance.UbTurboNotifyNumaListStatus(numaStatus);
+    auto ret = instance.UbseNotifyNumaListStatus(numaStatus);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -127,7 +127,7 @@ TEST_F(TestUbseUbturboModule, UbTurboNotifyNumaListStatus_Normal_Initialized) {
         numaStatus.emplace_back(i, 1);
     }
     
-    auto ret = instance.UbTurboNotifyNumaListStatus(numaStatus);
+    auto ret = instance.UbseNotifyNumaListStatus(numaStatus);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -159,7 +159,7 @@ TEST_F(TestUbseUbturboModule, UbTurboNotifyNumaListStatus_Normal_AutoInit) {
         numaStatus.emplace_back(i, 1);
     }
     
-    auto ret = instance.UbTurboNotifyNumaListStatus(numaStatus);
+    auto ret = instance.UbseNotifyNumaListStatus(numaStatus);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_TRUE(instance.IsInitialized());
 }

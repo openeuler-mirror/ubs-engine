@@ -46,7 +46,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
         return UBSE_OK;
     }
 
-    UbseResult UbseUbturboModule::UbTurboNotifyNumaListStatus(const std::vector<std::pair<int64_t, int>> &numaStatus)
+    UbseResult UbseUbturboModule::UbseNotifyNumaListStatus(const std::vector<std::pair<int64_t, int>> &numaStatus)
     {
         if (numaStatus.empty()) {
             UBSE_LOG_WARN << "numaStatus is empty";
