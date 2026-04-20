@@ -2888,3 +2888,230 @@ int main(void)
     ubs_mem_share_create_with_lender_example();
 }
 ```
+
+# 26.ubs_mem_fd_get_memid_by_import
+ 
+## 库 LIBRARY
+ 
+ubse库 (/usr/lib64/libubse-client.so)
+ 
+## 摘要 SYNOPSIS
+ 
+```c
+int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
+```
+ 
+## 描述 DESCRIPTION
+ 
+在导入节点指定资源名和导入memId, 查询fd形态的远端内存memId
+ 
+## 参数 PARAMTERS
+ 
+| name               | IN/OUT | description                              |
+|--------------------|--------|------------------------------------------|
+| name               | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| import_memid       | IN     | 导入memId                                  |
+| ubs_mem_export_memid_t   | OUT    | 导出信息的数据结构，包含export_slot_id、 export_memid |
+|
+ 
+- 数据结构说明
+```c
+ typedef struct {
+  uint32_t export_slot_id;                                  // 导出节点的id
+  uint32_t export_memid;                                    // 导出内存块标识信息
+ } ubs_mem_export_memid_t;
+ 
+```
+## 返回值 RETURN VALUE
+ 
+返回`UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+ 
+## 错误 ERRORS
+ 
+| Error                      | Description  |
+|----------------------------|--------------|
+| UBS_ERR_NULL_POINTER       | 空指针          |
+| UBS_ERR_INVALID_ARG        | 参数无效         |
+| UBS_ERR_CONNECTION_FAILED  | 连接UBSE服务端失败  |
+| UBS_ERR_AUTH_FAILED        | UBSE服务端鉴权不通过 |
+| UBS_ENGINE_ERR_NOT_EXIST   | 借用关系不存在      |
+| UBS_ENGINE_ERR_CREATING    | 资源正在创建中        |
+| UBS_ENGINE_ERR_DELETING    | 资源正在删除中        |
+| UBS_ENGINE_ERR_EXPORT_LEDGERING | 导出节点对账中、调用方进行重试 |
+| UBS_ERR_TIMEOUT            | UBSE服务端处理超时  |
+| UBS_ERR_INTERNEL           | UBSE服务端内部错误  |
+ 
+## 附注 NOTES
+无
+## 样例 EXAMPLES
+```c
+#include <stdint.h>
+#include <stdio.h>
+#include <ubs_engine_mem.h>
+static void ubs_mem_fd_get_memid_by_import(void)
+{
+    
+    printf("=== ubs_mem_fd_get_memid_by_import_example ===\n");
+    char *name = "fd_name_test";
+    uint64_t import_memid = 9;
+    ubs_mem_export_memid_t mem_info;
+    int ret = ubs_mem_fd_get_memid_by_import(name, import_memid, &mem_info);
+    if (ret != 0) {
+        printf("ubs_mem_fd_get_memid_by_import failed, ret=%d\n", ret);
+    } else {
+        printf("ubs_mem_fd_get_memid_by_import success, export_slot_id=%u, export_memid=%lu\n",
+               mem_info.export_slot_id, mem_info.export_memid);
+    }
+}
+```
+ 
+# 27.ubs_mem_numa_get_memid_by_import
+ 
+## 库 LIBRARY
+ 
+ubse库 (/usr/lib64/libubse-client.so)
+ 
+## 摘要 SYNOPSIS
+ 
+```c
+int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
+```
+ 
+## 描述 DESCRIPTION
+ 
+在导入节点指定资源名和导入memId, 查询numa形态的远端内存memId
+ 
+## 参数 PARAMTERS
+ 
+| name               | IN/OUT | description                              |
+|--------------------|--------|------------------------------------------|
+| name               | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| import_memid       | IN     | 导入memId                                  |
+| ubs_mem_export_memid_t   | OUT    | 导出信息的数据结构，包含export_slot_id、 export_memid |
+ 
+- 数据结构说明
+```c
+ typedef struct {
+  uint32_t export_slot_id;                                  // 导出节点的id
+  uint32_t export_memid;                                    // 导出内存块标识信息
+ } ubs_mem_export_memid_t;
+ 
+```
+## 返回值 RETURN VALUE
+ 
+返回`UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+ 
+## 错误 ERRORS
+ 
+| Error                      | Description  |
+|----------------------------|--------------|
+| UBS_ERR_NULL_POINTER       | 空指针          |
+| UBS_ERR_INVALID_ARG        | 参数无效         |
+| UBS_ERR_CONNECTION_FAILED  | 连接UBSE服务端失败  |
+| UBS_ERR_AUTH_FAILED        | UBSE服务端鉴权不通过 |
+| UBS_ENGINE_ERR_NOT_EXIST   | 借用关系不存在      |
+| UBS_ENGINE_ERR_CREATING    | 资源正在创建中        |
+| UBS_ENGINE_ERR_DELETING    | 资源正在删除中        |
+| UBS_ENGINE_ERR_EXPORT_LEDGERING | 导出节点对账中、调用方进行重试 |
+| UBS_ERR_TIMEOUT            | UBSE服务端处理超时  |
+| UBS_ERR_INTERNEL           | UBSE服务端内部错误  |
+ 
+## 附注 NOTES
+无
+## 样例 EXAMPLES
+```c
+#include <stdint.h>
+#include <stdio.h>
+#include <ubs_engine_mem.h>
+static void ubs_mem_numa_get_memid_by_import(void)
+{
+    
+    printf("=== ubs_mem_numa_get_memid_by_import_example ===\n");
+    char *name = "numa_name_test";
+    uint64_t import_memid = 9;
+    ubs_mem_export_memid_t mem_info;
+    int ret = ubs_mem_numa_get_memid_by_import(name, import_memid, &mem_info);
+    if (ret != 0) {
+        printf("ubs_mem_numa_get_memid_by_import failed, ret=%d\n", ret);
+    } else {
+        printf("ubs_mem_numa_get_memid_by_import success, export_slot_id=%u, export_memid=%lu\n",
+               mem_info.export_slot_id, mem_info.export_memid);
+    }
+}
+ 
+```
+ 
+# 28.ubs_mem_shm_get_memid_by_import
+ 
+## 库 LIBRARY
+ 
+ubse库 (/usr/lib64/libubse-client.so)
+ 
+## 摘要 SYNOPSIS
+ 
+```c
+int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
+```
+ 
+## 描述 DESCRIPTION
+ 
+在导入节点指定资源名和导入memId, 查询shm形态的远端内存memId
+ 
+## 参数 PARAMTERS
+ 
+| name               | IN/OUT | description                              |
+|--------------------|--------|------------------------------------------|
+| name               | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| import_memid       | IN     | 导入memId                                  |
+| ubs_mem_export_memid_t   | OUT    | 导出信息的数据结构，包含export_slot_id、 export_memid |
+ 
+- 数据结构说明
+```c
+ typedef struct {
+  uint32_t export_slot_id;                                  // 导出节点的id
+  uint32_t export_memid;                                    // 导出内存块标识信息
+ } ubs_mem_export_memid_t;
+ 
+```
+## 返回值 RETURN VALUE
+ 
+返回`UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+ 
+## 错误 ERRORS
+ 
+| Error                      | Description  |
+|----------------------------|--------------|
+| UBS_ERR_NULL_POINTER       | 空指针          |
+| UBS_ERR_INVALID_ARG        | 参数无效         |
+| UBS_ERR_CONNECTION_FAILED  | 连接UBSE服务端失败  |
+| UBS_ERR_AUTH_FAILED        | UBSE服务端鉴权不通过 |
+| UBS_ENGINE_ERR_NOT_EXIST   | 借用关系不存在      |
+| UBS_ENGINE_ERR_CREATING    | 资源正在创建中        |
+| UBS_ENGINE_ERR_DELETING    | 资源正在删除中        |
+| UBS_ENGINE_ERR_EXPORT_LEDGERING | 导出节点对账中、调用方进行重试 |
+| UBS_ERR_TIMEOUT            | UBSE服务端处理超时  |
+| UBS_ERR_INTERNEL           | UBSE服务端内部错误  |
+ 
+## 附注 NOTES
+无
+## 样例 EXAMPLES
+```c
+#include <stdint.h>
+#include <stdio.h>
+#include <ubs_engine_mem.h>
+static void ubs_mem_shm_get_memid_by_import(void)
+{
+    
+    printf("=== ubs_mem_shm_get_memid_by_import_example ===\n");
+    char *name = "shm_name_test";
+    uint64_t import_memid = 9;
+    ubs_mem_export_memid_t mem_info;
+    int ret = ubs_mem_shm_get_memid_by_import(name, import_memid, &mem_info);
+    if (ret != 0) {
+        printf("ubs_mem_shm_get_memid_by_import failed, ret=%d\n", ret);
+    } else {
+        printf("ubs_mem_shm_get_memid_by_import success, export_slot_id=%u, export_memid=%lu\n",
+               mem_info.export_slot_id, mem_info.export_memid);
+    }
+}
+```

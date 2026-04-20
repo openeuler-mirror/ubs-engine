@@ -47,5 +47,3 @@ install(TARGETS ubse_sdk_static
         PERMISSIONS OWNER_READ OWNER_WRITE
         COMPONENT ubse_sdk     # 组件名：ubse_sdk_static_lib
 )
-
-add_subdirectory(example)

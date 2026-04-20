@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 #include <securec.h>
 #include <sys/wait.h>
+#include <sys/user.h>
 #include <ucontext.h>
 #include <unistd.h>
 #include <climits>
@@ -91,20 +92,15 @@ void ResolveAndPrintAddress(unsigned long long int address, int index, char *pat
     AppendToTraceBuffer("\n");
 }
 
-void PrintBackTrace(const ucontext_t *uc)
+#if defined(__aarch64__)
+// ARM架构的栈回溯实现（完全保留原始代码）
+static void PrintBackTraceARMImpl(const ucontext_t *uc, char *exePath)
 {
-    InitTraceBuffer();
     // AArch64 使用 X29 作为帧指针，X30 作为链接寄存器
     auto *fp = reinterpret_cast<unsigned long long int *>(uc->uc_mcontext.regs[29]); // X29/FP
     unsigned long long int lr = uc->uc_mcontext.regs[30]; // X30/LR (作为起始返回地址)
     unsigned long long int pc = uc->uc_mcontext.pc;       // 当前程序计数器
 
-    AppendToTraceBuffer("========== Stack trace start ==========\n");
-    char exePath[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
-    if (len >= 0) {
-        exePath[len] = '\0';
-    }
     int i = 0;
 
     // 首先打印触发错误的PC和LR
@@ -142,7 +138,84 @@ void PrintBackTrace(const ucontext_t *uc)
         // 移动到上一级栈帧
         fp = nextFp;
     }
+}
+#endif
 
+#if defined(__x86_64__)
+// x86_64架构的栈回溯实现（参考原始ARM逻辑实现）
+static void PrintBackTraceX86_64Impl(const ucontext_t *uc, char *exePath)
+{
+    // x86_64 使用 RBP 作为帧指针，RIP 作为程序计数器
+    auto *fp = reinterpret_cast<unsigned long long int *>(uc->uc_mcontext.gregs[REG_RBP]); // RBP
+    unsigned long long int pc = uc->uc_mcontext.gregs[REG_RIP];                             // RIP
+    unsigned long long int lr = 0;                                                          // 返回地址（从栈中获取）
+
+    int i = 0;
+
+    // 首先打印触发错误的PC（x86_64没有单独的LR寄存器，返回地址在栈中）
+    ResolveAndPrintAddress(pc, i++, exePath);
+    
+    // 如果有帧指针，获取第一个返回地址
+    if (fp) {
+        lr = fp[1];
+        if (lr != 0) {
+            ResolveAndPrintAddress(lr, i++, exePath);
+        }
+    }
+
+    // 然后遍历调用栈
+    while (fp && lr) {
+        // 获取上一级的帧指针和返回地址
+        auto *nextFp = reinterpret_cast<unsigned long long int *>(*fp);
+        if (nextFp == fp || nextFp == nullptr) {
+            break; // 避免循环或空指针
+        }
+
+        // 获取返回地址
+        lr = fp[1];
+
+        // 解析并打印地址
+        ResolveAndPrintAddress(lr, i++, exePath);
+
+        // 检查是否到达 main 函数
+        Dl_info dl_info;
+        memset_s(&dl_info, sizeof(Dl_info), 0, sizeof(Dl_info));
+        if (dladdr(reinterpret_cast<void *>(lr), &dl_info)) {
+            if (dl_info.dli_sname && !strcmp(dl_info.dli_sname, "main")) {
+                break;
+            }
+        }
+
+        // 检查调用栈是否过深
+        if (i > MAX_STACK_DEPTH) {
+            break;
+        }
+
+        // 移动到上一级栈帧
+        fp = nextFp;
+    }
+}
+#endif
+
+void PrintBackTrace(const ucontext_t *uc)
+{
+    InitTraceBuffer();
+    AppendToTraceBuffer("========== Stack trace start ==========\n");
+    
+    char exePath[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    if (len >= 0) {
+        exePath[len] = '\0';
+    }
+    
+    #if defined(__aarch64__)
+        PrintBackTraceARMImpl(uc, exePath);
+    #elif defined(__x86_64__)
+        PrintBackTraceX86_64Impl(uc, exePath);
+    #else
+        AppendToTraceBuffer("Unsupported architecture\n");
+    #endif
+    
     AppendToTraceBuffer("========== Stack trace end ==========\n");
     FlushTraceBuffer();
 }

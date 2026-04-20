@@ -124,7 +124,7 @@ UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
     adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfosGroupByDevName{};
     auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterCpuTopo(cpuTopoInfosGroupByDevName);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] get cpuTopoInfo not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "[MTI] get cpuTopoInfo not successful, " << FormatRetCode(ret);
         return ret;
     }
     for (auto& [devName, cpuTopoInfo] : cpuTopoInfosGroupByDevName) {
@@ -329,7 +329,7 @@ UbseResult UbseElectionNodeMgr::GetPortByIp(const std::string &ip, uint16_t &por
             return UBSE_OK;
         }
     }
-    UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: ip:" << ip << "not found.";
+    UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: ip=" << ip << "not found.";
     return UBSE_ERROR;
 }
 

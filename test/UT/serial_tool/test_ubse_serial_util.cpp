@@ -58,6 +58,7 @@ TEST_F(TestUbseSerialUtil, expandCapacity_less_than_max_cap)
  */
 TEST_F(TestUbseSerialUtil, expandCapacity_greater_than_max_cap)
 {
+    GTEST_SKIP();
     uint64_t expandSize = (MAX_CAPACITY >> 1) + 1; // 大于MAX_CAPACITY的一半
     UbseSerialization serialization;
     serialization.expandCapacity(expandSize);

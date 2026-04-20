@@ -313,7 +313,7 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 | 字段名       | 字段描述                                                     | 字段取值                                                                                                                                      |
 | ----------- | ------------------------------------------------------------ |-------------------------------------------------------------------------------------------------------------------------------------------|
 | name        | 一次内存借用的名称                                             | 字符串                                                                                                                                       |
-| type        | 内存借用的类型                                                | 可选值：numa、fd、shm                                                                                                                           |
+| type        | 内存借用的类型                                                | 可选值：numa、fd、share                                                                                                                           |
 | borrow_node | 借入节点信息。例：computer1(1)<br>节点信息由2部分组成：<br>1.括号前部分：主机名<br>2.括号内部分：节点的槽位号 | 字符串                                                                                                                                       |
 | lend_node   | 借出节点信息。例：computer1(1)<br/>节点信息由2部分组成：<br/>1.括号前部分：主机名<br/>2.括号内部分：节点的槽位号 | 字符串                                                                                                                                       |
 | lend_numa | 借出numa信息。例：1(216)<br/>numa信息由2部分组成：<br/>1.括号前部分：numaId<br/>2.括号内部分：socketId | 字符串                                                                                                                                       |
@@ -330,9 +330,9 @@ $ ubsectl display memory -t borrow_detail
 ------------------------------------------------------------------------------------------------
 name         type    borrow_node   lend_node   lend_numa   lend_size       status       handle    
 memory1      numa    node-1(1)     node-3(3)   1(216)      100             done         5
-memory2      shm     node-1(1)     node-3(3)   1(216)      200             done         1,2
-memory2      shm     node-2(2)     node-3(3)   1(216)      1200            done         3,4
-memory3      shm                   node-3(3)   1(216)      1200            done         -
+memory2      share   node-1(1)     node-3(3)   1(216)      200             done         1,2
+memory2      share   node-2(2)     node-3(3)   1(216)      1200            done         3,4
+memory3      share                 node-3(3)   1(216)      1200            done         -
 memory4      numa    node-2(2)     node-3(3)   1(216)      1300            exporting    -
 memory5      fd      node-1(1)     node-3(3)   1(216)      1400            importing    -
 memory6      numa                  node-3(3)   1(216)      1300            unexporting  -
@@ -368,7 +368,7 @@ $ ubsectl display memory -t borrow_detail -n test
                                                                                       
   test    numa   controller(1)   node01(2)   0(36)       128         done     2   
                                                                                        
-  test    shm    controller(1)   node01(2)   0(36)       512         done     4,5,6,7
+  test    share  controller(1)   node01(2)   0(36)       512         done     4,5,6,7
   
   test    numa   node02(3)       node01(2)   0(36)       128         done     4  
 --------------------------------------------------------------------------------------
@@ -577,7 +577,7 @@ region:1,2
 ### 用法
 
 ```shell
-ubsectl delete memory -t <borrow-type> -n <name>
+ubsectl delete memory [-t <borrow-type>] -n <name>
 ```
 ### 输入参数说明
 

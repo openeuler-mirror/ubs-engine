@@ -253,7 +253,7 @@ UbseResult HandleTaskWithRetry(const std::string &executorName, const std::strin
     auto ret = ubse::timer::UbseTimerHandlerRegister(
         taskName,
         [executorName, taskName, task]() {
-            AsyncHandlerGuard cntGuard;
+            AsyncHandlerGuard innerCntGuard;
             if (g_globalStop) {
                 UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
                 ubse::timer::UbseTimerHandlerUnregister(taskName);

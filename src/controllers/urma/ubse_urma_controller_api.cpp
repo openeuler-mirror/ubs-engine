@@ -381,13 +381,14 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage &req
     }
     UbseDeSerialization out{req.buffer, req.length};
     std::string nodeId;
+    std::string urmaName;
 
-    out >> nodeId;
+    out >> nodeId >> urmaName;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaCliDevActivate deserialiazation fail";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    uint32_t ret = UrmaController::GetInstance().UbseUrmaCliDevActivate(nodeId);
+    uint32_t ret = UrmaController::GetInstance().UbseUrmaCliDevActivate(nodeId, urmaName);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseUrmaCliDevActivate failed," << FormatRetCode(ret);
         return ret;

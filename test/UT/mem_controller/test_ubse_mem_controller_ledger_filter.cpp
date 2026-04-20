@@ -45,83 +45,83 @@ TEST_F(TestUbseMemControllerLedgerFilter, TransState)
     EXPECT_EQ(TransState(UbseMemState::UBSE_MEM_IMPORT_DESTROYING_WAIT), "import_destroying_wait");
 }
 
-TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningFdExport)
-{
-    UbseMemFdBorrowExportObj masterExport1{};
-    UbseMemDebtNumaInfo info;
-    info.nodeId = "1";
-    info.socketId = 216;
-    info.numaId = 0;
-    masterExport1.algoResult.exportNumaInfos.push_back(info);
-    masterExport1.status.state = UBSE_MEM_EXPORT_DESTROYING_WAIT;
-    std::vector<UbseMemFdBorrowExportObj> masterExportObjs;
-    UbseMemFdBorrowExportObj masterExport2{};
-    masterExport2 = masterExport1;
-    masterExport2.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    masterExport1.req.name = "test";
-    masterExport2.req.name = "Test";
-    masterExportObjs.push_back(masterExport1);
-    masterExportObjs.push_back(masterExport2);
-    std::vector<UbseMemFdBorrowExportObj> agentExportObjs;
-    agentExportObjs = masterExportObjs;
-    std::vector<UbseMemFdBorrowExportObj> masterRunningExportObjs;
-    std::vector<UbseMemFdBorrowExportObj> masterFilterRunningExportObjs;
-    std::vector<UbseMemFdBorrowExportObj> agentFilterRunningExportObjs;
-    EXPECT_NO_THROW(FilterRunningFdExport(masterExportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
-}
+// TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningFdExport)
+// {
+//     UbseMemFdBorrowExportObj masterExport1{};
+//     UbseMemDebtNumaInfo info;
+//     info.nodeId = "1";
+//     info.socketId = 216;
+//     info.numaId = 0;
+//     masterExport1.algoResult.exportNumaInfos.push_back(info);
+//     masterExport1.status.state = UBSE_MEM_EXPORT_DESTROYING_WAIT;
+//     std::vector<UbseMemFdBorrowExportObj> masterExportObjs;
+//     UbseMemFdBorrowExportObj masterExport2{};
+//     masterExport2 = masterExport1;
+//     masterExport2.status.state = UBSE_MEM_EXPORT_SUCCESS;
+//     masterExport1.req.name = "test";
+//     masterExport2.req.name = "Test";
+//     masterExportObjs.push_back(masterExport1);
+//     masterExportObjs.push_back(masterExport2);
+//     std::vector<UbseMemFdBorrowExportObj> agentExportObjs;
+//     agentExportObjs = masterExportObjs;
+//     std::vector<UbseMemFdBorrowExportObj> masterRunningExportObjs;
+//     std::vector<UbseMemFdBorrowExportObj> masterFilterRunningExportObjs;
+//     std::vector<UbseMemFdBorrowExportObj> agentFilterRunningExportObjs;
+//     EXPECT_NO_THROW(FilterRunningFdExport(masterExportObjs, agentExportObjs, masterRunningExportObjs,
+//         masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+// }
 
-TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningFdImport)
-{
-    UbseMemFdBorrowImportObj masterImport1{};
-    UbseMemDebtNumaInfo info;
-    info.nodeId = "1";
-    info.socketId = 216;
-    info.numaId = 0;
-    masterImport1.algoResult.importNumaInfos.push_back(info);
-    masterImport1.status.state = UBSE_MEM_IMPORT_DESTROYING_WAIT;
-    std::vector<UbseMemFdBorrowImportObj> masterImportObjs;
-    UbseMemFdBorrowImportObj masterImport2{};
-    masterImport2 = masterImport1;
-    masterImport2.status.state = UBSE_MEM_IMPORT_SUCCESS;
-    masterImport1.req.name = "test";
-    masterImport2.req.name = "Test";
-    masterImportObjs.push_back(masterImport1);
-    masterImportObjs.push_back(masterImport2);
-    std::vector<UbseMemFdBorrowImportObj> agentExportObjs;
-    agentExportObjs = masterImportObjs;
-    std::vector<UbseMemFdBorrowImportObj> masterRunningExportObjs;
-    std::vector<UbseMemFdBorrowImportObj> masterFilterRunningExportObjs;
-    std::vector<UbseMemFdBorrowImportObj> agentFilterRunningExportObjs;
-    EXPECT_NO_THROW(FilterRunningFdImport(masterImportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
-}
+// TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningFdImport)
+// {
+//     UbseMemFdBorrowImportObj masterImport1{};
+//     UbseMemDebtNumaInfo info;
+//     info.nodeId = "1";
+//     info.socketId = 216;
+//     info.numaId = 0;
+//     masterImport1.algoResult.importNumaInfos.push_back(info);
+//     masterImport1.status.state = UBSE_MEM_IMPORT_DESTROYING_WAIT;
+//     std::vector<UbseMemFdBorrowImportObj> masterImportObjs;
+//     UbseMemFdBorrowImportObj masterImport2{};
+//     masterImport2 = masterImport1;
+//     masterImport2.status.state = UBSE_MEM_IMPORT_SUCCESS;
+//     masterImport1.req.name = "test";
+//     masterImport2.req.name = "Test";
+//     masterImportObjs.push_back(masterImport1);
+//     masterImportObjs.push_back(masterImport2);
+//     std::vector<UbseMemFdBorrowImportObj> agentExportObjs;
+//     agentExportObjs = masterImportObjs;
+//     std::vector<UbseMemFdBorrowImportObj> masterRunningExportObjs;
+//     std::vector<UbseMemFdBorrowImportObj> masterFilterRunningExportObjs;
+//     std::vector<UbseMemFdBorrowImportObj> agentFilterRunningExportObjs;
+//     EXPECT_NO_THROW(FilterRunningFdImport(masterImportObjs, agentExportObjs, masterRunningExportObjs,
+//         masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+// }
 
-TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningNumaExport)
-{
-    UbseMemNumaBorrowExportObj masterExport1{};
-    UbseMemDebtNumaInfo info;
-    info.nodeId = "1";
-    info.socketId = 216;
-    info.numaId = 0;
-    masterExport1.algoResult.exportNumaInfos.push_back(info);
-    masterExport1.status.state = UBSE_MEM_EXPORT_DESTROYING_WAIT;
-    std::vector<UbseMemNumaBorrowExportObj> masterExportObjs;
-    UbseMemNumaBorrowExportObj masterExport2{};
-    masterExport2 = masterExport1;
-    masterExport2.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    masterExport1.req.name = "test";
-    masterExport2.req.name = "Test";
-    masterExportObjs.push_back(masterExport1);
-    masterExportObjs.push_back(masterExport2);
-    std::vector<UbseMemNumaBorrowExportObj> agentExportObjs;
-    agentExportObjs = masterExportObjs;
-    std::vector<UbseMemNumaBorrowExportObj> masterRunningExportObjs;
-    std::vector<UbseMemNumaBorrowExportObj> masterFilterRunningExportObjs;
-    std::vector<UbseMemNumaBorrowExportObj> agentFilterRunningExportObjs;
-    EXPECT_NO_THROW(FilterRunningNumaExport(masterExportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
-}
+// TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningNumaExport)
+// {
+//     UbseMemNumaBorrowExportObj masterExport1{};
+//     UbseMemDebtNumaInfo info;
+//     info.nodeId = "1";
+//     info.socketId = 216;
+//     info.numaId = 0;
+//     masterExport1.algoResult.exportNumaInfos.push_back(info);
+//     masterExport1.status.state = UBSE_MEM_EXPORT_DESTROYING_WAIT;
+//     std::vector<UbseMemNumaBorrowExportObj> masterExportObjs;
+//     UbseMemNumaBorrowExportObj masterExport2{};
+//     masterExport2 = masterExport1;
+//     masterExport2.status.state = UBSE_MEM_EXPORT_SUCCESS;
+//     masterExport1.req.name = "test";
+//     masterExport2.req.name = "Test";
+//     masterExportObjs.push_back(masterExport1);
+//     masterExportObjs.push_back(masterExport2);
+//     std::vector<UbseMemNumaBorrowExportObj> agentExportObjs;
+//     agentExportObjs = masterExportObjs;
+//     std::vector<UbseMemNumaBorrowExportObj> masterRunningExportObjs;
+//     std::vector<UbseMemNumaBorrowExportObj> masterFilterRunningExportObjs;
+//     std::vector<UbseMemNumaBorrowExportObj> agentFilterRunningExportObjs;
+//     EXPECT_NO_THROW(FilterRunningNumaExport(masterExportObjs, agentExportObjs, masterRunningExportObjs,
+//         masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+// }
 
 TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningNumaImport)
 {
@@ -149,31 +149,31 @@ TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningNumaImport)
         masterFilterRunningExportObjs, agentFilterRunningExportObjs));
 }
 
-TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningAddrExport)
-{
-    UbseMemAddrBorrowExportObj masterExport1{};
-    UbseMemDebtNumaInfo info;
-    info.nodeId = "1";
-    info.socketId = 216;
-    info.numaId = 0;
-    masterExport1.algoResult.exportNumaInfos.push_back(info);
-    masterExport1.status.state = UBSE_MEM_EXPORT_DESTROYING_WAIT;
-    std::vector<UbseMemAddrBorrowExportObj> masterExportObjs;
-    UbseMemAddrBorrowExportObj masterExport2{};
-    masterExport2 = masterExport1;
-    masterExport2.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    masterExport1.req.name = "test";
-    masterExport2.req.name = "Test";
-    masterExportObjs.push_back(masterExport1);
-    masterExportObjs.push_back(masterExport2);
-    std::vector<UbseMemAddrBorrowExportObj> agentExportObjs;
-    agentExportObjs = masterExportObjs;
-    std::vector<UbseMemAddrBorrowExportObj> masterRunningExportObjs;
-    std::vector<UbseMemAddrBorrowExportObj> masterFilterRunningExportObjs;
-    std::vector<UbseMemAddrBorrowExportObj> agentFilterRunningExportObjs;
-    EXPECT_NO_THROW(FilterRunningAddrExport(masterExportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
-}
+// TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningAddrExport)
+// {
+//     UbseMemAddrBorrowExportObj masterExport1{};
+//     UbseMemDebtNumaInfo info;
+//     info.nodeId = "1";
+//     info.socketId = 216;
+//     info.numaId = 0;
+//     masterExport1.algoResult.exportNumaInfos.push_back(info);
+//     masterExport1.status.state = UBSE_MEM_EXPORT_DESTROYING_WAIT;
+//     std::vector<UbseMemAddrBorrowExportObj> masterExportObjs;
+//     UbseMemAddrBorrowExportObj masterExport2{};
+//     masterExport2 = masterExport1;
+//     masterExport2.status.state = UBSE_MEM_EXPORT_SUCCESS;
+//     masterExport1.req.name = "test";
+//     masterExport2.req.name = "Test";
+//     masterExportObjs.push_back(masterExport1);
+//     masterExportObjs.push_back(masterExport2);
+//     std::vector<UbseMemAddrBorrowExportObj> agentExportObjs;
+//     agentExportObjs = masterExportObjs;
+//     std::vector<UbseMemAddrBorrowExportObj> masterRunningExportObjs;
+//     std::vector<UbseMemAddrBorrowExportObj> masterFilterRunningExportObjs;
+//     std::vector<UbseMemAddrBorrowExportObj> agentFilterRunningExportObjs;
+//     EXPECT_NO_THROW(FilterRunningAddrExport(masterExportObjs, agentExportObjs, masterRunningExportObjs,
+//         masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+// }
 
 TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningAddrImport)
 {

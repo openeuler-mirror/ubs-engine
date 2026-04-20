@@ -1180,7 +1180,7 @@ MpResult VMMemMigrateStrategy::CollectProcessInformation(const std::set<uint16_t
     }
 
     for (auto numa : remoteNuma) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[Rebalance] Query Numa=" << numa << ".";
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[Rebalance] Query Numa=" << numa << ".";
     }
     for (uint16_t numaId : remoteNuma) {
         smap::ProcessPayload processPayload[MpSmapHelper::SMAP_QUERY_PID_NUM];

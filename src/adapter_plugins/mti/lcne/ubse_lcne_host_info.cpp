@@ -112,7 +112,7 @@ UbseResult UbseLcneHostInfo::ParseHostQueryResponse(const std::string& responseS
             return UBSE_ERROR;
         }
     }
-    UBSE_LOG_DEBUG << "[MTI] logic entities printing: "
+    UBSE_LOG_DEBUG << "[MTI] logic entities printing="
                    << "\n"
                    << UbseLcneOSInfoToString(ubseLcneOSInfo);
     return UBSE_OK;

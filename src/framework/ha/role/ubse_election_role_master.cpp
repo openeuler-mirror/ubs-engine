@@ -165,7 +165,7 @@ void Master::ReplaceStandbyNode(ElectionPkt &pkt)
         UBSE_ID_TYPE smallestId = FindSmallestIdExcludingMasterAndAgent(GetActiveNodes(), masterId_, standbyId_);
         standbyId_ = smallestId;
         pkt.standbyId = standbyId_;
-        UBSE_LOG_INFO << "[ELECTION] Master Appoint the new standby nodeId = " << standbyId_;
+        UBSE_LOG_INFO << "[ELECTION] Master Appoint the new standby nodeId=" << standbyId_;
         if (standbyId_ != INVALID_NODE_ID) {
             SwitchStandbyNode(standbyId_);
         }
@@ -200,7 +200,7 @@ void Master::ProcTimer()
         if (standbyId_ == INVALID_NODE_ID) {
             standbyId_ = FindSmallestIdExcludingMaster(masterId_, GetActiveNodes());
             if (standbyId_ != INVALID_NODE_ID) {
-                UBSE_LOG_INFO << "[ELECTION] Master Appoint the standby node id: " << standbyId_;
+                UBSE_LOG_INFO << "[ELECTION] Master Appoint the standby node id=" << standbyId_;
                 SwitchStandbyNode(standbyId_);
             }
         }
@@ -208,12 +208,12 @@ void Master::ProcTimer()
         ReplaceStandbyNode(pkt);
         std::vector<UBSE_ID_TYPE> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
         for (const auto &id : allNodes) {
-            UBSE_LOG_DEBUG << "[ELECTION] ProcTimer MASTER send pkt id is: " << id;
+            UBSE_LOG_DEBUG << "[ELECTION] ProcTimer MASTER send pkt id=" << id;
             pkt.broadcast = static_cast<uint8_t>(broadcast_[id].masterOnlineBcStatus);
             lock.unlock();
             auto ret = SendHeartBeat(id, pkt);
             if (ret !=UBSE_OK) {
-                UBSE_LOG_ERROR << "[ELECTION] send heart to nodeId= "<< id << " failed";
+                UBSE_LOG_ERROR << "[ELECTION] send heart to nodeId="<< id << " failed";
             }
             lock.lock();
             DealHbCnt(id);
@@ -438,7 +438,7 @@ uint32_t Master::RecvPktElection(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, E
 uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
 {
     if (g_globalStop.load()) {
-        UBSE_LOG_DEBUG << "[ELECTION] master node is stopping when recv pkt from nodeId =" << srcID;
+        UBSE_LOG_DEBUG << "[ELECTION] master node is stopping when recv pkt from nodeId=" << srcID;
         return 0;
     }
     // 主收到心跳 两种场景，1：主假死后恢复 2：脑裂合并

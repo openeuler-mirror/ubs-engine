@@ -35,7 +35,7 @@ extern void goLogCallback(uint32_t level, char* message);
 */
 import "C"
 import (
-	"ubs_engine_go_sdk/dlopen"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/dlopen"
 )
 
 // Level 定义日志级别类型

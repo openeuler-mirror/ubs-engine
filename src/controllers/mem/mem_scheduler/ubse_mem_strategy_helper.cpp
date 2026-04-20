@@ -197,6 +197,7 @@ static UbseResult GetBorrowResultFromAlgoRes(ubse::adapter_plugins::mmi::UbseMem
     auto ret = UbseMemTopologyInfoManager::GetInstance().GetAttachNodeId(
         algoResult.importNumaInfos[0].nodeId, algoResult.exportNumaInfos[0].nodeId,
         algoResult.exportNumaInfos[0].socketId, algoResult.attachSocketId);
+    algoResult.importNumaInfos[0].socketId = algoResult.attachSocketId;
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Get socketCnaInfo failed, ret=" << ret;
     }
@@ -481,7 +482,8 @@ UbseResult UbseMemStrategyHelper::ShareMemoryBorrow(const ubse::adapter_plugins:
     validator.requestSize_ = req.size;
     validator.providerList_ = req.providerList;
     validator.srcSocket_ = req.withAffinity.affinitySocketId;
-    validator.importNodeId_ = req.withAffinity.createReqNodeId;
+    validator.importNodeId_ = !req.withAffinity.createReqNodeId.empty() ?
+                               req.withAffinity.createReqNodeId : req.requestNodeId;
     validator.lenderInfo_ = req.lenderInfo;
     if (validator.CheckAndFilterParam(checkMaskCode) != UBSE_OK) {
         UBSE_LOG_ERROR << "CheckAndFilterParam failed";

@@ -1624,17 +1624,17 @@ uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam &mi
     for (size_t i = 0; i < migrateStrategyParam.vmInfoList.size(); i++) {
         pid_t pid = migrateStrategyParam.vmInfoList[i].pid;
         auto it = vmQueryInfo.vmNumaInfoMap.find(pid);
-        uint16_t localNumaId;
-        if (it != vmQueryInfo.vmNumaInfoMap.end()) {
-            localNumaId = it->second.localNumaId;
-        } else {
+        if (it == vmQueryInfo.vmNumaInfoMap.end()) {
             LOG_DEBUG << "[MemMigrate][Strategy] Can not find pid=" << pid << ".";
             LOG_ERROR << "[MemMigrate][Strategy] Can not find pid in map.";
             return MEM_POOLING_ERROR;
         }
+        uint16_t localNumaId = it->second.localNumaId;
 
-        migrateStrategyParamRMRS.pidRemoteNumaMap[pid] = std::vector<uint16_t>();
-        std::vector<uint16_t> tmp;
+        auto &remoteList = migrateStrategyParamRMRS.pidRemoteNumaMap[pid];
+        remoteList.clear();
+        std::vector<uint16_t> nonSamePlaneList;
+
         for (auto remoteNumaId : numaQueryInfo.remoteNumaIdList) {
             ConvertVmParam vmParam = {pid, localNumaId, migrateStrategyParam.nodeId};
             bool isSamePlane = IsSamePlaneBorrow(vmParam, remoteNumaId, numaQueryInfo.numaInfos,
@@ -1642,14 +1642,13 @@ uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam &mi
                                                  migrateStrategyParam.nodeTopology);
             // 精简账本和拓扑信息
             if (isSamePlane) {
-                migrateStrategyParamRMRS.pidRemoteNumaMap[pid].push_back(remoteNumaId);
-            } else {
-                tmp.push_back(remoteNumaId);
+                remoteList.push_back(remoteNumaId);
+            } else if (!MpConfiguration::GetInstance().GetMustSamePlane()) {
+                nonSamePlaneList.push_back(remoteNumaId);
             }
-            if (!MpConfiguration::GetInstance().GetMustSamePlane()) {
-                (void)migrateStrategyParamRMRS.pidRemoteNumaMap[pid].insert(
-                    migrateStrategyParamRMRS.pidRemoteNumaMap[pid].end(), tmp.begin(), tmp.end());
-            }
+        }
+        if (!MpConfiguration::GetInstance().GetMustSamePlane()) {
+            remoteList.insert(remoteList.end(), nonSamePlaneList.begin(), nonSamePlaneList.end());
         }
     }
 

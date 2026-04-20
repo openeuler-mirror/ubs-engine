@@ -20,6 +20,9 @@
 #include <iostream>              // for basic_ostream, operator<<, ostream
 #include <new>                   // for nothrow
 #include <utility>               // for move
+#include <sstream>
+#include <string>
+#include <cstdint>
 
 #include "securec.h"             // for memcpy_s, EOK, errno_t
 #include "ubse_error.h"          // for UBSE_OK, UBSE_ERROR
@@ -48,13 +51,38 @@ static std::thread::id GetThreadId()
 
 static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
 {
-    std::time_t timet = static_cast<std::time_t>(timestamp / 1000000) + 8 * 60 * 60; // 时区8小时为8*60*60秒
-    std::tm time;
-    gmtime_r(&timet, &time);
-    char buffer[32]; // 设置缓冲区大小为32
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d %T.", &time);
-    uint64_t milliseconds = (timestamp % 1000000) / 1000; // timestamp % 1000000提取时间戳微秒部分
-    oss << '[' << buffer << std::setw(3) << std::setfill('0') << milliseconds << "+08:00]"; // 毫秒格式化3位
+    // 定义日期时间缓冲区大小、每秒微秒数、每毫秒微秒数
+    constexpr int dateTimeBufferSize = 32; // 日期时间缓冲区的大小
+    constexpr uint64_t microsecondsPerSecond = 1000000; // 1秒 = 1000000微秒
+    constexpr uint64_t microsecondsPerMillisecond = 1000; // 1毫秒 = 1000微秒
+    constexpr int millisecondWidth = 3; // 毫秒部分的宽度
+    // 将时间戳从微秒转换为秒
+    std::time_t seconds = static_cast<std::time_t>(timestamp / microsecondsPerSecond);
+    // 定义本地时间和GMT时间的时间结构
+    std::tm localTime {}; // 本地时间
+    std::tm gmtTime {}; // GMT时间
+    // 根据秒数获取本地时间和GMT时间
+    localtime_r(&seconds, &localTime); // 获取本地时间（本地时区）
+    gmtime_r(&seconds, &gmtTime); // 获取GMT时间（全球协调时间）
+    // 初始化一个缓冲区来存储格式化后的日期时间
+    char dateTimeBuffer[dateTimeBufferSize] = {0};
+    // 使用本地时间格式化日期时间到缓冲区
+    strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime);
+    // 将本地时间和GMT时间转换回秒
+    std::time_t localSeconds = mktime(&localTime);
+    std::time_t gmtSeconds = mktime(&gmtTime);
+    // 计算时区偏移量（本地时间 - GMT时间）
+    int offsetSeconds = static_cast<int>(difftime(localSeconds, gmtSeconds));
+    // 将偏移量转换为小时和分钟
+    int offsetHours = offsetSeconds / 3600; // 小时
+    int offsetMinutes = (std::abs(offsetSeconds) % 3600) / 60; // 分钟
+    // 初始化一个缓冲区存储时区偏移量字符串
+    char tzBuffer[7] = {0}; // 格式："+08:00"
+    std::snprintf(tzBuffer, sizeof(tzBuffer), "%+03d:%02d", offsetHours, offsetMinutes);
+    // 计算时间戳中的毫秒部分
+    uint64_t milliseconds = (timestamp % microsecondsPerSecond) / microsecondsPerMillisecond;
+    // 时间戳格式为：[YYYY-MM-DD HH:MM:SS.mmm+HH:MM]
+    oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzBuffer << ']';
 }
 
 static const char *LogLevelToString(UbseLogLevel level)

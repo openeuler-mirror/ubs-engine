@@ -40,12 +40,12 @@ void GetTcpServerPort(uint32_t &port)
 
     UbseResult ret = module->GetConf<uint32_t>(UBSE_UBFM_SECTION, UBSE_HTTP_TCP_SERVER_PORT, port);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "GetTcpServerPort get ubse.server.port failed, will use default value: "
+        UBSE_LOG_ERROR << "GetTcpServerPort get ubse.server.port failed, will use default value="
                        << DEFAULT_TCP_SERVER_PORT;
     }
     if (!UbseNetUtil::IsPortVaLid(port)) {
-        UBSE_LOG_ERROR << "ubse.server.port=" << port << " is out of range[1024, 65535], will use default value: "
-                       << DEFAULT_TCP_SERVER_PORT;
+        UBSE_LOG_ERROR << "ubse.server.port=" << port
+                       << " is out of range[1024, 65535], will use default value=" << DEFAULT_TCP_SERVER_PORT;
         port = DEFAULT_TCP_SERVER_PORT;
     }
 }
@@ -100,7 +100,7 @@ uint32_t UbseLcneLinkInfo::SubLcneLinkInfo()
     // todo：此处状态码需要区分重复订阅与url错误，后续lcne合入后改变
     if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
         UBSE_LOG_WARN << "[MTI] Access the LCNE topology information interface is failed.The HTTP status code is "
-                    << rsp.status;
+                      << rsp.status;
         return UBSE_ERROR;
     }
     if (rsp.body.empty()) {

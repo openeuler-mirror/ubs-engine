@@ -90,7 +90,7 @@ MpResult MpSmapHelper::Init()
 static void GetRunMode(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)
 {
     if (buff.len != 1 || buff.data == nullptr || ctx == nullptr) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Ctx or respData is null.";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Ctx or respData is null.";
         return;
     }
     int &runMode = *(static_cast<int *>(ctx));

@@ -1,5 +1,4 @@
 add_library(ubse_timer STATIC
-        ubse_timer.cpp
         ubse_timer_controller.cpp
 )
 

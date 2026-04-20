@@ -265,7 +265,7 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
         },
         HIGH);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << panicAndRebootFaultEventId << "," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << panicAndRebootFaultEventId << ", " << FormatRetCode(ret);
         return ret;
     }
     ret = eventModule->UbseSubEvent(
@@ -275,7 +275,7 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
         },
         HIGH);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << UBSE_EVENT_NODE_TOPO_LINK_CHANGE << ","
+        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << UBSE_EVENT_NODE_TOPO_LINK_CHANGE << ", "
                        << FormatRetCode(ret);
         return ret;
     }

@@ -51,19 +51,26 @@ UbseResult UbseHttpModule::Initialize()
         UBSE_LOG_ERROR << "Failed to get config module";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    uint32_t port_;
-    auto ret = module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.port", port_);
+    uint32_t intCid;
+    auto ret = module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.cid", intCid);
     if (ret != UBSE_OK) {
         isTcpServer = false;
     } else {
         isTcpServer = true;
-        if (!UbseNetUtil::IsPortVaLid(port_)) {
-            UBSE_LOG_ERROR << "ubm.server.port=" << port_
+        uint32_t portValue = 0;
+        ret = module->GetConf<uint32_t>("ubse.ubfm", "ubm.server.port", portValue);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Get ubm.server.port failed, will use default value: " << DEFAULT_UBM_SERVER_PORT;
+            portValue = DEFAULT_UBM_SERVER_PORT;
+        }
+
+        if (!UbseNetUtil::IsPortVaLid(portValue)) {
+            UBSE_LOG_ERROR << "ubm.server.port=" << portValue
                            << " is out of range[1024, 65535], will use default value: " << DEFAULT_UBM_SERVER_PORT;
             port = DEFAULT_UBM_SERVER_PORT;
         } else {
             // 端口号有效，使用配置文件中的端口号
-            port = static_cast<int>(port_);
+            port = static_cast<int>(portValue);
         }
         // 开启TCP通信时、需要对相关的证书进行校验
         if (!cert::UbseSslValidator::ValidateAll()) {
@@ -213,7 +220,7 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
     if (error != httplib::Error::Success) {
         if (error == httplib::Error::SSLServerVerification) {
             UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
-                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+                              "certificate is revoked (CRL)";
         }
         return MakeError(static_cast<uint32_t>(error));
     }
@@ -242,7 +249,7 @@ UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, cons
     if (error != Error::Success) {
         if (error == Error::SSLServerVerification) {
             UBSE_LOG_ERROR << "HTTPS request failed due to SSL server verification error. Please check if the server "
-                              "certificate is revoked (CRL). crl path:" << UbseSSLConfig::CrlFile;
+                              "certificate is revoked (CRL)";
         }
         return MakeError(static_cast<uint32_t>(error));
     }

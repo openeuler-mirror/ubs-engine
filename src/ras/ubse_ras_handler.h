@@ -22,7 +22,7 @@
 namespace ubse::ras {
 using namespace ubse::common::def;
 
-using XalarmReportEventFunc = int (*)(unsigned short, char *);
+using XalarmReportEventFunc = int (*)(unsigned short, char *, size_t);
 using HandlerMap = std::vector<std::pair<std::string, AlarmFaultHandler>>;
 using NodeStateHandler = std::function<void(const std::string &faultInfo)>;
 using NodeHandler = std::function<UbseResult(const std::string &nodeId)>;

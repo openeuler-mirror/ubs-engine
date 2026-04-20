@@ -122,9 +122,13 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string &urmaEid, bool &isAc
     return UBSE_OK;
 }
 
-UbseResult UbseActiveBonding(const std::string &urmaEid)
+UbseResult UbseActiveBonding(const std::string &urmaEid, const std::string &aggrDevName)
 {
-    UBSE_LOG_DEBUG << "Activate Bonding Device, Eid =" << urmaEid;
+    UBSE_LOG_DEBUG << "Activate Bonding Device, Eid =" << urmaEid << ", aggrDevName=" << aggrDevName;
+    if (aggrDevName.empty() || aggrDevName.size() >= AGGR_DEV_NAME_LEN) {
+        UBSE_LOG_ERROR << "aggrDevName is empty or too long";
+        return UBSE_ERROR_INVAL;
+    }
     bool isActivate = false;
     if (UbseGetBondingActiveStateByEid(urmaEid, isActivate) == UBSE_OK && isActivate) {
         UBSE_LOG_WARN << "UrmaEid=" << urmaEid << " is already active, skipping.";
@@ -145,7 +149,7 @@ UbseResult UbseActiveBonding(const std::string &urmaEid)
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_create_agg_dev'";
         return UBSE_ERROR_NULLPTR;
     }
-    ret = module->uvsCreateAggrDev(bondingEid);
+    ret = module->uvsCreateAggrDev(bondingEid, aggrDevName.c_str());
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to activate bonding device, ErrorCode=" << ret;
         return ret;

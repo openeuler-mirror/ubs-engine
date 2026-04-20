@@ -36,8 +36,8 @@ void ConstructSingleFdImportObj(
     req.distance = MEM_DISTANCE_L0; // 使用默认值，不额外加，因为决策完成之后，这个就没有作用了
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
-    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username: " << req.udsInfo.username << ", uid: " << req.udsInfo.uid
-                  << ", gid:" << req.udsInfo.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
+                  << ", gid=" << req.udsInfo.gid;
     std::string lendNode = std::string(obmmMetaData.customMeta.exportNodeId);
     int numaCount = 0;
     uint64_t resourceMemSize = 0;
@@ -52,7 +52,7 @@ void ConstructSingleFdImportObj(
             if (isOverflow) {
                 UBSE_LOG_ERROR << MMI_LOG_INFO
                                << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
-                               << " numaSize=" << obmmMetaData.customMeta.numaSizes[i];
+                               << ", numaSize=" << obmmMetaData.customMeta.numaSizes[i];
                 return;
             }
         }
@@ -117,7 +117,7 @@ UbseResult ConstructFdImportObj(
     }
     ret = ProcessAbnormalImportObjMap(abnormalFdImportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info = "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
                        << GetNameAndMemIdFromImportObjMap(abnormalFdImportObjMap);
         return ret;
     }
@@ -142,8 +142,8 @@ void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exp
     req.distance = MEM_DISTANCE_L0; // 使用默认值，不额外加，因为决策完成之后，这个就没有作用了
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
-    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username: " << req.udsInfo.username << ", uid: " << req.udsInfo.uid
-                  << ", gid:" << req.udsInfo.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
+                  << ", gid=" << req.udsInfo.gid;
     std::string lendNode = std::string(obmmMetaData.customMeta.exportNodeId);
     int numaCount = 0;
     uint64_t resourceMemSize = 0;
@@ -158,7 +158,7 @@ void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exp
             if (isOverflow) {
                 UBSE_LOG_ERROR << MMI_LOG_INFO
                                << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
-                               << " numaSize=" << obmmMetaData.customMeta.numaSizes[i];
+                               << ", numaSize=" << obmmMetaData.customMeta.numaSizes[i];
                 return;
             }
         }
@@ -219,7 +219,7 @@ UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exp
     }
     ret = ProcessAbnormalExportObjMap(abnormalFdExportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info ="
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
                        << GetNameAndMemIdFromExportObjMap(abnormalFdExportObjMap);
         return ret;
     }
@@ -240,8 +240,8 @@ void ConstructSingleNumaImportObj(
     std::string lendNode = std::string(meta.exportNodeId);
     BuildSingleNumaImportReq(meta, req, lendNode);
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << "usrInfo: " << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name=" << req.name
+                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
         isNormal = false;
         return;
     }
@@ -283,8 +283,8 @@ void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta &meta, UbseMemNum
     req.importNodeId = std::string(meta.importNodeId);
     req.distance = MEM_DISTANCE_L0; // 使用默认值，不额外加，因为决策完成之后，这个就没有作用了
     req.udsInfo = {meta.uid, meta.gid, static_cast<int>(meta.pid), meta.username};
-    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username: " << req.udsInfo.username << ", uid: " << req.udsInfo.uid
-                  << ", gid:" << req.udsInfo.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
+                  << ", gid=" << req.udsInfo.gid;
     uint64_t resourceMemSize = 0;
     for (int i = 0; i < TOPOLOGY_MAX_NUMA_PER_SOCKET; i++) {
         if (meta.numaSizes[i] != NO_0) {
@@ -294,7 +294,7 @@ void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta &meta, UbseMemNum
             resourceMemSize = RmCommonUtils::GetInstance().SafeAdd(resourceMemSize, meta.numaSizes[i], isOverflow);
             if (isOverflow) {
                 UBSE_LOG_ERROR << MMI_LOG_INFO << "Overflow occurred during addition. resourceMemSize=" <<
-                        resourceMemSize << " numaSize=" << meta.numaSizes[i];
+                        resourceMemSize << ", numaSize=" << meta.numaSizes[i];
                 return;
             }
         }
@@ -327,7 +327,7 @@ UbseResult ConstructNumaImportObj(
     }
     ret = ProcessAbnormalImportObjMap(abnormalImportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info ="
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
                        << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
         return ret;
     }
@@ -353,7 +353,7 @@ UbseResult ConstructNumaExportObj(
     }
     ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info ="
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
                        << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
         return ret;
     }
@@ -395,7 +395,7 @@ void ConstructSingleNumaExportObj(
     BuildSingleNumaExportReq(obmmMetaData, lendNode, req);
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << "usrInfo: " << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
         isNormal = false;
         return;
     }
@@ -428,8 +428,8 @@ void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData &obmmMetaData,
     req.distance = MEM_DISTANCE_L0;
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
-    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username: " << req.udsInfo.username << ", uid: " << req.udsInfo.uid
-                  << ", gid:" << req.udsInfo.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
+                  << ", gid=" << req.udsInfo.gid;
     uint64_t resourceMemSize = 0;
     for (int i = 0; i < TOPOLOGY_MAX_NUMA_PER_SOCKET; i++) {
         if (obmmMetaData.customMeta.numaSizes[i] != NO_0) {
@@ -441,7 +441,7 @@ void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData &obmmMetaData,
             if (isOverflow) {
                 UBSE_LOG_ERROR << MMI_LOG_INFO
                                << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
-                               << " numaSize=" << obmmMetaData.customMeta.numaSizes[i];
+                               << ", numaSize=" << obmmMetaData.customMeta.numaSizes[i];
                 return;
             }
         }
@@ -473,7 +473,7 @@ UbseResult ConstructShareImportObj(
     }
     ret = ProcessAbnormalImportObjMap(abnormalImportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info = "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
                        << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
         return ret;
     }
@@ -551,12 +551,12 @@ void ConstructSingleShareImportObj(
     req.distance = MEM_DISTANCE_L0; // 使用默认值，不额外加，因为决策完成之后，这个就没有作用了
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
-    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username: " << req.udsInfo.username << ", uid: " << req.udsInfo.uid
-                  << ", gid:" << req.udsInfo.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
+                  << ", gid=" << req.udsInfo.gid;
     UbseShmRegionDesc shmRegions{0};
     for (uint32_t i = 0; i < MAX_NODE_NUM; i++) {
         if (IsBitSet(obmmMetaData.customMeta.regionMask, i)) {
-            UBSE_LOG_INFO << MMI_LOG_INFO << "region mask is " << obmmMetaData.customMeta.regionMask << ", index is "
+            UBSE_LOG_INFO << MMI_LOG_INFO << "region mask is " << obmmMetaData.customMeta.regionMask << ", index="
                           << i;
             shmRegions.nodeNum++;
             shmRegions.nodelist.push_back({i});
@@ -574,7 +574,7 @@ void ConstructSingleShareImportObj(
             if (isOverflow) {
                 UBSE_LOG_ERROR << MMI_LOG_INFO
                                << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
-                               << " numaSize=" << obmmMetaData.customMeta.numaSizes[i];
+                               << ", numaSize=" << obmmMetaData.customMeta.numaSizes[i];
                 return;
             }
         }
@@ -585,7 +585,7 @@ void ConstructSingleShareImportObj(
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << "usrInfo: " << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
         isNormal = false;
         return;
     }
@@ -643,7 +643,7 @@ void ConstructSingleShareImportObjFromExportMetaData(
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << "usrInfo: " << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
         isNormal = false;
         return;
     }
@@ -700,13 +700,13 @@ void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq
     req.distance = MEM_DISTANCE_L0; // 使用默认值，不额外加，因为决策完成之后，这个就没有作用了
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
-    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username: " << req.udsInfo.username << ", uid: " << req.udsInfo.uid
-                  << ", gid:" << req.udsInfo.gid;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
+                  << ", gid=" << req.udsInfo.gid;
     UbseShmRegionDesc shmRegions{};
     shmRegions.nodeNum = 0;
     for (int i = 0; i < MAX_NODE_NUM; i++) {
         if (IsBitSet(obmmMetaData.customMeta.regionMask, i)) {
-            UBSE_LOG_INFO << MMI_LOG_INFO << "Region mask is " << obmmMetaData.customMeta.regionMask << ", index is "
+            UBSE_LOG_INFO << MMI_LOG_INFO << "Region mask is " << obmmMetaData.customMeta.regionMask << ", index="
                           << i;
             shmRegions.nodeNum++;
             UbseNodeInfo mxeNodeInfo{};
@@ -739,7 +739,7 @@ void ConstructSingleShareExportObj(
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << "usrInfo: " << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
         isNormal = false;
         return;
     }
@@ -790,7 +790,7 @@ UbseResult ConstructAddrImportObj(
     }
     ret = ProcessAbnormalAddrImportObjMap(abnormalImportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info = "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
                        << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
         return ret;
     }
@@ -878,7 +878,7 @@ UbseResult ConstructAddrExportObj(
     }
     ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info = "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
                        << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
         return ret;
     }
@@ -1035,7 +1035,7 @@ UbseResult ProcessAbnormalAddrImportObjMap(const UbseMemAddrImportObjMap &import
         for (int i = 0; i < importResults.size(); i++) {
             ret = RmObmmExecutor::GetInstance().ObmmUnImport(importResults[i].memId);
             if (UBSE_RESULT_FAIL(ret)) {
-                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unImport memid failed, memid= " << importResults[i].memId;
+                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unImport memid failed, memid=" << importResults[i].memId;
                 return ret;
             }
             UBSE_LOG_DEBUG << MMI_LOG_INFO << "Obmm unImport memid success, memid=" << importResults[i].memId;
@@ -1044,4 +1044,4 @@ UbseResult ProcessAbnormalAddrImportObjMap(const UbseMemAddrImportObjMap &import
     }
     return ret;
 }
-} // namespace ubse::mmi
+} // namespace ubse::mmi::restore

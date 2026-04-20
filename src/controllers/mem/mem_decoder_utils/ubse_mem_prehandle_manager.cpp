@@ -59,7 +59,7 @@ void InitDcnaByPreImportInfo(const mmi::BasicPreImportInfo &preImportInfo,
 {
     for (auto &[loc, values] : preHandleMap) {
         for (auto &value : values) {
-            if (value.importResult.hpa == preImportInfo.pa && value.importResult.marId == preImportInfo.marId) {
+            if (value.importResult.hpa == preImportInfo.pa) {
                 value.dcna = preImportInfo.dcna;
                 value.isPreImport = true;
             }

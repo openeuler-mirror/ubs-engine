@@ -483,7 +483,9 @@ typedef struct {
 } ubs_mem_shm_desc_t;
 
 /**
- * @brief 导入共享形态的远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
+ * @brief 导入共享形态的远端内存;
+ * 调用该接口返回的shm_desc中，import_desc仅包含当前节点的导入信息；
+ * 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
  *
  * @param name [IN] 借用标识, name最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_"; name全局保持唯一性
@@ -615,6 +617,7 @@ typedef enum {
     MAR_TIMEOUT_ERR,
     MAR_ILLEGAL_ACCESS_ERR,
     REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
+    MEM_EXPORT_FAULT,
     UB_MEM_HEALTHY = 1000, // 无故障
 } ubs_mem_fault_type_t;
 
@@ -649,6 +652,76 @@ int32_t ubs_mem_shm_fault_get(const char *name, ubs_mem_memids_fault_t *fault);
  * @return 成功返回0, 失败返回非0
  */
 int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler);
+
+typedef struct {
+    uint32_t export_slot_id;                                  // 导出节点的id
+    uint64_t export_memid;                                    // 导出内存块标识信息
+} ubs_mem_export_memid_t;
+
+/**
+  * @brief 通过指定fd形态导入端memid查询导出端memid;
+  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
+  *
+  * @param name [IN] 借用标识, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
+  * @param import_memid [IN] 导入memid
+  * @param mem_info [OUT] 导出mem信息
+  * @return UBS_SUCCESS:操作成功;
+  * UBS_ERR_NULL_POINTER:空指针;
+  * UBS_ERR_INVALID_ARG:参数无效;
+  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+  * UBS_ENGINE_ERR_NOT_EXIST:借用关系不存在
+  * UBS_ENGINE_ERR_CREATING:正在创建过程中;
+  * UBS_ENGINE_ERR_DELETING:正在删除过程中;
+  * UBS_ENGINE_ERR_EXPORT_LEDGERING: 导出节点对账中、调用方进行重试
+  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+  */
+int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
+ 
+ 
+ /**
+  * @brief 通过指定numa形态导入端memid查询导出端memid;
+  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
+  *
+  * @param name [IN] 借用标识, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
+  * @param import_memid [IN] 导入memid
+  * @param mem_info [OUT] 导出mem信息
+  * @return UBS_SUCCESS:操作成功;
+  * UBS_ERR_NULL_POINTER:空指针;
+  * UBS_ERR_INVALID_ARG:参数无效;
+  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+  * UBS_ENGINE_ERR_NOT_EXIST:借用关系不存在
+  * UBS_ENGINE_ERR_CREATING:正在创建过程中;
+  * UBS_ENGINE_ERR_DELETING:正在删除过程中;
+  * UBS_ENGINE_ERR_EXPORT_LEDGERING: 导出节点对账中、调用方进行重试
+  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+  */
+int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
+ 
+ 
+ /**
+  * @brief 通过指定shm形态导入端memid查询导出端memid;
+  * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
+  *
+  * @param name [IN] 借用标识, 最大长度48字节, 含结尾字符\0; name仅可包括大小写字母、数字、"."、":"、"-"以及"_";
+  * @param import_memid [IN] 导入memid
+  * @param mem_info [OUT] 导出mem信息
+  * @return UBS_SUCCESS:操作成功;
+  * UBS_ERR_NULL_POINTER:空指针;
+  * UBS_ERR_INVALID_ARG:参数无效;
+  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+  * UBS_ENGINE_ERR_NOT_EXIST:借用关系不存在
+  * UBS_ENGINE_ERR_CREATING:正在创建过程中;
+  * UBS_ENGINE_ERR_DELETING:正在删除过程中;
+  * UBS_ENGINE_ERR_EXPORT_LEDGERING: 导出节点对账中、调用方进行重试
+  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+  */
+int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
 #ifdef __cplusplus
 }
 #endif

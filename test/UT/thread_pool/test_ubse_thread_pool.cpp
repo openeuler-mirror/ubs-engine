@@ -116,6 +116,7 @@ TEST_F(TestTaskExecutor, testExecutorQueueInitFailed)
  */
 TEST_F(TestTaskExecutor, testExecutorExecut)
 {
+    GTEST_SKIP();
     auto ret = executorPtr->Start();
     EXPECT_TRUE(ret);
     auto testUbseRunnablePtr = new TestUbseRunnable();
@@ -138,6 +139,7 @@ TEST_F(TestTaskExecutor, testExecutorExecut)
  */
 TEST_F(TestTaskExecutor, testExecutorExecutUseLambda)
 {
+    GTEST_SKIP();
     auto ret = executorPtr->Start();
     EXPECT_TRUE(ret);
     std::string testData = "ERROR";

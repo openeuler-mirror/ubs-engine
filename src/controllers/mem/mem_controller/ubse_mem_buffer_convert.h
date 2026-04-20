@@ -72,6 +72,10 @@ uint32_t UbseMemNumaDescPack(const ubse::mem::def::UbseMemNumaDesc &numaDesc, Ub
 
 uint32_t UbseMemNumaDescListPack(const std::vector<ubse::mem::def::UbseMemNumaDesc> &numaDescList,
                                  UbseIpcMessage &buffer);
+
+uint32_t UbseMemGetMemIdByImportReqUnpack(const UbseIpcMessage &buffer, def::UbseMemIdQueryRequest &req);
+ 
+uint32_t UbseMemGetMemIdByImportResponsePack(const def::UbseExportMemDesc &memDesc, UbseIpcMessage &buffer);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_BUFFER_CONVERT_H

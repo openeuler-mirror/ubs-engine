@@ -41,7 +41,7 @@ UbseResult UbsePluginConfig::LoadPluginConfigs()
     UbseResult ret = ubseConfModule->GetAllConfigWithPrefix(PLUGIN_FILE_PREFIX, configVals);
     if (ret != UBSE_OK && ret != UBSE_CONF_ERROR_KEY_OFFSETCONFIG_NO_PREFIX &&
         ret != UBSE_CONF_ERROR_KEY_OFFSETCONFIG_PREFIX_NO_CONTENT) {
-        UBSE_LOG_WARN << "Failed to read plugin config," << FormatRetCode(ret);
+        UBSE_LOG_WARN << "Failed to read plugin config, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
