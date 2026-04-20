@@ -39,7 +39,7 @@ const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SLEEP_TIME = 200;
 const uint32_t ALLOCATE_RETRY_TIME = 25;
-const uint32_t RETURN_RETRY_TIME = 50;
+const uint32_t RETURN_RETRY_TIME = 150;
 extern std::atomic<uint64_t> g_fdUnimportFailedCount;
 extern std::atomic<uint64_t> g_numaUnimportFailedCount;
 extern std::atomic<uint64_t> g_shareUnimportFailedCount;
