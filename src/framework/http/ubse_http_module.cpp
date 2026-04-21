@@ -27,7 +27,6 @@
 #include "ubse_http_server.h" // for UbseHttpServer
 #include "ubse_logger.h"      // for UbseLoggerEntry, FormatRetCode
 #include "ubse_net_util.h"
-#include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h" // for UbseTaskExecutorModule
 
 namespace ubse::http {
@@ -35,7 +34,6 @@ using namespace ubse::task_executor;
 using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::config;
-using namespace ubse::security;
 
 BASE_DYNAMIC_CREATE(UbseHttpModule, UbseTaskExecutorModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -176,10 +174,7 @@ void UbseHttpModule::UdsSend(httplib::Request &httpReq, httplib::Response &httpR
     cli.set_address_family(AF_UNIX);
     cli.set_path_encode(false);
     cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
-    std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
     cli.send(httpReq, httpRsp, error);
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
 }
 
 UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
