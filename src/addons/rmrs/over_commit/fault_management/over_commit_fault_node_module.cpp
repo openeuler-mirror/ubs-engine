@@ -789,6 +789,7 @@ MpResult OverCommitFaultNodeModule::BorrowInNodeProcess(const FaultRecordsInNode
         remoteNumaId2RecordMap[record.borrowRemoteNuma].push_back(record);
         remoteNumaId2LocalNumaId[record.borrowRemoteNuma].insert(record.borrowLocalNuma);
     }
+    auto res = MEM_POOLING_OK;
     // 2. 遍历每个远端numa，获取与该远端numa相关的虚机信息
     for (auto &remoteNumaPair : remoteNumaId2RecordMap) {
         auto ret = ProcessSingleFaultRemoteNuma(remoteNumaPair, remoteNumaId2LocalNumaId);
@@ -799,12 +800,13 @@ MpResult OverCommitFaultNodeModule::BorrowInNodeProcess(const FaultRecordsInNode
         }
         MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
         if (retBorrowIdInFaultProcess != MEM_POOLING_OK) {
-            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemReturn] Clear fault process borrowId failed. ret=" << retBorrowIdInFaultProcess << ".";
+            res = MEM_POOLING_ERROR;
         }
     }
-    LOG_DEBUG << "BorrowInNodeProcess succeed.";
-    return MEM_POOLING_OK;
+    LOG_DEBUG << "BorrowInNodeProcess end.";
+    return res;
 }
 
 } // namespace mempooling
