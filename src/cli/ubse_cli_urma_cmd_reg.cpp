@@ -54,7 +54,6 @@ static const std::string URMA_AGAIN_ERROR = "ERROR: Internal error, please try a
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
 {
-    this->cmd_.emplace_back(UbseCliQueryUrmaQos());
     this->cmd_.emplace_back(UbseCliQueryUrmaDevInfo());
     return;
 }
