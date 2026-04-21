@@ -54,18 +54,8 @@ static const std::string URMA_AGAIN_ERROR = "ERROR: Internal error, please try a
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
 {
-    this->cmd_.emplace_back(UbseCliQueryUrmaQos());
     this->cmd_.emplace_back(UbseCliQueryUrmaDevInfo());
     return;
-}
-UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaQos()
-{
-    UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("display")
-        .UbseCliSetType("urma-qos")
-        .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QOS_QUERY_OPTION_DES)
-        .UbseCliSetFunc(UbseQueryUrmaQosFunc);
-    return builder.UbseCliBuild();
 }
 
 UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliQueryUrmaDevInfo()

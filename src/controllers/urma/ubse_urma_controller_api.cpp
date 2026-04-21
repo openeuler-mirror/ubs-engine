@@ -95,11 +95,7 @@ UbseResult UbseUrmaControllerApi::Register()
         UBSE_LOG_ERROR << "Get api server module  failed";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_SET, UbseUrmaBandWidthSet);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_GET, UbseUrmaBandWidthGet);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_RESET, UbseUrmaBandWidthReset);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, UbseUrmaBandWidthCliGet);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGet);
+    auto ret = ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGet);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, UbseUrmaCliDevGet);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_ACTIVATE, UbseUrmaCliDevActivate);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_ALLOC, UbseUrmaDevAlloc);
