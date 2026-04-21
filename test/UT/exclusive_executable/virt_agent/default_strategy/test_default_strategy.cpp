@@ -176,7 +176,7 @@ DsResult ReadVmBasicInfos(const rapidjson::Value &VmBasicInfos, AlarmNumaInfo &a
     }
     size_t infoNum = VmBasicInfos.Size();
     for (size_t i = 0; i < infoNum; i++) {
-        const rapidjson::Value &VmBasicInfosPtr = VmBasicInfos[i].GetObject();
+        const rapidjson::Value &VmBasicInfosPtr = VmBasicInfos[i];
         std::string uuid;
         ret |= UbseJsonUtil::GetStrFromJsonPtr(VmBasicInfosPtr, "uuid", uuid);
         alarmNumaInfo.vmBasicInfos[uuid].uuid = uuid;
