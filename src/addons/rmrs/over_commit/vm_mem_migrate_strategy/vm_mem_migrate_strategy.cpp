@@ -13,6 +13,7 @@
 #include "vm_mem_migrate_strategy.h"
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <iostream>
 #include <iterator>
 #include "collect_util.h"
