@@ -21,8 +21,8 @@ using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 static const uint8_t REG_IDEV_OP_CODE = 0x7;
 static const uint8_t UNREG_IDEV_OP_CODE = 0x8;
-static const uint8_t REG_DEV_OP_CODE = 0xE;
-static const uint8_t UNREG_DEV_OP_CODE = 0xF;
+static const uint8_t REG_DEV_OP_CODE = 0xF;
+static const uint8_t UNREG_DEV_OP_CODE = 0xE;
 
 struct UbseCtrlQRegIdevReqMsg {
     FixedHead head;
