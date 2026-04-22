@@ -83,52 +83,6 @@ uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info);
  */
 uint32_t ubs_urma_dev_free(const char *name);
 
-/**
- * @brief 设置指定URMA设备的QoS带宽
- * @param name [IN] URMA设备名称
- * @param minBandWidth [IN] 最小带宽，单位Mbps,只支持8的倍数
- * @param maxBandWidth [IN] 最大带宽，单位Mbps,只支持8的倍数
- * @return UBS_SUCCESS:操作成功，输入非8倍数会以8的倍数生效;
- * UBS_ERR_NULL_POINTER:空指针;
- * UBS_ENGINE_ERR_OUT_OF_RANGE:参数超出范围
- * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
- * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
- * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
- * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
- * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
- * UBS_ERR_NOT_SUPPORTED： 不支持的操作，仅独享设备支持设置
- */
-uint32_t ubs_urma_bandwidth_set(const char *name, uint32_t minBandWidth, uint32_t maxBandWidth);
-
-/**
- * @brief 查询指定URMA设备的QoS带宽
- * @param name [IN] URMA设备名称
- * @param minBandWidth [OUT] 最小带宽，单位Mbps
- * @param maxBandWidth [OUT] 最大带宽，单位Mbps
- * @return UBS_SUCCESS:操作成功;
- * UBS_ERR_NULL_POINTER:空指针;
- * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
- * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
- * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
- * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
- * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
- */
-uint32_t ubs_urma_bandwidth_get(const char *name, uint32_t *minBandWidth, uint32_t *maxBandWidth);
-
-/**
- * @brief 取消指定URMA设备的QoS带宽设置
- * @param name [IN] URMA设备名称
- * @return UBS_SUCCESS:操作成功;
- * UBS_ERR_NULL_POINTER:空指针;
- * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
- * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
- * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
- * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误；
- * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在；
- * UBS_ERR_NOT_SUPPORTED： 不支持的操作，仅独享设备支持设置
- */
-uint32_t ubs_urma_bandwidth_reset(const char *name);
-
 #ifdef __cplusplus
 }
 #endif

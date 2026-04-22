@@ -2366,6 +2366,11 @@ static std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> GetLinkUpPort
                           << ", portId=" << physicalLink.portId;
             linkUpPorts.insert({physicalLink.chipId, physicalLink.portId});
         }
+        if (std::to_string(physicalLink.peerSlotId) == targetNodeId && !physicalLink.peerInterfaceName.empty()) {
+            UBSE_LOG_INFO << "physicalLink=" << physicalLink.peerInterfaceName << ", peerChipId="
+                          << physicalLink.peerChipId << ", peerPortId=" << physicalLink.peerPortId;
+            linkUpPorts.insert({physicalLink.peerChipId, physicalLink.peerPortId});
+        }
     }
     return linkUpPorts;
 }
@@ -2465,10 +2470,10 @@ UbseResult AgentNotifySmapNumaStatus(const std::vector<std::pair<int64_t, int>> 
         int retry = 2;
         while (retry--) {
             auto ret = ubturb::UbseUbturboModule::GetInstance().UbseNotifyNumaListStatus(numaStatus);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "UbTurboNotifyNumaListStatus failed, ret=" << ret << ", will retry";
-                continue;
+            if (ret == UBSE_OK) {
+                break;
             }
+            UBSE_LOG_ERROR << "UbTurboNotifyNumaListStatus failed, ret=" << ret << ", will retry";
         }
     });
     return UBSE_OK;
