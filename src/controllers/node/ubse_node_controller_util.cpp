@@ -193,12 +193,5 @@ void GetCurNodeInfo(UbseNodeInfo &info)
     // pud场景1G大页全用于内存借用，pmdMapping为100%
     info.pmdMapping = (info.allocator == UbseAllocator::HUGETLB_PUD) ? MAX_PERCENT : GetPmdMapping();
     info.blockSize = GetBlockSize(info.allocator);
-    if (info.allocator == UbseAllocator::HUGETLB_PMD && info.pmdMapping != MAX_PERCENT) {
-        UBSE_LOG_WARN << "hugetlb_pmd requires pmd mapping 100%, current=" << info.pmdMapping;
-        return;
-    }
-    if (info.allocator == UbseAllocator::BUDDY_HIGHMEM && info.pmdMapping == MAX_PERCENT) {
-        UBSE_LOG_WARN << "buddy_highmem not expected at 100%, continue if Ok";
-    }
 }
 } // namespace ubse::nodeController
