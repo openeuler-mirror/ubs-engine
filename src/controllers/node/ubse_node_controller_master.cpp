@@ -827,7 +827,7 @@ UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuff
 // 处理agent查询全量节点列表
 UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
-    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    auto module = UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
     if (module == nullptr) {
         UBSE_LOG_ERROR << "election module not load";
         return CreateErrorResponse(UBSE_ERROR_MODULE_LOAD_FAILED, resp);
