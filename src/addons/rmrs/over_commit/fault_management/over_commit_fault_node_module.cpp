@@ -166,7 +166,7 @@ MpResult OverCommitFaultNodeModule::HandleFaultRemoteNumasPerBorrowNode(const st
         if (ret != MEM_POOLING_OK || retHandler != MEM_POOLING_OK) {
             LOG_ERROR << "Borrower node processing failed. "
                       << "nodeId=" << nodeId << ", rpc_ret=" << ret << ", handler_ret=" << retHandler << ".";
-            return ret;
+            return MEM_POOLING_ERROR;
         }
     }
     LOG_DEBUG << "HandleFaultRemoteNumasPerBorrowNode end.";
