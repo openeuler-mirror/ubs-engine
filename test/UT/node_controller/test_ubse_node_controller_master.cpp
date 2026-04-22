@@ -506,12 +506,62 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeReportNodeInfoHandler)
     EXPECT_NE(resp.freeFunc, nullptr);
 }
 
+TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_ModuleNull)
+{
+    UbseByteBuffer req{nullptr, 0, nullptr};
+    UbseByteBuffer resp{};
+
+    g_globalStop.store(false);
+
+    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+        .stubs()
+        .will(returnValue(nullptr));
+
+    auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
+
+    EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
+}
+
+TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_NotLeader)
+{
+    UbseByteBuffer req{nullptr, 0, nullptr};
+    UbseByteBuffer resp{};
+
+    g_globalStop.store(false);
+
+    auto ubseElectionModule = std::make_shared<ubse::election::UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+        .stubs()
+        .will(returnValue(ubseElectionModule));
+    MOCKER(&ubse::election::UbseElectionModule::IsLeader)
+        .stubs()
+        .will(returnValue(false));
+
+    auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
+
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
 TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler)
 {
     UbseByteBuffer req{nullptr, 0, nullptr};
     UbseByteBuffer resp{};
 
-    MOCKER(SerializeUbseNodeList).stubs().will(returnValue(UBSE_OK));
+    g_globalStop.store(false);
+
+    auto ubseElectionModule = std::make_shared<ubse::election::UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+        .stubs()
+        .will(returnValue(ubseElectionModule));
+    MOCKER(&ubse::election::UbseElectionModule::IsLeader)
+        .stubs()
+        .will(returnValue(true));
+    MOCKER(&UbseNodeController::GetAllNodes)
+        .stubs()
+        .will(returnValue(std::unordered_map<std::string, UbseNodeInfo>{}));
+    MOCKER(SerializeUbseNodeList)
+        .stubs()
+        .will(returnValue(UBSE_OK));
 
     auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
 
@@ -524,7 +574,21 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_SerializeFa
     UbseByteBuffer req{nullptr, 0, nullptr};
     UbseByteBuffer resp{};
 
-    MOCKER(SerializeUbseNodeList).stubs().will(returnValue(UBSE_ERROR));
+    g_globalStop.store(false);
+
+    auto ubseElectionModule = std::make_shared<ubse::election::UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+        .stubs()
+        .will(returnValue(ubseElectionModule));
+    MOCKER(&ubse::election::UbseElectionModule::IsLeader)
+        .stubs()
+        .will(returnValue(true));
+    MOCKER(&UbseNodeController::GetAllNodes)
+        .stubs()
+        .will(returnValue(std::unordered_map<std::string, UbseNodeInfo>{}));
+    MOCKER(SerializeUbseNodeList)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
 
     auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
 
