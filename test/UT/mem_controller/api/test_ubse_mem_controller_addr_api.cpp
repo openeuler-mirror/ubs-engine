@@ -1029,7 +1029,9 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccess)
     UbseMemAddrBorrowExportObj addrBorrowExportObj{};
     UbseMemAddrBorrowImportObj addrBorrowImportObj{};
     addrBorrowExportObj.req.name = name;
+    addrBorrowExportObj.req.importNodeId = NODE_ONE;
     addrBorrowImportObj.req.name = name;
+    addrBorrowImportObj.req.importNodeId = NODE_ONE;
     addrBorrowImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
     addrBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     AddToExportObjMap(name, nodeId, addrBorrowExportObj);
@@ -1039,7 +1041,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccess)
     req.name = name;
     req.importNodeId = NODE_ONE;
     AgentImportCallbackMockSet();
-    const auto ret = mem::controller::UbseMemAddrReturn(req, resp);
+    const auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_OK, ret);
 }
 
@@ -1047,7 +1049,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessNotExist)
 {
     UbseMemReturnReq req;
     UbseMemOperationResp resp;
-    const auto ret = mem::controller::UbseMemAddrReturn(req, resp);
+    const auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
 
@@ -1062,7 +1064,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessWithoutExport)
     exportObj.req.importNodeId = req.importNodeId;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     AddToExportObjMap(req.name, NODE_ONE, exportObj);
-    auto ret = mem::controller::UbseMemAddrReturn(req, resp);
+    auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
 

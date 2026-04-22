@@ -243,11 +243,13 @@ TEST_F(TestUbseMemRpc, UbseMemShareDetachMessageHandler)
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    UbseComBaseMessageHandlerCtxPtr ctx{};
-
+    auto ctx = new (std::nothrow)
+        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    EXPECT_NE(ctx, nullptr);
     UbseMemShareDetachMessageHandler ubseMemShareDetachMessageHandler{};
     EXPECT_EQ(ubseMemShareDetachMessageHandler.Handle(req, rsp, ctx), UBSE_ERROR);
     EXPECT_EQ(ubseMemShareDetachMessageHandler.Handle(req, rsp, ctx), UBSE_OK);
+    delete ctx;
 }
 
 TEST_F(TestUbseMemRpc, UbseMemShareDetachMessageHandler_GetOpCode)
@@ -278,12 +280,15 @@ TEST_F(TestUbseMemRpc, UbseMemFdReturnHandler)
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    UbseComBaseMessageHandlerCtxPtr ctx{};
+    auto ctx = new (std::nothrow)
+        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    EXPECT_NE(ctx, nullptr);
 
     MOCKER_CPP(&DoReturnAsync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     UbseMemFdReturnHandler ubseMemFdReturnHandler{};
     EXPECT_EQ(ubseMemFdReturnHandler.Handle(req, rsp, ctx), UBSE_ERROR);
     EXPECT_EQ(ubseMemFdReturnHandler.Handle(req, rsp, ctx), UBSE_OK);
+    delete ctx;
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdReturnHandlerGetOpCode)
@@ -312,12 +317,14 @@ TEST_F(TestUbseMemRpc, UbseMemNumaReturnHandler)
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    UbseComBaseMessageHandlerCtxPtr ctx{};
+    auto ctx = new (std::nothrow)
+        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
 
     MOCKER_CPP(&DoReturnAsync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     UbseMemNumaReturnHandler ubseMemNumaReturnHandler{};
     EXPECT_EQ(ubseMemNumaReturnHandler.Handle(req, rsp, ctx), UBSE_ERROR);
     EXPECT_EQ(ubseMemNumaReturnHandler.Handle(req, rsp, ctx), UBSE_OK);
+    delete ctx;
 }
 
 TEST_F(TestUbseMemRpc, UbseMemNumaReturnHandlerGetOpCode)
@@ -346,12 +353,14 @@ TEST_F(TestUbseMemRpc, UbseMemShareReturnHandler)
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    UbseComBaseMessageHandlerCtxPtr ctx{};
+    auto ctx = new (std::nothrow)
+        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
 
     MOCKER_CPP(&DoReturnAsync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     UbseMemShareReturnHandler ubseMemShareReturnHandler{};
     EXPECT_EQ(ubseMemShareReturnHandler.Handle(req, rsp, ctx), UBSE_ERROR);
     EXPECT_EQ(ubseMemShareReturnHandler.Handle(req, rsp, ctx), UBSE_OK);
+    delete ctx;
 }
 
 TEST_F(TestUbseMemRpc, UbseMemShareReturnHandlerGetOpCode)
@@ -391,7 +400,9 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandler)
 
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(rsp, nullptr);
-    UbseComBaseMessageHandlerCtxPtr ctx{};
+    auto ctx = new (std::nothrow)
+        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    EXPECT_NE(ctx, nullptr);
 
     std::string name = "ubseMemController";
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
@@ -405,6 +416,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandler)
     UbseMemFdBorrowExportObjCallbackMessageHandler handler{};
     EXPECT_EQ(handler.Handle(ptr.Get(), rsp, ctx), UBSE_ERROR);
     EXPECT_EQ(handler.Handle(ptr.Get(), rsp, ctx), UBSE_OK);
+    delete ctx;
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandlerGetOpCode)
@@ -435,11 +447,13 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandler)
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    UbseComBaseMessageHandlerCtxPtr ctx{};
+    auto ctx = new (std::nothrow)
+        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
     MOCKER(&MemoryBorrowRpcObjCheck<UbseMemFdBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(ubseMemFdBorrowImportObjCallbackMessageHandler.Handle(req, rsp, ctx), UBSE_ERROR);
     EXPECT_EQ(ubseMemFdBorrowImportObjCallbackMessageHandler.Handle(req, rsp, ctx), UBSE_OK);
+    delete ctx;
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandlerGetOpCode)
