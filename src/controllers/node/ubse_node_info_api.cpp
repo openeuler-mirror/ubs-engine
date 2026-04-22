@@ -714,7 +714,7 @@ UbseResult MemFillPerEdgeData(std::unordered_map<std::string, std::vector<MemNod
     auto ret =
         UbseNodeExtractDevNameInfo(devNameToNodeIdMap, remoteDevNodeName, remoteDevSocketNameStr, remoteDevNameStr);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Extract DevName: " << remoteDevNameStr << " Failed. " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "Extract DevName=" << remoteDevNameStr << " Failed. " << FormatRetCode(ret);
         return ret;
     }
     // 遥测数据，数据库里存在遥测数据就填充，不存在就不填充。
@@ -745,8 +745,8 @@ UbseResult MemFillAllEdgeData(std::unordered_map<std::string, std::vector<MemNod
         if (edge.second != 1) {continue;}
         auto ret = MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "MemFillPerEdgeData Failed. " << FormatRetCode(ret);
-            return ret;
+            UBSE_LOG_WARN << "MemFillPerEdgeData Failed. " << FormatRetCode(ret);
+            continue;
         }
     }
     return UBSE_OK;
