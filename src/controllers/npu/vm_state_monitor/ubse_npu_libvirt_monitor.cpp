@@ -183,6 +183,7 @@ private:
 
     UbseResult HandleEvent(VirConnectPtr conn, VirDomainPtr dom, int event, int detail)
     {
+        UBSE_LOG_INFO << "Received event:" << event << " detail:" << detail;
         if (dom == nullptr) {
             return UBSE_OK;
         }

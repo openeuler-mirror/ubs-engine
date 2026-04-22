@@ -31,15 +31,15 @@ using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE ("ubse");
 
 static LibvirtMonitor g_monitor("qemu:///system");
+constexpr char NPU_RESET_CMDS[] =
+        "ipmitool raw 0x30 0x93 0xdb 0x07 0x00 0x8f 0x5c 0x00 0x00 0x80 0xff 0x%02x 0x00 0x00 0xc0 "
+        "0x00 0x00 0x00 0x01 0xff";
 
 UbseResult ResetNpu(const uint8_t &chipId)
 {
-    constexpr char cmdTemplate[] =
-        "ipmitool raw 0x30 0x93 0xdb 0x07 0x00 0x8f 0x5c 0x00 0x00 0x80 0xff 0x%02x 0x00 0x00 0xc0 "
-        "0x00 0x00 0x00 0x01 0xff";
     char realCmd[128]; // 128:数组长度
-    static_assert(sizeof(cmdTemplate) <= sizeof(realCmd) - 1);
-    if (sprintf_s(realCmd, sizeof(realCmd), cmdTemplate, chipId) == -1) {
+    static_assert(sizeof(NPU_RESET_CMDS) <= sizeof(realCmd) - 1);
+    if (sprintf_s(realCmd, sizeof(realCmd), NPU_RESET_CMDS, chipId) == -1) {
         UBSE_LOG_ERROR << "Failed to generate ipmi command.";
         return UBSE_ERROR;
     }
@@ -62,12 +62,18 @@ bool QueryAndReset(const std::string &busInstance)
         return false;
     }
     auto subIDevs = devBusiPtr->GetSubDevIdev();
+    if (subIDevs.empty()) {
+        UBSE_LOG_ERROR << "No sub vfe found for businstance: " << busInstance;
+        return false;
+    }
     for (auto &idev : subIDevs) {
         if (idev == nullptr) {
             continue;
         }
         auto david = idev->GetBondingDevDavid();
         if (david == nullptr) {
+            UBSE_LOG_WARN << "Failed to get david device of vfe:" << idev->GetIdStr() << ", businstance: " <<
+                busInstance;
             continue;
         }
         auto loc = david->GetDeviceLoc();
@@ -101,12 +107,17 @@ std::string GetBusInstance(std::string_view xmlStr)
         if (type == "ub") {
             ubseXml = ubseXml->Child("devices");
             controller = ubseXml->Child("controller", num);
-            auto addressNode = controller->Child("address");
-            if (addressNode == nullptr) {
-                UBSE_LOG_ERROR << "Failed to get address node.";
+            auto sourceNode = controller->Child("source");
+            if (sourceNode == nullptr) {
+                UBSE_LOG_ERROR << "Failed to get source node.";
                 return guid;
             }
-            guid = addressNode->Attr("guid");
+            auto busInstanceNode = sourceNode->Child("businstance");
+            if (busInstanceNode == nullptr) {
+                UBSE_LOG_ERROR << "Failed to get businstance node.";
+                return guid;
+            }
+            guid = busInstanceNode->Attr("guid");
             if (guid.empty()) {
                 UBSE_LOG_ERROR << "Failed to get guid node.";
                 return guid;
@@ -151,8 +162,7 @@ void ResetNpuOfBusInstance(const std::string &busInstance, VirDomainEventType ev
 {
     static const std::unordered_set<VirDomainEventType> handleEvents = {
         VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
-        VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
-        VirDomainEventType::VIR_DOMAIN_EVENT_SHUTDOWN
+        VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED
     };
     if (handleEvents.find(event) == handleEvents.end()) {
         return;

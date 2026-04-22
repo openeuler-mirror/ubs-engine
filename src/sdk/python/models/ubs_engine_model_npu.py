@@ -379,7 +379,7 @@ class DeviceFactory:
     def create_device(device_type, **kwargs):
         if device_type == "NIC_PFE":
             return NicPfeInfo(**kwargs)
-        if device_type == "NIC_VFE":
+        elif device_type == "NIC_VFE":
             return NicVfeInfo(**kwargs)
         elif device_type == "NPU":
             return NpuInfo(**kwargs)

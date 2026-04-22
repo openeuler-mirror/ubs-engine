@@ -31,7 +31,7 @@ const std::string LSUB_HEADER = "BusInstance show format: guid type eid upi";
 const std::string LSUB_STATIC_SERVER_TYPE = "Static_Server";
 const std::string LSUB_CLUSTER_SERVER_TYPE = "Static_Cluster";
 const std::string UB_DEVICES_PATH = "/sys/bus/ub/devices/";
-const std::string LSUB_SUB_DEVICE_HEADER = "Uents this busInstance:";
+const std::string LSUB_SUB_DEVICE_HEADER = "Uents under this busInstance:";
 void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst> &busInstanceList, const std::string &output)
 {
     std::istringstream iss(output);

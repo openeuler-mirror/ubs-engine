@@ -27,7 +27,7 @@ using namespace ubse::context;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 // 4个类型的数量大小+总数量大小
-constexpr size_t HEAD_SIZE = 5 * sizeof(uint8_t);
+constexpr size_t HEAD_SIZE = 6 * sizeof(uint8_t);
 constexpr uint8_t HEX_RADIX = 16;
 
 // list接口
