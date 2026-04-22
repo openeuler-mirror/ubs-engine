@@ -141,6 +141,14 @@ public:
     MpResult GetPidNumaInfo(outinterface::SrcMemoryBorrowParam oParam,
                             std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList, uint16_t remoteNumaId);
 
+    MpResult CheckBorrowedMemSizeForPidMigrate(OverCommitFaultMemIdExecuteParam param, uint64_t &adjustSize);
+    MpResult AdjustFaultHandleBorrowedMemSize(OverCommitFaultMemIdExecuteParam &param, const uint64_t adjustSize);
+    // 查找匹配远端NUMA的借用记录
+    MpResult FindTargetBorrowRecord(const std::string& nodeId, uint32_t remoteNumaId, BorrowRecord& outRecord);
+    // 执行内存借用操作
+    MpResult ExecuteMemBorrow(const BorrowRecord& record, uint64_t adjustSize, const std::string& nodeId,
+                              uint32_t targetNuma, UbseMemNumaDesc& outMemDesc);
+
     void ClearFalutBidBorrowedMap()
     {
         falutBidBorrowedMap.clear();

@@ -90,6 +90,14 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteRecvHandler_Succeed)
     MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecute, MpResult(*)(OverCommitFaultMemIdExecuteParam))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&OverCommitFaultMemIdModule::CheckBorrowedMemSizeForPidMigrate,
+        MpResult (*)(OverCommitFaultMemIdExecuteParam, uint64_t &))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize,
+        MpResult (*)(OverCommitFaultMemIdExecuteParam &, const uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
     UbseByteBuffer req;
     UbseByteBuffer resp;
     uint32_t ret = OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(req, resp);

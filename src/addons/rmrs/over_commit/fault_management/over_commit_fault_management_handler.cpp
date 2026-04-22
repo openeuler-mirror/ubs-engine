@@ -76,10 +76,21 @@ uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByt
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] MemIdExecuteRecvHandler start.";
 
     OverCommitFaultMemIdExecuteParam param{};
+    uint64_t adjustSize = 0;
     RmrsInStream builder(req.data, req.len);
     builder >> param;
-    MpResult res = OverCommitFaultMemIdModule::Instance().MemIdExecute(param);
-    if (MEM_POOLING_OK != res) {
+    // 判断故障新借的远端numa大小是否够迁，不够的话修正借用大小
+    auto res = OverCommitFaultMemIdModule::Instance().CheckBorrowedMemSizeForPidMigrate(param, adjustSize);
+    if (res == MEM_POOLING_OK) {
+        res = OverCommitFaultMemIdModule::Instance().AdjustFaultHandleBorrowedMemSize(param, adjustSize);
+        if (res == MEM_POOLING_OK) {
+            res = OverCommitFaultMemIdModule::Instance().MemIdExecute(param);
+        } else {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Borrowed mem is not enough to migrate.";
+        }
+    }
+    if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit][FaultManagement] Recv MemIdExecuteRecvHandler res=" << res << ".";
         resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
