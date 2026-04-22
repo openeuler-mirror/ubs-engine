@@ -22,22 +22,21 @@ using namespace ubse::mem::strategy;
 
 std::string GetCmdLineResult(std::string_view cmd)
 {
-    std::string cmdline_output;
-
-    // 方案1：先检查popen结果，再创建unique_ptr
-    FILE* raw_pipe = popen(cmd.data(), "r");
-    if (!raw_pipe) {
-        return cmdline_output;
+    std::string cmdlineOutput;
+    FILE* rawPipe = popen(cmd.data(), "r");
+    if (!rawPipe) {
+        return cmdlineOutput;
     }
-
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(raw_pipe, pclose);
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(rawPipe, pclose);
 
     char buffer[BUFFER_SIZE];
-    while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
-        cmdline_output += buffer;
+    size_t bytesRead = 0;
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), pipe.get())) > 0) {
+        for (size_t i = 0; i < bytesRead; ++i) {
+            cmdlineOutput += (buffer[i] == '\0') ? ' ' : buffer[i];
+        }
     }
-
-    return cmdline_output;
+    return cmdlineOutput;
 }
 
 
@@ -65,37 +64,38 @@ static std::string trim(const std::string& str)
 std::optional<ConfigItem> RegisterPmdMappingConfig()
 {
     std::optional<ConfigItem> result;
-
-    // 使用 C++ 标准库读取 /proc/cmdline 文件
-    std::ifstream cmdline_file("/proc/cmdline");
-    if (!cmdline_file.is_open()) {
+    std::ifstream cmdlineFile("/proc/cmdline", std::ios::binary);
+    if (!cmdlineFile.is_open()) {
         return result;
     }
-    std::string cmdline_output;
-    std::getline(cmdline_file, cmdline_output);
+    std::string cmdlineOutput((std::istreambuf_iterator<char>(cmdlineFile)),
+                               std::istreambuf_iterator<char>());
+    cmdlineFile.close();
 
-    if (cmdline_output.empty()) {
+    for (char& c : cmdlineOutput) {
+        if (c == '\0') {
+            c = ' ';
+        }
+    }
+    if (cmdlineOutput.empty()) {
         return result;
     }
-    // 使用 [[:space:]] 替代 \s 提高兼容性
     std::regex pattern(R"((?:^|[[:space:]])(pmd_mapping=([0-9]+)%)(?=[[:space:]]|$))");
     std::smatch match;
-
-    if (!std::regex_search(cmdline_output, match, pattern)) {
+    if (!std::regex_search(cmdlineOutput, match, pattern)) {
         return result;
     }
-    std::string percent_str = match[2].str();  // 跟正则表达式匹配只能是2
+    std::string percentStr = match[2].str();
     int percentage = -1;
     try {
-        percentage = std::stoi(percent_str);
+        percentage = std::stoi(percentStr);
     } catch (const std::exception& e) {
         return result;
     }
-
     if (percentage <= 0 || percentage > 100) {
         return result;
     }
-    result = {"os", "pmd_mapping", std::move(percent_str)};
+    result = {"os", "pmd_mapping", std::move(percentStr)};
     return result;
 }
 
@@ -103,17 +103,17 @@ std::optional<ConfigItem> RegisterAllocatorConfig()
 {
     std::optional<ConfigItem> result;
 
-    std::string cmdline_output = GetCmdLineResult("cat /sys/module/obmm/parameters/mempool_allocator");
-    if (cmdline_output.empty()) {
+    std::string cmdlineOutput = GetCmdLineResult("cat /sys/module/obmm/parameters/mempool_allocator");
+    if (cmdlineOutput.empty()) {
         return result;
     }
 
-    cmdline_output = trim(cmdline_output);
-    if (!in_strings(cmdline_output, {"hugetlb_pmd", "hugetlb_pud", "buddy_highmem"})) {
+    cmdlineOutput = trim(cmdlineOutput);
+    if (!in_strings(cmdlineOutput, {"hugetlb_pmd", "hugetlb_pud", "buddy_highmem"})) {
         return result;
     }
 
-    result = {"obmm", "mempool_allocator", std::move(cmdline_output)};
+    result = {"obmm", "mempool_allocator", std::move(cmdlineOutput)};
     return result;
 }
 
@@ -121,17 +121,17 @@ std::optional<ConfigItem> RegisterOsPageSize()
 {
     std::optional<ConfigItem> result;
 
-    std::string cmdline_output = GetCmdLineResult("getconf PAGE_SIZE");
-    if (cmdline_output.empty()) {
+    std::string cmdlineOutput = GetCmdLineResult("getconf PAGE_SIZE");
+    if (cmdlineOutput.empty()) {
         return result;
     }
 
-    cmdline_output = trim(cmdline_output);
-    if (!in_strings(cmdline_output, {PAGE_SIZE_4K, PAGE_SIZE_64K})) {
+    cmdlineOutput = trim(cmdlineOutput);
+    if (!in_strings(cmdlineOutput, {PAGE_SIZE_4K, PAGE_SIZE_64K})) {
         return result;
     }
 
-    result = {"os", "page_size", std::move(cmdline_output)};
+    result = {"os", "page_size", std::move(cmdlineOutput)};
     return result;
 }
 RegisterConfigHelper pmdMappingRegister(RegisterPmdMappingConfig);

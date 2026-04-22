@@ -102,7 +102,6 @@ UbseResult UbseElectionModule::Start()
     }
     // UT 场景下，启用下面两个线程，会导致 UT 程序无法正常退出
 #if !defined(ENABLE_UBSE_TESTING) || ENABLE_UBSE_TESTING != 1
-    ConnectAllNodes();
     threads_.emplace_back(&UbseElectionModule::TimerTaskElection, this);
     threads_.emplace_back(&UbseElectionModule::TimerTaskCom, this);
 #endif
