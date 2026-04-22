@@ -611,6 +611,9 @@ void UbseNodeController::CreateAndUpdateInfo(std::pair<const UbseCpuLocation, Ub
         if (remoteSlotId.empty() || remoteChipId.empty() || remotePortId.empty()) {
             continue;
         }
+        if (remoteSlotId == "-" || remoteChipId == "-" || remotePortId == "-") {
+            continue;
+        }
         // 生成linkid 和 要填入的数据
         LinkInfo linkInfo{slotId, chipId, portId, interfaceName, remoteSlotId,
                           remoteChipId, remotePortId, peerInterfaceName};
