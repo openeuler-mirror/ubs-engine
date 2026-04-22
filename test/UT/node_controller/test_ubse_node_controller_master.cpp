@@ -513,7 +513,7 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_ModuleNull)
 
     g_globalStop.store(false);
 
-    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(nullptr));
 
@@ -529,11 +529,11 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_NotLeader)
 
     g_globalStop.store(false);
 
-    auto ubseElectionModule = std::make_shared<ubse::election::UbseElectionModule>();
-    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+    auto ubseElectionModule = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(ubseElectionModule));
-    MOCKER(&ubse::election::UbseElectionModule::IsLeader)
+    MOCKER(&UbseElectionModule::IsLeader)
         .stubs()
         .will(returnValue(false));
 
@@ -549,11 +549,11 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler)
 
     g_globalStop.store(false);
 
-    auto ubseElectionModule = std::make_shared<ubse::election::UbseElectionModule>();
-    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+    auto ubseElectionModule = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(ubseElectionModule));
-    MOCKER(&ubse::election::UbseElectionModule::IsLeader)
+    MOCKER(&UbseElectionModule::IsLeader)
         .stubs()
         .will(returnValue(true));
     MOCKER(&UbseNodeController::GetAllNodes)
@@ -576,11 +576,11 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_SerializeFa
 
     g_globalStop.store(false);
 
-    auto ubseElectionModule = std::make_shared<ubse::election::UbseElectionModule>();
-    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
+    auto ubseElectionModule = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
         .will(returnValue(ubseElectionModule));
-    MOCKER(&ubse::election::UbseElectionModule::IsLeader)
+    MOCKER(&UbseElectionModule::IsLeader)
         .stubs()
         .will(returnValue(true));
     MOCKER(&UbseNodeController::GetAllNodes)
