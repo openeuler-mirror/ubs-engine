@@ -52,6 +52,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_plugin
         ubse_storage
         ubse_sdk
+        npu_controller
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
@@ -86,6 +87,7 @@ add_subdirectory(adapter_plugins/mti)
 add_subdirectory(adapter_plugins/syssentry)
 add_subdirectory(storage)
 add_subdirectory(sdk)
+add_subdirectory(npu)
 
 add_independent_exec_ut(${UT_BINARY})
 
