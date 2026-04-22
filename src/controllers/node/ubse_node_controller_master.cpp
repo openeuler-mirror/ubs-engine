@@ -826,10 +826,29 @@ UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuff
 // 处理agent查询全量节点列表
 UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "election module not load";
+        return CreateErrorResponse(UBSE_ERROR_MODULE_LOAD_FAILED, resp);
+    }
+
+    // 非主节点直接返回，避免主备切换过渡期互相回源导致死锁
+    if (!module->IsLeader()) {
+        UBSE_LOG_WARN << "current node is not leader, reject all node query";
+        return CreateErrorResponse(UBSE_ERROR, resp);
+    }
+
+    // 节点停止过程中不再响应全量节点查询
+    if (g_globalStop.load()) {
+        UBSE_LOG_WARN << "ubse is stopping, reject all node query";
+        return CreateErrorResponse(UBSE_ERROR, resp);
+    }
+
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     std::vector<UbseNodeInfo> infos{};
-    for (auto iter : nodeInfos) {
-        infos.push_back(iter.second);
+    infos.reserve(nodeInfos.size());
+    for (const auto &[_, info] : nodeInfos) {
+        infos.push_back(info);
     }
 
     uint8_t* buffer = nullptr;
@@ -848,7 +867,6 @@ UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBu
     }};
     return ret;
 }
-
 // 处理agent查询全量链路信息
 UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
