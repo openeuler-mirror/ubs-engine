@@ -8,10 +8,10 @@
 
 #include "rpc/ubse_mem_controller_rpc_register.h"
 #include "rpc/ubse_mem_get_opt_result_handler.h"
-#include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/adapter_plugins/mmi/ubse_mmi_module.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
+#include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_dispatcher.h"
@@ -43,10 +43,10 @@ void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &a
         for (const auto &handValue : hanValues) {
             if (handleMap.find(loc) == handleMap.end() || handleMap.at(loc).count(handValue.handle) != 1) {
                 UbseMamiMemWithdraw tmpDelInfo{.ubpuId = loc.ubpuId,
-                                                     .iouId = loc.iouId,
-                                                     .marId = loc.marId,
-                                                     .decoderIdx = loc.decoderId,
-                                                     .handle = handValue.handle};
+                                               .iouId = loc.iouId,
+                                               .marId = loc.marId,
+                                               .decoderIdx = loc.decoderId,
+                                               .handle = handValue.handle};
                 diffHandleInfo.push_back(tmpDelInfo);
             }
         }
