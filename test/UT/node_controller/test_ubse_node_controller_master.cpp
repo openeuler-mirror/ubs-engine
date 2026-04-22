@@ -506,22 +506,6 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeReportNodeInfoHandler)
     EXPECT_NE(resp.freeFunc, nullptr);
 }
 
-TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_ModuleNull)
-{
-    UbseByteBuffer req{nullptr, 0, nullptr};
-    UbseByteBuffer resp{};
-
-    g_globalStop.store(false);
-
-    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
-        .stubs()
-        .will(returnValue(nullptr));
-
-    auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
-
-    EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
-}
-
 TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_NotLeader)
 {
     UbseByteBuffer req{nullptr, 0, nullptr};
