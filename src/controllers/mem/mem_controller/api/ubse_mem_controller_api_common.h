@@ -29,8 +29,8 @@
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
-
 namespace ubse::mem::controller {
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::utils;
@@ -229,6 +229,24 @@ bool CheckShareDetachPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &re
                                 const std::string &realRequestNodeId, const std::string &importNodeId);
 
 uint32_t WaitNodeStateWork(const std::string &importNode);
+
+template <class ObjType>
+bool HasAgentAlreadyReported(const std::string &name, const std::string &exeNodeId, bool ObjType::*reportedFlagField)
+{
+    auto objPtr = debt::UbseMemDebtLedger::GetInstance().GetDebtMap<ObjType>().GetResource(exeNodeId, name);
+    if (!objPtr) {
+        return true;
+    } else {
+        if ((*objPtr).*reportedFlagField) {
+            return false;
+        }
+        auto copyObj = *objPtr;
+        copyObj.*reportedFlagField = true;
+        debt::UbseMemDebtLedger::GetInstance().GetDebtMap<ObjType>().PutResource(exeNodeId, name, copyObj);
+        return true;
+    }
+    return true;
+}
 } // namespace ubse::mem::controller
 
 #endif // UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H

@@ -460,6 +460,13 @@ uint32_t FdExportAgentCallback(const std::string &exportNodeId, UbseMemFdBorrowE
 uint32_t FdExportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMemFdBorrowExportObj &exportObj,
                                              const std::string &exportNodeId, const std::string &name)
 {
+    if (!HasAgentAlreadyReported<UbseMemFdBorrowExportObj>(
+            GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId), exportNodeId,
+            &UbseMemFdBorrowExportObj::isDestroyedReportReceived)) {
+        UBSE_LOG_INFO << "No need to callback for export destroyed, name=" << name
+                      << ", requestId=" << exportObj.req.requestId;
+        return UBSE_OK;
+    }
     UbseMemFdBorrowImportObj importObj{};
     auto req = exportObj.returnReq;
     std::string requestNodeId = req.requestNodeId;
@@ -608,6 +615,13 @@ uint32_t FdExportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
                                              UbseMemFdBorrowImportObj &importObj, const std::string &name,
                                              const std::string &exportNodeId, const std::string &importNodeId)
 {
+    if (!HasAgentAlreadyReported<UbseMemFdBorrowExportObj>(
+            GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId), exportNodeId,
+            &UbseMemFdBorrowExportObj::isCreateReportReceived)) {
+        UBSE_LOG_INFO << "No need to callback for export Created, name=" << name
+                      << ", requestId=" << exportObj.req.requestId;
+        return UBSE_OK;
+    }
     if (exportObj.status.state == UBSE_MEM_EXPORT_SUCCESS) { // 导出成功 开始导入
         UBSE_LOG_INFO << "Export is successful, start to import. name=" << name
                       << ", requestId=" << exportObj.req.requestId;
@@ -624,6 +638,7 @@ uint32_t FdExportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
         importObj.status.expectState = UBSE_MEM_IMPORT_SUCCESS;
         importObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
         importObj.req.trustRingData.lendSignedDatas = exportObj.req.trustRingData.lendSignedDatas;
+        importObj.isCreateReportReceived = false;
         UbseMemFdExportObjStateChangeHandler(exportObj);
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
         if (ret = SendFdImportObj(importObj, true, importNodeId); ret != UBSE_OK) {
@@ -737,7 +752,7 @@ uint32_t FdImportRunningCallback(UbseMemFdBorrowImportObj &importObj, const std:
     auto existingObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().GetResource(
         importObj.req.importNodeId, importObj.req.name);
     if (existingObjPtr && existingObjPtr->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
-        return SendFdImport(*existingObjPtr, name, importObj.algoResult.exportNumaInfos[0].nodeId, false);
+        return UBSE_OK;
     }
 
     auto res = FdImportRunningHandler(importObj, name, requestNodeId);
@@ -864,6 +879,12 @@ uint32_t FdImportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseMem
                                              const std::string &exportNodeId)
 {
     UBSE_LOG_INFO << "Fd import expect success callback, name=" << name << ", requestId=" << importObj.req.requestId;
+    if (!HasAgentAlreadyReported<UbseMemFdBorrowImportObj>(importObj.req.name, importObj.req.importNodeId,
+                                                  &UbseMemFdBorrowImportObj::isCreateReportReceived)) {
+        UBSE_LOG_INFO << "No need to callback for import created, name=" << name
+                      << ", requestId=" << importObj.req.requestId;
+        return UBSE_OK;
+    }
     if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) { // 导入成功
         FdImportUpdateState(importObj, importObj.status.state);
         FdImportFillResp(resp, importObj);
@@ -943,6 +964,7 @@ static uint32_t FdImportExpectDestroySuccessPath(UbseMemOperationResp &resp, Ubs
         exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
         exportObj.req.requestId = importObj.req.requestId;
         exportObj.returnReq = req;
+        exportObj.isDestroyedReportReceived = false;
         UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(exportNodeId, exportKey,
                                                                                             exportObj);
         if (auto ret = SendFdExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
@@ -992,6 +1014,12 @@ uint32_t FdImportExpectDestroyMasterCallback(UbseMemOperationResp &resp, UbseMem
 {
     auto req = importObj.returnReq;
     UBSE_LOG_INFO << "Fd import expect destroy callback, name=" << name << ", requestId=" << req.requestId;
+    if (!HasAgentAlreadyReported<UbseMemFdBorrowImportObj>(importObj.req.name, importObj.req.importNodeId,
+                                                  &UbseMemFdBorrowImportObj::isDestroyedReportReceived)) {
+        UBSE_LOG_INFO << "No need to callback for import destroyed, name=" << name
+                      << ", requestId=" << importObj.req.requestId;
+        return UBSE_OK;
+    }
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         return FdImportExpectDestroySuccessPath(resp, importObj, name, exportNodeId, importNodeId);
     }
@@ -1080,6 +1108,7 @@ uint32_t HandleSingleExportReturn(const UbseMemReturnReq &req, UbseMemOperationR
     exportObj.req.requestId = req.requestId;
     exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
+    exportObj.isDestroyedReportReceived = false;
     return SendFdExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
 }
 
@@ -1106,6 +1135,7 @@ uint32_t FdReturnExistImport(UbseMemFdBorrowImportObj &importObj, UbseMemFdBorro
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     importObj.req.requestId = req.requestId;
+    importObj.isDestroyedReportReceived = false;
     FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     if (SendFdImportObj(importObj, true, importObj.req.importNodeId) != UBSE_OK) {
         return DealSendFdUnImportObjFailed(importObj, req, resp, name);
