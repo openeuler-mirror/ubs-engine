@@ -971,7 +971,8 @@ static uint32_t HandleSingleImportDeletion(UbseMemOperationResp &resp, const std
 
     uint32_t ret;
     if (ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::NUMA_RETURN); ret != UBSE_OK) {
-        BorrowFailedAdvice("Return Schedule failed", name, "APP_NUMA_BORROW", 0, "", "", ret, MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice("Return Schedule failed", name, "APP_NUMA_BORROW", 0, "", req.importNodeId, ret,
+                           MemAdvice::COMM_FAILED);
     }
     return ret;
 }
