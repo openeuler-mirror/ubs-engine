@@ -144,7 +144,6 @@ void BorrowOperatThreadMock()
 
 TEST_F(TestUbseVmPlugin, StrategyInit)
 {
-    GTEST_SKIP();
     MOCKER(&::AlarmHandler::Init).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(&StatusManager::Init).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(&MemHandler::Init).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));

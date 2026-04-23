@@ -95,7 +95,7 @@ void TestHamMigrate::TearDown()
 // 读Json文件
 VmResult ReadJsonFile(const std::string &filename, std::string &jsonString)
 {
-    std::string caseDir = std::string(UT_DIRECTORY) + "/virt_agent/migrate/case/";
+    std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/migrate/case/";
     std::ifstream file(caseDir + filename);
     if (!file.is_open()) {
         UBSE_LOGGER_ERROR(VM_MODULE_NAME, VM_MODULE_CODE) << "Failed to open file: " << filename;
@@ -483,7 +483,6 @@ VmResult MockGetVmDomainInfosFromGlobalZero(HostVmDomainInfo &hostVmDomainInfo)
 
 TEST_F(TestHamMigrate, Borrow_AddProcessTracking_failed)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -524,7 +523,6 @@ TEST_F(TestHamMigrate, Borrow_AddProcessTracking_failed)
 
 TEST_F(TestHamMigrate, Borrow_BorrowAddress_failed)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -625,7 +623,6 @@ TEST_F(TestHamMigrate, Borrow_ExportQuery_failed)
 
 TEST_F(TestHamMigrate, Borrow_SyncData_failed)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -671,7 +668,6 @@ TEST_F(TestHamMigrate, Borrow_SyncData_failed)
 
 TEST_F(TestHamMigrate, Borrow_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -756,7 +752,6 @@ TEST_F(TestHamMigrate, Borrow_CheckPid_Failed)
 
 TEST_F(TestHamMigrate, Migrate_success_clear_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string clearJson = R"({"action": "clear", "type": 1, "srcHostname": "Node0", "srcPid": 123})";
@@ -830,7 +825,6 @@ TEST_F(TestHamMigrate, Migrate_success_clear_success)
 
 TEST_F(TestHamMigrate, Migrate_fail_returnMem_fail_retry_success)
 {
-    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
@@ -851,7 +845,6 @@ TEST_F(TestHamMigrate, Migrate_fail_returnMem_fail_retry_success)
 
 TEST_F(TestHamMigrate, Migrate_fail_AddProcessTracking_fail_retry_success)
 {
-    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
@@ -872,7 +865,6 @@ TEST_F(TestHamMigrate, Migrate_fail_AddProcessTracking_fail_retry_success)
 
 TEST_F(TestHamMigrate, Migrate_fail_EnableProcessMigrate_fail_retry_success)
 {
-    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
@@ -915,7 +907,6 @@ TEST_F(TestHamMigrate, Migrate_fail_clear_success)
 
 TEST_F(TestHamMigrate, NoBorrow_BorrowAddress_failed)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -973,7 +964,6 @@ TEST_F(TestHamMigrate, NoBorrow_BorrowAddress_failed)
 
 TEST_F(TestHamMigrate, NoBorrow_Borrow_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -1103,7 +1093,6 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
 
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_returnMem_fail_retry_success)
 {
-    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
@@ -1123,7 +1112,6 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_returnMem_fail_retry_success)
 
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_RemoveProcessTracking_fail_retry_success)
 {
-    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
@@ -1229,7 +1217,6 @@ TEST_F(TestHamMigrate, restart_clear_success)
 
 TEST_F(TestHamMigrate, libvirt_restart_clear_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     UbseByteBuffer resp{};
