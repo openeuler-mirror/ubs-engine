@@ -211,11 +211,6 @@ void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
 
 uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus &status, uint8_t decoderId);
 
-uint32_t SetMarIdByLinkInfo(std::string &importNodeId, std::string &exportNodeId,
-                            const std::pair<uint32_t, uint32_t> &chipDiePair,
-                            const std::pair<uint32_t, uint32_t> &remoteChipDiePair,
-                            decoder::utils::ImportDecoderParam &importParam);
-
 void InitAgentMaxWaitTime(uint32_t timeout);
 
 uint32_t GetWaitTimeOut();

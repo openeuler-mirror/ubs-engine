@@ -704,13 +704,6 @@ uint32_t FdImportRunningHandler(UbseMemFdBorrowImportObj &importObj, const std::
     decoder::utils::ImportDecoderParam importParam{};
     decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam);
     importParam.flag |= UB_MEMORY_IMPORT_SHARE_TYPE;
-    if (res = SetMarIdByLinkInfo(importObj.algoResult.importNumaInfos[0].nodeId, exportNodeId, chipDiePair,
-                                 remoteChipDiePair, importParam);
-        res != UBSE_OK) {
-        UBSE_LOG_ERROR << "SetParamMarId by socketId failed";
-        return UBSE_ERR_INTERNAL;
-    }
-
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "fd";

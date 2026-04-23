@@ -590,13 +590,6 @@ uint32_t DealAddrAgentImport(const std::string &requestNodeId, UbseMemAddrBorrow
 
     decoder::utils::ImportDecoderParam importParam{};
     decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam, importObj.req.wrDelayComp);
-    res = SetMarIdByLinkInfo(importObj.algoResult.importNumaInfos[0].nodeId,
-                             importObj.algoResult.exportNumaInfos[0].nodeId, chipDiePair, remoteChipDiePair,
-                             importParam);
-    if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "SetParamMarId by socketId failed";
-        return UBSE_ERR_INTERNAL;
-    }
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "addr";

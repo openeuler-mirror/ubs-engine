@@ -1068,12 +1068,6 @@ uint32_t RealImportDecoder(const std::pair<uint32_t, uint32_t> &chipDiePair, Ubs
     }
     decoder::utils::ImportDecoderParam importParam{};
     decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam, importObj.req.ubseMemPrivData);
-    res = SetMarIdByLinkInfo(importObj.importNodeId, importObj.algoResult.exportNumaInfos[0].nodeId, chipDiePair,
-                             remoteChipDiePair, importParam);
-    if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "SetParamMarId by socketId failed";
-        return UBSE_ERR_INTERNAL;
-    }
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "share";
