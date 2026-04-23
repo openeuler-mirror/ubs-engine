@@ -31,7 +31,9 @@
 | /usr/lib64/libstrategy.so                | 动态库  | root:root | 755 | 超分逃生决策算法动态库           |
 | /usr/lib64/libubs-virt-agent.so.1.0.0    | 动态库  | root:root | 755 | SDK接口动态库              |
 | /usr/include/virt_agent/                 | 目录   | root:root | 755 | C接口头文件目录              |
-| /usr/include/virt_agent/*                | 头文件  | root:root | 644 | SDK接口头文件目录            |
+| /usr/include/virt_agent/*                | 头文件  | root:root | 644 | C接口头文件                |
+| /usr/lib/python3.11/site-packages/ubse/  | 目录   | root:root | 755 | SDK接口文件目录             |             
+| /usr/lib/python3.11/site-packages/ubse/* | 接口文件 | root:root | 644 | SDK接口文件               | 
 
 ## 3. 暴露面安全设计
 

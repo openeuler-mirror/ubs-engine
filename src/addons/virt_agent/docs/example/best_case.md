@@ -136,10 +136,8 @@ ubse.plugin.vm.export.interval=2
 
 # Maximum timeout for single VM ham migration, in seconds. The value range is [10-10800]. Any invalid value will be reset to 60.
 mig.ham.maxTimeout=60
-# Current environment whether is ub scene.The default value is true.
-mig.isUbScene=true
 # Current environment whether using ham migration.The default value is false.
-mig.isEnableHamMigrate=false
+mig.isEnableHamMigrate=true
 # Vm memory bound to get migrate strategy,in MB. The value range is [256, 4096].Any invalid value will be reset to 4096.
 mig.migrateOneCopyMemoryBound=4096
 
