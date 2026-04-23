@@ -492,7 +492,7 @@ TEST_F(TestUbseMemNodeDebtMap, ThreadSafety_ConcurrentPutAndGet)
         t.join();
     }
 
-    EXPECT_GT(successCount.load(), 0);
+    EXPECT_EQ(successCount.load(), threadCount * operationsPerThread);
 }
 
 // Tests thread safety under concurrent modify operations.
