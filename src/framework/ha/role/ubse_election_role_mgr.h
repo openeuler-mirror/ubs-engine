@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <utility>
 #include "../ubse_election_comm_mgr.h"
 #include "../ubse_election_def.h"
@@ -44,13 +45,7 @@ public:
         if (!commMgr_) {
             UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared Initializer commMgr failed.";
         }
-        pthread_mutex_init(&mutex_, nullptr);
     };
-
-    ~RoleMgr()
-    {
-        pthread_mutex_destroy(&mutex_);
-    }
 
     static RoleMgr &GetInstance()
     {
@@ -113,7 +108,7 @@ private:
     std::vector<HandlerPtr> active_handlers_;
     std::unordered_map<UbseElectionEventType, std::vector<std::shared_ptr<SafeHandler>>> handlers_;
     std::recursive_mutex mProcessorLock_{};
-    pthread_mutex_t mutex_;
+    std::mutex mutex_;
 };
 #undef MODULE_LOG_NAME
 } // namespace ubse::election

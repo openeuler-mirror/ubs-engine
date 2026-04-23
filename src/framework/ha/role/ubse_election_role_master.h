@@ -93,5 +93,16 @@ private:
     std::atomic<int> activeCount_{};   // 当前活跃回调数量
 };
 #undef MODULE_LOG_NAME
+
+class UnlockGuard {
+public:
+    explicit UnlockGuard(std::unique_lock<std::mutex> &lock) : lock_(lock) { lock_.unlock(); }
+    ~UnlockGuard() { lock_.lock(); }
+    UnlockGuard(const UnlockGuard &) = delete;
+    UnlockGuard &operator=(const UnlockGuard &) = delete;
+
+private:
+    std::unique_lock<std::mutex> &lock_;
+};
 }
 #endif // UBSE_ELECTION_ROLE_MASTER_H

@@ -25,18 +25,14 @@ std::shared_ptr<ElectionRole> RoleMgr::GetRole()
 
 void RoleMgr::ProcTimer()
 {
-    pthread_mutex_lock(&mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     GetRole()->ProcTimer();
-    pthread_mutex_unlock(&mutex_);
-    return;
 }
 
 uint32_t RoleMgr::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
 {
-    pthread_mutex_lock(&mutex_);
-    auto ret = GetRole()->RecvPkt(srcID, rcvPkt, reply);
-    pthread_mutex_unlock(&mutex_);
-    return ret;
+    std::lock_guard<std::mutex> lock(mutex_);
+    return GetRole()->RecvPkt(srcID, rcvPkt, reply);
 }
 
 void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
