@@ -287,6 +287,13 @@ TEST_F(TestMigrateStrategy, GetMigrateInfo_ShouldReturnOK_WhenEverythingIsOk)
     MOCKER(UbseVmGetNodeTopologyInfo).reset();
 }
 
+uint32_t MockUbseGetNodeInfos(std::vector<NodeInfo>& nodeInfos)
+{
+    NodeInfo nodeInfo{.hostName = "node"};
+    nodeInfos.push_back(nodeInfo);
+    return VM_OK;
+}
+
 TEST_F(TestMigrateStrategy, MakeMigrateStrategyDecision_ShouldReturnError_ParamIsInvalid)
 {
     uint32_t vmMemoryMB{};
@@ -313,6 +320,7 @@ TEST_F(TestMigrateStrategy, MakeMigrateStrategyDecision_ShouldReturnOnecopy_When
     std::string destHostName = "node";
     uint32_t destNumaId{};
     uint32_t migrateStrategy = static_cast<uint32_t>(MigrateStrategy::MULTICOPY_MIGRATE_POLICY);
+    MOCKER(UbseGetNodeInfos).stubs().will(invoke(MockUbseGetNodeInfos));
     MOCKER(UbseGetBool).stubs().will(returnValue(VM_ERROR));
     EXPECT_EQ(VirtMigrateStrategy::MakeMigrateStrategyDecision(vmMemoryMB, uuid, destHostName, destNumaId,
         &migrateStrategy), VM_OK);
@@ -334,6 +342,7 @@ TEST_F(TestMigrateStrategy, MakeMigrateStrategyDecision_ShouldReturnOnecopy_When
     std::string destHostName = "node";
     uint32_t destNumaId{};
     uint32_t migrateStrategy = static_cast<uint32_t>(MigrateStrategy::MULTICOPY_MIGRATE_POLICY);
+    MOCKER(UbseGetNodeInfos).stubs().will(invoke(MockUbseGetNodeInfos));
     MOCKER(UbseGetBool).stubs().will(invoke(MockUbseGetBool));
     EXPECT_EQ(VirtMigrateStrategy::MakeMigrateStrategyDecision(vmMemoryMB, uuid, destHostName, destNumaId,
         &migrateStrategy), VM_OK);
@@ -362,6 +371,7 @@ TEST_F(TestMigrateStrategy, MakeMigrateStrategyDecision_ShouldReturnOnecopy_When
     std::string destHostName = "node";
     uint32_t destNumaId{};
     uint32_t migrateStrategy = static_cast<uint32_t>(MigrateStrategy::MULTICOPY_MIGRATE_POLICY);
+    MOCKER(UbseGetNodeInfos).stubs().will(invoke(MockUbseGetNodeInfos));
     MOCKER(UbseGetBool).stubs().will(invoke(MockUbseGetBool));
     MOCKER(UbseVmGetNodeTopologyInfo).stubs().will(invoke(UbseVmGetNodeTopologyInfoOK));
     MOCKER(UbseMemDebtCircleCheck).stubs().will(invoke(MockUbseMemDebtCircleCheck));

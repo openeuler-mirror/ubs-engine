@@ -852,7 +852,6 @@ VmResult MockGetBorrowedSizeMap(const std::vector<uint16_t> &remoteNumaIds,
  */
 TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenSetHugePagesFailed)
 {
-    GTEST_SKIP();
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
     MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
@@ -869,7 +868,6 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenS
  */
 TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnOK_WhenEverythingIsOk)
 {
-    GTEST_SKIP();
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
     MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
