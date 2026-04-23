@@ -52,7 +52,7 @@ TEST_F(TestOsHelper, GetPidsByContainerIdsFailed)
     auto ret = OsHelper::GetPidsByContainerIds({containerIds}, containerInfos);
     EXPECT_EQ(ret, VM_ERROR);
 
-    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/virt_agent/export/proc_err";
+    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/export/proc_err";
     ret = OsHelper::GetPidsByContainerIds({containerIds}, containerInfos);
     EXPECT_EQ(ret, VM_OK);
     EXPECT_EQ(0, containerInfos.size());

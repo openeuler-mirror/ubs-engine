@@ -493,7 +493,7 @@ TEST_F(TestDefaultStrategy, VMEscapeStrategySetPerBorrowBoundTest1)
 TEST_F(TestDefaultStrategy, JsonReadAndConfTest)
 {
     // 初始化测试对象
-    std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agemt/default_strategy/case/";
+    std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/default_strategy/case/";
     std::string fileName = "strategy_case_default.json";
     AlarmNumaInfo alarmNumaInfo;
     GlobalNumaInfoMap globalNumaInfoMap;
