@@ -103,7 +103,7 @@ void UbseMemTopologyInfoManager::HandleHugeTlbPmd(const UbseNumaInfo &numaInfo, 
             throw std::overflow_error("Multiplication overflow");
         }
         memTotal = ubse::utils::SafeAdd(memTotal, static_cast<uint64_t>(total2M * NO_2 * ratio));
-        memUsed = ubse::utils::SafeSub(static_cast<uint64_t>(used2M * NO_2 * ratio), memUsed);
+        memUsed = ubse::utils::SafeSub(static_cast<uint64_t>(used2M * NO_2 * ratio), memFree);
         memFree = ubse::utils::SafeAdd(memFree, static_cast<uint64_t>(free2M * NO_2 * ratio));
     }
 }
