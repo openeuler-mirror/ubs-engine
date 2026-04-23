@@ -1,6 +1,6 @@
-add_ut(vm)
+add_ut(virtagent)
 
-target_compile_options(${CMAKE_PROJECT_NAME}_vm_ut PRIVATE
+target_compile_options(${CMAKE_PROJECT_NAME}_virtagent_ut PRIVATE
         -Wno-unused-parameter
         -Wno-unused-function
         -Wno-missing-field-initializers
@@ -8,7 +8,7 @@ target_compile_options(${CMAKE_PROJECT_NAME}_vm_ut PRIVATE
         -Wno-conversion
         -Wno-float-conversion
 )
-target_link_libraries(${CMAKE_PROJECT_NAME}_vm_ut PRIVATE
+target_link_libraries(${CMAKE_PROJECT_NAME}_virtagent_ut PRIVATE
         ubse_log ubse_com ubse_event ubse_config ubse_storage ubse_message ubse_plugin
         ubse_ipc_client ubs_virt_agent_sdk ubse_node_controller syssentry
 )
@@ -22,7 +22,7 @@ else ()
     set(GTEST_COLOR "--gtest_color=auto")
 endif ()
 
-set(RUN_VM_TEST "${CMAKE_BINARY_DIR}/bin/${CMAKE_PROJECT_NAME}_vm_ut ${GTEST_COLOR} ${GTEST_BRIEF} ${GTEST_OUTPUT}")
+set(RUN_VM_TEST "${CMAKE_BINARY_DIR}/bin/${CMAKE_PROJECT_NAME}_virtagent_ut ${GTEST_COLOR} ${GTEST_BRIEF} ${GTEST_OUTPUT}")
 
 # 处理透传参数
 set(TRANS_PARAMS $ENV{TRANS_PARAMS})
@@ -31,13 +31,13 @@ if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
 endif ()
 
 add_custom_target(
-        ubse_vm_ut
+        ubse_virtagent_ut
         COMMENT "Run UT Tests: ${RUN_VM_TEST}"
         COMMAND bash -c "${RUN_VM_TEST}"
 )
 
-add_dependencies(ubse_vm_ut "${CMAKE_PROJECT_NAME}_vm_ut")
+add_dependencies(ubse_virtagent_ut "${CMAKE_PROJECT_NAME}_virtagent_ut")
 target_link_libraries(
-        ${CMAKE_PROJECT_NAME}_vm_ut
+        ${CMAKE_PROJECT_NAME}_virtagent_ut
         PUBLIC test_exclusive_main rapidjson GTest::gmock_main mockcpp boundscheck)
-add_independent_exec_ut(${CMAKE_PROJECT_NAME}_vm_ut)
+add_independent_exec_ut(${CMAKE_PROJECT_NAME}_virtagent_ut)

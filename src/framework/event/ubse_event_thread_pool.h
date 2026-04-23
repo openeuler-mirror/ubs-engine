@@ -60,6 +60,9 @@ private:
     pthread_barrier_t initBarrier_{};
 
     std::atomic<bool> isThreadsRunning_{false};
+
+    UbseResult CleanupInitFailure(size_t createdCount);
+    UbseEventQueue *GetQueueByIndex(size_t index);
 };
 
 using UbseEventThreadPoolPtr = Ref<UbseEventThreadPool>;

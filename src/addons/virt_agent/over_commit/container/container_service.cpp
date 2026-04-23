@@ -17,7 +17,7 @@
 #include "vm_mem_adapter.h"
 
 namespace vm::overcommit {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 void ContainerService::Run() {}
 
 VmResult ContainerService::MemBorrow(const NodeLocInfo &nodeLocInfo, const std::vector<uint64_t> &borrowSizes,

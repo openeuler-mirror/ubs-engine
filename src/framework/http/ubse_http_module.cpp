@@ -153,7 +153,18 @@ bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpR
         UBSE_LOG_ERROR << "ServerKeyPassword is empty!";
         return false;
     }
-    SSLClient cli("localhost", port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
+    std::string hostName = "localhost";
+    auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get config module";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    auto ret = module->GetConf<std::string>("ubse.ubfm", "ubm.server.hostname", hostName);
+    if (ret != UBSE_OK || hostName.empty()) {
+        UBSE_LOG_WARN << "Get ubm.server.hostname failed or value is empty, will use default value: localhost";
+        hostName = "localhost";
+    }
+    SSLClient cli(hostName, port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
                   serverKeyPassword.c_str());
     cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
     cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s

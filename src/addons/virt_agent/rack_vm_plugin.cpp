@@ -27,7 +27,7 @@
 #include "libvirt_helper.h"
 #include "resource_collect.h"
 
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace vm;
 using namespace ubse::log;
 
