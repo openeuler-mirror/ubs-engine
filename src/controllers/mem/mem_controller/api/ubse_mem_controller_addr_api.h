@@ -39,7 +39,8 @@ uint32_t UbseMemAddrBorrowExportObjCallback(const UbseMemAddrBorrowExportObj &ex
  */
 uint32_t UbseMemAddrBorrowImportObjCallback(const UbseMemAddrBorrowImportObj &importObj);
 
-uint32_t UbseMemAddrReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp);
+uint32_t UbseMemAddrReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp,
+                           const std::string &realRequestNodeId);
 
 uint32_t CheckAddrResourceState(const std::string &name, const std::string &importNodeId);
 
