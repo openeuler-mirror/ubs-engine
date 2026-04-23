@@ -737,8 +737,25 @@ UbseResult HandleCnaAndEidMsg(const std::string &faultInfo, std::string &faultNo
     return UBSE_OK;
 }
 
+char SafeCharToLower(char c)
+{
+    if (c >= 'A' && c <= 'Z') {
+        return c + ('a' - 'A'); // 大写转小写
+    }
+    return c; // 其他字符保持不变
+}
+
+std::string ToLowerEid(const std::string &eid)
+{
+    std::string lowerEid;
+    lowerEid.reserve(eid.size());
+    std::transform(eid.begin(), eid.end(), std::back_inserter(lowerEid), [](char c) { return SafeCharToLower(c); });
+    return lowerEid;
+}
+
 std::string QueryNodeIdByEid(const std::string &eid)
 {
+    const std::string lowerEid = ToLowerEid(eid);
     std::map<UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> socketInfoMap{};
     auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
     if (result != UBSE_OK) {
@@ -753,15 +770,15 @@ std::string QueryNodeIdByEid(const std::string &eid)
             UBSE_LOG_ERROR << "Split str failed, devName=" << info.first.devName;
             return "";
         }
-        eids[info.second.primaryEid] = devVec[0];
+        eids[ToLowerEid(info.second.primaryEid)] = devVec[0];
     }
-    if (eids.find(eid) == eids.end()) {
+    if (eids.find(lowerEid) == eids.end()) {
         for (const auto &item : socketInfoMap) {
-            UBSE_LOG_DEBUG << "DevName=" << item.first.devName << "; eid=" << item.second.primaryEid;
+            UBSE_LOG_DEBUG << "DevName=" << item.first.devName << "; eid=" << ToLowerEid(item.second.primaryEid);
         }
         return "";
     }
-    return eids[eid];
+    return eids[lowerEid];
 }
 
 UbseResult UbseRasHandler::RegisterNodeHandler(const NodeHandlerType &handlerType, const NodeHandler &handler)
