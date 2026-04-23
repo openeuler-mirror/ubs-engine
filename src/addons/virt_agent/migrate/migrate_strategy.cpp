@@ -23,7 +23,7 @@
 #include "ubs_virt_agent_object_def.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace api::server;
 using namespace ubse::config;
 using namespace ubse::log;
@@ -96,7 +96,7 @@ uint32_t VirtMigrateStrategy::GetMigrateOneCopyMemoryBound()
     // Obtain the VM specification size for OneCopy migration.
     // If the retrieval fails or the value is not within the valid range, use the default value.
     uint32_t migrateOneCopyMemoryBound;
-    auto ret = UbseGetUInt("plugin_vm", UB_VM_MEMORY_BOUNDARY_KEY, migrateOneCopyMemoryBound);
+    auto ret = UbseGetUInt("plugin_virt_agent", UB_VM_MEMORY_BOUNDARY_KEY, migrateOneCopyMemoryBound);
     if (ret != VM_OK || migrateOneCopyMemoryBound < MIN_VM_MEMORY_BOUNDARY ||
         migrateOneCopyMemoryBound > MAX_VM_MEMORY_BOUNDARY) {
         UBSE_LOG_WARN << "The value of the key does not exist or is invalid, key: " << UB_VM_MEMORY_BOUNDARY_KEY
@@ -270,7 +270,7 @@ uint32_t VirtMigrateStrategy::MakeHamMigrateDecision(const std::string &uuid, co
 {
     // Obtain the scenario; if the acquisition fails or it is not ham migration scenario, disable ham migration.
     bool isEnableHamMigrate = false;
-    auto hamMigrationRet = UbseGetBool("plugin_vm", "mig.isEnableHamMigrate", isEnableHamMigrate);
+    auto hamMigrationRet = UbseGetBool("plugin_virt_agent", "mig.isEnableHamMigrate", isEnableHamMigrate);
     if (hamMigrationRet != VM_OK || !isEnableHamMigrate) {
         return VM_OK;
     }

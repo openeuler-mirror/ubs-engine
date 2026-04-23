@@ -40,7 +40,7 @@
 #include "vm_string_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::election;
 using namespace ubse::mem::controller;
 using namespace ubse::com;

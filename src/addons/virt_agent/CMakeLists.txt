@@ -14,12 +14,12 @@ FIND_INCLUDE_DIR(VM_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${VM_INCLUDE})
 
 # Add the virt_agent plugin shared library
-add_library(vm SHARED ${VM_CPP})
-target_include_directories(vm PUBLIC ${VM_INCLUDE}
+add_library(virtagent SHARED ${VM_CPP})
+target_include_directories(virtagent PUBLIC ${VM_INCLUDE}
         ${PROJECT_SOURCE_DIR}/src/include
         ${PROJECT_SOURCE_DIR}/src/framework/config
         ${PROJECT_SOURCE_DIR}/src/framework/serde
         )
-target_link_libraries(vm PUBLIC rapidjson boundscheck)
+target_link_libraries(virtagent PUBLIC rapidjson boundscheck)
 
-file(COPY conf/plugin_vm.conf DESTINATION ${CMAKE_BINARY_DIR}/expand_conf FILE_PERMISSIONS OWNER_READ OWNER_WRITE)
+file(COPY conf/plugin_virt_agent.conf DESTINATION ${CMAKE_BINARY_DIR}/expand_conf FILE_PERMISSIONS OWNER_READ OWNER_WRITE)
