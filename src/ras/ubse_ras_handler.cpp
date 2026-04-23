@@ -12,6 +12,7 @@
 
 #include "ubse_ras_handler.h"
 #include <dlfcn.h>
+#include <cctype>
 #include <cstring>
 #include <set>
 #include <utility>
@@ -737,19 +738,12 @@ UbseResult HandleCnaAndEidMsg(const std::string &faultInfo, std::string &faultNo
     return UBSE_OK;
 }
 
-char SafeCharToLower(char c)
-{
-    if (c >= 'A' && c <= 'Z') {
-        return c + ('a' - 'A'); // 大写转小写
-    }
-    return c; // 其他字符保持不变
-}
-
 std::string ToLowerEid(const std::string &eid)
 {
     std::string lowerEid;
     lowerEid.reserve(eid.size());
-    std::transform(eid.begin(), eid.end(), std::back_inserter(lowerEid), [](char c) { return SafeCharToLower(c); });
+    std::transform(eid.begin(), eid.end(), std::back_inserter(lowerEid),
+                   [](char c) { return std::tolower(static_cast<unsigned char>(c)); });
     return lowerEid;
 }
 
