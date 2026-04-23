@@ -10,7 +10,6 @@
 #include <thread>
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
-
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -20,6 +19,7 @@
 
 #include "api/ubse_mem_controller_share_api.h"
 #include "logging_lock_guard.h"
+#include "src/adapter_plugins/ubturbo/ubse_ubturbo_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_mem_controller_api_common.h"
@@ -27,15 +27,13 @@
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
-#include "ubse_mem_scheduler.h"
+#include "ubse_mem_update_obj_state.simpo.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
-#include "src/adapter_plugins/ubturbo/ubse_ubturbo_module.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::util;
-using namespace ubse::mem::scheduler;
 using namespace ubse::mem::controller;
 using namespace ubse::nodeController;
 using ubse::election::UbseElectionModule;
@@ -195,7 +193,7 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const Export
             break;
         }
     }
-    
+
     if (!isValid) {
         int retry = 10;
         UBSE_LOG_INFO << "Start to invalidate import debt, name=" << name
@@ -216,7 +214,7 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
                                         const std::string &targetNodeId)
 {
     auto ret = UBSE_OK;
-    
+
     auto processDebt = [&allDebtInfoMap, &ret, &targetNodeId](const auto& importMap,
                                                              const auto& getExportMap,
                                                              const auto& getImportNode,
@@ -226,7 +224,7 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
                 UBSE_LOG_ERROR << "exportNumaInfos is empty, skip debt: " << name;
                 continue;
             }
-            
+
             std::string importNode = getImportNode(importObj);
             std::string exportNode = importObj.algoResult.exportNumaInfos[0].nodeId;
             if (allDebtInfoMap.find(exportNode) == allDebtInfoMap.end()) {
@@ -235,7 +233,7 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
             if (importNode != targetNodeId && exportNode != targetNodeId) {
                 continue;
             }
-            
+
             ret |= MasterHandleSingleDebtHelper(importObj, getExportMap(allDebtInfoMap.at(exportNode)),
                                                 name, importNode, borrowType);
         }
@@ -246,7 +244,7 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
                     [](const auto& exportDebtInfo) { return exportDebtInfo.fdExportObjMap; },
                     [](const auto& importObj) { return importObj.req.importNodeId; },
                     UbseMemBorrowType::FD_BORROW);
-        
+
         processDebt(debtInfo.numaImportObjMap,
                     [](const auto& exportDebtInfo) { return exportDebtInfo.numaExportObjMap; },
                     [](const auto& importObj) { return importObj.req.importNodeId; },
@@ -255,13 +253,13 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
                     [](const auto& exportDebtInfo) { return exportDebtInfo.addrExportObjMap; },
                     [](const auto& importObj) { return importObj.req.importNodeId; },
                     UbseMemBorrowType::ADDR_BORROW);
-        
+
         processDebt(debtInfo.shareImportObjMap,
                     [](const auto& exportDebtInfo) { return exportDebtInfo.shareExportObjMap; },
                     [](const auto& importObj) { return importObj.importNodeId; },
                     UbseMemBorrowType::SHM_BORROW);
     }
-    
+
     return ret;
 }
 
@@ -1313,6 +1311,49 @@ bool IsProcessExport(UbseMemState state)
     return state == UBSE_MEM_EXPORT_RUNNING || state == UBSE_MEM_EXPORT_DESTROYING;
 }
 
+template <class ImportObj, class ExportObj>
+bool IsImportRunningLastExportSuccess(const std::string &nodeId, const ImportObj &obj, const ExportObj &exportObj,
+                                      const char *resourceType)
+{
+    if (exportObj.status.state == adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
+        if (obj.isLastExportSuccess) {
+            UBSE_LOG_INFO << "nodeId=" << nodeId << " " << resourceType << " running import name=" << obj.req.name
+                          << ", master state=export success, last export also success, should destroy.";
+            // 更新对应节点对象状态为删除状态
+            message::UbseMemUpdateObjState updateObj{};
+            message::UbseMemUpdateObjStatePtr updateObjPtr = new (std::nothrow) message::UbseMemUpdateObjState();
+            if (updateObjPtr == nullptr) {
+                UBSE_LOG_ERROR << "Failed to new mem update obj state.";
+                return UBSE_ERROR_NULLPTR;
+            }
+            updateObjPtr->objType = resourceType;
+            updateObjPtr->obj = obj;
+            auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+            if (comModule == nullptr) {
+                UBSE_LOG_ERROR << "Failed to get com module.";
+                return UBSE_ERROR_NULLPTR;
+            }
+            SendParam sendParam(obj.req.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+                                static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_UPDATE_OBJ_STATE_CALLBACK));
+            ubse::com::UbseComCallback callback;
+            auto ret = comModule->RpcAsyncSend(sendParam, updateObjPtr, callback);
+            if (ret == UBSE_OK) {
+                UBSE_LOG_INFO << "nodeId=" << nodeId << " " << resourceType << " running import name=" << obj.req.name
+                              << ",update import node state rpc send success.";
+                return ret;
+            }
+
+            return true;
+        }
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " " << resourceType << " running import name=" << obj.req.name
+                      << ", master state=export success, update import last export success.";
+        auto copy = obj;
+        copy.isLastExportSuccess = true;
+        UbseMemDebtLedger::GetInstance().GetDebtMap<ImportObj>().PutResource(obj.req.importNodeId, obj.req.name, copy);
+    }
+    return false;
+}
+
 // 当导入账本 处于导出流程时（export_running, export_destroying） 判定是否需要删除此账本
 bool IsFdImportRunningObjExcess(const std::string &nodeId, const UbseMemFdBorrowImportObj &obj)
 {
@@ -1338,6 +1379,10 @@ bool IsFdImportRunningObjExcess(const std::string &nodeId, const UbseMemFdBorrow
     if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING || exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " fd running import name=" << obj.req.name
                       << ", master state=export running, export obj destroy.";
+        return true;
+    }
+
+    if (IsImportRunningLastExportSuccess(nodeId, obj, exportObj, "fd")) {
         return true;
     }
     return false;
@@ -1370,6 +1415,10 @@ bool IsNumaImportRunningObjExcess(const std::string &nodeId, const UbseMemNumaBo
                       << ", master state=export running, export obj destroy.";
         return true;
     }
+
+    if (IsImportRunningLastExportSuccess(nodeId, obj, exportObj, "numa")) {
+        return true;
+    }
     return false;
 }
 
@@ -1400,6 +1449,11 @@ bool IsAddrImportRunningObjExcess(const std::string &nodeId, const UbseMemAddrBo
                       << ", master state=export running, export obj destroy.";
         return true;
     }
+
+    if (IsImportRunningLastExportSuccess(nodeId, obj, exportObj, "addr")) {
+        return true;
+    }
+
     return false;
 }
 
@@ -1481,7 +1535,7 @@ UbseResult MasterRunningFdImportHandler(const std::string &nodeId,
         }
         if (agentObj.req.name.empty()) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " fd running import name=" << obj.req.name
-                          << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
+                           << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
             obj.status.state = UBSE_MEM_IMPORT_DESTROYED;
             AddFdImport(obj);
             continue;
@@ -1526,7 +1580,7 @@ UbseResult MasterRunningNumaExportHandler(const std::string &nodeId,
         }
         if (agentObj.req.name.empty()) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " numa running export name=" << obj.req.name
-                          << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
+                           << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
             obj.status.state = UBSE_MEM_EXPORT_DESTROYED;
             AddNumaExport(obj);
             continue;
@@ -1575,7 +1629,7 @@ UbseResult MasterRunningNumaImportHandler(const std::string &nodeId,
         }
         if (agentObj.req.name.empty()) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " numa running import name=" << obj.req.name
-                          << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
+                           << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
             obj.status.state = UBSE_MEM_IMPORT_DESTROYED;
             AddNumaImport(obj);
             continue;
@@ -1620,7 +1674,7 @@ UbseResult MasterRunningAddrExportHandler(const std::string &nodeId,
         }
         if (agentObj.req.name.empty()) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " addr running export name=" << obj.req.name
-                          << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
+                           << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
             obj.status.state = UBSE_MEM_EXPORT_DESTROYED;
             AddAddrExport(obj);
             continue;
@@ -1669,7 +1723,7 @@ UbseResult MasterRunningAddrImportHandler(const std::string &nodeId,
         }
         if (agentObj.req.name.empty()) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " addr running import name=" << obj.req.name
-                          << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
+                           << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
             obj.status.state = UBSE_MEM_IMPORT_DESTROYED;
             AddAddrImport(obj);
             continue;
@@ -1711,7 +1765,7 @@ UbseResult MasterRunningShareExportHandler(const std::string &nodeId,
         }
         if (agentObj.req.name.empty()) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " share running export name=" << obj.req.name
-                          << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
+                           << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
             obj.status.state = UBSE_MEM_EXPORT_DESTROYED;
             AddShareExport(obj);
             continue;
@@ -1753,7 +1807,7 @@ UbseResult MasterRunningShareImportHandler(const std::string &nodeId,
         }
         if (agentObj.req.name.empty()) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " share running import name=" << obj.req.name
-                          << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
+                           << ", master state=" << TransState(obj.status.state) << ", agent not found, will destroy.";
             obj.status.state = UBSE_MEM_IMPORT_DESTROYED;
             AddShareImport(obj);
             continue;
@@ -2440,12 +2494,12 @@ void MasterNotifySmapNumaStatus(const std::string &targetNodeId,
                                 const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
 {
     auto linkUpPorts = GetLinkUpPorts(targetNodeId);
-    
+
     std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash> linkToNumaMap;
     std::set<int64_t> invalidRemoteNumaIds;
     std::set<int64_t> unknownRemoteNumaIds;
     BuildLinkToNumaMap(targetNodeId, allDebtInfoMap, linkToNumaMap, invalidRemoteNumaIds, unknownRemoteNumaIds);
-    
+
     auto numaStatus = BuildNumaStatus(linkToNumaMap, invalidRemoteNumaIds, unknownRemoteNumaIds,
                                       linkUpPorts);
     if (numaStatus.empty()) {

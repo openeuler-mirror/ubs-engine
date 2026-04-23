@@ -18,6 +18,7 @@
 
 #include "ubse_common_def.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
@@ -826,9 +827,26 @@ UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuff
 // 处理agent查询全量节点列表
 UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
+    if (g_globalStop.load()) {
+        UBSE_LOG_WARN << "ubse is stopping, reject all node query";
+        return CreateErrorResponse(UBSE_ERROR, resp);
+    }
+
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "election module not load";
+        return CreateErrorResponse(UBSE_ERROR_MODULE_LOAD_FAILED, resp);
+    }
+
+    if (!module->IsLeader()) {
+        UBSE_LOG_WARN << "current node is not leader, reject all node query";
+        return CreateErrorResponse(UBSE_ERROR, resp);
+    }
+
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     std::vector<UbseNodeInfo> infos{};
-    for (auto iter : nodeInfos) {
+    infos.reserve(nodeInfos.size());
+    for (const auto &iter : nodeInfos) {
         infos.push_back(iter.second);
     }
 

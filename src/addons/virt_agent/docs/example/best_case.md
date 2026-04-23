@@ -8,7 +8,7 @@
 
 ## 1. 通用权限配置
 
-- auth-virtagent.conf
+- auth-virt_agent.conf
 
 ```ini
 # Authentication configuration file
@@ -31,13 +31,13 @@ vm_k8s=mem.numa,topo,vm.container
 
 ### 2.1. 修改配置
 
-- plugin_vm.conf
+- plugin_virt_agent.conf
 
 ```ini
-# Name of the vm plugin. Fixed value: vm.
-ubse.plugin.name=vm
-# Name of the SO file on which the vm module depends. Fixed value: libvm.so.
-ubse.plugin.pkg=libvm.so
+# Name of the virt_agent plugin. Fixed value: virt_agent.
+ubse.plugin.name=virt_agent
+# Name of the SO file on which the virt_agent module depends. Fixed value: libvirtagent.so.
+ubse.plugin.pkg=libvirtagent.so
 # Collection period of the VM module, in seconds. The value range is [1, 60].Any invalid value will be reset to 2.
 ubse.plugin.vm.export.interval=2
 
@@ -95,13 +95,13 @@ systemctl restart ubse.service
 
 ### 3.1. 修改配置
 
-- plugin_vm.conf
+- plugin_virt_agent.conf
 
 ```ini
-# Name of the vm plugin. Fixed value: vm.
-ubse.plugin.name=vm
-# Name of the SO file on which the vm module depends. Fixed value: libvm.so.
-ubse.plugin.pkg=libvm.so
+# Name of the virt_agent plugin. Fixed value: virt_agent.
+ubse.plugin.name=virt_agent
+# Name of the SO file on which the virt_agent module depends. Fixed value: libvirtagent.so.
+ubse.plugin.pkg=libvirtagent.so
 # Collection period of the VM module, in seconds. The value range is [1, 60].Any invalid value will be reset to 2.
 ubse.plugin.vm.export.interval=2
 
@@ -124,20 +124,20 @@ systemctl restart ubse.service
 
 ### 4.1. 修改配置
 
+- plugin_virt_agent.conf
+
 ```ini
-# Name of the vm plugin. Fixed value: vm.
-ubse.plugin.name=vm
-# Name of the SO file on which the vm module depends. Fixed value: libvm.so.
-ubse.plugin.pkg=libvm.so
+# Name of the virt_agent plugin. Fixed value: virt_agent.
+ubse.plugin.name=virt_agent
+# Name of the SO file on which the virt_agent module depends. Fixed value: libvirtagent.so.
+ubse.plugin.pkg=libvirtagent.so
 # Collection period of the VM module, in seconds. The value range is [1, 60].Any invalid value will be reset to 2.
 ubse.plugin.vm.export.interval=2
 
 # Maximum timeout for single VM ham migration, in seconds. The value range is [10-10800]. Any invalid value will be reset to 60.
 mig.ham.maxTimeout=60
-# Current environment whether is ub scene.The default value is true.
-mig.isUbScene=true
 # Current environment whether using ham migration.The default value is false.
-mig.isEnableHamMigrate=false
+mig.isEnableHamMigrate=true
 # Vm memory bound to get migrate strategy,in MB. The value range is [256, 4096].Any invalid value will be reset to 4096.
 mig.migrateOneCopyMemoryBound=4096
 
@@ -177,11 +177,13 @@ virsh migrate {vm_name} --live qemu+tcp://{dest_node_ip}/system tcp://{dest_node
 
 ### 5.1. 修改配置
 
+- plugin_virt_agent.conf
+
 ```ini
-# Name of the vm plugin. Fixed value: vm.
-ubse.plugin.name=vm
-# Name of the SO file on which the vm module depends. Fixed value: libvm.so.
-ubse.plugin.pkg=libvm.so
+# Name of the virt_agent plugin. Fixed value: virt_agent.
+ubse.plugin.name=virt_agent
+# Name of the SO file on which the virt_agent module depends. Fixed value: libvirtagent.so.
+ubse.plugin.pkg=libvirtagent.so
 # Collection period of the VM module, in seconds. The value range is [1, 60].Any invalid value will be reset to 2.
 ubse.plugin.vm.export.interval=2
 

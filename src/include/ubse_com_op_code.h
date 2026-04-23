@@ -190,6 +190,7 @@ enum class UbseMemBorrowCallbackOpCode {
     UBSE_MEM_SHARE_BORROW_IMPORT_OBJ_CALLBACK = 0x000C, // 共享内存借用导入对象回调
     UBSE_MEM_ADDR_BORROW_EXPORT_OBJ_CALLBACK = 0x000D, // 地址借用导出对象回调
     UBSE_MEM_ADDR_BORROW_IMPORT_OBJ_CALLBACK = 0x000E, // 地址借用导入对象回调
+    UBSE_MEM_UPDATE_OBJ_STATE_CALLBACK = 0x000F,        // 主节点更新从节点对象状态回调
 };
 
 // UBSE内存故障处理操作码

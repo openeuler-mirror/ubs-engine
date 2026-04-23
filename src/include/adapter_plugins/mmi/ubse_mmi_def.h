@@ -17,9 +17,9 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "ubse_mmi_obmm_def.h"
-#include "ubse_def.h"
 #include "adapter_plugins/mti/ubse_mti_mami_def.h"
+#include "ubse_def.h"
+#include "ubse_mmi_obmm_def.h"
 
 namespace ubse::adapter_plugins::mmi {
 constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
@@ -150,9 +150,9 @@ struct UbseMemPrivData {
 
 // 高安签名信息
 struct UbseTrustRingData {
-    std::string trustRingId{};   // 信任环id
-    std::string reqSignedData{};  // 请求签名信息
-    std::vector<std::string> lendSignedDatas{};  // 借出签名信息
+    std::string trustRingId{};                  // 信任环id
+    std::string reqSignedData{};                // 请求签名信息
+    std::vector<std::string> lendSignedDatas{}; // 借出签名信息
 
     void ClearReqSignedDataMemory()
     {
@@ -242,7 +242,7 @@ struct UbseMemShareBorrowReq : public UbseMemBaseBorrowReq {
     uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN];    // 调用方私有数据，UBSE只负责保存，get时原样返回
     bool shmAnonymous{false}; // true:匿名共享内存，需要自动清理；false:非匿名共享内存，无需自动清理
     UbseMemShmAffinitySocketInfo withAffinity{0, "", false}; // 默认不启用指定CPU平面创建
-    UbseMemLenderInfo lenderInfo;               // 指定借出方信息
+    UbseMemLenderInfo lenderInfo;                            // 指定借出方信息
     UbseMemPrivData
         ubseMemPrivData; // 传递给OBMM的内存访问属性；全0表示无效，UBSE自行组装访问属性；非全零，直接使用该字段传递给OBMM
     friend std::ostream &operator<<(std::ostream &os, const UbseMemShareBorrowReq &obj);
@@ -348,6 +348,8 @@ public:
     UbseMemAlgoResult algoResult{}; // 算法决策结果
     UbseMemExportStatus status{};   // 执行结果信息
     uint32_t errorCode{0};
+    bool isCreateReportReceived{false};    // 主节点是否已经收到过上报，非持久化数据
+    bool isDestroyedReportReceived{false}; // 主节点是否已经收到过上报，非持久化数据
     friend std::ostream &operator<<(std::ostream &os, const UbseMemBorrowExportBaseObj &obj);
 };
 
@@ -358,6 +360,9 @@ public:
     std::vector<UbseMemObmmInfo> exportObmmInfo{}; // 执行导出的obmm信息，用于导入
     UbseMemImportStatus status{};                  // 执行导入结果
     uint32_t errorCode{0};
+    bool isCreateReportReceived{false};    // 主节点是否已经收到过上报，非持久化数据
+    bool isDestroyedReportReceived{false}; // 主节点是否已经收到过上报，非持久化数据
+    bool isLastExportSuccess{false};       // 上一次状态是否是exportSuccess
     friend std::ostream &operator<<(std::ostream &os, const UbseMemBorrowImportBaseObj &obj);
 };
 
@@ -474,5 +479,5 @@ struct SocketCnaInfo {
     uint16_t marId{};         // 借入端导入时用端口所属的mar
     friend std::ostream &operator<<(std::ostream &os, const SocketCnaInfo &obj);
 };
-}  // namespace ubse::adapter_plugins::mmi
-#endif  // UBSE_MMI_DEF_H
+} // namespace ubse::adapter_plugins::mmi
+#endif // UBSE_MMI_DEF_H

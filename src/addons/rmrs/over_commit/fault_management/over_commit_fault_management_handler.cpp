@@ -299,34 +299,41 @@ void OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler(void *ctx, c
 uint32_t OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     LOG_DEBUG << "FaultNumaProcessRecvHandler start.";
- 
     FaultRecordsInNode faultRecordsInNode;
     RmrsInStream builder(req.data, req.len);
     builder >> faultRecordsInNode;
     MpResult ret = OverCommitFaultNodeModule::Instance().BorrowInNodeProcess(faultRecordsInNode);
     if (MEM_POOLING_OK != ret) {
-        LOG_WARN << "BorrowInNodeProcess, ret=" << ret << ".";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] Recv FaultNumaProcessRecvHandler ret=" << ret << ".";
+        resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(ret);
+        resp.data[1] = 0;
+    } else {
+        resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(ret);
     }
- 
-    resp.len = 1;
-    resp.data = new (std::nothrow) uint8_t[resp.len]{};
-    if (resp.data == nullptr) {
-        LOG_ERROR << "Failed to allocate memory, size=" << resp.len << ".";
-        return MEM_POOLING_ERROR;
-    }
-    resp.data[0] = static_cast<uint8_t>(ret);
 
     resp.freeFunc = [](uint8_t *p) {
         if (p != nullptr) {
             delete[] p;
         }
     };
-
-    LOG_DEBUG << "FaultNumaProcessRecvHandler end.";
-
     return ret;
 }
- 
+
 void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void *ctx, const UbseByteBuffer &respData,
                                                                   uint32_t resCode)
 {

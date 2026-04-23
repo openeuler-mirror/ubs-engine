@@ -21,7 +21,7 @@
 #include "vm_def.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
 VmResult HugePageHandler::SetHugePages(const uint64_t &numaId, const uint64_t &borrowedSize)

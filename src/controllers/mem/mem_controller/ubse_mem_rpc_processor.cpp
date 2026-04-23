@@ -249,10 +249,10 @@ UbseResult UbseMemShareDetachMessageHandler::Handle(const UbseBaseMessagePtr &re
     }
     // 使用线程池异步执行
     std::string traceId = TraceContext::GetTraceId();
-    resourceExecutor->Execute([request, traceId, ctx]() {
+    resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareDetach(request->GetUbseMemShareDetachReq(), resp, ctx->GetDstId());
+        UbseMemShareDetach(request->GetUbseMemShareDetachReq(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -285,10 +285,10 @@ UbseResult UbseMemFdReturnHandler::Handle(const UbseBaseMessagePtr &req, const U
     }
     // 使用线程池异步执行
     std::string traceId = TraceContext::GetTraceId();
-    resourceExecutor->Execute([request, traceId, ctx]() {
+    resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemFdReturn(request->GetUbseMemReturnReq(), resp, ctx->GetDstId());
+        UbseMemFdReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 
@@ -322,10 +322,10 @@ UbseResult UbseMemNumaReturnHandler::Handle(const UbseBaseMessagePtr &req, const
     }
     // 使用线程池异步执行
     std::string traceId = TraceContext::GetTraceId();
-    resourceExecutor->Execute([request, traceId, ctx]() {
+    resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemNumaReturn(request->GetUbseMemReturnReq(), resp, ctx->GetDstId());
+        UbseMemNumaReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 
@@ -359,10 +359,10 @@ UbseResult UbseMemShareReturnHandler::Handle(const UbseBaseMessagePtr &req, cons
     }
     // 使用线程池异步执行
     std::string traceId = TraceContext::GetTraceId();
-    resourceExecutor->Execute([request, traceId, ctx]() {
+    resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareReturn(request->GetUbseMemReturnReq(), resp, ctx->GetDstId());
+        UbseMemShareReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 
@@ -396,10 +396,10 @@ UbseResult UbseMemAddrReturnHandler::Handle(const UbseBaseMessagePtr &req, const
     }
     // 使用线程池异步执行
     std::string traceId = TraceContext::GetTraceId();
-    resourceExecutor->Execute([request, traceId]() {
+    resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemAddrReturn(request->GetUbseMemReturnReq(), resp);
+        UbseMemAddrReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 

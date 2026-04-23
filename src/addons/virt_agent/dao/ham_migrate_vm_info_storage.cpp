@@ -19,7 +19,7 @@
 #include "ham_migrate_vm_info_message.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 static const std::string HAM_MIGRATE_KEY_PREFIX = "ubse_";
 static const std::string HAM_MIGRATE_KEY = "ham_migrate";

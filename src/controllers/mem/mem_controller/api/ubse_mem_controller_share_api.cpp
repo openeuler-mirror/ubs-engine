@@ -776,6 +776,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
     importObj.req.requestId = req.requestId;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
+    importObj.isDestroyedReportReceived = false;
     ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     //  下发importObj;
     if (auto ret = SendShareImportObj(importObj, true, req.unImportNodeId); ret != UBSE_OK) {
@@ -940,6 +941,12 @@ uint32_t ShareExportAgentCallback(const std::string &exportNodeId, UbseMemShareB
 static uint32_t ShareExportReturnCallback(const std::string &exportNodeId, UbseMemShareBorrowExportObj &exportObj,
                                           UbseMemOperationResp &resp)
 {
+    if (!HasAgentAlreadyReported<UbseMemShareBorrowExportObj>(exportObj.req.name, exportNodeId,
+                                                     &UbseMemShareBorrowExportObj::isDestroyedReportReceived)) {
+        UBSE_LOG_INFO << "No need to callback for export destroyed, name=" << exportObj.req.name
+                      << ", requestId=" << exportObj.req.requestId;
+        return UBSE_OK;
+    }
     auto req = exportObj.returnReq;
     std::string requestNodeId = req.requestNodeId;
     resp.requestNodeId = requestNodeId;
@@ -986,6 +993,12 @@ uint32_t ShareExportMasterCallback(const std::string &exportNodeId, UbseMemShare
     UbseMemOperationResp resp{
         .name = exportObj.req.name, .requestNodeId = exportObj.req.requestNodeId, .requestId = exportObj.req.requestId};
     if (exportObj.status.expectState == UBSE_MEM_EXPORT_SUCCESS) {
+        if (!HasAgentAlreadyReported<UbseMemShareBorrowExportObj>(exportObj.req.name, exportNodeId,
+                                                         &UbseMemShareBorrowExportObj::isCreateReportReceived)) {
+            UBSE_LOG_INFO << "No need to callback for export created, name=" << exportObj.req.name
+                          << ", requestId=" << exportObj.req.requestId;
+            return UBSE_OK;
+        }
         auto copy = exportObj;
         if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
             EraseShareExport(exportObj);
@@ -1122,12 +1135,6 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp &resp, UbseMemShar
     auto nowObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(
         importObj.importNodeId, importObj.req.name);
     if (nowObjPtr && nowObjPtr->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS) {
-        if (auto ret = SendShareImportObj(*nowObjPtr, false); ret != UBSE_OK) {
-            BorrowFailedAdvice("Import failed", name, "SHARE_BORROW", nowObjPtr->req.size,
-                               nowObjPtr->algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId, ret,
-                               MemAdvice::COMM_FAILED);
-            return ret;
-        }
         return UBSE_OK;
     }
     auto res = ShareImportRunningHandler(resp, importObj, name, requestNodeId);
@@ -1213,8 +1220,8 @@ uint32_t ShareImportDestroyingAgentCallBack(UbseMemOperationResp &resp, UbseMemS
     return UBSE_OK;
 }
 
-uint32_t ShareImportAgentCallBack(UbseMemShareBorrowImportObj &importObj,
-                                  const std::string &name, const std::string &requestNodeId)
+uint32_t ShareImportAgentCallBack(UbseMemShareBorrowImportObj &importObj, const std::string &name,
+                                  const std::string &requestNodeId)
 {
     UBSE_LOG_INFO << "Share import agent callback. name=" << name << ", state=" << importObj.status.state
                   << ", requestId=" << importObj.req.requestId;
@@ -1228,48 +1235,21 @@ uint32_t ShareImportAgentCallBack(UbseMemShareBorrowImportObj &importObj,
     return ShareImportDestroyingAgentCallBack(resp, importObj, name, requestNodeId);
 }
 
-uint32_t ShareImportMasterCallBack(UbseMemShareBorrowImportObj &importObj)
+static uint32_t ShareImportMasterCreateCallback(UbseMemShareBorrowImportObj &importObj, UbseMemOperationResp &resp)
 {
-    UBSE_LOG_INFO << "Share import master callback. name=" << importObj.req.name << ", state=" << importObj.status.state
-                  << ", requestId=" << importObj.req.requestId;
-    auto lock = LoggingLockGuard(importObj.req.name);
-    UbseMemOperationResp resp{
-        .name = importObj.req.name, .requestNodeId = importObj.req.requestNodeId, .requestId = importObj.req.requestId};
-    if (importObj.status.expectState == UBSE_MEM_IMPORT_SUCCESS) {
-        if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) {
-            ShareImportUpdateState(importObj, importObj.status.state);
-            ShareImportFillResp(resp, importObj);
-            UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name
-                          << ", requestId=" << importObj.req.requestId;
-            UbseMemShmImportObjStateChangeHandler(importObj);
-            if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_ATTACH);
-                ret != UBSE_OK) {
-                BorrowFailedAdvice("Return Schedule failed", importObj.req.name, "SHARE_BORROW", 0,
-                                   importObj.algoResult.exportNumaInfos.empty() ?
-                                       "" :
-                                       importObj.algoResult.exportNumaInfos.begin()->nodeId,
-                                   importObj.importNodeId, ret, MemAdvice::COMM_FAILED);
-                return ret;
-            }
-            return UBSE_OK;
-        }
-        EraseShareImport(importObj);
-        return BuildOperationRespWhenFail(resp, importObj.req.name, importObj.req.requestNodeId, "Failed to import.",
-                                          importObj.errorCode, MemOperationType::SHARED_ATTACH);
+    if (!HasAgentAlreadyReported<UbseMemShareBorrowImportObj>(importObj.req.name, importObj.importNodeId,
+                                                     &UbseMemShareBorrowImportObj::isCreateReportReceived)) {
+        UBSE_LOG_INFO << "No need to callback for export created, name=" << importObj.req.name
+                      << ", requestId=" << importObj.req.requestId;
+        return UBSE_OK;
     }
-    if (importObj.status.expectState == UBSE_MEM_IMPORT_DESTROYED) {
-        if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
-            EraseShareImport(importObj);
-            UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name
-                          << ", requestId=" << importObj.req.requestId;
-            UbseMemShmImportObjStateChangeHandler(importObj);
-            return BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_DETACH);
-        }
+    if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) {
         ShareImportUpdateState(importObj, importObj.status.state);
-        if (auto ret = BuildOperationRespWhenFail(resp, importObj.req.name, importObj.req.requestNodeId,
-                                                  "Failed to unimport.", importObj.errorCode,
-                                                  MemOperationType::SHARED_DETACH);
-            ret != UBSE_OK) {
+        ShareImportFillResp(resp, importObj);
+        UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name
+                      << ", requestId=" << importObj.req.requestId;
+        UbseMemShmImportObjStateChangeHandler(importObj);
+        if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_ATTACH); ret != UBSE_OK) {
             BorrowFailedAdvice("Return Schedule failed", importObj.req.name, "SHARE_BORROW", 0,
                                importObj.algoResult.exportNumaInfos.empty() ?
                                    "" :
@@ -1278,6 +1258,54 @@ uint32_t ShareImportMasterCallBack(UbseMemShareBorrowImportObj &importObj)
             return ret;
         }
         return UBSE_OK;
+    }
+    EraseShareImport(importObj);
+    return BuildOperationRespWhenFail(resp, importObj.req.name, importObj.req.requestNodeId, "Failed to import.",
+                                      importObj.errorCode, MemOperationType::SHARED_ATTACH);
+}
+
+static uint32_t ShareImportMasterDestroyCallback(UbseMemShareBorrowImportObj &importObj, UbseMemOperationResp &resp)
+{
+    if (!HasAgentAlreadyReported<UbseMemShareBorrowImportObj>(importObj.req.name, importObj.importNodeId,
+                                                     &UbseMemShareBorrowImportObj::isDestroyedReportReceived)) {
+        UBSE_LOG_INFO << "No need to callback for export destroyed, name=" << importObj.req.name
+                      << ", requestId=" << importObj.req.requestId;
+        return UBSE_OK;
+    }
+    if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
+        EraseShareImport(importObj);
+        UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name
+                      << ", requestId=" << importObj.req.requestId;
+        UbseMemShmImportObjStateChangeHandler(importObj);
+        return BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_DETACH);
+    }
+    ShareImportUpdateState(importObj, importObj.status.state);
+    if (auto ret = BuildOperationRespWhenFail(resp, importObj.req.name, importObj.req.requestNodeId,
+                                              "Failed to unimport.", importObj.errorCode,
+                                              MemOperationType::SHARED_DETACH);
+        ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            "Return Schedule failed", importObj.req.name, "SHARE_BORROW", 0,
+            importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos.begin()->nodeId,
+            importObj.importNodeId, ret, MemAdvice::COMM_FAILED);
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+uint32_t ShareImportMasterCallBack(UbseMemShareBorrowImportObj &importObj)
+{
+    UBSE_LOG_INFO << "Share import master callback. name=" << importObj.req.name << ", state=" << importObj.status.state
+                  << ", requestId=" << importObj.req.requestId;
+    auto lock = LoggingLockGuard(importObj.req.name);
+    UbseMemOperationResp resp{
+        .name = importObj.req.name, .requestNodeId = importObj.req.requestNodeId, .requestId = importObj.req.requestId};
+
+    if (importObj.status.expectState == UBSE_MEM_IMPORT_SUCCESS) {
+        return ShareImportMasterCreateCallback(importObj, resp);
+    }
+    if (importObj.status.expectState == UBSE_MEM_IMPORT_DESTROYED) {
+        return ShareImportMasterDestroyCallback(importObj, resp);
     }
     return UBSE_OK;
 }
@@ -1377,6 +1405,7 @@ uint32_t UbseMemShareReturn(const UbseMemReturnReq &req, UbseMemOperationResp &r
     }
     exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     exportObj.returnReq = req;
+    exportObj.isDestroyedReportReceived = false;
     ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_DESTROYING);
     if (auto ret = SendShareExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
         ret != UBSE_OK) {

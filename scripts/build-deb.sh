@@ -97,8 +97,8 @@ sed -i "s|/usr/lib64/ubse|/usr/lib/${DEB_HOST_MULTIARCH}/ubse|g" "$SERVICE_FILE"
 install -Dm644 cmake-build-release/conf/ubse.conf "$STAGING/etc/ubse/ubse.conf"
 install -Dm644 cmake-build-release/conf/ubse_auth_default.conf "$STAGING/etc/ubse/ubse_auth_default.conf"
 install -Dm644 cmake-build-release/conf/ubse_plugin_admission.conf "$STAGING/etc/ubse/ubse_plugin_admission.conf"
-install -Dm644 src/addons/virt_agent/conf/plugin_vm.conf "$STAGING/etc/ubse/plugins/plugin_vm.conf"
-install -Dm644 src/addons/virt_agent/conf/auth-virtagent.conf "$STAGING/etc/ubse/plugins/auth-virtagent.conf"
+install -Dm644 src/addons/virt_agent/conf/plugin_virt_agent.conf "$STAGING/etc/ubse/plugins/plugin_virt_agent.conf"
+install -Dm644 src/addons/virt_agent/conf/auth-virt_agent.conf "$STAGING/etc/ubse/plugins/auth-virt_agent.conf"
 
 # Bash completion
 install -Dm644 scripts/command_completion/cli_commands.sh "$STAGING/etc/bash_completion.d/cli_commands.sh"
@@ -110,8 +110,8 @@ install -Dm644 cmake-build-release/VERSION "$STAGING/usr/share/ubse/VERSION"
 install -Dm755 cmake-build-release/lib/libhcom.so "$STAGING/${LIBDIR}/ubse/libhcom.so"
 install -Dm755 cmake-build-release/lib/libsecurec.so "$STAGING/${LIBDIR}/ubse/libsecurec.so"
 
-# Virtagent libs (in /${LIBDIR}/)
-install -Dm755 cmake-build-release/lib/libvm.so "$STAGING/${LIBDIR}/libvm.so"
+# VirtAgent libs (in /${LIBDIR}/)
+install -Dm755 cmake-build-release/lib/libvirtagent.so "$STAGING/${LIBDIR}/libvirtagent.so"
 install -Dm755 cmake-build-release/lib/libstrategy.so "$STAGING/${LIBDIR}/libstrategy.so"
 install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.0 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.0"
 
@@ -122,8 +122,8 @@ install -Dm644 cmake-build-release/lib/libubse-client.a "$STAGING/${LIBDIR}/libu
 # Headers
 mkdir -p "$STAGING/usr/include/ubse"
 cp -r src/include/* "$STAGING/usr/include/ubse/"
-mkdir -p "$STAGING/usr/include/virtagent"
-cp -r src/addons/virt_agent/sdk/include/* "$STAGING/usr/include/virtagent/"
+mkdir -p "$STAGING/usr/include/virt_agent"
+cp -r src/addons/virt_agent/sdk/include/* "$STAGING/usr/include/virt_agent/"
 cmake --install cmake-build-release \
     --component ubse_sdk \
     --prefix "$STAGING/usr"
@@ -225,17 +225,17 @@ build_deb() {
             find "$pkg_dir$REL_SITE/ubse" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
             ;;
           ubs-engine-virtagent)
-            # Virtagent libs
-            install -Dm755 "$STAGING/${LIBDIR}/libvm.so" "$pkg_dir/${LIBDIR}/libvm.so"
+            # VirtAgent libs
+            install -Dm755 "$STAGING/${LIBDIR}/libvirtagent.so" "$pkg_dir/${LIBDIR}/libvirtagent.so"
             install -Dm755 "$STAGING/${LIBDIR}/libstrategy.so" "$pkg_dir/${LIBDIR}/libstrategy.so"
             install -Dm755 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.0" "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1.0.0"
             ln -sf libubs-virt-agent.so.1.0.0 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1"
             ln -sf libubs-virt-agent.so.1 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so"
 
-            install -Dm644 "$STAGING/etc/ubse/plugins/plugin_vm.conf" "$pkg_dir/etc/ubse/plugins/plugin_vm.conf"
-            install -Dm644 "$STAGING/etc/ubse/plugins/auth-virtagent.conf" "$pkg_dir/etc/ubse/plugins/auth-virtagent.conf"
+            install -Dm644 "$STAGING/etc/ubse/plugins/plugin_virt_agent.conf" "$pkg_dir/etc/ubse/plugins/plugin_virt_agent.conf"
+            install -Dm644 "$STAGING/etc/ubse/plugins/auth-virt_agent.conf" "$pkg_dir/etc/ubse/plugins/auth-virt_agent.conf"
             mkdir -p "$pkg_dir/usr/include"
-            cp -r "$STAGING/usr/include/virtagent"  "$pkg_dir/usr/include/virtagent"
+            cp -r "$STAGING/usr/include/virt_agent"  "$pkg_dir/usr/include/virt_agent"
             ;;
     esac
 

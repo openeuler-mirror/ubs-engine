@@ -41,7 +41,7 @@ UbsePluginDeInitHandle g_deinitHandle = nullptr;
 
 void TestDlopenUbseVmPlugin()
 {
-    g_libvmHandle = dlopen("libvm.so", RTLD_LAZY);
+    g_libvmHandle = dlopen("libvirtagent.so", RTLD_LAZY);
     if (g_libvmHandle == nullptr) {
         return;
     }
