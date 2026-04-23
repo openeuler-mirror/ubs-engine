@@ -119,7 +119,7 @@ TEST_F(TestUbseHttpModule, Initialize_Conf)
     std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
     uint32_t port = 8082;
-    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(any(), any(), outBound(port)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(port)).will(returnValue(UBSE_OK));
     MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
     MOCKER(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, testRHM.Initialize());
