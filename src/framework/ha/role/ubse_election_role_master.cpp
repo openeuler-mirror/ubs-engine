@@ -210,12 +210,13 @@ void Master::ProcTimer()
         for (const auto &id : allNodes) {
             UBSE_LOG_DEBUG << "[ELECTION] ProcTimer MASTER send pkt id=" << id;
             pkt.broadcast = static_cast<uint8_t>(broadcast_[id].masterOnlineBcStatus);
-            lock.unlock();
-            auto ret = SendHeartBeat(id, pkt);
-            if (ret !=UBSE_OK) {
-                UBSE_LOG_ERROR << "[ELECTION] send heart to nodeId="<< id << " failed";
+            {
+                UnlockGuard unlockGuard(lock);
+                auto ret = SendHeartBeat(id, pkt);
+                if (ret != UBSE_OK) {
+                    UBSE_LOG_ERROR << "[ELECTION] send heart to nodeId=" << id << " failed";
+                }
             }
-            lock.lock();
             DealHbCnt(id);
             TraceContext::Clear();
         }
@@ -296,15 +297,16 @@ void AsyncDealReply(void* ctx, void* recv, uint32_t len, int32_t result)
         return;
     }
     auto& stopping = *context->stopping;
+    auto& activeCount = *context->activeCount;
     const auto& nodeId = context->destId;
+    activeCount.fetch_add(1);
     if (stopping.load()) {
         UBSE_LOG_INFO << "[ELECTION] Master has stopped, skipping callback; nodeId=" << nodeId;
+        activeCount.fetch_sub(1);
         SafeDelete(context);
         return;
     }
-    auto& activeCount = *context->activeCount;
     UBSE_LOG_DEBUG << "[ELECTION] Asynchronous reply, nodeId=" << nodeId;
-    activeCount.fetch_add(1);
     ProcessReply(context, result, recv, len);
     activeCount.fetch_sub(1);
     SafeDelete(context);
