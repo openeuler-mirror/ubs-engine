@@ -2531,14 +2531,14 @@ int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, 
 | ----------------------------------- | --------------- |
 | UBS\_ERR\_NULL\_POINTER             | 空指针             |
 | UBS\_ERR\_INVALID\_ARG              | 参数无效            |
-| UBS\_ERR\_CONNECTION\_FAILED        | 连接UBSE服务端失败     |
-| UBS\_ERR\_AUTH\_FAILED              | UBSE服务端鉴权不通过    |
+| UBS_ENGINE_ERR_CONNECTION_FAILED        | 连接UBSE服务端失败     |
+| UBS_ENGINE_ERR_AUTH_FAILED              | UBSE服务端鉴权不通过    |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST        | 借用关系不存在         |
 | UBS\_ENGINE\_ERR\_CREATING          | 资源正在创建中         |
 | UBS\_ENGINE\_ERR\_DELETING          | 资源正在删除中         |
 | UBS\_ENGINE\_ERR\_EXPORT\_LEDGERING | 导出节点对账中、调用方进行重试 |
-| UBS\_ERR\_TIMEOUT                   | UBSE服务端处理超时     |
-| UBS\_ERR\_INTERNEL                  | UBSE服务端内部错误     |
+| UBS_ENGINE_ERR_TIMEOUT                  | UBSE服务端处理超时     |
+| UBS_ENGINE_ERR_INTERNAL                 | UBSE服务端内部错误     |
 
 ## 附注 NOTES
 
@@ -2611,14 +2611,14 @@ int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid
 | ----------------------------------- | --------------- |
 | UBS\_ERR\_NULL\_POINTER             | 空指针             |
 | UBS\_ERR\_INVALID\_ARG              | 参数无效            |
-| UBS\_ERR\_CONNECTION\_FAILED        | 连接UBSE服务端失败     |
-| UBS\_ERR\_AUTH\_FAILED              | UBSE服务端鉴权不通过    |
+| UBS_ENGINE_ERR_CONNECTION_FAILED        | 连接UBSE服务端失败     |
+| UBS_ENGINE_ERR_AUTH_FAILED              | UBSE服务端鉴权不通过    |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST        | 借用关系不存在         |
 | UBS\_ENGINE\_ERR\_CREATING          | 资源正在创建中         |
 | UBS\_ENGINE\_ERR\_DELETING          | 资源正在删除中         |
 | UBS\_ENGINE\_ERR\_EXPORT\_LEDGERING | 导出节点对账中、调用方进行重试 |
-| UBS\_ERR\_TIMEOUT                   | UBSE服务端处理超时     |
-| UBS\_ERR\_INTERNEL                  | UBSE服务端内部错误     |
+| UBS_ENGINE_ERR_TIMEOUT                  | UBSE服务端处理超时     |
+| UBS_ENGINE_ERR_INTERNAL                 | UBSE服务端内部错误     |
 
 ## 附注 NOTES
 
@@ -2692,14 +2692,14 @@ int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid,
 | ----------------------------------- | --------------- |
 | UBS\_ERR\_NULL\_POINTER             | 空指针             |
 | UBS\_ERR\_INVALID\_ARG              | 参数无效            |
-| UBS\_ERR\_CONNECTION\_FAILED        | 连接UBSE服务端失败     |
-| UBS\_ERR\_AUTH\_FAILED              | UBSE服务端鉴权不通过    |
+| UBS_ENGINE_ERR_CONNECTION_FAILED        | 连接UBSE服务端失败     |
+| UBS_ENGINE_ERR_AUTH_FAILED              | UBSE服务端鉴权不通过    |
 | UBS\_ENGINE\_ERR\_NOT\_EXIST        | 借用关系不存在         |
 | UBS\_ENGINE\_ERR\_CREATING          | 资源正在创建中         |
 | UBS\_ENGINE\_ERR\_DELETING          | 资源正在删除中         |
 | UBS\_ENGINE\_ERR\_EXPORT\_LEDGERING | 导出节点对账中、调用方进行重试 |
-| UBS\_ERR\_TIMEOUT                   | UBSE服务端处理超时     |
-| UBS\_ERR\_INTERNEL                  | UBSE服务端内部错误     |
+| UBS_ENGINE_ERR_TIMEOUT                  | UBSE服务端处理超时     |
+| UBS_ENGINE_ERR_INTERNAL                 | UBSE服务端内部错误     |
 
 ## 附注 NOTES
 
