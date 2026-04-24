@@ -1,13 +1,12 @@
-[TOC]
 # UBS RMRS
+
 ## 项目简介
 
 UBS RMRS是一款面向虚拟化场景的节点内资源管理服务插件，作为UBS Engine框架的一部分提供集群级的内存资源调度服务，主要针对虚机内存碎片场景、虚机内存超分场景、容器内存超分场景。
 
 ## 目录结构
 
-
-```
+```path
 UBS RMRS/
 ├── 3rdparty                    // 源码三方库
 ├── benchmark                   // cli工具
@@ -21,14 +20,14 @@ UBS RMRS/
 │   ├── mem_fragment           //虚机碎片源码
 │   ├── over_commit            // 虚机/容器超分源码
 └── test
-	├── UT                     // 测试三方库
+  ├── UT                     // 测试三方库
         ├── conf           // UT配置文件
         └── testcase           // 测试用例
 ```
 
 ## 约束说明
-- 虚机碎片/超分场景仅适用于2M虚机场景
 
+- 虚机碎片/超分场景仅适用于2M虚机场景
 
 ## 项目架构
 
@@ -56,7 +55,6 @@ UBS RMRS/
 - UBS RMRS依赖UB Turbo及其插件进行内存迁移等能力，需要配套使用
 - UBS RMRS依赖libvirt采集节点虚机信息
 
-
 ## UBS RMRS编译
 
 在根目录下执行:
@@ -66,9 +64,11 @@ git submodule update --init --recursive
 dos2unix build.sh
 sh build.sh -ub
 ```
+
 编译产物：
 
 - 在cmake-build-release/lib下会有以下库文件: `libmempooling.so`
 
 # License说明
-本项目采用木兰开源许可，详见项目根目录LICENSE文件
+
+本项目采用木兰开源许可，详见项目根目录LICENSE文件.

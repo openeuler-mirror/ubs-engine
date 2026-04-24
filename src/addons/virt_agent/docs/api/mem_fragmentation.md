@@ -23,6 +23,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_para
 | borrow_strategy | OUT    | 内存借用决策信息    |
 
 - 数据结构说明
+
 ```c
 constexpr uint32_t MAX_BORROW_ID_COUNT = 2000;
 constexpr uint32_t MAX_BORROW_ID_LENGTH = 128;
@@ -133,6 +134,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
 | result         | OUT    | 借用ID列表，借入的远端NUMA ID列表，借用ID列表大小，借入的远端NUMA ID列表大小 |
 
 - 数据结构说明
+
 ```c
 typedef struct {
     borrow_strategy_c borrow_strategy;
@@ -230,7 +232,9 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrc
 |-----------|--------|-------------|
 | src_param | IN     | 内存迁移信息。     |
 | strategy  | OUT    | 内存迁移决策信息    |
+
 - 数据结构说明
+
 ```c
 typedef struct {
     pid_t pid;
@@ -331,6 +335,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
 | src_param | IN     | 内存迁移决策信息。                              |
 
 - 数据结构说明
+
 ```c
 typedef struct {    
     char borrowInNode[VIRT_MAX_NODE_ID_LENGTH];
@@ -341,6 +346,7 @@ typedef struct {
     uint64_t waitingTime;
 }MemMigrateExecuteSrcParam;
 ```
+
 ## 返回值 RETURN VALUE
 
 返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
@@ -420,7 +426,6 @@ virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_
 | task_id         | OUT    | 后台任务id |
 |task_id_len | OUT| 后台任务id长度|
 
-
 ## 返回值 RETURN VALUE
 
 返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
@@ -492,7 +497,9 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);
 | name     | IN/OUT | description                  |
 |----------|--------|------------------------------|
 | srcParam | IN     | 回滚的入参，包括节点id、节点上的borrowId列表。 |
+
 - 数据结构说明
+
 ```c
 typedef struct {
     char node_id[VIRT_MAX_NODE_ID_LENGTH];
@@ -564,7 +571,9 @@ virt_agent库 (libubs-virt-agent.so)
 #include <ubs_virt_agent_mem_fragmentation.h>
 virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict);
 ```
+
 - 数据结构说明
+
 ```c
 struct KeyValuePair {
     char key[VIRT_MAX_NODE_ID_LENGTH];
@@ -653,7 +662,9 @@ virt_agent库 (libubs-virt-agent.so)
 #include <ubs_virt_agent_mem_fragmentation.h>
 virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);
 ```
+
 - 数据结构说明
+
 ```c
 using async_task_status_c = enum {
     ASYNC_TASK_NOT_EXIST = 0,
@@ -691,6 +702,7 @@ using async_task_status_c = enum {
 | VA_ERROR_SERIALIZE_FAILED    | 序列化失败       |
 | VA_ERROR_DESERIALIZE_FAILED  | 反序列化失败      |
 | VA_ERROR_TIMEOUT_FAILED      | 超时          |
+
 ## 约束 CONSTRAINTS
 
 暂无

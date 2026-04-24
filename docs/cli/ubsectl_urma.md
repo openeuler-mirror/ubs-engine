@@ -1,6 +1,9 @@
+# URMA
+
 ## 1. 提供查询URMA设备
 
 - **用法**
+
 ```shell
 ubsectl display urma [--node <node-id>] [--dev <urma_name>]
 ```
@@ -28,25 +31,27 @@ ubsectl display urma [--node <node-id>] [--dev <urma_name>]
 - **示例**
 
 查询指定节点的所有URMA设备：
+
 ```shell
 $ ubsectl display urma --node 1
 ----------------------------------------------------------------------------------------------------------
 urma-name      dev-eid     dev1-name         dev2-name         dev1-eid         dev2-eid        status 
 ----------------------------------------------------------------------------------------------------------
-urma_1         eid0         udma1            udma49             eid1	        eid2            active
-urma_2         eid3         udma2            udma50             eid4		    eid5            inactive
-urma_3         eid6         udma3            udma51             eid7	        eid8            active
+urma_1         eid0         udma1            udma49             eid1            eid2            active
+urma_2         eid3         udma2            udma50             eid4            eid5            inactive
+urma_3         eid6         udma3            udma51             eid7            eid8            active
 ...
 ----------------------------------------------------------------------------------------------------------
 ```
 
 查询指定名称的URMA设备：
+
 ```shell
 $ ubsectl display urma --dev urma_1,urma_2
 ----------------------------------------------------------------------------------------------------------
 urma-name      dev-eid     dev1-name         dev2-name         dev1-eid         dev2-eid        status 
 ----------------------------------------------------------------------------------------------------------
-urma_1         eid0         udma1            udma49             eid1	        eid2            active
-urma_2         eid3         udma2            udma50             eid4		    eid5            inactive
+urma_1         eid0         udma1            udma49             eid1            eid2            active
+urma_2         eid3         udma2            udma50             eid4            eid5            inactive
 ----------------------------------------------------------------------------------------------------------
 ```

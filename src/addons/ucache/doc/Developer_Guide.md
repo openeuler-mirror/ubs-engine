@@ -4,7 +4,7 @@
 
 **根目录**
 
-```
+```shell
 sh build.sh
 ```
 
