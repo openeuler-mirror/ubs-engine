@@ -679,7 +679,6 @@ TEST_F(TestUbseMemControllerAddrApi, DealAddrAgentImportSuccess)
         .will(returnValue(std::make_shared<mmi::UbseMmiModule>()));
     MOCKER(&mmi::UbseMmiModule::UbseMemAddrImportExecutor).stubs().will(returnValue(UBSE_OK));
     MOCKER(&mem::decoder::utils::MemDecoderUtils::GetChipAndDieId).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&SetMarIdByLinkInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(ImportToAddDecoderEntry).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
