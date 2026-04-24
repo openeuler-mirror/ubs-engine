@@ -9,10 +9,10 @@
 - UCache组件由UCache UBS Engine插件与UCache UBTurbo插件组成。
 - 需要已安装SMAP、UBS Engine、UB Turbo。
 - 需要关闭文件页透明大页设置，执行以下命令。
+
 ```bash
 echo never > /sys/kernel/mm/transparent_hugepage/file_enabled
 ```
-
 
 ## 2.2 UBS Engine UCache组件安装与启动
 
@@ -23,11 +23,14 @@ rpm -ivh ucache-*.aarch64.rpm
 ```
 
 检查库文件、配置文件、头文件路径如下所示：
+
 ```bash
 /usr/lib64/libucache_plugin.so
 /etc/ubse/plugins/plugin_ucache.conf
 ```
+
 参数配置说明
+
 ```bash
 ubse.plugin.name=ucache
 ubse.plugin.pkg=libucache_plugin.so
@@ -59,7 +62,8 @@ master.masterInterval=10
 master.maxBorrowSize=1073741824
 ```
 
-参数含义说明如下表所示
+参数含义说明如下表所示：
+
 | 参数名称                       | 参数值                                                                 | 说明                                                                                                   |
 | ------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | ubse.plugin.name               | 默认值：ucache                                                         | ucache插件名称。                                                                                       |
@@ -78,8 +82,8 @@ master.maxBorrowSize=1073741824
 | master.masterInterval          | 默认值：3<br>单位：秒<br>配置范围：[1,15]                              | master主流程间隔时间，整数型。                                                                         |
 | master.maxBorrowSize           | 默认值：1073741824<br>单位：字节<br>配置范围：strategy.borrow_size的正整数倍 | 最大借用内存量，整数型。<br>*参数不在配置范围，插件初始化失败。* |
 
-
 修改/etc/ubse/ubse_plugin_admission.conf，启用“ucache=778”
+
 ```bash
 # vm plugin. Default value: 205
 # vm=205
@@ -88,7 +92,9 @@ master.maxBorrowSize=1073741824
 # ucache plugin. Default value: 778
 ucache=778
 ```
+
 新增参数说明
+
 | 序号 | 参数 | 说明 | 取值 | 配置节点 | 应用场景 |
 | - | - | - | - | - | - |
 | 1 | ucache | UCache插件 | 默认值：778 | 所有节点 | 通算大数据场景 |

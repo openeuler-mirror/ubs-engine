@@ -1,3 +1,5 @@
+# 内存池化
+
 ## 1. 检查各节点内存池化功能健康状态
 
 ### 描述
@@ -32,7 +34,7 @@ ubsectl只能在root，ubse用户中运行
 
 - master节点
 
-``` 
+```bash
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -44,7 +46,7 @@ computer01(1)         ok                      cluster state: ok; obmm: ok; sysSe
 
 - 备节点
 
-``` 
+```bash
 $ ubsectl check memory
 ERROR: Failed to obtain memory information
 ```
@@ -53,7 +55,7 @@ ERROR: Failed to obtain memory information
 
 - master节点
 
-``` 
+```bash
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -66,7 +68,7 @@ computer02(2)         ok                      cluster state: ok; obmm: ok; sysSe
 
 - 备节点
 
-``` 
+``` bash
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -81,7 +83,7 @@ computer02(2)         ok                      cluster state: ok; obmm: ok; sysSe
 
 - master节点
 
-``` 
+```bash 
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -94,7 +96,7 @@ computer01(1)         ok                      cluster state: ok; obmm: ok; sysSe
 
 - 备节点
 
-``` 
+```bash
 $ ubsectl check memory
 ERROR: Internal error with error code 5
 
@@ -104,7 +106,7 @@ ERROR: Internal error with error code 5
 
 - master节点
 
-``` 
+```bash 
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -117,7 +119,7 @@ computer01(1)         ok                      cluster state: ok; obmm: ok; sysSe
 
 - 备节点
 
-``` 
+```bash  
 $ ubsectl check memory
 ERROR: Internal error with error code 5
 
@@ -127,7 +129,7 @@ ERROR: Internal error with error code 5
 
 - master节点
 
-``` 
+```bash  
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -140,7 +142,7 @@ computer02(2)         ok                      cluster state: ok; obmm: ok; sysSe
 
 - 备节点
 
-``` 
+```bash  
 $ ubsectl check memory
 ERROR: Internal error with error code 5
 
@@ -150,7 +152,7 @@ ERROR: Internal error with error code 5
 
 - master节点
 
-``` 
+```bash  
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -165,7 +167,7 @@ computer01(1)         nok                     cluster state: ok; obmm: nok; sysS
 
 - master节点
 
-``` 
+```bash 
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -180,7 +182,7 @@ computer01(1)         nok                     cluster state: ok; obmm: ok; sysSe
 
 - 备节点
 
-``` 
+```bash 
 $ ubsectl check memory
 -----------------------------------------------------------------------------------------------------
 node                  status                  detail
@@ -225,7 +227,7 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 
 ### 示例
 
-```
+```bash
 $ ubsectl display memory -t node_borrow
 --------------------------------------------
 node          lend             size   
@@ -269,7 +271,7 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 
 ### 示例
 
-```
+```bash
 $ ubsectl display memory -t node_lend
 --------------------------------------------
 node          borrow         size   
@@ -420,7 +422,7 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 
 ### 示例
 
-```
+```bash
 $ ubsectl display memory -t numa_status
 -------------------------------------------------------
 node         numa    total   used   free   used_percent
@@ -428,7 +430,9 @@ node-1(1)    0       1024    128    896	   12.5
 node-1(1)    1       8192    256    7936   3.1
 node-2(2)    0       1024    128    896	   12.5   
 ```
+
 ## 6. 查询全量节点是否可借用内存信息
+
 ### 描述
 
 查询全量节点是否可借用内存信息
@@ -438,6 +442,7 @@ node-2(2)    0       1024    128    896	   12.5
 ```shell
 ubsectl display memory -t config
 ```
+
 ### 输入参数
 
 无
@@ -455,10 +460,9 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 | node     | 节点信息。例：computer1(1)<br/>节点信息由2部分组成：<br/>1.括号前部分：主机名<br/>2.括号内部分：节点的槽位号 | 字符串                   |
 | isLender | 此节点是否可以作为内存借出方                                            | 可选值：[ true \| false ] |
 
-
 ### 示例
 
-```
+```bash
 $ ubsectl display memory -t config
 -------------------------------------------------------
 node         isLender    
@@ -469,6 +473,7 @@ node-2(2)    false
 ```
 
 ## 7. 触发内存借用
+
 ### 描述
 
 在本节点借用指定类型的内存
@@ -483,6 +488,7 @@ ubsectl create memory -t fd -s <size> -n <name>
 # 共享内存类型
 ubsectl create memory -t share -s <size> -n <name> [-r <regionList>]
 ```
+
 ### 输入参数说明
 
 - 输入参数说明：
@@ -502,7 +508,6 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 `fd`和`numa`类型的name在本节点唯一，`share`类型的name在集群内唯一
 
 `-r`仅`share`类型有效，`-l`仅`numa`类型有效
-
 
 ### 输出信息说明
 
@@ -539,7 +544,7 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 
 - **numa 类型**
 
-```
+```bash
 $ ubsectl create memory -t numa -l 1/36/0-2/36/0 -s 128M -n testName
 name:testName
 size:128M
@@ -550,7 +555,7 @@ export-node:2
 
 - **fd 类型**
 
-```
+```bash
 $ ubsectl create memory -t fd -s 128M -n testName
 name:testName
 size:128M
@@ -561,7 +566,7 @@ export-node:2
 
 - **share 类型**
 
-```
+```bash
 $ ubsectl create memory -t share -s 128M -n testName -r 1,2
 name:testName
 size:128M
@@ -570,6 +575,7 @@ region:1,2
 ```
 
 ## 8. 删除内存借用记录，释放借用的内存
+
 ### 描述
 
 删除命令行调用节点的内存借用记录，释放借用的内存。
@@ -579,6 +585,7 @@ region:1,2
 ```shell
 ubsectl delete memory [-t <borrow-type>] -n <name>
 ```
+
 ### 输入参数说明
 
 - 输入参数说明：
@@ -587,12 +594,14 @@ ubsectl delete memory [-t <borrow-type>] -n <name>
 |---------------| ------------------------------------------------------------ |--------------------------------------|
 | -t<br/>--type | 借用类型<br/>默认值: "numa"                                  | 可选值: [ numa \| fd \| share \| addr ] |
 | -n<br/>--name | 借用的唯一标识<br/>长度为1~47，仅可包括大小写字母、数字、"."、":"、"-"以及"_" | 字符串                                  |
+
 ### 输出信息说明
+
 Delete successfully
 
 ### 示例
 
-```
+```bash
 $ ubsectl delete memory -t share -n testName
 Delete successfully
 ```
@@ -605,7 +614,7 @@ Delete successfully
 
 ### **用法**
 
-```
+```bash
 ubsectl attach memory -n <name>
 ```
 
@@ -628,7 +637,7 @@ ubsectl attach memory -n <name>
 
 ### **示例**
 
-```
+```bash
 $ ubsectl attach memory -n testName
 name:testName
 size:128M
@@ -646,7 +655,7 @@ region:1,2
 
 ### **用法**
 
-```
+```bash
 ubsectl detach memory -n <name>
 ```
 
@@ -658,6 +667,6 @@ ubsectl detach memory -n <name>
 
 ### **输出信息说明**
 
-```
+```bash
 Detach successfully
 ```

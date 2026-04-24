@@ -1,6 +1,7 @@
 # UBSE 内存控制器接口说明文档
 
 ## 概述
+
 UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这些接口支持不同类型的内存借用，包括基于 NUMA 的内存借用和基于地址的内存借用。文档中详细描述了每个接口的功能、参数和返回值。
 
 ---
@@ -8,6 +9,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ## 枚举类型
 
 ### `UbseMemStage`
+
 表示借用关系的阶段。
 
 | 枚举值 | 描述 |
@@ -20,6 +22,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 | `UBSE_ERR_WAIT_UNEXPORT` | 等待 unexport 执行 |
 
 ### `UbseMemBorrowType`
+
 表示借用类型。
 
 | 枚举值 | 描述 |
@@ -31,6 +34,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 | `SHM_ATTACH` | 共享内存附加 |
 
 ### `UbseMemDistance`
+
 表示CPU连线类型。
 
 | 枚举值 | 描述 |
@@ -44,6 +48,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ## 结构体
 
 ### `UbseMemResult`
+
 表示借用结果。
 
 | 字段 | 类型 | 描述 |
@@ -56,6 +61,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseNumaMemoryDebtInfo`
+
 表示 NUMA 内存借用账本信息。
 
 | 字段 | 类型 | 描述 |
@@ -78,6 +84,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseNumaMemoryImportDebtInfo`
+
 表示 NUMA 内存导入账本信息。
 
 | 字段 | 类型 | 默认值 | 描述 |
@@ -92,6 +99,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemBorrower`
+
 表示借用方信息。
 
 | 字段 | 类型 | 描述 |
@@ -104,6 +112,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemNumaLender`
+
 表示 NUMA 借出方信息。
 
 | 字段 | 类型 | 描述                                      |
@@ -116,6 +125,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseTopoIpAddress`
+
 表示拓扑 IP 地址。
 
 | 字段 | 类型 | 描述 |
@@ -127,6 +137,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseTopoNode`
+
 表示拓扑节点。
 
 | 字段 | 类型 | 描述 |
@@ -140,6 +151,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemNumaDesc`
+
 表示 NUMA 借用形成的远端 NUMA 信息。
 
 | 字段 | 类型 | 描述 |
@@ -154,6 +166,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseNodeNumaInfo`
+
 表示节点 NUMA 信息。
 
 | 字段 | 类型 | 描述 |
@@ -175,6 +188,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemNumaCreateOpt`
+
 表示 NUMA 借用的可选项。
 
 | 字段 | 类型 | 描述                                      |
@@ -187,6 +201,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemNumaCandidateOpt`
+
 表示指定候选借出节点的 NUMA 借用可选项。继承自 `UbseMemNumaCreateOpt`。
 
 **自有字段：**
@@ -198,6 +213,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemAddrBorrowLocAndSizeByPid`
+
 表示基于 PID 的地址借用位置和大小。
 
 | 字段 | 类型 | 默认值 | 描述                                    |
@@ -208,6 +224,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemProcessLender`
+
 表示基于进程的地址借出方信息。
 
 | 字段 | 类型 | 描述 |
@@ -220,6 +237,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ---
 
 ### `UbseMemAddrDesc`
+
 表示基于地址借用形成的远端 NUMA 信息。
 
 | 字段 | 类型 | 描述 |
@@ -235,6 +253,7 @@ UBSE 内存控制器提供了一组用于管理内存借用关系的接口。这
 ## 函数
 
 ### `UbseQueryResult`
+
 查询借用标识对应的操作结果。
 
 ```cpp
@@ -242,17 +261,20 @@ uint32_t UbseQueryResult(const std::string &name, UbseMemResult &result, UbseMem
 ```
 
 **参数:**
+
 - `name`: 借用标识
 - `result`: 借用结果
 - `borrowType`: 借用类型，默认为 `NUMA_BORROW`
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseGetNumaMemDebtInfoWithNode`
+
 返回和传入节点相关的账本信息。
 
 ```cpp
@@ -260,16 +282,19 @@ UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector
 ```
 
 **参数:**
+
 - `nodeId`: 节点 ID
 - `debtInfos`: 借用账本对象集合
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseGetNumaMemDebtInfo`
+
 返回当前集群拓扑中的所有对账完成节点的账本信息。
 
 ```cpp
@@ -277,15 +302,18 @@ UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos
 ```
 
 **参数:**
+
 - `debtInfos`: 借用账本对象集合
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseGetNumaMemImportDebtInfoWithLocalNode`
+
 返回当前节点导入账本信息。本地节点账本已经从 OBMM 恢复完成则返回成功，否则返回部分成功。
 
 ```cpp
@@ -293,15 +321,18 @@ UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryI
 ```
 
 **参数:**
+
 - `debtInfos`: 借用账本对象集合
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseGetAllNodeNumaInfo`
+
 返回所有采集到的节点相关的 NUMA 信息。
 
 ```cpp
@@ -309,15 +340,18 @@ UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoLis
 ```
 
 **参数:**
+
 - `numaNodeInfoList`: 节点 NUMA 对象集合
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseGetNodeNumaInfoByNodeId`
+
 返回所有采集到的节点指定节点相关的 NUMA 信息。
 
 ```cpp
@@ -325,16 +359,19 @@ UbseResult UbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<Ub
 ```
 
 **参数:**
+
 - `nodeId`: 节点 ID
 - `numaNodeInfoList`: 节点 NUMA 对象集合
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseMemNumaCreateWithLender`
+
 指定借出信息，提供给插件使用 NUMA 借用。
 
 ```cpp
@@ -342,6 +379,7 @@ UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBor
 ```
 
 **参数:**
+
 - `name`: 借用标识
 - `borrower`: 借用方信息
 - `lenders`: 借出方信息
@@ -349,12 +387,14 @@ UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBor
 - `desc`: 借用形成的远端 NUMA 信息
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseMemNumaCreate`
+
 提供给插件使用 NUMA 借用。
 
 ```cpp
@@ -362,18 +402,21 @@ UbseResult UbseMemNumaCreate(const std::string &name, const UbseMemBorrower &bor
 ```
 
 **参数:**
+
 - `name`: 借用标识
 - `borrower`: 借用方信息
 - `opt`: 借出方信息
 - `desc`: 借用形成的远端 NUMA 信息
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseMemNumaCreateWithCandidate`
+
 指定候选借出节点，提供给插件使用 NUMA 借用。
 
 ```cpp
@@ -381,18 +424,21 @@ UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMem
 ```
 
 **参数:**
+
 - `name`: 借用标识
 - `borrower`: 借用方信息
 - `opt`: 可选项
 - `desc`: 借用形成的远端 NUMA 信息
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseMemNumaDelete`
+
 删除指定 NUMA 远端内存。
 
 ```cpp
@@ -400,16 +446,19 @@ UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &bor
 ```
 
 **参数:**
+
 - `name`: 借用标识
 - `borrower`: 借用方信息
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseMemAddrCreate`
+
 提供给插件使用地址借用。
 
 ```cpp
@@ -417,6 +466,7 @@ UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &bor
 ```
 
 **参数:**
+
 - `name`: 借用标识
 - `borrower`: 借用方信息
 - `lender`: 借出方信息
@@ -424,12 +474,14 @@ UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &bor
 - `desc`: 借用形成的远端 NUMA 信息
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseMemAddrDelete`
+
 删除地址借用。
 
 ```cpp
@@ -437,16 +489,19 @@ UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &bor
 ```
 
 **参数:**
+
 - `name`: 借用标识
 - `borrower`: 借用方信息
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseMemDebtCircleCheck`
+
 检查借用是否成环。
 
 ```cpp
@@ -454,17 +509,20 @@ UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::strin
 ```
 
 **参数:**
+
 - `srcNodeId`: 借入 NodeId
 - `dstNodeId`: 借出 NodeId
 - `isCircle`: 是否成环
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
 ---
 
 ### `UbseGetAddrMemDebtInfoWithNode`
+
 返回和传入节点相关的地址借用账本信息。传入节点对账完成则返回成功，传入节点未对账完成，如果剩余节点全部对账完成返回成功，否则返回部分成功。
 
 ```cpp
@@ -472,10 +530,12 @@ UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector
 ```
 
 **参数:**
+
 - `nodeId`: 节点 ID
 - `debtInfos`: 地址借用账本对象集合
 
 **返回值:**
+
 - `UBSE_OK`: 成功
 - 其他: 失败，详见 `ubse_error.h`
 
@@ -484,6 +544,7 @@ UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector
 ## 常量
 
 ### `UBSE_MAX_USR_INFO_LEN`
+
 调用方私有数据的最大长度。
 
 ```cpp
@@ -493,6 +554,7 @@ static constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
 ---
 
 ### `UBSE_MEM_FLAG_NO_WR_DELAY`
+
 非写接力模式标志。
 
 ```cpp
@@ -502,4 +564,5 @@ static constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
 ---
 
 ## 总结
+
 UBSE 内存控制器提供了一组丰富的接口，用于管理内存借用关系。通过这些接口，可以方便地进行 NUMA 和地址借用，同时支持查询和删除操作。

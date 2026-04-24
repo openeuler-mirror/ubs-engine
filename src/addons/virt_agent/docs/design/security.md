@@ -45,9 +45,9 @@
 
 | 接口名称            | SDK                                                                                                         | 权限组          | 使用用户 |
 |-----------------|-------------------------------------------------------------------------------------------------------------|--------------|------|
-| 获取virtAgent场景配置 | virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info);                            | vm.case_conf | nova |
-| 设置VirtAgent场景配置 | virt_agent_ret_t ubs_virt_agent_case_conf_set(const char *param, case_conf_set_info_t *case_conf_set_info); | vm.case_conf | nova |
-| 更新虚拟机迁移状态       | int32_t update_page_flow_and_status(const char *opt, const char *uuid);                                     | vm.migrate   | nova |
+| 获取virtAgent场景配置 | `virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info);`                            | vm.case_conf | nova |
+| 设置VirtAgent场景配置 | `virt_agent_ret_t ubs_virt_agent_case_conf_set(const char *param, case_conf_set_info_t *case_conf_set_info);` | vm.case_conf | nova |
+| 更新虚拟机迁移状态       | `int32_t update_page_flow_and_status(const char *opt, const char *uuid);`                                   | vm.migrate   | nova |
 
 ### 3.2 内存碎片场景接口
 
@@ -56,14 +56,13 @@
 | 查询节点内存信息   | virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_list, uint32_t *node_cnt);                          | vm.query         | ubs-scheduler |
 | 查询节点虚拟机信息  | virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_info_list, uint32_t *vm_info_cnt);                 | vm.query         | ubs-scheduler |
 | 设置节点亲和性配置  | virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict);                              | vm.fragmentation | ubs-scheduler |
-| 内存借用决策     | virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param* src_param, borrow_strategy_c* borrow_strategy); | vm.fragmentation | ubs-scheduler |
-| 内存借用执行     | virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borrow_setting, mem_borrow_result_c *result);           | vm.fragmentation | ubs-scheduler |
-| 内存迁移决策     | virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam* srcParam, MemMigrateStrategy* strategy);    | vm.fragmentation | ubs-scheduler |
+| 内存借用决策     | `virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param* src_param, borrow_strategy_c* borrow_strategy);` | vm.fragmentation | ubs-scheduler |
+| 内存借用执行     | `virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borrow_setting, mem_borrow_result_c *result);`           | vm.fragmentation | ubs-scheduler |
+| 内存迁移决策     | `virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam* srcParam, MemMigrateStrategy* strategy);`    | vm.fragmentation | ubs-scheduler |
 | 内存迁移执行     | virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam *srcParam);                                    | vm.fragmentation | ubs-scheduler |
 | 归还节点借用内存   | virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len);                                   | vm.fragmentation | ubs-scheduler |
-| 查询内存操作任务结果 | virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);                   | vm.fragmentation | ubs-scheduler |
+| 查询内存操作任务结果 | `virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);`                | vm.fragmentation | ubs-scheduler |
 | 借用失败后回滚    | virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);                                                    | vm.fragmentation | ubs-scheduler |
-
 
 ### 3.3 确定性热迁移接口
 
@@ -71,22 +70,22 @@
 
 | 接口名称         | SDK                                                                                                                                                                     | 权限组        | 使用用户 |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|------|
-| 迁移方式决策       | virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName, uint32_t destNumaId, uint32_t *migrateStrategy); | vm.migrate | nova |
-| 设置IPC连接超时时间  | virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);                                                                                                       | vm.migrate | nova |
-| 创建客户端，发送同步消息 | int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);                                                                                          | vm.migrate | nova |
-| 创建客户端，发送异步消息 | int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);                                                                                        | vm.migrate | nova |
+| 迁移方式决策       | `virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName, uint32_t destNumaId, uint32_t *migrateStrategy);` | vm.migrate | nova |
+| 设置IPC连接超时时间  | `virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);`                                                                                                       | vm.migrate | nova |
+| 创建客户端，发送同步消息 | `int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);`                                                                                       | vm.migrate | nova |
+| 创建客户端，发送异步消息 | `int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);`                                                                                       | vm.migrate | nova |
 
 ### 3.4 容器化场景接口
 
 | 接口名称          | SDK                                                                                                                                                                     | 权限组          | 使用用户         |
 |---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|--------------|
-| 查询容器内存信息      | int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint32_t *InfoSize);                                                                        | vm.container | matrixplugin |
-| 设置/更新容器化告警水线  | int32_t ubs_container_inject_waterLine(watermark_t* param);                                                                                                             | vm.container | matrixplugin |
-| 根据容器ID获取容器PID | int32_t ubs_container_get_container_pids(container_id_list *containerIdList, container_pid_info **param, uint32_t *InfoSize);                                           | vm.container | matrixplugin |
-| 容器化场景内存借用     | int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t *memBorrowRequest, char ***borrowIds, uint32_t *idsSize);                                              | vm.container | matrixplugin |
-| 容器化场景内存迁移     | int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t *memMigrateRequest);                                                                                 | vm.container | matrixplugin |
-| 容器化场景内存归还     | int32_t ubs_virt_agent_waterline_mem_return(return_request_t *returnRequest);                                                                                           | vm.container | matrixplugin |
-| 迁移方式决策        | virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName, uint32_t destNumaId, uint32_t *migrateStrategy); | vm.container | matrixplugin |
+| 查询容器内存信息      | `int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint32_t *InfoSize);`                                                                        | vm.container | matrixplugin |
+| 设置/更新容器化告警水线  | `int32_t ubs_container_inject_waterLine(watermark_t* param);`                                                                                                             | vm.container | matrixplugin |
+| 根据容器ID获取容器PID | `int32_t ubs_container_get_container_pids(container_id_list *containerIdList, container_pid_info **param, uint32_t *InfoSize);`                                           | vm.container | matrixplugin |
+| 容器化场景内存借用     | `int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t *memBorrowRequest, char ***borrowIds, uint32_t *idsSize);`                                              | vm.container | matrixplugin |
+| 容器化场景内存迁移     | `int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t *memMigrateRequest);`                                                                                 | vm.container | matrixplugin |
+| 容器化场景内存归还     | `int32_t ubs_virt_agent_waterline_mem_return(return_request_t *returnRequest);`                                                                                           | vm.container | matrixplugin |
+| 迁移方式决策        | `virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName, uint32_t destNumaId, uint32_t *migrateStrategy);` | vm.container | matrixplugin |
 
 ## 4. 确定性热迁移安全设计
 

@@ -1,3 +1,4 @@
+# 证书管理
 
 ## 1.导入证书
 
@@ -34,12 +35,11 @@ ubsectl import cert -c <ca-cert-file> -s <server-cert-file> -k <server-key-file>
 
 ### 示例
 
-```
+```bash
 $ ubsectl import cert -c /usr/cert/trust.pem -s /usr/cert/server.pem -k /usr/cert/server_key.pem -l /usr/cert/crl.pem
 Enter certificate password: 
 Certificates imported successfully
 ```
-
 
 ## 2.移除证书
 
@@ -52,6 +52,7 @@ Certificates imported successfully
 ```shell
 ubsectl remove cert
 ```
+
 ### 参数
 
 无
@@ -66,11 +67,10 @@ ubsectl remove cert
 
 ### 示例
 
-```
+```bash
 $ ubsectl remove cert
 Certificates removed successfully
 ```
-
 
 ## 3.更新证书吊销列表
 
@@ -102,7 +102,7 @@ ubsectl change cert -l <ca-crl-file>
 
 ### 示例
 
-```
+```bash
 $ ubsectl change cert -l /usr/cert/crl.pem
 Certificate Revocation List changed successfully
 ```

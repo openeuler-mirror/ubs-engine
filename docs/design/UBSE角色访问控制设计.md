@@ -23,7 +23,7 @@ B(角色/Role)-->C(目标对象/Object)
 
 **角色/Role：**表示用户/User所绑定的角色，每个角色/Role可以绑定多个目标对象/Object
 
-**目标对象/Object：**表示能够被操作的资源对象，表示可以对相应对象完成所有操作（简化系统复杂度，不定义基于对象的动作行为）；资源对象的取值范围，由UBSE开发过程确定，在包ubs-engine-client-devel-<version>-<release>.aarch64.rpm中可以获取
+**目标对象/Object：**表示能够被操作的资源对象，表示可以对相应对象完成所有操作（简化系统复杂度，不定义基于对象的动作行为）；资源对象的取值范围，由UBSE开发过程确定，在包ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm中可以获取
 
 ### 2.2 权限模型表达
 
@@ -223,5 +223,3 @@ alt 失败
   api server-->>客户端:返回鉴权失败  
 end
 ```
-
-

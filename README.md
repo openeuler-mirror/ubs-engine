@@ -1,4 +1,5 @@
 # UBS-Engine
+
 软件定义计算，资源按需组合与分配
 
 # ubs_engine
@@ -64,6 +65,7 @@ UBSEngine/
     ├── PT
     └── UT
 ```
+
 阅读各个目录下的 README.md 获取更详细的说明。
 
 ## 3.架构 Architecture
@@ -116,29 +118,30 @@ git clone https://atomgit.com/openeuler/ubs-engine.git
 bash build.sh package
 ```
 
-#### 4.开发项目 
+#### 4.开发项目
 
 #### 4.1 开发常见问题
+
 1. 搞不懂构建类型，找不准构建产物
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">参考上节的《构建项目》，清楚不同构建类型的差别：</p>
+    <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">参考上节的《构建项目》，清楚不同构建类型的差别：</p>
 
-* Release (默认构建类型，生产不可调试包，代码会被优化，不含调试信息)
+    * Release (默认构建类型，生产不可调试包，代码会被优化，不含调试信息)
 
-* Debug (调试包，代码不会应用任何优化，包含调试信息)
+    * Debug (调试包，代码不会应用任何优化，包含调试信息)
 
-* RelWithDebInfo (生产调试包，代码会被优化，同时包含调试信息)
+    * RelWithDebInfo (生产调试包，代码会被优化，同时包含调试信息)
 
-* MinSizeRel (最小生产包，生成最小的二进制，不含调试信息)
+    * MinSizeRel (最小生产包，生成最小的二进制，不含调试信息)
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">RelWithDebInfo 主要用于 Release 与 Debug 包存在差异导致无法调试时使用该构建调试优化后的代码。
-MinSizeRel 主要用于特殊场景，如要求生产包足够小的时候考虑的构建类型。</p>
+    <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">RelWithDebInfo 主要用于 Release 与 Debug 包存在差异导致无法调试时使用该构建调试优化后的代码。
+    MinSizeRel 主要用于特殊场景，如要求生产包足够小的时候考虑的构建类型。</p>
 
 2. 测试代码都爆红，找不到头文件
 
-<p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">项目默认构建不会包含测试代码，方便项目构建出包，推荐开发时自己打开构建选项 BUILD_TESTS。</p>
+    <p style="text-align: left; margin-top: 0px; font-family: SimSun; font-size: 16px;">项目默认构建不会包含测试代码，方便项目构建出包，推荐开发时自己打开构建选项 BUILD_TESTS。</p>
 
-![image-20251013163754583](docs/images/image-20251013163754583.png)
+    ![image-20251013163754583](docs/images/image-20251013163754583.png)
 
 #### 4.2 开发者测试
 
@@ -191,5 +194,7 @@ bash build.sh ut -C -H
 # 只构建测试，不执行
 bash build.sh ut --skip-run-tests
 ```
+
 #### 5 许可证
+
 本项目采用木兰开源许可，详见 [License](./LICENSE) 目录
