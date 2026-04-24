@@ -27,6 +27,121 @@
 #include "ubse_sync_req.h"
 
 namespace ubse::ut::ipc {
+namespace {
+int MockPollErr(struct pollfd *fds, nfds_t, int)
+{
+    fds[0].revents = POLLERR;
+    return 1;
+}
+
+int MockPollHup(struct pollfd *fds, nfds_t, int)
+{
+    fds[0].revents = POLLHUP;
+    return 1;
+}
+
+int MockPollEintrThenReadable(struct pollfd *fds, nfds_t, int)
+{
+    static bool firstCall = true;
+    if (firstCall) {
+        firstCall = false;
+        errno = EINTR;
+        return -1;
+    }
+    firstCall = true;
+    fds[0].revents = POLLIN;
+    return 1;
+}
+
+uint32_t MockRecvClientRespWithBody(int, void *buffer, uint32_t length, int)
+{
+    if (length == sizeof(UbseResponseHeader)) {
+        auto *header = static_cast<UbseResponseHeader *>(buffer);
+        header->statusCode = UBSE_OK;
+        header->bodyLen = 4;
+        header->clientRequestId = 1234;
+    } else if (length == 4) {
+        auto *body = static_cast<uint8_t *>(buffer);
+        body[0] = 9;
+        body[1] = 8;
+        body[2] = 7;
+        body[3] = 6;
+    }
+    return UBSE_OK;
+}
+
+uint32_t MockRecvClientReqWithBody(int, void *buffer, uint32_t length, int)
+{
+    if (length == sizeof(UbseRequestHeader)) {
+        auto *header = static_cast<UbseRequestHeader *>(buffer);
+        header->moduleCode = 1;
+        header->opCode = 2;
+        header->bodyLen = 4;
+        header->clientRequestId = 99;
+    } else if (length == 4) {
+        auto *body = static_cast<uint8_t *>(buffer);
+        body[0] = 5;
+        body[1] = 4;
+        body[2] = 3;
+        body[3] = 2;
+    }
+    return UBSE_OK;
+}
+
+uint32_t MockRecvClientRespBodyFail(int, void *buffer, uint32_t length, int)
+{
+    static bool firstCall = true;
+    if (firstCall) {
+        firstCall = false;
+        auto *header = static_cast<UbseResponseHeader *>(buffer);
+        header->statusCode = UBSE_OK;
+        header->bodyLen = 4;
+        header->clientRequestId = 55;
+        return UBSE_OK;
+    }
+    firstCall = true;
+    return UBSE_IPC_ERROR_RECV_FAILED;
+}
+
+uint32_t MockRecvClientRespOversizedHeader(int, void *buffer, uint32_t length, int)
+{
+    auto *header = static_cast<UbseResponseHeader *>(buffer);
+    header->bodyLen = UBSE_MESSAGE_SIZE + 1;
+    header->clientRequestId = 66;
+    return UBSE_OK;
+}
+
+uint32_t MockRecvClientReqOversizedHeader(int, void *buffer, uint32_t length, int)
+{
+    auto *header = static_cast<UbseRequestHeader *>(buffer);
+    header->bodyLen = UBSE_MESSAGE_SIZE + 1;
+    return UBSE_OK;
+}
+
+uint32_t MockRecvClientReqAllocFailHeader(int, void *buffer, uint32_t length, int)
+{
+    auto *header = static_cast<UbseRequestHeader *>(buffer);
+    header->bodyLen = 8;
+    header->clientRequestId = 77;
+    return UBSE_OK;
+}
+
+uint32_t MockRecvClientReqBodyFail(int, void *buffer, uint32_t length, int)
+{
+    static bool firstCall = true;
+    if (firstCall) {
+        firstCall = false;
+        auto *header = static_cast<UbseRequestHeader *>(buffer);
+        header->bodyLen = 4;
+        header->clientRequestId = 88;
+        return UBSE_OK;
+    }
+    firstCall = true;
+    return UBSE_IPC_ERROR_RECV_FAILED;
+}
+
+} // namespace
+
 TestUbseUdsClient::TestUbseUdsClient() = default;
 void TestUbseUdsClient::SetUp()
 {
@@ -455,6 +570,159 @@ TEST_F(TestUbseUdsClient, HandlerServerReq_WhenRequestBodyEmpty)
     client->HandlerServerReq();
 }
 
+TEST_F(TestUbseUdsClient, SendWithoutWait_InvalidBodyLen)
+{
+    UbseRequestMessage request{};
+    request.header.bodyLen = UBSE_MESSAGE_SIZE + 1;
+
+    EXPECT_EQ(client->SendWithoutWait(request), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseUdsClient, SendWithoutWait_Disconnected)
+{
+    UbseRequestMessage request{};
+    request.header.bodyLen = 0;
+
+    EXPECT_EQ(client->SendWithoutWait(request), UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, SendWithoutWait_SerializeFail)
+{
+    client->sockFd_ = 7;
+    UbseRequestMessage request{};
+    request.header.bodyLen = 4;
+    request.body = new uint8_t[4]{};
+    MOCKER_CPP(SerializeRequestMessage).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
+
+    EXPECT_EQ(client->SendWithoutWait(request), UBSE_ERROR_SERIALIZE_FAILED);
+    delete[] request.body;
+}
+
+TEST_F(TestUbseUdsClient, SendWithoutWait_SendSuccess)
+{
+    client->sockFd_ = 7;
+    UbseRequestMessage request{};
+    request.header.bodyLen = 4;
+    request.body = new uint8_t[4]{};
+    MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(client->SendWithoutWait(request), UBSE_OK);
+    delete[] request.body;
+}
+
+TEST_F(TestUbseUdsClient, SendWithoutWait_SendFail)
+{
+    client->sockFd_ = 7;
+    UbseRequestMessage request{};
+    request.header.bodyLen = 4;
+    request.body = new uint8_t[4]{};
+    MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+
+    EXPECT_EQ(client->SendWithoutWait(request), UBSE_ERR_IPC_CONNECTION_FAILED);
+    delete[] request.body;
+}
+
+TEST_F(TestUbseUdsClient, HandlerServerResp_WithBody)
+{
+    client->sockFd_ = 7;
+    UbseSyncReq::GetInstance().RegisterRequest(1234);
+    UbseResponseMessage response{};
+
+    MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientRespWithBody));
+
+    client->HandlerServerResp();
+
+    EXPECT_EQ(UbseSyncReq::GetInstance().WaitForResp(1234, 50, response), UBSE_OK);
+    ASSERT_NE(response.body, nullptr);
+    EXPECT_EQ(response.body[0], 9);
+    EXPECT_NE(response.freeFunc, nullptr);
+    response.freeFunc(response.body);
+}
+
+TEST_F(TestUbseUdsClient, HandlerServerResp_OversizedBody)
+{
+    MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientRespOversizedHeader));
+
+    client->HandlerServerResp();
+}
+
+TEST_F(TestUbseUdsClient, HandlerServerResp_BodyRecvFail)
+{
+    client->sockFd_ = 7;
+    MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientRespBodyFail));
+    MOCKER_CPP(&UbseUDSClient::ReconnectAfterBroken).stubs();
+
+    client->HandlerServerResp();
+}
+
+TEST_F(TestUbseUdsClient, HandlerServerReq_OversizedBody)
+{
+    MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientReqOversizedHeader));
+
+    client->HandlerServerReq();
+}
+
+TEST_F(TestUbseUdsClient, HandlerServerReq_AllocFail)
+{
+    MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientReqAllocFailHeader));
+    MOCKER(operator new[]).stubs().will(returnValue(static_cast<void *>(nullptr)));
+
+    client->HandlerServerReq();
+}
+
+TEST_F(TestUbseUdsClient, HandlerServerReq_BodyRecvFail)
+{
+    client->sockFd_ = 7;
+    MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientReqBodyFail));
+
+    client->HandlerServerReq();
+}
+
+TEST_F(TestUbseUdsClient, HandlerServerReq_WithBodySchedulesHandler)
+{
+    bool executed = false;
+    client->taskExecutor_ = UbseTaskExecutor::Create("IpcExecutor", 1, 8);
+    ASSERT_NE(client->taskExecutor_, nullptr);
+    ASSERT_TRUE(client->taskExecutor_->Start());
+    client->requestHandler_ = [&executed](const UbseRequestMessage &req, UbseResponseMessage &) {
+        executed = (req.body != nullptr && req.body[0] == 5);
+        if (req.freeFunc != nullptr && req.body != nullptr) {
+            req.freeFunc(req.body);
+        }
+    };
+    MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientReqWithBody));
+    MOCKER_CPP(&UbseUDSClient::SendResponse).stubs().will(returnValue(UBSE_OK));
+
+    client->HandlerServerReq();
+    usleep(100 * 1000);
+
+    EXPECT_TRUE(executed);
+}
+
+TEST_F(TestUbseUdsClient, WaitForDataReadable_PollErr)
+{
+    client->sockFd_ = 7;
+    MOCKER(poll).stubs().will(invoke(MockPollErr));
+
+    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_IPC_ERROR_RECV_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, WaitForDataReadable_PollHup)
+{
+    client->sockFd_ = 7;
+    MOCKER(poll).stubs().will(invoke(MockPollHup));
+
+    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_IPC_ERROR_RECV_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, WaitForDataReadable_EintrThenReadable)
+{
+    client->sockFd_ = 7;
+    MOCKER(poll).stubs().will(invoke(MockPollEintrThenReadable));
+
+    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_OK);
+}
+
 TEST_F(TestUbseUdsClient, HandleRequest_NormalCase)
 {
     UbseRequestMessage request{};
@@ -712,4 +980,225 @@ TEST_F(TestUbseUdsClient, PerformListenerRegistration_WhenRegisterSuccess)
 
     client->PerformListenerRegistration();
 }
+
+TEST_F(TestUbseUdsClient, SetSocketOptions_InvalidFd)
+{
+    client->sockFd_ = -1;
+    client->SetSocketOptions();
+}
+
+TEST_F(TestUbseUdsClient, SetNonBlocking_InvalidFd)
+{
+    client->sockFd_ = -1;
+    client->SetNonBlocking(true);
+    client->SetNonBlocking(false);
+}
+
+TEST_F(TestUbseUdsClient, CheckTimeout_True)
+{
+    auto startTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(1000);
+    EXPECT_TRUE(client->CheckTimeout(startTime, 500));
+}
+
+TEST_F(TestUbseUdsClient, CheckTimeout_False)
+{
+    auto startTime = std::chrono::steady_clock::now();
+    EXPECT_FALSE(client->CheckTimeout(startTime, 5000));
+}
+
+TEST_F(TestUbseUdsClient, Stop_WhenNotRunning)
+{
+    client->running_.store(false);
+    client->Stop();
+}
+
+TEST_F(TestUbseUdsClient, Disconnect_WhenAlreadyDisconnected)
+{
+    client->sockFd_ = -1;
+    client->epollFd_ = -1;
+    client->Disconnect();
+}
+
+TEST_F(TestUbseUdsClient, SetSocketPath)
+{
+    client->SetSocketPath("/tmp/new_socket.sock");
+}
+
+TEST_F(TestUbseUdsClient, IsConnected_True)
+{
+    client->sockFd_ = 7;
+    EXPECT_TRUE(client->IsConnected());
+}
+
+TEST_F(TestUbseUdsClient, IsConnected_False)
+{
+    client->sockFd_ = -1;
+    EXPECT_FALSE(client->IsConnected());
+}
+
+TEST_F(TestUbseUdsClient, Send_SerializeFailed)
+{
+    client->sockFd_ = 7;
+    auto request = CreateValidRequest(10);
+    UbseResponseMessage response{};
+    MOCKER_CPP(SerializeRequestMessage).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
+    auto result = client->Send(request, response, 100);
+    EXPECT_EQ(result, UBSE_ERROR_SERIALIZE_FAILED);
+    FreeRequest(request);
+}
+
+TEST_F(TestUbseUdsClient, Send_CheckTimeoutAfterSend)
+{
+    client->sockFd_ = 7;
+    auto request = CreateValidRequest(10);
+    UbseResponseMessage response{};
+    MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::WaitAndReceive).stubs().will(returnValue(UBSE_ERR_TIMED_OUT));
+    auto result = client->Send(request, response, 100);
+    EXPECT_EQ(result, UBSE_ERR_TIMED_OUT);
+    FreeRequest(request);
+}
+
+TEST_F(TestUbseUdsClient, LongLinkConnect_WhenSocketFailed)
+{
+    MOCKER(socket).stubs().will(returnValue(-1));
+    EXPECT_EQ(client->LongLinkConnect(), UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, LongLinkConnect_WhenConnectFailed)
+{
+    MOCKER(socket).stubs().will(returnValue(10));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+    EXPECT_EQ(client->LongLinkConnect(), UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, ConnectToServer_MemsetFailed)
+{
+    client->sockFd_ = 10;
+    MOCKER(memset_s).stubs().will(returnValue(-1));
+    sockaddr_un addr{};
+    auto ret = client->ConnectToServer(addr);
+    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, ConnectToServer_StrncpyFailed)
+{
+    client->sockFd_ = 10;
+    MOCKER(memset_s).stubs().will(returnValue(EOK));
+    MOCKER(strncpy_s).stubs().will(returnValue(-1));
+    sockaddr_un addr{};
+    auto ret = client->ConnectToServer(addr);
+    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, ConnectToServer_ImmediateSuccess)
+{
+    client->sockFd_ = 10;
+    MOCKER(memset_s).stubs().will(returnValue(EOK));
+    MOCKER(strncpy_s).stubs().will(returnValue(EOK));
+    MOCKER(connect).stubs().will(returnValue(0));
+    sockaddr_un addr{};
+    auto ret = client->ConnectToServer(addr);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUdsClient, HandleInProgressConnection_PollTimeout)
+{
+    client->sockFd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+    MOCKER(poll).stubs().will(returnValue(0));
+    auto ret = client->HandleInProgressConnection();
+    close(client->sockFd_);
+    client->sockFd_ = -1;
+    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, HandleInProgressConnection_GetsockoptError)
+{
+    client->sockFd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+    MOCKER(poll).stubs().will(returnValue(1));
+    MOCKER(getsockopt).stubs().will(returnValue(-1));
+    auto ret = client->HandleInProgressConnection();
+    close(client->sockFd_);
+    client->sockFd_ = -1;
+    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, CreateEpoll_EpollCreateFailed)
+{
+    client->sockFd_ = 10;
+    MOCKER(epoll_create1).stubs().will(returnValue(-1));
+    auto ret = client->CreateEpoll();
+    EXPECT_EQ(ret, UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, CreateEpoll_EpollCtlFailed)
+{
+    client->sockFd_ = 10;
+    MOCKER(epoll_create1).stubs().will(returnValue(20));
+    MOCKER(epoll_ctl).stubs().will(returnValue(-1));
+    auto ret = client->CreateEpoll();
+    EXPECT_EQ(ret, UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, EventLoopThread_BasicTest)
+{
+    client->sockFd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+    client->epollFd_ = epoll_create1(0);
+    client->running_.store(true);
+    
+    epoll_event ev{};
+    ev.events = EPOLLIN;
+    ev.data.fd = client->sockFd_;
+    epoll_ctl(client->epollFd_, EPOLL_CTL_ADD, client->sockFd_, &ev);
+    
+    std::thread t([&]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        client->running_.store(false);
+    });
+    
+    t.join();
+    close(client->sockFd_);
+    close(client->epollFd_);
+    client->sockFd_ = -1;
+    client->epollFd_ = -1;
+}
+
+TEST_F(TestUbseUdsClient, Connect_MemsetFailed)
+{
+    MOCKER(socket).stubs().will(returnValue(10));
+    MOCKER(memset_s).stubs().will(returnValue(-1));
+    auto ret = client->Connect();
+    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+TEST_F(TestUbseUdsClient, Connect_StrncpyFailed)
+{
+    MOCKER(socket).stubs().will(returnValue(10));
+    MOCKER(memset_s).stubs().will(returnValue(EOK));
+    MOCKER(strncpy_s).stubs().will(returnValue(-1));
+    auto ret = client->Connect();
+    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
+int MockPollEintrThenTimeout(struct pollfd *fds, nfds_t nfds, int timeout)
+{
+    static int callCount = 0;
+    callCount++;
+    if (callCount == 1) {
+        errno = EINTR;
+        return -1;
+    }
+    return 0;
+}
+
+TEST_F(TestUbseUdsClient, HandleInProgressConnection_PollEintrThenTimeout)
+{
+    client->sockFd_ = socket(AF_UNIX, SOCK_STREAM, 0);
+    MOCKER(poll).stubs().will(invoke(MockPollEintrThenTimeout));
+    auto ret = client->HandleInProgressConnection();
+    close(client->sockFd_);
+    client->sockFd_ = -1;
+    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
+}
+
 } // namespace ubse::ut::ipc
