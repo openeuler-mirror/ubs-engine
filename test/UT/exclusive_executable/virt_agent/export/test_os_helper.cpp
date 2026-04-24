@@ -31,9 +31,8 @@ void TestOsHelper::TearDown()
 
 TEST_F(TestOsHelper, GetPidsByContainerIdsSuccess)
 {
-    GTEST_SKIP();
     std::string sourcePath = OsHelper::procPathPrefix;
-    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/virt_agent/export/proc";
+    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/export/proc";
     std::unordered_map<std::string, std::vector<pid_t>> containerInfos;
     std::unordered_set<std::string> containerIds = {"3d699eb51dadbdd5aa512b3fdc59caf6a122def920a7a332addccdf99dcd265b"};
     auto ret = OsHelper::GetPidsByContainerIds({containerIds}, containerInfos);
@@ -46,15 +45,14 @@ TEST_F(TestOsHelper, GetPidsByContainerIdsSuccess)
 
 TEST_F(TestOsHelper, GetPidsByContainerIdsFailed)
 {
-    GTEST_SKIP();
     std::string sourcePath = OsHelper::procPathPrefix;
-    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/virt_agent/export/proc1";
+    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/export/proc1";
     std::unordered_map<std::string, std::vector<pid_t>> containerInfos;
     std::unordered_set<std::string> containerIds = {"3d699eb51dadbdd5aa512b3fdc59caf6a122def920a7a332addccdf99dcd265b"};
     auto ret = OsHelper::GetPidsByContainerIds({containerIds}, containerInfos);
     EXPECT_EQ(ret, VM_ERROR);
 
-    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/virt_agent/export/proc_err";
+    OsHelper::procPathPrefix = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/export/proc_err";
     ret = OsHelper::GetPidsByContainerIds({containerIds}, containerInfos);
     EXPECT_EQ(ret, VM_OK);
     EXPECT_EQ(0, containerInfos.size());

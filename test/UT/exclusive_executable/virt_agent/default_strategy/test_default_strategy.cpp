@@ -454,7 +454,7 @@ DsResult ReadJsonAndConf(std::string fileName, AlarmNumaInfo &alarmNumaInfo, Glo
 
 void EscapeStrategyUT(const std::string fileName)
 {
-    std::string caseDir = std::string(UT_DIRECTORY) + "/virt_agent/default_strategy/case/";
+    std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/default_strategy/case/";
     AlarmNumaInfo alarmNumaInfo = { 0 };
     GlobalNumaInfoMap globalNumaInfoMap;
     EscapeAction escapeAction;
@@ -492,9 +492,8 @@ TEST_F(TestDefaultStrategy, VMEscapeStrategySetPerBorrowBoundTest1)
 
 TEST_F(TestDefaultStrategy, JsonReadAndConfTest)
 {
-    GTEST_SKIP();
     // 初始化测试对象
-    std::string caseDir = std::string(UT_DIRECTORY) + "/virt_agemt/default_strategy/case/";
+    std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/default_strategy/case/";
     std::string fileName = "strategy_case_default.json";
     AlarmNumaInfo alarmNumaInfo;
     GlobalNumaInfoMap globalNumaInfoMap;
@@ -510,90 +509,76 @@ TEST_F(TestDefaultStrategy, JsonReadAndConfTest)
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyBorrowTwiceDifferentTest1)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_borrow_twice_different.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyBorrowMemUpperLimitTestTest1)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_borrow_upper_limit.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyBorrowMemTest1)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_borrow_mem.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyBorrowMemFailTest1)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_borrow_mem_fail.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyMigrateListExceptionTest1)
 {
-    GTEST_SKIP();
     // incomplete environment
     EscapeStrategyUT("strategy_migrate_list_exception.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategySetWaterLineCornerCaseTest2)
 {
-    GTEST_SKIP();
     // WaterLine 100 100 60
     EscapeStrategyUT("strategy_no_borrow_migrate.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategySetWaterLineCornerCaseTest3)
 {
-    GTEST_SKIP();
     // WaterLine 90 80 60
     EscapeStrategyUT("strategy_borrow_and_migrate.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategySetWaterLineCornerCaseTest4)
 {
-    GTEST_SKIP();
     // WaterLine 80 80 60
     EscapeStrategyUT("strategy_only_borrow_no_migrate.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyPreFinLogTest1)
 {
-    GTEST_SKIP();
     // DTS2024120903598
     EscapeStrategyUT("strategy_migrate_nope.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategycreatejsonTest1)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_create_json.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyReturnTest1)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_return1.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyReturnTest2)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_return2.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategyOomTest1)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_oom.json");
 }
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategySmallSizeReturnTest)
 {
-    GTEST_SKIP();
     EscapeStrategyUT("strategy_small_size_return.json");
 }
 
