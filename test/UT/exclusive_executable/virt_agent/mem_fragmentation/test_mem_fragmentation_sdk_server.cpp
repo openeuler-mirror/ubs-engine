@@ -16,6 +16,7 @@
 #include <mockcpp/mockcpp.hpp>
 #include <ubse_api_server.h>
 #include <ubse_election.h>
+#include <ubse_security.h>
 
 #include "mem_fragmentation_sdk_server.h"
 #include "mem_fragmentation_msg.h"
@@ -29,6 +30,7 @@
 
 using namespace api::server;
 using namespace ubse::election;
+using namespace ubse::security;
 using namespace vm;
 using namespace vm::mempooling;
 namespace ubse::ut::vm {
@@ -854,6 +856,7 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenS
 {
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
+    MOCKER(ChangeOverrideCapability).stubs().will(returnValue(VM_OK));
     MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
     MOCKER(HugePageHandler::SetHugePages).stubs().will(returnValue(VM_ERROR_NOMEM));
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result), VM_ERROR_NOMEM);
@@ -870,6 +873,7 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnOK_WhenEver
 {
     MemBorrowExecuteResult result{};
     result.presentNumaIds.push_back(1);
+    MOCKER(ChangeOverrideCapability).stubs().will(returnValue(VM_OK));
     MOCKER(MemHandler::GetBorrowedSizeMap).stubs().will(invoke(MockGetBorrowedSizeMap));
     MOCKER(HugePageHandler::SetHugePages).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(VirtMemFragSdk::SetSrcNodeHugePage(result), VM_OK);
