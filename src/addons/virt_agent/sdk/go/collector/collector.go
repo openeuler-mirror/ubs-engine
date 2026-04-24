@@ -14,7 +14,7 @@
 package collector
 
 /*
-#cgo CFLAGS: -I/usr/include/ubse
+#cgo CFLAGS: -I/usr/include/ubse -I${SRCDIR}/../../include
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
