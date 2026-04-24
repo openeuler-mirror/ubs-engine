@@ -11,4 +11,5 @@ target_link_libraries(ubs-engine_ubse_mti_ut
         ubse_http
         ubse_config
         ubse_event
+        mti_out_of_band
 )
