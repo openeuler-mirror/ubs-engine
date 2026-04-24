@@ -13,12 +13,15 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_ELECTION_COMM_MGR_H
 #define UBSE_MANAGER_TEST_UBSE_ELECTION_COMM_MGR_H
 
+#include <cstdint>
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 #include "ubse_election_def.h"
+#include "ubse_error.h"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
+
 class TestUbseElectionCommMgr : public testing::Test {
 public:
     TestUbseElectionCommMgr() = default;
@@ -26,6 +29,15 @@ public:
     void SetUp() override;
 
     void TearDown() override;
+
+    void MockEventModuleWithSubEventResults(uint32_t first, uint32_t second = UBSE_OK, uint32_t third = UBSE_OK);
+
+    void MockAllSubEventsSuccess();
+
+    void MockGetMyselfNode(uint32_t result);
+
+    void MockUbseComModuleWithStartService(uint32_t startResult);
+
 private:
     std::vector<UBSE_ID_TYPE> connectSuccessNodes_;
     ElectionPkt pkt;
