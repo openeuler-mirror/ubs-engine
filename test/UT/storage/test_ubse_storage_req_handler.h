@@ -9,3 +9,21 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+
+#ifndef TEST_UBSE_STORAGE_REQ_HANDLER_H
+#define TEST_UBSE_STORAGE_REQ_HANDLER_H
+
+#include "gtest/gtest.h"
+
+namespace ubse::ut::storage {
+class TestUbseStorageReqHandler : public testing::Test {
+public:
+    TestUbseStorageReqHandler() = default;
+
+    void SetUp() override;
+
+    void TearDown() override;
+};
+}
+
+#endif // TEST_UBSE_STORAGE_REQ_HANDLER_H
