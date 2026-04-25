@@ -25,6 +25,10 @@ struct RespReader {
 
 bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opCode)
 {
+    if (msg.blocks == nullptr) {
+        UBSE_LOG_ERROR << "Resp blocks is nullptr, opCode: " << opCode;
+        return false;
+    }
     auto &reader = *reinterpret_cast<const RespReader *>(msg.blocks);
     // bbNum 为0时，不检查bbNum
     if (reader.head.serviceType != DEFAULT_SERVICE_TYPE || reader.head.opCode != opCode ||
