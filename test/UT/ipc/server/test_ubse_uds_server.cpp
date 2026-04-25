@@ -16,6 +16,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
 
 #include "src/framework/ipc/client/ubse_uds_client.h"
@@ -27,20 +28,83 @@
 #include "ubse_ipc_common.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_ut_dir.h"
 
 namespace ubse::ut::ipc {
-const std::string SOCKET_PATH = std::string(UT_DIRECTORY) + "ubse.sock";
-const uint32_t TIMEOUT = 5;
+using namespace ubse::security;
+
+// 使用 /tmp 短路径，避免 Jenkins 工作目录路径过长导致 socket path 超过 sun_path 限制 (107 字节)
+static std::string GetSocketPath()
+{
+    return "/tmp/ubse_uds_" + std::to_string(getpid()) + ".sock";
+}
+
+const uint32_t TIMEOUT = 5; // 超时时间，单位秒
+
+namespace {
+bool g_serverCallbackCalled = false;
+bool g_serverFreeFuncPresent = false;
+uint8_t g_serverFirstByte = 0;
+
+uint32_t MockRecvRespHeaderFailThenStop(int, void *buffer, uint32_t length, int)
+{
+    static bool firstCall = true;
+    if (firstCall) {
+        firstCall = false;
+        auto *header = static_cast<UbseResponseHeader *>(buffer);
+        header->bodyLen = 4;
+        header->clientRequestId = 1;
+        return UBSE_OK;
+    }
+    firstCall = true;
+    return UBSE_IPC_ERROR_RECV_FAILED;
+}
+
+uint32_t MockRecvResponseHeaderWithBody(int, void *buffer, uint32_t length, int)
+{
+    if (length == sizeof(UbseResponseHeader)) {
+        auto *header = static_cast<UbseResponseHeader *>(buffer);
+        header->statusCode = UBSE_OK;
+        header->bodyLen = 4;
+        header->clientRequestId = 88;
+    } else if (length == 4) {
+        auto *body = static_cast<uint8_t *>(buffer);
+        body[0] = 1;
+        body[1] = 2;
+        body[2] = 3;
+        body[3] = 4;
+    }
+    return UBSE_OK;
+}
+
+uint32_t MockRecvOversizedResponseHeader(int, void *buffer, uint32_t length, int)
+{
+    auto *header = static_cast<UbseResponseHeader *>(buffer);
+    header->bodyLen = UBSE_MESSAGE_SIZE + 1;
+    header->clientRequestId = 1;
+    return UBSE_OK;
+}
+
+void MockServerAsyncCallback(void *, const UbseResponseMessage &response)
+{
+    g_serverCallbackCalled = true;
+    g_serverFreeFuncPresent = response.freeFunc != nullptr;
+    g_serverFirstByte = response.body == nullptr ? 0 : response.body[0];
+    if (response.freeFunc != nullptr && response.body != nullptr) {
+        response.freeFunc(response.body);
+    }
+}
+} // namespace
+
 TestUbseUdsServer::TestUbseUdsServer() = default;
 void TestUbseUdsServer::SetUp()
 {
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::task_executor::UbseTaskExecutorModule)] =
         std::make_shared<ubse::task_executor::UbseTaskExecutorModule>();
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::security::UbseSecurityModule)] =
         std::make_shared<ubse::security::UbseSecurityModule>();
     UbseUDSConfig udsConfig{
-        .socketPath = SOCKET_PATH
+        .socketPath = GetSocketPath()
     };
     server = std::make_unique<UbseUDSServer>(udsConfig);
     Test::SetUp();
@@ -49,6 +113,7 @@ void TestUbseUdsServer::SetUp()
 void TestUbseUdsServer::TearDown()
 {
     server->Stop();
+    unlink(GetSocketPath().c_str());
     context::UbseContext::GetInstance().moduleMap_.clear();
     GlobalMockObject::verify();
     Test::TearDown();
@@ -56,7 +121,6 @@ void TestUbseUdsServer::TearDown()
 
 TEST_F(TestUbseUdsServer, StartSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
 }
@@ -151,7 +215,7 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionSuccess)
     GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     udsClient.Disconnect();
 }
@@ -165,7 +229,7 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenMaxConnections)
     server->globalTransient_ = server->config_.maxTransientConnections;
     server->globalPersistent_ = server->config_.maxPersistentConnections;
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -181,7 +245,7 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenGetsockoptFailed)
     EXPECT_TRUE(server->running_);
     MOCKER(getsockopt).stubs().will(returnValue(-1));
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -197,7 +261,7 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenEpollCtlFailed)
     EXPECT_TRUE(server->running_);
     MOCKER(epoll_ctl).stubs().will(returnValue(-1));
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -213,7 +277,7 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenNoHandler)
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -230,7 +294,7 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerExist)
     EXPECT_TRUE(server->running_);
     server->RegisterHandler([](const UbseRequestMessage &, const UbseRequestContext &) {});
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     uint32_t len = 10;
     auto *data = new uint8_t[len];
@@ -249,7 +313,7 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerException)
     EXPECT_TRUE(server->running_);
     server->RegisterHandler([](const UbseRequestMessage &, const UbseRequestContext &) { std::stoul("a"); });
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     uint32_t len = 10;
     auto *data = new uint8_t[len];

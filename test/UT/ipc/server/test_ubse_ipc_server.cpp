@@ -16,6 +16,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
 
 #include "src/framework/ipc/client/ubse_uds_client.h"
@@ -29,19 +30,26 @@
 #include "ubse_ipc_utils.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_ut_dir.h"
 
 namespace ubse::ut::ipc {
-const std::string SOCKET_PATH = std::string(UT_DIRECTORY) + "ubse.sock";
-const uint32_t TIMEOUT = 5;
+using namespace ubse::security;
+
+// 使用 /tmp 短路径，避免 Jenkins 工作目录路径过长导致 socket path 超过 sun_path 限制 (107 字节)
+static std::string GetSocketPath()
+{
+    return "/tmp/ubse_ipc_" + std::to_string(getpid()) + ".sock";
+}
+
+const uint32_t TIMEOUT = 5; // 超时时间，单位秒
 TestUbseIpcServer::TestUbseIpcServer() = default;
 void TestUbseIpcServer::SetUp()
 {
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::task_executor::UbseTaskExecutorModule)] =
         std::make_shared<ubse::task_executor::UbseTaskExecutorModule>();
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::security::UbseSecurityModule)] =
         std::make_shared<ubse::security::UbseSecurityModule>();
-    UbseUDSConfig udsConfig{.socketPath = SOCKET_PATH};
+    UbseUDSConfig udsConfig{.socketPath = GetSocketPath()};
     server = std::make_unique<UbseIpcServer>(udsConfig);
     Test::SetUp();
 }
@@ -49,6 +57,7 @@ void TestUbseIpcServer::SetUp()
 void TestUbseIpcServer::TearDown()
 {
     server->Stop();
+    unlink(GetSocketPath().c_str());
     context::UbseContext::GetInstance().moduleMap_.clear();
     GlobalMockObject::verify();
     Test::TearDown();
@@ -56,7 +65,6 @@ void TestUbseIpcServer::TearDown()
 
 TEST_F(TestUbseIpcServer, StartSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
 }
 
@@ -81,7 +89,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenNotRegInterface)
     auto *data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_DAEMON_UNREACHABLE);
     ubse_api_buffer_free(&responseData);
@@ -101,7 +109,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerFailed)
     auto *data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_DAEMON_UNREACHABLE);
     ubse_api_buffer_free(&responseData);
@@ -121,7 +129,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenRequestDataInvailed)
     auto *data = new uint8_t[len];
     ubse_api_buffer_t requestData{nullptr, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERROR_SERIALIZE_FAILED);
     ubse_api_buffer_free(&responseData);
@@ -143,7 +151,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenBigMessage)
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(server->RegisterHandler(1, 1,
         [this](const UbseIpcMessage &, const UbseRequestContext &ctx) {
-            uint32_t len = 10 * 1024 * 1024;
+            uint32_t len = 10 * 1024 * 1024; // 10MB，测试大消息传输
             auto *data = new uint8_t[len];
             UbseIpcMessage response{data, len};
             auto ret = server->SendResponse(UBSE_OK, ctx.requestId, response);
@@ -152,14 +160,14 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenBigMessage)
         }),
         UBSE_OK);
     sleep(1);
-    uint32_t len = 10 * 1024 * 1024;
+    uint32_t len = 10 * 1024 * 1024; // 10MB，测试大消息传输
     auto *data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(requestData.length, 10 * 1024 * 1024); // 数据长度为10*1024*1024
+    EXPECT_EQ(requestData.length, 10 * 1024 * 1024); // 10MB
     ubse_api_buffer_free(&responseData);
     delete[] data;
 }
@@ -184,7 +192,7 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerSuccess)
     auto *data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(requestData.length, 10); // 数据长度为10
