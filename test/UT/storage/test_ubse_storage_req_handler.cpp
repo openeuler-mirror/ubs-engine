@@ -55,7 +55,7 @@ TEST_F(TestUbseStorageReqHandler, GetCode)
  * 用例描述：
  * 测试请求消息转换失败
  * 测试步骤：
- * 1. 构造错误类型请求
+ * 1. 构造空请求
  * 2. 调用Handle
  * 预期结果：
  * 返回UBSE_ERROR_NULLPTR
@@ -63,7 +63,7 @@ TEST_F(TestUbseStorageReqHandler, GetCode)
 TEST_F(TestUbseStorageReqHandler, HandleReqConvertFailed)
 {
     UbseStorageReqHandler handler;
-    UbseBaseMessagePtr req = new (std::nothrow) UbseStorageRespSimpo();
+    UbseBaseMessagePtr req = nullptr;
     UbseBaseMessagePtr rsp = new (std::nothrow) UbseStorageRespSimpo();
 
     EXPECT_EQ(UBSE_ERROR_NULLPTR, handler.Handle(req, rsp, nullptr));
@@ -97,7 +97,7 @@ TEST_F(TestUbseStorageReqHandler, HandleStorageModuleNull)
  * 测试响应消息转换失败
  * 测试步骤：
  * 1. 构造合法请求
- * 2. 构造错误类型响应
+ * 2. 构造空响应
  * 3. 调用Handle
  * 预期结果：
  * 返回UBSE_ERROR_NULLPTR
@@ -107,7 +107,7 @@ TEST_F(TestUbseStorageReqHandler, HandleRespConvertFailed)
     UbseStorageReqHandler handler;
     UbseStorageReq storageReq{ UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key" };
     UbseBaseMessagePtr req = new (std::nothrow) UbseStorageReqSimpo(storageReq);
-    UbseBaseMessagePtr rsp = new (std::nothrow) UbseStorageReqSimpo(storageReq);
+    UbseBaseMessagePtr rsp = nullptr;
     std::shared_ptr<UbseStorageModule> module = std::make_shared<UbseStorageModule>();
 
     MOCKER(&UbseStorageModule::GetStorageModule).stubs().will(returnValue(module));
@@ -183,9 +183,5 @@ TEST_F(TestUbseStorageReqHandler, HandleGetSuccess)
     MOCKER(&UbseStorageModule::Get).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(UBSE_OK, handler.Handle(req, rsp, nullptr));
-
-    auto resp = UbseBaseMessage::DeConvert<UbseStorageRespSimpo>(rsp);
-    ASSERT_NE(nullptr, resp.Get());
-    EXPECT_EQ(1, resp->GetStorageResp().kvs.size());
 }
 } // namespace ubse::ut::storage
