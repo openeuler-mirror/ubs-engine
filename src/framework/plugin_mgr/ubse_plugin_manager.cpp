@@ -27,7 +27,7 @@ using namespace ubse::log;
 using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-static const std::unordered_set<std::string> g_pluginCannotFail{"mempooling", "vm"};
+static const std::unordered_set<std::string> g_pluginCannotFail{"mempooling", "virt_agent"};
 
 /**
  * 加载并初始化准入插件
