@@ -1,3 +1,16 @@
+## 常量说明 CONSTANTS
+
+| Constant                   | Value  | Header              |
+| -------------------------- | ------ | ------------------- |
+| `UBS_MEM_MAX_SLOT_NUM`     | `16`   | `ubs_engine_mem.h`  |
+| `UBS_MEM_MAX_MEMID_NUM`    | `2048` | `ubs_engine_mem.h`  |
+| `UBS_MEM_MAX_NAME_LENGTH`  | `48`   | `ubs_engine_mem.h`  |
+| `UBSE_MAX_USR_INFO_LENGTH` | `32`   | `ubs_engine_mem.h`  |
+| `UBS_MEM_MAX_USR_INFO_LEN` | `32`   | `ubs_engine_mem.h`  |
+| `UBS_MEM_MAX_LENDER_CNT`   | `4`    | `ubs_engine_mem.h`  |
+| `UBS_MEM_MAX_DESC_LIST`    | `2000` | `ubs_engine_mem.h`  |
+| `UBS_TOPO_MAX_NODE_NUM`    | `512`  | `ubs_engine_topo.h` |
+
 # 1. ubs\_mem\_numastat\_get
 
 ## 库 LIBRARY
@@ -174,13 +187,10 @@ typedef enum {
     UBSE_END = 6                // 类型转换边界值, 不表示任何内存状态
 } ubs_mem_stage;
 
-#define UBS_MEM_DEV_NAME_PREFIX "obmm_shmdev"
-#define UBS_MEM_DEV_PATH "/dev/" UBS_MEM_DEV_NAME_PREFIX
-
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];     // 借用标识
     uint32_t memid_cnt;                     // 导出的内存块数量
-    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，FD的文件形成规则：UBS_MEM_DEV_PATH + memid
+    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，对应设备路径格式为 /dev/obmm_shmdev<memid>
     uint64_t mem_size;                      // 借用大小
     size_t unit_size;                       // 芯片表项拆分粒度, 单位Byte
     ubs_topo_node_t export_node;            // 借出节点, 其中ips字段无效, 需通过topo接口获取
@@ -638,7 +648,7 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *fd_desc);
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];     // 借用标识
     uint32_t memid_cnt;                     // 导出的内存块数量
-    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，FD的文件形成规则：UBS_MEM_DEV_PATH + memid
+    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，对应设备路径格式为 /dev/obmm_shmdev<memid>
     uint64_t mem_size;                      // 借用大小
     size_t unit_size;                       // 芯片表项拆分粒度, 单位Byte
     ubs_topo_node_t export_node;            // 借出节点, 其中ips字段无效, 需通过topo接口获取
@@ -1791,7 +1801,7 @@ int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mo
 ```c
 typedef struct {
     uint32_t memid_cnt;                     // 导出的内存块数量
-    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，FD的文件形成规则：UBS_MEM_DEV_PATH + memid
+    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，对应设备路径格式为 /dev/obmm_shmdev<memid>
     ubs_topo_node_t import_node;            // 借入节点, 其中ips字段无效, 需通过topo接口获取
     ubs_mem_stage mem_stage;                // 内存状态
 } ubs_mem_shm_import_desc_t;
@@ -2072,7 +2082,7 @@ int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t
 
 | name           | IN/OUT | description                                      |
 | -------------- | ------ | ------------------------------------------------ |
-| name\_prefix   | IN     | 指定借用标识前缀                                         |
+| name\_prefix   | IN     | 指定借用标识前缀，最大长度48字节，含结尾字符 `\0`<br />仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_` |
 | shm\_descs     | OUT    | 共享内存描述信息数组，调用成功后需要使用 `free` 接口主动释放内存             |
 | shm\_desc\_cnt | OUT    | 共享内存描述信息数组中的元素个数，范围 `[0, UBS_MEM_MAX_DESC_LIST]` |
 
