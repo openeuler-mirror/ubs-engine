@@ -499,6 +499,11 @@ UbseResult UrmaController::UbseAllocUrmaDev(const std::string &urmaName, UbseUrm
             return UBSE_ERROR;
         }
     }
+    bool isAllPortDown = false;
+    if (QueryAllPortsDown(isAllPortDown) != UBSE_OK || isAllPortDown) {
+        UBSE_LOG_WARN << "All ports are down, cannot allocate urma dev, urmaName=" << urmaName;
+        return UBSE_ERROR;
+    }
     if (ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaName, feNames, eid); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to alloc urma dev, ret=" << ret;
         return ret;
