@@ -159,7 +159,7 @@ void TestUbseUdsClient::TearDown()
 // 测试已连接时直接返回成功
 TEST_F(TestUbseUdsClient, Connect_WhenAlreadyConnected_ReturnsSuccess)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     EXPECT_EQ(UBSE_OK, client->Connect());
     client->Disconnect();
     EXPECT_EQ(client->sockFd_, -1);
@@ -241,11 +241,11 @@ void FreeRequest(UbseRequestMessage &req)
 
 TEST_F(TestUbseUdsClient, Send_InvalidBodySize)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     auto request = CreateValidRequest(UBSE_MESSAGE_SIZE + 1);
     UbseResponseMessage response{};
 
-    auto result = client->Send(request, response, 100);
+    auto result = client->Send(request, response, 100); // timeout为100ms
 
     EXPECT_EQ(result, UBSE_ERROR_INVAL);
     FreeRequest(request);
@@ -256,42 +256,42 @@ TEST_F(TestUbseUdsClient, Send_NotConnected)
     auto request = CreateValidRequest(0);
     UbseResponseMessage response{};
 
-    auto result = client->Send(request, response, 100);
+    auto result = client->Send(request, response, 100); // timeout为100ms
 
     EXPECT_EQ(result, UBSE_ERR_IPC_CONNECTION_FAILED);
     FreeRequest(request);
 }
 TEST_F(TestUbseUdsClient, Send_EmptyBody)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     auto request = CreateValidRequest(0);
     UbseResponseMessage response{};
     MOCKER(SendMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseUDSClient::WaitAndReceive).stubs().will(returnValue(UBSE_OK));
-    auto result = client->Send(request, response, 100);
+    auto result = client->Send(request, response, 100); // timeout为100ms
     EXPECT_EQ(UBSE_OK, result);
     FreeRequest(request);
 }
 
 TEST_F(TestUbseUdsClient, Send_WithBody)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
-    const size_t bodySize = 100;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    const size_t bodySize = 100; // 测试消息体大小为100字节
     auto request = CreateValidRequest(bodySize);
     UbseResponseMessage response{};
     MOCKER(SendMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseUDSClient::WaitAndReceive).stubs().will(returnValue(UBSE_OK));
-    auto result = client->Send(request, response, 100);
+    auto result = client->Send(request, response, 100); // timeout为100ms
     EXPECT_EQ(UBSE_OK, result);
     FreeRequest(request);
 }
 TEST_F(TestUbseUdsClient, Send_SendFailure)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     auto request = CreateValidRequest(0);
     UbseResponseMessage response{};
-    auto result = client->Send(request, response, 100);
+    auto result = client->Send(request, response, 100); // timeout为100ms
 
     EXPECT_EQ(result, UBSE_ERR_IPC_CONNECTION_FAILED);
     FreeRequest(request);
@@ -299,13 +299,13 @@ TEST_F(TestUbseUdsClient, Send_SendFailure)
 
 TEST_F(TestUbseUdsClient, Receive_TotalTimeout)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     auto request = CreateValidRequest(0);
     UbseResponseMessage response{};
     // 模拟超时
     auto now = std::chrono::steady_clock::now();
-    now -= std::chrono::milliseconds(100); // 模拟超时100ms
-    auto result = client->WaitAndReceive(response, now, 50);
+    now -= std::chrono::milliseconds(100); // 将时间向前推进100ms，模拟已超时
+    auto result = client->WaitAndReceive(response, now, 50); // timeout为50ms
     EXPECT_EQ(result, UBSE_ERR_TIMED_OUT);
     FreeRequest(request);
 }
@@ -317,33 +317,33 @@ TEST_F(TestUbseUdsClient, Receive_SelectTimeout)
     UbseResponseMessage response{};
     MOCKER(poll).stubs().will(returnValue(0));
     auto now = std::chrono::steady_clock::now();
-    auto result = client->WaitAndReceive(response, now, 500);
+    auto result = client->WaitAndReceive(response, now, 500); // timeout为500ms
     EXPECT_NE(result, UBSE_OK);
     FreeRequest(request);
 }
 
 TEST_F(TestUbseUdsClient, Receive_SelectFailed)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     auto request = CreateValidRequest(0);
     UbseResponseMessage response{};
     MOCKER(poll).stubs().will(returnValue(-1));
 
     auto now = std::chrono::steady_clock::now();
-    auto result = client->WaitAndReceive(response, now, 5000);
+    auto result = client->WaitAndReceive(response, now, 5000); // timeout为5000ms
     EXPECT_EQ(result, UBSE_IPC_ERROR_RECV_FAILED);
     FreeRequest(request);
 }
 
 TEST_F(TestUbseUdsClient, Receive_HeaderRecvFailure)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     auto request = CreateValidRequest(0);
     UbseResponseMessage response{};
     MOCKER(select).stubs().will(returnValue(1));
     MOCKER(RecvMsg).stubs().will(returnValue(UBSE_IPC_ERROR_RECV_FAILED));
     auto now = std::chrono::steady_clock::now();
-    auto result = client->WaitAndReceive(response, now, 500);
+    auto result = client->WaitAndReceive(response, now, 500); // timeout为500ms
     EXPECT_EQ(result, UBSE_IPC_ERROR_RECV_FAILED);
     FreeRequest(request);
 }
@@ -352,7 +352,7 @@ uint32_t MockRecvHeader(int fd, void *buffer, uint32_t length, int timeout)
 {
     auto header = (UbseResponseHeader *)(buffer);
     header->statusCode = 0;
-    header->bodyLen = 10; // 消息长度为10
+    header->bodyLen = 10; // 模拟响应消息体长度为10字节
     return UBSE_OK;
 }
 
@@ -364,7 +364,7 @@ uint32_t MockPoll(struct pollfd *fds, nfds_t nfds, int timeout)
 
 TEST_F(TestUbseUdsClient, Receive_BodyRecvFailure)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     UbseResponseMessage response{};
     MOCKER(select).stubs().will(returnValue(1));
     MOCKER(RecvMsg)
@@ -379,12 +379,12 @@ TEST_F(TestUbseUdsClient, Receive_BodyRecvFailure)
 
 TEST_F(TestUbseUdsClient, Receive_SuccessWithBody)
 {
-    client->sockFd_ = 7; // 模拟已连接状态, fd为7
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     UbseResponseMessage response{};
     MOCKER(poll).stubs().will(invoke(MockPoll));
     MOCKER(RecvMsg).stubs().will(invoke(MockRecvHeader)).then(returnValue(UBSE_OK));
     auto now = std::chrono::steady_clock::now();
-    auto result = client->WaitAndReceive(response, now, 50000);
+    auto result = client->WaitAndReceive(response, now, 50000); // timeout为50000ms
     EXPECT_EQ(result, UBSE_OK);
 }
 
@@ -588,9 +588,9 @@ TEST_F(TestUbseUdsClient, SendWithoutWait_Disconnected)
 
 TEST_F(TestUbseUdsClient, SendWithoutWait_SerializeFail)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     UbseRequestMessage request{};
-    request.header.bodyLen = 4;
+    request.header.bodyLen = 4; // 测试消息体长度为4字节
     request.body = new uint8_t[4]{};
     MOCKER_CPP(SerializeRequestMessage).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
 
@@ -600,9 +600,9 @@ TEST_F(TestUbseUdsClient, SendWithoutWait_SerializeFail)
 
 TEST_F(TestUbseUdsClient, SendWithoutWait_SendSuccess)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     UbseRequestMessage request{};
-    request.header.bodyLen = 4;
+    request.header.bodyLen = 4; // 测试消息体长度为4字节
     request.body = new uint8_t[4]{};
     MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_OK));
 
@@ -612,9 +612,9 @@ TEST_F(TestUbseUdsClient, SendWithoutWait_SendSuccess)
 
 TEST_F(TestUbseUdsClient, SendWithoutWait_SendFail)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     UbseRequestMessage request{};
-    request.header.bodyLen = 4;
+    request.header.bodyLen = 4; // 测试消息体长度为4字节
     request.body = new uint8_t[4]{};
     MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
 
@@ -624,15 +624,15 @@ TEST_F(TestUbseUdsClient, SendWithoutWait_SendFail)
 
 TEST_F(TestUbseUdsClient, HandlerServerResp_WithBody)
 {
-    client->sockFd_ = 7;
-    UbseSyncReq::GetInstance().RegisterRequest(1234);
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    UbseSyncReq::GetInstance().RegisterRequest(1234); // 注册requestId为1234的请求
     UbseResponseMessage response{};
 
     MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientRespWithBody));
 
     client->HandlerServerResp();
 
-    EXPECT_EQ(UbseSyncReq::GetInstance().WaitForResp(1234, 50, response), UBSE_OK);
+    EXPECT_EQ(UbseSyncReq::GetInstance().WaitForResp(1234, 50, response), UBSE_OK); // timeout为50ms
     ASSERT_NE(response.body, nullptr);
     EXPECT_EQ(response.body[0], 9);
     EXPECT_NE(response.freeFunc, nullptr);
@@ -648,7 +648,7 @@ TEST_F(TestUbseUdsClient, HandlerServerResp_OversizedBody)
 
 TEST_F(TestUbseUdsClient, HandlerServerResp_BodyRecvFail)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientRespBodyFail));
     MOCKER_CPP(&UbseUDSClient::ReconnectAfterBroken).stubs();
 
@@ -681,7 +681,7 @@ TEST_F(TestUbseUdsClient, HandlerServerReq_BodyRecvFail)
 TEST_F(TestUbseUdsClient, HandlerServerReq_WithBodySchedulesHandler)
 {
     bool executed = false;
-    client->taskExecutor_ = UbseTaskExecutor::Create("IpcExecutor", 1, 8);
+    client->taskExecutor_ = UbseTaskExecutor::Create("IpcExecutor", 1, 8); // 创建线程池，1个线程，队列大小8
     ASSERT_NE(client->taskExecutor_, nullptr);
     ASSERT_TRUE(client->taskExecutor_->Start());
     client->requestHandler_ = [&executed](const UbseRequestMessage &req, UbseResponseMessage &) {
@@ -694,33 +694,33 @@ TEST_F(TestUbseUdsClient, HandlerServerReq_WithBodySchedulesHandler)
     MOCKER_CPP(&UbseUDSClient::SendResponse).stubs().will(returnValue(UBSE_OK));
 
     client->HandlerServerReq();
-    usleep(100 * 1000);
+    usleep(100 * 1000); // 等待100ms，让任务执行
 
     EXPECT_TRUE(executed);
 }
 
 TEST_F(TestUbseUdsClient, WaitForDataReadable_PollErr)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     MOCKER(poll).stubs().will(invoke(MockPollErr));
 
-    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_IPC_ERROR_RECV_FAILED);
+    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_IPC_ERROR_RECV_FAILED); // timeout为100ms
 }
 
 TEST_F(TestUbseUdsClient, WaitForDataReadable_PollHup)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     MOCKER(poll).stubs().will(invoke(MockPollHup));
 
-    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_IPC_ERROR_RECV_FAILED);
+    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_IPC_ERROR_RECV_FAILED); // timeout为100ms
 }
 
 TEST_F(TestUbseUdsClient, WaitForDataReadable_EintrThenReadable)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     MOCKER(poll).stubs().will(invoke(MockPollEintrThenReadable));
 
-    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_OK);
+    EXPECT_EQ(client->WaitForDataReadable(100), UBSE_OK); // timeout为100ms
 }
 
 TEST_F(TestUbseUdsClient, HandleRequest_NormalCase)
@@ -793,7 +793,7 @@ TEST_F(TestUbseUdsClient, ReconnectAfterBroken_WhenReconnectDisabled_DoNothing)
     client->reconnecting_.store(false);
 
     client->ReconnectAfterBroken();
-    usleep(100 * 1000); // 等待可能的异步线程启动
+    usleep(100 * 1000); // 等待100ms，检查异步线程是否启动
     EXPECT_FALSE(client->reconnecting_.load());
 }
 
@@ -804,7 +804,7 @@ TEST_F(TestUbseUdsClient, ReconnectAfterBroken_WhenAlreadyReconnecting_DoNothing
     client->reconnecting_.store(true); // 模拟已有重连在进行
 
     client->ReconnectAfterBroken();
-    usleep(100 * 1000);
+    usleep(100 * 1000); // 等待100ms
 
     EXPECT_TRUE(client->reconnecting_.load());
     client->reconnecting_.store(false);
@@ -850,7 +850,7 @@ TEST_F(TestUbseUdsClient, ExecuteReconnectThread_WhenReconnectSuccess_DoRegistra
 {
     client->reconnecting_.store(true);
     client->isReConnect_.store(true);
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     client->running_.store(false);
 
     MOCKER_CPP(&UbseUDSClient::StopCurrentConnection).stubs().will(returnValue(true));
@@ -951,7 +951,7 @@ TEST_F(TestUbseUdsClient, VerifyAndRestartEventLoop_WhenConditionsNotMet_DoNothi
 TEST_F(TestUbseUdsClient, VerifyAndRestartEventLoop_WhenNeedRestart_CreateEpoll)
 {
     client->isReConnect_.store(true);
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     client->running_.store(false);
 
     MOCKER_CPP(&UbseUDSClient::CreateEpoll).stubs().will(returnValue(UBSE_OK));
@@ -996,14 +996,14 @@ TEST_F(TestUbseUdsClient, SetNonBlocking_InvalidFd)
 
 TEST_F(TestUbseUdsClient, CheckTimeout_True)
 {
-    auto startTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(1000);
-    EXPECT_TRUE(client->CheckTimeout(startTime, 500));
+    auto startTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(1000); // 时间向前推进1000ms
+    EXPECT_TRUE(client->CheckTimeout(startTime, 500)); // timeout为500ms
 }
 
 TEST_F(TestUbseUdsClient, CheckTimeout_False)
 {
     auto startTime = std::chrono::steady_clock::now();
-    EXPECT_FALSE(client->CheckTimeout(startTime, 5000));
+    EXPECT_FALSE(client->CheckTimeout(startTime, 5000)); // timeout为5000ms
 }
 
 TEST_F(TestUbseUdsClient, Stop_WhenNotRunning)
@@ -1026,35 +1026,35 @@ TEST_F(TestUbseUdsClient, SetSocketPath)
 
 TEST_F(TestUbseUdsClient, IsConnected_True)
 {
-    client->sockFd_ = 7;
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     EXPECT_TRUE(client->IsConnected());
 }
 
 TEST_F(TestUbseUdsClient, IsConnected_False)
 {
-    client->sockFd_ = -1;
+    client->sockFd_ = -1; // 模拟未连接状态
     EXPECT_FALSE(client->IsConnected());
 }
 
 TEST_F(TestUbseUdsClient, Send_SerializeFailed)
 {
-    client->sockFd_ = 7;
-    auto request = CreateValidRequest(10);
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    auto request = CreateValidRequest(10); // 创建10字节的消息体
     UbseResponseMessage response{};
     MOCKER_CPP(SerializeRequestMessage).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
-    auto result = client->Send(request, response, 100);
+    auto result = client->Send(request, response, 100); // timeout为100ms
     EXPECT_EQ(result, UBSE_ERROR_SERIALIZE_FAILED);
     FreeRequest(request);
 }
 
 TEST_F(TestUbseUdsClient, Send_CheckTimeoutAfterSend)
 {
-    client->sockFd_ = 7;
-    auto request = CreateValidRequest(10);
+    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    auto request = CreateValidRequest(10); // 创建10字节的消息体
     UbseResponseMessage response{};
     MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseUDSClient::WaitAndReceive).stubs().will(returnValue(UBSE_ERR_TIMED_OUT));
-    auto result = client->Send(request, response, 100);
+    auto result = client->Send(request, response, 100); // timeout为100ms
     EXPECT_EQ(result, UBSE_ERR_TIMED_OUT);
     FreeRequest(request);
 }
@@ -1067,14 +1067,14 @@ TEST_F(TestUbseUdsClient, LongLinkConnect_WhenSocketFailed)
 
 TEST_F(TestUbseUdsClient, LongLinkConnect_WhenConnectFailed)
 {
-    MOCKER(socket).stubs().will(returnValue(10));
+    MOCKER(socket).stubs().will(returnValue(10)); // 模拟socket返回fd为10
     MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     EXPECT_EQ(client->LongLinkConnect(), UBSE_ERR_IPC_CONNECTION_FAILED);
 }
 
 TEST_F(TestUbseUdsClient, ConnectToServer_MemsetFailed)
 {
-    client->sockFd_ = 10;
+    client->sockFd_ = 10; // 模拟socket fd为10
     MOCKER(memset_s).stubs().will(returnValue(-1));
     sockaddr_un addr{};
     auto ret = client->ConnectToServer(addr);
@@ -1083,7 +1083,7 @@ TEST_F(TestUbseUdsClient, ConnectToServer_MemsetFailed)
 
 TEST_F(TestUbseUdsClient, ConnectToServer_StrncpyFailed)
 {
-    client->sockFd_ = 10;
+    client->sockFd_ = 10; // 模拟socket fd为10
     MOCKER(memset_s).stubs().will(returnValue(EOK));
     MOCKER(strncpy_s).stubs().will(returnValue(-1));
     sockaddr_un addr{};
@@ -1093,7 +1093,7 @@ TEST_F(TestUbseUdsClient, ConnectToServer_StrncpyFailed)
 
 TEST_F(TestUbseUdsClient, ConnectToServer_ImmediateSuccess)
 {
-    client->sockFd_ = 10;
+    client->sockFd_ = 10; // 模拟socket fd为10
     MOCKER(memset_s).stubs().will(returnValue(EOK));
     MOCKER(strncpy_s).stubs().will(returnValue(EOK));
     MOCKER(connect).stubs().will(returnValue(0));
@@ -1125,7 +1125,7 @@ TEST_F(TestUbseUdsClient, HandleInProgressConnection_GetsockoptError)
 
 TEST_F(TestUbseUdsClient, CreateEpoll_EpollCreateFailed)
 {
-    client->sockFd_ = 10;
+    client->sockFd_ = 10; // 模拟socket fd为10
     MOCKER(epoll_create1).stubs().will(returnValue(-1));
     auto ret = client->CreateEpoll();
     EXPECT_EQ(ret, UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
@@ -1133,8 +1133,8 @@ TEST_F(TestUbseUdsClient, CreateEpoll_EpollCreateFailed)
 
 TEST_F(TestUbseUdsClient, CreateEpoll_EpollCtlFailed)
 {
-    client->sockFd_ = 10;
-    MOCKER(epoll_create1).stubs().will(returnValue(20));
+    client->sockFd_ = 10; // 模拟socket fd为10
+    MOCKER(epoll_create1).stubs().will(returnValue(20)); // 模拟epoll返回fd为20
     MOCKER(epoll_ctl).stubs().will(returnValue(-1));
     auto ret = client->CreateEpoll();
     EXPECT_EQ(ret, UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
@@ -1152,7 +1152,7 @@ TEST_F(TestUbseUdsClient, EventLoopThread_BasicTest)
     epoll_ctl(client->epollFd_, EPOLL_CTL_ADD, client->sockFd_, &ev);
     
     std::thread t([&]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 等待100ms后停止事件循环
         client->running_.store(false);
     });
     
