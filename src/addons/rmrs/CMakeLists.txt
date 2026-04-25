@@ -45,6 +45,8 @@ target_include_directories(
             ${CMAKE_CURRENT_SOURCE_DIR}/common/exportV2/LibvirtHelper
             ${CMAKE_CURRENT_SOURCE_DIR}/common/exportV2/OsHelper)
 
+target_include_directories(rmrs_deps PRIVATE ${LIBVIRT_INCLUDE_DIRS})
+target_link_libraries(rmrs_deps PRIVATE ${LIBVIRT_LIBRARIES})
 target_link_libraries(rmrs_deps INTERFACE rapidjson ubse_utils)
 
 target_link_libraries(mempooling PUBLIC rmrs_deps)

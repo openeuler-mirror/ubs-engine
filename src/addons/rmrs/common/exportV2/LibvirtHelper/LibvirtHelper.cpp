@@ -233,7 +233,7 @@ MpResult LibvirtHelper::GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomai
         LOG_ERROR << "VirDomainGetInfo is nullptr.";
         return MEM_POOLING_ERROR;
     }
-    VirDomainInfo info;
+    virDomainInfo info;
     auto ret = virDomainGetInfo(domain, &info);
     if (ret < 0) {
         LOG_ERROR << "Get vm domain info error.";
