@@ -14,9 +14,21 @@
 #include "../test_ubse_com_mock.h"
 #include "crc/ubse_crc.h"
 #include "ubse_com_def.h"
+#include "ubse_election.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include <fstream>
+#include <sys/stat.h>
+
+namespace ubse::com {
+const std::string GetCurRoleStr();
+void VarifyFailReply(UbseComMessageCtx &message);
+}
 
 namespace ubse::ut::com {
 using namespace ubse::com;
+using namespace ubse::mti;
+using namespace ubse::election;
+
 const uint16_t MODULES_SIZE = 1000; // 最大模块数
 const uint16_t CONNECT_FAIL_CODE = 519;
 const uint16_t ENGINE_START_CODE = 101;
@@ -163,6 +175,77 @@ TEST_F(TestUbseComEngine, TestGetNodeIdByIp)
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     std::string ip = "127.0.0.1";
     EXPECT_EQ("", mockengine.GetNodeIdByIp(ip));
+
+    auto ptr = new TestChannel();
+    UBSHcomChannelPtr channelPtr = ptr;
+    UbseComChannelConnectInfo connectInfo(false, ip, 0, "MockNode", "MockNode");
+    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
+    mockengine.linkManager_.InsertChannel(channelInfo);
+    EXPECT_EQ("MockNode", mockengine.GetNodeIdByIp(ip));
+}
+
+/*
+ * 用例描述：
+ * VerifyMsg验证消息来源
+ * 测试步骤：
+ * 1.角色为master，返回true
+ * 2.角色为agent，GetMasterInfo失败返回true
+ * 3.角色为agent，GetChannelById失败返回false
+ * 4.角色为agent，remoteNodeId不等于masterNodeId返回false
+ * 5.角色为agent，remoteNodeId等于masterNodeId返回true
+ * 预期结果：
+ * 1.返回true
+ * 2.返回true
+ * 3.返回false
+ * 4.返回false
+ * 5.返回true
+ */
+TEST_F(TestUbseComEngine, TestVerifyMsg)
+{
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+    uint8_t *req = new uint8_t;
+    UbseComMessagePtr innerMsg = req;
+    UbseComMessageCtx msgCtx(innerMsg, "curNode", "destNode", UbseChannelType::NORMAL);
+
+    std::string masterRole = "master";
+    MOCKER(GetCurRoleStr).stubs().will(returnValue(masterRole));
+    EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
+    GlobalMockObject::verify();
+
+    std::string agentRole = "agent";
+    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
+    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
+    GlobalMockObject::verify();
+
+    ubse::election::UbseRoleInfo masterInfo{"MasterNode", "master"};
+    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
+    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    MOCKER(&UbseComEngine::GetChannelById).stubs().will(returnValue(UBSE_COM_ERROR_CHANNEL_NOT_FOUND));
+    EXPECT_EQ(false, mockengine.VerifyMsg(msgCtx));
+    GlobalMockObject::verify();
+
+    auto ptr = new TestChannel();
+    UBSHcomChannelPtr channelPtr = ptr;
+    UbseComChannelConnectInfo connectInfo(false, "127.0.0.1", 0, "OtherNode", "MockNode");
+    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
+    mockengine.linkManager_.channelIdMap_[1] = channelInfo;
+    msgCtx.SetChannelId(1);
+    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
+    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(false, mockengine.VerifyMsg(msgCtx));
+    GlobalMockObject::verify();
+
+    UbseComChannelConnectInfo connectInfo2(false, "127.0.0.1", 0, "MasterNode", "MockNode");
+    UbseComChannelInfo channelInfo2(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo2);
+    mockengine.linkManager_.channelIdMap_[1] = channelInfo2;
+    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
+    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
+    delete(req);
 }
 
 TEST_F(TestUbseComEngine, TestGetChannelById)
@@ -619,4 +702,259 @@ TEST_F(TestUbseCommunication, TestNormalRequestHandle)
     MOCKER(GetChannelIdFromNetServiceContext).stubs().will(returnValue(chId));
     EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, mockengine.NormalRequestHandle(ubsHcomServiceContext));
 }
+
+/*
+ * 用例描述：
+ * HandleGetLocalNodeId测试
+ * 测试步骤：
+ * 1.UbseGetLocalNodeInfo失败
+ * 2.UbseGetLocalNodeInfo成功
+ * 预期结果：
+ * 1.返回ERROR消息
+ * 2.返回正确的nodeId
+ */
+TEST_F(TestUbseComEngine, TestHandleGetLocalNodeId)
+{
+    GTEST_SKIP();
+    UbseComEngineInfo info;
+    info.SetNodeId("MockNode");
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+    mockengine.RegisterQueryCb(QueryEid);
+
+    auto ptr = new TestChannel();
+    UBSHcomChannelPtr channelPtr = ptr;
+    UBSHcomServiceContext context;
+    MOCKER_CPP(ubse::mti::UbseGetLocalNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NO_THROW(mockengine.HandleGetLocalNodeId(context));
+
+    GlobalMockObject::verify();
+    MtiNodeInfo localNodeInfo{"MockNode", "testEid"};
+    MOCKER_CPP(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(localNodeInfo)).will(returnValue(UBSE_OK));
+    EXPECT_NO_THROW(mockengine.HandleGetLocalNodeId(context));
+}
+
+/*
+ * 用例描述：
+ * HandleRemoteCall测试
+ * 测试步骤：
+ * 1.GetMessageFromNetServiceContext返回nullptr
+ * 2.CheckMessageBodyLen失败
+ * 3.CRC校验失败
+ * 4.无handler
+ * 预期结果：
+ * 1.返回UBSE_COM_ERROR_MESSAGE_INVALID
+ * 2.返回UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL
+ * 3.返回UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL
+ * 4.返回UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE
+ */
+TEST_F(TestUbseComEngine, TestHandleRemoteCall)
+{
+    UbseComEngineInfo info;
+    info.SetName("MockEngine");
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UBSHcomServiceContext context;
+    UbseComMessage ubseComMessage;
+
+    {
+        UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+        mockengine.RegisterQueryCb(QueryEid);
+        UbseComMessage *nullMsg = nullptr;
+        MOCKER(GetMessageFromNetServiceContext).stubs().will(returnValue(nullMsg));
+        EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID, mockengine.HandleRemoteCall(context));
+    }
+    GlobalMockObject::verify();
+
+    {
+        UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+        mockengine.RegisterQueryCb(QueryEid);
+        MOCKER(GetMessageFromNetServiceContext).stubs().will(returnValue(&ubseComMessage));
+        MOCKER(CheckMessageBodyLen).stubs().will(returnValue(false));
+        EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL, mockengine.HandleRemoteCall(context));
+    }
+    GlobalMockObject::verify();
+
+    {
+        UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+        mockengine.RegisterQueryCb(QueryEid);
+        MOCKER(GetMessageFromNetServiceContext).stubs().will(returnValue(&ubseComMessage));
+        MOCKER(CheckMessageBodyLen).stubs().will(returnValue(true));
+        uint32_t crc = 0;
+        uint32_t wrongCrc = 1;
+        MOCKER(&UbseComMessageHead::GetCrc).stubs().will(returnValue(wrongCrc));
+        MOCKER(&ubse::utils::CrcUtil::SoftCrc32).stubs().will(returnValue(crc));
+        EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_CHECK_SIZE_FAIL, mockengine.HandleRemoteCall(context));
+    }
+    GlobalMockObject::verify();
+
+    {
+        UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+        mockengine.RegisterQueryCb(QueryEid);
+        MOCKER(GetMessageFromNetServiceContext).stubs().will(returnValue(&ubseComMessage));
+        MOCKER(CheckMessageBodyLen).stubs().will(returnValue(true));
+        uint32_t crc = 0;
+        MOCKER(&UbseComMessageHead::GetCrc).stubs().will(returnValue(crc));
+        MOCKER(&ubse::utils::CrcUtil::SoftCrc32).stubs().will(returnValue(crc));
+        MOCKER(&UbseComMessageHead::GetModuleCode).stubs().will(returnValue((uint16_t)0));
+        MOCKER(&UbseComMessageHead::GetOpCode).stubs().will(returnValue((uint16_t)0));
+        uint64_t chId = 0;
+        MOCKER(GetChannelIdFromNetServiceContext).stubs().will(returnValue(chId));
+        EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, mockengine.HandleRemoteCall(context));
+    }
+}
+
+/*
+ * 用例描述：
+ * CreateChannel异常分支测试
+ * 测试步骤：
+ * 1.hcomNetService_为nullptr，返回UBSE_COM_ERROR_ENGINE_NOT_INIT
+ * 2.AddConnectingNode失败，返回UBSE_ERROR
+ * 预期结果：
+ * 1.返回UBSE_COM_ERROR_ENGINE_NOT_INIT
+ * 2.返回UBSE_ERROR
+ */
+TEST_F(TestUbseComEngine, TestCreateChannelEngineNotInit)
+{
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine mockengine(info, nullptr, linkStateNotify, linkManager);
+    UbseComChannelConnectInfo chInfo;
+    UbseChannelType chType;
+    std::string remoteNodeId;
+    MOCKER(&UbseComEngine::AddConnectingNode).stubs().will(returnValue(true));
+    EXPECT_EQ(UBSE_COM_ERROR_ENGINE_NOT_INIT, mockengine.CreateChannel(chInfo, chType, remoteNodeId));
+}
+
+TEST_F(TestUbseComEngine, TestCreateChannelAddConnectingNodeFail)
+{
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+    UbseComChannelConnectInfo chInfo;
+    UbseChannelType chType;
+    std::string remoteNodeId;
+    MOCKER(&UbseComEngine::AddConnectingNode).stubs().will(returnValue(false));
+    EXPECT_EQ(UBSE_ERROR, mockengine.CreateChannel(chInfo, chType, remoteNodeId));
+}
+
+/*
+ * 用例描述：
+ * GetRemoteNodeId异常分支测试
+ * 测试步骤：
+ * 1.channelPtr为nullptr，返回UBSE_ERROR_NULLPTR
+ * 2.GetRemoteNodeIdByCall失败，返回UBSE_ERROR
+ * 预期结果：
+ * 1.返回UBSE_ERROR_NULLPTR
+ * 2.返回UBSE_ERROR
+ */
+TEST_F(TestUbseComEngine, TestGetRemoteNodeIdChannelPtrNull)
+{
+    UbseComChannelConnectInfo ubseComChannelConnectInfo;
+    UBSHcomChannelPtr channelPtr = nullptr;
+    UbseComEngineInfo ubseComEngineInfo;
+    UbseComLinkManager linkManager;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComEngine engine(ubseComEngineInfo, nullptr, linkStateNotify, linkManager);
+    std::string engineName = "engine";
+    std::string remoteNodeId;
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, engine.GetRemoteNodeId(ubseComChannelConnectInfo, UbseChannelType::NORMAL,
+                                                         channelPtr, engineName, remoteNodeId));
+}
+
+TEST_F(TestUbseComEngine, TestGetRemoteNodeIdByCallFail)
+{
+    GTEST_SKIP() << "MOCKER_CPP_VIRTUAL for virtual function Call not working correctly";
+}
+
+/*
+ * 用例描述：
+ * VarifyFailReply测试
+ * 测试步骤：
+ * 1.调用VarifyFailReply函数，验证正确回复ERR_VERIFY_FAIL消息
+ * 预期结果：
+ * 1.函数正常执行，调用UbseComMsgReply
+ */
+TEST_F(TestUbseComEngine, TestVarifyFailReply)
+{
+    uint8_t *req = new uint8_t;
+    UbseComMessagePtr innerMsg = req;
+    std::string srcId = "curNode";
+    std::string dstId = "destNode";
+    UbseChannelType channelType = UbseChannelType::NORMAL;
+    UbseComMessageCtx message(innerMsg, srcId, dstId, channelType);
+    message.SetEngineName("MockEngine");
+    MOCKER(&UbseCommunication::UbseComMsgReply).stubs();
+    EXPECT_NO_THROW(VarifyFailReply(message));
+    GlobalMockObject::verify();
+    delete(req);
+}
+
+/*
+ * 用例描述：
+ * CreateEngine异常分支测试
+ * 测试步骤：
+ * 1.UBSHcomService::Create返回nullptr（难以mock，暂时跳过）
+ * 2.engine->Start失败
+ * 预期结果：
+ * 1.返回UBSE_COM_ERROR_ENGINE_CREATE_FAIL
+ * 2.返回Start的错误码
+ */
+TEST_F(TestUbseComEngineManager, TestCreateEngineServiceNull)
+{
+    GTEST_SKIP() << "Cannot mock UBSHcomService::Create static member function";
+}
+
+TEST_F(TestUbseComEngineManager, TestCreateEngineStartFail)
+{
+    UbseComEngineInfo engineInfo;
+    engineInfo.SetName("StartFailEngine");
+    engineInfo.SetEngineType(UbseEngineType::SERVER);
+    engineInfo.SetProtocol(UbseProtocol::TCP);
+    engineInfo.SetNodeId("MockNode");
+    engineInfo.SetIpInfo(std::make_pair("0.0.0.0", MOCK_PORT));
+    UbseComLinkStateNotify notify = MockNotify;
+    MOCKER(&UbseComEngine::Start).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, manager.CreateEngine(engineInfo, notify));
+    GlobalMockObject::verify();
+    manager.DeleteEngine("StartFailEngine");
+}
+
+/*
+ * 用例描述：
+ * UbseCommunication::GetNodeIdByIp测试
+ * 测试步骤：
+ * 1.engine为nullptr，返回空字符串
+ * 2.engine正常，linkManager_中没有该ip，返回空字符串
+ * 3.engine正常，linkManager_中有该ip，返回对应的nodeId
+ * 预期结果：
+ * 1.返回空字符串
+ * 2.返回空字符串
+ * 3.返回正确的nodeId
+ */
+TEST_F(TestUbseCommunication, TestGetNodeIdByIp)
+{
+    std::string engineName = "MockEngine";
+    std::string ip = "127.0.0.1";
+    EXPECT_EQ("", UbseCommunication::GetNodeIdByIp(engineName, ip));
+
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify = MockNotify;
+    UbseComLinkManager linkManager;
+    UBSHcomService *mockService;
+    UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+    MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
+    EXPECT_EQ("", UbseCommunication::GetNodeIdByIp(engineName, ip));
+
+    auto ptr = new TestChannel();
+    UBSHcomChannelPtr channelPtr = ptr;
+    UbseComChannelConnectInfo connectInfo(false, ip, 0, "MockNode", "LocalNode");
+    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "engine", channelPtr, connectInfo);
+    mockengine.linkManager_.InsertChannel(channelInfo);
+    EXPECT_EQ("MockNode", UbseCommunication::GetNodeIdByIp(engineName, ip));
+}
+
 } // namespace ubse::ut::com

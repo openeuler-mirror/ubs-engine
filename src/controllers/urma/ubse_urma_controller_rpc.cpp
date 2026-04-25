@@ -594,7 +594,7 @@ UbseResult UbseUrmaAsyncBrocastUrmaInfo()
                 return UBSE_OK;
             }
             std::thread([nodeId = node.second.nodeId]() {
-                UBSE_LOG_INFO << "Brocast urma info timestamp to nodeId=" << nodeId;
+                UBSE_LOG_INFO << "Broadcast urma info timestamp to nodeId=" << nodeId;
                 std::string taskExecutor = "UrmaExecutor";
                 std::string taskName = "UrmaMasterBrocastRetryTimer_" + nodeId;
                 auto task = [nodeId]() {

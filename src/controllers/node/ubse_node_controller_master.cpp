@@ -265,7 +265,7 @@ void UbseNodeControllerMaster::UbseNodeCycleLedger(const std::string& nodeId)
         return;
     }
     UBSE_LOG_INFO << "nodeId=" << nodeId
-                  << " before collect ledger current state=" << static_cast<uint32_t>(nodeInfo.clusterState);
+                  << " before collect ledger, state=" << static_cast<uint32_t>(nodeInfo.clusterState);
     // 预下电，故障，断连等异常场景不进行对账；
     // smoothing 表示节点已经在对账流程中，不对账；
     // init为初始静态数据 或者 节点首次上报，等待节点上线事件触发后启动对账
