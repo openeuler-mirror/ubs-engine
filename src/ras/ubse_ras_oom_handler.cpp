@@ -53,7 +53,7 @@ const uint64_t LEAST_NEED_HUGE_PAGE = 512;
 const uint64_t READ_FILE_SLEEP_TIME = 1;
 const uint16_t HUGEPAGE_OOM = 2;
 constexpr auto UBSE_ADMISSION_CONFIG_SECTION_NAME = "ubse_plugin_admission";
-constexpr auto OCK_VM_ENABLE = "vm";
+constexpr auto OCK_VM_ENABLE = "virt_agent";
 using LibPtr = void *;
 constexpr int MAX_OOM_TIMEOUT_MS = 3600000;
 

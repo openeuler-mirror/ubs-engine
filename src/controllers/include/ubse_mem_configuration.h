@@ -28,7 +28,7 @@ using namespace ubse::nodeController;
 constexpr auto UBSE_ADMISSION_CONFIG_SECTION_NAME = "ubse_plugin_admission";
 constexpr auto MEM_LOG_CONFIG_SECTION_NAME = "ubse.log";
 constexpr auto OCK_MEM_SYSTEM_POOL_MEMORY_RATIO = "system.pool.memory.ratio";
-constexpr auto OCK_VM_ENABLE = "vm";
+constexpr auto OCK_VM_ENABLE = "virt_agent";
 constexpr auto OCK_MEM_SERVER_ALGO_LOG_LEVEL = "log.level";
 constexpr auto UBSE_MEMORY = "ubse.memory";
 constexpr auto UBSE_LENDER_BALANCE = "lender.balance";
