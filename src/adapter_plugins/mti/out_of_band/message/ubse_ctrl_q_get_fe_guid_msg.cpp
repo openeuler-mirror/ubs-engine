@@ -111,6 +111,11 @@ UbseResult UbseCtrlQGet1825VfGuidReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
+UbseCtrlQGetIdevPfeGuidRespMsg::UbseCtrlQGetIdevPfeGuidRespMsg()
+{
+    guid_.fill(0xFF);
+}
+
 UbseResult UbseCtrlQGetIdevPfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
 {
     // bbNum 需要为1
@@ -124,6 +129,11 @@ UbseResult UbseCtrlQGetIdevPfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage 
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+UbseCtrlQGet1825PfGuidRespMsg::UbseCtrlQGet1825PfGuidRespMsg()
+{
+    guid_.fill(0xFF);
 }
 
 UbseResult UbseCtrlQGet1825PfGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)

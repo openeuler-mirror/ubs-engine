@@ -31,7 +31,7 @@ private:
 
 class UbseCtrlQGetIdevPfeGuidRespMsg : public ICtrlQRespMsg {
 public:
-    UbseCtrlQGetIdevPfeGuidRespMsg() = default;
+    UbseCtrlQGetIdevPfeGuidRespMsg();
 
     UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
 
@@ -68,12 +68,12 @@ private:
 
 class UbseCtrlQGet1825PfGuidRespMsg : public ICtrlQRespMsg {
 public:
-    UbseCtrlQGet1825PfGuidRespMsg() = default;
+    UbseCtrlQGet1825PfGuidRespMsg();
 
     UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
 
     const UbseMtiGuid &GetGuid() const;
-    
+
 private:
     UbseMtiGuid guid_;
 };
