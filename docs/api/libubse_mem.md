@@ -174,13 +174,13 @@ typedef enum {
     UBSE_END = 6                // 类型转换边界值, 不表示任何内存状态
 } ubs_mem_stage;
 
-#define UBS_MEM_DEV_NAME_PREFIX "obmm_shmdev"
-#define UBS_MEM_DEV_PATH "/dev/" UBS_MEM_DEV_NAME_PREFIX
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBS_MEM_MAX_MEMID_NUM 2048
 
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];     // 借用标识
     uint32_t memid_cnt;                     // 导出的内存块数量
-    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，FD的文件形成规则：UBS_MEM_DEV_PATH + memid
+    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，对应设备路径格式为 /dev/obmm_shmdev<memid>
     uint64_t mem_size;                      // 借用大小
     size_t unit_size;                       // 芯片表项拆分粒度, 单位Byte
     ubs_topo_node_t export_node;            // 借出节点, 其中ips字段无效, 需通过topo接口获取
@@ -635,10 +635,13 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *fd_desc);
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBS_MEM_MAX_MEMID_NUM 2048
+
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];     // 借用标识
     uint32_t memid_cnt;                     // 导出的内存块数量
-    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，FD的文件形成规则：UBS_MEM_DEV_PATH + memid
+    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，对应设备路径格式为 /dev/obmm_shmdev<memid>
     uint64_t mem_size;                      // 借用大小
     size_t unit_size;                       // 芯片表项拆分粒度, 单位Byte
     ubs_topo_node_t export_node;            // 借出节点, 其中ips字段无效, 需通过topo接口获取
@@ -912,6 +915,9 @@ int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t 
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBSE_MAX_USR_INFO_LENGTH 32
+
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];        // 借用标识
     int64_t numaid;                            // 形成远端numa对应的numaid
@@ -1460,12 +1466,15 @@ int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32]
 | size      | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                                          |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回                                                                      |
 | flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent（按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：<br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
-| region    | IN     | 后续使用共享内存的节点范围，必选参数                                                                              |
+| region    | IN     | 后续使用共享内存的节点范围，可选参数；`NULL` 表示取集群中全量节点                                                       |
 | provider  | IN     | 资源提供方节点范围，`NULL` 表示不指定                                                                          |
 
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_SLOT_NUM 16
+#define UBS_MEM_MAX_USR_INFO_LEN 32
+
 typedef struct {
     uint32_t node_cnt;                        // 实际有效的节点数量
     uint32_t slot_ids[UBS_MEM_MAX_SLOT_NUM];  // 节点ID数组
@@ -1574,7 +1583,7 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
 | affinity\_socket\_id | IN     | 亲和的cpu socket\_id                      |
 | usr\_info            | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回             |
 | flag                 | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent（按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：<br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
-| region               | IN     | 使用共享内存的节点范围，必选参数                       |
+| region               | IN     | 使用共享内存的节点范围，可选参数；`NULL` 表示取集群中全量节点 |
 | provider             | IN     | 资源提供方节点范围，`NULL` 表示不指定                 |
 
 ## 返回值 RETURN VALUE
@@ -1660,12 +1669,14 @@ int32_t ubs_mem_shm_create_with_lender(const char *name, uint8_t usr_info[UBS_ME
 | name      | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name全局保持唯一性 |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回 |
 | flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent（按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：  <br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
-| region    | IN     | 使用共享内存的节点范围，必选参数           |
+| region    | IN     | 使用共享内存的节点范围，可选参数；`NULL` 表示取集群中全量节点 |
 | lender    | IN     | 指定借出节点数据                   |
 
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_SLOT_NUM 16
+
 typedef struct {
     uint32_t node_cnt;                        // 实际有效的节点数量
     uint32_t slot_ids[UBS_MEM_MAX_SLOT_NUM];  // 节点ID数组
@@ -1789,9 +1800,13 @@ int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mo
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_MEMID_NUM 2048
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBS_MEM_MAX_USR_INFO_LEN 32
+
 typedef struct {
     uint32_t memid_cnt;                     // 导出的内存块数量
-    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，FD的文件形成规则：UBS_MEM_DEV_PATH + memid
+    uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，对应设备路径格式为 /dev/obmm_shmdev<memid>
     ubs_topo_node_t import_node;            // 借入节点, 其中ips字段无效, 需通过topo接口获取
     ubs_mem_stage mem_stage;                // 内存状态
 } ubs_mem_shm_import_desc_t;
@@ -2072,7 +2087,7 @@ int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t
 
 | name           | IN/OUT | description                                      |
 | -------------- | ------ | ------------------------------------------------ |
-| name\_prefix   | IN     | 指定借用标识前缀                                         |
+| name\_prefix   | IN     | 指定借用标识前缀，最大长度48字节，含结尾字符 `\0`<br />仅可包括大小写字母、数字、`.`、`:`、`-` 以及 `_` |
 | shm\_descs     | OUT    | 共享内存描述信息数组，调用成功后需要使用 `free` 接口主动释放内存             |
 | shm\_desc\_cnt | OUT    | 共享内存描述信息数组中的元素个数，范围 `[0, UBS_MEM_MAX_DESC_LIST]` |
 
@@ -2342,6 +2357,8 @@ typedef enum {
     MEM_EXPORT_FAULT,
     UB_MEM_HEALTHY = 1000, // 无故障
 } ubs_mem_fault_type_t;
+
+#define UBS_MEM_MAX_MEMID_NUM 2048
 
 typedef struct {
     uint32_t memid_cnt;                                       // 导出的内存块数量

@@ -400,7 +400,7 @@ typedef struct {
  * @param size [IN] 借用大小, 单位Byte, 取值范围大于等于4*1024*1024
  * @param usr_info [IN] 调用方私有数据(当前有NC/CC信息), UBSE只负责保存，get时原样返回
  * @param flag [IN] 额外的内存借用属性，目前支持写接力
- * @param region [IN] 后续使用共享内存的节点范围, region内的节点必须能通过公共节点直连, 必选参数
+ * @param region [IN] 后续使用共享内存的节点范围, region内的节点必须能通过公共节点直连, 可选参数, NULL表示取集群中全量节点
  * @param provider [IN] 资源提供方节点范围, null表示不指定, 非null表示指定
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -426,7 +426,7 @@ int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32]
  * @param usr_info [IN] 调用方私有数据(当前有NC/CC信息), UBSE只负责保存，get时原样返回
  * @param flag [IN] 额外的内存借用属性，目前支持写接力
  * 传递给OBMM的内存访问属性；全0表示无效，UBSE自行组装访问属性；非全零，直接使用该字段传递给OBMM
- * @param region [IN] 后续使用共享内存的节点范围, region内的节点必须能通过公共节点直连, 必选参数
+ * @param region [IN] 后续使用共享内存的节点范围, region内的节点必须能通过公共节点直连, 可选参数, NULL表示取集群中全量节点
  * @param provider [IN] 资源提供方节点范围, null表示不指定, 非null表示指定
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -451,7 +451,7 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
  * @param usr_info [IN] 调用方私有数据(当前有NC/CC信息), usr_info应为32字节大小，UBSE只负责保存，get时原样返回,
  * @param flag [IN] 额外的内存借用属性，目前支持写接力
  * 传递给OBMM的内存访问属性；全0表示无效，UBSE自行组装访问属性；非全零，直接使用该字段传递给OBMM
- * @param region [IN] 后续使用共享内存的节点范围, region内的节点必须能通过公共节点直连, 必选参数
+ * @param region [IN] 后续使用共享内存的节点范围, region内的节点必须能通过公共节点直连, 可选参数, NULL表示取集群中全量节点
  * @param lender [IN] 借出方信息
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
