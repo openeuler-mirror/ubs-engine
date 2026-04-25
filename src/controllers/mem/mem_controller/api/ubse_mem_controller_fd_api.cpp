@@ -810,7 +810,7 @@ uint32_t FdImportDestroyingAgentCallback(UbseMemFdBorrowImportObj &importObj, co
         UBSE_LOG_ERROR << "FdUnImport Failed, Failed count:" << ++g_fdUnimportFailedCount << ". advice: Caller should clear memory and retry. "
                        << "If failures persist, migrate the workload and restart the host.";
         BorrowFailedAdvice(
-            "UnImport Failed", name, "WATER_BORROW", 0,
+            "UnImport failed", name, "WATER_BORROW", 0,
             importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos.begin()->nodeId,
             importObj.req.importNodeId, res, MemAdvice::OBMM_FAILED);
     } else {
@@ -819,7 +819,7 @@ uint32_t FdImportDestroyingAgentCallback(UbseMemFdBorrowImportObj &importObj, co
     }
     if (auto ret = SendFdImportObj(importObj, false); ret != UBSE_OK) {
         BorrowFailedAdvice(
-            "UnImport Failed", name, "WATER_BORROW", 0,
+            "UnImport failed", name, "WATER_BORROW", 0,
             importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos.begin()->nodeId,
             importObj.req.importNodeId, res, MemAdvice::COMM_FAILED);
         return ret;

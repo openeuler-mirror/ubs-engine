@@ -1349,9 +1349,20 @@ static uint32_t ShareReturnValidate(const UbseMemReturnReq &req, UbseMemOperatio
     std::vector<UbseMemShareBorrowExportObj> exportObjs;
     std::vector<UbseMemShareBorrowImportObj> importObjs;
     FindShareBorrowObjByName(req.name, exportObjs, importObjs);
+    std::string enode = "";
+    std::string inode = "";
+    if (!exportObjs.empty()) {
+        exportObj = exportObjs[0];
+        enode = exportObjs[0].algoResult.exportNumaInfos.empty() ? "" :
+                                                                   exportObj.algoResult.exportNumaInfos.begin()->nodeId;
+        inode = exportObjs[0].algoResult.importNumaInfos.empty() ? "" :
+                                                                   exportObj.algoResult.importNumaInfos.begin()->nodeId;
+    }
     if (!importObjs.empty()) {
-        comErrorCode =
-            ShareReturnFail(req, resp, "Resource attached.", UBSE_ERR_SHM_ATTACH_USING, MemAdvice::RESOURCE_EXIST);
+        BorrowFailedAdvice("Return Schedule failed", req.name, "SHARE_BORROW", 0, enode, inode,
+                           UBSE_ERR_SHM_ATTACH_USING, MemAdvice::RESOURCE_EXIST);
+        comErrorCode = BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource attached.",
+                                                  UBSE_ERR_SHM_ATTACH_USING, MemOperationType::SHARED_RETURN);
         return UBSE_ERR_SHM_ATTACH_USING;
     }
     if (exportObjs.empty()) {
@@ -1359,11 +1370,6 @@ static uint32_t ShareReturnValidate(const UbseMemReturnReq &req, UbseMemOperatio
             ShareReturnFail(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
         return UBSE_ERR_NOT_EXIST;
     }
-    exportObj = exportObjs[0];
-    auto enode = exportObj.algoResult.exportNumaInfos.empty() ? "" :
-                                                                exportObj.algoResult.exportNumaInfos.begin()->nodeId;
-    auto inode = exportObj.algoResult.importNumaInfos.empty() ? "" :
-                                                                exportObj.algoResult.importNumaInfos.begin()->nodeId;
     auto memStage = GetMemStageByExportObjState(exportObj, true);
     if (memStage == UbseMemStage::UBSE_CREATING || memStage == UbseMemStage::UBSE_DELETING) {
         UBSE_LOG_INFO << "resource is being borrowed or returned, name=" << req.name;
