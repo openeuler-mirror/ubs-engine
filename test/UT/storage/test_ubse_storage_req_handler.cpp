@@ -185,7 +185,7 @@ TEST_F(TestUbseStorageReqHandler, HandleGetSuccess)
     EXPECT_EQ(UBSE_OK, handler.Handle(req, rsp, nullptr));
 
     auto resp = UbseBaseMessage::DeConvert<UbseStorageRespSimpo>(rsp);
-    ASSERT_NE(nullptr, resp);
+    ASSERT_NE(nullptr, resp.Get());
     EXPECT_EQ(1, resp->GetStorageResp().kvs.size());
 }
 } // namespace ubse::ut::storage
