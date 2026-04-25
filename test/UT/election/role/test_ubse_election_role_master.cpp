@@ -349,4 +349,39 @@ TEST_F(TestUbseElectionRoleMaster, UpdateBroadcastStatus_WhenNodeLost)
     ubse::election::UpdateBroadcastStatus(nodeId, reply, broad, status, mtx);
     EXPECT_EQ(broad[nodeId].activeStatus, HeartBeatState::LOST);
 }
+
+TEST_F(TestUbseElectionRoleMaster, ProcessReply_ShouldReturn_WhenResultNotZero)
+{
+    CallbackCtx context;
+    context.destId = "NODE1";
+    std::mutex mtx;
+    context.mtx = &mtx;
+    std::map<UBSE_ID_TYPE, BroadcastStatus> broad;
+    context.broadcast = &broad;
+    uint8_t status = 0;
+    context.standbyStatus = &status;
+
+    EXPECT_NO_THROW(ubse::election::ProcessReply(&context, -1, nullptr, 0));
+}
+
+TEST_F(TestUbseElectionRoleMaster, AsyncDealReply_ShouldReturn_WhenContextIsNull)
+{
+    EXPECT_NO_THROW(ubse::election::AsyncDealReply(nullptr, nullptr, 0, 0));
+}
+
+TEST_F(TestUbseElectionRoleMaster, AsyncDealReply_ShouldProcessReply_WhenStoppingFalse)
+{
+    auto context = new CallbackCtx();
+    context->destId = "NODE1";
+    context->mtx = new std::mutex();
+    context->broadcast = new std::map<UBSE_ID_TYPE, BroadcastStatus>();
+    context->standbyStatus = new uint8_t(0);
+    context->stopping = new std::atomic<bool>(false);
+    context->activeCount = new std::atomic<int>(0);
+
+    MOCKER(&UbseBaseMessage::SetInputRawData).stubs().will(returnValue(UBSE_ERROR));
+
+    uint8_t data[10] = {0};
+    EXPECT_NO_THROW(ubse::election::AsyncDealReply(context, data, 10, 0));
+}
 }

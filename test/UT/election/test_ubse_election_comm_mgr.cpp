@@ -11,6 +11,7 @@
  */
 
 #include "test_ubse_election_comm_mgr.h"
+#include <unordered_map>
 #include "ubse_conf_module.h"
 #include "ubse_election_comm_mgr.cpp"
 #include "ubse_election_comm_mgr.h"
@@ -29,15 +30,15 @@ UbseElectionCommMgr commMgr(nodeId, name);
 
 UbseResult MockGetAllNode(UbseElectionNodeMgr *pthis, std::vector<Node> &allNodes)
 {
-    std::vector<Node> allNodes_ = { Node{ "Node1", "192.168.0.1", 10004 }, Node{ "Node2", "192.168.0.2", 10005 },
-        Node{ "Node3", "192.168.0.3", 10006 } };
+    std::vector<Node> allNodes_ = {Node{"Node1", "192.168.0.1", 10004}, Node{"Node2", "192.168.0.2", 10005},
+                                   Node{"Node3", "192.168.0.3", 10006}};
     allNodes = allNodes_;
     return UBSE_OK;
 }
 
 void TestUbseElectionCommMgr::SetUp()
 {
-    connectSuccessNodes_ = { "1", "2", "3", "4" };
+    connectSuccessNodes_ = {"1", "2", "3", "4"};
     commMgr.connectSuccessNodes_ = connectSuccessNodes_;
 }
 
@@ -47,10 +48,42 @@ void TestUbseElectionCommMgr::TearDown()
     GlobalMockObject::verify();
 }
 
+void TestUbseElectionCommMgr::MockEventModuleWithSubEventResults(UbseResult first, UbseResult second, UbseResult third)
+{
+    auto eventModule = std::make_shared<UbseEventModule>();
+    MOCKER(&UbseContext::GetModule<UbseEventModule>).stubs().will(returnValue(eventModule));
+    MOCKER(&UbseEventModule::UbseSubEvent)
+        .stubs()
+        .will(returnValue(first))
+        .then(returnValue(second))
+        .then(returnValue(third));
+}
+
+void TestUbseElectionCommMgr::MockAllSubEventsSuccess()
+{
+    MockEventModuleWithSubEventResults(UBSE_OK, UBSE_OK, UBSE_OK);
+}
+
+void TestUbseElectionCommMgr::MockGetMyselfNode(UbseResult result)
+{
+    MOCKER(&UbseElectionNodeMgr::GetMyselfNode).stubs().will(returnValue(result));
+}
+
+void TestUbseElectionCommMgr::MockUbseComModuleWithStartService(UbseResult startResult)
+{
+    auto ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    MOCKER(&UbseComModule::StartComService).stubs().will(returnValue(startResult));
+}
+
 TEST_F(TestUbseElectionCommMgr, ShouldReturnUBSE_OK_WhenNodeIsAlreadyConnected)
 {
-    GTEST_SKIP();
-    uint32_t result = commMgr.Connect("2");
+    std::string connectedNodeId = "2";
+    MOCKER(&UbseElectionNodeMgr::GetNodeIdByIp)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::outBound(connectedNodeId))
+        .will(mockcpp::returnValue(UBSE_OK));
+    uint32_t result = commMgr.Connect("192.168.0.2");
     EXPECT_EQ(result, UBSE_OK);
 }
 
@@ -175,20 +208,14 @@ TEST_F(TestUbseElectionCommMgr, NodeLinkState_ShouldReturnOk_WhenNodeLinkStateOn
 TEST_F(TestUbseElectionCommMgr, StartEventNodeSuccess)
 {
     GTEST_SKIP();
-    MOCKER(&ubse::context::UbseContext::GetModule<UbseEventModule>)
-        .stubs()
-        .will(returnValue(std::make_shared<UbseEventModule>()));
-    MOCKER(&UbseEventModule::UbseSubEvent).stubs().will(returnValue(UBSE_OK));
+    MockAllSubEventsSuccess();
     UbseResult ret = commMgr.Start();
     EXPECT_EQ(ret, UBSE_OK);
 }
 
 TEST_F(TestUbseElectionCommMgr, StartEventNodeFailed_WhenSubEventFail)
 {
-    MOCKER(&ubse::context::UbseContext::GetModule<UbseEventModule>)
-        .stubs()
-        .will(returnValue(std::make_shared<UbseEventModule>()));
-    MOCKER(&UbseEventModule::UbseSubEvent).stubs().will(returnValue(UBSE_ERROR));
+    MockEventModuleWithSubEventResults(UBSE_ERROR);
     UbseResult ret = commMgr.Start();
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -199,4 +226,147 @@ TEST_F(TestUbseElectionCommMgr, StartEventNodeFail)
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-} // namespace ubse::event::election
+TEST_F(TestUbseElectionCommMgr, ElectionSubEvent_ShouldReturnError_WhenEventModuleIsNull)
+{
+    UbseContext::GetInstance().GetModule<UbseEventModule>() = nullptr;
+    UbseResult ret = commMgr.ElectionSubEvent();
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionSubEvent_ShouldReturnError_WhenFirstSubEventFail)
+{
+    MockEventModuleWithSubEventResults(UBSE_ERROR);
+    UbseResult ret = commMgr.ElectionSubEvent();
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionSubEvent_ShouldReturnError_WhenSecondSubEventFail)
+{
+    MockEventModuleWithSubEventResults(UBSE_OK, UBSE_ERROR);
+    UbseResult ret = commMgr.ElectionSubEvent();
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionSubEvent_ShouldReturnError_WhenThirdSubEventFail)
+{
+    MockEventModuleWithSubEventResults(UBSE_OK, UBSE_OK, UBSE_ERROR);
+    UbseResult ret = commMgr.ElectionSubEvent();
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionSubEvent_ShouldReturnOk_WhenAllSubEventSuccess)
+{
+    MockAllSubEventsSuccess();
+    UbseResult ret = commMgr.ElectionSubEvent();
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnError_WhenGetMyselfNodeFail)
+{
+    MockAllSubEventsSuccess();
+    MockGetMyselfNode(UBSE_ERROR);
+    UbseResult ret = commMgr.Start();
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnErrorModuleLoadFailed_WhenUbseComModuleIsNull)
+{
+    MockAllSubEventsSuccess();
+    MockGetMyselfNode(UBSE_OK);
+    UbseContext::GetInstance().GetModule<UbseComModule>() = nullptr;
+    UbseResult ret = commMgr.Start();
+    EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
+}
+
+TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnError_WhenStartComServiceFail)
+{
+    MockAllSubEventsSuccess();
+    MockGetMyselfNode(UBSE_OK);
+    MockUbseComModuleWithStartService(UBSE_ERROR);
+    UbseResult ret = commMgr.Start();
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionFaultHandler_ShouldReturnError_WhenParseFaultEventMsgFailed)
+{
+    std::string eventId = "testEventId";
+    std::string eventMessage = "invalidMessageWithoutUnderscore";
+    UbseResult result = commMgr.ElectionFaultHandler(eventId, eventMessage);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionFaultHandler_ShouldReturnOk_WhenFaultTypeNot1007)
+{
+    std::string eventId = "testEventId";
+    std::string eventMessage = "node1_1008";
+    UbseResult result = commMgr.ElectionFaultHandler(eventId, eventMessage);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionFaultHandler_ShouldReturnError_WhenDisConnectFailed)
+{
+    std::string eventId = "testEventId";
+    std::string eventMessage = "2_1007";
+    UbseContext::GetInstance().GetModule<UbseComModule>() = nullptr;
+    UbseResult result = commMgr.ElectionFaultHandler(eventId, eventMessage);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionFaultHandler_ShouldReturnOk_WhenDisConnectSuccess)
+{
+    std::string eventId = "testEventId";
+    std::string eventMessage = "2_1007";
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseComModule::RemoveChannel).stubs().will(returnValue(UBSE_OK));
+    UbseResult result = commMgr.ElectionFaultHandler(eventId, eventMessage);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionCommMgr, ElectionTopoChangeHandler_ShouldReturnOk)
+{
+    std::string eventId = "testEventId";
+    std::string eventMessage = "topoChangeMessage";
+    MOCKER(&UbseElectionNodeMgr::ParseAllNodesVector).stubs();
+    UbseResult result = commMgr.ElectionTopoChangeHandler(eventId, eventMessage);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionCommMgr, NewChannelCB_ShouldReturnError_WhenGetNodeIpMapFailed)
+{
+    std::string remoteIp = "192.168.0.1";
+    std::string remoteNodeId = "node1";
+    MOCKER(&UbseElectionNodeMgr::GetNodeIpMap).stubs().will(returnValue(UBSE_ERROR));
+    UbseResult result = commMgr.NewChannelCB(remoteIp, remoteNodeId);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, NewChannelCB_ShouldReturnError_WhenRemoteIpNotFound)
+{
+    std::string remoteIp = "192.168.0.99";
+    std::string remoteNodeId = "node99";
+    std::unordered_map<std::string, UBSE_ID_TYPE> nodeIpMap = {{"192.168.0.1", "node1"}, {"192.168.0.2", "node2"}};
+    MOCKER(&UbseElectionNodeMgr::GetNodeIpMap)
+        .stubs()
+        .with(mockcpp::outBound(nodeIpMap))
+        .will(mockcpp::returnValue(UBSE_OK));
+    UbseResult result = commMgr.NewChannelCB(remoteIp, remoteNodeId);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, NewChannelCB_ShouldReturnOk_WhenRemoteIpFound)
+{
+    std::string remoteIp = "192.168.0.1";
+    std::string remoteNodeId = "node1";
+    std::unordered_map<std::string, UBSE_ID_TYPE> nodeIpMap = {{"192.168.0.1", "node1"}, {"192.168.0.2", "node2"}};
+    MOCKER(&UbseElectionNodeMgr::GetNodeIpMap)
+        .stubs()
+        .with(mockcpp::outBound(nodeIpMap))
+        .will(mockcpp::returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::UpdateNodeIdWithConnect).stubs().will(returnValue(UBSE_OK));
+    UbseResult result = commMgr.NewChannelCB(remoteIp, remoteNodeId);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+} // namespace ubse::ut::election

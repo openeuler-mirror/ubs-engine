@@ -17,10 +17,13 @@
 #include "role/ubse_election_role_master.h"
 #include "role/ubse_election_role_mgr.h"
 #include "ubse_election_def.h"
+#include "ubse_election_reply_pkt_simpo.h"
 
 namespace ubse::election {
 extern void UpdateBroadcastStatus(const std::string &nodeId, const ElectionReplyPkt &reply,
                                   std::map<UBSE_ID_TYPE, BroadcastStatus> &broad, uint8_t &status, std::mutex &mtx);
+extern void ProcessReply(CallbackCtx* context, int32_t result, void* recv, uint32_t len);
+extern void AsyncDealReply(void* ctx, void* recv, uint32_t len, int32_t result);
 }
 
 namespace ubse::event::election {
