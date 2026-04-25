@@ -1,16 +1,3 @@
-## 常量说明 CONSTANTS
-
-| Constant                   | Value  | Header              |
-| -------------------------- | ------ | ------------------- |
-| `UBS_MEM_MAX_SLOT_NUM`     | `16`   | `ubs_engine_mem.h`  |
-| `UBS_MEM_MAX_MEMID_NUM`    | `2048` | `ubs_engine_mem.h`  |
-| `UBS_MEM_MAX_NAME_LENGTH`  | `48`   | `ubs_engine_mem.h`  |
-| `UBSE_MAX_USR_INFO_LENGTH` | `32`   | `ubs_engine_mem.h`  |
-| `UBS_MEM_MAX_USR_INFO_LEN` | `32`   | `ubs_engine_mem.h`  |
-| `UBS_MEM_MAX_LENDER_CNT`   | `4`    | `ubs_engine_mem.h`  |
-| `UBS_MEM_MAX_DESC_LIST`    | `2000` | `ubs_engine_mem.h`  |
-| `UBS_TOPO_MAX_NODE_NUM`    | `512`  | `ubs_engine_topo.h` |
-
 # 1. ubs\_mem\_numastat\_get
 
 ## 库 LIBRARY
@@ -186,6 +173,9 @@ typedef enum {
     UBSE_ERR_WAIT_UNEXPORT = 5, // 等待unexport执行，对账会执行，可以手动删除
     UBSE_END = 6                // 类型转换边界值, 不表示任何内存状态
 } ubs_mem_stage;
+
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBS_MEM_MAX_MEMID_NUM 2048
 
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];     // 借用标识
@@ -645,6 +635,9 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *fd_desc);
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBS_MEM_MAX_MEMID_NUM 2048
+
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];     // 借用标识
     uint32_t memid_cnt;                     // 导出的内存块数量
@@ -922,6 +915,9 @@ int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t 
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBSE_MAX_USR_INFO_LENGTH 32
+
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];        // 借用标识
     int64_t numaid;                            // 形成远端numa对应的numaid
@@ -1470,12 +1466,15 @@ int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32]
 | size      | IN     | 借用大小，单位Byte，取值范围大于等于 `4 * 1024 * 1024`                                                          |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回                                                                      |
 | flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent（按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：<br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
-| region    | IN     | 后续使用共享内存的节点范围，可选参数；`NULL` 表示使用集群中上线过的节点                                                     |
+| region    | IN     | 后续使用共享内存的节点范围，可选参数；`NULL` 表示取集群中全量节点                                                       |
 | provider  | IN     | 资源提供方节点范围，`NULL` 表示不指定                                                                          |
 
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_SLOT_NUM 16
+#define UBS_MEM_MAX_USR_INFO_LEN 32
+
 typedef struct {
     uint32_t node_cnt;                        // 实际有效的节点数量
     uint32_t slot_ids[UBS_MEM_MAX_SLOT_NUM];  // 节点ID数组
@@ -1584,7 +1583,7 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
 | affinity\_socket\_id | IN     | 亲和的cpu socket\_id                      |
 | usr\_info            | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回             |
 | flag                 | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent（按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：<br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
-| region               | IN     | 使用共享内存的节点范围，可选参数；`NULL` 表示使用集群中上线过的节点 |
+| region               | IN     | 使用共享内存的节点范围，可选参数；`NULL` 表示取集群中全量节点 |
 | provider             | IN     | 资源提供方节点范围，`NULL` 表示不指定                 |
 
 ## 返回值 RETURN VALUE
@@ -1670,12 +1669,14 @@ int32_t ubs_mem_shm_create_with_lender(const char *name, uint8_t usr_info[UBS_ME
 | name      | IN     | 借用标识<br>name最大长度48字节, 含结尾字符\0<br>name仅可包括大小写字母、数字、"."、":"、"-"以及"_"<br>name全局保持唯一性 |
 | usr\_info | IN     | 调用方私有数据，UBSE只负责保存，get时原样返回 |
 | flag      | IN     | 额外的内存借用属性，目前支持写接力、自动清理提供方和设置共享内存属性为CacheCoherent（按位组合，每一个二进制位表示一种独立属性）；<br /> **可用标志位定义如下**：<br /> `0x1`: 非写接力 <br />`0x2`: 匿名内存，共享内存没有使用方时，后台对账会自动清理 <br /> `0x4`: 设置共享内存属性为CacheCoherent (默认为NonCacheCoherent)  <br /> **flag使用说明(flag为十进制数)**:  <br /> flag 可以用 `\|` 运算进行赋值,表示开启某个属性，比如：  <br /> - 非写接力 + 匿名:`flag= 0x1 \| 0x2 = 3`; <br /> - 匿名+设置共享内存属性为CacheCoherent:`flag = 0x2 \| 0x4 = 6`  <br /> - 非写接力+匿名+设置共享内存属性为CacheCoherent:`flag = 0x1 \| 0x2 \| 0x4 = 7` <br />- 其它属性组合, 使用 `flag \|= 对应标志位` 进行组合即可<br />  **flag其它取值说明**: <br /> 0：默认值，代表三个标志位对应的属性都不选择 |
-| region    | IN     | 使用共享内存的节点范围，可选参数；`NULL` 表示使用集群中上线过的节点 |
+| region    | IN     | 使用共享内存的节点范围，可选参数；`NULL` 表示取集群中全量节点 |
 | lender    | IN     | 指定借出节点数据                   |
 
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_SLOT_NUM 16
+
 typedef struct {
     uint32_t node_cnt;                        // 实际有效的节点数量
     uint32_t slot_ids[UBS_MEM_MAX_SLOT_NUM];  // 节点ID数组
@@ -1799,6 +1800,10 @@ int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mo
 - 数据结构说明
 
 ```c
+#define UBS_MEM_MAX_MEMID_NUM 2048
+#define UBS_MEM_MAX_NAME_LENGTH 48
+#define UBS_MEM_MAX_USR_INFO_LEN 32
+
 typedef struct {
     uint32_t memid_cnt;                     // 导出的内存块数量
     uint64_t memids[UBS_MEM_MAX_MEMID_NUM]; // 内存块标识信息，对应设备路径格式为 /dev/obmm_shmdev<memid>
@@ -2352,6 +2357,8 @@ typedef enum {
     MEM_EXPORT_FAULT,
     UB_MEM_HEALTHY = 1000, // 无故障
 } ubs_mem_fault_type_t;
+
+#define UBS_MEM_MAX_MEMID_NUM 2048
 
 typedef struct {
     uint32_t memid_cnt;                                       // 导出的内存块数量
