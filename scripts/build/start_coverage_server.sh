@@ -18,7 +18,7 @@ current_directory=$(pwd)
 HTML_PATH=${1:-"${current_directory}/cmake-build-debug/coverage/index.html"}
 
 # 查找所有 python3 -m http.server 进程
-process_info=$(pgrep -af "python3 -m http.server")
+process_info=$(pgrep -af "python3 -m http.server") || process_info=""
 
 # 标志变量，表示是否找到匹配的进程
 found_matching_process=false
