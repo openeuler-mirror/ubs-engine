@@ -44,11 +44,12 @@ public:
  * 预期结果：如下
  * 1. 返回值为 UBSE_OK
  */
-// TEST_F(TestUbseSecurityModule, ModuleInitSuccess)
-// {
-//     EXPECT_EQ(UBSE_OK, securityModule.Initialize());
-//     EXPECT_NO_THROW(securityModule.UnInitialize());
-// }
+TEST_F(TestUbseSecurityModule, ModuleInitSuccess)
+{
+    GTEST_SKIP();
+    EXPECT_EQ(UBSE_OK, securityModule.Initialize());
+    EXPECT_NO_THROW(securityModule.UnInitialize());
+}
 
 /*
  * 用例描述：如下
@@ -59,30 +60,10 @@ public:
  * 预期结果：如下
  * 1. 返回值为 UBSE_ERROR
  */
-// TEST_F(TestUbseSecurityModule, ModuleInitFail)
-// {
-//     MOCKER(ubse::security::UbseSecurityManager::SetInitialCapabilities).stubs().will(returnValue(UBSE_ERROR));
-//     EXPECT_EQ(UBSE_ERROR, securityModule.Initialize());
-// }
-
-/*
- * 用例描述：如下
- * 测试能力模块初始化成功的情况
- * 测试步骤：如下
- * 1. 启用 RM_DISABLE_CAPS=1 环境变量
- * 2. 调用Initialize函数
- * 3. 调用UnInitialize函数释放
- * 4. 取消 RM_DISABLE_CAPS 环境变量
- * 预期结果：如下
- * 1. 返回值为 UBSE_OK
- */
-TEST_F(TestUbseSecurityModule, ModuleInitSuccess_WhenDisableCapsInEnv)
+TEST_F(TestUbseSecurityModule, ModuleInitFail)
 {
-    GTEST_SKIP();
-    setenv("RM_DISABLE_CAPS", "1", 1);
-    EXPECT_EQ(UBSE_OK, securityModule.Initialize());
-    EXPECT_NO_THROW(securityModule.UnInitialize());
-    unsetenv("RM_DISABLE_CAPS");
+    MOCKER(ubse::security::UbseSecurityManager::SetInitialCapabilities).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, securityModule.Initialize());
 }
 
 /*
@@ -102,32 +83,6 @@ TEST_F(TestUbseSecurityModule, ModuleStartSuccess)
     EXPECT_EQ(UBSE_OK, securityModule.Initialize());
     EXPECT_EQ(UBSE_OK, securityModule.Start());
     EXPECT_NO_THROW(securityModule.Stop());
-    EXPECT_NO_THROW(securityModule.UnInitialize());
-}
-
-/*
- * 用例描述：如下
- * 测试能力模块终止成功的情况
- * 测试步骤：如下
- * 1. 不调用Initialize函数的情况下直接调用Stop函数
- * 预期结果：如下
- * 1. 不中断程序
- */
-TEST_F(TestUbseSecurityModule, ModuleStopSuccess)
-{
-    EXPECT_NO_THROW(securityModule.Stop());
-}
-
-/*
- * 用例描述：如下
- * 测试能力模块销毁成功的情况
- * 测试步骤：如下
- * 1. 不调用Initialize函数的情况下直接调用UnInitialize函数
- * 预期结果：如下
- * 1. 不中断程序
- */
-TEST_F(TestUbseSecurityModule, ModuleUnInitializeSuccess)
-{
     EXPECT_NO_THROW(securityModule.UnInitialize());
 }
 

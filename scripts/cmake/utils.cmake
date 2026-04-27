@@ -55,14 +55,10 @@ function(setup_coverage)
                 COMMAND ${LCOV_PATH} -z -d ${CMAKE_BINARY_DIR} # 删除 *.gcda
                 COMMENT "Removing intermediate coverage files"
         )
-        if (POWERSHELL_PATH)
-            message(STATUS "powershell found in ${POWERSHELL_PATH}")
-            add_custom_command(TARGET coverage POST_BUILD
-                    COMMAND ${POWERSHELL_PATH} /c start build/coverage/index.html;
-                    COMMENT "Open ${HTML_PATH} in your browser to view the coverage report."
-                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-            )
-        endif ()
+        add_custom_command(TARGET coverage POST_BUILD
+                COMMAND ;
+                COMMENT "Open ${HTML_PATH} in your browser to view the coverage report."
+        )
         if (ENABLE_HTTP_SERVER)
             add_custom_command(TARGET coverage POST_BUILD
                     COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/build/start_coverage_server.sh ${HTML_PATH}
@@ -78,19 +74,10 @@ function(setup_coverage)
                 COMMAND ${GCOVR_PATH} -f src --gcov-exclude '.+log.+' --html-details ${HTML_PATH}
                 WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         )
-        if (POWERSHELL_PATH)
-            message(STATUS "powershell found in ${POWERSHELL_PATH}")
-            add_custom_command(TARGET coverage POST_BUILD
-                    COMMAND ${POWERSHELL_PATH} /c start build/coverage/index.html;
-                    COMMENT "Open ${HTML_PATH} in your browser to view the coverage report."
-                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-            )
-        else ()
-            add_custom_command(TARGET coverage POST_BUILD
-                    COMMAND ;
-                    COMMENT "Open ${HTML_PATH} in your browser to view the coverage report."
-            )
-        endif ()
+        add_custom_command(TARGET coverage POST_BUILD
+                COMMAND ;
+                COMMENT "Open ${HTML_PATH} in your browser to view the coverage report."
+        )
     else ()
         message(AUTHOR_WARNING "gcovr not found! replaced by gcov.")
         add_custom_target(coverage
