@@ -21,7 +21,7 @@ static std::map<MemAdvice, std::string> advices = {
     {MemAdvice::CHECK_FAILED, "please check and correct the input parameters."},
     {MemAdvice::COMM_FAILED, "please check the communication."},
     {MemAdvice::RESOURCE_EXIST, "The resource is already in use."},
-    {MemAdvice::NODE_IN_MAITENANCE, "please wait for the node to join the cluster or complete the smoothing stats."},
+    {MemAdvice::NODE_IN_MAINTENANCE, "please wait for the node to join the cluster or complete the smoothing stats."},
     {MemAdvice::RESOURCE_NOT_EXIST, "please check whether the resource exists."},
     {MemAdvice::RESOURCE_OPERATION_CONFLICT, "please wait for the resource creation or deletion operation to finish."},
     {MemAdvice::UBSE_NO_OPERATION_PERMISSION, "please check whether the user has permission to operate this resource."}
