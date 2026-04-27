@@ -213,6 +213,14 @@ struct PhysicalLink {
     uint32_t peerPortId;           // 对端端口id
     std::string peerInterfaceName; // 对端端口名
     LinkStatus linkStatus;         // 这条链路的状态
+
+    bool operator==(const PhysicalLink &other) const
+    {
+        return slotId == other.slotId && chipId == other.chipId && portId == other.portId &&
+               interfaceName == other.interfaceName && peerSlotId == other.peerSlotId &&
+               peerChipId == other.peerChipId && peerPortId == other.peerPortId &&
+               peerInterfaceName == other.peerInterfaceName && linkStatus == other.linkStatus;
+    }
 };
 
 struct LinkInfo {

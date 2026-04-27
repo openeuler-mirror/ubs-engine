@@ -27,6 +27,8 @@
 namespace ubse::node::api {
 extern void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo> &nodeList);
 extern std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestContext &context);
+extern void GetCpuTopoLink(std::vector<ubse::nodeController::CliPhysicalLink> &cpuTopoLinks);
+extern uint32_t SerializePhysicalLinks(std::vector<ubse::nodeController::CliPhysicalLink> links, uint8_t *&buffer, size_t &size);
 }
 namespace ubse::node::api::ut {
 using namespace ubse::node::api;
