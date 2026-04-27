@@ -575,24 +575,6 @@ void ProcessNodeInfo(const std::unordered_map<std::string, UbseNodeInfo> &allNod
     }
 }
 
-bool checkIdSocketMap(const PhysicalLink &dev,
-                      std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> &socketMap,
-                      const std::string &flag)
-{
-    if (flag == "both") {
-        return socketMap.count(dev.slotId) && socketMap.at(dev.slotId).count(dev.chipId) &&
-               socketMap.count(dev.peerSlotId) && socketMap.at(dev.peerSlotId).count(dev.peerChipId);
-    }
-    if (flag == "host") {
-        return socketMap.count(dev.slotId) && socketMap.at(dev.slotId).count(dev.chipId);
-    }
-    if (flag == "peer") {
-        return socketMap.count(dev.peerSlotId) && socketMap.at(dev.peerSlotId).count(dev.peerChipId);
-    }
-    UBSE_LOG_ERROR << "Invalid flag value=" << flag << ", expected 'both', 'host' or 'peer'";
-    return false;
-}
-
 static void PrepareHostSocketMaps(std::unordered_map<uint32_t, std::string> &hostMap,
                                   std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> &socketMap)
 {
