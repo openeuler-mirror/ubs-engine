@@ -13,17 +13,26 @@
 #ifndef TEST_SENTRY_OBSERVER_H
 #define TEST_SENTRY_OBSERVER_H
 
-#include <functional>
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "mockcpp/mockcpp.hpp"
-#include "ubse_context.h"
-#include "ubse_conf.h"
-#include "sentry_observer.h"
+#include <gtest/gtest.h>
+#include <functional>
 #include "dlfcn.h"
-#include "ubse_pointer_process.h"
+#include "mockcpp/mockcpp.hpp"
 #include "securec.h"
+#include "sentry_observer.h"
+#include "src/framework/security/ubse_security_module.h"
+#include "sys_sentry_module.h"
+#include "ubse_conf.h"
+#include "ubse_context.h"
+#include "ubse_os_util.h"
+#include "ubse_pointer_process.h"
 #include "ubse_ras_handler.h"
+#include "ubse_timer.h"
+
+namespace syssentry {
+extern void *GetFuncByDlsym(void *handle, const std::string &symbo);
+extern void LogValidFaultMsg(const std::string &invalidStr);
+} // namespace syssentry
 
 namespace syssentry::ut {
 using namespace ubse::context;
@@ -37,5 +46,5 @@ public:
 
     void TearDown() override;
 };
-}  // namespace syssentry::ut
-#endif  // TEST_SENTRY_OBSERVER_H
+} // namespace syssentry::ut
+#endif // TEST_SENTRY_OBSERVER_H
