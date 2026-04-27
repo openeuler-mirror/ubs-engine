@@ -73,14 +73,4 @@ inline bool operator==(const UbseUrmaNodeInfo &a, const UbseUrmaNodeInfo &b)
 }
 }
 
-namespace ubse::nodeController {
-inline bool operator==(const PhysicalLink &a, const PhysicalLink &b)
-{
-    return a.slotId == b.slotId && a.chipId == b.chipId && a.portId == b.portId &&
-            a.interfaceName == b.interfaceName && a.peerSlotId == b.peerSlotId &&
-            a.peerChipId == b.peerChipId && a.peerPortId == b.peerPortId &&
-            a.peerInterfaceName == b.peerInterfaceName && a.linkStatus == b.linkStatus;
-}
-}
-
 #endif // TEST_UBSE_URMA_CONTROLLER_DEF_H
