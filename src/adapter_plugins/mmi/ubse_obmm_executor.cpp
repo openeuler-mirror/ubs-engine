@@ -111,15 +111,15 @@ static void PrintObmmMemDesc(const obmm_mem_desc &obmmMemDesc)
 {
     auto deid = eid_bytes_to_hex_dwords(obmmMemDesc.deid, UBSE_EID_LENGTH);
     auto seid = eid_bytes_to_hex_dwords(obmmMemDesc.seid, UBSE_EID_LENGTH);
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna " << obmmMemDesc.scna;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.length " << obmmMemDesc.length;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.dcna " << obmmMemDesc.dcna;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.tokenid " << obmmMemDesc.tokenid;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.addr " << obmmMemDesc.addr;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.deid " << deid;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.seid " << seid;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna " << obmmMemDesc.scna;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.priv_len " << obmmMemDesc.priv_len;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna=" << obmmMemDesc.scna;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.length=" << obmmMemDesc.length;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.dcna=" << obmmMemDesc.dcna;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.tokenid=" << obmmMemDesc.tokenid;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.addr=" << obmmMemDesc.addr;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.deid=" << deid;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.seid=" << seid;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna=" << obmmMemDesc.scna;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.priv_len=" << obmmMemDesc.priv_len;
 }
 
 /**

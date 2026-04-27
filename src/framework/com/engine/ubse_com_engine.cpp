@@ -76,7 +76,7 @@ UbseResult UbseComLinkManager::GetChannelByChannelId(uint64_t id, UbseComChannel
 {
     auto iter = channelIdMap_.find(id);
     if (iter == channelIdMap_.end()) {
-        UBSE_LOG_ERROR << "Can not find channel=" << id << " in channelidmap";
+        UBSE_LOG_ERROR << "Cannot find channel=" << id << " in channelidmap";
         LogChannelInfo();
         return UBSE_COM_ERROR_CHANNEL_NOT_FOUND;
     }
@@ -761,7 +761,7 @@ UbseResult UbseComEngine::AddConnectingNodeForServer(UbseComChannelInfo &chInfo)
     auto iter = connectingMap_.find(chInfo.GetConnectInfo().GetIp());
     if (iter != connectingMap_.end() && iter->second.find(chInfo.GetChannelType()) != iter->second.end()) {
         if (chInfo.GetConnectInfo().GetRemoteNodeId().compare(chInfo.GetConnectInfo().GetCurNodeId()) >= 0) {
-            UBSE_LOG_WARN << "channel is connectiong, remote nodeId=" << chInfo.GetConnectInfo().GetRemoteNodeId()
+            UBSE_LOG_WARN << "channel is connecting, remote nodeId=" << chInfo.GetConnectInfo().GetRemoteNodeId()
                           << ", cur nodeId=" << chInfo.GetConnectInfo().GetCurNodeId();
             conMutex_.unlock();
             return UBSE_ERROR;
@@ -862,7 +862,7 @@ UbseResult UbseComEngine::NewChannel(const std::string &ipPort, const UBSHcomCha
     auto ret = AddConnectingNodeForServer(chInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "New channel=" << ch.Get()->GetId() << ", payload=" << payload
-                      << " , refused for channel exist";
+                      << " , refused because channel already exists";
         return UBSE_ERROR;
     }
     return UBSE_OK;
