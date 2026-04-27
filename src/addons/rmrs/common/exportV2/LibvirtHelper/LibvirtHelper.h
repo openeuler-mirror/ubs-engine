@@ -23,7 +23,6 @@
 namespace mempooling::exportV2 {
 using mempooling::libvirt::VirConnectPtr;
 using mempooling::libvirt::VirDomainPtr;
-using mempooling::libvirt::VirDomainInfo;
 
 class LibvirtHelper {
 public:
