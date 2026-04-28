@@ -34,6 +34,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_api_server_module.h"
 #include "ubse_node_controller.h"
+#include "ubse_mem_controller_api_agent.cpp"
 
 namespace ubse::mem_controller::ut {
 using namespace context;
@@ -390,6 +391,422 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemShareDetach)
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(ubse::mem::controller::agent::UbseMemShareDetach(req, resp), UBSE_ERROR);
 }
+
+TEST_F(TestUbseMemControllerApiAgent, FillLinkInfo_Success)
+{
+    std::vector<std::string> link = {"1", "2", "3"};
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    auto ret = FillLinkInfo(link, numaBorrowReq);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(numaBorrowReq.linkInfo.lenderNode, "1");
+    EXPECT_EQ(numaBorrowReq.linkInfo.lenderSocketId, 2);
+    EXPECT_EQ(numaBorrowReq.linkInfo.lenderPort, 3);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, FillLinkInfo_InvalidSocketId)
+{
+    std::vector<std::string> link = {"1", "invalid", "3"};
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    auto ret = FillLinkInfo(link, numaBorrowReq);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, FillLinkInfo_InvalidPort)
+{
+    std::vector<std::string> link = {"1", "2", "invalid"};
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    auto ret = FillLinkInfo(link, numaBorrowReq);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, IsSocketExist_Found)
+{
+    uint32_t socketId = 36;
+    ubse::nodeController::UbseNodeInfo nodeInfo{};
+    UbseCpuLocation location{.nodeId = "1", .chipId = 1};
+    UbseCpuInfo cpuInfo;
+    cpuInfo.socketId = socketId;
+    nodeInfo.cpuInfos[location] = cpuInfo;
+    UbseCpuLocation resultLocation{};
+    EXPECT_TRUE(IsSocketExist(socketId, nodeInfo, resultLocation));
+    EXPECT_EQ(resultLocation.nodeId, "1");
+    EXPECT_EQ(resultLocation.chipId, 1);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, IsSocketExist_NotFound)
+{
+    uint32_t socketId = 99;
+    ubse::nodeController::UbseNodeInfo nodeInfo{};
+    UbseCpuLocation location{.nodeId = "1", .chipId = 1};
+    UbseCpuInfo cpuInfo;
+    cpuInfo.socketId = 36;
+    nodeInfo.cpuInfos[location] = cpuInfo;
+    UbseCpuLocation resultLocation{};
+    EXPECT_FALSE(IsSocketExist(socketId, nodeInfo, resultLocation));
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_Success)
+{
+    UbsePortInfo portInfo;
+    portInfo.remoteChipId = "1";
+    portInfo.remoteSlotId = "1";
+    std::vector<std::string> secondLink = {"1", "36", "1"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo remoteNode;
+    remoteNode.nodeId = "2";
+    remoteNode.slotId = 1;
+    UbseCpuLocation remoteLocation{.nodeId = "1", .chipId = 1};
+    UbseCpuInfo remoteCpuInfo;
+    remoteCpuInfo.socketId = 36;
+    remoteNode.cpuInfos[remoteLocation] = remoteCpuInfo;
+    nodeInfos["2"] = remoteNode;
+
+    auto ret = CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_InvalidChipId)
+{
+    UbsePortInfo portInfo;
+    portInfo.remoteChipId = "invalid";
+    portInfo.remoteSlotId = "1";
+    std::vector<std::string> secondLink = {"1", "36", "1"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    auto ret = CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_WrongSecondLinkSize)
+{
+    UbsePortInfo portInfo;
+    portInfo.remoteChipId = "1";
+    portInfo.remoteSlotId = "1";
+    std::vector<std::string> secondLink = {"1", "36"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo remoteNode;
+    remoteNode.nodeId = "2";
+    remoteNode.slotId = 1;
+    UbseCpuLocation remoteLocation{.nodeId = "1", .chipId = 1};
+    UbseCpuInfo remoteCpuInfo;
+    remoteCpuInfo.socketId = 36;
+    remoteNode.cpuInfos[remoteLocation] = remoteCpuInfo;
+    nodeInfos["2"] = remoteNode;
+
+    auto ret = CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_SocketMismatch)
+{
+    UbsePortInfo portInfo;
+    portInfo.remoteChipId = "1";
+    portInfo.remoteSlotId = "1";
+    std::vector<std::string> secondLink = {"1", "99", "1"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo remoteNode;
+    remoteNode.nodeId = "2";
+    remoteNode.slotId = 1;
+    UbseCpuLocation remoteLocation{.nodeId = "1", .chipId = 1};
+    UbseCpuInfo remoteCpuInfo;
+    remoteCpuInfo.socketId = 36;
+    remoteNode.cpuInfos[remoteLocation] = remoteCpuInfo;
+    nodeInfos["2"] = remoteNode;
+
+    auto ret = CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckLinkExist_NodeNotFound)
+{
+    std::vector<std::string> firstLink = {"99", "36", "0"};
+    std::vector<std::string> secondLink = {"2", "36", "1"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    auto ret = CheckLinkExist(firstLink, secondLink);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckLinkExist_SocketNotFound)
+{
+    std::vector<std::string> firstLink = {"1", "99", "0"};
+    std::vector<std::string> secondLink = {"2", "36", "1"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo node1;
+    node1.nodeId = "node1";
+    node1.slotId = 1;
+    UbseCpuLocation location1{.nodeId = "node1", .chipId = 1};
+    UbseCpuInfo cpuInfo1;
+    cpuInfo1.socketId = 36;
+    node1.cpuInfos[location1] = cpuInfo1;
+    nodeInfos["node1"] = node1;
+
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    auto ret = CheckLinkExist(firstLink, secondLink);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckLinkExist_PortNotFound)
+{
+    std::vector<std::string> firstLink = {"1", "36", "99"};
+    std::vector<std::string> secondLink = {"2", "36", "1"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo node1;
+    node1.nodeId = "node1";
+    node1.slotId = 1;
+    UbseCpuLocation location1{.nodeId = "node1", .chipId = 1};
+    UbseCpuInfo cpuInfo1;
+    cpuInfo1.socketId = 36;
+    node1.cpuInfos[location1] = cpuInfo1;
+    nodeInfos["node1"] = node1;
+
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    auto ret = CheckLinkExist(firstLink, secondLink);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckLinkExist_PortDown)
+{
+    std::vector<std::string> firstLink = {"1", "36", "0"};
+    std::vector<std::string> secondLink = {"2", "36", "1"};
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo node1;
+    node1.nodeId = "node1";
+    node1.slotId = 1;
+    UbseCpuLocation location1{.nodeId = "node1", .chipId = 1};
+    UbseCpuInfo cpuInfo1;
+    cpuInfo1.socketId = 36;
+    UbsePortInfo portInfo1;
+    portInfo1.portId = "0";
+    portInfo1.portStatus = PortStatus::DOWN;
+    cpuInfo1.portInfos["0"] = portInfo1;
+    node1.cpuInfos[location1] = cpuInfo1;
+    nodeInfos["node1"] = node1;
+
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    auto ret = CheckLinkExist(firstLink, secondLink);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_InvalidFormat)
+{
+    std::string linkInfo = "invalid";
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+    std::string errorMsg;
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_NE(errorMsg.find("Invalid"), std::string::npos);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_WrongSplitSize)
+{
+    std::string linkInfo = "0/0/1-1/0";
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+    std::string errorMsg;
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_LinkNotExist)
+{
+    std::string linkInfo = "0/0/1-1/0/1";
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+    std::string errorMsg;
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    MOCKER(CheckLinkExist).stubs().will(returnValue(UBSE_ERROR));
+
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_NodeNotMatched)
+{
+    std::string linkInfo = "0/36/0-1/36/1";
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "99";
+    std::string errorMsg;
+
+    MOCKER(&UbseNodeController::GetAllNodes).reset();
+    MOCKER(CheckLinkExist).reset();
+    MOCKER(CheckLinkExist).stubs().will(returnValue(UBSE_OK));
+
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_NE(errorMsg.find("not matched"), std::string::npos);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, FillSrcNuma_Success)
+{
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    numaBorrowReq.srcSocket = 36;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = "1";
+    ubse::nodeController::UbseNumaLocation numaLocation{.numaId = 0};
+    ubse::nodeController::UbseNumaInfo numaInfo;
+    numaInfo.socketId = 36;
+    nodeInfo.numaInfos[numaLocation] = numaInfo;
+
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
+    auto ret = FillSrcNuma(numaBorrowReq, currentNodeInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(numaBorrowReq.srcNuma, 0);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, FillSrcNuma_NodeNotFound)
+{
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    numaBorrowReq.srcSocket = 36;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = "";
+
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
+    auto ret = FillSrcNuma(numaBorrowReq, currentNodeInfo);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, FillSrcNuma_NumaNotFound)
+{
+    UbseMemNumaBorrowReq numaBorrowReq{};
+    numaBorrowReq.srcSocket = 99;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = "1";
+    ubse::nodeController::UbseNumaLocation numaLocation{.numaId = 0};
+    ubse::nodeController::UbseNumaInfo numaInfo;
+    numaInfo.socketId = 36;
+    nodeInfo.numaInfos[numaLocation] = numaInfo;
+
+    MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
+    auto ret = FillSrcNuma(numaBorrowReq, currentNodeInfo);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, RegSpecifyLinkInfoCreateHandler_ModuleNull)
+{
+    std::shared_ptr<UbseApiServerModule> nullModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullModule));
+    EXPECT_NO_THROW(RegSpecifyLinkInfoCreateHandler());
+}
+
+TEST_F(TestUbseMemControllerApiAgent, RegSpecifyLinkInfoCreateHandler_RegisterFail)
+{
+    std::shared_ptr<UbseApiServerModule> apiModule = std::make_shared<UbseApiServerModule>();
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).reset();
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NO_THROW(RegSpecifyLinkInfoCreateHandler());
+}
+
+TEST_F(TestUbseMemControllerApiAgent, RegSpecifyLinkInfoCreateHandler_Success)
+{
+    std::shared_ptr<UbseApiServerModule> apiModule = std::make_shared<UbseApiServerModule>();
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).reset();
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER(&UbseApiServerModule::RegisterIpcHandler).reset();
+    MOCKER(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_OK));
+    EXPECT_NO_THROW(RegSpecifyLinkInfoCreateHandler());
+}
+
+TEST_F(TestUbseMemControllerApiAgent, GetWaitTimeout_ReturnsValue)
+{
+    std::chrono::seconds timeout(60);
+    EXPECT_NO_THROW(GetWaitTimeout());
+}
+
+TEST_F(TestUbseMemControllerApiAgent, SwitchReturnType_FdReturn)
+{
+    SendParam sendParam("1", 1, 1);
+    SwitchReturnType(sendParam, MemOperationType::FD_RETURN);
+    EXPECT_EQ(sendParam.GetOpCode(), static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_RETURN));
+}
+
+TEST_F(TestUbseMemControllerApiAgent, SwitchReturnType_NumaReturn)
+{
+    SendParam sendParam("1", 1, 1);
+    SwitchReturnType(sendParam, MemOperationType::NUMA_RETURN);
+    EXPECT_EQ(sendParam.GetOpCode(), static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_NUMA_RETURN));
+}
+
+TEST_F(TestUbseMemControllerApiAgent, SwitchReturnType_SharedReturn)
+{
+    SendParam sendParam("1", 1, 1);
+    SwitchReturnType(sendParam, MemOperationType::SHARED_RETURN);
+    EXPECT_EQ(sendParam.GetOpCode(), static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_RETURN));
+}
+
+TEST_F(TestUbseMemControllerApiAgent, SwitchReturnType_AddrReturn)
+{
+    SendParam sendParam("1", 1, 1);
+    SwitchReturnType(sendParam, MemOperationType::ADDR_RETURN);
+    EXPECT_EQ(sendParam.GetOpCode(), static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_ADDR_RETURN));
+}
+
+TEST_F(TestUbseMemControllerApiAgent, SwitchReturnType_Default)
+{
+    SendParam sendParam("1", 1, 1);
+    SwitchReturnType(sendParam, static_cast<MemOperationType>(99));
+    EXPECT_EQ(sendParam.GetOpCode(), static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_NUMA_RETURN));
+}
+
+
+TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_SignFail)
+{
+    UbseMemFdBorrowReq req{};
+    req.name = "test_name";
+    req.requestNodeId = "1";
+    req.importNodeId = "2";
+    req.size = 1024;
+    UbseMemOperationResp resp{};
+
+    MOCKER(IsHighSafety).stubs().will(returnValue(true));
+    MOCKER(&mem::controller::UbseMemSignVerifier::Sign).stubs().will(returnValue(UBSE_ERROR));
+
+    auto ret = UbseMemFdBorrow(req, resp);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_FutureMgrNull)
+{
+    UbseMemFdBorrowReq req{};
+    req.name = "test_name";
+    req.requestNodeId = "1";
+    req.importNodeId = "2";
+    req.size = 1024;
+    UbseMemOperationResp resp{};
+
+    MOCKER(IsHighSafety).reset();
+    MOCKER(IsHighSafety).stubs().will(returnValue(false));
+    std::shared_ptr<FutureMgr> nullFutureMgr = nullptr;
+    MOCKER(&FutureMgr::CreateInstance).stubs().will(returnValue(nullFutureMgr));
+
+    auto ret = UbseMemFdBorrow(req, resp);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
 TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandlerSuccess)
 {
     // 准备测试数据

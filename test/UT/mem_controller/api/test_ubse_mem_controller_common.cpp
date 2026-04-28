@@ -13,6 +13,7 @@
 #include "test_ubse_mem_controller_common.h"
 #include <ubse_com_module.h>
 #include <ubse_error.h>
+#include <string>
 #include "message/ubse_mem_operation_resp_simpo.h"
 #include "ubse_election.h"
 #include "ubse_mem_account.h"
@@ -27,6 +28,7 @@ using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::decoder::utils;
 using namespace ubse::election;
 static constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
+const std::string TEST_NODE_ID = "1";
 
 void BuildOperationMockSet()
 {
@@ -671,5 +673,40 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemDeleteReqTest)
         EXPECT_EQ(returnReq.importNodeId, borrower.nodeId); // 空nodeId应该被保留
         EXPECT_NE(returnReq.requestId, 0);
     }
+}
+
+ubse::nodeController::UbseNodeInfo CreateTestNode(ubse::nodeController::UbseNodeClusterState state)
+{
+    ubse::nodeController::UbseNodeInfo node;
+    node.nodeId = "1";
+    node.clusterState = state;
+    return node;
+}
+ 
+TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkNotExistTest)
+{
+    MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(ubse::nodeController::UbseNodeInfo()));
+    EXPECT_EQ(WaitNodeStateWork(TEST_NODE_ID), UBSE_ERR_NODE_NOT_EXIST);
+}
+ 
+TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkSuccessTest)
+{
+    auto node = CreateTestNode(ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING);
+    MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    EXPECT_EQ(WaitNodeStateWork(TEST_NODE_ID), UBSE_OK);
+}
+ 
+TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkFailedTest)
+{
+    auto node = CreateTestNode(ubse::nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING);
+    MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    EXPECT_EQ(WaitNodeStateWork(TEST_NODE_ID), UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS);
+}
+ 
+TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkNodeFaultTest)
+{
+    auto node = CreateTestNode(ubse::nodeController::UbseNodeClusterState::UBSE_NODE_FAULT);
+    MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
+    EXPECT_EQ(WaitNodeStateWork(TEST_NODE_ID), UBSE_ERR_NODE_UNREACHABLE);
 }
 } // namespace ubse::mem_controller::ut

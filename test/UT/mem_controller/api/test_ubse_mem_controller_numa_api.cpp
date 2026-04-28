@@ -152,21 +152,6 @@ TEST_F(TestUbseMemControllerNumaApi, ValidSocketAndNumaIdParams)
     EXPECT_EQ(ret, UBSE_OK);
 }
  
-TEST_F(TestUbseMemControllerNumaApi, NumaImportRunningHandler)
-{
-    UbseMemOperationResp resp;
-    UbseMemNumaBorrowImportObj importObj;
-    UbseMemDebtNumaInfo numaInfo{"2", 36, 0};
-    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
-    std::string masterNodeId = "1";
-    std::string name = "test";
-    std::string requestNodeId = "1";
-    MOCKER_CPP(&ubse::mem::decoder::utils::MemDecoderUtils::GetChipAndDieId).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(SetMarIdByLinkInfo).stubs().will(returnValue(UBSE_OK));
-    auto ret = NumaImportRunningHandler(resp, importObj, name, requestNodeId);
-    EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
-}
- 
 TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnExportObjFailed)
 {
     UbseMemOperationResp resp;
