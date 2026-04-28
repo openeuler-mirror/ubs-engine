@@ -187,7 +187,6 @@ void SetMamiImportInfoByDecoderParam(const std::pair<uint32_t, uint32_t> &chipDi
 {
     mamiImportInfo.ubpuId = chipDiePair.first;
     mamiImportInfo.iouId = chipDiePair.second;
-    mamiImportInfo.marId = importDecoderParam.portSet;
     mamiImportInfo.importType = importDecoderParam.importType;
     mamiImportInfo.decoderId = importDecoderParam.decoderIdx;
     mamiImportInfo.handle = importDecoderParam.handle;
@@ -201,6 +200,7 @@ void SetMamiImportInfoByExportInfo(const UbseMemObmmInfo &exportInfo, UbseMamiMe
     mamiImportInfo.tokenId = exportInfo.desc.tokenid;
     mamiImportInfo.dstCNA = exportInfo.desc.dcna;
     mamiImportInfo.uba = exportInfo.desc.addr;
+    mamiImportInfo.marId = exportInfo.desc.marId;
 }
 
 void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo &mamiImportInfo, decoder::utils::DecoderEntryLoc &loc)
@@ -326,21 +326,6 @@ uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatu
         }
         decoderVal.valid = true;
     }
-    return res;
-}
-
-UbseResult SetMarIdByLinkInfo(std::string &importNodeId, std::string &exportNodeId,
-                              const std::pair<uint32_t, uint32_t> &chipDiePair,
-                              const std::pair<uint32_t, uint32_t> &remoteChipDiePair,
-                              decoder::utils::ImportDecoderParam &importParam)
-{
-    uint32_t importSlotId{};
-    uint32_t exportSlotId{};
-    auto res = UBSE_OK;
-    res |= ConvertStrToUint32(importNodeId, importSlotId);
-    res |= ConvertStrToUint32(exportNodeId, exportSlotId);
-    res |= decoder::utils::MemDecoderUtils::SetParamMarId(importSlotId, exportSlotId, chipDiePair.first,
-                                                          remoteChipDiePair.first, importParam);
     return res;
 }
 
