@@ -655,16 +655,6 @@ MpResult FaultMemIdModule::FindClosestVmForMemAlloc(std::vector<VmNumaInfo> &all
         }
     }
 
-    // 判断需要借用的内存是否等于虚拟机迁出的总量，通过判断输出pids里面的虚拟机的内存的量，和是否是128M的倍数做比较
-    bool resIs =
-        FaultMemIdStrategy::Instance().IsMemBorrowNotWipeTheEdge(pids, allVmNumaInfoInfoList, totalNeedBorrowMem);
-    if (!resIs) {
-        LOG_ERROR << "[FaultManager][MemId] Requested borrow size exceeds the 4GB single-borrow maximum.";
-        pids.clear();
-        totalNeedBorrowMem = 0;
-        return MEM_POOLING_ERROR;
-    }
-
     // 选取决策借用内存和即将发生UCE故障的内存的最大的那个
     totalNeedBorrowMem = std::max(totalNeedBorrowMem, memSizeSingle);
     LOG_DEBUG << "[FaultManager][MemId] totalNeedBorrowMem=" << totalNeedBorrowMem
