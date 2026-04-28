@@ -44,6 +44,7 @@ uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer &req, UbseByteBuffe
 uint32_t GetAllNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 uint32_t UpdateDataBaseAndCache(UbseByteBuffer &buffer, const MpUpdateAntiNodeParam &antiParam,
                                 ubse::election::UbseRoleInfo &standbyRole);
+void GetNodeInfoImmediatelyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
 } // namespace mempooling
 
 #endif // MEM_MANAGER_BASE_H

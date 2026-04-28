@@ -23,6 +23,7 @@
 #include "rmrs_serialize.h"
 #include "exporter.h"
 #include "ubse_topology_interface.h"
+#include "LibvirtHelper.h"
 
 #include <iostream>
 
@@ -1219,6 +1220,9 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed0)
                                          const UbseComRespHandler &handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnInMigrateExecuteRpc));
+    MOCKER_CPP(&LibvirtHelper::Connect, MpResult(*)())
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
     MpResult ret =
         MempoolMigrateExecute::MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
     GlobalMockObject::verify();
@@ -1250,6 +1254,9 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed1)
                                          const UbseComRespHandler &handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnInMigrateExecuteRpcSuccess));
+    MOCKER_CPP(&LibvirtHelper::Connect, MpResult(*)())
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&VmInfosCompleted::Query,
                MpResult(*)(std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
@@ -1290,6 +1297,9 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed2)
                MpResult(*)(VmInfosCompleted*, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap))
         .stubs()
         .will(invoke(MockGetVmInfosCompletedMap));
+    MOCKER_CPP(&LibvirtHelper::Connect, MpResult(*)())
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&VmInfosCompleted::Remove, MpResult(*)(const pid_t pid)).stubs().will(returnValue(1));
 
     MpResult ret =
