@@ -119,6 +119,9 @@ public:
 
     static UbseResult GetUbMemInfoFromFile(const std::string &path, std::string &uba, std::string &length,
                                              std::string &tokenid, std::string &deid);
+
+    static UbseResult GetNameByMemId(mem_id memId, std::string &name);
+    static UbseResult GetBorrowTypeByMemId(mem_id memId, uint8_t &borrowType);
 };
 } // namespace ubse::mmi
 

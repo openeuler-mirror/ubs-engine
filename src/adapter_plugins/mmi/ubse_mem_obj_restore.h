@@ -19,6 +19,7 @@
 #include "ubse_mmi_interface.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_obmm_executor.h"
+#include "ubse_obmm_meta_restore.h"
 namespace ubse::mmi::restore {
 #define MODULE_LOG_NAME "ubse"
 using namespace ubse::adapter_plugins::mmi;
@@ -108,54 +109,68 @@ void GetBorrowObjMap(const std::vector<UbseMemLocalObmmMetaData> &localObmmMetaD
 UbseResult GetLocalObmmMeta(std::vector<UbseMemLocalObmmMetaData> &allObmmDatas,
                             LocalObmmMetaData &localObmmMetaData);
 
-UbseResult ProcessAbnormalAddrImportObjMap(const UbseMemAddrImportObjMap &importObjMap);
+UbseMemAddrImportObjMap ProcessAbnormalAddrImportObjMap(UbseMemAddrImportObjMap &importObjMap);
 
 template <typename TUbseMemBorrowImportObjMap>
-UbseResult ProcessAbnormalImportObjMap(const TUbseMemBorrowImportObjMap &importObjMap)
+TUbseMemBorrowImportObjMap ProcessAbnormalImportObjMap(TUbseMemBorrowImportObjMap &importObjMap)
 {
+    TUbseMemBorrowImportObjMap faultObjMap{};
     if (importObjMap.empty()) {
-        UBSE_LOG_WARN << MMI_LOG_INFO << "ImportObjMap is empty, not need process";
-        return UBSE_OK;
+        UBSE_LOG_DEBUG << MMI_LOG_INFO << "ImportObjMap is empty, not need process";
+        return faultObjMap;
     }
-    UbseResult ret = UBSE_OK;
     for (auto &item : importObjMap) {
-        std::vector<mem_id> memIds{};
-        auto importResults = item.second.status.importResults;
-        for (int i = 0; i < importResults.size(); i++) {
-            memIds.push_back(importResults[i].memId);
+        auto &importObj = item.second;
+        auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
+        bool hasFault = false;
+        for (size_t i = 0; i < importObj.status.importResults.size(); i++) {
+            auto ret = RmObmmExecutor::GetInstance().ObmmUnImport(importObj.status.importResults[i].memId, timeoutMs);
+            if (UBSE_RESULT_FAIL(ret)) {
+                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unimport failed, mark as faulty, memid="
+                             << importObj.status.importResults[i].memId << ", errCode=" << ret;
+                importObj.errorCode = ret;
+                importObj.status.errCode = ret;
+                hasFault = true;
+                break;
+            }
         }
-        ret = RmObmmExecutor::GetInstance().ObmmUnImport(memIds);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "Process abnormal importObj map failed, memIds is "
-                         << RmCommonUtils::GetInstance().MemToStr(memIds);
-            return ret;
+        if (hasFault) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Move faulty obj to fault map, name=" << item.first;
+            faultObjMap.emplace(item.first, importObj);
         }
     }
-    return ret;
+    return faultObjMap;
 }
 
 template <typename TUbseMemBorrowExportObjMap>
-UbseResult ProcessAbnormalExportObjMap(const TUbseMemBorrowExportObjMap &exportObjMap)
+TUbseMemBorrowExportObjMap ProcessAbnormalExportObjMap(TUbseMemBorrowExportObjMap &exportObjMap)
 {
+    TUbseMemBorrowExportObjMap faultObjMap{};
     if (exportObjMap.empty()) {
-        UBSE_LOG_WARN << MMI_LOG_INFO << "ExportObjMap is empty, not need process";
-        return UBSE_OK;
+        UBSE_LOG_DEBUG << MMI_LOG_INFO << "ExportObjMap is empty, not need process";
+        return faultObjMap;
     }
-    UbseResult ret = UBSE_OK;
     for (auto &item : exportObjMap) {
-        std::vector<mem_id> memIds{};
-        const auto &exportObmmInfo = item.second.status.exportObmmInfo;
-        for (int i = 0; i < exportObmmInfo.size(); i++) {
-            memIds.push_back(exportObmmInfo[i].memId);
+        auto &exportObj = item.second;
+        bool hasFault = false;
+        const auto &exportObmmInfo = exportObj.status.exportObmmInfo;
+        for (size_t i = 0; i < exportObmmInfo.size(); i++) {
+            auto ret = RmObmmExecutor::GetInstance().ObmmUnExport(exportObmmInfo[i].memId);
+            if (UBSE_RESULT_FAIL(ret)) {
+                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unexport failed, mark as faulty, memid="
+                             << exportObmmInfo[i].memId << ", errCode=" << ret;
+                exportObj.errorCode = ret;
+                exportObj.status.errCode = ret;
+                hasFault = true;
+                break;
+            }
         }
-        ret = RmObmmExecutor::GetInstance().ObmmUnExport(memIds);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "Process abnormal exportObj map failed, memIds is "
-                         << RmCommonUtils::GetInstance().MemToStr(memIds);
-            return ret;
+        if (hasFault) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Move faulty obj to fault map, name=" << item.first;
+            faultObjMap.emplace(item.first, exportObj);
         }
     }
-    return ret;
+    return faultObjMap;
 }
 
 inline std::string ConstructNameInfoFromNamesAndMemIds(const std::vector<std::string> &names,

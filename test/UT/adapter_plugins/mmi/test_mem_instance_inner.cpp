@@ -61,7 +61,7 @@ TEST_F(TestMemInstanceInner, ExportRollback_Success)
 
 TEST_F(TestMemInstanceInner, ImportRollback_Success)
 {
-    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](mem_id id, unsigned long flags) {
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
         return 0;
     };
     EXPECT_NO_THROW(MemInstanceInnerCommon::GetInstance().RollbackImport({1, 2, 3, 4, 5}));
@@ -143,20 +143,16 @@ TEST_F(TestMemInstanceInner, MemShmUnImportExecutor_Success)
     EXPECT_EQ(ret, UBSE_OK);
 
     importObj.realExe = true;
-    ret = MemInstanceInnerShm::GetInstance().MemShmUnImportExecutor(importObj);
-    EXPECT_EQ(ret, UBSE_OK);
-
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        errno = EIO;
+        return -1;
+    };
     ret = MemInstanceInnerShm::GetInstance().MemShmUnImportExecutor(importObj);
     EXPECT_NE(ret, UBSE_OK);
 
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id)).reset();
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
-        .stubs()
-        .will(returnValue(UBSE_OK));
-
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        return 0;
+    };
     ret = MemInstanceInnerShm::GetInstance().MemShmUnImportExecutor(importObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -238,14 +234,16 @@ TEST_F(TestMemInstanceInner, MemAddrUnImportExecutor_Success)
     UbseMemImportResult result{};
     importObj.status.importResults.emplace_back(result);
 
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(mem_id id))
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        errno = EIO;
+        return -1;
+    };
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnImportExecutor(importObj);
     EXPECT_NE(ret, UBSE_OK);
 
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(mem_id id)).reset();
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(mem_id id)).stubs().will(returnValue(UBSE_OK));
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        return 0;
+    };
     ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnImportExecutor(importObj);
     EXPECT_EQ(ret, UBSE_OK);
 }

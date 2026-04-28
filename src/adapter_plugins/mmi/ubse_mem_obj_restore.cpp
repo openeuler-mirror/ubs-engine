@@ -115,12 +115,7 @@ UbseResult ConstructFdImportObj(
             abnormalFdImportObjMap.emplace(fdBorrowImportItem.first, ubseMemFdBorrowImportObj);
         }
     }
-    ret = ProcessAbnormalImportObjMap(abnormalFdImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalFdImportObjMap);
-        return ret;
-    }
+    normalFdImportObjMap.merge(ProcessAbnormalImportObjMap(abnormalFdImportObjMap));
     return ret;
 }
 
@@ -217,12 +212,7 @@ UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exp
             abnormalFdExportObjMap.emplace(exportItem.first, ubseMemFdBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalFdExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromExportObjMap(abnormalFdExportObjMap);
-        return ret;
-    }
+    normalFdExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalFdExportObjMap));
     return ret;
 }
 
@@ -328,12 +318,7 @@ UbseResult ConstructNumaImportObj(
             abnormalImportObjMap.emplace(importObjItem.first, ubseMemImportObj);
         }
     }
-    ret = ProcessAbnormalImportObjMap(abnormalImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
-        return ret;
-    }
+    normalImportObjMap.merge(ProcessAbnormalImportObjMap(abnormalImportObjMap));
     return ret;
 }
 
@@ -354,12 +339,7 @@ UbseResult ConstructNumaExportObj(
             abnormalExportObjMap.emplace(exportItem.first, ubseMemNumaBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
-        return ret;
-    }
+    normalExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalExportObjMap));
     return ret;
 }
 
@@ -474,12 +454,7 @@ UbseResult ConstructShareImportObj(
             abnormalImportObjMap.emplace(importObjItem.first, mxeMemImportObj);
         }
     }
-    ret = ProcessAbnormalImportObjMap(abnormalImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
-        return ret;
-    }
+    normalImportObjMap.merge(ProcessAbnormalImportObjMap(abnormalImportObjMap));
     return ret;
 }
 
@@ -615,7 +590,6 @@ UbseResult ConstructShareImportObjFromExportMetaData(
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportObjMap{};
     GetBorrowObjMap(exportLocalObmmMetaDatas, exportObjMap);
     for (auto &exportObjItem : exportObjMap) {
-        //
         UbseMemShareBorrowImportObj mxeMemImportObj{};
         bool isNormal = true;
         ConstructSingleShareImportObjFromExportMetaData(exportObjItem.second, mxeMemImportObj, isNormal);
@@ -686,12 +660,7 @@ UbseResult ConstructShareExportObj(
             abnormalExportObjMap.emplace(exportItem.first, mxeMemNumaBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info = "
-                       << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
-        return ret;
-    }
+    normalExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalExportObjMap));
     return ret;
 }
 
@@ -791,12 +760,7 @@ UbseResult ConstructAddrImportObj(
             abnormalImportObjMap.emplace(importObjItem.first, mxeMemImportObj);
         }
     }
-    ret = ProcessAbnormalAddrImportObjMap(abnormalImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
-        return ret;
-    }
+    normalImportObjMap.merge(ProcessAbnormalAddrImportObjMap(abnormalImportObjMap));
     return ret;
 }
 
@@ -879,12 +843,7 @@ UbseResult ConstructAddrExportObj(
             abnormalExportObjMap.emplace(exportItem.first, mxeMemAddrBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
-        return ret;
-    }
+    normalExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalExportObjMap));
     return ret;
 }
 
@@ -1026,25 +985,36 @@ UbseResult GetLocalObmmMeta(std::vector<UbseMemLocalObmmMetaData> &allObmmDatas,
     return UBSE_OK;
 }
 
-UbseResult ProcessAbnormalAddrImportObjMap(const UbseMemAddrImportObjMap &importObjMap)
+UbseMemAddrImportObjMap ProcessAbnormalAddrImportObjMap(UbseMemAddrImportObjMap &importObjMap)
 {
+    UbseMemAddrImportObjMap faultObjMap{};
     if (importObjMap.empty()) {
-        UBSE_LOG_WARN << MMI_LOG_INFO << "ImportObjMap is empty, not need process";
-        return UBSE_OK;
+        UBSE_LOG_DEBUG << MMI_LOG_INFO << "ImportObjMap is empty, not need process";
+        return faultObjMap;
     }
-    UbseResult ret = UBSE_OK;
     for (auto &item : importObjMap) {
-        auto importResults = item.second.status.importResults;
-        for (int i = 0; i < importResults.size(); i++) {
-            ret = RmObmmExecutor::GetInstance().ObmmUnImport(importResults[i].memId);
+        auto &importObj = item.second;
+        auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
+        auto &importResults = importObj.status.importResults;
+        bool hasFault = false;
+        for (size_t i = 0; i < importResults.size(); i++) {
+            auto ret = RmObmmExecutor::GetInstance().ObmmUnImport(importResults[i].memId, timeoutMs);
             if (UBSE_RESULT_FAIL(ret)) {
-                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unImport memid failed, memid=" << importResults[i].memId;
-                return ret;
+                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unimport failed, mark as faulty, memid="
+                               << importResults[i].memId << ", errCode=" << ret;
+                importObj.errorCode = ret;
+                importObj.status.errCode = ret;
+                hasFault = true;
+                break;
             }
             UBSE_LOG_DEBUG << MMI_LOG_INFO << "Obmm unImport memid success, memid=" << importResults[i].memId;
             MemInstanceInnerAddrBorrow::GetInstance().DeleteAddrRemoteNuma(importResults[i].numaId);
         }
+        if (hasFault) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Move faulty obj to fault map, name=" << item.first;
+            faultObjMap.emplace(item.first, importObj);
+        }
     }
-    return ret;
+    return faultObjMap;
 }
 } // namespace ubse::mmi::restore

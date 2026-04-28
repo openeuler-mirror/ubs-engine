@@ -68,26 +68,37 @@ public:
     }
 
     void SetPrivDataByShareReq(UbMemPrivData &destPrivData, UbseMemPrivData &sourcePrivData);
-    template <typename ExportObj>
 
-    uint32_t UnExportExecutor(const ExportObj &exportObj)
+    template <typename ExportObj>
+    uint32_t UnExportExecutor(const ExportObj &exportObj, const std::string &expectedName, uint8_t expectedBorrowType)
     {
         UbseResult ret = UBSE_OK;
-        std::vector<mem_id> memIds{};
-        for (int i = 0; i < exportObj.status.exportObmmInfo.size(); i++) {
-            if (exportObj.status.exportObmmInfo[i].memId == INVALID_MEM_ID) {
+        for (size_t i = 0; i < exportObj.status.exportObmmInfo.size(); i++) {
+            auto memId = exportObj.status.exportObmmInfo[i].memId;
+            if (memId == INVALID_MEM_ID) {
                 UBSE_LOG_ERROR << MMI_LOG_INFO << "Export obmm memid is invalid, name=" << exportObj.req.name;
                 return UBSE_ERROR_INVAL;
             }
-            memIds.push_back(exportObj.status.exportObmmInfo[i].memId);
-        }
-        if (memIds.empty()) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "memIds is empty!";
-            return UBSE_ERROR_INVAL;
-        }
-        ret = RmObmmExecutor::GetInstance().ObmmUnExport(memIds);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmUnExport error!";
+            uint8_t obmmType = 0;
+            auto typeRet = RmObmmDevRead::GetBorrowTypeByMemId(memId, obmmType);
+            if (typeRet == UBSE_OK && obmmType != expectedBorrowType) {
+                UBSE_LOG_WARN << MMI_LOG_INFO << "BorrowType mismatch, skip unexport, memid=" << memId
+                              << ", expected=" << static_cast<int>(expectedBorrowType)
+                              << ", actual=" << static_cast<int>(obmmType);
+                continue;
+            }
+            std::string obmmName;
+            auto nameRet = RmObmmDevRead::GetNameByMemId(memId, obmmName);
+            if (nameRet == UBSE_OK && obmmName != expectedName) {
+                UBSE_LOG_WARN << MMI_LOG_INFO << "Name mismatch, skip unexport, memid=" << memId
+                              << ", expected=" << expectedName << ", actual=" << obmmName;
+                continue;
+            }
+            ret = RmObmmExecutor::GetInstance().ObmmUnExport(memId);
+            if (UBSE_RESULT_FAIL(ret)) {
+                UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmUnExport error!";
+                return ret;
+            }
         }
         return ret;
     }
