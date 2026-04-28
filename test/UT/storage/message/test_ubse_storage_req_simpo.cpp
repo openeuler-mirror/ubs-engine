@@ -32,6 +32,26 @@ void TestUbseStorageReqSimpo::TearDown()
 
 /*
  * 用例描述：
+ * 测试构造和获取请求数据
+ * 测试步骤：
+ * 1. 构造请求对象
+ * 2. 获取请求内容
+ * 预期结果：
+ * 请求内容与构造参数一致
+ */
+TEST_F(TestUbseStorageReqSimpo, ConstructAndGetStorageReq)
+{
+    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
+    UbseStorageReqSimpo reqSimpo(req);
+
+    auto reqData = reqSimpo.GetStorageReq();
+    EXPECT_EQ(UbseStorageReqCmdType::GET, reqData.cmdType);
+    EXPECT_EQ("default", reqData.dbName);
+    EXPECT_EQ("/key", reqData.key);
+}
+
+/*
+ * 用例描述：
  * 序列化测试
  * 测试步骤：
  * 1.序列化req数据
@@ -45,9 +65,11 @@ TEST_F(TestUbseStorageReqSimpo, SerializeAndDeserialize)
     UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
     UbseStorageReqSimpo reqSimpo(req);
     EXPECT_EQ(UBSE_OK, reqSimpo.Serialize());
+
     UbseStorageReqSimpo newReqSimpo;
     newReqSimpo.SetInputRawData(reqSimpo.SerializedData(), reqSimpo.SerializedDataSize());
     EXPECT_EQ(UBSE_OK, newReqSimpo.Deserialize());
+
     auto reqData = newReqSimpo.GetStorageReq();
     EXPECT_EQ(UbseStorageReqCmdType::GET, reqData.cmdType);
     EXPECT_EQ("/key", reqData.key);
@@ -55,26 +77,59 @@ TEST_F(TestUbseStorageReqSimpo, SerializeAndDeserialize)
     EXPECT_EQ("UbseStorageReqSimpo(Get,default,/key)", newReqSimpo.ToString());
 }
 
+/*
+ * 用例描述：
+ * 序列化测试
+ * 测试步骤：
+ * 1. 构造GET_WITH_PREFIX请求
+ * 2. 调用ToString
+ * 预期结果：
+ * 字符串内容符合预期
+ */
+TEST_F(TestUbseStorageReqSimpo, ToStringGetWithPrefix)
+{
+    UbseStorageReq req{ UbseStorageReqCmdType::GET_WITH_PREFIX, "default", "/prefix" };
+    UbseStorageReqSimpo reqSimpo(req);
+
+    EXPECT_EQ("UbseStorageReqSimpo(GetWithPrefix,default,/prefix)", reqSimpo.ToString());
+}
+
+/*
+ * 用例描述：
+ * 序列化测试
+ * 测试步骤：
+ * 1. 构造未知请求类型
+ * 2. 调用ToString
+ * 预期结果：
+ * 字符串内容符合预期
+ */
+TEST_F(TestUbseStorageReqSimpo, ToStringUnknown)
+{
+    UbseStorageReq req{ static_cast<UbseStorageReqCmdType>(WRONG_CODE), "default", "/key" };
+    UbseStorageReqSimpo reqSimpo(req);
+
+    EXPECT_EQ("UbseStorageReqSimpo(Unknown,default,/key)", reqSimpo.ToString());
+}
+
 TEST_F(TestUbseStorageReqSimpo, DeserializeFailWithVerifyStorageReqBufferFail)
 {
-    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
-    UbseStorageReqSimpo reqSimpo(req);
     UbseStorageReqSimpo newReqSimpo;
-    newReqSimpo.SetInputRawData(reqSimpo.SerializedData(), reqSimpo.SerializedDataSize());
     EXPECT_EQ(UBSE_ERROR_NULLPTR, newReqSimpo.Deserialize());
 }
 
-TEST_F(TestUbseStorageReqSimpo, DeserializeFailWithGetStorageReqFail)
+TEST_F(TestUbseStorageReqSimpo, DeserializeFailWithInvalidBuffer)
 {
-    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
-    UbseStorageReqSimpo reqSimpo(req);
+    uint8_t invalidData[1] = { 0 };
     UbseStorageReqSimpo newReqSimpo;
-    newReqSimpo.SetInputRawData(reqSimpo.SerializedData(), reqSimpo.SerializedDataSize());
-    EXPECT_EQ(UBSE_ERROR_NULLPTR, newReqSimpo.Deserialize());
+    newReqSimpo.SetInputRawData(invalidData, sizeof(invalidData));
+
+    EXPECT_EQ(UBSE_ERROR, newReqSimpo.Deserialize());
 }
 
-TEST_F(TestUbseStorageReqSimpo, ReqCmdTypeToStringDefault)
+TEST_F(TestUbseStorageReqSimpo, ReqCmdTypeToString)
 {
+    EXPECT_EQ("Get", ReqCmdTypeToString(UbseStorageReqCmdType::GET));
+    EXPECT_EQ("GetWithPrefix", ReqCmdTypeToString(UbseStorageReqCmdType::GET_WITH_PREFIX));
     EXPECT_EQ("Unknown", ReqCmdTypeToString(static_cast<UbseStorageReqCmdType>(WRONG_CODE)));
 }
 } // namespace ubse::ut::storage
