@@ -762,11 +762,6 @@ MpResult FaultMemIdStrategy::AdjustNeedBorrowMem(uint64_t &needBorrowMem)
     uint64_t adjustedMem = ((needBorrowMem + m_miniUnitMemSize - 1) / m_miniUnitMemSize) * m_miniUnitMemSize;
     needBorrowMem = adjustedMem;
 
-    if (needBorrowMem > m_maxUnitMemSize) {
-        LOG_ERROR << "[FaultManager][MemId] Adjusted memory exceeds maximum size, needBorrowMem=" << needBorrowMem
-                  << ".";
-        return MEM_POOLING_ERROR;
-    }
     LOG_DEBUG << "[FaultManager][MemId] Result needBorrowMem=" << needBorrowMem << ".";
     return MEM_POOLING_OK;
 }
