@@ -952,7 +952,7 @@ static uint32_t FdImportExpectDestroySuccessPath(UbseMemOperationResp &resp, Ubs
     auto waitResult = WaitNodeStateWork(exportNodeId);
     if (waitResult != UBSE_OK) {
         BorrowFailedAdvice("Return Schedule failed", name, "WATER_BORROW", 0, exportNodeId, importNodeId, waitResult,
-                           MemAdvice::NODE_IN_MAITENANCE);
+                           MemAdvice::NODE_IN_MAINTENANCE);
         return BuildOperationRespWhenFail(resp, name, req.requestNodeId, "exportNode is not working.",
                                           UBSE_ERR_UNIMPORT_SUCCESS, MemOperationType::FD_RETURN);
     }
@@ -1166,7 +1166,7 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq &req, UbseMemOpera
     InitializeResponse(req, resp);
     // 等待导入节点对账完成
     if (auto ret = WaitNodeStateWork(req.importNodeId); ret != UBSE_OK) {
-        result.comErrorCode = ReturnFailed(req, resp, "importNode is not ok", ret, MemAdvice::NODE_IN_MAITENANCE);
+        result.comErrorCode = ReturnFailed(req, resp, "importNode is not ok", ret, MemAdvice::NODE_IN_MAINTENANCE);
         return ret;
     }
     // 查找导入/导出借用对象

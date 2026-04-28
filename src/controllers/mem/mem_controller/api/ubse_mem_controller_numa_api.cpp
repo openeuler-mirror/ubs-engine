@@ -996,7 +996,7 @@ static uint32_t HandleImportDestroyedSuccess(UbseMemOperationResp &resp, const s
 
     if (auto waitResult = WaitNodeStateWork(exportNodeId); waitResult != UBSE_OK) {
         BorrowFailedAdvice("Return Schedule failed", name, "APP_NUMA_BORROW", 0, exportNodeId, importNodeId,
-                           waitResult, MemAdvice::NODE_IN_MAITENANCE);
+                           waitResult, MemAdvice::NODE_IN_MAINTENANCE);
         return BuildOperationRespWhenFail(resp, name, importObj.returnReq.requestNodeId, "exportNode is not working.",
                                           UBSE_ERR_UNIMPORT_SUCCESS, MemOperationType::NUMA_RETURN);
     }
@@ -1156,7 +1156,7 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
 {
     if (auto waitResult = WaitNodeStateWork(req.importNodeId); waitResult != UBSE_OK) {
         BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, waitResult,
-                           MemAdvice::NODE_IN_MAITENANCE);
+                           MemAdvice::NODE_IN_MAINTENANCE);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,
                                    MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
