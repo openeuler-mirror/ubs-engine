@@ -373,12 +373,44 @@ UbseResult ReportBMCFaultToMaster(const std::string &info, const std::string &fa
     return UBSE_OK;
 }
 
+bool IsOnlyOneNodeInCluster()
+{
+    auto electionModule = UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
+        return false;
+    }
+    Node master;
+    Node standby;
+    std::vector<Node> agents;
+    auto ret = electionModule->UbseGetAllNodes(master, standby, agents);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get all nodes failed, " << FormatRetCode(ret);
+        return false;
+    }
+    Node currentNode;
+    ret = electionModule->GetCurrentNode(currentNode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get current node failed, " << FormatRetCode(ret);
+        return false;
+    }
+    if (!currentNode.id.empty() && currentNode.id == master.id && standby.id.empty() && agents.empty()) {
+        return true;
+    }
+    return false;
+}
+
 UbseResult UbseRasHandler::HandleBMCFault(const std::string &info)
 {
     uint64_t validateMsgId; // 仅用于外部数据校验，无需使用
     if (ubse::utils::ConvertStrToUint64(info, validateMsgId) != UBSE_OK) {
         UBSE_LOG_ERROR << "Invalid msg id, expect integer represented as a string";
         return UBSE_ERROR_INVAL;
+    }
+    if (IsOnlyOneNodeInCluster()) {
+        UBSE_LOG_INFO << "Only one node in cluster, no need to handle BMC fault";
+        const std::string ackStr = info + "_" + std::to_string(UBSE_OK);
+        return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
     }
     UbseRoleInfo curRoleInfo;
     UbseRoleInfo masterRoleInfo;

@@ -14,4 +14,5 @@ target_link_libraries(ubs-engine_ubse_ras_ut
         ubse_event
         ubse_config
         api_server
+        syssentry
 )

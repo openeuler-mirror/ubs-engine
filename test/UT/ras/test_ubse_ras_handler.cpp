@@ -12,11 +12,11 @@
 
 #include "test_ubse_ras_handler.h"
 #include <ubse_event.h>
+#include "ubse_com_module.h"
 #include "ubse_error.h"
+#include "ubse_mmi_interface.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_ras_handler.cpp"
-#include "ubse_mmi_interface.h"
-#include "ubse_com_module.h"
 
 namespace ubse::ras::ut {
 using namespace ubse::com;
@@ -646,7 +646,9 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenRpcSendFailed)
     info.nodeRole = ELECTION_ROLE_MASTER;
     g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenRpcSendFailed");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
     UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
@@ -662,7 +664,9 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenSuccess)
     info.nodeRole = ELECTION_ROLE_MASTER;
     g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenSuccess");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
     UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
@@ -671,4 +675,115 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenSuccess)
     auto ret = SendSwitchRoleToStandby(info, "SendSwitchRoleToStandbyWhenSuccess");
     ASSERT_EQ(ret, UBSE_RAS_ERROR_SWITCH_ROLE);
 }
-}  // namespace ubse::ras::ut
+
+UbseResult MockOnlyOneNodeUbseGetAllNodes(UbseElectionModule *, Node &master, Node &standby, std::vector<Node> &agents)
+{
+    master = {"1"};
+    standby = {};
+    agents = {};
+    return UBSE_OK;
+}
+
+UbseResult MockOnlyOneNodeGetCurrentNode(UbseElectionModule *, Node &currentNode)
+{
+    currentNode = {"1"};
+    return UBSE_OK;
+}
+
+UbseResult MockEmptyIdGetCurrentNode(UbseElectionModule *, Node &currentNode)
+{
+    currentNode = {""};
+    return UBSE_OK;
+}
+
+UbseResult MockNode2GetCurrentNode(UbseElectionModule *, Node &currentNode)
+{
+    currentNode = {"2"};
+    return UBSE_OK;
+}
+
+UbseResult MockMasterAndStandbyUbseGetAllNodes(UbseElectionModule *, Node &master, Node &standby, std::vector<Node> &agents)
+{
+    master = {"1"};
+    standby = {"2"};
+    agents = {};
+    return UBSE_OK;
+}
+
+UbseResult MockMasterAndAgentUbseGetAllNodes(UbseElectionModule *, Node &master, Node &standby, std::vector<Node> &agents)
+{
+    master = {"1"};
+    standby = {};
+    agents = {{"3"}};
+    return UBSE_OK;
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenElectionModuleNull)
+{
+    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenGetAllNodesFail)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(returnValue(UBSE_ERROR));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenGetCurrentNodeFail)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(returnValue(UBSE_ERROR));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenCurrentNodeIdEmpty)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockEmptyIdGetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenCurrentNodeIsNotMaster)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockNode2GetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenStandbyExists)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockMasterAndStandbyUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockOnlyOneNodeGetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenAgentsExist)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockMasterAndAgentUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockOnlyOneNodeGetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterSuccess)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockOnlyOneNodeGetCurrentNode));
+    ASSERT_TRUE(IsOnlyOneNodeInCluster());
+}
+} // namespace ubse::ras::ut
