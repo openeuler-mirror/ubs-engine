@@ -22,6 +22,7 @@
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_node.h"
 #include "ubse_topo_util.h"
+#include "ubse_mem_sign_verifier.h"
 
 namespace ubse::mem_controller::share::ut {
 using namespace ubse::com;
