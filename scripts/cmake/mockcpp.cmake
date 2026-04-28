@@ -3,6 +3,12 @@ if(TARGET mockcpp::mockcpp)
     return()
 endif()
 
+set(MOCKCPP_LIB_PATH "${DEPS_DIR}/mockcpp/lib/libmockcpp.a")
+if(EXISTS "${MOCKCPP_LIB_PATH}")
+    message(STATUS "mockcpp binary already exists at ${MOCKCPP_LIB_PATH}, skipping build")
+    return()
+endif()
+
 include(FetchContent)
 include(ProcessorCount)
 

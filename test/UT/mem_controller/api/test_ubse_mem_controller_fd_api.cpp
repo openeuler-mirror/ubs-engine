@@ -23,11 +23,20 @@
 #include "ubse_election_module.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_controller_api_common.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "ubse_context.h"
+#include "ubse_mmi_module.h"
+#include "ubse_mem_sign_verifier.h"
+
 namespace ubse::mem_controller::fd::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::election;
 using namespace ubse::mem::controller::message;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::mem::decoder::utils;
+using namespace ubse::mmi;
+using namespace ubse::context;
+
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
 
@@ -328,5 +337,77 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdPermissionTest)
     req.udsInfo = udsInfo;
     ret = UbseMemFdPermission(req, NODE_ONE);
     EXPECT_EQ(UBS_ENGINE_ERR_AUTH_FAILED, ret);
+}
+
+
+TEST_F(TestUbseMemControllerFdApi, UbseMemFdBorrowImportObjForPermissionCallbackTest)
+{
+    UbseMemDebtNumaInfo numaInfo;
+    numaInfo.nodeId = NODE_TWO;
+    std::vector<UbseMemDebtNumaInfo> numaInfos;
+    numaInfos.emplace_back(numaInfo);
+    UbseMemFdBorrowImportObj importObj;
+    importObj.req.name = "test";
+    importObj.req.importNodeId = NODE_ONE;
+    importObj.req.size = 1024;
+    numaInfos.emplace_back(numaInfo);
+    importObj.algoResult.importNumaInfos = numaInfos;
+    importObj.algoResult.exportNumaInfos = numaInfos;
+    UbseRoleInfo master;
+    MOCKER_CPP(&election::UbseGetMasterInfo).stubs().with(outBound(master)).will(returnValue(UBSE_OK));
+    MOCKER(&context::UbseContext::GetModule<UbseMmiModule>).stubs().will(returnValue(std::make_shared<UbseMmiModule>()));
+    MOCKER(&UbseMmiModule::UbseMemFdImportExecutor).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseMemFdBorrowImportObjForPermissionCallback(importObj), UBSE_OK);
+}
+ 
+TEST_F(TestUbseMemControllerFdApi, FdImportRunningCallback)
+{
+    UbseMemDebtNumaInfo numaInfo;
+    numaInfo.nodeId = NODE_TWO;
+    std::vector<UbseMemDebtNumaInfo> numaInfos;
+    numaInfos.emplace_back(numaInfo);
+    UbseMemFdBorrowImportObj importObj;
+    importObj.req.name = "test";
+    importObj.req.importNodeId = NODE_ONE;
+    numaInfos.emplace_back(numaInfo);
+    importObj.algoResult.importNumaInfos = numaInfos;
+    importObj.algoResult.exportNumaInfos = numaInfos;
+    importObj.status.state = UBSE_MEM_IMPORT_RUNNING;
+    UbseRoleInfo currentInfo{};
+    currentInfo.nodeId = NODE_ONE;
+    MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&MemDecoderUtils::GetChipAndDieId).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&MemDecoderUtils::GetChipAndDieId).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbseMemFdBorrowImportObjCallback(importObj);
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, ret);
+}
+ 
+TEST_F(TestUbseMemControllerFdApi, UbseMemFdBorrowExportObjCallbackAgentHighSafe)
+{
+    UbseMemFdBorrowExportObj exportObj;
+    exportObj.req.name = "test";
+    UbseMemDebtNumaInfo numaInfo;
+    numaInfo.nodeId = "0";
+    std::vector<UbseMemDebtNumaInfo> numaInfos;
+    numaInfos.emplace_back(numaInfo);
+    exportObj.algoResult.exportNumaInfos = numaInfos;
+    exportObj.req.requestNodeId = "1";
+    UbseRoleInfo currentInfo{};
+    currentInfo.nodeId = "0";
+    exportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
+    MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto func1 = &UbseComModule::RpcSend<UbseMemFdBorrowExportobjSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER(func1).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&context::UbseContext::GetModule<UbseMmiModule>).stubs().will(returnValue(std::make_shared<UbseMmiModule>()));
+    MOCKER(&UbseMmiModule::UbseMemFdExportExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(IsHighSafety).stubs().will(returnValue(true));
+    auto ret = UbseMemFdBorrowExportObjCallback(exportObj);
+    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_OK, exportObj.errorCode);
+    UbseMemObmmInfo obmmInfo;
+    exportObj.status.exportObmmInfo.push_back(obmmInfo);
+    ret = UbseMemFdBorrowExportObjCallback(exportObj);
+    EXPECT_EQ(UBSE_OK, ret);
 }
 } // namespace ubse::mem_controller::fd::ut
