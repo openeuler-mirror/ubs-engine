@@ -1214,7 +1214,7 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus) {
         .will(returnValue(UBSE_OK));
     
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
-    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
     
     SUCCEED();
 }
@@ -1226,7 +1226,7 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_EmptyNumaStatus) 
     nodeController.devDirConnectInfo.clear();
 
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
-    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
 
     SUCCEED();
 }
@@ -1258,7 +1258,7 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_InvalidRemoteNuma
     targetNodeDebt.numaImportObjMap["res1"] = importObj;
     allDebtInfoMap[nodeId] = targetNodeDebt;
 
-    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
 
     SUCCEED();
 }
@@ -1326,7 +1326,7 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_MultipleNuma) {
         .with(eq(nodeId), any())
         .will(returnValue(UBSE_OK));
 
-    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
 
     SUCCEED();
 }
@@ -1394,7 +1394,7 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_PartialLinkDown) 
         .with(eq(nodeId), any())
         .will(returnValue(UBSE_OK));
 
-    MasterNotifySmapNumaStatus(nodeId, allDebtInfoMap);
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
 
     SUCCEED();
 }

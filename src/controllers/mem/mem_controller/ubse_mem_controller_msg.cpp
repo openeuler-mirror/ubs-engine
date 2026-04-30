@@ -1223,7 +1223,7 @@ UbseResult NotifyRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuff
     }
     auto numaStatus = simpo.GetUbseRemoteNumaStatus();
     UBSE_LOG_INFO << "Agent query remote numa status";
-    auto result = AgentNotifySmapNumaStatus(numaStatus);
+    auto result = AgentModifyRemoteNumaStatus(numaStatus);
     UbseMemOptResultSimpoPtr resultSimpo = new (std::nothrow) UbseMemOptResultSimpo();
     if (resultSimpo == nullptr) {
         UBSE_LOG_ERROR << "new simpo failed.";
