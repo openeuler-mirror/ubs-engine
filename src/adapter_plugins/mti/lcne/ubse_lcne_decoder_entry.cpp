@@ -146,10 +146,9 @@ UbseResult BuildInvalidateReqStr(const UbseMamiMemWithdraw &drawInfo, std::strin
 }
 
 UbseResult ParseBaseRespBody(const std::string &responseStr, const std::string &key,
-                             const std::string &operationName, const Value*& output)
+                             const std::string &operationName, Document &doc, const Value*& output)
 {
     UBSE_LOG_INFO << "[MTI_MEM] Response is " << responseStr;
-    Document doc{};
     if (doc.Parse(responseStr.c_str()).HasParseError()) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse response body failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
@@ -186,8 +185,9 @@ UbseResult ParseBaseRespBody(const std::string &responseStr, const std::string &
 UbseResult ParseAddRespBody(const std::string &responseStr,
                             UbseMamiMemImportResult &importResult)
 {
+    Document doc{};
     const Value* output = nullptr;
-    UbseResult ret = ParseBaseRespBody(responseStr, KEY_ADD, "Add", output);
+    UbseResult ret = ParseBaseRespBody(responseStr, KEY_ADD, "Add", doc, output);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -209,14 +209,16 @@ UbseResult ParseAddRespBody(const std::string &responseStr,
 
 UbseResult ParseDeleteRespBody(const std::string &responseStr)
 {
+    Document doc{};
     const Value* output = nullptr;
-    return ParseBaseRespBody(responseStr, KEY_DELETE, "Delete", output);
+    return ParseBaseRespBody(responseStr, KEY_DELETE, "Delete", doc, output);
 }
 
 UbseResult ParseInvalidateRespBody(const std::string &responseStr)
 {
+    Document doc{};
     const Value* output = nullptr;
-    return ParseBaseRespBody(responseStr, KEY_INVALIDATE, "Invalidate", output);
+    return ParseBaseRespBody(responseStr, KEY_INVALIDATE, "Invalidate", doc, output);
 }
 
 UbseResult UbseLcneDecoderEntry::AddDecoderEntry(const UbseMamiMemImportInfo &importInfo,
