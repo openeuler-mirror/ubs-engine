@@ -29,7 +29,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseUrmaUvsModule::Initialize()
 {
     Cleanup();
-    handle = dlopen("/usr/lib64/libtpsa.so", RTLD_LAZY);
+    handle = dlopen("libtpsa.so", RTLD_LAZY);
     if (handle == nullptr) {
         UBSE_LOG_ERROR << "dlopen libtpsa.so failed";
         return UBSE_ERROR_FILE_NOT_EXIST;
