@@ -121,13 +121,23 @@ UbseMemShareBorrowImportObj UbseShareImportObjGet(const std::string &nodeId, con
 UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string &nodeId, const std::string &name,
                                                 bool isFromTaskManager = false);
 
-struct ShareHandleInfo {
-    std::string name;
-    std::vector<uint64_t> memIds;
-};
-using ShareHandleInfoVec = std::vector<ShareHandleInfo>;
 UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNodeId, const std::string &exportNodeId,
                                                     ShareHandleInfoVec &importHandInfo);
+
+UbseResult UbseQueryFdImportHandleByExportNodeId(const std::string &importNodeId, const std::string &exportNodeId,
+                                                 FdHandleInfoVec &importHandInfo);
+
+UbseResult UbseQueryNumaImportHandleByExportNodeId(const std::string &importNodeId, const std::string &exportNodeId,
+                                                   NumaHandleInfoVec &importHandInfo);
+
+UbseResult UbseQueryFdPortFaultHandleInfo(const std::string &nodeId, const std::string &chipId,
+    const std::set<std::string> &portList, FdHandleInfoVec &importHandInfo);
+
+UbseResult UbseQuerySharePortFaultHandleInfo(const std::string &nodeId, const std::string &chipId,
+    const std::set<std::string> &portList, ShareHandleInfoVec &importHandInfo);
+
+UbseResult UbseQueryNumaPortFaultHandleInfo(const std::string &nodeId, const std::string &chipId,
+    const std::set<std::string> &portList, NumaHandleInfoVec &importHandInfo);
 
 uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &memDesc);
 } // namespace ubse::mem::controller::debt

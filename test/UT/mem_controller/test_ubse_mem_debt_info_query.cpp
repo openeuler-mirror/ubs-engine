@@ -14,6 +14,8 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include <set>
+
 #include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
@@ -467,5 +469,412 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ImportMemIdNotFound)
 
     // 清理数据
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+}
+
+/**
+ * 添加 FD 类型的 Import 对象，用于测试按 exportNodeId 查询
+ */
+void AddFdImportObjWithExportNode(const std::string &importNodeId, const std::string &exportNodeId,
+                                  const std::string &name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
+                                  const std::vector<uint64_t> &memIds = {100})
+{
+    UbseMemFdBorrowImportObj fdImportObj{};
+    fdImportObj.req.name = name;
+    fdImportObj.req.importNodeId = importNodeId;
+    fdImportObj.status.state = state;
+    for (auto memId : memIds) {
+        fdImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = memId});
+    }
+    UbseMemDebtNumaInfo fdExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
+    fdImportObj.algoResult.exportNumaInfos.emplace_back(fdExportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
+}
+
+/**
+ * 添加 NUMA 类型的 Import 对象，用于测试按 exportNodeId 查询
+ */
+void AddNumaImportObjWithExportNode(const std::string &importNodeId, const std::string &exportNodeId,
+                                    const std::string &name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
+                                    const std::vector<int64_t> &numaIds = {0})
+{
+    UbseMemNumaBorrowImportObj numaImportObj{};
+    numaImportObj.req.name = name;
+    numaImportObj.req.importNodeId = importNodeId;
+    numaImportObj.status.state = state;
+    for (auto numaId : numaIds) {
+        numaImportObj.status.importResults.emplace_back(UbseMemImportResult{.numaId = numaId});
+    }
+    UbseMemDebtNumaInfo numaExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
+    numaImportObj.algoResult.exportNumaInfos.emplace_back(numaExportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name, numaImportObj);
+}
+
+/**
+ * 添加 Share 类型的 Import 对象，用于测试按 exportNodeId 查询
+ */
+void AddShareImportObjWithExportNode(const std::string &importNodeId, const std::string &exportNodeId,
+                                     const std::string &name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
+                                     const std::vector<uint64_t> &memIds = {100})
+{
+    UbseMemShareBorrowImportObj shareImportObj{};
+    shareImportObj.req.name = name;
+    shareImportObj.importNodeId = importNodeId;
+    shareImportObj.status.state = state;
+    for (auto memId : memIds) {
+        shareImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = memId});
+    }
+    UbseMemDebtNumaInfo shareExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
+    shareImportObj.algoResult.exportNumaInfos.emplace_back(shareExportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name, shareImportObj);
+}
+
+/**
+ * 添加带端口信息的 FD 类型 Import 对象，用于测试端口故障场景
+ */
+void AddFdImportObjWithPortInfo(const std::string &importNodeId, const std::string &exportNodeId,
+                                const std::string &name, UbseMemState state,
+                                uint32_t chipId, uint32_t portId,
+                                const std::vector<uint64_t> &memIds = {100})
+{
+    UbseMemFdBorrowImportObj fdImportObj{};
+    fdImportObj.req.name = name;
+    fdImportObj.req.importNodeId = importNodeId;
+    fdImportObj.status.state = state;
+    for (auto memId : memIds) {
+        fdImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = memId});
+    }
+    UbseMemDebtNumaInfo fdExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
+    fdImportObj.algoResult.exportNumaInfos.emplace_back(fdExportNmaInfo);
+    UbseMemDebtNumaInfo fdImportNmaInfo{.nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128,
+                                        .portId = portId, .chipId = chipId};
+    fdImportObj.algoResult.importNumaInfos.emplace_back(fdImportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
+}
+
+/**
+ * 添加带端口信息的 NUMA 类型 Import 对象，用于测试端口故障场景
+ */
+void AddNumaImportObjWithPortInfo(const std::string &importNodeId, const std::string &exportNodeId,
+                                  const std::string &name, UbseMemState state,
+                                  uint32_t chipId, uint32_t portId,
+                                  const std::vector<int64_t> &numaIds = {0})
+{
+    UbseMemNumaBorrowImportObj numaImportObj{};
+    numaImportObj.req.name = name;
+    numaImportObj.req.importNodeId = importNodeId;
+    numaImportObj.status.state = state;
+    for (auto numaId : numaIds) {
+        numaImportObj.status.importResults.emplace_back(UbseMemImportResult{.numaId = numaId});
+    }
+    UbseMemDebtNumaInfo numaExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
+    numaImportObj.algoResult.exportNumaInfos.emplace_back(numaExportNmaInfo);
+    UbseMemDebtNumaInfo numaImportNmaInfo{.nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128,
+                                          .portId = portId, .chipId = chipId};
+    numaImportObj.algoResult.importNumaInfos.emplace_back(numaImportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name, numaImportObj);
+}
+
+/**
+ * 添加带端口信息的 Share 类型 Import 对象，用于测试端口故障场景
+ */
+void AddShareImportObjWithPortInfo(const std::string &importNodeId, const std::string &exportNodeId,
+                                   const std::string &name, UbseMemState state,
+                                   uint32_t chipId, uint32_t portId,
+                                   const std::vector<uint64_t> &memIds = {100})
+{
+    UbseMemShareBorrowImportObj shareImportObj{};
+    shareImportObj.req.name = name;
+    shareImportObj.importNodeId = importNodeId;
+    shareImportObj.status.state = state;
+    for (auto memId : memIds) {
+        shareImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = memId});
+    }
+    UbseMemDebtNumaInfo shareExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
+    shareImportObj.algoResult.exportNumaInfos.emplace_back(shareExportNmaInfo);
+    UbseMemDebtNumaInfo shareImportNmaInfo{.nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128,
+                                           .portId = portId, .chipId = chipId};
+    shareImportObj.algoResult.importNumaInfos.emplace_back(shareImportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name, shareImportObj);
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_NoImportData)
+{
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_Success)
+{
+    AddFdImportObjWithExportNode("1", "2", "fd1", UBSE_MEM_IMPORT_SUCCESS, {100, 200});
+    AddFdImportObjWithExportNode("1", "3", "fd2", UBSE_MEM_IMPORT_SUCCESS, {300});
+
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "fd1");
+    EXPECT_EQ(handleInfo[0].memIds.size(), 2);
+    EXPECT_NE(handleInfo[0].memIds.find(100), handleInfo[0].memIds.end());
+    EXPECT_NE(handleInfo[0].memIds.find(200), handleInfo[0].memIds.end());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_RunningState)
+{
+    AddFdImportObjWithExportNode("1", "2", "fdRunning", UBSE_MEM_IMPORT_RUNNING, {100});
+
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "fdRunning");
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_WrongStateFiltered)
+{
+    AddFdImportObjWithExportNode("1", "2", "fdInit", UBSE_MEM_STATE_INIT, {100});
+
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_ExportNodeIdMismatch)
+{
+    AddFdImportObjWithExportNode("1", "3", "fdMismatch", UBSE_MEM_IMPORT_SUCCESS, {100});
+
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_EmptyExportNumaInfos)
+{
+    UbseMemFdBorrowImportObj fdImportObj{};
+    fdImportObj.req.name = "fdEmptyExport";
+    fdImportObj.req.importNodeId = "1";
+    fdImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    fdImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("1", "fdEmptyExport", fdImportObj);
+
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaImportHandleByExportNodeId_Success)
+{
+    AddNumaImportObjWithExportNode("1", "2", "numa1", UBSE_MEM_IMPORT_SUCCESS, {0, 1});
+
+    NumaHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryNumaImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "numa1");
+    EXPECT_EQ(handleInfo[0].numaIds.size(), 2);
+    EXPECT_NE(handleInfo[0].numaIds.find(0), handleInfo[0].numaIds.end());
+    EXPECT_NE(handleInfo[0].numaIds.find(1), handleInfo[0].numaIds.end());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaImportHandleByExportNodeId_NoImportData)
+{
+    NumaHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryNumaImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryShareImportHandleByExportNodeId_Success)
+{
+    AddShareImportObjWithExportNode("1", "2", "share1", UBSE_MEM_IMPORT_SUCCESS, {500, 600});
+
+    ShareHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryShareImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "share1");
+    EXPECT_EQ(handleInfo[0].memIds.size(), 2);
+    EXPECT_NE(handleInfo[0].memIds.find(500), handleInfo[0].memIds.end());
+    EXPECT_NE(handleInfo[0].memIds.find(600), handleInfo[0].memIds.end());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryShareImportHandleByExportNodeId_MultipleObjs)
+{
+    AddShareImportObjWithExportNode("1", "2", "shareA", UBSE_MEM_IMPORT_SUCCESS, {100});
+    AddShareImportObjWithExportNode("1", "2", "shareB", UBSE_MEM_IMPORT_RUNNING, {200});
+    AddShareImportObjWithExportNode("1", "3", "shareC", UBSE_MEM_IMPORT_SUCCESS, {300});
+    AddShareImportObjWithExportNode("1", "2", "shareD", UBSE_MEM_STATE_INIT, {400});
+
+    ShareHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryShareImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 2);
+    EXPECT_EQ(handleInfo[0].name, "shareB");
+    EXPECT_EQ(handleInfo[1].name, "shareA");
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_InvalidChipIdFormat)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
+
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2"};
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "invalid_chip", portList, handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_NoImportData)
+{
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2"};
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_FaultPortCollected)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdFault1", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100, 200});
+    AddFdImportObjWithPortInfo("1", "2", "fdFault2", UBSE_MEM_IMPORT_SUCCESS, 1, 6, {300});
+
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2", "3"};
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 2);
+    EXPECT_EQ(handleInfo[1].name, "fdFault1");
+    EXPECT_EQ(handleInfo[1].memIds.size(), 2);
+    EXPECT_NE(handleInfo[1].memIds.find(100), handleInfo[1].memIds.end());
+    EXPECT_NE(handleInfo[1].memIds.find(200), handleInfo[1].memIds.end());
+    EXPECT_EQ(handleInfo[0].name, "fdFault2");
+    EXPECT_EQ(handleInfo[0].memIds.size(), 1);
+    EXPECT_NE(handleInfo[0].memIds.find(300), handleInfo[0].memIds.end());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_PortInEnableListNotCollected)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdNormal", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
+
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"5"};
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_ChipIdMismatch)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdOtherChip", UBSE_MEM_IMPORT_SUCCESS, 2, 5, {100});
+
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2"};
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_WrongStateFiltered)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdInit", UBSE_MEM_STATE_INIT, 1, 5, {100});
+
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2"};
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_EmptyPortListAllFault)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdAllFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
+
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList;
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "fdAllFault");
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQuerySharePortFaultHandleInfo_FaultPortCollected)
+{
+    AddShareImportObjWithPortInfo("1", "2", "shareFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {500});
+
+    ShareHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2"};
+    EXPECT_EQ(UbseQuerySharePortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "shareFault");
+    EXPECT_EQ(handleInfo[0].memIds.size(), 1);
+    EXPECT_NE(handleInfo[0].memIds.find(500), handleInfo[0].memIds.end());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQuerySharePortFaultHandleInfo_PortInEnableList)
+{
+    AddShareImportObjWithPortInfo("1", "2", "shareNormal", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {500});
+
+    ShareHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"5"};
+    EXPECT_EQ(UbseQuerySharePortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_FaultPortCollected)
+{
+    AddNumaImportObjWithPortInfo("1", "2", "numaFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {0, 1});
+
+    NumaHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2"};
+    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "numaFault");
+    EXPECT_EQ(handleInfo[0].numaIds.size(), 2);
+    EXPECT_NE(handleInfo[0].numaIds.find(0), handleInfo[0].numaIds.end());
+    EXPECT_NE(handleInfo[0].numaIds.find(1), handleInfo[0].numaIds.end());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_PortInEnableList)
+{
+    AddNumaImportObjWithPortInfo("1", "2", "numaNormal", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {0});
+
+    NumaHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"5"};
+    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_RunningStateCollected)
+{
+    AddNumaImportObjWithPortInfo("1", "2", "numaRunning", UBSE_MEM_IMPORT_RUNNING, 1, 5, {0});
+
+    NumaHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "2"};
+    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "numaRunning");
+}
+
+/**
+ * 测试：多芯片多端口场景下的 FD 故障查询
+ * 场景：
+ *   - fdChip1Port5: chipId=1, portId=5 -> chipId匹配，portId=5不在{"1","3"}中 -> 故障
+ *   - fdChip1Port3: chipId=1, portId=3 -> chipId匹配，portId=3在{"1","3"}中 -> 正常
+ *   - fdChip2Port5: chipId=2, portId=5 -> chipId不匹配 -> 过滤
+ * 预期：只返回 fdChip1Port5
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_MultipleChipsAndPorts)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdChip1Port5", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
+    AddFdImportObjWithPortInfo("1", "2", "fdChip1Port3", UBSE_MEM_IMPORT_SUCCESS, 1, 3, {200});
+    AddFdImportObjWithPortInfo("1", "2", "fdChip2Port5", UBSE_MEM_IMPORT_SUCCESS, 2, 5, {300});
+
+    FdHandleInfoVec handleInfo;
+    std::set<std::string> portList = {"1", "3"};
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "fdChip1Port5");
+}
+
+/**
+ * 测试：Numa Handle Info 使用 unordered_set 存储 numaIds（自动去重）
+ * 场景：添加包含重复 numaId {0, 1, 0} 的对象
+ * 预期：numaIds 集合大小为 2（0 被去重）
+ */
+TEST_F(TestUbseMemDebtInfoQuery, NumaHandleInfo_UsesUnorderedSetNumaIds)
+{
+    AddNumaImportObjWithExportNode("1", "2", "numaSet", UBSE_MEM_IMPORT_SUCCESS, {0, 1, 0});
+
+    NumaHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryNumaImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].numaIds.size(), 2);
 }
 } // namespace ubse::mem_controller::ut

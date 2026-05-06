@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <unordered_set>
 #include "ubs_engine_mem.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mmi_interface.h"
@@ -110,6 +111,23 @@ struct UbseExportMemDesc {
     uint32_t exportSlotId;
     uint64_t exportMemId;
 };
+
+struct ShareHandleInfo {
+    std::string name;
+    std::unordered_set<uint64_t> memIds;
+    UbseUdsInfo udsInfo{};
+};
+using ShareHandleInfoVec = std::vector<ShareHandleInfo>;
+
+using FdHandleInfo = ShareHandleInfo;
+using FdHandleInfoVec = std::vector<FdHandleInfo>;
+
+struct NumaHandleInfo {
+    std::string name;
+    std::unordered_set<int64_t> numaIds;
+    UbseUdsInfo udsInfo{};
+};
+using NumaHandleInfoVec = std::vector<NumaHandleInfo>;
 } // namespace ubse::mem::def
 
 #endif

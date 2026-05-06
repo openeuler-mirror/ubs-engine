@@ -373,7 +373,7 @@ static bool ValidateAndGetShareHandleInfo(const std::string &faultId,
         return false;
     }
 
-    ret = UbseQueryShareImportHandleByExportNodeId(currentNodeId, faultId, handleInfo);
+    ret = debt::UbseQueryShareImportHandleByExportNodeId(currentNodeId, faultId, handleInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get share handle info in faultId." << FormatRetCode(ret);
         return false;
