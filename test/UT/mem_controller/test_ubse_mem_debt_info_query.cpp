@@ -713,7 +713,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_InvalidChipIdFor
 
     FdHandleInfoVec handleInfo;
     std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "invalid_chip", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "invalid_chip", portList, handleInfo), UBSE_ERROR_INVAL);
     EXPECT_TRUE(handleInfo.empty());
 }
 
