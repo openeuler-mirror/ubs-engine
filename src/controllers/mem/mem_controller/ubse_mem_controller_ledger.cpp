@@ -19,7 +19,6 @@
 
 #include "api/ubse_mem_controller_share_api.h"
 #include "logging_lock_guard.h"
-#include "src/adapter_plugins/ubturbo/ubse_ubturbo_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_mem_controller_api_common.h"
@@ -27,10 +26,12 @@
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_def.h"
 #include "ubse_mem_update_obj_state.simpo.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_security_module.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::util;
@@ -38,6 +39,7 @@ using namespace ubse::mem::controller;
 using namespace ubse::nodeController;
 using ubse::election::UbseElectionModule;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::security;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 const std::string ClusterHandlerKey = "NODE_CLUSTER_HDL";
@@ -46,6 +48,15 @@ const uint32_t LEDGE_RETRY_DURATION = 2;
 const uint32_t MAX_RETRIES = 20;
 const uint32_t BASE_SLEEP_TIME = 500;
 const uint32_t LEDGER_RUNNING_WAIT_INTERVAL = 1;
+const std::string CRITICAL_ERR_PATH_PREFIX = "/sys/devices/system/node/node";
+const std::string CRITICAL_ERR_FILE = "/critical_err";
+
+enum class RemoteNumaStatus {
+    AVAILABLE = 0,
+    UNAVAILABLE = 1,
+    UNKNOWN = 2,
+};
+
 std::mutex mtx_target_ledger_global;
 bool CheckNodeIsMaster()
 {
@@ -356,7 +367,7 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
         // 使用 [map = std::move(obj)] 语法将所有权移入 Lambda
         resourceExecutor->Execute([localMap = std::move(allDebtInfoMap), nodeId]()  {
             UBSE_LOG_INFO << "Start async thread to notify smap numa status for nodeId=" << nodeId;
-            MasterNotifySmapNumaStatus(nodeId, localMap);
+            MasterNotifyRemoteNumaStatus(nodeId, localMap);
         });
     }
     return ret;
@@ -2474,24 +2485,24 @@ static std::vector<std::pair<int64_t, int>> BuildNumaStatus(
     std::vector<std::pair<int64_t, int>> numaStatus;
     numaStatus.reserve(linkToNumaMap.size());
     for (const auto [linkPair, numaId] : linkToNumaMap) {
-        // 0表示可不用，1表示可用，2表示状态未知
+        // 0表示可用，1表示不可用，2表示状态未知
         if (linkUpPorts.find(linkPair) == linkUpPorts.end()) {
-            numaStatus.push_back({numaId, 0});
+            numaStatus.push_back({numaId, static_cast<int>(RemoteNumaStatus::UNAVAILABLE)});
         } else {
             if (invalidRemoteNumaIds.find(numaId) != invalidRemoteNumaIds.end()) {
-                numaStatus.push_back({numaId, 0});
+                numaStatus.push_back({numaId, static_cast<int>(RemoteNumaStatus::UNAVAILABLE)});
             } else if (unknownRemoteNumaIds.find(numaId) != unknownRemoteNumaIds.end()) {
-                numaStatus.push_back({numaId, 2});
+                numaStatus.push_back({numaId, static_cast<int>(RemoteNumaStatus::UNKNOWN)});
             } else {
-                numaStatus.push_back({numaId, 1});
+                numaStatus.push_back({numaId, static_cast<int>(RemoteNumaStatus::AVAILABLE)});
             }
         }
     }
     return numaStatus;
 }
 
-void MasterNotifySmapNumaStatus(const std::string &targetNodeId,
-                                const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+void MasterNotifyRemoteNumaStatus(const std::string &targetNodeId,
+                                  const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
 {
     auto linkUpPorts = GetLinkUpPorts(targetNodeId);
 
@@ -2512,7 +2523,7 @@ void MasterNotifySmapNumaStatus(const std::string &targetNodeId,
     }
 }
 
-UbseResult AgentNotifySmapNumaStatus(const std::vector<std::pair<int64_t, int>> &numaStatus)
+UbseResult AgentModifyRemoteNumaStatus(const std::vector<std::pair<int64_t, int>> &numaStatus)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -2521,14 +2532,38 @@ UbseResult AgentNotifySmapNumaStatus(const std::vector<std::pair<int64_t, int>> 
     }
 
     resourceExecutor->Execute([numaStatus]() {
-        int retry = 2;
-        while (retry--) {
-            auto ret = ubturb::UbseUbturboModule::GetInstance().UbseNotifyNumaListStatus(numaStatus);
-            if (ret == UBSE_OK) {
-                break;
+        std::vector<__u32> caps{CAP_DAC_OVERRIDE};
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+        for (const auto &[numaId, status] : numaStatus) {
+            if (numaId < 0 || numaId > TOPOLOGY_MAX_TOTAL_NUMA) {
+                UBSE_LOG_ERROR << "Invalid numa id=" << numaId << ", status=" << status;
+                continue;
             }
-            UBSE_LOG_ERROR << "UbTurboNotifyNumaListStatus failed, ret=" << ret << ", will retry";
+
+            // numa状态未知，不更改numa状态
+            if (status == static_cast<int>(RemoteNumaStatus::UNKNOWN)) {
+                continue;
+            }
+
+            std::string criticalErrFilePath = CRITICAL_ERR_PATH_PREFIX + std::to_string(numaId) + CRITICAL_ERR_FILE;
+
+            std::ofstream criticalErrFileStream(criticalErrFilePath, std::ios::out | std::ios::trunc);
+            if (!criticalErrFileStream.is_open()) {
+                UBSE_LOG_ERROR << "Failed to open critical_err file, numaId=" << numaId;
+                continue;
+            }
+
+            std::string content = (status == static_cast<int>(RemoteNumaStatus::AVAILABLE)) ? "0" : "1";
+            UBSE_LOG_INFO << "Write numa status to critical_err file, numaId=" << numaId << ", status=" << status;
+
+            criticalErrFileStream << content;
+            criticalErrFileStream.close();
+
+            if (criticalErrFileStream.fail()) {
+                UBSE_LOG_ERROR << "Failed to write critical_err file, numaId=" << numaId;
+            }
         }
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     });
     return UBSE_OK;
 }

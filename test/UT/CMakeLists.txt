@@ -38,7 +38,6 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_xml
         ubse_mti
         ubse_mmi
-        ubse_ubturbo
         mem_controller
         cert_api_static
         ubse_ras
@@ -86,7 +85,6 @@ add_subdirectory(plugin_mgr)
 add_subdirectory(adapter_plugins/mmi)
 add_subdirectory(adapter_plugins/mti)
 add_subdirectory(adapter_plugins/syssentry)
-add_subdirectory(adapter_plugins/ubturbo)
 add_subdirectory(storage)
 add_subdirectory(sdk)
 add_subdirectory(urma_controller)

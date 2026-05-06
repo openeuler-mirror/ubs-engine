@@ -210,10 +210,10 @@ UbseResult AgentInvalidateImportDebt(const std::string &name, UbseMemBorrowType 
 // 获取最大引用计数的导出对象
 UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string &name);
 
-void MasterNotifySmapNumaStatus(const std::string &targetNodeId,
-                                const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap);
+void MasterNotifyRemoteNumaStatus(const std::string &targetNodeId,
+                                  const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap);
 
-UbseResult AgentNotifySmapNumaStatus(const std::vector<std::pair<int64_t, int>> &numaStatus);
+UbseResult AgentModifyRemoteNumaStatus(const std::vector<std::pair<int64_t, int>> &numaStatus);
 
 } // namespace ubse::mem::controller
 
