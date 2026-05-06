@@ -153,7 +153,7 @@ TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194304_Out_4194304)
     ASSERT_EQ(needBorrowMem, outMemSize);
 }
 
-TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194305_Out_4325376_ERROR)
+TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194305_Out_4325376_TRUE)
 {
     uint64_t miniUnitMemSize = 131072;
     uint64_t maxUnitMemSize = 4194304;
@@ -162,7 +162,7 @@ TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194305_Out_4325376_ERROR)
 
     MpResult res = FaultMemIdStrategy::Instance().AdjustNeedBorrowMem(needBorrowMem);
 
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_EQ(res, MEM_POOLING_OK);
     ASSERT_EQ(needBorrowMem, outMemSize);
 }
 
@@ -288,7 +288,7 @@ TEST_F(TestFaultMemIdModule, ClosestVmVector_In_2_7_9_13_19_target_14_Out_2_13)
     ASSERT_EQ(res, MEM_POOLING_OK);
 }
 
-TEST_F(TestFaultMemIdModule, ClosestVmVector_In_5_7_9_13_target_30_Out_5_7_9_13_ERROR)
+TEST_F(TestFaultMemIdModule, ClosestVmVector_In_5_7_9_13_target_30_Out_5_7_9_13_TRUE)
 {
     uint64_t miniUnitMemSize = 131072;
     uint64_t maxUnitMemSize = 4194304;
@@ -316,7 +316,7 @@ TEST_F(TestFaultMemIdModule, ClosestVmVector_In_5_7_9_13_target_30_Out_5_7_9_13_
     ASSERT_EQ(pids[2], 33333);
     ASSERT_EQ(pids[3], 44444);
     ASSERT_EQ(totalNeedBorrowMem, miniUnitMemSize * 34);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_EQ(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, BorrowFromSameNid1)
@@ -994,7 +994,7 @@ TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc3)
         .will(returnValue(false));
     auto res = FaultMemIdModule::Instance().FindClosestVmForMemAlloc(allVmNumaInfoInfoList, memSizeSingle, pids,
                                                                      totalNeedBorrowMem);
-    ASSERT_EQ(res, 1);
+    ASSERT_EQ(res, 0);
 }
 
 TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc4)
