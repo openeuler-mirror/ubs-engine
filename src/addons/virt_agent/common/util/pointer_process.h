@@ -14,6 +14,8 @@
 #ifndef VM_POINTER_PROCESS_H
 #define VM_POINTER_PROCESS_H
 
+#include <cstddef>
+
 namespace vm {
 template <typename T> void SafeDeleteArray(T *&ptr)
 {

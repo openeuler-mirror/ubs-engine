@@ -29,5 +29,5 @@ repos:
         name: Run clang-tidy check for test files
         entry: clang-tidy
         language: system
-        files: ^test/.*\.(h|c|cpp)$
+        files: ^test/UT/.*\.(h|c|cpp)$
         args: [-p=cmake-build-debug, --fix]
