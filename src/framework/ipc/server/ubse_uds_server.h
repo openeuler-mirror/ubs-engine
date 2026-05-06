@@ -24,6 +24,7 @@
 #include "ubse_map_util.h"
 #include "ubse_request_id_util.h"
 #include "ubse_thread_pool.h"
+#include "ubse_election.h"
 
 namespace ubse::ipc {
 using namespace api::server;
@@ -163,6 +164,7 @@ private:
 
     void CheckAndCloseTimeoutSessions();
     void HandlePersistentSession(const UbseRequestHeader &header, int fd, uint64_t requestId);
+    uint8_t GetSlotId(ubse::election::UbseRoleInfo &roleInfo) const;
 };
 } // namespace ubse::ipc
 #endif // UBSE_UDS_SERVER_H
