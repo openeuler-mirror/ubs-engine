@@ -36,12 +36,12 @@ update_config() {
 ensure_directory_owner "/var/log/ubse" true
 ensure_directory_owner "/var/lib/ubse" true
 ensure_directory_owner "/var/lib/ubse/data" true
-ensure_directory_owner "/var/lib/ubse/sync" true
-ensure_directory_owner "/etc/ubse/certs" true
+ensure_directory_owner "/var/lib/ubse/cert" true
 ensure_directory_owner "/run/ubse" true
 
-chmod 750 /var/log/ubse /var/lib/ubse /var/lib/ubse/data /var/lib/ubse/sync /run/ubse
-chmod 700 /etc/ubse/certs
+chmod 750 /var/log/ubse /var/lib/ubse /var/lib/ubse/data
+chmod 755 /run/ubse
+chmod 700 /var/lib/ubse/cert
 
 # systemd
 systemctl daemon-reload
