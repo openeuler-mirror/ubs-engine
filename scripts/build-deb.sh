@@ -28,49 +28,6 @@ fi
 # 定义 libdir 变量
 LIBDIR="usr/lib/$DEB_HOST_MULTIARCH"
 
-# --- Step 0: Download third-party source code ---
-echo ">>> Downloading third-party source code..."
-
-# Function to clone or update a git repo into source dir
-download_source() {
-    local lib_name="$1"
-    local repo_url="$2"
-    local branch_or_tag="$3"
-    local dest_dir="$PROJECT_ROOT/3rdparty/${lib_name}/source"
-
-    echo "  -> $lib_name: $repo_url ($branch_or_tag)"
-
-    if [ -d "$dest_dir/.git" ]; then
-        # Already cloned, try to update
-        (cd "$dest_dir" && git fetch origin && git checkout "$branch_or_tag")
-    else
-        # Clone fresh
-        [ -n "$dest_dir" ] && rm -rf "$dest_dir"
-        mkdir -p "$(dirname "$dest_dir")"
-        git clone --branch "$branch_or_tag" --depth 1 "$repo_url" "$dest_dir"
-    fi
-
-    # === 无论新 clone 还是 update，都要同步 submodule ===
-    if [ "$lib_name" = "hcom" ] && [ -f "$dest_dir/.gitmodules" ]; then
-        echo "      Initializing submodules for $lib_name..."
-        (cd "$dest_dir" && git submodule update --init --recursive --depth 1)
-    fi
-}
-
-# === 配置三方库列表 ===
-# 格式: download_source <name> <git-url> <branch/tag>
-
-# 如果 is_build_project 为 "false",不在CI环境,则下载源码
-if [ "${is_build_project:-false}" == "false" ]; then
-    download_source "hcom" "https://szv-y.codehub.huawei.com/BeiMing/service_domain/matrix_core/matrix_comm/hcom.git" "br_noncom_beiming_25.3.T1_tencent_20251231"
-    download_source "cpp-httplib" "https://szv-open.codehub.huawei.com/OpenSourceCenter/yhirose/cpp-httplib.git" "v0.18.7-h2"
-    download_source "mxml" "https://szv-open.codehub.huawei.com/OpenSourceCenter/michaelrsweet/mxml.git" "v4.0.3"
-    download_source "rapidjson" "https://szv-open.codehub.huawei.com/OpenSourceCenter/Tencent/rapidjson.git" "6089180ecb704cb2b136777798fa1be303618975"
-    download_source "securec" "https://codehub-dg-y.huawei.com/hwsecurec_group/huawei_secure_c.git" "tag_Huawei_Secure_C_V100R001C01SPC017B001_00001"
-fi
-
-echo ">>> Third-party sources downloaded."
-
 # --- Step 1: Build and install to staging (like RPM %install) ---
 echo ">>> Building project and installing to staging..."
 [ -n "$STAGING" ] && rm -rf "$STAGING"
@@ -79,7 +36,6 @@ mkdir -p "$STAGING"
 cd "$PROJECT_ROOT"
 
 # Build
-bash build.sh 3rdparty -S
 bash build.sh -S -c
 
 # Install main binaries
@@ -107,8 +63,9 @@ install -Dm644 scripts/command_completion/cli_commands.sh "$STAGING/etc/bash_com
 install -Dm644 cmake-build-release/VERSION "$STAGING/usr/share/ubse/VERSION"
 
 # Internal libs (in /${LIBDIR}/ubse/)
-install -Dm755 cmake-build-release/lib/libhcom.so "$STAGING/${LIBDIR}/ubse/libhcom.so"
-install -Dm755 cmake-build-release/lib/libsecurec.so "$STAGING/${LIBDIR}/ubse/libsecurec.so"
+install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so "$STAGING/${LIBDIR}/ubse/libhcom.so"
+install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so.0 "$STAGING/${LIBDIR}/ubse/libhcom.so.0"
+install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so.0.0.1 "$STAGING/${LIBDIR}/ubse/libhcom.so.0.0.1"
 
 # VirtAgent libs (in /${LIBDIR}/)
 install -Dm755 cmake-build-release/lib/libvirtagent.so "$STAGING/${LIBDIR}/libvirtagent.so"
@@ -186,7 +143,8 @@ build_deb() {
             install -Dm644 "$STAGING/usr/share/ubse/VERSION" "$pkg_dir/usr/share/ubse/VERSION"
             # Internal libs
             install -Dm755 "$STAGING/${LIBDIR}/ubse/libhcom.so" "$pkg_dir/${LIBDIR}/ubse/libhcom.so"
-            install -Dm755 "$STAGING/${LIBDIR}/ubse/libsecurec.so" "$pkg_dir/${LIBDIR}/ubse/libsecurec.so"
+            install -Dm755 "$STAGING/${LIBDIR}/ubse/libhcom.so.0" "$pkg_dir/${LIBDIR}/ubse/libhcom.so.0"
+            install -Dm755 "$STAGING/${LIBDIR}/ubse/libhcom.so.0.0.1" "$pkg_dir/${LIBDIR}/ubse/libhcom.so.0.0.1"
             ;;
 
         ubs-engine-client-libs)

@@ -2,6 +2,6 @@ Package: ubs-engine
 Version: 1.0.0-1
 Architecture: arm64
 Maintainer: UB System Software
-Depends: libc6 (>= 2.31), libstdc++6, systemd, adduser
+Depends: libc6 (>= 2.31), libstdc++6, systemd, adduser, libxml2, libssl3, libboundscheck
 Description: UBS Engine runtime daemon and CLI tools
  UBSE service daemon, CLI (ubse, ubsectl), systemd unit, and internal libraries.

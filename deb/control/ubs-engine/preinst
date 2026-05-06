@@ -79,3 +79,9 @@ if systemctl cat ubse.service >/dev/null 2>&1; then
 fi
 
 create_user
+
+if getent group "ubm_nuds" > /dev/null; then
+    sudo usermod -aG ubm_nuds ubse
+else
+    echo "[WARN] Group 'ubm_nuds' not found. User 'ubse' was not added to this group. If UBM is required, please install the corresponding package and run: usermod -aG ubm_nuds ubse"
+fi

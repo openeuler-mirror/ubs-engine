@@ -20,8 +20,4 @@ if [ "$1" = "remove" ]; then
 
     restore_udev_rule
 
-    # 清理软链接（只删我们创建的）
-    if [ -L /usr/local/softbus/ctrlbus/lib/librack_com.so ]; then
-        rm -f /usr/local/softbus/ctrlbus/lib/librack_com.so
-    fi
 fi

@@ -13,9 +13,8 @@ remove_directory() {
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
     deleted_semaphore
     remove_directory /var/log/ubse
-    remove_directory /etc/ubse/certs
+    remove_directory /var/lib/ubse/cert
     remove_directory /run/ubse
-    remove_directory /var/lib/ubse/sync
 
     # 删除用户/组（谨慎：只在 purge 时删？但 RPM 是卸载就删，这里保持一致）
     if id "ubse" &>/dev/null; then

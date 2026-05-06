@@ -6,7 +6,7 @@ find_path(LIBBOUNDCHECK_INCLUDE_DIR
 
 find_library(LIBBOUNDCHECK_SHARED_LIBRARY
         NAMES libboundscheck.so boundscheck
-        PATHS /usr/lib64 /usr/lib
+        PATHS /usr/lib64 /usr/lib /usr/lib/aarch64-linux-gnu
         NO_DEFAULT_PATH
 )
 
