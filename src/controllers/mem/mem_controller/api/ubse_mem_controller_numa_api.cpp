@@ -340,7 +340,7 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp
     }
     auto errCode = CheckNumaResourceState(name, importNodeId);
     if (errCode != UBSE_ERR_NOT_EXIST) {
-        BorrowFailedAdvice("Borrow Schedule failed", name, "APP_NUMA_BORROW", req.size, "", requestNodeId, errCode,
+        BorrowFailedAdvice(ProcessType::BORROW_FAILED, name, "APP_NUMA_BORROW", req.size, "", requestNodeId, errCode,
                            MemAdvice::RESOURCE_EXIST);
         return BuildOperationRespWhenFail(resp, name, requestNodeId, "Resource Exist.", errCode);
     }
@@ -355,7 +355,7 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp
     if (ret != UBSE_OK || importObj.algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << "[MMC] Failed to allocate, name=" << importObj.req.name << ", requestNodeId="
                        << importObj.req.requestNodeId << ", " << FormatRetCode(ret) << ", requestId=" << req.requestId;
-        BorrowFailedAdvice("Borrow Schedule failed", name, "APP_NUMA_BORROW", req.size, "", requestNodeId,
+        BorrowFailedAdvice(ProcessType::BORROW_FAILED, name, "APP_NUMA_BORROW", req.size, "", requestNodeId,
                            UBSE_ERR_ALLOCATE, MemAdvice::SCHEDULE_FAILED);
         return BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
                                           ubse::adapter_plugins::mmi::MemOperationType::NUMA_BORROW);
@@ -370,7 +370,7 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp
     UpdateNumaMemDebtInfoMap(importObj, exportObj, name);
     if (const auto res = SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
         res != UBSE_OK) {
-        BorrowFailedAdvice("Borrow Schedule failed", name, "APP_NUMA_BORROW", req.size,
+        BorrowFailedAdvice(ProcessType::BORROW_FAILED, name, "APP_NUMA_BORROW", req.size,
                            importObj.algoResult.exportNumaInfos[0].nodeId, requestNodeId, ret, MemAdvice::COMM_FAILED);
         return HandleSendNumaExportError(resp, req, importObj, exportObj);
     }
@@ -422,7 +422,7 @@ uint32_t SendNumaExport(const UbseMemNumaBorrowExportObj &exportObj, const std::
 {
     auto res = SendNumaExportObj(exportObj, false);
     if (res != UBSE_OK) {
-        std::string prefixStr = unexport ? "UnExport failed" : "Export failed";
+        auto prefixStr = unexport ? ProcessType::UNEXPORT_FAILED : ProcessType::EXPORT_FAILED;
         BorrowFailedAdvice(prefixStr, name, "APP_NUMA_BORROW", exportObj.req.size, exportNodeId,
                            exportObj.req.importNodeId, res, MemAdvice::COMM_FAILED);
     }
@@ -445,7 +445,7 @@ uint32_t NumaExportRunningCallback(UbseMemOperationResp &resp, UbseMemNumaBorrow
     if (auto ret = UbseMmiInterface::GetInstance().NumaExportExecutor(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to export, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << exportObj.req.requestId;
-        BorrowFailedAdvice("Export failed", name, "APP_NUMA_BORROW", exportObj.req.size, exportNodeId,
+        BorrowFailedAdvice(ProcessType::EXPORT_FAILED, name, "APP_NUMA_BORROW", exportObj.req.size, exportNodeId,
                            exportObj.req.importNodeId, ret, MemAdvice::OBMM_FAILED);
         exportObj.errorCode = ret;
         // 导出失败，从节点不做存储操作，返回通知主节点。
@@ -494,8 +494,8 @@ uint32_t NumaExportDestroyingCallback(UbseMemOperationResp &resp, UbseMemNumaBor
     NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_DESTROYING);
     if (auto ret = UbseMmiInterface::GetInstance().NumaUnExportExecutor(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to unexport name=" << name << ", requestId=" << exportObj.req.requestId;
-        BorrowFailedAdvice("UnExport failed", name, "APP_NUMA_BORROW", exportObj.req.size, exportNodeId, requestNodeId,
-                           ret, MemAdvice::OBMM_FAILED);
+        BorrowFailedAdvice(ProcessType::UNEXPORT_FAILED, name, "APP_NUMA_BORROW", exportObj.req.size, exportNodeId,
+                           requestNodeId, ret, MemAdvice::OBMM_FAILED);
         exportObj.errorCode = ret;
         NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
         // 返回主节点 更新
@@ -649,7 +649,7 @@ uint32_t NumaExportExpectSuccessMasterCallback(UbseMemOperationResp &resp, UbseM
         UbseMemNumaExportObjStateChangeHandler(exportObj);
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
         if (ret = SendNumaImportObj(importObj, true, importNodeId); ret != UBSE_OK) {
-            BorrowFailedAdvice("Borrow Schedule failed", name, "APP_NUMA_BORROW", importObj.req.size, exportNodeId,
+            BorrowFailedAdvice(ProcessType::BORROW_FAILED, name, "APP_NUMA_BORROW", importObj.req.size, exportNodeId,
                                importNodeId, ret, MemAdvice::COMM_FAILED);
             UBSE_LOG_ERROR << "Failed to send numa import, name=" << name
                            << ", requestId=" << exportObj.req.requestId;
@@ -798,7 +798,7 @@ uint32_t SendNumaImport(const UbseMemNumaBorrowImportObj &importObj, const std::
 {
     auto res = SendNumaImportObj(importObj, false);
     if (res != UBSE_OK) {
-        std::string prefixStr = unimport ? "UnImport failed" : "Import failed";
+        auto prefixStr = unimport ? ProcessType::UNIMPORT_FAILED : ProcessType::IMPORT_FAILED;
         BorrowFailedAdvice(prefixStr, name, "APP_NUMA_BORROW", importObj.req.size,
                            importObj.algoResult.exportNumaInfos[0].nodeId, requestNodeId, res, MemAdvice::COMM_FAILED);
     }
@@ -818,7 +818,7 @@ uint32_t NumaImportRunningAgentCallback(UbseMemOperationResp &resp, UbseMemNumaB
     if (res != UBSE_OK) {
         importObj.errorCode = res;
         importObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
-        BorrowFailedAdvice("Import failed", name, "APP_NUMA_BORROW", importObj.req.size,
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, name, "APP_NUMA_BORROW", importObj.req.size,
                            importObj.algoResult.exportNumaInfos[0].nodeId, importObj.req.importNodeId,
                            res, MemAdvice::OBMM_FAILED);
     } else {
@@ -868,7 +868,7 @@ uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemNu
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
         UBSE_LOG_ERROR << "NumaUnImport Failed, Failed count:" << ++g_numaUnimportFailedCount << ". advice: Caller should clear memory and retry. "
                        << "If failures persist, migrate the workload and restart the host.";
-        BorrowFailedAdvice("UnImport failed", name, "APP_NUMA_BORROW", importObj.req.size,
+        BorrowFailedAdvice(ProcessType::UNIMPORT_FAILED, name, "APP_NUMA_BORROW", importObj.req.size,
                            importObj.algoResult.exportNumaInfos[0].nodeId, requestNodeId, res, MemAdvice::OBMM_FAILED);
     } else {
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
@@ -964,7 +964,7 @@ static uint32_t HandleSingleImportDeletion(UbseMemOperationResp &resp, const std
 
     uint32_t ret;
     if (ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::NUMA_RETURN); ret != UBSE_OK) {
-        BorrowFailedAdvice("Return Schedule failed", name, "APP_NUMA_BORROW", 0, "", req.importNodeId, ret,
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, name, "APP_NUMA_BORROW", 0, "", req.importNodeId, ret,
                            MemAdvice::COMM_FAILED);
     }
     return ret;
@@ -988,7 +988,7 @@ static uint32_t HandleImportDestroyedSuccess(UbseMemOperationResp &resp, const s
     UbseMemNumaImportObjStateChangeHandler(importObj);
 
     if (auto waitResult = WaitNodeStateWork(exportNodeId); waitResult != UBSE_OK) {
-        BorrowFailedAdvice("Return Schedule failed", name, "APP_NUMA_BORROW", 0, exportNodeId, importNodeId,
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, name, "APP_NUMA_BORROW", 0, exportNodeId, importNodeId,
                            waitResult, MemAdvice::NODE_IN_MAINTENANCE);
         return BuildOperationRespWhenFail(resp, name, importObj.returnReq.requestNodeId, "exportNode is not working.",
                                           UBSE_ERR_UNIMPORT_SUCCESS, MemOperationType::NUMA_RETURN);
@@ -1007,7 +1007,7 @@ static uint32_t HandleImportDestroyedSuccess(UbseMemOperationResp &resp, const s
         UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(exportNodeId, exportKey,
                                                                                               exportObj);
         if (auto ret = SendNumaExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
-            BorrowFailedAdvice("Return Schedule failed", name, "APP_NUMA_BORROW", 0, exportNodeId, importNodeId, ret,
+            BorrowFailedAdvice(ProcessType::RETURN_FAILED, name, "APP_NUMA_BORROW", 0, exportNodeId, importNodeId, ret,
                                MemAdvice::COMM_FAILED);
             return DealSendNumaUnExportObjFailed(resp, name, exportObj);
         }
@@ -1148,8 +1148,8 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
                          UbseMemNumaBorrowExportObj &exportObj, UbseMemNumaBorrowImportObj &importObj)
 {
     if (auto waitResult = WaitNodeStateWork(req.importNodeId); waitResult != UBSE_OK) {
-        BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, waitResult,
-                           MemAdvice::NODE_IN_MAINTENANCE);
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
+                           waitResult, MemAdvice::NODE_IN_MAINTENANCE);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,
                                    MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
@@ -1157,7 +1157,7 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
     auto [importObjPtr, exportObjPtr] =
         FindBorrowObjPair<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>(req.name, req.importNodeId);
     if (!importObjPtr && !exportObjPtr) {
-        BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource not found.", UBSE_ERR_NOT_EXIST,
                                    MemOperationType::NUMA_RETURN);
@@ -1172,7 +1172,7 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
     if (memStage == UbseMemStage::UBSE_CREATING || memStage == UbseMemStage::UBSE_DELETING) {
         UBSE_LOG_INFO << "resource is being borrowed or returned, name=" << req.name;
         auto ret = (memStage == UbseMemStage::UBSE_CREATING) ? UBSE_ERR_CREATING : UBSE_ERR_DELETING;
-        BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, ret,
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, ret,
                            MemAdvice::RESOURCE_OPERATION_CONFLICT);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource being borrowed or returned", ret,
                                    MemOperationType::NUMA_RETURN);
@@ -1205,7 +1205,7 @@ uint32_t UbseMemNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
                        << ", current req username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
                        << ", realRequestNodeId=" << realRequestNodeId << ", importNodeId=" << importNodeId
                        << ", exportNodeId=" << exportNodeId;
-        BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_AUTH_FAILED, MemAdvice::UBSE_NO_OPERATION_PERMISSION);
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Error auth", UBSE_ERR_AUTH_FAILED,
                                           MemOperationType::NUMA_RETURN);
@@ -1214,13 +1214,13 @@ uint32_t UbseMemNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
     importObj.returnReq = req;
     if (!status.hasImport) {
         if (auto ret = HandleSingleExportReturn(req, resp, exportObj); ret != UBSE_OK) {
-            BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
+            BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                                ret, MemAdvice::COMM_FAILED);
             return ret;
         }
     }
     if (auto ret = NumaReturnExistImport(importObj, status.hasExport, exportObj, req, resp); ret != UBSE_OK) {
-        BorrowFailedAdvice("Return Schedule failed", req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            ret, MemAdvice::COMM_FAILED);
         return ret;
     }
