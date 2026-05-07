@@ -212,9 +212,9 @@ struct UbseMemLenderLinkInfo {
 struct UbseMemLenderInfo {
     uint64_t lender_size; // 借出内存大小, 单位Byte, 取值范围大于等于4*1024*1024
     std::string nodeId;   // 节点唯一标识, 采用slotid, 与lcne保持一致
-    uint32_t socketId;    // socket id
-    uint32_t numaId;      // 节点中的numa id
-    uint32_t portId;      // 指定链路借用
+    uint32_t socketId{UINT32_MAX};    // socket id, UINT32_MAX表示无效值
+    uint32_t numaId{UINT32_MAX};      // 节点中的numa id, UINT32_MAX表示无效值
+    uint32_t portId{UINT32_MAX};      // 指定链路借用, UINT32_MAX表示无效值
 };
 
 struct UbseMemShmAffinitySocketInfo {
