@@ -16,6 +16,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
 
 #include "src/framework/ipc/client/ubse_uds_client.h"
@@ -27,20 +28,28 @@
 #include "ubse_ipc_common.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_ut_dir.h"
 
 namespace ubse::ut::ipc {
-const std::string SOCKET_PATH = std::string(UT_DIRECTORY) + "ubse.sock";
-const uint32_t TIMEOUT = 5;
+using namespace ubse::security;
+
+// 使用 /tmp 短路径，避免 Jenkins 工作目录路径过长导致 socket path 超过 sun_path 限制 (107 字节)
+static std::string GetSocketPath()
+{
+    return "/tmp/ubse_uds_" + std::to_string(getpid()) + ".sock";
+}
+
+const uint32_t TIMEOUT = 5; // 超时时间，单位秒
+
 TestUbseUdsServer::TestUbseUdsServer() = default;
 void TestUbseUdsServer::SetUp()
 {
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::task_executor::UbseTaskExecutorModule)] =
         std::make_shared<ubse::task_executor::UbseTaskExecutorModule>();
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::security::UbseSecurityModule)] =
         std::make_shared<ubse::security::UbseSecurityModule>();
     UbseUDSConfig udsConfig{
-        .socketPath = SOCKET_PATH
+        .socketPath = GetSocketPath()
     };
     server = std::make_unique<UbseUDSServer>(udsConfig);
     Test::SetUp();
@@ -49,6 +58,7 @@ void TestUbseUdsServer::SetUp()
 void TestUbseUdsServer::TearDown()
 {
     server->Stop();
+    unlink(GetSocketPath().c_str());
     context::UbseContext::GetInstance().moduleMap_.clear();
     GlobalMockObject::verify();
     Test::TearDown();
@@ -56,7 +66,6 @@ void TestUbseUdsServer::TearDown()
 
 TEST_F(TestUbseUdsServer, StartSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
 }
@@ -100,25 +109,20 @@ TEST_F(TestUbseUdsServer, StartWhenChmodFailed)
     MOCKER(chmod).stubs().will(returnValue(-1));
     EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running_);
-    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
+    server->Stop(); // 清理状态
+    MOCKER(chmod).reset();
 }
 
 // 测试Start方法在配置权限失败时的行为
 TEST_F(TestUbseUdsServer, StartWhenModifyEffectiveCapabilitiesFailed)
 {
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).reset();
     MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities)
         .stubs()
         .will(returnValue(UBSE_ERROR));
     EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
+    server->Stop(); // 清理状态，确保后续测试安全
 }
 
 // 测试Start方法在listen失败时的行为
@@ -148,10 +152,9 @@ TEST_F(TestUbseUdsServer, StartWhenEpollCtlFailed)
 // 测试新连接成功
 TEST_F(TestUbseUdsServer, HandleNewConnectionSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     udsClient.Disconnect();
 }
@@ -159,13 +162,12 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionSuccess)
 // 测试建链超过最大连接数失败
 TEST_F(TestUbseUdsServer, HandleNewConnectionWhenMaxConnections)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     server->globalTransient_ = server->config_.maxTransientConnections;
     server->globalPersistent_ = server->config_.maxPersistentConnections;
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -176,12 +178,11 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenMaxConnections)
 // 测试建链getSockOpt失败
 TEST_F(TestUbseUdsServer, HandleNewConnectionWhenGetsockoptFailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     MOCKER(getsockopt).stubs().will(returnValue(-1));
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -192,12 +193,11 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenGetsockoptFailed)
 // 测试建链epoll_ctl失败
 TEST_F(TestUbseUdsServer, HandleNewConnectionWhenEpollCtlFailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     MOCKER(epoll_ctl).stubs().will(returnValue(-1));
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -208,12 +208,11 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenEpollCtlFailed)
 // 测试处理请求没有handler
 TEST_F(TestUbseUdsServer, HandlerRequestWhenNoHandler)
 {
-    GTEST_SKIP();
     server->requestHandler_ = nullptr;
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
     UbseResponseMessage responseMessage{};
@@ -225,12 +224,11 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenNoHandler)
 // 测试处理请求存在handler
 TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerExist)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     server->RegisterHandler([](const UbseRequestMessage &, const UbseRequestContext &) {});
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     uint32_t len = 10;
     auto *data = new uint8_t[len];
@@ -244,12 +242,11 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerExist)
 // 测试处理请求时抛出异常
 TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerException)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     server->RegisterHandler([](const UbseRequestMessage &, const UbseRequestContext &) { std::stoul("a"); });
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{ GetSocketPath() };
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     uint32_t len = 10;
     auto *data = new uint8_t[len];
