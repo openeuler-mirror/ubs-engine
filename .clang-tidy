@@ -78,8 +78,7 @@ Checks:
   - readability-redundant-string-init        # 冗余字符串初始化(如string s = "")
 
 # 错误级别警告：use-after-move必须修复
-WarningsAsErrors:
-  - bugprone-use-after-move
+WarningsAsErrors: 'bugprone-use-after-move'
 
 CheckOptions:
   # --- bugprone 选项 ---

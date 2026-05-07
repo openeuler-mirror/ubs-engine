@@ -14,6 +14,7 @@
 #ifndef VM_DEF_H
 #define VM_DEF_H
 
+#include <cstdint>
 
 namespace vm {
 constexpr uint32_t VM_MODIFY_HUGEPAGE_ID = 11; // VM Hugepage Server ID Change

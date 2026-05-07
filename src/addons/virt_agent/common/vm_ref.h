@@ -14,6 +14,9 @@
 #ifndef VM_REF_H
 #define VM_REF_H
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
 
 namespace vm {
 class Referable {

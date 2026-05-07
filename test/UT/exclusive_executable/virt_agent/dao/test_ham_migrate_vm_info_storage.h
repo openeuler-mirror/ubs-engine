@@ -6,7 +6,6 @@
 
 #include "gtest/gtest.h"
 
-using namespace vm;
 namespace ubse::ut::vm {
 class TestHamMigrateVmInfoStorage : public testing::Test {
 public:

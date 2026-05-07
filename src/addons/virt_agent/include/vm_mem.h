@@ -14,6 +14,7 @@
 #define VM_MEM_H
 
 #include <sstream>
+#include <vector>
 
 namespace vm {
 using NodeLocInfo = struct TagUbseNodeLocInfo {
