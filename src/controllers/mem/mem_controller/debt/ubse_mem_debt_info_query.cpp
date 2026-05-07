@@ -305,8 +305,7 @@ static bool HasFaultPort(const std::shared_ptr<const ImportObjType> &importObjPt
 
 template <typename ImportObjType, typename HandleInfoVec>
 static UbseResult CollectPortFaultHandleInfo(const std::string &nodeId, const std::string &chipId,
-                                       const std::set<std::string> &portList, HandleInfoVec &importHandInfo,
-                                       const std::string &typeStr)
+    const std::set<std::string> &portList, HandleInfoVec &importHandleInfo, const std::string &typeStr)
 {
     uint32_t targetChipId = 0;
     if (ConvertStrToUint32(chipId, targetChipId) != UBSE_OK) {
@@ -335,7 +334,7 @@ static UbseResult CollectPortFaultHandleInfo(const std::string &nodeId, const st
         if (HasFaultPort<ImportObjType>(importObjPtr, targetChipId, portList)) {
             typename HandleInfoVec::value_type info;
             FillHandleInfoFromImportObj(name, importObjPtr, info);
-            importHandInfo.push_back(std::move(info));
+            importHandleInfo.push_back(std::move(info));
         }
     }
     return UBSE_OK;
@@ -349,7 +348,8 @@ UbseResult UbseQuerySharePortFaultHandleInfo(const std::string &nodeId, const st
         UBSE_LOG_WARN << "[MEM_CONTROLLER] nodeId or chipId is empty";
         return UBSE_ERROR_INVAL;
     }
-    if (auto ret = CollectPortFaultHandleInfo<UbseMemShareBorrowImportObj>(nodeId, chipId, portList, importHandInfo, "share");
+    if (auto ret =
+            CollectPortFaultHandleInfo<UbseMemShareBorrowImportObj>(nodeId, chipId, portList, importHandInfo, "share");
         ret != UBSE_OK) {
         return ret;
     }
@@ -383,7 +383,8 @@ UbseResult UbseQueryNumaPortFaultHandleInfo(const std::string &nodeId, const std
         UBSE_LOG_WARN << "[MEM_CONTROLLER] nodeId or chipId is empty";
         return UBSE_ERROR_INVAL;
     }
-    if (auto ret = CollectPortFaultHandleInfo<UbseMemNumaBorrowImportObj>(nodeId, chipId, portList, importHandInfo, "numa");
+    if (auto ret =
+            CollectPortFaultHandleInfo<UbseMemNumaBorrowImportObj>(nodeId, chipId, portList, importHandInfo, "numa");
         ret != UBSE_OK) {
         return ret;
     }
