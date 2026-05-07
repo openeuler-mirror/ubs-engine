@@ -40,61 +40,6 @@ static std::string GetSocketPath()
 
 const uint32_t TIMEOUT = 5; // 超时时间，单位秒
 
-namespace {
-bool g_serverCallbackCalled = false;
-bool g_serverFreeFuncPresent = false;
-uint8_t g_serverFirstByte = 0;
-
-uint32_t MockRecvRespHeaderFailThenStop(int, void *buffer, uint32_t length, int)
-{
-    static bool firstCall = true;
-    if (firstCall) {
-        firstCall = false;
-        auto *header = static_cast<UbseResponseHeader *>(buffer);
-        header->bodyLen = 4;
-        header->clientRequestId = 1;
-        return UBSE_OK;
-    }
-    firstCall = true;
-    return UBSE_IPC_ERROR_RECV_FAILED;
-}
-
-uint32_t MockRecvResponseHeaderWithBody(int, void *buffer, uint32_t length, int)
-{
-    if (length == sizeof(UbseResponseHeader)) {
-        auto *header = static_cast<UbseResponseHeader *>(buffer);
-        header->statusCode = UBSE_OK;
-        header->bodyLen = 4;
-        header->clientRequestId = 88;
-    } else if (length == 4) {
-        auto *body = static_cast<uint8_t *>(buffer);
-        body[0] = 1;
-        body[1] = 2;
-        body[2] = 3;
-        body[3] = 4;
-    }
-    return UBSE_OK;
-}
-
-uint32_t MockRecvOversizedResponseHeader(int, void *buffer, uint32_t length, int)
-{
-    auto *header = static_cast<UbseResponseHeader *>(buffer);
-    header->bodyLen = UBSE_MESSAGE_SIZE + 1;
-    header->clientRequestId = 1;
-    return UBSE_OK;
-}
-
-void MockServerAsyncCallback(void *, const UbseResponseMessage &response)
-{
-    g_serverCallbackCalled = true;
-    g_serverFreeFuncPresent = response.freeFunc != nullptr;
-    g_serverFirstByte = response.body == nullptr ? 0 : response.body[0];
-    if (response.freeFunc != nullptr && response.body != nullptr) {
-        response.freeFunc(response.body);
-    }
-}
-} // namespace
-
 TestUbseUdsServer::TestUbseUdsServer() = default;
 void TestUbseUdsServer::SetUp()
 {
