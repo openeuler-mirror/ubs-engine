@@ -165,11 +165,13 @@ TEST_F(TestUbseUdsServer, StartWhenChmodFailed)
     EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running_);
     server->Stop(); // 清理状态
+    MOCKER(chmod).reset();
 }
 
 // 测试Start方法在配置权限失败时的行为
 TEST_F(TestUbseUdsServer, StartWhenModifyEffectiveCapabilitiesFailed)
 {
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).reset();
     MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities)
         .stubs()
         .will(returnValue(UBSE_ERROR));
