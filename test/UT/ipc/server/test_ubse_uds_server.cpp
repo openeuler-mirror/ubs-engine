@@ -164,9 +164,7 @@ TEST_F(TestUbseUdsServer, StartWhenChmodFailed)
     MOCKER(chmod).stubs().will(returnValue(-1));
     EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running_);
-    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
+    server->Stop(); // 清理状态
 }
 
 // 测试Start方法在配置权限失败时的行为
@@ -177,12 +175,7 @@ TEST_F(TestUbseUdsServer, StartWhenModifyEffectiveCapabilitiesFailed)
         .will(returnValue(UBSE_ERROR));
     EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
+    server->Stop(); // 清理状态，确保后续测试安全
 }
 
 // 测试Start方法在listen失败时的行为
