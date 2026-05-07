@@ -415,4 +415,153 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_2)
     EXPECT_EQ(ret, MEM_POOLING_ERROR); // state: running
 }
 
+MpResult BorrowIdsCompletedQueryMockOne(BorrowIdsCompleted *, std::vector<std::string> &list)
+{
+    list.push_back("borrow_001");
+    return MEM_POOLING_OK;
+}
+
+MpResult BorrowIdsCompletedQueryMockTwo(BorrowIdsCompleted *, std::vector<std::string> &list)
+{
+    list.push_back("borrow_001");
+    list.push_back("borrow_002");
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestMemBorrowExecutor, MemBorrow_GenerateUniqueIdFailed)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
+               MpResult(*)(MemBorrowExecutor *, const std::string &, std::string &, const bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    std::string attachNode = "1";
+    RackCreateResourceWaterBorrowAttr attr;
+    attr.waterMallocAttr.lenderLocs = {RackMemNumaLoc{.nodeId = "2", .socketId = 0, .numaId = 0}};
+    attr.waterMallocAttr.lenderSizes = {1024 * 1024};
+    attr.waterMallocAttr.srcSocket = 0;
+    attr.waterMallocAttr.srcNuma = 0;
+    attr.waterMallocAttr.uid = getuid();
+    attr.waterMallocAttr.username = "admin";
+    std::string name;
+    int16_t presentNumaId = 0;
+    auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestMemBorrowExecutor, MemBorrow_PrepareMemNumaCreateParamsFailed)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
+               MpResult(*)(MemBorrowExecutor *, const std::string &, std::string &, const bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    std::string attachNode = "1";
+    RackCreateResourceWaterBorrowAttr attr;
+    attr.waterMallocAttr.lenderLocs = {RackMemNumaLoc{.nodeId = "2", .socketId = 0, .numaId = 0}};
+    attr.waterMallocAttr.lenderSizes = {1024 * 1024, 2048 * 1024};
+    attr.waterMallocAttr.srcSocket = 0;
+    attr.waterMallocAttr.srcNuma = 0;
+    attr.waterMallocAttr.uid = getuid();
+    attr.waterMallocAttr.username = "admin";
+    std::string name;
+    int16_t presentNumaId = 0;
+    auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestMemBorrowExecutor, MemBorrow_UbseMemNumaCreateFailed)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
+               MpResult(*)(MemBorrowExecutor *, const std::string &, std::string &, const bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Update, MpResult(*)(const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&UbseMemNumaCreateWithLender,
+               UbseResult(*)(const std::string &, const UbseMemBorrower &, const std::vector<UbseMemNumaLender> &,
+                            const uint8_t *, UbseMemNumaDesc &))
+        .stubs()
+        .will(returnValue(UBSE_ERR_INTERNAL));
+    std::string attachNode = "1";
+    RackCreateResourceWaterBorrowAttr attr;
+    attr.waterMallocAttr.lenderLocs = {RackMemNumaLoc{.nodeId = "2", .socketId = 0, .numaId = 0}};
+    attr.waterMallocAttr.lenderSizes = {1024 * 1024};
+    attr.waterMallocAttr.srcSocket = 0;
+    attr.waterMallocAttr.srcNuma = 0;
+    attr.waterMallocAttr.uid = getuid();
+    attr.waterMallocAttr.username = "admin";
+    std::string name;
+    int16_t presentNumaId = 0;
+    auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_QueryFailed)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string> &))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_EmptyList)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string> &))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_MemFreeFailed)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string> &))
+        .stubs()
+        .will(invoke(BorrowIdsCompletedQueryMockOne));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor *, const std::string &, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_RemoveFailed)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string> &))
+        .stubs()
+        .will(invoke(BorrowIdsCompletedQueryMockOne));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor *, const std::string &, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult(*)(const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_Success)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string> &))
+        .stubs()
+        .will(invoke(BorrowIdsCompletedQueryMockTwo));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor *, const std::string &, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult(*)(const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
 } // namespace mempooling
