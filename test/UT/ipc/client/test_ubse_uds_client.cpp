@@ -152,6 +152,9 @@ void TestUbseUdsClient::SetUp()
 void TestUbseUdsClient::TearDown()
 {
     client.reset();
+    GlobalMockObject::reset((void*)SendMsg);
+    GlobalMockObject::reset((void*)RecvMsg);
+    GlobalMockObject::reset((void*)SerializeRequestMessage);
     GlobalMockObject::verify();
     Test::TearDown();
 }
