@@ -82,7 +82,6 @@ TEST_F(TestUbseIpcServer, RegisterHandler)
 // 测试处理没有注册回调的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenNotRegInterface)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     sleep(1);
     uint32_t len = 10;
@@ -99,7 +98,6 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenNotRegInterface)
 // 测试回调处理失败的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerFailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(server->RegisterHandler(1, 1,
         [](const UbseIpcMessage &, const UbseRequestContext &) {return UBSE_ERR_DAEMON_UNREACHABLE;}),
@@ -119,7 +117,6 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerFailed)
 // 测试请求数据异常的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenRequestDataInvailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(server->RegisterHandler(1, 1,
         [](const UbseIpcMessage &, const UbseRequestContext &) {return UBSE_ERR_DAEMON_UNREACHABLE;}),
@@ -147,7 +144,6 @@ TEST_F(TestUbseIpcServer, SendResponse)
 // 测试最大消息传输
 TEST_F(TestUbseIpcServer, HandlerRequestWhenBigMessage)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(server->RegisterHandler(1, 1,
         [this](const UbseIpcMessage &, const UbseRequestContext &ctx) {
@@ -175,7 +171,6 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenBigMessage)
 // 测试回调处理成功的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(server->RegisterHandler(1, 1,
         [this](const UbseIpcMessage &, const UbseRequestContext &ctx) {
@@ -202,7 +197,6 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerSuccess)
 
 TEST_F(TestUbseIpcServer, AsyncSendLongLinkSuccess)
 {
-    GTEST_SKIP();
     UbseShmFault shmFault{
         .shmName = "name",
         .memId = 1,
@@ -238,7 +232,6 @@ TEST_F(TestUbseIpcServer, AsyncSendLongLinkSuccess)
 
 TEST_F(TestUbseIpcServer, AsyncSendLongLink_WhenClientDestory)
 {
-    GTEST_SKIP();
     UbseShmFault shmFault{
         .shmName = "name",
         .memId = 1,
