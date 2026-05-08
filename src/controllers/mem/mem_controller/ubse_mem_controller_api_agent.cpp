@@ -461,7 +461,7 @@ uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
-        BorrowFailedAdvice("Import failed", req.name, "WATER_BORROW", req.size, "", req.requestNodeId, ret,
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "WATER_BORROW", req.size, "", req.requestNodeId, ret,
                            MemAdvice::COMM_FAILED);
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
         return ret;
@@ -473,8 +473,8 @@ uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice("Import failed", req.name, "WATER_BORROW", req.size, "", req.requestNodeId, UBSE_ERR_TIMEOUT,
-                           MemAdvice::TIME_OUT);
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "WATER_BORROW", req.size, "", req.requestNodeId,
+                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::FD_RETURN);
         return UBSE_ERROR;
     }
@@ -539,8 +539,8 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId, ret,
-                           MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId,
+                           ret, MemAdvice::COMM_FAILED);
         return ret;
     }
     UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
@@ -550,7 +550,7 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId,
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId,
                            UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
@@ -633,7 +633,7 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice("Import failed", req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId, ret,
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId, ret,
                            MemAdvice::COMM_FAILED);
         return ret;
     }
@@ -643,7 +643,7 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice("Import failed", req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId,
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId,
                            UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::ADDR_RETURN);
         return UBSE_ERROR;
@@ -707,7 +707,8 @@ uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &re
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice("Export failed", req.name, "SHARE_BORROW", req.size, "", "", ret, MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice(ProcessType::EXPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", "",
+                           ret, MemAdvice::COMM_FAILED);
         return ret;
     }
     UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
@@ -716,7 +717,7 @@ uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &re
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice("Export failed", req.name, "SHARE_BORROW", req.size, "", "", UBSE_ERR_TIMEOUT,
+        BorrowFailedAdvice(ProcessType::EXPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", "", UBSE_ERR_TIMEOUT,
                            MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, "", MemOperationType::SHARED_RETURN);
         return UBSE_ERROR;
@@ -771,7 +772,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice("Import failed", req.name, "SHARE_BORROW", req.size, "", req.requestNodeId, ret,
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", req.requestNodeId, ret,
                            MemAdvice::COMM_FAILED);
         return ret;
     }
@@ -781,8 +782,8 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice("Import failed", req.name, "SHARE_BORROW", req.size, "", req.requestNodeId, UBSE_ERR_TIMEOUT,
-                           MemAdvice::TIME_OUT);
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", req.requestNodeId,
+                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::SHARED_RETURN);
         return UBSE_ERROR;
     }

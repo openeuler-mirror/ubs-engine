@@ -17,6 +17,15 @@
 #include <cstdint>
 
 namespace ubse::mem::controller {
+enum class ProcessType {
+    BORROW_FAILED = 0,
+    IMPORT_FAILED = 1,
+    EXPORT_FAILED = 2,
+    RETURN_FAILED = 3,
+    UNIMPORT_FAILED = 4,
+    UNEXPORT_FAILED = 5,
+};
+
 enum class MemAdvice {
     INTERNAL_FAILED = 0,
     CHECK_FAILED = 1,
@@ -31,7 +40,7 @@ enum class MemAdvice {
     UBSE_NO_OPERATION_PERMISSION = 10,
 };
 
-void BorrowFailedAdvice(std::string prefix, std::string name, std::string borrowType, size_t size,
+void BorrowFailedAdvice(ProcessType processType, std::string name, std::string borrowType, size_t size,
                         std::string exportNode, std::string importNode, uint32_t errorCode, MemAdvice advice);
 } // namespace ubse::mem::controller
 
