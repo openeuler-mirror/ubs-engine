@@ -331,7 +331,7 @@ uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::str
         return ret;
     }
     uint32_t dcna = cnaOutput.exportNodeCna;
-    std::string borrowPortId{};
+    std::string borrowPortId = cnaOutput.portGroupId;
     GetDcnaWhenSpecifylink(cnaInput, cnaOutput, dcna, importObj, borrowPortId);
     for (auto &newObmmDesc : importObj.exportObmmInfo) {
         // mar_id为port_id除4。port 0-3对应mar_id 0，port 4-7对应mar_id 1, port 8对应mar_id 2
