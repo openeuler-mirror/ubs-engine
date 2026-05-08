@@ -14,8 +14,8 @@
 #ifndef VM_CONTAINER_SERVICE_H
 #define VM_CONTAINER_SERVICE_H
 
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "vm_mem_manager.h"
 

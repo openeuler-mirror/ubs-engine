@@ -14,14 +14,17 @@
 #include "case_conf.h"
 
 #include <string>
-#include <securec.h>                 // for memcpy_s, EOK, errno_t
+
+#include <securec.h> // for memcpy_s, EOK, errno_t
+
 #include <ubse_storage.h>
+
+#include "rack_vm_plugin.h"
 #include "mempooling_module.h"
-#include "vm_configuration.h"
 #include "pointer_process.h"
+#include "vm_configuration.h"
 #include "vm_json_util.h"
 #include "vm_string_util.h"
-#include "rack_vm_plugin.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -360,4 +363,4 @@ bool CaseConfParam::FromJson(const std::string &jsonString)
     this->overCommitmentRatio = tmpCommitmentRatio;
     return true;
 }
-}
+} // namespace vm

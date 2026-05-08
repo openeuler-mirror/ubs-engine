@@ -16,8 +16,8 @@
 
 #include <cmath>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace vm {
 class VmStringUtil {
@@ -36,9 +36,10 @@ public:
     static uint64_t SafeNotEmptyStoull(const std::string &str);
     static pid_t SafeNotEmptyStopid(const std::string &str);
     static void StrSplit(const std::string &src, const std::string &sep, std::vector<std::string> &out);
+
 private:
     static std::unordered_map<std::string, uint64_t> unitMap;
 };
-}
+} // namespace vm
 
 #endif // VM_STRING_UTIL_H

@@ -16,9 +16,9 @@
 
 #include <ubse_api_server_def.h>
 
-#include "vm_error.h"
 #include "case_conf.h"
 #include "case_conf_msg.h"
+#include "vm_error.h"
 
 namespace vm {
 using namespace api::server;

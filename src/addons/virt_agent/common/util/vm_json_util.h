@@ -14,9 +14,10 @@
 #ifndef VM_JSON_UTIL_H
 #define VM_JSON_UTIL_H
 
-#include <string>
 #include <map>
+#include <string>
 #include <vector>
+
 #include <rapidjson/document.h>
 
 #include "vm_error.h"

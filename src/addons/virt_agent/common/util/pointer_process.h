@@ -17,19 +17,21 @@
 #include <cstddef>
 
 namespace vm {
-template <typename T> void SafeDeleteArray(T *&ptr)
+template <typename T>
+void SafeDeleteArray(T *&ptr)
 {
     if (ptr) {
         delete[] ptr;
         ptr = nullptr;
     }
 }
-template <typename T> void SafeDeleteArray(T *&ptr, size_t ptrLen)
+template <typename T>
+void SafeDeleteArray(T *&ptr, size_t ptrLen)
 {
     if (ptr && ptrLen != 0) {
         delete[] ptr;
         ptr = nullptr;
     }
 }
-}
+} // namespace vm
 #endif // VM_POINTER_PROCESS_H

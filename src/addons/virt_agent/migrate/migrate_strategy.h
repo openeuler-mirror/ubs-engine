@@ -77,12 +77,13 @@ const std::string UB_VM_MEMORY_BOUNDARY_KEY = "mig.migrateOneCopyMemoryBound";
 
 class VirtMigrateStrategy {
 public:
-   static VmResult Register();
+    static VmResult Register();
 
 private:
     static uint32_t GetMigrateStrategy(const UbseIpcMessage &req, const UbseRequestContext &context);
     static uint32_t MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string &uuid,
-        const std::string &destHostName, uint32_t destNumaId, uint32_t *migrateStrategy);
+                                                const std::string &destHostName, uint32_t destNumaId,
+                                                uint32_t *migrateStrategy);
     static uint32_t GetMigrateOneCopyMemoryBound();
     static uint32_t MakeHamMigrateDecision(const std::string &uuid, const std::string &destHostName,
                                            uint32_t destNumaId, uint32_t *migrateStrategy);

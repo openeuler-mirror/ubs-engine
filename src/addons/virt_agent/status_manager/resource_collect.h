@@ -17,15 +17,16 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+
 #include <ubse_def.h>
 #include <ubse_mem_controller.h>
 
 #include "vm_def.h"
 #include "vm_error.h"
 #include "vm_info.h"
+#include "vm_lock.h"
 #include "vm_numa_info.h"
 #include "vm_struct.h"
-#include "vm_lock.h"
 
 namespace vm {
 using std::string;
@@ -81,7 +82,7 @@ public:
         return globalBorrowMap_;
     }
     VmResult UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDomainInfo &hostVmDomainInfo,
-                                                                  HostNumaCpuInfo &hostNumaCpuInfo);
+                                                           HostNumaCpuInfo &hostNumaCpuInfo);
     static void UpdateGlobalBorrowMap(const std::vector<BorrowIdStatus> &borrowIdStatuses);
     static void DeleteGlobalBorrowMap(const std::vector<std::string> &borrowIds);
     static VmResult SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos);

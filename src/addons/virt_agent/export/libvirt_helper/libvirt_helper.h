@@ -15,8 +15,8 @@
 #define VM_LIBVIRT_HELPER_H
 #include <string>
 
-#include "vm_error.h"
 #include "libvirt_module.h"
+#include "vm_error.h"
 
 namespace vm {
 using std::string;
@@ -25,7 +25,7 @@ class LibvirtHelper {
 public:
     LibvirtHelper() = default;
     LibvirtHelper(const LibvirtHelper &) = delete;
-    LibvirtHelper &operator = (const LibvirtHelper &) = delete;
+    LibvirtHelper &operator=(const LibvirtHelper &) = delete;
 
     static inline LibvirtHelper &GetInstance()
     {
@@ -43,6 +43,6 @@ public:
 private:
     libvirt::VirConnectPtr virConnect{};
 };
-} // vm
+} // namespace vm
 
 #endif // VM_LIBVIRT_HELPER_H

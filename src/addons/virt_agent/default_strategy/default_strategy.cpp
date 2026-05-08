@@ -76,7 +76,7 @@ int EscapeAlgorithmInit(const StrategyConfig &strategyConf, Logfunc logfunc)
 }
 
 int EscapeAlgorithm(const StrategyConfig &strategyConf, AlarmNumaInfo &alarmNumaInfo,
-    GlobalNumaInfoMap &globalNumaInfoMap, EscapeAction &escapeAction)
+                    GlobalNumaInfoMap &globalNumaInfoMap, EscapeAction &escapeAction)
 {
     auto &defaultStrategy = DefaultStrategy::GetInstance();
     defaultStrategy.LoadConfig(strategyConf);
@@ -131,9 +131,8 @@ void DefaultStrategy::LoadConfig(const StrategyConfig &strategyConf)
     // If the configuration is improper, use the default value.
     try {
         (void)SetWaterLine(std::stoi(strategyConf.borrowWatermark) * 0.01f,
-                           std::stoi(strategyConf.highWatermark) * 0.01f,
-                           std::stoi(strategyConf.lowWatermark) * 0.01f);
-    } catch (const std::exception& e) {
+                           std::stoi(strategyConf.highWatermark) * 0.01f, std::stoi(strategyConf.lowWatermark) * 0.01f);
+    } catch (const std::exception &e) {
         StrategyLogError("Failed to setWaterLine, error: " + std::string(e.what()));
         return;
     }
@@ -162,7 +161,8 @@ static uint64_t GetMaxBorrowedBlockSize(const BorrowItemInfo *borrowItemInfo)
             if (theBorrowedBlockSize > std::numeric_limits<uint64_t>::max() - requestSize) {
                 theBorrowedBlockSize = DefaultStrategy::GetInstance().GetMaxMemPerBorrowBytes() >> 1;
                 StrategyLogWarn("The sum of requestSize exceeds the range of uint64_t, "
-                                "the name of borrowItem is " + borrowItemInfo->borrowItem[i].name);
+                                "the name of borrowItem is " +
+                                borrowItemInfo->borrowItem[i].name);
                 break;
             }
             theBorrowedBlockSize += requestSize;
@@ -247,15 +247,15 @@ DsResult DefaultStrategy::EscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, Global
     const uint64_t memSecondLineSize = Mul(memSecondLine, numaMemTotalSize);
 
     StrategyLogInfo("AlarmNumaLoc = " + numaInfo.numaLoc.ToString() +
-        ", numaMemTotalSize = " + to_string(numaMemTotalSize >> BYTE2MB) +
-        "MB, numaMemUsedSize = " + to_string(numaMemUsedSize >> BYTE2MB) +
-        "MB, memReturnLineSize = " + to_string(memReturnLineSize >> BYTE2MB) +
-        "MB, memFirstLineSize = " + to_string(memFirstLineSize >> BYTE2MB) +
-        "MB, memSecondLineSize = " + to_string(memSecondLineSize >> BYTE2MB) +
-        "MB, FinalDecision actionType = " + to_string(static_cast<int>(escapeAction.actionType)) +
-        R"(, default_strategy_json = {"input": {)" + alarmNumaInfo.ToString() + ", " +
-        GlobalNumaInfoMapToString(globalNumaInfoMap) + R"(}, "output": )" +
-        escapeAction.ToString() + ", " + ToString() + "}");
+                    ", numaMemTotalSize = " + to_string(numaMemTotalSize >> BYTE2MB) +
+                    "MB, numaMemUsedSize = " + to_string(numaMemUsedSize >> BYTE2MB) +
+                    "MB, memReturnLineSize = " + to_string(memReturnLineSize >> BYTE2MB) +
+                    "MB, memFirstLineSize = " + to_string(memFirstLineSize >> BYTE2MB) +
+                    "MB, memSecondLineSize = " + to_string(memSecondLineSize >> BYTE2MB) +
+                    "MB, FinalDecision actionType = " + to_string(static_cast<int>(escapeAction.actionType)) +
+                    R"(, default_strategy_json = {"input": {)" + alarmNumaInfo.ToString() + ", " +
+                    GlobalNumaInfoMapToString(globalNumaInfoMap) + R"(}, "output": )" + escapeAction.ToString() + ", " +
+                    ToString() + "}");
     return ret;
 }
 
@@ -334,17 +334,18 @@ void DefaultStrategy::PreprocessBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNu
 }
 
 DsResult DefaultStrategy::Preprocess(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-    ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const
+                                     ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const
 {
     GlobalNumaInfo &numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
     uint64_t numaMemTotalSize = numaInfo.numaMemTotal;
     uint64_t numaMemUsedSize = numaInfo.numaMemUsed;
     uint64_t memReturnLineSize = Mul(GetMemReturnLine(), numaMemTotalSize);
     uint64_t memFirstLineSize = Mul(GetMemFirstLine(), numaMemTotalSize);
-    StrategyLogDebug("alarmNumaInfo:" + numaInfo.numaLoc.ToString() + ", numaMemTotalSize = " +
-        to_string(numaMemTotalSize >> BYTE2MB) + "MB, numaMemUsedSize = " + to_string(numaMemUsedSize >> BYTE2MB) +
-        "MB, memReturnLineSize = " + to_string(memReturnLineSize >> BYTE2MB) + "MB, memFirstLineSize = " +
-        to_string(memFirstLineSize >> BYTE2MB) + "MB");
+    StrategyLogDebug("alarmNumaInfo:" + numaInfo.numaLoc.ToString() +
+                     ", numaMemTotalSize = " + to_string(numaMemTotalSize >> BYTE2MB) +
+                     "MB, numaMemUsedSize = " + to_string(numaMemUsedSize >> BYTE2MB) +
+                     "MB, memReturnLineSize = " + to_string(memReturnLineSize >> BYTE2MB) +
+                     "MB, memFirstLineSize = " + to_string(memFirstLineSize >> BYTE2MB) + "MB");
 
     if (alarmNumaInfo.isMemReturn) {
         escapeAction.actionType = EscapeActionType::RETURN;
@@ -358,7 +359,7 @@ DsResult DefaultStrategy::Preprocess(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInf
         expectedRevenue.returnSize = memReturnLineSize - numaMemUsedSize;
         StrategyLogDebug("returnSize = " + to_string(expectedRevenue.returnSize >> BYTE2MB) + "MB");
         // update maxReturnSize
-        expectedRevenue.maxReturnSize = (memFirstLineSize >> 1) + (memReturnLineSize >> 1)  - numaMemUsedSize;
+        expectedRevenue.maxReturnSize = (memFirstLineSize >> 1) + (memReturnLineSize >> 1) - numaMemUsedSize;
         // When both memFirstLineSize and memReturnLineSize are odd numbers,
         // dividing them directly by 2 will result in a value that is one less. Here, we add one more.
         expectedRevenue.maxReturnSize += ((memFirstLineSize & 1) + (memReturnLineSize & 1)) >> 1;
@@ -386,8 +387,8 @@ void MonitorNumaMemoryBorrowing(const AlarmNumaInfo &alarmNumaInfo, const Global
 {
     for (auto &it : alarmNumaInfo.vmBasicInfos) {
         numaRemoteUsedMemSize += it.second.remoteUsedMem;
-        StrategyLogDebug("vm_name = " + it.second.name + ", remoteUsedMem = " +
-            to_string(it.second.remoteUsedMem >> BYTE2MB) + "MB");
+        StrategyLogDebug("vm_name = " + it.second.name +
+                         ", remoteUsedMem = " + to_string(it.second.remoteUsedMem >> BYTE2MB) + "MB");
     }
     StrategyLogDebug("numaMemBorrow = " + to_string(numaInfo.numaMemBorrow >> BYTE2MB) +
                      "MB, numaRemoteUsedMemSize = " + to_string(numaRemoteUsedMemSize >> BYTE2MB) + "MB");
@@ -395,7 +396,7 @@ void MonitorNumaMemoryBorrowing(const AlarmNumaInfo &alarmNumaInfo, const Global
 }
 
 StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo &numaInfo,
-    uint64_t &expectedRevenue, std::vector<size_t> &borrowSizes) const
+                                          uint64_t &expectedRevenue, std::vector<size_t> &borrowSizes) const
 {
     StrategyTip strategyTip = StrategyTip::NOPE;
     uint64_t remainMaxBorrowSize = Mul(GetMaxMemBorrow(), numaInfo.numaMemTotal) - numaInfo.numaMemBorrow;
@@ -410,8 +411,8 @@ StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNu
         expectedRevenue = Align(expectedRevenue, memBorrowAlignBytes);
 
         StrategyLogDebug("expectedRevenue = " + to_string(expectedRevenue >> BYTE2MB) +
-            "MB, remainMaxBorrowSize = " + to_string(remainMaxBorrowSize >> BYTE2MB) +
-            "MB, maxPerTotalMemBorrowBytes = " + to_string(maxPerTotalMemBorrowBytes >> BYTE2MB) + "MB");
+                         "MB, remainMaxBorrowSize = " + to_string(remainMaxBorrowSize >> BYTE2MB) +
+                         "MB, maxPerTotalMemBorrowBytes = " + to_string(maxPerTotalMemBorrowBytes >> BYTE2MB) + "MB");
         uint64_t maxBorrowedBlockSize = GetMaxBorrowedBlockSize(&alarmNumaInfo.borrowItemInfo);
         if (maxBorrowedBlockSize == 0) {
             maxBorrowedBlockSize = minMemPerBorrowBytes >> 1;
@@ -421,14 +422,14 @@ StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNu
         // those exceeding the limit would fail to be borrowed
         uint64_t sumBorrowSize = 0;
         while (sumBorrowSize < expectedRevenue && sumBorrowSize < remainMaxBorrowSize &&
-            sumBorrowSize < maxPerTotalMemBorrowBytes) {
+               sumBorrowSize < maxPerTotalMemBorrowBytes) {
             // upper limit
-            uint64_t oneBorrowedBlockSize = std::min<uint64_t>(maxMemPerBorrowBytes,
-                std::max<uint64_t>(2 * maxBorrowedBlockSize, expectedRevenue - sumBorrowSize));
+            uint64_t oneBorrowedBlockSize = std::min<uint64_t>(
+                maxMemPerBorrowBytes, std::max<uint64_t>(2 * maxBorrowedBlockSize, expectedRevenue - sumBorrowSize));
             oneBorrowedBlockSize = std::min<uint64_t>(oneBorrowedBlockSize, maxPerTotalMemBorrowBytes - sumBorrowSize);
             oneBorrowedBlockSize = std::min<uint64_t>(oneBorrowedBlockSize, remainMaxBorrowSize - sumBorrowSize);
-            strategyTip =
-                (oneBorrowedBlockSize == remainMaxBorrowSize) ? StrategyTip::BOR_NOT_ENOUGH_CREDIT : strategyTip;
+            strategyTip = (oneBorrowedBlockSize == remainMaxBorrowSize) ? StrategyTip::BOR_NOT_ENOUGH_CREDIT :
+                                                                          strategyTip;
             // lower limit
             if (oneBorrowedBlockSize < minMemPerBorrowBytes) {
                 break;
@@ -448,7 +449,7 @@ StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNu
     StrategyLogDebug("borrowBlockSizes.size() = " + to_string(borrowSizes.size()));
     for (size_t i = 0; i < borrowSizes.size(); i++) {
         StrategyLogDebug("final oneBorrowedBlockSize = " + to_string(borrowSizes[i] >> BYTE2MB) +
-            "MB, block index = " + to_string(i));
+                         "MB, block index = " + to_string(i));
     }
     return strategyTip;
 }
@@ -466,7 +467,7 @@ DsResult GenBorrowTable(AlarmNumaInfo &alarmNumaInfo,
 }
 
 DsResult DefaultStrategy::ReturnMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-    const ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const
+                                    const ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const
 {
     GlobalNumaInfo &numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
     StrategyLogDebug("numaInfo.numaMemBorrow = " + to_string(numaInfo.numaMemBorrow >> BYTE2MB) + "MB");
@@ -490,23 +491,23 @@ DsResult DefaultStrategy::ReturnMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo
         }
         sumReturnSize += m.second;
         // check whether the return conditions are met.
-        if (numaRemoteUsedMemSize > std::numeric_limits<uint64_t>::max() - sumReturnSize
-            || expectedRevenue.maxReturnSize > std::numeric_limits<uint64_t>::max() - numaInfo.numaMemBorrow) {
+        if (numaRemoteUsedMemSize > std::numeric_limits<uint64_t>::max() - sumReturnSize ||
+            expectedRevenue.maxReturnSize > std::numeric_limits<uint64_t>::max() - numaInfo.numaMemBorrow) {
             return DS_ERROR_INVAL;
         } else if (numaRemoteUsedMemSize + sumReturnSize > expectedRevenue.maxReturnSize + numaInfo.numaMemBorrow) {
             sumReturnSize -= m.second;
             continue;
         }
         escapeAction.returnMemNames.emplace_back(m.first);
-        StrategyLogDebug("returnMemNames = " + escapeAction.returnMemNames.back() + ", returnMemBlockSize = " +
-                         to_string(m.second >> BYTE2MB) + "MB, sumReturnSize = " +
-                         to_string(sumReturnSize >> BYTE2MB) + "MB");
+        StrategyLogDebug("returnMemNames = " + escapeAction.returnMemNames.back() +
+                         ", returnMemBlockSize = " + to_string(m.second >> BYTE2MB) +
+                         "MB, sumReturnSize = " + to_string(sumReturnSize >> BYTE2MB) + "MB");
     }
     if (sumReturnSize == 0) {
         escapeAction.strategyTips.emplace_back(StrategyTip::RET_BAN_RET_TOO_LARGE_MEM);
     }
     StrategyLogDebug("ReturnMem:expectedRevenue = " + to_string(expectedRevenue.returnSize >> BYTE2MB) +
-        "MB, sumReturnSize = " + to_string(sumReturnSize >> BYTE2MB) + "MB");
+                     "MB, sumReturnSize = " + to_string(sumReturnSize >> BYTE2MB) + "MB");
     return DS_OK;
 }
 
@@ -530,8 +531,8 @@ std::string DefaultStrategy::GlobalNumaInfoMapToString(const GlobalNumaInfoMap &
 DsResult DefaultStrategy::SetWaterLine(float secondLine, float firstLine, float returnLine)
 {
     if (!(returnLine > 0)) {
-        StrategyLogError("!(returnLine > 0), mem_second_line = " + to_string(secondLine) + ", mem_first_line = " +
-            to_string(firstLine) + ", mem_return_line = " + to_string(returnLine));
+        StrategyLogError("!(returnLine > 0), mem_second_line = " + to_string(secondLine) +
+                         ", mem_first_line = " + to_string(firstLine) + ", mem_return_line = " + to_string(returnLine));
         return DS_ERR_SET_INVAL;
     }
     if (!(firstLine > returnLine)) {
@@ -545,21 +546,21 @@ DsResult DefaultStrategy::SetWaterLine(float secondLine, float firstLine, float 
         return DS_ERR_SET_INVAL;
     }
     if (!(secondLine <= 1)) {
-        StrategyLogError("!(secondLine <= 1), mem_second_line = " + to_string(secondLine) + ", mem_first_line = " +
-            to_string(firstLine) + ", mem_return_line = " + to_string(returnLine));
+        StrategyLogError("!(secondLine <= 1), mem_second_line = " + to_string(secondLine) +
+                         ", mem_first_line = " + to_string(firstLine) + ", mem_return_line = " + to_string(returnLine));
         return DS_ERR_SET_INVAL;
     }
     if (!(secondLine - minMemOverageRecovery > returnLine)) {
-        StrategyLogError("!(secondLine - minMemOverageRecovery > returnLine), mem_second_line = " +
-                         to_string(secondLine) + ", mem_first_line = " + to_string(firstLine) +
-                         ", mem_return_line = " + to_string(returnLine));
+        StrategyLogError(
+            "!(secondLine - minMemOverageRecovery > returnLine), mem_second_line = " + to_string(secondLine) +
+            ", mem_first_line = " + to_string(firstLine) + ", mem_return_line = " + to_string(returnLine));
         return DS_ERR_SET_INVAL;
     }
     memSecondLine = secondLine;
     memFirstLine = firstLine;
     memReturnLine = returnLine;
     StrategyLogDebug("memSecondLine = " + to_string(memSecondLine) + ", memFirstLine = " + to_string(memFirstLine) +
-        ", memReturnLine = " + to_string(memReturnLine));
+                     ", memReturnLine = " + to_string(memReturnLine));
     return DS_OK;
 }
 
@@ -570,9 +571,9 @@ DsResult DefaultStrategy::SetMinMemOverageRecovery(float minOverageRecovery)
         return DS_OK;
     } else {
         StrategyLogWarn("SetMinMemOverageRecovery = " + to_string(minOverageRecovery) +
-            ", (memSecondLine - memReturnLine) = " + to_string(memSecondLine - memReturnLine) +
-            ", not in range(0, (memSecondLine - memReturnLine)), "
-            + "default minMemOverageRecovery = " + to_string(minMemOverageRecovery));
+                        ", (memSecondLine - memReturnLine) = " + to_string(memSecondLine - memReturnLine) +
+                        ", not in range(0, (memSecondLine - memReturnLine)), " +
+                        "default minMemOverageRecovery = " + to_string(minMemOverageRecovery));
         return DS_ERR_SET_INVAL;
     }
 }
@@ -583,8 +584,8 @@ DsResult DefaultStrategy::SetMaxMemBorrow(float maxBorrow)
         maxMemBorrow = maxBorrow;
         return DS_OK;
     } else {
-        StrategyLogWarn("SetMaxMemBorrow = " + to_string(maxBorrow) + ", not in range(0, 0.8], "
-            + "default maxMemBorrow = " + to_string(maxMemBorrow));
+        StrategyLogWarn("SetMaxMemBorrow = " + to_string(maxBorrow) + ", not in range(0, 0.8], " +
+                        "default maxMemBorrow = " + to_string(maxMemBorrow));
         return DS_ERR_SET_INVAL;
     }
 }
@@ -595,8 +596,8 @@ DsResult DefaultStrategy::SetMemBorrowAlignBytes(uint64_t borrowAlignBytes)
         memBorrowAlignBytes = borrowAlignBytes;
         return DS_OK;
     } else {
-        StrategyLogWarn("SetMemBorrowAlignBytes = " + to_string(borrowAlignBytes) + ", not in range[128MB, 4GB], "
-            + "default memBorrowAlignBytes = " + to_string(memBorrowAlignBytes));
+        StrategyLogWarn("SetMemBorrowAlignBytes = " + to_string(borrowAlignBytes) + ", not in range[128MB, 4GB], " +
+                        "default memBorrowAlignBytes = " + to_string(memBorrowAlignBytes));
         return DS_ERR_SET_INVAL;
     }
 }
@@ -610,10 +611,11 @@ DsResult DefaultStrategy::SetPerBorrowBound(uint64_t minPerBorrowBytes, uint64_t
         maxMemPerBorrowBytes = (it2 != MemPerBorrow.end()) ? *it2 : maxMemPerBorrowBytes;
         return DS_OK;
     } else {
-        StrategyLogWarn("SetPerBorrowBound:minPerBorrowBytes = " + to_string(minPerBorrowBytes) +
-            ", maxPerBorrowBytes = " + to_string(maxPerBorrowBytes) + ", borrowAlignBytes = " +
-            to_string(memBorrowAlignBytes) + ", not in range[borrowAlignBytes, 4GB], default minMemPerBorrowBytes = " +
-            to_string(minMemPerBorrowBytes) + ", default maxMemPerBorrowBytes = " + to_string(maxMemPerBorrowBytes));
+        StrategyLogWarn(
+            "SetPerBorrowBound:minPerBorrowBytes = " + to_string(minPerBorrowBytes) + ", maxPerBorrowBytes = " +
+            to_string(maxPerBorrowBytes) + ", borrowAlignBytes = " + to_string(memBorrowAlignBytes) +
+            ", not in range[borrowAlignBytes, 4GB], default minMemPerBorrowBytes = " + to_string(minMemPerBorrowBytes) +
+            ", default maxMemPerBorrowBytes = " + to_string(maxMemPerBorrowBytes));
         return DS_ERR_SET_INVAL;
     }
 }
@@ -624,13 +626,13 @@ DsResult DefaultStrategy::SetMaxPerTotalMemBorrowBytes(uint64_t maxOnceMemBorrow
         // Use the value aligned to 4 GB
         uint64_t alignMaxOnceMemBorrowBytes = Align(maxOnceMemBorrowBytes, SPECS_4G);
         StrategyLogDebug("SetMaxPerTotalMemBorrowBytes, before alignment = " + to_string(maxOnceMemBorrowBytes) +
-            ", after alignment = " + to_string(alignMaxOnceMemBorrowBytes) + ", use aligned value.");
+                         ", after alignment = " + to_string(alignMaxOnceMemBorrowBytes) + ", use aligned value.");
         maxPerTotalMemBorrowBytes = alignMaxOnceMemBorrowBytes;
         return DS_OK;
     } else {
         StrategyLogWarn("SetMaxPerTotalMemBorrowBytes = " + to_string(maxOnceMemBorrowBytes) +
-            ", not in range[4GB, 20GB], " +
-            "default maxPerTotalMemBorrowBytes = " + to_string(maxPerTotalMemBorrowBytes));
+                        ", not in range[4GB, 20GB], " +
+                        "default maxPerTotalMemBorrowBytes = " + to_string(maxPerTotalMemBorrowBytes));
         return DS_ERR_SET_INVAL;
     }
 }
@@ -641,8 +643,8 @@ DsResult DefaultStrategy::SetOomBorrowMemSize(uint64_t oomBorrowMemSize)
         oomEventBorrowBytes = oomBorrowMemSize;
         return DS_OK;
     } else {
-        StrategyLogWarn("SetOomBorrowMemSize = " + to_string(oomBorrowMemSize) + ", not in range[1G,4G], "
-            + "default oomBorrowMemSize = " + to_string(oomEventBorrowBytes));
+        StrategyLogWarn("SetOomBorrowMemSize = " + to_string(oomBorrowMemSize) + ", not in range[1G,4G], " +
+                        "default oomBorrowMemSize = " + to_string(oomEventBorrowBytes));
         return DS_ERR_SET_INVAL;
     }
 }

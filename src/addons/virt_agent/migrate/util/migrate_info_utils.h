@@ -31,10 +31,11 @@ public:
     static pid_t GetPidByVmUUID(const string &uuid);
     static VmResult GetNumaIdAndPageSizeByPid(pid_t pid, MigrateInfoBase &numaIdAndPageSize);
     static VmResult GetSocketIdByNumaId(uint32_t numaId, uint32_t *socketId);
+
 private:
     static string cpuSocketPath;
     static string numaPathPrefix;
     static string procPathPrefix;
 };
-}
+} // namespace vm
 #endif // VM_MIGRATE_INFO_UTILS

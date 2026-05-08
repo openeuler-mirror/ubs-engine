@@ -14,12 +14,12 @@
 #ifndef VM_STATUS_MANAGER_H
 #define VM_STATUS_MANAGER_H
 
+#include <condition_variable>
 #include <queue>
 #include <set>
-#include <condition_variable>
 #include "mempooling_module.h"
-#include "vm_struct.h"
 #include "vm_lock.h"
+#include "vm_struct.h"
 
 namespace vm {
 class StatusManager;

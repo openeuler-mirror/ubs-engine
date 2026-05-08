@@ -13,8 +13,10 @@
 
 #include "libvirt_module.h"
 
-#include <dlfcn.h>
 #include <cerrno>
+
+#include <dlfcn.h>
+
 #include <ubse_logger.h>
 
 namespace vm::libvirt {

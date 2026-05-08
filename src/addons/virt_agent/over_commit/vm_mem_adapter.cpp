@@ -14,6 +14,7 @@
 #include "vm_mem_adapter.h"
 
 #include <string>
+
 #include <ubse_error.h>
 #include <ubse_logger.h>
 #include <ubse_mem_controller.h>

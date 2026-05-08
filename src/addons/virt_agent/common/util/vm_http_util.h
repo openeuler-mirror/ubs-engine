@@ -16,9 +16,11 @@
 
 #include <sstream>
 #include <string>
+
 #include <rapidjson/document.h>
 
 #include <ubse_def.h>
+
 #include "vm_error.h"
 
 namespace vm {

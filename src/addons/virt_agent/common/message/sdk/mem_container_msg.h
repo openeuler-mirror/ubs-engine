@@ -45,7 +45,7 @@ typedef struct {
 typedef struct {
     pid_t pids[NO_2048];
     size_t pidsCount;
-    char* containerId;
+    char *containerId;
 } container_pid_info_for_c;
 
 class MemContainerPidMemInfoInputMsg : public BaseMessage {
@@ -209,7 +209,9 @@ public:
     MemContainerWaterLineMemBorrowInputMsg() = default;
 
     explicit MemContainerWaterLineMemBorrowInputMsg(MemBorrowRequestC memBorrowRequest)
-        : memBorrowRequest_(std::move(memBorrowRequest)) {}
+        : memBorrowRequest_(std::move(memBorrowRequest))
+    {
+    }
 
     explicit MemContainerWaterLineMemBorrowInputMsg(uint8_t *rawData, uint32_t size)
     {
@@ -231,7 +233,9 @@ public:
     MemContainerWaterLineMemBorrowOutputMsg() = default;
 
     explicit MemContainerWaterLineMemBorrowOutputMsg(std::vector<std::string> borrowIds)
-        : borrowIds_(std::move(borrowIds)) {}
+        : borrowIds_(std::move(borrowIds))
+    {
+    }
 
     explicit MemContainerWaterLineMemBorrowOutputMsg(uint8_t *rawData, uint32_t size)
     {
@@ -269,7 +273,9 @@ public:
     MemContainerWaterLineMemMigrateInputMsg() = default;
 
     explicit MemContainerWaterLineMemMigrateInputMsg(MemMigrateRequestC memMigrateRequest)
-        : memMigrateRequest_(std::move(memMigrateRequest)) {}
+        : memMigrateRequest_(std::move(memMigrateRequest))
+    {
+    }
 
     explicit MemContainerWaterLineMemMigrateInputMsg(uint8_t *rawData, uint32_t size)
     {
@@ -282,6 +288,7 @@ public:
 
     VmResult GetParams(NodeLocInfo &nodeLocInfo, std::unordered_set<std::string> &borrowIdSet,
                        std::vector<VMPresetParam> &vmPresetParamList);
+
 private:
     MemMigrateRequestC memMigrateRequest_{};
 };
@@ -299,7 +306,9 @@ public:
     MemContainerWaterLineMemReturnInputMsg() = default;
 
     explicit MemContainerWaterLineMemReturnInputMsg(MemReturnRequestC memReturnRequest)
-        : memReturnRequest_(std::move(memReturnRequest)) {}
+        : memReturnRequest_(std::move(memReturnRequest))
+    {
+    }
 
     explicit MemContainerWaterLineMemReturnInputMsg(uint8_t *rawData, uint32_t size)
     {

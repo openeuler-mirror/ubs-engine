@@ -12,13 +12,16 @@
  */
 
 #include "hugepage_handler.h"
-#include <unistd.h>
+
 #include <fstream>
+
+#include <unistd.h>
+
 #include <ubse_com.h>
 #include <ubse_logger.h>
 
-#include "vm_file_util.h"
 #include "vm_def.h"
+#include "vm_file_util.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");

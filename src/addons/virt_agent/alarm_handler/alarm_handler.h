@@ -16,8 +16,8 @@
 
 #include <ubse_mem_controller.h>
 
-#include "vm_struct.h"
 #include "mem_handler.h"
+#include "vm_struct.h"
 
 namespace vm {
 using namespace ubse::mem::controller;
@@ -26,8 +26,11 @@ struct UbsVirtNumaMemoryDebtInfo : UbseNumaMemoryImportDebtInfo {
     int16_t numaId;
 
     UbsVirtNumaMemoryDebtInfo() = default;
-    explicit UbsVirtNumaMemoryDebtInfo(const UbseNumaMemoryImportDebtInfo& base, int16_t id = 255)
-        : UbseNumaMemoryImportDebtInfo(base), numaId(id) {}
+    explicit UbsVirtNumaMemoryDebtInfo(const UbseNumaMemoryImportDebtInfo &base, int16_t id = 255)
+        : UbseNumaMemoryImportDebtInfo(base),
+          numaId(id)
+    {
+    }
 };
 
 class AlarmHandler {

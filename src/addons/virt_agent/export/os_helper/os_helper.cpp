@@ -97,4 +97,4 @@ std::string OsHelper::ParseContainerFile(const std::string &cgroupPath)
     return "";
 }
 
-} // vm
+} // namespace vm

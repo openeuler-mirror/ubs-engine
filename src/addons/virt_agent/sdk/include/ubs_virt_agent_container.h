@@ -48,7 +48,7 @@ typedef struct {
 typedef struct {
     pid_t pids[SDK_NO_2048];
     size_t pidsCount;
-    char* containerId;
+    char *containerId;
 } container_pid_info;
 
 // mem borrow
@@ -100,14 +100,14 @@ typedef struct {
  * @param InfoSize  [OUT] number of PID memory info entries returned
  * @return 0 for success, non-zero for error
  */
-int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint32_t *InfoSize);
+int32_t ubs_container_info_query(pid_param *param, pid_mem_info **pidInfos, uint32_t *InfoSize);
 
 /**
  * @brief  inject or update container memory watermark (waterLine)
  * @param param [IN] input parameters containing watermark information
  * @return 0 for success, non-zero for error
  */
-int32_t ubs_container_inject_waterLine(watermark_t* param);
+int32_t ubs_container_inject_waterLine(watermark_t *param);
 
 /**
  * @brief  get PIDs of containers from a given list of container IDs

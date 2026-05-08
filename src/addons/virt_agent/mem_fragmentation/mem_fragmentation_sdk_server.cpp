@@ -584,7 +584,8 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult &borrow
         }
         ret = HugePageHandler::SetHugePages(key, value);
         if (ret != VM_OK) {
-            UBSE_LOG_ERROR << "Failed to set hugepages" << ", remoteNumaId=" << key << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to set hugepages"
+                           << ", remoteNumaId=" << key << FormatRetCode(ret);
             (void)ChangeOverrideCapability(false);
             return ret;
         }
@@ -1007,8 +1008,7 @@ uint32_t VirtMemFragSdk::MemTaskQuery(const UbseIpcMessage &req, const UbseReque
     MemTaskResultQueryMsg msg(taskInfoC);
     VmResult serializeRet = msg.Serialize();
     if (serializeRet != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to serialize task info for taskId=" << taskId
-                       << ", " << FormatRetCode(serializeRet);
+        UBSE_LOG_ERROR << "Failed to serialize task info for taskId=" << taskId << ", " << FormatRetCode(serializeRet);
         return VM_ERROR;
     }
 

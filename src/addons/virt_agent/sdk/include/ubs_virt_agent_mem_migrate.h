@@ -19,7 +19,6 @@
 extern "C" {
 #endif
 
-
 /**
  * @brief update page flow and status
  * @param opt [IN] "true"、"false"、"none_migrating"、"none_migrate_success"、"none_migrate_failed"

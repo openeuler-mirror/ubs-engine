@@ -16,10 +16,10 @@
 
 #include <cstdint>
 #include <map>
-#include <unordered_map>
-#include <string>
-#include <vector>
 #include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "vm_vector_util.h"
 
@@ -127,17 +127,20 @@ struct PidInfo {
     uint64_t localUsedMem{};
     std::vector<uint16_t> localNumaIds{};
     uint64_t remoteUsedMem{};
-    uint16_t remoteNumaId{};  // Remote NUMA ID, valid only when remoteUsedMem > 0
+    uint16_t remoteNumaId{}; // Remote NUMA ID, valid only when remoteUsedMem > 0
 
     std::string ToString() const
     {
         std::ostringstream oss;
-        oss << "{" << "\"pid\":" << pid << "," << "\"localMemSize\":" << localUsedMem << ","
+        oss << "{"
+            << "\"pid\":" << pid << ","
+            << "\"localMemSize\":" << localUsedMem << ","
             << "\"remoteMemSize\":" << remoteUsedMem << ",";
 
         oss << "\"localNumaIds\":[";
         oss << VectorUtil::VectorToString(localNumaIds, ",");
-        oss << "]" << "}";
+        oss << "]"
+            << "}";
 
         return oss.str();
     }
@@ -164,7 +167,7 @@ struct VMMigrateOutParam {
     VMMigrateOutParam() = default;
 
     pid_t pid{};
-    uint64_t memSize{};     // Decided migration-out memory size
+    uint64_t memSize{};   // Decided migration-out memory size
     uint16_t desNumaId{}; // Destination remote NUMA ID
 
     std::string ToString() const
@@ -211,14 +214,14 @@ struct MigrateStrategyResult {
 struct VmMetaData {
     VmMetaData() = default;
 
-    std::string nodeId{};     // Physical node ID (from control-plane configuration file)
-    std::string hostName{};   // Physical node host name (from VM XML definition)
-    std::string uuid{};       // VM UUID (from VM XML definition)
-    std::string name{};       // VM name (from VM XML definition)
-    std::string state{};      // VM state
-    time_t vmCreateTime{};    // VM creation time (collected from libvirt)
-    uint64_t maxMem{};        // Requested VM memory (from VM XML definition), in KBytes
-    pid_t pid{};              // VM process PID (provided by the operating system)
+    std::string nodeId{};   // Physical node ID (from control-plane configuration file)
+    std::string hostName{}; // Physical node host name (from VM XML definition)
+    std::string uuid{};     // VM UUID (from VM XML definition)
+    std::string name{};     // VM name (from VM XML definition)
+    std::string state{};    // VM state
+    time_t vmCreateTime{};  // VM creation time (collected from libvirt)
+    uint64_t maxMem{};      // Requested VM memory (from VM XML definition), in KBytes
+    pid_t pid{};            // VM process PID (provided by the operating system)
 
     std::string ToString() const
     {
@@ -291,12 +294,12 @@ struct NumaMetaData {
     NumaMetaData() = default;
 
     std::string nodeId{};
-    std::string hostName{};         // Node host name
-    int16_t numaId{};               // numaId
-    int16_t socketId{};             // Socket ID mapped to CPUs bound to this NUMA
-    bool isLocal{};                 // Whether this is a local NUMA (0: non-local, 1: local)
-    uint64_t memTotal{};            // Total memory of this NUMA node (inclusive), collected from system files, in kB
-    uint64_t memFree{};             // Free memory on this NUMA node, collected from system files, in kB
+    std::string hostName{}; // Node host name
+    int16_t numaId{};       // numaId
+    int16_t socketId{};     // Socket ID mapped to CPUs bound to this NUMA
+    bool isLocal{};         // Whether this is a local NUMA (0: non-local, 1: local)
+    uint64_t memTotal{};    // Total memory of this NUMA node (inclusive), collected from system files, in kB
+    uint64_t memFree{};     // Free memory on this NUMA node, collected from system files, in kB
     std::unordered_map<uint64_t, NumaPageData> numaPageInfo{}; // key is pageType, unit kB
 
     std::string ToString() const
@@ -314,7 +317,8 @@ struct NumaMetaData {
         oss << "[";
         bool first = true;
         for (const auto &[pageType, pageData] : numaPageInfo) {
-            if (!first) oss << ",";
+            if (!first)
+                oss << ",";
             oss << pageType << ":";
             oss << "{pageSize:" << pageData.pageSize << ","
                 << "hugePageTotal:" << pageData.hugePageTotal << ","
@@ -358,6 +362,6 @@ struct WaterMark {
         return oss.str();
     }
 };
-} // vm::mempooling
+} // namespace vm::mempooling
 
 #endif // MEMPOOLING_DEF_H

@@ -16,8 +16,8 @@
 #include <ubse_ipc_client.h>
 #include <ubse_ipc_log.h>
 #include "src/sdk/c/include/ubs_error.h"
-#include "vm_sdk_def.h"
 #include "ubs_virt_agent_case_conf_helper.h"
+#include "vm_sdk_def.h"
 static const int MAX_CASE_CONF_PARAM_LENGTH = 128;
 virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info)
 {
@@ -42,8 +42,8 @@ virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info)
     }
     ubse_api_buffer_free(&response_buffer);
     IPC_LOG_DEBUG << "cur_case:" << case_conf_info->cur_case
-              << ", over_commitment_ratio:" << case_conf_info->over_commitment_ratio
-              << ", migrate_waterLine:" << case_conf_info->migrate_waterLine << ", index:" << case_conf_info->index;
+                  << ", over_commitment_ratio:" << case_conf_info->over_commitment_ratio
+                  << ", migrate_waterLine:" << case_conf_info->migrate_waterLine << ", index:" << case_conf_info->index;
     return VA_SUCCESS;
 }
 

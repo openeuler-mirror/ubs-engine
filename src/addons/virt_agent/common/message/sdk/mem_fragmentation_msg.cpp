@@ -13,8 +13,8 @@
 
 #include "mem_fragmentation_msg.h"
 #include <securec.h>
-#include "vm_serial_util.h"
 #include "msg_utils.h"
+#include "vm_serial_util.h"
 
 namespace vm {
 
@@ -59,7 +59,6 @@ VmResult MemBorrowExecuteResultMsg::Serialize()
     mOutputRawDataOwned = false;
     return VM_OK;
 }
-
 
 VmResult MemBorrowExecuteResultMsg::Deserialize()
 {
@@ -208,7 +207,7 @@ VmResult MemFragmentationMsg::GetNumaInfo(std::vector<numa_info_t> &numaInfo)
         data.timestamp = info.timestamp;
         auto ret = StringToC(data.node_id, info.metaData.nodeId, VIRT_MEM_MAX_NODE_ID_LENGTH);
         ret |= StringToC(data.host_name, info.metaData.hostName, UBS_VA_HOST_NAME_MAX);
-        if (ret !=VM_OK) {
+        if (ret != VM_OK) {
             SafeDeleteArray(data.huge_page_data);
             return ret;
         }
@@ -419,7 +418,7 @@ VmResult MemRollbackMsg::Serialize()
         return VM_ERROR;
     }
 
-    for (const auto& borrow_id : rollbackParams_.borrow_id_list) {
+    for (const auto &borrow_id : rollbackParams_.borrow_id_list) {
         out << borrow_id;
         if (!out.Check()) {
             return VM_ERROR;
@@ -475,7 +474,6 @@ src_memory_borrow_param MemFragmentationMemBorrowStrategyInputMsg::GetInputMsg()
 {
     return srcMemoryBorrowParam_;
 }
-
 
 VmResult MemBorrowSettingMsg::Serialize()
 {
@@ -596,26 +594,33 @@ VmResult MemTaskResultQueryMsg::Serialize()
     uint32_t status_value = static_cast<uint32_t>(asyncTaskInfoC_.status);
     out << status_value;
     out << asyncTaskInfoC_.resultCode;
-    const auto& result = asyncTaskInfoC_.memBorrowResult;
+    const auto &result = asyncTaskInfoC_.memBorrowResult;
 
-    if (result.borrow_ids_size > MAX_BORROW_ID_COUNT) return VM_ERROR_INVAL;
+    if (result.borrow_ids_size > MAX_BORROW_ID_COUNT)
+        return VM_ERROR_INVAL;
     out << result.borrow_ids_size;
-    if (!out.Check()) return VM_ERROR;
+    if (!out.Check())
+        return VM_ERROR;
     for (uint32_t i = 0; i < result.borrow_ids_size; ++i) {
         std::string id_str(result.borrow_ids_ptr[i]);
         out << id_str;
-        if (!out.Check()) return VM_ERROR;
+        if (!out.Check())
+            return VM_ERROR;
     }
-    if (result.present_numa_ids_size > MAX_BORROW_ID_COUNT) return VM_ERROR_INVAL;
+    if (result.present_numa_ids_size > MAX_BORROW_ID_COUNT)
+        return VM_ERROR_INVAL;
     out << result.present_numa_ids_size;
-    if (!out.Check()) return VM_ERROR;
+    if (!out.Check())
+        return VM_ERROR;
 
     for (uint32_t i = 0; i < result.present_numa_ids_size; i++) {
         out << result.present_numa_ids_ptr[i];
-        if (!out.Check()) return VM_ERROR;
+        if (!out.Check())
+            return VM_ERROR;
     }
 
-    if (!out.Check()) return VM_ERROR;
+    if (!out.Check())
+        return VM_ERROR;
     mOutputRawDataSize = out.GetLength();
     mOutputRawData = out.GetBuffer(true);
     mOutputRawDataOwned = false;
@@ -645,7 +650,7 @@ VmResult MemTaskResultQueryMsg::Deserialize()
         return VM_ERROR;
     }
 
-    mem_borrow_result_c& result = asyncTaskInfoC_.memBorrowResult;
+    mem_borrow_result_c &result = asyncTaskInfoC_.memBorrowResult;
     in >> result.borrow_ids_size;
     if (!in.Check()) {
         return VM_ERROR;
@@ -696,8 +701,8 @@ VmResult MemFragmentationMemBorrowStrategyOutputMsg::SetOutputMsg(const MemBorro
     outputMsg_.borrow_size = result.borrowSize;
     outputMsg_.dest_numa_infos_size = result.destParam.size();
     for (uint32_t i = 0; i < outputMsg_.dest_numa_infos_size; i++) {
-        ret = StringToC(outputMsg_.dest_numa_infos[i].host_id, result.destParam[i].destNid,
-                        VIRT_MEM_MAX_NODE_ID_LENGTH);
+        ret =
+            StringToC(outputMsg_.dest_numa_infos[i].host_id, result.destParam[i].destNid, VIRT_MEM_MAX_NODE_ID_LENGTH);
         if (ret != VM_OK) {
             return ret;
         }
@@ -831,7 +836,7 @@ VmResult MemFragmentationMemBorrowExecuteOutputMsg::Deserialize()
     if (!in.Check()) {
         return VM_ERROR;
     }
-    for (size_t i = 0 ; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         std::string tmp;
         in >> tmp;
         outputMsg_.borrowIds.push_back(tmp);
@@ -840,7 +845,7 @@ VmResult MemFragmentationMemBorrowExecuteOutputMsg::Deserialize()
     if (!in.Check()) {
         return VM_ERROR;
     }
-    for (size_t i = 0 ; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         uint16_t tmp;
         in >> tmp;
         outputMsg_.presentNumaIds.push_back(tmp);
@@ -949,7 +954,7 @@ VmResult MemFragmentationMemMigrateStrategyOutputMsg::SetOutputMsg(MigrateStrate
     }
     outputMsg.vmInfoListSize = migrateStrategyResult.vmInfoList.size();
     outputMsg.waitingTime = migrateStrategyResult.waitingTime;
-    outputMsg.vmInfoList = new(std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
+    outputMsg.vmInfoList = new (std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
     if (outputMsg.vmInfoList == nullptr) {
         return VM_ERROR_NOMEM;
     }
@@ -1007,7 +1012,7 @@ VmResult MemFragmentationMemMigrateStrategyOutputMsg::Deserialize()
     if (outputMsg.vmInfoListSize > MAX_VM_NUM) {
         return VM_ERROR_INVAL;
     }
-    outputMsg.vmInfoList = new(std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
+    outputMsg.vmInfoList = new (std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
     if (outputMsg.vmInfoList == nullptr) {
         return VM_ERROR_NOMEM;
     }
@@ -1025,7 +1030,8 @@ VmResult MemFragmentationMemMigrateExecuteInputMsg::SetInputMsg(MemMigrateExecut
     if (srcParam.borrowIdsCount > MAX_BORROW_ID_COUNT || srcParam.vmInfoListSize > MAX_VM_NUM) {
         return VM_ERROR_INVAL;
     }
-    auto ret = memcpy_s(inputMsg.borrowInNode, VIRT_MEM_MAX_NODE_ID_LENGTH, srcParam.borrowInNode, VIRT_MEM_MAX_NODE_ID_LENGTH);
+    auto ret = memcpy_s(inputMsg.borrowInNode, VIRT_MEM_MAX_NODE_ID_LENGTH, srcParam.borrowInNode,
+                        VIRT_MEM_MAX_NODE_ID_LENGTH);
     if (ret != 0) {
         return VM_ERROR;
     }
@@ -1072,7 +1078,7 @@ VmResult MemFragmentationMemMigrateExecuteInputMsg::Serialize()
     if (!out.Check()) {
         return VM_ERROR;
     }
-    for (uint32_t i = 0; i< inputMsg.vmInfoListSize; i++) {
+    for (uint32_t i = 0; i < inputMsg.vmInfoListSize; i++) {
         out << inputMsg.vmInfoList[i].destNumaId;
         out << inputMsg.vmInfoList[i].memSize;
         out << inputMsg.vmInfoList[i].pid;
@@ -1136,4 +1142,4 @@ VmResult MemFragmentationMemMigrateExecuteInputMsg::Deserialize()
     return VM_OK;
 }
 
-}
+} // namespace vm

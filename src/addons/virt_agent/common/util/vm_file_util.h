@@ -35,6 +35,6 @@ public:
 
     static bool CanonicalPath(std::string &path);
 };
-}
+} // namespace vm
 
 #endif

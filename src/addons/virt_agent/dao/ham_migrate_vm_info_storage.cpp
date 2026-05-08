@@ -14,8 +14,8 @@
 #include "ham_migrate_vm_info_storage.h"
 
 #include <ubse_error.h>
-#include <ubse_storage.h>
 #include <ubse_logger.h>
+#include <ubse_storage.h>
 #include "ham_migrate_vm_info_message.h"
 
 namespace vm {

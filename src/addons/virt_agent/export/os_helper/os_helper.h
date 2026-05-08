@@ -15,9 +15,9 @@
 #define VM_OS_HELPER_H
 
 #include <string>
-#include <vector>
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include "vm_error.h"
 
@@ -26,11 +26,12 @@ class OsHelper {
 public:
     static VmResult GetPidsByContainerIds(const std::unordered_set<std::string> &containerIds,
                                           std::unordered_map<std::string, std::vector<pid_t>> &containerInfos);
+
 private:
     static std::string procPathPrefix;
 
     static std::string ParseContainerFile(const std::string &cgroupPath);
 };
-} // vm
+} // namespace vm
 
 #endif // VM_OS_HELPER_H

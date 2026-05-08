@@ -15,9 +15,9 @@
 
 #include <ubse_api_server.h>
 #include <ubse_logger.h>
+#include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_sdk_def.h"
-#include "ubs_virt_agent_object_def.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -51,8 +51,8 @@ uint32_t VirtCaseConfSdk::GetCaseConf(CaseConfInfo &caseConfInfo)
         UBSE_LOG_ERROR << "Query caseConf from db is empty, curCase is empty.";
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "Query caseConf from db, curCase=" << caseConf.curCase << ", overCommitmentRatio="
-                  << std::to_string(caseConf.overCommitmentRatio);
+    UBSE_LOG_INFO << "Query caseConf from db, curCase=" << caseConf.curCase
+                  << ", overCommitmentRatio=" << std::to_string(caseConf.overCommitmentRatio);
     caseConfInfo.curCase = caseConf.curCase;
     caseConfInfo.overCommitmentRatio = std::to_string(caseConf.overCommitmentRatio);
     caseConfInfo.index = caseConf.index;
@@ -219,4 +219,4 @@ uint32_t VirtCaseConfSdk::SetCaseConfHandler(const UbseIpcMessage &req, const Ub
     UBSE_LOG_INFO << "Set caseConf and overCommitment end.";
     return ret;
 }
-} // vm
+} // namespace vm

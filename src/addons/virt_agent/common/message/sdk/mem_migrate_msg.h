@@ -45,6 +45,6 @@ public:
 private:
     MemMigrateInputParams inputParams_{};
 };
-} // vm
+} // namespace vm
 
 #endif // MEM_MIGRATE_MSG_H

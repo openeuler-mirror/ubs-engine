@@ -14,8 +14,8 @@
 #ifndef UBS_VIRT_AGENT_CASE_CONF_H
 #define UBS_VIRT_AGENT_CASE_CONF_H
 
-#include "ubs_virt_agent_base.h"
 #include "case_conf_msg.h"
+#include "ubs_virt_agent_base.h"
 
 #ifdef __cplusplus
 extern "C" {

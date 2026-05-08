@@ -64,17 +64,17 @@ struct HamMigrateVmInfo {
     time_point<system_clock> timeout;
     int count = 1;
 
-    bool operator < (const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator<(const HamMigrateVmInfo &hamMigrateVmInfo) const
     {
         return timeout > hamMigrateVmInfo.timeout;
     }
 
-    bool operator > (const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator>(const HamMigrateVmInfo &hamMigrateVmInfo) const
     {
         return timeout < hamMigrateVmInfo.timeout;
     }
 
-    bool operator == (const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator==(const HamMigrateVmInfo &hamMigrateVmInfo) const
     {
         return nodeId == hamMigrateVmInfo.nodeId && pid == hamMigrateVmInfo.pid;
     }

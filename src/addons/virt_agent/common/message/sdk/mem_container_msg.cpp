@@ -13,8 +13,8 @@
 
 #include "mem_container_msg.h"
 
-#include "vm_serial_util.h"
 #include "msg_utils.h"
+#include "vm_serial_util.h"
 
 namespace vm {
 VmResult MemContainerPidMemInfoInputMsg::Serialize()
@@ -219,7 +219,7 @@ container_id_list_for_c ContainerIdListForCInputMsg::GetContainerPidInfo()
     size_t listSize = std::min(containerIdListForC_.containerIdSize, maxSize);
     for (size_t i = 0; i < listSize; ++i) {
         auto ret = StringToC(containerIdListForC.containerId[i], std::string(containerIdListForC_.containerId[i]),
-            sizeof(containerIdListForC.containerId[i]));
+                             sizeof(containerIdListForC.containerId[i]));
         if (ret != VM_OK) {
             return {};
         }
@@ -412,8 +412,8 @@ VmResult MemContainerWaterLineMemBorrowInputMsg::Deserialize()
     }
     std::string tempSrcNid;
     in >> tempSrcNid;
-    auto ret = StringToC(memBorrowRequest_.borrowParam.srcNid, tempSrcNid,
-                         sizeof(memBorrowRequest_.borrowParam.srcNid));
+    auto ret =
+        StringToC(memBorrowRequest_.borrowParam.srcNid, tempSrcNid, sizeof(memBorrowRequest_.borrowParam.srcNid));
     if (ret != VM_OK) {
         return ret;
     }
@@ -445,8 +445,7 @@ VmResult MemContainerWaterLineMemBorrowInputMsg::Deserialize()
     return VM_OK;
 }
 
-VmResult MemContainerWaterLineMemBorrowInputMsg::GetParams(NodeLocInfo &nodeLocInfo,
-                                                           std::vector<uint64_t> &borrowSizes,
+VmResult MemContainerWaterLineMemBorrowInputMsg::GetParams(NodeLocInfo &nodeLocInfo, std::vector<uint64_t> &borrowSizes,
                                                            WaterMark &waterMark)
 {
     // Get nodeLocInfo

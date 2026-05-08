@@ -20,9 +20,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "vm_strategy_struct.h"
-#include "vm_mem.h"
 #include "vm_info.h"
+#include "vm_mem.h"
+#include "vm_strategy_struct.h"
 
 namespace std {
 template <>
@@ -85,7 +85,9 @@ inline NumaStatus MapStringToNumaStatus(const std::string &status)
     return NumaStatus::UNKNOWN;
 }
 
-struct GlobalNumaInfo : NumaInfoCollected, NumaInfoToKeep {
+struct GlobalNumaInfo
+    : NumaInfoCollected
+    , NumaInfoToKeep {
     uint64_t numaMemBorrow = 0; // from mem
     uint64_t numaMemLend = 0;   // from mem
     VMNodeLocInfo numaLoc{};
@@ -135,14 +137,16 @@ struct VMBasicInfoCollected {
 
 // VM information maintained by VirtAgent
 struct VMBasicInfoToKeep {
-    time_t vmMigrateInTime = 0;        // update after migration
-    uint16_t vmMigrateCount = 0;       // update after migration
+    time_t vmMigrateInTime = 0;  // update after migration
+    uint16_t vmMigrateCount = 0; // update after migration
     VmMigrateStatus vmMigrateStatus{};
 };
 
-struct VMBasicInfo : VMBasicInfoCollected, VMBasicInfoToKeep {
+struct VMBasicInfo
+    : VMBasicInfoCollected
+    , VMBasicInfoToKeep {
     uint64_t remoteUsedMem{}; // Total number of used remote memory
-    time_t vmSampleTime = 0; // vm collection time
+    time_t vmSampleTime = 0;  // vm collection time
     std::string toString() const
     {
         std::ostringstream oss;
@@ -254,10 +258,13 @@ using VMInfoToKeepMap = std::unordered_map<std::string, VMBasicInfoToKeep>;
 using NumaInfoToKeepMap = std::map<VMNodeLocInfo, NumaInfoToKeep>;
 using GlobalBorrowMap = std::unordered_map<std::string, BorrowIdStatus>;
 
-template <typename T> void SortByNodeId(std::vector<T> &items)
+template <typename T>
+void SortByNodeId(std::vector<T> &items)
 {
     // Define a lambda expression as a comparator
-    auto comparator = [](const T &pre, const T &curr) { return pre.nodeId < curr.nodeId; };
+    auto comparator = [](const T &pre, const T &curr) {
+        return pre.nodeId < curr.nodeId;
+    };
     // Using std::sort for sorting, passing a custom comparator.
     std::sort(items.begin(), items.end(), comparator);
 }
@@ -286,8 +293,9 @@ struct AlarmNumaInfo {
         oss << "    BorrowItem:[" << std::endl;
         for (auto &borrowItem : borrowItemInfo.borrowItem) {
             oss << "      importMemId:" << borrowItem.importMemId << ";";
-            for (uint16_t i = 0; i < borrowItem.exportLocNum && i < borrowItem.exportLocInfo.size()
-                && i < borrowItem.requestSize.size(); i++) {
+            for (uint16_t i = 0; i < borrowItem.exportLocNum && i < borrowItem.exportLocInfo.size() &&
+                                 i < borrowItem.requestSize.size();
+                 i++) {
                 oss << "[" << borrowItem.exportLocInfo[i].toString() << "," << borrowItem.requestSize[i] << "],";
             }
             oss << std::endl;
@@ -310,5 +318,5 @@ struct HugePageInfo {
         return oss.str();
     }
 };
-}
+} // namespace vm
 #endif // UBSE_MANAGER_UBSE_VM_STRUCT_H

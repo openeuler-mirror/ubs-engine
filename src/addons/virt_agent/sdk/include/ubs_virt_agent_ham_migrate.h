@@ -36,8 +36,8 @@ typedef void (*HamComCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t 
  * @brief Definition of the asynchronous send callback structure
  */
 typedef struct {
-    HamComCallbackFunc cb;  // Callback function pointer
-    void *cbCtx;            // Pointer to the callback context
+    HamComCallbackFunc cb; // Callback function pointer
+    void *cbCtx;           // Pointer to the callback context
 } HamComCallbackDef;
 
 /**
@@ -73,7 +73,6 @@ int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);
  * @return 0 for success, non-zero for error
  */
 int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);
-
 
 #ifdef __cplusplus
 }
