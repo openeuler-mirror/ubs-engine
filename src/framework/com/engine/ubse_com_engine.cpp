@@ -260,8 +260,8 @@ UbseComEngine::UbseComEngine(UbseComEngineInfo engineInfo, UBSHcomService *hcomN
       hcomNetService_(hcomNetService),
       linkStateNotify_(std::move(linkStateNotify)),
       linkManager_(std::move(linkManager)),
-      timeout_(std::move(engineInfo.GetTimeOut())),
-      heartBeatTimeout_(std::move(engineInfo.GetHeartBeatTimeOut()))
+      timeout_(engineInfo_.GetTimeOut()),
+      heartBeatTimeout_(engineInfo_.GetHeartBeatTimeOut())
 {
 }
 
