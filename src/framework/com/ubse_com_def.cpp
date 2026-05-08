@@ -322,11 +322,11 @@ void UbseComChannelInfo::SetEngineName(const std::string &name)
 }
 std::string UbseComChannelInfo::ConvertUbseComChannelInfoToString()
 {
-    std::string infoStr = "engine Name: " + engineName_ + "; ";
-    infoStr = infoStr + "channel type: " + std::to_string(static_cast<int>(channelType_)) + "; ";
-    infoStr = infoStr + "channel id: " + std::to_string(channel_->GetId()) + "; ";
-    infoStr = infoStr + "cur node id: " + connectInfo_.GetCurNodeId() + "; ";
-    infoStr = infoStr + "remote node id: " + connectInfo_.GetRemoteNodeId() + "; ";
+    std::string infoStr = "engine_name=" + engineName_ + "; ";
+    infoStr = infoStr + "channel_type=" + std::to_string(static_cast<int>(channelType_)) + "; ";
+    infoStr = infoStr + "channel_id=" + std::to_string(channel_->GetId()) + "; ";
+    infoStr = infoStr + "cur_node_id=" + connectInfo_.GetCurNodeId() + "; ";
+    infoStr = infoStr + "remote_node_id=" + connectInfo_.GetRemoteNodeId() + "; ";
     return infoStr;
 }
 

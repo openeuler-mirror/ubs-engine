@@ -112,7 +112,7 @@ UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult &algoResult,
         strcpy_s(customMeta.importNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, importNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
-                       << " requestNodeId=" << customMeta.exportNodeId << ", importNodeId=" << importNodeId;
+                       << ", requestNodeId=" << customMeta.exportNodeId << ", importNodeId=" << importNodeId;
         return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
@@ -150,7 +150,7 @@ UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t> &regionNodeIndex, 
             return UBSE_ERROR_INVAL;
         }
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit is " << mask;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit=" << mask;
     return UBSE_OK;
 }
 

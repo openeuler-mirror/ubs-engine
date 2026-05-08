@@ -140,7 +140,7 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj &expo
     customMeta.gid = exportObj.req.udsInfo.gid;
     customMeta.pid = exportObj.req.udsInfo.pid; // 通过pid来判断是否app借用
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa exportObj name is "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa exportObj name="
                        << exportObj.req.name;
         return UBSE_ERROR_INVAL;
     }
@@ -160,7 +160,7 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj &expo
     if (exportObj.algoResult.exportNumaInfos.size() != exportObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << exportObj.algoResult.importNumaInfos.size()
-                       << " exportSize=" << exportObj.algoResult.exportNumaInfos.size();
+                       << ", exportSize=" << exportObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     for (int i = 0; i < exportObj.algoResult.exportNumaInfos.size(); i++) {
@@ -188,7 +188,7 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj &impo
     customMeta.gid = importObj.req.udsInfo.gid;
     customMeta.pid = importObj.req.udsInfo.pid;
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa importObj name is "
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa importObj name="
                        << importObj.req.name;
         return UBSE_ERROR_INVAL;
     }
@@ -203,11 +203,11 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj &impo
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+                  << ", gid=" << customMeta.gid;
     if (importObj.algoResult.exportNumaInfos.size() != importObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << importObj.algoResult.importNumaInfos.size()
-                       << " exportSize=" << importObj.algoResult.exportNumaInfos.size();
+                       << ", exportSize=" << importObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     for (int i = 0; i < importObj.algoResult.exportNumaInfos.size(); i++) {
@@ -260,7 +260,7 @@ UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj &importOb
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, importObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
-                       << ", username=" << customMeta.username << " requestNodeId=" << customMeta.exportNodeId;
+                       << ", username=" << customMeta.username << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
@@ -305,7 +305,7 @@ UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj &expo
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+                  << ", gid=" << customMeta.gid;
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, shm exportObj name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -379,7 +379,7 @@ UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj &expo
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+                  << ", gid=" << customMeta.gid;
     if (exportObj.algoResult.exportNumaInfos.size() != exportObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << exportObj.algoResult.importNumaInfos.size()
@@ -425,7 +425,7 @@ UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj &impo
     if (importObj.algoResult.exportNumaInfos.size() != importObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << importObj.algoResult.importNumaInfos.size()
-                       << " exportSize=" << importObj.algoResult.exportNumaInfos.size();
+                       << ", exportSize=" << importObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     customMeta.importSocket = importObj.req.srcSocket;
@@ -466,19 +466,19 @@ obmm_preimport_info *ConstructPreImportInfo(const BasicPreImportInfo &basicPreIm
     auto ret = memcpy_s(preImportInfoPtr->priv, sizeof(UbMemPrivData), &ubMemPrivData, sizeof(UbMemPrivData));
     if (ret != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "Memcpy_s failed when copy ub_mem_priv_data to obmm_preimport_info priv, error is " << ret;
+                       << "Memcpy_s failed when copy ub_mem_priv_data to obmm_preimport_info priv, error=" << ret;
         RmCommonUtils::GetInstance().SafeFree(preImportInfoPtr);
         return nullptr;
     }
     ret = memcpy_s(preImportInfoPtr->seid, UBSE_EID_LENGTH, &basicPreImportInfo.seid, sizeof(uint32_t));
     if (ret != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy seid to obmm_preimport_info, error is " << ret;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy seid to obmm_preimport_info, error=" << ret;
         RmCommonUtils::GetInstance().SafeFree(preImportInfoPtr);
         return nullptr;
     }
     ret = memcpy_s(preImportInfoPtr->deid, UBSE_EID_LENGTH, &basicPreImportInfo.deid, sizeof(uint32_t));
     if (ret != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy deid to obmm_preimport_info, error is " << ret;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy deid to obmm_preimport_info, error=" << ret;
         RmCommonUtils::GetInstance().SafeFree(preImportInfoPtr);
         return nullptr;
     }
@@ -524,10 +524,10 @@ UbseResult RmObmmUtils::GetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicP
 UbseResult RmObmmUtils::GetBasicPreImportInfos(std::vector<BasicPreImportInfo> &basicPreImportInfos,
                                                std::ifstream &file, const std::vector<std::string> &tokens)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "startAddr= " << tokens[START_ADDR_INDEX]
-                  << ", endAddr= " << tokens[END_ADDR_INDEX] << ", dcna= " << tokens[DCNA_INDEX]
-                  << ", scna= " << tokens[SCNA_INDEX] << ", deid= " << tokens[DEID_INDEX]
-                  << ", seid= " << tokens[SEID_INDEX] << ", numaId= " << tokens[NUMAID_INDEX];
+    UBSE_LOG_INFO << MMI_LOG_INFO << "startAddr=" << tokens[START_ADDR_INDEX]
+                  << ", endAddr=" << tokens[END_ADDR_INDEX] << ", dcna=" << tokens[DCNA_INDEX]
+                  << ", scna=" << tokens[SCNA_INDEX] << ", deid=" << tokens[DEID_INDEX]
+                  << ", seid=" << tokens[SEID_INDEX] << ", numaId=" << tokens[NUMAID_INDEX];
     uint64_t startAddr = 0u;
     uint64_t endAddr = 0u;
     uint64_t dcna = 0u;

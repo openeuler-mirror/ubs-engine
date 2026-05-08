@@ -76,7 +76,7 @@ public:
         std::vector<mem_id> memIds{};
         for (int i = 0; i < exportObj.status.exportObmmInfo.size(); i++) {
             if (exportObj.status.exportObmmInfo[i].memId == INVALID_MEM_ID) {
-                UBSE_LOG_ERROR << MMI_LOG_INFO << "Export obmm memid is invalid, name = " << exportObj.req.name;
+                UBSE_LOG_ERROR << MMI_LOG_INFO << "Export obmm memid is invalid, name=" << exportObj.req.name;
                 return UBSE_ERROR_INVAL;
             }
             memIds.push_back(exportObj.status.exportObmmInfo[i].memId);
@@ -106,11 +106,11 @@ public:
             std::vector<ubse_mem_obmm_mem_desc> descTmp{};
             auto blockCount =
                 SetObmmDescDefaultErrorValue(descTmp, exportObj.algoResult.exportNumaInfos[i].size, blockSize);
-            UBSE_LOG_INFO << MMI_LOG_INFO << "The blocks is " << blockCount << ", blockSize is " << blockSize;
+            UBSE_LOG_INFO << MMI_LOG_INFO << "blocks=" << blockCount << ", blockSize=" << blockSize;
             obmmMemDescs.insert(obmmMemDescs.end(), descTmp.begin(), descTmp.end());
 
             if (numaIds[i].numaId >= MAX_NUMA_NODES || numaIds[i].numaId < 0 || numaIds[i].size <= 0) {
-                UBSE_LOG_WARN << MMI_LOG_INFO << "Strategy param illegal, numaId is " << numaIds[i].numaId;
+                UBSE_LOG_WARN << MMI_LOG_INFO << "Strategy param illegal, numaId=" << numaIds[i].numaId;
                 continue;
             }
             sizes[numaIds[i].numaId] = numaIds[i].size;

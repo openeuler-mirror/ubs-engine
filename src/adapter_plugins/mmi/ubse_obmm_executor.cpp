@@ -135,7 +135,7 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
                                   ubse_mem_obmm_mem_desc &desc)
 {
     UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "Start to use Obmm Export interface, opParam is "
-                   << opParam.toString() << ", size list is=";
+                   << opParam.toString() << ", size list is: ";
     for (int i = 0; i < MAX_NUMA_NODES; ++i) {
         if (size[i] != 0) {
             UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "numaid=" << i << ", size=" << size[i];
@@ -148,7 +148,7 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
     for (int i = 0; i < MAX_NUMA_NODES; ++i) {
         if (size[i] > 0) {
             UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_export numa=" << i << ", size=" << size[i]
-                          << ", flag " << obmmFlags;
+                          << ", flag=" << obmmFlags;
         }
     }
     if (obmmExportFunc == nullptr) {
