@@ -78,15 +78,6 @@ private:
 
     UbseResult FillNodeComInfo();
 
-    UbseResult GetIoDiePortEid(const adapter_plugins::mti::UbseDevName &devName, IODieInfo &ioDieInfo,
-                               const std::map<std::string, std::string> &portEidList);
-
-    UbseResult GetTopologyInfo(std::map<std::string, std::vector<IODieInfo>> &allNodeIOdieInfo);
-
-    UbseResult SetUvsComInfo();
-
-    static UbseResult ParseColonHexString(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
-
     static std::string BytesToIPv6String(const unsigned char inBytes[IPV6_BYTE_COUNT]);
 
     bool IsPrimaryEidExist(const std::string &nodeId);
@@ -113,8 +104,6 @@ private:
     std::vector<std::string> clusterIpList;
     std::shared_mutex rw_mutex;
     UbseResult GenerateBondingEid(const std::string &nodeId, unsigned char *bondingEid);
-    UbseResult FillTopoArray(std::map<std::string, std::vector<IODieInfo>> &allNodeIOdieInfo,
-                             std::unique_ptr<TopoInfo[]> &topoArray);
 };
 } // namespace ubse::mti
 
