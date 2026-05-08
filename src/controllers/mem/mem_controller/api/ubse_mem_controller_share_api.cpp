@@ -692,6 +692,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     }
     importObj.exportObmmInfo = exportObjs[0].status.exportObmmInfo;
     importObj.algoResult = exportObjs[0].algoResult;
+    importObj.req = exportObjs[0].req;
     if (GetCnaTopoByPeerNodeInfo(req, exportObjs[0], resp, importObj) != UBSE_OK) {
         UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
         BorrowFailedAdvice("Borrow Schedule failed", req.name, "SHARE_BORROW", req.size,
@@ -700,7 +701,6 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "Failed to get cna info when import",
                                           UBSE_ERR_INTERNAL, MemOperationType::SHARED_ATTACH);
     }
-    importObj.req = exportObjs[0].req;
     importObj.req.trustRingData.ClearReqSignedDataMemory();  // 清除import对象里请求签名信息
     UBSE_LOG_INFO << "import size=" << importObj.req.size << ", requestId=" << req.requestId;
     ConstructShareImportObj(importObj, req);
