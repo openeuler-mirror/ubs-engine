@@ -82,8 +82,8 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_CopyResponseBodyEmpty)
 TEST_F(TestUbseIpcClient, UbseInvokeCall_CopyResponseBodyFailed)
 {
     MOCKER_CPP(&UbseUDSClient::Connect).stubs().will(returnValue(UBSE_OK));
-    auto buffer = new uint8_t[10];
-    UbseResponseMessage responseData{{0, 10}, buffer};
+    auto buffer = new uint8_t[10]; // 创建10字节的测试缓冲区
+    UbseResponseMessage responseData{{0, 10}, buffer}; // bodyLen为10字节
     MOCKER_CPP(&UbseUDSClient::Send)
         .stubs()
         .with(_, outBound(responseData))
@@ -100,8 +100,8 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_Success)
     MOCKER_CPP(&UbseUDSClient::Connect)
         .stubs()
         .will(returnValue(UBSE_OK));
-    auto buffer = new uint8_t[10];
-    UbseResponseMessage responseData{{0, 10}, buffer};
+    auto buffer = new uint8_t[10]; // 创建10字节的测试缓冲区
+    UbseResponseMessage responseData{{0, 10}, buffer}; // bodyLen为10字节
     MOCKER_CPP(&UbseUDSClient::Send)
         .stubs()
         .with(_, outBound(responseData))
@@ -255,7 +255,7 @@ TEST_F(TestUbseIpcClient, DeSerializeShmFault_Failure)
     UbseShmFault deserializedShmFault;
 
     // 故意设置不正确的大小
-    size = 10; // 假设实际序列化后的大小大于10
+    size = 10; // 假设实际序列化后的大小大于10字节
 
     uint32_t deserializeResult = DeSerializeShmFault(deserializedShmFault, buffer, size);
     EXPECT_NE(deserializeResult, UBSE_OK);
@@ -275,7 +275,7 @@ TEST_F(TestUbseIpcClient, DeSerializeShmFault_NullBuffer)
 // 测试反序列化失败情况（零大小）
 TEST_F(TestUbseIpcClient, DeSerializeShmFault_ZeroSize)
 {
-    uint8_t *buffer = new uint8_t[10]{}; // 分配一个空缓冲区
+    uint8_t *buffer = new uint8_t[10]{}; // 分配10字节的测试缓冲区
     size_t size = 0;
     UbseShmFault deserializedShmFault;
 
@@ -285,4 +285,90 @@ TEST_F(TestUbseIpcClient, DeSerializeShmFault_ZeroSize)
     // 释放缓冲区
     delete[] buffer;
 }
+TEST_F(TestUbseIpcClient, RandomId_GeneratesValidId)
+{
+    auto id1 = RandomId();
+    auto id2 = RandomId();
+    EXPECT_GE(id1, 1000000000000000ULL); // RandomId最小值为16位数字
+    EXPECT_LE(id1, 9999999999999999ULL); // RandomId最大值为16位数字
+    EXPECT_NE(id1, id2);
+}
+
+TEST_F(TestUbseIpcClient, SerializeRequestMessage_NullBody)
+{
+    UbseRequestMessage msg{{1, 1, 0}, nullptr};
+    std::vector<uint8_t> buffer;
+    EXPECT_EQ(SerializeRequestMessage(msg, buffer), UBSE_OK);
+    EXPECT_EQ(buffer.size(), sizeof(bool) + sizeof(UbseRequestHeader));
+}
+
+TEST_F(TestUbseIpcClient, SerializeRequestMessage_WithBody)
+{
+    uint8_t body[] = {1, 2, 3, 4, 5}; // 5字节的测试消息体
+    UbseRequestMessage msg{{1, 1, 5}, body}; // moduleCode和opCode为1，bodyLen为5字节
+    std::vector<uint8_t> buffer;
+    EXPECT_EQ(SerializeRequestMessage(msg, buffer), UBSE_OK);
+    EXPECT_EQ(buffer.size(), sizeof(bool) + sizeof(UbseRequestHeader) + 5);
+}
+
+TEST_F(TestUbseIpcClient, SerializeResponseMessage_NullBody)
+{
+    UbseResponseMessage msg{{0, 0}, nullptr};
+    std::vector<uint8_t> buffer;
+    EXPECT_EQ(SerializeResponseMessage(msg, buffer), UBSE_OK);
+    EXPECT_EQ(buffer.size(), sizeof(bool) + sizeof(UbseResponseHeader));
+}
+
+TEST_F(TestUbseIpcClient, SerializeResponseMessage_WithBody)
+{
+    uint8_t body[] = {1, 2, 3, 4, 5}; // 5字节的测试消息体
+    UbseResponseMessage msg{{0, 5}, body}; // bodyLen为5字节
+    std::vector<uint8_t> buffer;
+    EXPECT_EQ(SerializeResponseMessage(msg, buffer), UBSE_OK);
+    EXPECT_EQ(buffer.size(), sizeof(bool) + sizeof(UbseResponseHeader) + 5);
+}
+
+TEST_F(TestUbseIpcClient, UbseSocketPathSet_Nullptr)
+{
+    ubse_socket_path_set(nullptr);
+}
+
+TEST_F(TestUbseIpcClient, UbseSocketPathSet_EmptyString)
+{
+    ubse_socket_path_set("");
+}
+
+TEST_F(TestUbseIpcClient, UbseSocketPathSet_ValidPath)
+{
+    ubse_socket_path_set("/tmp/test.sock");
+}
+
+TEST_F(TestUbseIpcClient, UbseApiBufferFree_Nullptr)
+{
+    ubse_api_buffer_free(nullptr);
+}
+
+TEST_F(TestUbseIpcClient, UbseApiBufferFree_ValidBuffer)
+{
+    auto buffer = static_cast<uint8_t *>(malloc(10)); // 分配10字节的测试缓冲区
+    ubse_api_buffer_t apiBuffer{buffer, 10}; // buffer长度为10字节
+    ubse_api_buffer_free(&apiBuffer);
+    EXPECT_EQ(apiBuffer.buffer, nullptr);
+    EXPECT_EQ(apiBuffer.length, 0);
+}
+
+TEST_F(TestUbseIpcClient, UbseApiBufferDelete_Nullptr)
+{
+    ubse_api_buffer_delete(nullptr);
+}
+
+TEST_F(TestUbseIpcClient, UbseApiBufferDelete_ValidBuffer)
+{
+    auto buffer = new uint8_t[10]; // 分配10字节的测试缓冲区
+    ubse_api_buffer_t apiBuffer{buffer, 10}; // buffer长度为10字节
+    ubse_api_buffer_delete(&apiBuffer);
+    EXPECT_EQ(apiBuffer.buffer, nullptr);
+    EXPECT_EQ(apiBuffer.length, 0);
+}
+
 } // namespace ubse::ut::ipc
