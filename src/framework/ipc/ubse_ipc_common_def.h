@@ -13,6 +13,9 @@
 #ifndef UBSE_MANAGER_UBSE_IPC_COMMON_DEF_H
 #define UBSE_MANAGER_UBSE_IPC_COMMON_DEF_H
 
+#include <cstdint>
+#include <string>
+
 namespace ubse::ipc {
 
 enum class UbseIpcMemFaultType {
