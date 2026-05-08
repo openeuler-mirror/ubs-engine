@@ -442,7 +442,7 @@ TEST_F(TestUbseComDef, TestConvertUbseComChannelInfoToString)
     channelInfo.connectInfo_ = connectInfo;
 
     std::string channelInfoString = channelInfo.ConvertUbseComChannelInfoToString();
-    EXPECT_EQ("engine Name: RpcServer; channel type: 0; channel id: 1; cur node id: 0; remote node id: 1; ",
+    EXPECT_EQ("engine_name=RpcServer; channel_type=0; channel_id=1; cur_node_id=0; remote_node_id=1; ",
         channelInfoString);
 }
 

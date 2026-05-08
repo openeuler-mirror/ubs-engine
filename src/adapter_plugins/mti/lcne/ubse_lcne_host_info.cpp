@@ -74,11 +74,11 @@ std::string UbseLcneOSInfoToString(const UbseLcneOSInfo& info)
 {
     std::ostringstream oss;
     oss << "UbseLcneOSInfo { "
-        << "busInstanceEid: " << info.busInstanceEid << ", "
-        << "guid: " << info.guid << ", "
-        << "type: " << std::to_string(static_cast<int>(info.logicEntityType)) << ", "
-        << "upi: " << info.upi << ", "
-        << "status: " << std::to_string(static_cast<int>(info.logicEntityStatus)) << " }";
+        << "busInstanceEid=" << info.busInstanceEid << ", "
+        << "guid=" << info.guid << ", "
+        << "type=" << std::to_string(static_cast<int>(info.logicEntityType)) << ", "
+        << "upi=" << info.upi << ", "
+        << "status=" << std::to_string(static_cast<int>(info.logicEntityStatus)) << " }";
     return oss.str();
 }
 

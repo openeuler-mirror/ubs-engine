@@ -59,7 +59,7 @@ void UbseComLinkManager::LogChannelInfo()
 {
     UBSE_LOG_DEBUG << "---------Log All Channel Info-----------";
     for (auto &item : nodeChannelMap_) {
-        std::string debugInfo = "Node:" + item.first + ": ";
+        std::string debugInfo = "NodeId=" + item.first + ", ";
         for (auto &channel : item.second) {
             debugInfo += channel.second.ConvertUbseComChannelInfoToString();
         }
@@ -1245,7 +1245,8 @@ UbseResult CreateUbChannel(bool isUds, const std::string &engineName, const std:
         return UBSE_ERROR_INVAL;
     }
     if (nodeIds.first.empty() || nodeIds.second.empty()) {
-        UBSE_LOG_ERROR << "connect node id is empty, curNodeId=" << nodeIds.first << " remoteNodeId=" << nodeIds.second;
+        UBSE_LOG_ERROR << "connect node id is empty, curNodeId=" << nodeIds.first << ", remoteNodeId="
+                       << nodeIds.second;
         return UBSE_ERROR_INVAL;
     }
     UbseComEngine *engine = UbseComEngineManager::GetEngine(engineName);
@@ -1358,8 +1359,8 @@ UbseResult UbseCommunication::UbseComRpcConnect(const std::string &engineName,
                                                 const std::pair<std::string, std::string> &nodeIds,
                                                 std::string &remoteNodeId, UbseChannelType chType, bool isUb)
 {
-    UBSE_LOG_INFO << "rpc connect start, node ip=" << ipAndPort.first << ", node port=" << ipAndPort.second
-                  << ", channel type=" << static_cast<uint32_t>(chType);
+    UBSE_LOG_INFO << "rpc connect start, node_ip=" << ipAndPort.first << ", node_port=" << ipAndPort.second
+                  << ", channel_type=" << static_cast<uint32_t>(chType);
     UbseResult res;
     if (isUb) {
         res = CreateUbChannel(false, engineName, ipAndPort, nodeIds, chType, remoteNodeId);
@@ -1369,8 +1370,8 @@ UbseResult UbseCommunication::UbseComRpcConnect(const std::string &engineName,
     if (UBSE_RESULT_FAIL(res)) {
         return res;
     }
-    UBSE_LOG_INFO << "create rpc_connect channel successfully , node ip=" << ipAndPort.first
-                  << ", node port=" << ipAndPort.second << ", channel type=" << static_cast<uint32_t>(chType);
+    UBSE_LOG_INFO << "create rpc_connect channel successfully, node_ip=" << ipAndPort.first
+                  << ", node_port=" << ipAndPort.second << ", channel_type=" << static_cast<uint32_t>(chType);
     return UBSE_OK;
 }
 

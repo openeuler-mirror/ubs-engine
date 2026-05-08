@@ -567,7 +567,7 @@ void UbseNodeController::PrintDevDirConnectInfo()
             << connect.second.peerSlotId << ", peerChipId=" << connect.second.peerChipId << ", peerPortId="
             << connect.second.peerPortId;
         if (connect.second.linkStatus == LinkStatus::conflict) {
-            oss << ", status conflict";
+            oss << ", status=conflict";
         }
         oss << "\n";
     }
