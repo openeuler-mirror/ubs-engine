@@ -32,6 +32,12 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t CYCLE_CHECK_TIME_S = 300;
 static std::atomic<bool> g_startCheckDecoderHandle{false};
+extern std::atomic<uint32_t> g_decoderImportGuard;
+
+static bool IsDecoderImportGuardActive()
+{
+    return g_decoderImportGuard.load(std::memory_order_acquire) > 0;
+}
 
 void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &allHandleValues,
                         const mem::decoder::utils::DecoderLocTohandleMap &handleMap,
@@ -69,6 +75,10 @@ void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &a
 
 UbseResult CycleCheckDecoderHandle()
 {
+    if (IsDecoderImportGuardActive()) {
+        UBSE_LOG_INFO << "Decoder import in progress, skip cycle check";
+        return UBSE_OK;
+    }
     std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> socketIdToChipDie{};
     auto res = decoder::utils::MemDecoderUtils::GetCurNodeSocketInfo(socketIdToChipDie);
     if (res != UBSE_OK) {

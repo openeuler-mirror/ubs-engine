@@ -44,6 +44,22 @@ extern std::atomic<uint64_t> g_fdUnimportFailedCount;
 extern std::atomic<uint64_t> g_numaUnimportFailedCount;
 extern std::atomic<uint64_t> g_shareUnimportFailedCount;
 extern std::atomic<uint64_t> g_addrUnimportFailedCount;
+extern std::atomic<uint32_t> g_decoderImportGuard;
+
+inline bool IsDecoderImportGuardActive()
+{
+    return g_decoderImportGuard.load(std::memory_order_acquire) > 0;
+}
+
+class DecoderImportGuardLock {
+public:
+    DecoderImportGuardLock() { g_decoderImportGuard.fetch_add(1, std::memory_order_acq_rel); }
+    ~DecoderImportGuardLock() { g_decoderImportGuard.fetch_sub(1, std::memory_order_acq_rel); }
+    DecoderImportGuardLock(const DecoderImportGuardLock &) = delete;
+    DecoderImportGuardLock &operator=(const DecoderImportGuardLock &) = delete;
+    DecoderImportGuardLock(DecoderImportGuardLock &&) = delete;
+    DecoderImportGuardLock &operator=(DecoderImportGuardLock &&) = delete;
+};
 
 struct UbseMemBorrowStatus {
     bool hasImport = false;

@@ -707,14 +707,17 @@ uint32_t FdImportRunningHandler(UbseMemFdBorrowImportObj &importObj, const std::
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "fd";
-    res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
-    if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
-        UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
-        return UBSE_ERR_INTERNAL;
+    {
+        DecoderImportGuardLock guard;
+        res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
+        if (res != UBSE_OK) {
+            UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
+            UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+            return UBSE_ERR_INTERNAL;
+        }
+        importObj.req.trustRingData.ClearLendSignedDataMemory();
+        FdImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
     }
-    importObj.req.trustRingData.ClearLendSignedDataMemory();
-    FdImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().FdImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to import, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << importObj.req.requestId;

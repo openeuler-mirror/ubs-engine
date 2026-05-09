@@ -772,14 +772,17 @@ uint32_t NumaImportRunningHandler(UbseMemOperationResp &resp, UbseMemNumaBorrowI
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "numa";
-    res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
-    if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
-        UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
-        return UBSE_ERR_INTERNAL;
+    {
+        DecoderImportGuardLock guard;
+        res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
+        if (res != UBSE_OK) {
+            UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
+            UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+            return UBSE_ERR_INTERNAL;
+        }
+        importObj.req.trustRingData.ClearLendSignedDataMemory();
+        NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
     }
-    importObj.req.trustRingData.ClearLendSignedDataMemory();
-    NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().NumaImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to import, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << importObj.req.requestId;
