@@ -16,8 +16,8 @@
 #include <securec.h>
 #include <ubse_logger.h>
 
-#include "response_info_message.h"
 #include "mempooling_module.h"
+#include "response_info_message.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");

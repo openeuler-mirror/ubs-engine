@@ -14,8 +14,8 @@
 #ifndef UBS_VIRT_AGENT_MEM_FRAGMENTATION_H
 #define UBS_VIRT_AGENT_MEM_FRAGMENTATION_H
 
-#include "ubs_virt_agent_base.h"
 #include "mem_fragmentation_msg.h"
+#include "ubs_virt_agent_base.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,19 +23,19 @@ extern "C" {
 using namespace vm;
 
 typedef struct {
-    int16_t numaId;                       // CPU NUMA ID
-    int16_t socketId;                     // CPU socket ID
+    int16_t numaId;   // CPU NUMA ID
+    int16_t socketId; // CPU socket ID
     bool isLocal;
-    uint64_t pageSize;                    // VM page size, default is 2 MB huge pages (2048 KBytes)
+    uint64_t pageSize; // VM page size, default is 2 MB huge pages (2048 KBytes)
     int64_t usedMem;
 } vm_numa_info_t;
 
 typedef struct {
     char nodeId[VIRT_MEM_MAX_NODE_ID_LENGTH]; // Physical node ID (from control-plane configuration file)
-    char hostName[UBS_VA_HOST_NAME_MAX];  // Physical node host name (from VM XML definition)
-    char uuid[VIRT_MAX_UUID_LENGTH];       // VM UUID (from VM XML definition)
-    char name[VIRT_MAX_NAME_LENGTH];       // VM name (from VM XML definition)
-    char state[VIRT_MAX_STATE_LENGTH];     // VM state
+    char hostName[UBS_VA_HOST_NAME_MAX];      // Physical node host name (from VM XML definition)
+    char uuid[VIRT_MAX_UUID_LENGTH];          // VM UUID (from VM XML definition)
+    char name[VIRT_MAX_NAME_LENGTH];          // VM name (from VM XML definition)
+    char state[VIRT_MAX_STATE_LENGTH];        // VM state
     int64_t vmCreateTime;
     uint64_t maxMem;
     pid_t pid;
@@ -44,7 +44,7 @@ typedef struct {
 typedef struct {
     time_t timestamp;
     vm_meta_data_t metadata;
-    vm_numa_info_t* numaInfo;
+    vm_numa_info_t *numaInfo;
     uint64_t numaInfoCount;
 } vm_domain_info_t;
 
@@ -69,7 +69,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_
  * @param dict [IN] node anti-affinity dictionary, including node keys and their anti-affinity node lists
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict);
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary *dict);
 
 /**
  * @brief  calculate memory borrow strategy based on source memory fragmentation information
@@ -77,8 +77,8 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeA
  * @param borrow_strategy [OUT] calculated memory borrow strategy result
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param* src_param,
-                                                    borrow_strategy_c* borrow_strategy);
+virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param *src_param,
+                                                    borrow_strategy_c *borrow_strategy);
 
 /**
  * @brief Executes a memory borrowing operation based on the provided borrowing strategy.
@@ -103,8 +103,8 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
  * @param strategy [OUT] calculated memory migrate strategy result
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam* srcParam,
-                                                     MemMigrateStrategy* strategy);
+virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam *srcParam,
+                                                     MemMigrateStrategy *strategy);
 
 /**
  * @brief  execute memory migrate operation based on calculated migrate strategy

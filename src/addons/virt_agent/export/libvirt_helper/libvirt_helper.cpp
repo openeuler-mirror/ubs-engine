@@ -134,4 +134,4 @@ VmResult LibvirtHelper::DomainAbortJobFlags(const string &uuid, VirDomainAbortJo
     FreeDomain(domain);
     return ret;
 }
-}
+} // namespace vm

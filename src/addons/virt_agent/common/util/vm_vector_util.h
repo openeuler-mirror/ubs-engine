@@ -14,9 +14,9 @@
 #ifndef VM_VECTOR_UTIL_H
 #define VM_VECTOR_UTIL_H
 
-#include <vector>
-#include <string>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace vm {
 class VectorUtil {
@@ -41,5 +41,5 @@ public:
 
     static void RemoveCommonElements(std::vector<uint16_t> &sourceVector, std::vector<uint16_t> &elementsToRemove);
 };
-}
+} // namespace vm
 #endif // VM_VECTOR_UTIL_H

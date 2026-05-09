@@ -161,7 +161,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
     if (borrow_setting == nullptr || borrow_setting->borrow_strategy.dest_numa_infos_size > MAX_DEST_PARAM_SIZE ||
         result == nullptr || result->borrow_ids_ptr == nullptr || result->present_numa_ids_ptr == nullptr ||
         strnlen(borrow_setting->borrow_strategy.src_host_id, VIRT_MEM_MAX_NODE_ID_LENGTH) >=
-        VIRT_MEM_MAX_NODE_ID_LENGTH) {
+            VIRT_MEM_MAX_NODE_ID_LENGTH) {
         IPC_LOG_ERROR << "Invalid parameters: borrow_strategy or borrow_ids_size or present_numa_ids_size is null,"
                          "or dest_numa_infos_size is invalid, or borrow_ids_ptr is null or borrow_ids_ptr is null,"
                          "or src_host_id is invalid.";
@@ -392,7 +392,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
     }
     for (uint32_t i = 0; i < (*srcParam).borrowIdsCount; i++) {
         if (strnlen((*srcParam).borrowIds[i], MAX_BORROW_ID_LENGTH) >= MAX_BORROW_ID_LENGTH) {
-            IPC_LOG_ERROR << "Invalid parameters: borrowIds[" <<  i << "] is invalid.";
+            IPC_LOG_ERROR << "Invalid parameters: borrowIds[" << i << "] is invalid.";
             return VA_ERROR_INVALID_PARAM;
         }
     }
@@ -412,9 +412,8 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
         IPC_LOG_ERROR << "Failed to allocate memory for request_buffer.buffer.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
-    ubse_api_buffer_t  response_buffer = {nullptr, 0};
-    ret = ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_MIGRATE_EXECUTE, &request_buffer,
-                           &response_buffer);
+    ubse_api_buffer_t response_buffer = {nullptr, 0};
+    ret = ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_MIGRATE_EXECUTE, &request_buffer, &response_buffer);
     ubse_api_buffer_delete(&request_buffer);
     ubse_api_buffer_free(&response_buffer);
     if (ret != UBS_SUCCESS) {
@@ -434,7 +433,7 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam)
     }
     for (uint32_t i = 0; i < srcParam->borrow_id_size; i++) {
         if (strnlen(srcParam->borrow_id_list[i], MAX_BORROW_ID_LENGTH) >= MAX_BORROW_ID_LENGTH) {
-            IPC_LOG_ERROR << "Invalid parameters: borrow_id_list[" <<  i << "] is invalid.";
+            IPC_LOG_ERROR << "Invalid parameters: borrow_id_list[" << i << "] is invalid.";
             return VA_ERROR_INVALID_PARAM;
         }
     }
@@ -450,8 +449,8 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam)
     ubse_api_buffer_t requestBuffer = {rollbackMsg.SerializedData(), rollbackMsg.SerializedDataSize()};
 
     ubse_api_buffer_t responseBuffer = {nullptr, 0};
-    uint32_t invokeRet = ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_ROLLBACK,
-                                          &requestBuffer, &responseBuffer);
+    uint32_t invokeRet =
+        ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_ROLLBACK, &requestBuffer, &responseBuffer);
     ubse_api_buffer_delete(&requestBuffer);
     ubse_api_buffer_free(&responseBuffer);
     if (invokeRet != UBS_SUCCESS) {

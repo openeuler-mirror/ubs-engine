@@ -11,14 +11,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "vm_migrate.h"
-#include <ubse_logger.h>
 #include <ubse_api_server.h>
-#include "resource_query.h"
-#include "vm_http_util.h"
+#include <ubse_logger.h>
 #include "resource_collect.h"
+#include "resource_query.h"
+#include "ubs_virt_agent_object_def.h"
+#include "vm_http_util.h"
 #include "vm_json_util.h"
 #include "vm_sdk_def.h"
-#include "ubs_virt_agent_object_def.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -76,7 +76,7 @@ VmResult VmMigrate::ProcessRequest(MemMigrateInputParams &inputParams, UbseIpcMe
     NumaMemInfoMap numaMemInfomap{};
     PageFlowResultParam pageFlowRes{};
     auto ret = FindNodeIdPid(uuid, nodeId, pid, numaMemInfomap);
-    if (ret != VM_OK || pid <=0) {
+    if (ret != VM_OK || pid <= 0) {
         UBSE_LOG_ERROR << "Find pid failed.";
         return VM_ERROR;
     }

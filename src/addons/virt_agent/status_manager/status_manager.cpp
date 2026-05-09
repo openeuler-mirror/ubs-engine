@@ -14,14 +14,14 @@
 #include "status_manager.h"
 
 #include <condition_variable>
+#include <numeric>
 #include <queue>
 #include <string>
-#include <numeric>
 #include "mempooling_module.h"
-#include "vm_configuration.h"
 #include "resource_collect.h"
-#include "vm_task_counter.h"
+#include "vm_configuration.h"
 #include "vm_string_util.h"
+#include "vm_task_counter.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");

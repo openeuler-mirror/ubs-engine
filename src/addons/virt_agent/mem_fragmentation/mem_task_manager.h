@@ -47,8 +47,8 @@ struct AsyncTaskInfo {
     std::chrono::system_clock::time_point endTime;   // End time of the task
     std::thread::id threadId;                        // Thread ID where the task is running
 
-    uint8_t *msgRawData = nullptr;                   // Thread ID where the task is running
-    uint32_t msgRawDataSize = 0;                     // Size of the raw data buffer in bytes
+    uint8_t *msgRawData = nullptr; // Thread ID where the task is running
+    uint32_t msgRawDataSize = 0;   // Size of the raw data buffer in bytes
 };
 
 class ThreadTaskManager {

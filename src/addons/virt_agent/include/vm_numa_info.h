@@ -14,9 +14,9 @@
 #ifndef VM_NUMA_INFO_H
 #define VM_NUMA_INFO_H
 
-#include <vector>
-#include <string>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace vm {
 struct NumaCpuInfo {
@@ -102,6 +102,6 @@ struct HostNumaCpuInfo {
         return oss.str();
     }
 };
-} // vm
+} // namespace vm
 
 #endif // VM_NUMA_INFO_H

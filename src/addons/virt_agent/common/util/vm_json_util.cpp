@@ -14,9 +14,11 @@
 #include "vm_json_util.h"
 
 #include <string>
+
 #include <rapidjson/document.h>
-#include <rapidjson/stringbuffer.h>
 #include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
+
 #include <ubse_logger.h>
 
 namespace vm {

@@ -26,5 +26,5 @@ public:
 private:
     static std::atomic<int> count;
 };
-}
+} // namespace vm
 #endif // UBSE_VM_TASK_COUNTER_H

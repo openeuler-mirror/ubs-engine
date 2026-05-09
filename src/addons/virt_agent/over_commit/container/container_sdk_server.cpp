@@ -13,15 +13,17 @@
 
 #include "container_sdk_server.h"
 
+#include <string>
+
 #include <ubse_api_server.h>
 #include <ubse_logger.h>
-#include <string>
+
+#include "container_service.h"
 #include "mem_container_msg.h"
 #include "os_helper.h"
-#include "vm_sdk_def.h"
-#include "container_service.h"
-#include "vm_system_util.h"
 #include "ubs_virt_agent_object_def.h"
+#include "vm_sdk_def.h"
+#include "vm_system_util.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -444,4 +446,4 @@ uint32_t VirtContainerSdk::WaterLineMemReturn(const UbseIpcMessage &req, const U
     UBSE_LOG_DEBUG << "WaterLineMemReturn send succeeded.";
     return VM_OK;
 }
-} // vm
+} // namespace vm

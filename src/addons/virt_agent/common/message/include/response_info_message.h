@@ -58,6 +58,6 @@ public:
 private:
     ResponseInfo responseInfo{};
 };
-}
+} // namespace vm
 
 #endif // RESPONSE_INFO_MESSAGE_H

@@ -27,6 +27,6 @@ public:
      */
     static std::string GetUsernameByUid(const uid_t uid);
 };
-}
+} // namespace vm
 
 #endif

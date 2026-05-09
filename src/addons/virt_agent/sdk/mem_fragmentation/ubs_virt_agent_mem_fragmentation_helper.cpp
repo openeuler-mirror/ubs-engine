@@ -67,14 +67,14 @@ virt_agent_ret_t ubse_vm_info_unpack(uint8_t *buffer, uint32_t len, vm_domain_in
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
     for (uint32_t i = 0; i < *node_cnt; ++i) {
-        (*vm_infos)[i] = *reinterpret_cast<vm_domain_info_t*>(&vmInfoList[i]);
+        (*vm_infos)[i] = *reinterpret_cast<vm_domain_info_t *>(&vmInfoList[i]);
     }
     return VA_SUCCESS;
 }
 
-uint8_t* allocate_memory(size_t buffer_size)
+uint8_t *allocate_memory(size_t buffer_size)
 {
-    uint8_t* buffer = new (std::nothrow) uint8_t[buffer_size];
+    uint8_t *buffer = new (std::nothrow) uint8_t[buffer_size];
     if (buffer == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory.";
         return nullptr;
@@ -82,8 +82,7 @@ uint8_t* allocate_memory(size_t buffer_size)
     return buffer;
 }
 
-
-virt_agent_ret_t serialize_data(const NodeAntiDictionary& node_dict, uint8_t* buffer)
+virt_agent_ret_t serialize_data(const NodeAntiDictionary &node_dict, uint8_t *buffer)
 {
     uint32_t entries_count = node_dict.entry_count;
     if (memcpy_s(buffer, sizeof(uint32_t), &entries_count, sizeof(uint32_t)) != 0) {
@@ -92,7 +91,7 @@ virt_agent_ret_t serialize_data(const NodeAntiDictionary& node_dict, uint8_t* bu
     }
     buffer += sizeof(uint32_t);
     for (size_t i = 0; i < node_dict.entry_count; ++i) {
-        const struct KeyValuePair& entry = node_dict.entries[i];
+        const struct KeyValuePair &entry = node_dict.entries[i];
 
         uint32_t key_length = strlen(entry.key) + 1;
         if (memcpy_s(buffer, sizeof(uint32_t), &key_length, sizeof(uint32_t)) != 0) {
@@ -174,7 +173,8 @@ virt_agent_ret_t ubse_mem_borrow_execute_msg_unpack(uint8_t *buffer, uint32_t le
         return VA_ERROR_DESERIALIZE_FAILED;
     }
     *result = msg.GetBorrowResult();
-    IPC_LOG_INFO << "ubse_mem_borrow_execute_msg_unpack end. " << "borrow_ids_size: " << result->borrow_ids_size
+    IPC_LOG_INFO << "ubse_mem_borrow_execute_msg_unpack end. "
+                 << "borrow_ids_size: " << result->borrow_ids_size
                  << ", present_numa_ids_size: " << result->present_numa_ids_size;
 
     return VA_SUCCESS;
@@ -193,7 +193,7 @@ virt_agent_ret_t ubse_mem_task_info_query_msg_unpack(uint8_t *buffer, uint32_t l
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t *buffer, uint32_t len, MemMigrateStrategy* strategy)
+virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t *buffer, uint32_t len, MemMigrateStrategy *strategy)
 {
     MemFragmentationMemMigrateStrategyOutputMsg msg{buffer, len};
     auto ret = msg.Deserialize();
@@ -204,7 +204,7 @@ virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t *buffer, uint32_t 
     auto outputMsg = msg.GetOutputMsg();
     (*strategy).vmInfoListSize = outputMsg.vmInfoListSize;
     (*strategy).waitingTime = outputMsg.waitingTime;
-    (*strategy).vmInfoList = new(std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
+    (*strategy).vmInfoList = new (std::nothrow) VmMigrateStrategy[outputMsg.vmInfoListSize];
     if ((*strategy).vmInfoList == nullptr) {
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }

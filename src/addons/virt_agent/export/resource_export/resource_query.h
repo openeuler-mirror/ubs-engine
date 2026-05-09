@@ -16,9 +16,9 @@
 
 #include <mutex>
 
+#include "vm_def.h"
 #include "vm_error.h"
 #include "vm_info.h"
-#include "vm_def.h"
 #include "vm_numa_info.h"
 
 namespace vm {
@@ -60,9 +60,10 @@ public:
      * @return VmResult, 0 indicates success, and any non-zero value indicates fail or other exception
      */
     static VmResult GetLocalHostNumaInfo(HostNumaCpuInfo &hostNumaCpuInfo);
+
 private:
     static std::mutex vmDomainMutex;
 };
-} // vm
+} // namespace vm
 
 #endif // VM_RES_QUERY_H

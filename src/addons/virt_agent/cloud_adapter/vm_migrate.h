@@ -16,11 +16,10 @@
 
 #include <ubse_api_server_def.h>
 
+#include "mem_migrate_msg.h"
 #include "vm_error.h"
 #include "vm_strategy_struct.h"
-#include "mem_migrate_msg.h"
 #include "vm_struct.h"
-
 
 namespace vm {
 using namespace api::server;
@@ -46,6 +45,7 @@ class VmMigrate {
 public:
     static VmResult Register();
     static uint32_t UpdatePageFlowAndStatus(const UbseIpcMessage &req, const UbseRequestContext &context);
+
 private:
     static VmResult ProcessRequest(MemMigrateInputParams &inputParams, UbseIpcMessage &response);
 

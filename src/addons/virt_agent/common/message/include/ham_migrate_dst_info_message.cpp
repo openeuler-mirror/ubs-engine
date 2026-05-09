@@ -26,7 +26,7 @@ VmResult HamMigrateDstInfoMessage::Serialize()
     out << hamMigrateDstInfo.dstNodeId;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize failed, hamMigrateDstInfo.dstPid=" << hamMigrateDstInfo.dstPid
-            << ", hamMigrateDstInfo.dstNodeId=" << hamMigrateDstInfo.dstNodeId;
+                       << ", hamMigrateDstInfo.dstNodeId=" << hamMigrateDstInfo.dstNodeId;
         return VM_ERROR;
     };
     mOutputRawDataSize = out.GetLength();
@@ -38,7 +38,7 @@ VmResult HamMigrateDstInfoMessage::Serialize()
 VmResult HamMigrateDstInfoMessage::Deserialize()
 {
     if (mInputRawData == nullptr) {
-        UBSE_LOG_ERROR  << "Deserialize failed, mInputRawData is null.";
+        UBSE_LOG_ERROR << "Deserialize failed, mInputRawData is null.";
         return VM_ERROR;
     }
     VmDeSerialization in(mInputRawData, mInputRawDataSize);
@@ -46,8 +46,8 @@ VmResult HamMigrateDstInfoMessage::Deserialize()
     in >> hamMigrateDstInfo.dstNodeId;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Deserialize failed, mInputRawDataSize=" << mInputRawDataSize
-            << ", hamMigrateDstInfo.dstPid=" << hamMigrateDstInfo.dstPid << ", hamMigrateDstInfo.dstNodeId="
-            << hamMigrateDstInfo.dstNodeId;
+                       << ", hamMigrateDstInfo.dstPid=" << hamMigrateDstInfo.dstPid
+                       << ", hamMigrateDstInfo.dstNodeId=" << hamMigrateDstInfo.dstNodeId;
         return VM_ERROR;
     }
     return VM_OK;

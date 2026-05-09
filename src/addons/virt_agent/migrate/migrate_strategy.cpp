@@ -14,13 +14,13 @@
 #include "migrate_strategy.h"
 #include <ubse_api_server.h>
 #include <ubse_conf.h>
-#include <ubse_node.h>
 #include <ubse_error.h>
-#include <ubse_mem_controller.h>
 #include <ubse_logger.h>
-#include "vm_sdk_def.h"
+#include <ubse_mem_controller.h>
+#include <ubse_node.h>
 #include "ham_make_decision_msg.h"
 #include "ubs_virt_agent_object_def.h"
+#include "vm_sdk_def.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -333,4 +333,4 @@ uint32_t VirtMigrateStrategy::MakeMigrateStrategyDecision(uint32_t vmMemoryMB, c
     }
     return MakeHamMigrateDecision(uuid, destHostName, destNumaId, migrateStrategy);
 }
-}
+} // namespace vm

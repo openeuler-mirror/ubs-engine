@@ -14,8 +14,8 @@
 #include "migrate_state_storage.h"
 
 #include <ubse_error.h>
-#include <ubse_storage.h>
 #include <ubse_logger.h>
+#include <ubse_storage.h>
 #include "migrate_state_map_message.h"
 
 namespace vm {
@@ -43,7 +43,7 @@ VmResult MigrateStateStorage::OpMigrateState(NumaVMInfoMap &numaVmInfoMap, const
 
     MigrateStateMapMessage dataMessage;
     WriteLocker<ReadWriteLock> lock(&migrateStateLock);
-    for (const auto& [numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
+    for (const auto &[numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
         VMNodeLocInfo numaLoc{};
         numaLoc.socketId = vmDomainNumaInfo.socketId;
         numaLoc.numaId = vmDomainNumaInfo.numaId;

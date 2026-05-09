@@ -24,10 +24,10 @@ repos:
         entry: clang-tidy
         language: system
         files: ^(?!test/).*\.(h|c|cpp)$
-        args: [-p=cmake-build-release, -header-filter=.*, --fix]
+        args: [-p=cmake-build-release, -header-filter=.*]
       - id: clang-tidy-test
         name: Run clang-tidy check for test files
         entry: clang-tidy
         language: system
         files: ^test/UT/.*\.(h|c|cpp)$
-        args: [-p=cmake-build-debug, --fix]
+        args: [-p=cmake-build-debug]

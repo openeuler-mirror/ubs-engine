@@ -17,11 +17,11 @@
 #include <ubse_error.h>
 #include <ubse_mem_controller.h>
 #include <ubse_timer.h>
+#include "alarm_handler.h"
+#include "resource_collect.h"
 #include "vm_configuration.h"
 #include "vm_json_util.h"
 #include "vm_string_util.h"
-#include "alarm_handler.h"
-#include "resource_collect.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -55,15 +55,15 @@ bool MemHandler::IsVmExists(const NumaCpuInfo &numaCpuInfo, const HostVmDomainIn
 {
     // Check for the presence of VM
     return std::any_of(hostVmDomainInfo.vmDomainInfos.begin(), hostVmDomainInfo.vmDomainInfos.end(),
-        [&numaCpuInfo](const VmDomainInfo &vmDomainInfo) {
-            for (const auto& [numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
-                if (vmDomainNumaInfo.numaId == numaCpuInfo.numaId &&
-                    vmDomainNumaInfo.socketId == numaCpuInfo.socketId) {
-                    return true;
-                }
-            }
-            return false;
-        });
+                       [&numaCpuInfo](const VmDomainInfo &vmDomainInfo) {
+                           for (const auto &[numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
+                               if (vmDomainNumaInfo.numaId == numaCpuInfo.numaId &&
+                                   vmDomainNumaInfo.socketId == numaCpuInfo.socketId) {
+                                   return true;
+                               }
+                           }
+                           return false;
+                       });
 }
 
 WatermarkWarningType MemHandler::WaterNotifyEvent(const NumaCpuInfo &numaCpuInfo, const size_t &borrowInfoSize,

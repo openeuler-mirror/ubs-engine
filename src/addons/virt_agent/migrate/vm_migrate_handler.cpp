@@ -11,11 +11,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-
 #include "vm_migrate_handler.h"
 
-#include <thread>
 #include <chrono>
+#include <thread>
 
 #include <ubse_logger.h>
 #include "resource_collect.h"
@@ -118,4 +117,4 @@ void VmMigrateHandler::FlushExpireVm(const VMNodeLocInfo &nodeLoc,
         UBSE_LOG_INFO << "[flush vm] clear vm status successfully, pid = " << vmInfo.VMBasicInfoCollected::pid;
     }
 }
-}
+} // namespace vm

@@ -19,9 +19,10 @@ namespace vm {
 void VectorUtil::RemoveCommonElements(std::vector<uint16_t> &sourceVector, std::vector<uint16_t> &elementsToRemove)
 {
     sourceVector.erase(std::remove_if(sourceVector.begin(), sourceVector.end(),
-        [&elementsToRemove](uint16_t elem) {
-            return std::find(elementsToRemove.begin(), elementsToRemove.end(), elem) != elementsToRemove.end();
-        }),
-        sourceVector.end());
+                                      [&elementsToRemove](uint16_t elem) {
+                                          return std::find(elementsToRemove.begin(), elementsToRemove.end(), elem) !=
+                                                 elementsToRemove.end();
+                                      }),
+                       sourceVector.end());
 }
-}
+} // namespace vm

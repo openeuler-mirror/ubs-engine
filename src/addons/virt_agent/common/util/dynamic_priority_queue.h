@@ -21,7 +21,7 @@ namespace vm {
 template <typename T>
 class DynamicPriorityQueue {
 public:
-    void Push(const T& t)
+    void Push(const T &t)
     {
         elements.push_back(t);
         std::push_heap(elements.begin(), elements.end());
@@ -38,11 +38,9 @@ public:
         elements.pop_back();
     }
 
-    void Update(T& t)
+    void Update(T &t)
     {
-        auto it = std::find_if(elements.begin(), elements.end(), [t](const T& item) {
-            return item == t;
-        });
+        auto it = std::find_if(elements.begin(), elements.end(), [t](const T &item) { return item == t; });
         if (it == elements.end()) {
             return;
         }

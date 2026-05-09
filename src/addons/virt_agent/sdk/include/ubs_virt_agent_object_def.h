@@ -25,8 +25,9 @@ const std::string UBS_VA_CASE_CONF_PERMISSION = "vm.case_conf";
 const std::string UBS_VA_CONTAINER_PERMISSION = "vm.container";
 
 static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJECTS = {
-    {UBS_VA_VM_MIGRATE_PERMISSION, {"ubs_virt_agent_make_migrate_decision", "update_page_flow_and_status",
-                                    "RackSyncSendForHam", "RackAsyncSendForHam"}},
+    {UBS_VA_VM_MIGRATE_PERMISSION,
+     {"ubs_virt_agent_make_migrate_decision", "update_page_flow_and_status", "RackSyncSendForHam",
+      "RackAsyncSendForHam"}},
     {UBS_VA_QUERY_PERMISSION,
      {"ubs_virt_agent_mem_fragmentation_node_info", "ubs_virt_agent_mem_fragmentation_vm_info"}},
     {UBS_VA_FRAGMENTATION_PERMISSION,
@@ -37,7 +38,6 @@ static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJEC
     {UBS_VA_CONTAINER_PERMISSION,
      {"ubs_container_info_query", "ubs_container_inject_waterLine", "ubs_container_get_container_pids",
       "ubs_virt_agent_waterline_mem_borrow", "ubs_virt_agent_waterline_mem_migrate",
-      "ubs_virt_agent_waterline_mem_return"}}
-};
+      "ubs_virt_agent_waterline_mem_return"}}};
 
 #endif // UBS_VIRT_AGENT_OBJECT_DEF_H

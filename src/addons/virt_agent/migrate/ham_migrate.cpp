@@ -14,6 +14,10 @@
 #include "ham_migrate.h"
 
 #include <climits>
+#include <fstream>
+#include <regex>
+#include <set>
+
 #include <ubse_api_server.h>
 #include <ubse_api_server_def.h>
 #include <ubse_com.h>
@@ -22,9 +26,7 @@
 #include <ubse_logger.h>
 #include <ubse_mem_controller.h>
 #include <ubse_node.h>
-#include <fstream>
-#include <regex>
-#include <set>
+
 #include "ham_migrate_dst_info_message.h"
 #include "ham_migrate_vm_info_storage.h"
 #include "libvirt_helper.h"

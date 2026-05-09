@@ -13,8 +13,8 @@
 
 #include "global_borrow_map_message.h"
 
-#include "vm_serial_util.h"
 #include "vm_def.h"
+#include "vm_serial_util.h"
 
 namespace vm {
 VmResult GlobalBorrowMapMessage::Serialize()

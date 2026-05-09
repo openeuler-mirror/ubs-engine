@@ -12,11 +12,14 @@
  */
 #include "migrate_info_utils.h"
 
-#include <dirent.h>
 #include <filesystem>
 #include <fstream>
 #include <regex>
+
+#include <dirent.h>
+
 #include <ubse_logger.h>
+
 #include "vm_file_util.h"
 #include "vm_string_util.h"
 
@@ -154,4 +157,4 @@ VmResult MigrateInfoUtil::GetSocketIdByNumaId(const uint32_t numaId, uint32_t *s
     }
     return VM_OK;
 }
-}
+} // namespace vm

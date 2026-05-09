@@ -21,10 +21,9 @@
 namespace vm::libvirt {
 using VirConnectPtr = void *;
 enum class VirDomainAbortJobFlagsValues : uint8_t {
-    VIR_DOMAIN_ABORT_JOB_POSTCOPY = 1 << 0,  // Interrupt post-copy migration.
-    VIR_DOMAIN_ABORT_JOB_HAM = 1 << 1,       // Interrupt ham migration.
+    VIR_DOMAIN_ABORT_JOB_POSTCOPY = 1 << 0, // Interrupt post-copy migration.
+    VIR_DOMAIN_ABORT_JOB_HAM = 1 << 1,      // Interrupt ham migration.
 };
-
 
 using VirConnectOpenFunc = void *(*)(const char *);
 using VirConnectCloseFunc = void (*)(void *);
@@ -56,6 +55,6 @@ private:
     static VirDomainAbortJobFlagsFunc virDomainAbortJobFlagsFunc;
     static VirDomainLookupByUUIDStringFunc virDomainLookupByUUIDStringFunc;
 };
-} // vm::libvirt
+} // namespace vm::libvirt
 
 #endif // VM_LIBVIRT_MODULE_H

@@ -50,5 +50,5 @@ private:
     static EscapeAlgorithmInitFunc escapeAlgorithmInitFunc;
     static EscapeAlgorithmFunc escapeAlgorithmFunc;
 };
-}
+} // namespace vm
 #endif // VM_ESCAPE_ALGORITHM_MODULE_H

@@ -16,8 +16,8 @@
 #include <algorithm>
 #include <limits>
 #include <random>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 #include "vm_def.h"
 
 namespace vm {
@@ -264,4 +264,4 @@ void VmStringUtil::StrSplit(const std::string &src, const std::string &sep, std:
         out.emplace_back(tmpStr);
     }
 }
-}
+} // namespace vm

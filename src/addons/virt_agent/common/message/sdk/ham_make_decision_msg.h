@@ -47,6 +47,6 @@ public:
 private:
     InputParams inputParams_{};
 };
-} // vm
+} // namespace vm
 
 #endif // VM_HAM_MAKE_DECISION_MSG_H

@@ -39,4 +39,4 @@ int VmTaskCounter::GetTaskCount()
     UBSE_LOG_INFO << "task_count = " << taskCount;
     return taskCount;
 }
-}
+} // namespace vm

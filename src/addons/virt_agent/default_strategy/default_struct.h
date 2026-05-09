@@ -132,10 +132,12 @@ struct NumaInfoCollected {
 struct NumaInfoToKeep {
     NumaMigrateStatus numaMigrateStatus = NumaMigrateStatus::NORMAL; // Maintained and updated by Mgr: NORMAL MIGRATEIN,
                                                                      // MIGRATEOUT, MIGRATINGIN, MIGRATINGOUT
-    time_t numaMigrateLastTime = 0; // Maintained and updated by Mgr, after migrating
+    time_t numaMigrateLastTime = 0;                                  // Maintained and updated by Mgr, after migrating
 };
 
-struct GlobalNumaInfo: NumaInfoCollected, NumaInfoToKeep {
+struct GlobalNumaInfo
+    : NumaInfoCollected
+    , NumaInfoToKeep {
     uint64_t numaMemBorrow{}; // from mem
     uint64_t numaMemLend{};   // from mem
     VMNodeLocInfo numaLoc{};
@@ -208,14 +210,16 @@ struct VMBasicInfoCollected {
 
 // VM information maintained by ubsemanager
 struct VMBasicInfoToKeep {
-    time_t vmMigrateInTime = 0;        // update after migration
-    uint16_t vmMigrateCount = 0;       // update after migration
+    time_t vmMigrateInTime = 0;  // update after migration
+    uint16_t vmMigrateCount = 0; // update after migration
     VmMigrateStatus vmMigrateStatus{};
 };
 
-struct VMBasicInfo: VMBasicInfoCollected, VMBasicInfoToKeep {
+struct VMBasicInfo
+    : VMBasicInfoCollected
+    , VMBasicInfoToKeep {
     uint64_t remoteUsedMem{}; // Total number of used remote memory
-    time_t vmSampleTime = 0; // vm collection time
+    time_t vmSampleTime = 0;  // vm collection time
 
     std::string ToString() const
     {
@@ -451,5 +455,5 @@ struct EscapeAction {
         }
     }
 };
-}
+} // namespace default_strategy
 #endif // DEFAULT_STRUCT_H

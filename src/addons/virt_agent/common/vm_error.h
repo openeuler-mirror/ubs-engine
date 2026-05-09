@@ -17,7 +17,7 @@
 #include <cstdint>
 
 namespace vm {
-    using VmResult = uint32_t;
+using VmResult = uint32_t;
 
 /**
  * @brief Generate private error codes within a module.
@@ -84,7 +84,7 @@ inline uint32_t VmMidMakeManager(uint32_t n)
 /* Common error code definition, globally unique, records the standard error returns of the system */
 /* *********************************************************************************************** */
 
-constexpr int VM_ERROR_SIGN_INT = -1;                           /* Error, signed number -1 */
+constexpr int VM_ERROR_SIGN_INT = -1;                  /* Error, signed number -1 */
 #define VM_OK VmCommonError(0)                         /* correct */
 #define VM_ERROR VmCommonError(1)                      /* error */
 #define VM_ERROR_NOENT VmCommonError(2)                /* No such file or directory */
@@ -129,7 +129,6 @@ inline bool VmResultOk(uint32_t ret)
     return static_cast<VmResult>(ret) == VM_OK;
 }
 
-
 /* **************************************** */
 /* Serialization Module Error Code Definitions */
 /* **************************************** */
@@ -143,5 +142,5 @@ inline bool VmResultOk(uint32_t ret)
 // 0x100B1002 common error for serialization and deserialization
 #define VM_ERROR_SERIALIZE_DESERIALIZE_COMMON_ERROR (VmMidHi16(VM_SERIALIZE_MID_BASE) | VmErrorUserNo(0x02))
 
-}
+} // namespace vm
 #endif // VM_ERROR_H

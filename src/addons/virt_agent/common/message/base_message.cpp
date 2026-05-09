@@ -56,4 +56,4 @@ VmResult BaseMessage::SetInputRawData(uint8_t *rawData, uint32_t size, bool copy
     }
     return VM_OK;
 }
-}
+} // namespace vm

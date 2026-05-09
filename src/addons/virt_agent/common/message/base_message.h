@@ -15,8 +15,9 @@
 #define BASE_MESSAGE_H
 
 #include <cstdint>
-#include <vector>
 #include <string>
+#include <vector>
+
 #include <securec.h>
 
 #include "pointer_process.h"
@@ -73,7 +74,8 @@ public:
         return "";
     }
 
-    template <class Child> static Ref<BaseMessage> Convert(const Ref<Child> &child)
+    template <class Child>
+    static Ref<BaseMessage> Convert(const Ref<Child> &child)
     {
         if (child.Get() != nullptr) {
             return Ref<BaseMessage>(static_cast<BaseMessage *>(child.Get()));
@@ -81,7 +83,8 @@ public:
         return gNullPtr;
     }
 
-    template <class Child> static Ref<BaseMessage> Convert(const Child &child)
+    template <class Child>
+    static Ref<BaseMessage> Convert(const Child &child)
     {
         if (child.Get() != nullptr) {
             return Ref<BaseMessage>(static_cast<BaseMessage *>(child.Get()));
@@ -89,7 +92,8 @@ public:
         return gNullPtr;
     }
 
-    template <class Parent> static Ref<Parent> DeConvert(const Ref<BaseMessage> &child)
+    template <class Parent>
+    static Ref<Parent> DeConvert(const Ref<BaseMessage> &child)
     {
         if (child.Get() != nullptr) {
             return Ref<Parent>(static_cast<Parent *>(child.Get()));
@@ -126,6 +130,6 @@ protected:
 };
 
 using BaseMessagePtr = Ref<BaseMessage>;
-}
+} // namespace vm
 
 #endif // BASE_MESSAGE_H

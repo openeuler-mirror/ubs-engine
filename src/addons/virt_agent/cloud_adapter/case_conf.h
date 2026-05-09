@@ -15,6 +15,7 @@
 #define VM_CASE_CONF_H
 
 #include <cmath>
+
 #include <ubse_def.h>
 
 #include "vm_error.h"

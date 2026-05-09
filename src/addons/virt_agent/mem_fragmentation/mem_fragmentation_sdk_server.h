@@ -14,14 +14,15 @@
 #ifndef MEM_FRAGMENTATION_SDK_SERVER_H
 #define MEM_FRAGMENTATION_SDK_SERVER_H
 
-#include <string>
 #include <map>
+#include <string>
 #include <vector>
-#include <vm_error.h>
-#include <ubse_api_server_def.h>
 
-#include "mempooling_def.h"
+#include <ubse_api_server_def.h>
+#include <vm_error.h>
+
 #include "mem_fragmentation_msg.h"
+#include "mempooling_def.h"
 
 namespace vm {
 using namespace api::server;
@@ -62,21 +63,21 @@ private:
     static uint32_t MemRollback(const UbseIpcMessage &req, const UbseRequestContext &context);
 
     static bool ValidateRequest(const UbseIpcMessage &req);
-    static uint32_t UpdateAntiAffinityConfig(const std::map<std::string,
-                                             std::vector<std::string>> &nodeAntiAffinityMap);
-    static std::pair<std::string, const uint8_t*> ParseKey(const uint8_t* buffer, size_t buffer_size,
-                                                           const uint8_t*& ptr);
-    static std::vector<std::string> ParseValues(const uint8_t* buffer, size_t buffer_size, const uint8_t*& ptr);
-    static std::pair<std::string, std::vector<std::string>> ParseEntry(const uint8_t* buffer, size_t buffer_size,
-                                                                       const uint8_t*& ptr);
-    static uint32_t DeserializeNodeAntiDictionary(const uint8_t* buffer, size_t buffer_size,
-                                                  std::map<std::string, std::vector<std::string>>& node_dict_map);
+    static uint32_t UpdateAntiAffinityConfig(
+        const std::map<std::string, std::vector<std::string>> &nodeAntiAffinityMap);
+    static std::pair<std::string, const uint8_t *> ParseKey(const uint8_t *buffer, size_t buffer_size,
+                                                            const uint8_t *&ptr);
+    static std::vector<std::string> ParseValues(const uint8_t *buffer, size_t buffer_size, const uint8_t *&ptr);
+    static std::pair<std::string, std::vector<std::string>> ParseEntry(const uint8_t *buffer, size_t buffer_size,
+                                                                       const uint8_t *&ptr);
+    static uint32_t DeserializeNodeAntiDictionary(const uint8_t *buffer, size_t buffer_size,
+                                                  std::map<std::string, std::vector<std::string>> &node_dict_map);
     static uint32_t PackBorrowStrategyRsp(const MemBorrowStrategyResult &borrowStrategyResult, UbseIpcMessage &buffer);
     static uint32_t PackBorrowExecuteRsp(const MemBorrowExecuteResult &memBorrowExecuteResult, UbseIpcMessage &buffer);
     static uint32_t StartMemBorrowSync(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                         const UbseRequestContext &context);
+                                       const UbseRequestContext &context);
     static uint32_t StartMemBorrowAsync(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                          const UbseRequestContext &context);
+                                        const UbseRequestContext &context);
     static void ExecuteAsyncMemBorrow(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
                                       const UbseRequestContext &context);
     static uint32_t PackMigrateStrategyRsp(const MigrateStrategyResult &migrateStrategyResult, UbseIpcMessage &buffer);

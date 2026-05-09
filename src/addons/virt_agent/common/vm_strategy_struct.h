@@ -14,9 +14,9 @@
 #ifndef VM_STRATEGY_STRUCT_H
 #define VM_STRATEGY_STRUCT_H
 
-#include <vector>
-#include <string>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace vm {
 enum VmMigrateStatus {
@@ -85,7 +85,7 @@ struct VMNodeLocInfo {
     int16_t socketId{};
     int16_t numaId{};
 
-    bool operator < (const VMNodeLocInfo &a) const
+    bool operator<(const VMNodeLocInfo &a) const
     {
         if (hostId != a.hostId) {
             return hostId < a.hostId;
@@ -98,7 +98,7 @@ struct VMNodeLocInfo {
         }
     }
 
-    bool operator == (const VMNodeLocInfo &a) const
+    bool operator==(const VMNodeLocInfo &a) const
     {
         return (hostId == a.hostId && socketId == a.socketId && numaId == a.numaId);
     }
@@ -121,5 +121,5 @@ struct NumaInfoCollected {
     uint64_t numaVMMemAllocated{};      // from Collected
     std::vector<uint16_t> idleCpuIds{}; // from Collected
 };
-}
+} // namespace vm
 #endif // VM_STRATEGY_STRUCT_H

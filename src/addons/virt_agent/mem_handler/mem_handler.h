@@ -14,16 +14,15 @@
 #ifndef MEM_HANDLER_H
 #define MEM_HANDLER_H
 
-#include <unordered_map>
-#include <mutex>
 #include <map>
+#include <mutex>
+#include <unordered_map>
 
 #include "vm_error.h"
 #include "vm_info.h"
 #include "vm_numa_info.h"
 
 namespace vm {
-
 
 const std::string UBSE_MEM_BORROW_EVENT_ID = "RegisterMemEventNotifyFunc_high";
 const std::string UBSE_MEM_RETURN_EVENT_ID = "RegisterMemEventNotifyFunc_low";
@@ -57,10 +56,16 @@ struct Notify {
     std::string ToJson() const
     {
         std::ostringstream oss;
-        oss << "{" << "\"percent\":" << percent << "," << "\"highWaterMark\":" << highWaterMark << ","
-            << "\"lowWaterMark\":" << lowWaterMark << "," << "\"nodeId\":\"" << nodeId << "\","
-            << "\"socketId\":" << socketId << "," << "\"numaId\":" << numaId << "," << "\"memTotal\":" << memTotal
-            << "," << "\"memUsed\":" << memUsed << "," << "\"memFree\":" << memFree << ","
+        oss << "{"
+            << "\"percent\":" << percent << ","
+            << "\"highWaterMark\":" << highWaterMark << ","
+            << "\"lowWaterMark\":" << lowWaterMark << ","
+            << "\"nodeId\":\"" << nodeId << "\","
+            << "\"socketId\":" << socketId << ","
+            << "\"numaId\":" << numaId << ","
+            << "\"memTotal\":" << memTotal << ","
+            << "\"memUsed\":" << memUsed << ","
+            << "\"memFree\":" << memFree << ","
             << "\"waterNotify\":" << (waterNotify ? "true" : "false") << ","
             << "\"oomEventFlag\":" << (oomEventFlag ? "true" : "false") << "}";
         return oss.str();

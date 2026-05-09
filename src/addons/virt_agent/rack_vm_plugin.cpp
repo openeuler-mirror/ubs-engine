@@ -19,13 +19,13 @@
 #include "escape_algorithm_helper.h"
 #include "fragmentation_vm_collection.h"
 #include "ham_migrate.h"
+#include "libvirt_helper.h"
 #include "mem_handler.h"
 #include "mempooling_module.h"
+#include "resource_collect.h"
 #include "router.h"
 #include "status_manager.h"
 #include "vm_configuration.h"
-#include "libvirt_helper.h"
-#include "resource_collect.h"
 
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace vm;

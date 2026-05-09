@@ -25,4 +25,4 @@ std::string VmSystemUtil::GetUsernameByUid(const uid_t uid)
         return "";
     }
 }
-} // vm
+} // namespace vm

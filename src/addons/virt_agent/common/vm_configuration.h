@@ -16,13 +16,14 @@
 
 #include <atomic>
 #include <cmath>
-#include <unordered_set>
 #include <functional>
+#include <unordered_set>
+
 #include <ubse_conf.h>
 #include <ubse_logger.h>
 
-#include "vm_error.h"
 #include "vm_def.h"
+#include "vm_error.h"
 #include "vm_lock.h"
 
 namespace vm {
@@ -135,8 +136,8 @@ public:
             return;
         }
         if (param < range.valueRange.first || param > range.valueRange.second) {
-            UBSE_LOG_WARN << "The config exceeds range, key=" << config << ", ret=" << ret
-                          << ", your config: " << param << ", use default value: " << range.defaultValue;
+            UBSE_LOG_WARN << "The config exceeds range, key=" << config << ", ret=" << ret << ", your config: " << param
+                          << ", use default value: " << range.defaultValue;
             param = range.defaultValue;
         }
     }
@@ -153,8 +154,8 @@ public:
             return;
         }
         if (enums.valueEnum.find(param) == enums.valueEnum.end()) {
-            UBSE_LOG_WARN << "The config exceeds range, key=" << config << ", ret=" << ret
-                          << ", your config: " << param << ", use default value: " << enums.defaultValue;
+            UBSE_LOG_WARN << "The config exceeds range, key=" << config << ", ret=" << ret << ", your config: " << param
+                          << ", use default value: " << enums.defaultValue;
             param = enums.defaultValue;
         }
     }
@@ -169,7 +170,7 @@ private:
     VmConfiguration() = default;
     ~VmConfiguration() = default;
     std::string moduleName = "virt_agent_plugin"; // Module Name
-    uint16_t moduleCode = 0;              // Module Code
+    uint16_t moduleCode = 0;                      // Module Code
 
     uint32_t exportInterval = 10; // Export Period
 

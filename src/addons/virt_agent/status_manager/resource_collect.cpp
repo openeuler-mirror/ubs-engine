@@ -12,14 +12,14 @@
  */
 #include "resource_collect.h"
 
-#include <ubse_storage.h>
 #include <ubse_logger.h>
+#include <ubse_storage.h>
 #include "global_borrow_map_message.h"
 #include "migrate_state_storage.h"
-#include "vm_task_counter.h"
-#include "vm_vector_util.h"
 #include "resource_query.h"
 #include "vm_configuration.h"
+#include "vm_task_counter.h"
+#include "vm_vector_util.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -91,8 +91,7 @@ void ResourceCollect::KeepVMBasicInfo()
                 .vmMigrateStatus = VMInfoIter.second.vmMigrateStatus,
             };
             UBSE_LOG_DEBUG << "KeepVMBasicInfo vmMigrateStatus = " << VMInfoIter.second.vmMigrateStatus
-                           << ", uuid = " << VMInfoIter.second.uuid
-                           << ", size = " << numaInfoIter.second.size()
+                           << ", uuid = " << VMInfoIter.second.uuid << ", size = " << numaInfoIter.second.size()
                            << ", vmMigrateInTime = " << VMInfoIter.second.vmMigrateInTime
                            << ", vmMigrateCount = " << VMInfoIter.second.vmMigrateCount;
             VMInfoToKeep.emplace(VMInfoIter.second.uuid, infoToKeep);
@@ -162,8 +161,8 @@ void ResourceCollect::VMDomainInfoToVmBasicInfo(VMBasicInfo &vmBasicInfoIn, cons
     vmBasicInfoIn.numaMemInfo = vmDomainInfo.numaMemInfo;
     vmBasicInfoIn.nodeId = vmDomainInfo.nodeId;
     vmBasicInfoIn.hostName = vmDomainInfo.hostName;
-    if (vmDomainInfo.maxMem > (std::numeric_limits<uint64_t>::max() / NO_1024)
-        || vmDomainInfo.remoteUsedMem > (std::numeric_limits<uint64_t>::max() / NO_1024)) {
+    if (vmDomainInfo.maxMem > (std::numeric_limits<uint64_t>::max() / NO_1024) ||
+        vmDomainInfo.remoteUsedMem > (std::numeric_limits<uint64_t>::max() / NO_1024)) {
         vmBasicInfoIn.maxMem = std::numeric_limits<uint64_t>::max();
         vmBasicInfoIn.remoteUsedMem = std::numeric_limits<uint64_t>::max();
     } else {
@@ -213,8 +212,8 @@ void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
         uint64_t hugePageTotal = std::min(ele.nrHugePage, std::numeric_limits<uint64_t>::max() >> BYTE2MB / NO_2);
         uint64_t hugePageUsed = 0;
         if (ele.nrHugePage >= ele.freeHugePage) {
-            hugePageUsed = std::min((ele.nrHugePage - ele.freeHugePage),
-                                    (std::numeric_limits<uint64_t>::max() >> BYTE2MB) / NO_2);
+            hugePageUsed =
+                std::min((ele.nrHugePage - ele.freeHugePage), (std::numeric_limits<uint64_t>::max() >> BYTE2MB) / NO_2);
         }
 
         std::lock_guard<std::mutex> lockGuard(mGlobalNumaLock);
@@ -227,7 +226,7 @@ void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
             it->second.numaCpuUsedCounts = ele.numaVmCpuAllocated;
             it->second.numaVMMemAllocated = numaVmMemAllocated * NO_1024;
             it->second.numaMemTotal = (hugePageTotal << BYTE2MB) * 2; // 2 2M hugepage
-            it->second.numaMemUsed = (hugePageUsed << BYTE2MB) * 2; // 2 2M hugepage
+            it->second.numaMemUsed = (hugePageUsed << BYTE2MB) * 2;   // 2 2M hugepage
             it->second.idleCpuIds = ele.freeCPUIds;
             it->second.cpuIds = ele.cpuIds;
             it->second.numaStatus = MapStringToNumaStatus(ele.status);
@@ -240,7 +239,7 @@ void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
             temp.numaCpuUsedCounts = ele.numaVmCpuAllocated;
             temp.numaVMMemAllocated = numaVmMemAllocated * NO_1024;
             temp.numaMemTotal = (hugePageTotal << BYTE2MB) * 2; // 2 2M hugepage
-            temp.numaMemUsed = (hugePageUsed << BYTE2MB) * 2; // 2 2M hugepage
+            temp.numaMemUsed = (hugePageUsed << BYTE2MB) * 2;   // 2 2M hugepage
             temp.idleCpuIds = ele.freeCPUIds;
             temp.cpuIds = ele.cpuIds;
             temp.numaStatus = MapStringToNumaStatus(ele.status);
@@ -454,7 +453,7 @@ VmResult ResourceCollect::SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryIm
                 borrowIdStatus.memMigrateStatus = tmpGlobalBorrowMap[borrowIdStatus.borrowId].memMigrateStatus;
             } else if (borrowIdStatus.borrowId.length() >= MEM_REPLACE_FLAG.length() &&
                        borrowIdStatus.borrowId.substr(borrowIdStatus.borrowId.length() - MEM_REPLACE_FLAG.length()) ==
-                       MEM_REPLACE_FLAG) {
+                           MEM_REPLACE_FLAG) {
                 // The fault handling logic of rmrs is not perceived by Virt.
                 // Therefore, the borrowId (including the suffix '-req') of the memory to be replaced needs to be
                 // separately marked as MIGRATE_SUCCESS in the Virt ledger.

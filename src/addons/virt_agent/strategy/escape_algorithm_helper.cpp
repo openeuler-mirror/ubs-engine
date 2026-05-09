@@ -11,8 +11,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "escape_algorithm_helper.h"
-#include "vm_error.h"
 #include "vm_configuration.h"
+#include "vm_error.h"
 
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");

@@ -14,8 +14,8 @@
 #ifndef HUGEPAGE_HANDLER_H
 #define HUGEPAGE_HANDLER_H
 
-#include "vm_struct.h"
 #include "vm_error.h"
+#include "vm_struct.h"
 
 namespace vm {
 class HugePageHandler {
@@ -25,7 +25,7 @@ public:
 private:
     static inline const std::string HUGEPAGES_PATH_HEAD = "/sys/devices/system/node/node";
     static inline const std::string HUGEPAGES_PATH_TAIL = "/hugepages/hugepages-2048kB/nr_hugepages";
-    static constexpr size_t MAX_WRITE_HUGE_PAGE_RETRY_TIME = 2;     // retry only once
+    static constexpr size_t MAX_WRITE_HUGE_PAGE_RETRY_TIME = 2;   // retry only once
     static constexpr uint16_t WRITE_HUGE_PAGE_RETRY_INTERVAL = 1; //  wait 1s
 
     static VmResult GetCurrentHugePages(const std::string &realPath, uint64_t &currentHugePages);
@@ -33,6 +33,6 @@ private:
     static VmResult GetHugePageCanonicalPath(const std::string &numaId, std::string &filePath);
     static VmResult RewriteHugePages(const std::string &realPath, const uint64_t &targetHugePages);
 };
-}
+} // namespace vm
 
 #endif // HUGEPAGE_HANDLER_H

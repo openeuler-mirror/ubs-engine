@@ -13,13 +13,13 @@
 
 #include "migrate_state_map_message.h"
 
-#include "vm_serial_util.h"
 #include "vm_def.h"
+#include "vm_serial_util.h"
 
 namespace vm {
 VmResult MigrateStateMapMessage::Serialize()
 {
-    size_t mapSize = 0 ;
+    size_t mapSize = 0;
     for (auto &[numaLoc, vmBasicInfoMap] : migrateStateMap) {
         for (auto &[uuid, vmBasicInfo] : vmBasicInfoMap) {
             mapSize++;
