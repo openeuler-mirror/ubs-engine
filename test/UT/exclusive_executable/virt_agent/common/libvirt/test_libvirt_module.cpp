@@ -80,7 +80,10 @@ TEST_F(TestLibvirtModule, VirConnectCloseTest)
     EXPECT_NE(LibvirtModule::VirConnectClose(), nullptr);
 }
 
-int LVModuleVirDomainFree(void *param1) {return 0;}
+int LVModuleVirDomainFree(void *param1)
+{
+    return 0;
+}
 TEST_F(TestLibvirtModule, VirDomainFreeTest)
 {
     MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
@@ -89,4 +92,4 @@ TEST_F(TestLibvirtModule, VirDomainFreeTest)
     MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(LVModuleVirDomainFree)));
     EXPECT_NE(LibvirtModule::VirDomainFree(), nullptr);
 }
-}
+} // namespace ubse::ut::vm

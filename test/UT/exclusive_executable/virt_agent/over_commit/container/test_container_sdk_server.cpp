@@ -58,8 +58,7 @@ VmResult testGetPidsByContainerIds(const std::unordered_set<std::string> &contai
 
 UBSRMRSPidNumaInfoCollectFunc testGetContainerMemInfoWithStructure()
 {
-    return [](const SrcMemoryBorrowParam &borrowParam, const std::vector<pid_t> &pids,
-              std::vector<PidInfo> &pidInfos) {
+    return [](const SrcMemoryBorrowParam &borrowParam, const std::vector<pid_t> &pids, std::vector<PidInfo> &pidInfos) {
         PidInfo pidInfo;
         pidInfo.pid = 71685;
         pidInfo.localUsedMem = 1024 * 1024 * 50;

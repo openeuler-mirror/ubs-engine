@@ -181,4 +181,4 @@ TEST_F(TestMempoolingModule, UBSRMRSSetWaterMark)
     MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSSetWaterMark(), nullptr);
 }
-}
+} // namespace ubse::ut::vm

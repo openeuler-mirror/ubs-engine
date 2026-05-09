@@ -5,10 +5,10 @@
 
 #include <mockcpp/mokc.h>
 
+#include "resource_collect.h"
 #include "status_manager.h"
 #include "vm_configuration.h"
 #include "vm_task_counter.h"
-#include "resource_collect.h"
 
 using namespace vm;
 using namespace vm::mempooling;
@@ -48,9 +48,9 @@ UBSRMRSMemReturnFunc MockUBSRMRSMemReturn()
 {
     return [](const SrcMemoryBorrowParam &srcParam, const std::vector<std::string> &borrowIds,
               const std::vector<pid_t> &pids) {
-                  callCount++;
-                  return VM_OK;
-              };
+        callCount++;
+        return VM_OK;
+    };
 }
 
 TEST_F(TestStatusManager, LoadGlobalBorrowMapSuccess)

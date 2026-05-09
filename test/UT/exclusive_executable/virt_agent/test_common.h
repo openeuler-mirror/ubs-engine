@@ -10,6 +10,6 @@ namespace ubse::ut::vm {
 struct TestLibrary {};
 inline void MockDlsys() {}
 
-}
+} // namespace ubse::ut::vm
 
 #endif // TEST_COMMON_H

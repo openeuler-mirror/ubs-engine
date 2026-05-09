@@ -1,9 +1,9 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
  */
+#include "test_ham_migrate_vm_info_storage.h"
 #include <mockcpp/GlobalMockObject.h>
 #include "ham_migrate_vm_info_storage.h"
-#include "test_ham_migrate_vm_info_storage.h"
 
 #include <ham_migrate_vm_info_message.h>
 #include <mockcpp/mokc.h>
@@ -40,7 +40,6 @@ uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &k
     return VM_OK;
 }
 
-
 TEST_F(TestHamMigrateVmInfoStorage, SetHamMigrateVmInfo)
 {
     GTEST_SKIP();
@@ -63,24 +62,23 @@ TEST_F(TestHamMigrateVmInfoStorage, SetHamMigrateVmInfo)
     hamMigrateVmInfoMessage.SetData(hamMigrateVmInfo_);
     hamMigrateVmInfoMessage.Serialize();
     UbseByteBuffer data{.data = hamMigrateVmInfoMessage.SerializedData(),
-                        .len = hamMigrateVmInfoMessage.SerializedDataSize(), .freeFunc = nullptr};
-    MOCKER(ubse::storage::UbseStoragePutData).stubs()
-                                             .with(spy(keyPrefix), spy(key), any())
-                                             .will(returnValue(VM_OK));
+                        .len = hamMigrateVmInfoMessage.SerializedDataSize(),
+                        .freeFunc = nullptr};
+    MOCKER(ubse::storage::UbseStoragePutData).stubs().with(spy(keyPrefix), spy(key), any()).will(returnValue(VM_OK));
     VmResult ret = HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
     EXPECT_EQ(ret, VM_OK);
     EXPECT_EQ(keyPrefix + key, HAM_MIGRATE_KEY_PREFIX + HAM_MIGRATE_KEY);
     std::vector<HamMigrateVmInfo> hamMigrateVmInfos;
     HamMigrateVmInfoStorage::QueryHandler(HAM_MIGRATE_KEY_PREFIX, key, data, &hamMigrateVmInfos);
     auto _hamMigrateVmInfo = hamMigrateVmInfos[0];
-    bool isHamMigrateVmInfoEq = hamMigrateVmInfo.nodeId == _hamMigrateVmInfo.nodeId
-                                && hamMigrateVmInfo.socketId == _hamMigrateVmInfo.socketId
-                                && hamMigrateVmInfo.numaId == _hamMigrateVmInfo.numaId
-                                && hamMigrateVmInfo.pid == _hamMigrateVmInfo.pid
-                                && hamMigrateVmInfo.uuid == _hamMigrateVmInfo.uuid
-                                && hamMigrateVmInfo.borrowName == _hamMigrateVmInfo.borrowName
-                                && hamMigrateVmInfo.vmState == _hamMigrateVmInfo.vmState
-                                && hamMigrateVmInfo.vmOpState == _hamMigrateVmInfo.vmOpState;
+    bool isHamMigrateVmInfoEq = hamMigrateVmInfo.nodeId == _hamMigrateVmInfo.nodeId &&
+                                hamMigrateVmInfo.socketId == _hamMigrateVmInfo.socketId &&
+                                hamMigrateVmInfo.numaId == _hamMigrateVmInfo.numaId &&
+                                hamMigrateVmInfo.pid == _hamMigrateVmInfo.pid &&
+                                hamMigrateVmInfo.uuid == _hamMigrateVmInfo.uuid &&
+                                hamMigrateVmInfo.borrowName == _hamMigrateVmInfo.borrowName &&
+                                hamMigrateVmInfo.vmState == _hamMigrateVmInfo.vmState &&
+                                hamMigrateVmInfo.vmOpState == _hamMigrateVmInfo.vmOpState;
     EXPECT_TRUE(isHamMigrateVmInfoEq);
     GlobalMockObject::verify();
 
@@ -135,9 +133,10 @@ TEST_F(TestHamMigrateVmInfoStorage, DelHamMigrateVmInfo)
     EXPECT_NE(ret, VM_OK);
 
     MOCKER(ubse::storage::UbseStoragePutData).reset();
-    MOCKER(ubse::storage::UbseStoragePutData).stubs()
-                                                .with(spy(keyPrefix), spy(key), any(), any())
-                                                .will(returnValue(VM_OK));
+    MOCKER(ubse::storage::UbseStoragePutData)
+        .stubs()
+        .with(spy(keyPrefix), spy(key), any(), any())
+        .will(returnValue(VM_OK));
     HamMigrateVmInfo hamMigrateVmInfo;
     ret = HamMigrateVmInfoStorage::DelHamMigrateVmInfo(nodeId, pid);
     EXPECT_EQ(ret, VM_OK);
@@ -165,4 +164,4 @@ TEST_F(TestHamMigrateVmInfoStorage, ToString)
     auto json = HamMigrateVmInfoStorage::ToString(hamMigrateVmInfos);
     EXPECT_FALSE(json.empty());
 }
-}
+} // namespace ubse::ut::vm

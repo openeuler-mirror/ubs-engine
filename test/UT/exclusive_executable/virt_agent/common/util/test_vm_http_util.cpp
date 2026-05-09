@@ -30,12 +30,14 @@ void TestVmHttpUtil::TearDown()
 }
 
 uint32_t UBSRMRSSmapAddProcessTrackingFuncMockSuccess(const std::vector<pid_t> &pidVec,
-    const std::vector<uint32_t> &scanTimeVec, int scanType, const std::optional<std::vector<uint32_t>> &)
+                                                      const std::vector<uint32_t> &scanTimeVec, int scanType,
+                                                      const std::optional<std::vector<uint32_t>> &)
 {
     return VM_OK;
 }
 uint32_t UBSRMRSSmapAddProcessTrackingFuncMockError(const std::vector<pid_t> &pidVec,
-    const std::vector<uint32_t> &scanTimeVec, int scanType, const std::optional<std::vector<uint32_t>> &)
+                                                    const std::vector<uint32_t> &scanTimeVec, int scanType,
+                                                    const std::optional<std::vector<uint32_t>> &)
 {
     return VM_ERROR;
 }
@@ -49,13 +51,15 @@ uint32_t UBSRMRSSmapAddProcessTrackingFuncMockError(const std::vector<pid_t> &pi
 }
 TEST_F(TestVmHttpUtil, AddProcessTracking)
 {
-    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapAddProcessTracking).stubs()
+    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapAddProcessTracking)
+        .stubs()
         .will(invoke(UBSRMRSSmapAddProcessTrackingFuncSuccess));
     VmResult result = HttpUtil::AddProcessTracking(PID, SCANTIME_HAM, 1);
     EXPECT_EQ(result, VM_OK);
     GlobalMockObject::verify();
 
-    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapAddProcessTracking).stubs()
+    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapAddProcessTracking)
+        .stubs()
         .will(invoke(UBSRMRSSmapAddProcessTrackingFuncError));
     result = HttpUtil::AddProcessTracking(PID, SCANTIME_WARTER, 0);
     EXPECT_EQ(result, VM_ERROR);
@@ -79,14 +83,16 @@ uint32_t UBSRMRSSmapRemoveProcessTrackingFuncMockError(const std::vector<pid_t> 
 }
 TEST_F(TestVmHttpUtil, RemoveProcessTracking)
 {
-    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapRemoveProcessTracking).stubs().
-        will(invoke(UBSRMRSSmapRemoveProcessTrackingFuncSuccess));
+    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapRemoveProcessTracking)
+        .stubs()
+        .will(invoke(UBSRMRSSmapRemoveProcessTrackingFuncSuccess));
     VmResult result = HttpUtil::RemoveProcessTracking(PID);
     EXPECT_EQ(result, VM_OK);
     GlobalMockObject::verify();
 
-    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapRemoveProcessTracking).stubs().
-        will(invoke(UBSRMRSSmapRemoveProcessTrackingFuncError));
+    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapRemoveProcessTracking)
+        .stubs()
+        .will(invoke(UBSRMRSSmapRemoveProcessTrackingFuncError));
     result = HttpUtil::RemoveProcessTracking(PID);
     EXPECT_EQ(result, VM_ERROR);
     GlobalMockObject::verify();
@@ -114,16 +120,18 @@ uint32_t UBSRMRSSmapEnableProcessMigrateFuncMockError(const std::vector<pid_t> &
 
 TEST_F(TestVmHttpUtil, EnableProcessMigrate)
 {
-    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapEnableProcessMigrate).stubs().
-        will(invoke(UBSRMRSSmapEnableProcessMigrateFuncSuccess));
+    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapEnableProcessMigrate)
+        .stubs()
+        .will(invoke(UBSRMRSSmapEnableProcessMigrateFuncSuccess));
     VmResult result = HttpUtil::EnableProcessMigrate(PID, false);
     EXPECT_EQ(result, VM_OK);
     GlobalMockObject::verify();
-    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapEnableProcessMigrate).stubs().
-        will(invoke(UBSRMRSSmapEnableProcessMigrateFuncError));
+    MOCKER(&mempooling::MempoolingModule::UBSRMRSSmapEnableProcessMigrate)
+        .stubs()
+        .will(invoke(UBSRMRSSmapEnableProcessMigrateFuncError));
     result = HttpUtil::EnableProcessMigrate(PID, true);
     EXPECT_EQ(result, VM_ERROR);
     GlobalMockObject::verify();
 }
 
-}
+} // namespace ubse::ut::vm

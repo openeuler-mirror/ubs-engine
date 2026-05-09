@@ -142,11 +142,7 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowExecuteOutputMsg_GetMem
 
 TEST_F(TestMemFragmentationMsg, MemRollbackMsg_Serialize_Deserialize)
 {
-    RollbackSrcParam rollBackSrcParam{
-        .node_id = "0",
-        .borrow_id_list = {"1", "2"},
-        .borrow_id_size = 2
-    };
+    RollbackSrcParam rollBackSrcParam{.node_id = "0", .borrow_id_list = {"1", "2"}, .borrow_id_size = 2};
     RollbackParams rollbackParams(&rollBackSrcParam);
     MemRollbackMsg msg{rollbackParams};
     auto ret = msg.Serialize();
@@ -158,11 +154,7 @@ TEST_F(TestMemFragmentationMsg, MemRollbackMsg_Serialize_Deserialize)
 
 TEST_F(TestMemFragmentationMsg, MemRollbackMsg_GetRollbackParams)
 {
-    RollbackSrcParam rollBackSrcParam{
-        .node_id = "0",
-        .borrow_id_list = {"1", "2"},
-        .borrow_id_size = 2
-    };
+    RollbackSrcParam rollBackSrcParam{.node_id = "0", .borrow_id_list = {"1", "2"}, .borrow_id_size = 2};
     RollbackParams rollbackParams(&rollBackSrcParam);
     MemRollbackMsg msg{rollbackParams};
     auto info = msg.GetRollbackParams();
@@ -302,7 +294,7 @@ TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_Serialize_Deserialize_Failed
     strcpy_s(setting.borrow_strategy.src_host_id, VIRT_MEM_MAX_NODE_ID_LENGTH, "test_host_1");
     setting.borrow_strategy.src_socket_id = 0;
     setting.borrow_strategy.src_numa_id = 1;
-    setting.borrow_strategy.borrow_size = 1024 * 1024;  // 1MB
+    setting.borrow_strategy.borrow_size = 1024 * 1024; // 1MB
 
     setting.borrow_strategy.dest_numa_infos_size = 2;
     for (uint32_t i = 0; i < 2; i++) {
@@ -330,7 +322,7 @@ TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_Serialize_Deserialize2)
     strcpy_s(setting.borrow_strategy.src_host_id, VIRT_MEM_MAX_NODE_ID_LENGTH, "test_host_1");
     setting.borrow_strategy.src_socket_id = 0;
     setting.borrow_strategy.src_numa_id = 1;
-    setting.borrow_strategy.borrow_size = 1024 * 1024;  // 1MB
+    setting.borrow_strategy.borrow_size = 1024 * 1024; // 1MB
 
     setting.borrow_strategy.dest_numa_infos_size = 2;
     for (uint32_t i = 0; i < 2; i++) {

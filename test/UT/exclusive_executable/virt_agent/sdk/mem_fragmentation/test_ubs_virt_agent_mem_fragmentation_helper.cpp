@@ -40,7 +40,7 @@ void TestLibvirtAgentMemFragmentationHelper::TearDown()
 
 TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_borrow_execute_msg_unpack_fail)
 {
-    uint8_t* buffer = nullptr;
+    uint8_t *buffer = nullptr;
     uint32_t len = 0;
 
     mem_borrow_result_c result{};
@@ -62,11 +62,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_borrow_execute_msg_unpac
     mem_borrow_result_c result{};
     memset_s(&result, sizeof(result), 0, sizeof(result));
 
-    virt_agent_ret_t ret = ubse_mem_borrow_execute_msg_unpack(
-        msg.SerializedData(),
-        msg.SerializedDataSize(),
-        &result
-    );
+    virt_agent_ret_t ret = ubse_mem_borrow_execute_msg_unpack(msg.SerializedData(), msg.SerializedDataSize(), &result);
 
     EXPECT_EQ(ret, VA_ERROR_DESERIALIZE_FAILED);
 }
@@ -185,8 +181,8 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_borrow_strategy_msg_unpa
     borrow_strategy_c outputMsg{};
     MemFragmentationMemBorrowStrategyOutputMsg msg{borrowStrategyC};
     ASSERT_EQ(msg.Serialize(), VM_OK);
-    virt_agent_ret_t ret = ubse_mem_borrow_strategy_msg_unpack(msg.SerializedData(), msg.SerializedDataSize(),
-                                                               &outputMsg);
+    virt_agent_ret_t ret =
+        ubse_mem_borrow_strategy_msg_unpack(msg.SerializedData(), msg.SerializedDataSize(), &outputMsg);
     EXPECT_EQ(ret, VA_SUCCESS);
 }
 } // namespace ubse::vm::ut

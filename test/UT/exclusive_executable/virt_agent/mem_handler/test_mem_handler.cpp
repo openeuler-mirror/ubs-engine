@@ -12,15 +12,15 @@
 
 #include "test_mem_handler.h"
 
-#include <mockcpp/mockcpp.hpp>
 #include <ubse_error.h>
 #include <ubse_event.h>
 #include <ubse_timer.h>
+#include <mockcpp/mockcpp.hpp>
+#include "alarm_handler.h"
 #include "mem_handler.h"
+#include "resource_query.h"
 #include "vm_configuration.h"
 #include "vm_error.h"
-#include "alarm_handler.h"
-#include "resource_query.h"
 
 using namespace vm;
 using namespace ubse::event;
@@ -109,8 +109,7 @@ TEST_F(TestMemHandler, ToString)
     EXPECT_EQ(MemHandler::ToString((WatermarkWarningType)ERR_WATERMARK), errStr);
 }
 
-VmResult MockGetVmCollectData(HostVmDomainInfo &hostVmDomainInfo,
-                              HostNumaCpuInfo &hostNumaCpuInfo)
+VmResult MockGetVmCollectData(HostVmDomainInfo &hostVmDomainInfo, HostNumaCpuInfo &hostNumaCpuInfo)
 {
     NumaCpuInfo numaCpuInfo1 = {.socketId = 0, .nodeId = "Node0", .numaId = 0, .nrHugePage = 0};
     NumaCpuInfo numaCpuInfo2 = {.socketId = 0, .nodeId = "Node0", .numaId = 1, .nrHugePage = 1};

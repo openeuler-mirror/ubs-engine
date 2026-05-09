@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-} // namespace ubse::virt::agent
+} // namespace ubse::virt::log
 
 #endif // UBS_ENGINE_VIRT_AGENT_LOG_FUZZ_H

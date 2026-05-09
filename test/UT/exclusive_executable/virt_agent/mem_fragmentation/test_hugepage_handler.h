@@ -15,6 +15,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // TEST_HUGEPAGE_HANDLER_H

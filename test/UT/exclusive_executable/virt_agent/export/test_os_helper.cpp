@@ -58,4 +58,4 @@ TEST_F(TestOsHelper, GetPidsByContainerIdsFailed)
     EXPECT_EQ(0, containerInfos.size());
     OsHelper::procPathPrefix = sourcePath;
 }
-}
+} // namespace ubse::ut::vm
