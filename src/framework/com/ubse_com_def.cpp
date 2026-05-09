@@ -653,6 +653,32 @@ UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const ui
     return msg;
 }
 
+std::shared_ptr<std::vector<uint8_t>> EncodeRequestMsg(const uint16_t &opCode, const uint16_t &moduleCode,
+                                                       std::unique_ptr<uint8_t[]> &reqData, uint32_t reqDataSize)
+{
+    auto reqMsg = SafeMakeShared<std::vector<uint8_t>>(sizeof(UbseComMessageHead) + reqDataSize);
+    if (!reqMsg) {
+        UBSE_LOG_ERROR << "encode request msg alloc failed.";
+        return {};
+    }
+    auto msgHead = reinterpret_cast<UbseComMessageHead *>(reqMsg->data());
+    msgHead->SetOpCode(opCode);
+    msgHead->SetModuleCode(moduleCode);
+    msgHead->SetBodyLen(reqDataSize);
+    msgHead->SetTraceId(TraceContext::GetTraceId());
+
+    auto crc = CrcUtil::SoftCrc32(reqData.get(), reqDataSize, 1);
+    msgHead->SetCrc(crc);
+
+    auto ret = memcpy_s(reqMsg->data() + sizeof(UbseComMessageHead), reqDataSize, reqData.get(), reqDataSize);
+    if (ret != EOK) {
+        UBSE_LOG_ERROR << "encode request msg failed.";
+        return {};
+    }
+
+    return reqMsg;
+}
+
 UbseResult TransResponse(const UbseBaseMessagePtr &respMsg, UbseComDataDesc &retData, bool withCopy)
 {
     if (respMsg == nullptr) {

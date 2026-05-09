@@ -512,6 +512,9 @@ struct UbseComTcpStr {
 UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const uint16_t &opCode,
                                   const uint16_t moduleCode);
 
+std::shared_ptr<std::vector<uint8_t>> EncodeRequestMsg(const uint16_t &opCode, const uint16_t &moduleCode,
+                                                       std::unique_ptr<uint8_t[]> &reqData, uint32_t reqDataSize);
+
 UbseResult TransResponse(const UbseBaseMessagePtr &respMsg, UbseComDataDesc &retData, bool withCopy = false);
 
 UbseComMessage *GetMessageFromNetServiceContext(UBSHcomServiceContext &context);

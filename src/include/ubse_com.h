@@ -12,8 +12,10 @@
 
 #ifndef UBSE_COM_H
 #define UBSE_COM_H
-#include <vector>
 #include <functional>
+#include <map>
+#include <memory>
+#include <shared_mutex>
 #include "ubse_def.h"
 
 namespace ubse::com {
@@ -53,7 +55,7 @@ using UbseComRespHandler = std::function<void(void *ctx, const UbseByteBuffer &r
  * @return #UBSE_COM_ERROR_SYNC_CALL_FAIL 0x1001-100A 失败
  */
 uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-    const UbseComRespHandler &handler);
+                     const UbseComRespHandler &handler);
 
 /**
  * @brief 异步发消息
@@ -68,6 +70,60 @@ uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqD
  * @return #其他非零值 失败
  */
 uint32_t UbseRpcAsyncSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-    const UbseComRespHandler &handler);
-}
+                          const UbseComRespHandler &handler);
+
+class UbseRpcMessage {
+public:
+    virtual ~UbseRpcMessage() = default;
+
+    // 返回状态码
+    virtual uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const = 0;
+
+    virtual uint32_t Deserialize(const uint8_t *data, uint32_t size) = 0;
+};
+
+using UbseRpcMessageReceiver =
+    std::function<void(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)>;
+
+class UbseRpcAsyncCallBack {
+public:
+    virtual ~UbseRpcAsyncCallBack() = 0;
+
+    virtual uint32_t CallBackFunc(const uint8_t *respData, uint32_t respSize, int32_t retCode) = 0;
+};
+
+class UbseRpcEndpoint {
+public:
+    UbseRpcEndpoint() = default;
+    UbseRpcEndpoint(uint16_t moduleCode, uint16_t opCode, UbseRpcMessageReceiver receiver)
+        : moduleCode(moduleCode), opCode(opCode), receiver(std::move(receiver))
+    {}
+
+    uint32_t UbseRpcSend(const std::string &targetNodeId, const UbseRpcMessage &req, UbseRpcMessage &resp);
+
+    uint32_t UbseRpcAsyncSend(const std::string &targetNodeId, const UbseRpcMessage &req,
+                              std::shared_ptr<UbseRpcAsyncCallBack> &callback);
+    
+    const UbseRpcMessageReceiver& GetReceiver() const;
+    uint16_t GetModuleCode() const;
+    uint16_t GetOpCode() const;
+
+private:
+    uint16_t moduleCode = 0;
+    uint16_t opCode = 0;
+    UbseRpcMessageReceiver receiver;
+};
+
+class UbseRpcEndpointFactory {
+public:
+    static std::shared_ptr<UbseRpcEndpoint> Build(uint16_t moduleCode, uint16_t opCode,
+                                                  const UbseRpcMessageReceiver &receiver);
+
+    static std::shared_ptr<UbseRpcEndpoint> GetRpcEndpoint(uint16_t moduleCode, uint16_t opCode);
+
+private:
+    static std::map<std::pair<uint16_t, uint16_t>, std::shared_ptr<UbseRpcEndpoint>> rpcEndpoints_;
+    static std::shared_mutex rpcEndpointsMutex_;
+};
+} // namespace ubse::com
 #endif // UBSE_COM_H

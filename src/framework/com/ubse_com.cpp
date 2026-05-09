@@ -13,6 +13,7 @@
 #include "ubse_com.h"
 
 #include <referable/ubse_ref.h> // for Ref
+#include <securec.h>            // for memcpy_s, EOK, errno_t
 #include <memory>               // for operator==, shared_ptr, __share...
 #include <new>                  // for nothrow
 #include <utility>              // for move
@@ -248,6 +249,25 @@ uint32_t UbseRegRpcService(const UbseComEndpoint &endpoint, const UbseComService
     return ret;
 }
 
+uint32_t UbseRegRpcEndpoint(uint16_t moduleCode, uint16_t opCode)
+{
+    auto &ctxRef = UbseContext::GetInstance();
+    auto ubseComModuleRef = ctxRef.GetModule<UbseComModule>();
+    if (ubseComModuleRef == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseComModule fail";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    auto ret = ubseComModuleRef->RegRpcService(moduleCode, opCode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Rpc Service fail," << FormatRetCode(ret);
+        return ret;
+    }
+
+    UBSE_LOG_INFO << "Register moduleId=" << moduleCode << ", serviceId=" << opCode;
+    return ret;
+}
+
 uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
                      const UbseComRespHandler &handler)
 {
@@ -311,4 +331,102 @@ uint32_t UbseRpcAsyncSend(const UbseComEndpoint &endpoint, const UbseByteBuffer 
     }
     return UBSE_ERROR_INVAL;
 }
+
+uint32_t UbseRpcEndpoint::UbseRpcSend(const std::string &targetNodeId, const UbseRpcMessage &req, UbseRpcMessage &resp)
+{
+    auto &ctxRef = UbseContext::GetInstance();
+    auto ubseComModuleRef = ctxRef.GetModule<UbseComModule>();
+    if (ubseComModuleRef == nullptr) {
+        UBSE_LOG_ERROR << "UbseRpcEndpoint sync send get ubseComModule fail";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    auto ret = ubseComModuleRef->RpcSend(targetNodeId, moduleCode, opCode, req, resp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseRpcEndpoint sync send fail," << FormatRetCode(ret);
+    }
+    return ret;
+}
+
+uint32_t UbseRpcEndpoint::UbseRpcAsyncSend(const std::string &targetNodeId, const UbseRpcMessage &req,
+                                           std::shared_ptr<UbseRpcAsyncCallBack> &callback)
+{
+    auto &ctxRef = UbseContext::GetInstance();
+    auto ubseComModuleRef = ctxRef.GetModule<UbseComModule>();
+    if (ubseComModuleRef == nullptr) {
+        UBSE_LOG_ERROR << "UbseRpcEndpoint async send get ubseComModule fail";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    UbseComCallback comCallback;
+    comCallback.cb = [callback](void *ctx, void *recv, uint32_t len, int32_t result) {
+        callback->CallBackFunc(static_cast<uint8_t *>(recv), len, result);
+    };
+    comCallback.cbCtx = nullptr;
+
+    auto ret = ubseComModuleRef->RpcAsyncSend(targetNodeId, moduleCode, opCode, req, comCallback);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseRpcEndpoint async send fail," << FormatRetCode(ret);
+    }
+    return ret;
+}
+
+const UbseRpcMessageReceiver& UbseRpcEndpoint::GetReceiver() const
+{
+    return receiver;
+}
+
+uint16_t UbseRpcEndpoint::GetModuleCode() const
+{
+    return moduleCode;
+}
+
+uint16_t UbseRpcEndpoint::GetOpCode() const
+{
+    return opCode;
+}
+
+std::map<std::pair<uint16_t, uint16_t>, std::shared_ptr<UbseRpcEndpoint>> UbseRpcEndpointFactory::rpcEndpoints_;
+std::shared_mutex UbseRpcEndpointFactory::rpcEndpointsMutex_;
+
+std::shared_ptr<UbseRpcEndpoint> UbseRpcEndpointFactory::Build(uint16_t moduleCode, uint16_t opCode,
+                                                               const UbseRpcMessageReceiver &receiver)
+{
+    std::lock_guard<std::shared_mutex> lock(rpcEndpointsMutex_);
+    auto key = std::make_pair(moduleCode, opCode);
+    auto it = rpcEndpoints_.find(key);
+    if (it != rpcEndpoints_.end()) {
+        UBSE_LOG_WARN << "UbseRpcEndpoint already exists for moduleCode=" << moduleCode << ", opCode=" << opCode;
+        return it->second;
+    }
+    auto newEndpoint = SafeMakeShared<UbseRpcEndpoint>(moduleCode, opCode, receiver);
+    if (!newEndpoint) {
+        UBSE_LOG_ERROR << "alloc new endpoint failed for moduleCode=" << moduleCode << ", opCode=" << opCode;
+        return nullptr;
+    }
+    auto result = rpcEndpoints_.emplace(key, newEndpoint);
+    auto ret = UbseRegRpcEndpoint(moduleCode, opCode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseRpcEndpoint reg fail," << FormatRetCode(ret);
+        return nullptr;
+    }
+    UBSE_LOG_INFO << "UbseRpcEndpoint build for moduleCode=" << moduleCode << ", opCode=" << opCode;
+    return result.first->second;
+}
+
+std::shared_ptr<UbseRpcEndpoint> UbseRpcEndpointFactory::GetRpcEndpoint(uint16_t moduleCode, uint16_t opCode)
+{
+    std::shared_lock<std::shared_mutex> lock(rpcEndpointsMutex_);
+    auto key = std::make_pair(moduleCode, opCode);
+    auto it = rpcEndpoints_.find(key);
+    if (it != rpcEndpoints_.end()) {
+        return it->second;
+    }
+    UBSE_LOG_ERROR << "UbseRpcEndpoint not found for moduleCode=" << moduleCode << ", opCode=" << opCode;
+
+    return nullptr;
+}
+
+UbseRpcAsyncCallBack::~UbseRpcAsyncCallBack() = default;
+
 } // namespace ubse::com

@@ -70,6 +70,24 @@ public:
         return UBSE_OK;
     }
 
+    UbseResult RegMessageHandler(uint16_t moduleCode, uint16_t opCode)
+    {
+        if (moduleCode >= MODULES_SIZE || opCode >= OP_CODE_SIZE) {
+            UBSE_LOG_ERROR << "Invalid module code or op code, module code is " << moduleCode << ", op code is "
+                         << opCode;
+            return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
+        }
+        UbseMqHandler hdl{};
+        hdl.opCode = opCode;
+        hdl.moduleCode = moduleCode;
+        hdl.handler = [](HandlerInput &input) {
+            MqHandleEndpointRequest(input);
+        };
+        WriteLocker<ReadWriteLock> lock(&rwLock_);
+        handlerMap_[hdl.moduleCode][hdl.opCode] = hdl;
+        return UBSE_OK;
+    }
+
     template <class TReq, class TRsp>
     UbseResult Send(const SendParam &param, TReq &request, TRsp &response, const bool withCopy = false)
     {
@@ -103,6 +121,47 @@ public:
         return ret;
     }
 
+    UbseResult Send(const std::string &targetNodeId, uint16_t moduleCode, uint16_t opCode,
+                    const UbseRpcMessage &request, UbseRpcMessage &response)
+    {
+        std::unique_ptr<uint8_t[]> buffer;
+        uint32_t reqSize = 0;
+        auto ret = request.Serialize(buffer, reqSize);
+        if (ret != UBSE_OK || buffer == nullptr) {
+            UBSE_LOG_ERROR << "sync send serialize failed, moduleCode=" << moduleCode
+                           << ", opCode=" << opCode << FormatRetCode(ret);
+            return ret;
+        }
+
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        auto remoteId = targetNodeId;
+        if (!reqBuffer || reqBuffer->empty()) {
+            UBSE_LOG_ERROR << "node " << remoteId << " encode req msg failed.";
+            return UBSE_ERROR;
+        }
+
+        UbseChannelType type = UbseChannelType::NORMAL;
+        UbseComMessageCtx transMessage{reqBuffer->data(), remoteId, remoteId, type};
+        auto hdl = GetHandler(moduleCode, opCode);
+        if (hdl.handler == nullptr) {
+            UBSE_LOG_ERROR << "node " << remoteId << " get handler failed, moduleCode=" << moduleCode
+                           << ", opCode=" << opCode;
+            return UBSE_ERROR;
+        }
+        HandlerInput input;
+        input.messageCtx = transMessage;
+        input.retData = UbseComDataDesc(nullptr, 0);
+        hdl.handler(input);
+
+        ret = response.Deserialize(input.retData.data, input.retData.len);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << " deserialize " << remoteId << " response failed, "
+                           << FormatRetCode(ret);
+        }
+        UbseComMessage::FreeMessage(input.retData.data);
+        return ret;
+    }
+
     template <class TReq>
     UbseResult AsynSend(const SendParam &sendParam, TReq &request, const UbseComCallback &usrCb)
     {
@@ -128,6 +187,46 @@ public:
             hdl.handler(localinput);
             localinput.messageCtx.FreeMessage();
             UbseComMessage::FreeMessage(localinput.retData.data);
+        });
+        return UBSE_OK;
+    }
+
+    UbseResult AsynSend(const std::string &targetNodeId, uint16_t moduleCode, uint16_t opCode,
+                        const UbseRpcMessage &request, const UbseComCallback &usrCb)
+    {
+        std::unique_ptr<uint8_t[]> buffer;
+        uint32_t reqSize = 0;
+        auto ret = request.Serialize(buffer, reqSize);
+        if (ret != UBSE_OK || buffer == nullptr) {
+            UBSE_LOG_ERROR << "async send serialize failed, moduleCode=" << moduleCode
+                           << ", opCode=" << opCode << FormatRetCode(ret);
+            return ret;
+        }
+
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        auto remoteId = targetNodeId;
+        if (!reqBuffer || reqBuffer->empty()) {
+            UBSE_LOG_ERROR << "node " << remoteId << " encode req msg failed.";
+            return UBSE_ERROR;
+        }
+        auto hdl = GetHandler(moduleCode, opCode);
+        if (hdl.handler == nullptr) {
+            UBSE_LOG_ERROR << "node " << remoteId << " get handler failed, moduleCode=" << moduleCode
+                           << ", opCode=" << opCode;
+            return UBSE_ERROR;
+        }
+        std::string traceId = TraceContext::GetTraceId();
+        mqExecutor_->Execute([remoteId, reqBuffer, usrCb, hdl, traceId] {
+            TraceContext::SetTraceId(traceId);
+            HandlerInput localInput;
+            UbseChannelType type = UbseChannelType::NORMAL;
+            UbseComMessageCtx transMessage{reqBuffer->data(), remoteId, remoteId, type};
+            localInput.messageCtx = transMessage;
+            localInput.usrCb = usrCb;
+            localInput.isSyn = false;
+            hdl.handler(localInput);
+            localInput.messageCtx.FreeMessage();
+            UbseComMessage::FreeMessage(localInput.retData.data);
         });
         return UBSE_OK;
     }
@@ -185,6 +284,49 @@ public:
         MqReply(input, response);
     }
 
+    static void MqHandleEndpointRequest(HandlerInput &input)
+    {
+        auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(input.messageCtx.GetMessage()));
+        if (ucMsg == nullptr) {
+            UBSE_LOG_ERROR << "Convert ubse com message ptr failed. ";
+            return;
+        }
+
+        uint16_t moduleCode = ucMsg->GetMessageHead().GetModuleCode();
+        uint16_t opCode = ucMsg->GetMessageHead().GetOpCode();
+        auto endpointPtr = UbseRpcEndpointFactory::GetRpcEndpoint(moduleCode, opCode);
+        if (!endpointPtr) {
+            UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " endpoint not exists";
+            return;
+        }
+
+        std::unique_ptr<UbseRpcMessage> response;
+        auto receiver = endpointPtr->GetReceiver();
+        auto msgBody = ucMsg->GetMessageBody();
+        auto msgBodyLen = ucMsg->GetMessageBodyLen();
+        if (msgBody == nullptr) {
+            UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " messageBody not exists";
+            return;
+        }
+
+        receiver(msgBody, msgBodyLen, response);
+        if (response == nullptr) {
+            UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " receiver response not exists";
+            return;
+        }
+        
+        std::unique_ptr<uint8_t[]> buffer;
+        uint32_t respSize = 0;
+        auto ret = response->Serialize(buffer, respSize);
+        if (ret != UBSE_OK || buffer == nullptr) {
+            UBSE_LOG_ERROR << "serialize failed, moduleCode=" << moduleCode
+                           << ", opCode=" << opCode << FormatRetCode(ret);
+            return;
+        }
+        
+        MqEndpointReply(input, buffer, respSize);
+    }
+
     template <class TRsp>
     static void MqReply(HandlerInput &input, TRsp response)
     {
@@ -206,6 +348,36 @@ public:
         }
         input.retData.len = response->SerializedDataSize();
         if (!input.isSyn && input.usrCb.cb != nullptr) {
+            input.usrCb.cb(input.usrCb.cbCtx, input.retData.data, input.retData.len, UBSE_OK);
+        }
+    }
+
+    static void MqEndpointReply(HandlerInput &input, std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize)
+    {
+        if (buffer == nullptr) {
+            UBSE_LOG_ERROR << "Response buffer is nullptr. ";
+            return;
+        }
+
+        if (bufferSize <= 0) {
+            UBSE_LOG_ERROR << "buffer size is invalid. ";
+            return;
+        }
+        input.retData.data = new (std::nothrow) uint8_t[bufferSize];
+        if (input.retData.data == nullptr) {
+            UBSE_LOG_ERROR << "Crate object failed. ";
+            return;
+        }
+        
+        auto res = memcpy_s(input.retData.data, bufferSize, buffer.get(), bufferSize);
+        if (res != EOK) {
+            UBSE_LOG_ERROR << "Fail to copy response data";
+            SafeDeleteArray(input.retData.data);
+            return;
+        }
+        input.retData.len = bufferSize;
+        if (!input.isSyn && input.usrCb.cb != nullptr) {
+            // cb负责释放input.retData资源
             input.usrCb.cb(input.usrCb.cbCtx, input.retData.data, input.retData.len, UBSE_OK);
         }
     }

@@ -69,6 +69,22 @@ public:
         return UBSE_ERROR;
     }
 
+    UbseResult RegRpcService(uint16_t moduleCode, uint16_t opCode)
+    {
+        if (queueRef_ != nullptr) {
+            auto ret = queueRef_->RegMessageHandler(moduleCode, opCode);
+            if (ret != UBSE_OK) {
+                return ret;
+            }
+        }
+        if (rpcServer_ != nullptr) {
+            return rpcServer_->RegMessageHandler(moduleCode, opCode);
+        }
+        UBSE_LOG_ERROR << "reg rpc service failed, module code= " << moduleCode
+                       << ", op code: " << opCode << ". ";
+        return UBSE_ERROR;
+    }
+
     template <class TReq, class TRsp>
     UbseResult RpcSend(const SendParam &sendParam, TReq &request, TRsp &response, const bool withCopy = false)
     {
@@ -94,6 +110,37 @@ public:
 
         if (rpcServer_ != nullptr) {
             return rpcServer_->AsyncSend(sendParam, request, callback);
+        }
+
+        UBSE_LOG_ERROR << "rpc async send failed";
+        return UBSE_ERROR;
+    }
+
+    UbseResult RpcSend(const std::string &targetNodeId, uint16_t moduleCode, uint16_t opCode,
+                       const UbseRpcMessage &request, UbseRpcMessage &response)
+    {
+        // 节点内通信
+        if (queueRef_ != nullptr && IsCurrentNode(targetNodeId)) {
+            return queueRef_->Send(targetNodeId, moduleCode, opCode, request, response);
+        }
+        // rpcServer_ 通信
+        if (rpcServer_ != nullptr) {
+            return rpcServer_->Send(targetNodeId, moduleCode, opCode, request, response);
+        }
+
+        UBSE_LOG_ERROR << "rpc send failed";
+        return UBSE_ERROR;
+    }
+
+    UbseResult RpcAsyncSend(const std::string &targetNodeId, uint16_t moduleCode, uint16_t opCode,
+                            const UbseRpcMessage &request, const UbseComCallback &callback)
+    {
+        if (queueRef_ != nullptr && IsCurrentNode(targetNodeId)) {
+            return queueRef_->AsynSend(targetNodeId, moduleCode, opCode, request, callback);
+        }
+
+        if (rpcServer_ != nullptr) {
+            return rpcServer_->AsyncSend(targetNodeId, moduleCode, opCode, request, callback);
         }
 
         UBSE_LOG_ERROR << "rpc async send failed";
