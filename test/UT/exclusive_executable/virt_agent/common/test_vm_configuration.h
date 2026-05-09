@@ -16,5 +16,5 @@ public:
 
     void TearDown();
 };
-}
+} // namespace ubse::vm::ut
 #endif // UBSE_MANAGER_TEST_VM_CONFIGURATION_H

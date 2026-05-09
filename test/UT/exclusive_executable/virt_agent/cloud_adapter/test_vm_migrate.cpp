@@ -69,9 +69,8 @@ TEST_F(TestVmMigrate, FindNodeIdPidTest)
     std::string nodeId;
     pid_t pid;
     EXPECT_EQ(vmMigrate.FindNodeIdPid("uuid", nodeId, pid, numaMemInfoMap), VM_ERROR);
-    HostVmDomainInfo info{"0", "name", "metric",
-        {{"uuid", "name", "s", 0, 100, 0, 100, "0", "n", 111, 10, {{0, {0, 0, 0, 0, 0}}}}}
-    };
+    HostVmDomainInfo info{
+        "0", "name", "metric", {{"uuid", "name", "s", 0, 100, 0, 100, "0", "n", 111, 10, {{0, {0, 0, 0, 0, 0}}}}}};
     MOCKER(ResourceQuery::GetVmDomainInfosFromGlobal).stubs().with(outBound(info)).will(returnValue(VM_OK));
     EXPECT_EQ(vmMigrate.FindNodeIdPid("uuid", nodeId, pid, numaMemInfoMap), VM_OK);
 }
@@ -231,4 +230,4 @@ TEST_F(TestVmMigrate, ProcessRequest_EnableProcessMigrateFail)
     EXPECT_EQ(ret, VM_ERROR);
     GlobalMockObject::verify();
 }
-}
+} // namespace ubse::ut::vm

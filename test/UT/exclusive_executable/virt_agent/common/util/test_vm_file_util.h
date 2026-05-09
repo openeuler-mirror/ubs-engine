@@ -5,8 +5,8 @@
 #ifndef UBSE_MANAGER_TEST_VM_FILE_UTIL_H
 #define UBSE_MANAGER_TEST_VM_FILE_UTIL_H
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "vm_file_util.h"
 
 namespace ubse::ut::vm {
@@ -18,6 +18,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // UBSE_MANAGER_TEST_VM_FILE_UTIL_H

@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-} // namespace ubse::virt::agent
+} // namespace ubse::virt::fragmentation
 
 #endif // UBS_ENGINE_VIRT_AGENT_MEM_FRAGMENTATION_FUZZ_H

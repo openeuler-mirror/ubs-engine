@@ -7,12 +7,12 @@
 #include <ubse_storage.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "resource_collect.h"
-#include "resource_query.h"
-#include "vm_info.h"
 #include "global_borrow_map_message.h"
 #include "migrate_state_storage.h"
+#include "resource_collect.h"
+#include "resource_query.h"
 #include "vm_configuration.h"
+#include "vm_info.h"
 
 using namespace vm;
 using namespace ubse::storage;
@@ -98,10 +98,12 @@ TEST_F(TestResourceCollect, UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap)
     HostVmDomainInfo hostVmDomainInfo{};
     HostNumaCpuInfo hostNumaCpuInfo{};
     MOCKER(ResourceQuery::GetLocalHostVmCollectData).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
-    EXPECT_EQ(ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo,
-        hostNumaCpuInfo), VM_ERROR);
-    EXPECT_EQ(ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo,
-        hostNumaCpuInfo), VM_OK);
+    EXPECT_EQ(
+        ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo, hostNumaCpuInfo),
+        VM_ERROR);
+    EXPECT_EQ(
+        ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo, hostNumaCpuInfo),
+        VM_OK);
 }
 
 TEST_F(TestResourceCollect, ResourceCollectInitFail)
@@ -153,4 +155,4 @@ TEST_F(TestResourceCollect, TestSyncGlobalBorrowMap_Success)
     auto ret = ResourceCollect::SyncGlobalBorrowMap(debtInfos);
     EXPECT_EQ(ret, VM_OK);
 }
-}  // namespace ubse::vm::ut
+} // namespace ubse::vm::ut

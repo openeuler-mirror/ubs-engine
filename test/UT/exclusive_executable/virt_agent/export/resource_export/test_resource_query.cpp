@@ -37,8 +37,7 @@ void TestResourceQuery::TearDown()
 TEST_F(TestResourceQuery, GetLocalHostVmCollectData)
 {
     HostVmDomainInfo mockHostVmDomainInfo{
-        "0", "0", "metric",
-        {{"uuid", "name", "state", 1, 1000, 0, 0, "nodeId", "host", 1, 1, {{1, {1, 1, 1, 1, 1}}}}}};
+        "0", "0", "metric", {{"uuid", "name", "state", 1, 1000, 0, 0, "nodeId", "host", 1, 1, {{1, {1, 1, 1, 1, 1}}}}}};
     HostNumaCpuInfo mockHostNumaCpuInfo{"0", "0", 1, "metric", {}};
     HostVmDomainInfo hostVmDomainInfo;
     HostNumaCpuInfo hostNumaCpuInfo;
@@ -86,8 +85,7 @@ UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNodeErr()
 TEST_F(TestResourceQuery, GetLocalHostVmDomainInfo)
 {
     HostVmDomainInfo hostVmDomainInfo{
-        "0", "0", "metric",
-        {{"uuid", "name", "state", 1, 1000, 0, 0, "nodeId", "host", 1, 1, {{1, {1, 1, 1, 1, 1}}}}}};
+        "0", "0", "metric", {{"uuid", "name", "state", 1, 1000, 0, 0, "nodeId", "host", 1, 1, {{1, {1, 1, 1, 1, 1}}}}}};
     MOCKER(MempoolingModule::UBSRMRSGetVmInfoListOnNode).stubs().will(invoke(MockUBSRMRSGetVmInfoListOnNode));
     auto ret = ResourceQuery::GetLocalHostVmDomainInfo(hostVmDomainInfo);
     EXPECT_EQ(ret, VM_OK);
@@ -144,4 +142,4 @@ TEST_F(TestResourceQuery, GetLocalHostNumaInfoFail)
     ret = ResourceQuery::GetLocalHostNumaInfo(hostNumaCpuInfo);
     EXPECT_EQ(ret, VM_ERROR);
 }
-}
+} // namespace ubse::ut::vm

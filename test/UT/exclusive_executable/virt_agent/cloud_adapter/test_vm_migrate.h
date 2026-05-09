@@ -24,5 +24,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 #endif // VM_TEST_VM_MIGRATE_H

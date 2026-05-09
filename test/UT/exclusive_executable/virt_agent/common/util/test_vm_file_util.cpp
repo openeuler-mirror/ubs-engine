@@ -3,8 +3,8 @@
  */
 
 #include "test_vm_file_util.h"
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 
 using namespace vm;
 namespace ubse::ut::vm {
@@ -66,4 +66,4 @@ TEST_F(TestVmFileUtil, GetFileInfoFailed2)
     auto ret = VmFileUtil::GetFileInfo(filePath, lineInfo);
     EXPECT_EQ(ret, VM_WARN);
 }
-}
+} // namespace ubse::ut::vm

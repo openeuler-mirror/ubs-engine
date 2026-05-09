@@ -24,5 +24,5 @@ protected:
 
     void TearDown();
 };
-}
+} // namespace ubse::vm::ut
 #endif // UBS_ENGINE_TEST_MIGRATE_INFO_UTILS_H

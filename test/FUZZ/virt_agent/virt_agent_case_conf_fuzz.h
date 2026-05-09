@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-} // namespace ubse::virt::agent
+} // namespace ubse::virt::caseconf
 
 #endif // UBS_ENGINE_VIRT_AGENT_CASE_CONF_H

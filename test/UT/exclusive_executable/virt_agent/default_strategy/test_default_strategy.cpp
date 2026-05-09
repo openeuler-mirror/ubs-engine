@@ -4,9 +4,9 @@
 
 #include "test_default_strategy.h"
 
+#include <securec.h>
 #include <ubse_logger.h>
 #include <ubse_ut_dir.h>
-#include <securec.h>
 #include <cstdint>
 #include <fstream>
 #include <string>
@@ -32,7 +32,8 @@ const float DEFAULT_FIRST_LINE = 0.85;
 const float DEFAULT_RETURN_LINE = 0.8;
 const int TIME_SECOND_180 = 180;
 const StrategyConfig STRATEGY_CONFIG = {"0", "0", "0", 0, 0, 0, 0, 0};
-Logfunc g_logFunc = [](uint32_t level, const char *msg) -> void {};
+Logfunc g_logFunc = [](uint32_t level, const char *msg) -> void {
+};
 
 TestDefaultStrategy::TestDefaultStrategy() {}
 
@@ -41,7 +42,7 @@ void TestDefaultStrategy::SetUp()
 {
     Test::SetUp();
 #ifdef LOG_DEBUG_ON
-    LoggerOptions options{ UbseLogLevel::DEBUG, 2, 5, 1024, UbseLogLevel::INFO, "/var/log/scbus" };
+    LoggerOptions options{UbseLogLevel::DEBUG, 2, 5, 1024, UbseLogLevel::INFO, "/var/log/scbus"};
     auto log = UbseLoggerManager::Instance();
     UbseLoggerWriter *writer = new (std::nothrow)
         UbseLoggerFilesink(options.logPath, options.maxFileSizeInMB * 1024 * 1024, options.rotationFileCount);
@@ -310,8 +311,8 @@ void AssignGlobalNumaInfo(const rapidjson::Value &GlobalNumaInfoPtr, Allocator &
     globalNumaInfo.numaCpuUsedCounts = 0;
     ret |= UbseJsonUtil::GetUint64FromJsonPtr(GlobalNumaInfoPtr, "numaMemTotal", globalNumaInfo.numaMemTotal);
     ret |= UbseJsonUtil::GetUint64FromJsonPtr(GlobalNumaInfoPtr, "numaMemUsed", globalNumaInfo.numaMemUsed);
-    ret |= UbseJsonUtil::GetUint64FromJsonPtr(GlobalNumaInfoPtr, "numaVMMemAllocated",
-                                              globalNumaInfo.numaVMMemAllocated);
+    ret |=
+        UbseJsonUtil::GetUint64FromJsonPtr(GlobalNumaInfoPtr, "numaVMMemAllocated", globalNumaInfo.numaVMMemAllocated);
     ret |= UbseJsonUtil::GetUint64FromJsonPtr(GlobalNumaInfoPtr, "numaMemBorrow", globalNumaInfo.numaMemBorrow);
 
     std::string numaMigrateStatusStr;
@@ -394,8 +395,9 @@ DsResult CheckConf(StrategyConfig &strategyConf)
 
     // escape
     EXPECT_EQ(defaultStrategy.SetWaterLine(std::stoi(strategyConf.borrowWatermark) * 0.01f,
-        std::stoi(strategyConf.highWatermark) * 0.01f, std::stoi(strategyConf.lowWatermark) * 0.01f),
-        DS_OK);
+                                           std::stoi(strategyConf.highWatermark) * 0.01f,
+                                           std::stoi(strategyConf.lowWatermark) * 0.01f),
+              DS_OK);
 
     // mem
     EXPECT_EQ(defaultStrategy.SetMaxMemBorrow(strategyConf.maxMemBorrow), DS_OK);
@@ -412,7 +414,7 @@ DsResult CheckConf(StrategyConfig &strategyConf)
     return DS_OK;
 }
 
-DsResult ReadConf(const rapidjson::Value &pstJson, Allocator  &allocator, StrategyConfig &vmStrategyConf)
+DsResult ReadConf(const rapidjson::Value &pstJson, Allocator &allocator, StrategyConfig &vmStrategyConf)
 {
     DsResult ret = DS_OK;
     rapidjson::Value strategyConf(rapidjson::kObjectType);
@@ -423,10 +425,10 @@ DsResult ReadConf(const rapidjson::Value &pstJson, Allocator  &allocator, Strate
     ret |= UbseJsonUtil::GetStrFromJsonPtr(strategyConf, "memFirstLine", vmStrategyConf.highWatermark);
     // mem
     ret |= UbseJsonUtil::GetFloatFromJsonPtr(strategyConf, "maxMemBorrow", vmStrategyConf.maxMemBorrow);
-    ret |= UbseJsonUtil::GetUint64FromJsonPtr(strategyConf, "maxMemPerBorrowBytes",
-                                              vmStrategyConf.maxMemPerBorrowBytes);
-    ret |= UbseJsonUtil::GetUint64FromJsonPtr(strategyConf, "minMemPerBorrowBytes",
-                                              vmStrategyConf.minMemPerBorrowBytes);
+    ret |=
+        UbseJsonUtil::GetUint64FromJsonPtr(strategyConf, "maxMemPerBorrowBytes", vmStrategyConf.maxMemPerBorrowBytes);
+    ret |=
+        UbseJsonUtil::GetUint64FromJsonPtr(strategyConf, "minMemPerBorrowBytes", vmStrategyConf.minMemPerBorrowBytes);
     ret |= UbseJsonUtil::GetUint64FromJsonPtr(strategyConf, "maxPerTotalMemBorrowBytes",
                                               vmStrategyConf.maxPerTotalMemBorrowBytes);
     ret |= UbseJsonUtil::GetUint64FromJsonPtr(strategyConf, "oomEventBorrowBytes", vmStrategyConf.oomEventBorrowBytes);
@@ -436,7 +438,7 @@ DsResult ReadConf(const rapidjson::Value &pstJson, Allocator  &allocator, Strate
 }
 
 DsResult ReadJsonAndConf(std::string fileName, AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-    EscapeAction &escapeAction, StrategyConfig &vmStrategyConf)
+                         EscapeAction &escapeAction, StrategyConfig &vmStrategyConf)
 {
     std::string fileContent;
     EXPECT_EQ(ReadJsonFile(fileName, fileContent), DS_OK);
@@ -455,13 +457,13 @@ DsResult ReadJsonAndConf(std::string fileName, AlarmNumaInfo &alarmNumaInfo, Glo
 void EscapeStrategyUT(const std::string fileName)
 {
     std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/default_strategy/case/";
-    AlarmNumaInfo alarmNumaInfo = { 0 };
+    AlarmNumaInfo alarmNumaInfo = {0};
     GlobalNumaInfoMap globalNumaInfoMap;
     EscapeAction escapeAction;
     EscapeAction expectedEscapeAction;
     StrategyConfig strategyConf{};
     EXPECT_EQ(ReadJsonAndConf(caseDir + fileName, alarmNumaInfo, globalNumaInfoMap, expectedEscapeAction, strategyConf),
-        DS_OK);
+              DS_OK);
     EXPECT_EQ(EscapeAlgorithmInit(strategyConf, g_logFunc), DS_OK);
 
     // 执行测试函数
@@ -484,8 +486,7 @@ TEST_F(TestDefaultStrategy, VMEscapeStrategySetPerBorrowBoundTest1)
     EXPECT_EQ(defaultStrategy.InitLogFunc(g_logFunc), DS_OK);
     uint64_t newMaxMemPerBorrowBytes = static_cast<uint64_t>(1) << 30;
     uint64_t newMinMemPerBorrowBytes = static_cast<uint64_t>(4) << 30;
-    EXPECT_EQ(defaultStrategy.SetPerBorrowBound(newMinMemPerBorrowBytes, newMaxMemPerBorrowBytes),
-        DS_ERR_SET_INVAL);
+    EXPECT_EQ(defaultStrategy.SetPerBorrowBound(newMinMemPerBorrowBytes, newMaxMemPerBorrowBytes), DS_ERR_SET_INVAL);
     EXPECT_EQ(defaultStrategy.GetMaxMemPerBorrowBytes(), newMinMemPerBorrowBytes);
     EXPECT_EQ(defaultStrategy.GetMinMemPerBorrowBytes(), newMaxMemPerBorrowBytes);
 }
@@ -712,4 +713,4 @@ TEST_F(TestDefaultStrategy, VMEscapeStrategySetWaterLinrCornerCaseTest1)
 
     CheckRestOfWaterLine();
 }
-}
+} // namespace ubse::ut::df

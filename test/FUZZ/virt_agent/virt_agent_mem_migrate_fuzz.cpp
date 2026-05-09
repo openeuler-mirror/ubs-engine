@@ -23,7 +23,6 @@ namespace ubse::virt::migrate {
 using namespace ubse::common::def;
 using namespace ubse::fuzz;
 
-
 int fuzzCount = GetFuzzCount();
 const int16_t S16_MAX = 32767;
 const int32_t S32_MAX = 2147483647;
@@ -65,4 +64,4 @@ TEST_F(VirtAgentMemMigrateFuzz, UpdatePageFlowAndStatusFuzz)
     DT_FUZZ_END()
 }
 
-}  // namespace ubse::virt::migrate
+} // namespace ubse::virt::migrate

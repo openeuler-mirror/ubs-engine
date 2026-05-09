@@ -259,4 +259,4 @@ TEST_F(TestCaseConfSdkServer, SetCaseConfCheckReq_JsonParseFail)
     EXPECT_EQ(ret, VM_ERROR);
 }
 
-}
+} // namespace ubse::ut::vm

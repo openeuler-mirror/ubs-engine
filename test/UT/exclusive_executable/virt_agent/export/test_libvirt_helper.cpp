@@ -189,18 +189,16 @@ TEST_F(TestLibvirtHelper, DomainAbortJobFlags)
 {
     std::string uuid = "abcd-1234";
 
-    MOCKER(LibvirtModule::VirDomainLookupByUuidString).stubs()
-            .will(invoke(MockVirDomainLookupByUuidString));
-    auto ret = LibvirtHelper::GetInstance().DomainAbortJobFlags(
-        uuid, VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_HAM);
+    MOCKER(LibvirtModule::VirDomainLookupByUuidString).stubs().will(invoke(MockVirDomainLookupByUuidString));
+    auto ret =
+        LibvirtHelper::GetInstance().DomainAbortJobFlags(uuid, VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_HAM);
     EXPECT_EQ(ret, VM_ERROR);
-    MOCKER(LibvirtModule::VirDomainAbortJobFlags).stubs()
-            .will(invoke(MockVirDomainAbortJobFlags));
-    ret = LibvirtHelper::GetInstance().DomainAbortJobFlags(
-        uuid, VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_POSTCOPY);
+    MOCKER(LibvirtModule::VirDomainAbortJobFlags).stubs().will(invoke(MockVirDomainAbortJobFlags));
+    ret = LibvirtHelper::GetInstance().DomainAbortJobFlags(uuid,
+                                                           VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_POSTCOPY);
     EXPECT_NE(ret, VM_OK);
-    ret = LibvirtHelper::GetInstance().DomainAbortJobFlags(
-        uuid, VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_HAM);
+    ret =
+        LibvirtHelper::GetInstance().DomainAbortJobFlags(uuid, VirDomainAbortJobFlagsValues::VIR_DOMAIN_ABORT_JOB_HAM);
     EXPECT_EQ(ret, VM_OK);
 }
-}
+} // namespace ubse::ut::vm

@@ -7,8 +7,8 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "hugepage_handler.h"
-#include "vm_file_util.h"
 #include "vm_def.h"
+#include "vm_file_util.h"
 
 using namespace vm;
 namespace ubse::ut::vm {
@@ -113,4 +113,4 @@ TEST_F(TestHugepageHandler, GetCurrentHugePages_FileOpenFailed1)
     EXPECT_EQ(currentHugePages, 0);
 }
 
-}
+} // namespace ubse::ut::vm

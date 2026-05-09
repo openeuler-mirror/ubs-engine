@@ -72,10 +72,7 @@ TEST_F(TestContainerService, MemMigrate)
     std::vector<VMPresetParam> vmPresetParamList{{0, 0}, {1, 50}};
     std::unordered_map<std::string, uint16_t> borrowRemoteMaps{{"0", 100}, {"1", 100}};
     ContainerService containerService{};
-    MOCKER(VmMemAdapter::GetMemoryRemoteNumaIds)
-        .stubs()
-        .with(_, outBound(borrowRemoteMaps))
-        .will(returnValue(VM_OK));
+    MOCKER(VmMemAdapter::GetMemoryRemoteNumaIds).stubs().with(_, outBound(borrowRemoteMaps)).will(returnValue(VM_OK));
     MOCKER(&VmMemManager::RunPreflight).stubs().will(returnValue(true));
     MOCKER(&VmMemManager::OutMemMigrate).stubs().will(returnValue(VM_OK));
     auto ret = containerService.MemMigrate(nodeLocInfo, borrowIdSet, vmPresetParamList);
@@ -89,10 +86,7 @@ TEST_F(TestContainerService, MemMigrateFail)
     std::vector<VMPresetParam> vmPresetParamList{{0, 0}, {1, 50}};
     std::unordered_map<std::string, uint16_t> borrowRemoteMaps{{"0", 100}, {"1", 100}};
     ContainerService containerService{};
-    MOCKER(VmMemAdapter::GetMemoryRemoteNumaIds)
-        .stubs()
-        .with(_, outBound(borrowRemoteMaps))
-        .will(returnValue(VM_OK));
+    MOCKER(VmMemAdapter::GetMemoryRemoteNumaIds).stubs().with(_, outBound(borrowRemoteMaps)).will(returnValue(VM_OK));
     MOCKER(&VmMemManager::RunPreflight).stubs().will(returnValue(false));
     auto ret = containerService.MemMigrate(nodeLocInfo, borrowIdSet, vmPresetParamList);
     EXPECT_EQ(ret, VM_ERROR);

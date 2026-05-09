@@ -19,5 +19,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 #endif // UBSE_MANAGER_TEST_MIGRATE_STATE_MAP_MESSAGE_H

@@ -12,8 +12,8 @@
 
 #ifndef TEST_BASE_MESSAGE_H
 #define TEST_BASE_MESSAGE_H
-#include "gtest/gtest.h"
 #include "base_message.h"
+#include "gtest/gtest.h"
 using namespace vm;
 namespace ubse::ut::vm {
 
@@ -33,5 +33,5 @@ class TestBaseMessageClass : public BaseMessage {
 
     VmResult Deserialize() override;
 };
-}
+} // namespace ubse::ut::vm
 #endif // TEST_BASE_MESSAGE_H

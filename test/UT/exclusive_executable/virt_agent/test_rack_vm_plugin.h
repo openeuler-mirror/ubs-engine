@@ -25,6 +25,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::vm::ut
 
 #endif // RACK_MANAGER_TEST_RACK_VM_PLUGIN_H

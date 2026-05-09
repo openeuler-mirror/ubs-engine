@@ -10,8 +10,8 @@ namespace ubse::ut::vm {
 void TestVmVectorUtil::SetUp()
 {
     // 公共测试数据初始化
-    source = { 1, 2, 3, 4, 5, 2, 4 };
-    targets = { 2, 4, 6 };
+    source = {1, 2, 3, 4, 5, 2, 4};
+    targets = {2, 4, 6};
     Test::SetUp();
 }
 
@@ -29,7 +29,7 @@ TEST_F(TestVmVectorUtil, RemovesCommonElements)
     // 验证结果列表长度为3
     EXPECT_EQ(source.size(), 3);
     // 验证结果列表元素预期为 1,3,5
-    EXPECT_EQ(source, std::vector<uint16_t>({ 1, 3, 5 }));
+    EXPECT_EQ(source, std::vector<uint16_t>({1, 3, 5}));
 }
 // 测试空移除列表
 TEST_F(TestVmVectorUtil, HandlesEmptyRemoveList)
@@ -38,7 +38,7 @@ TEST_F(TestVmVectorUtil, HandlesEmptyRemoveList)
     VectorUtil::RemoveCommonElements(source, targets);
 
     // 验证结果列表元素预期为 1, 2, 3, 4, 5, 2, 4
-    EXPECT_EQ(source, std::vector<uint16_t>({ 1, 2, 3, 4, 5, 2, 4 }));
+    EXPECT_EQ(source, std::vector<uint16_t>({1, 2, 3, 4, 5, 2, 4}));
 }
 
 // 测试空源列表
@@ -54,7 +54,7 @@ TEST_F(TestVmVectorUtil, HandlesEmptySource)
 TEST_F(TestVmVectorUtil, RemovesAllElements)
 {
     // 设置待移除元素为 1, 2, 3, 4, 5
-    targets = { 1, 2, 3, 4, 5 };
+    targets = {1, 2, 3, 4, 5};
     VectorUtil::RemoveCommonElements(source, targets);
 
     EXPECT_TRUE(source.empty());
@@ -64,9 +64,9 @@ TEST_F(TestVmVectorUtil, RemovesAllElements)
 TEST_F(TestVmVectorUtil, HandlesDuplicateElements)
 {
     // 设置Vector元素为3个相同元素2
-    source = { 2, 2, 2 };
+    source = {2, 2, 2};
     // 设置待删除元素
-    targets = { 2 };
+    targets = {2};
     VectorUtil::RemoveCommonElements(source, targets);
 
     EXPECT_TRUE(source.empty());
@@ -76,11 +76,11 @@ TEST_F(TestVmVectorUtil, HandlesDuplicateElements)
 TEST_F(TestVmVectorUtil, HandlesNoCommonElements)
 {
     // 设置待删除元素7,8,9 与source无交集
-    targets = { 7, 8, 9 };
+    targets = {7, 8, 9};
     VectorUtil::RemoveCommonElements(source, targets);
 
     // 验证结果列表元素预期为 1, 2, 3, 4, 5, 2, 4
-    EXPECT_EQ(source, std::vector<uint16_t>({ 1, 2, 3, 4, 5, 2, 4 }));
+    EXPECT_EQ(source, std::vector<uint16_t>({1, 2, 3, 4, 5, 2, 4}));
 }
 
 // 测试目标列表包含不存在元素
@@ -90,6 +90,6 @@ TEST_F(TestVmVectorUtil, HandlesNonExistingElements)
     targets.push_back(100);
     VectorUtil::RemoveCommonElements(source, targets);
     // 验证结果列表元素预期为 1, 3, 5
-    EXPECT_EQ(source, std::vector<uint16_t>({ 1, 3, 5 }));
+    EXPECT_EQ(source, std::vector<uint16_t>({1, 3, 5}));
 }
-}
+} // namespace ubse::ut::vm

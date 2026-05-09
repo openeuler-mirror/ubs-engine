@@ -11,12 +11,12 @@
  */
 
 #include "test_migrate_info_utils.h"
-#include <mockcpp/mockcpp.hpp>
 #include <ubse_com.h>
+#include <mockcpp/mockcpp.hpp>
 
 #include "migrate_info_utils.h"
-#include "vm_error.h"
 #include "response_info_message.h"
+#include "vm_error.h"
 
 using namespace vm;
 using namespace ubse::com;
@@ -60,4 +60,4 @@ TEST_F(TestMigrateInfoUtils, GetSocketIdByNumaId_ShouldReturnOK_WhenSocketIdFoun
     EXPECT_EQ(result, VM_OK);
 }
 
-}  // namespace ubse::vm::ut
+} // namespace ubse::vm::ut

@@ -23,7 +23,6 @@ namespace ubse::virt::hammigrate {
 using namespace ubse::common::def;
 using namespace ubse::fuzz;
 
-
 int fuzzCount = GetFuzzCount();
 const int8_t S8_MAX = 127;
 const int16_t S16_MAX = 32767;
@@ -46,70 +45,61 @@ void VirtAgentHamMigrateFuzz::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(VirtAgentHamMigrateFuzz, MakeMigrateDecisionFuzz)
-{
-    DT_FUZZ_START(0, fuzzCount, "MakeMigrateDecisionFuzz", 0)
-    {
-        uint32_t infoSize = *(u32 *)DTSetGetNumberRange(&g_Element[0], 1, 0, U32_MAX, "");
-        char *rawModuleName = DT_SetGetString(&g_Element[1], 5, 10000, "123");
-        std::string data = rawModuleName ? std::string(rawModuleName) : "unknown";
-        const std::size_t maxSize = data.size() + 1;
-        std::vector<char> param(maxSize);
-        strncpy_s(param.data(), maxSize, data.c_str(), data.size());
+TEST_F(VirtAgentHamMigrateFuzz, MakeMigrateDecisionFuzz){DT_FUZZ_START(0, fuzzCount, "MakeMigrateDecisionFuzz", 0){
+    uint32_t infoSize = *(u32 *)DTSetGetNumberRange(&g_Element[0], 1, 0, U32_MAX, "");
+char *rawModuleName = DT_SetGetString(&g_Element[1], 5, 10000, "123");
+std::string data = rawModuleName ? std::string(rawModuleName) : "unknown";
+const std::size_t maxSize = data.size() + 1;
+std::vector<char> param(maxSize);
+strncpy_s(param.data(), maxSize, data.c_str(), data.size());
 
-        char *rawModuleName2 = DT_SetGetString(&g_Element[2], 5, 10000, "123");
-        std::string data2 = rawModuleName ? std::string(rawModuleName2) : "unknown";
-        const std::size_t maxSize2 = data2.size() + 1;
-        std::vector<char> uuid(maxSize2);
-        strncpy_s(uuid.data(), maxSize2, data2.c_str(), data2.size());
+char *rawModuleName2 = DT_SetGetString(&g_Element[2], 5, 10000, "123");
+std::string data2 = rawModuleName ? std::string(rawModuleName2) : "unknown";
+const std::size_t maxSize2 = data2.size() + 1;
+std::vector<char> uuid(maxSize2);
+strncpy_s(uuid.data(), maxSize2, data2.c_str(), data2.size());
 
-        uint32_t destNumaId = *(u32 *)DTSetGetNumberRange(&g_Element[3], 1, 0, U32_MAX, "");
-        uint32_t migrateStrategy = *(u32 *)DTSetGetNumberRange(&g_Element[4], 1, 0, U32_MAX, "");
+uint32_t destNumaId = *(u32 *)DTSetGetNumberRange(&g_Element[3], 1, 0, U32_MAX, "");
+uint32_t migrateStrategy = *(u32 *)DTSetGetNumberRange(&g_Element[4], 1, 0, U32_MAX, "");
 
-        ubs_virt_agent_make_migrate_decision(infoSize, uuid.data(), param.data(), destNumaId, &migrateStrategy);
-    }
-    DT_FUZZ_END()
+ubs_virt_agent_make_migrate_decision(infoSize, uuid.data(), param.data(), destNumaId, &migrateStrategy);
+} // namespace ubse::virt::hammigrate
+DT_FUZZ_END()
 }
 
-TEST_F(VirtAgentHamMigrateFuzz, StartIpcClientFuzz)
-{
-    DT_FUZZ_START(0, fuzzCount, "StartIpcClientFuzz", 0)
-    {
-        uint16_t timeout = *(u16 *)DTSetGetNumberRange(&g_Element[0], 1, 0, U16_MAX, "");
+TEST_F(VirtAgentHamMigrateFuzz, StartIpcClientFuzz){DT_FUZZ_START(0, fuzzCount, "StartIpcClientFuzz", 0){
+    uint16_t timeout = *(u16 *)DTSetGetNumberRange(&g_Element[0], 1, 0, U16_MAX, "");
 
-        RackStartIpcClientWithTimeout(timeout);
-    }
-    DT_FUZZ_END()
+RackStartIpcClientWithTimeout(timeout);
+}
+DT_FUZZ_END()
 }
 
-TEST_F(VirtAgentHamMigrateFuzz, SyncSendForHamFuzz)
-{
-    DT_FUZZ_START(0, fuzzCount, "SyncSendForHamFuzz", 0)
-    {
-        HamComByteBuffer param;
-        char *rawModuleName = DT_SetGetString(&g_Element[0], 5, 10000, "123");
-        std::string data = rawModuleName ? std::string(rawModuleName) : "unknown";
-        param.len = data.size();
-        param.data = new uint8_t[data.size()];
-        memcpy_s(param.data, data.size(), data.c_str(), data.size());
+TEST_F(VirtAgentHamMigrateFuzz,
+       SyncSendForHamFuzz){DT_FUZZ_START(0, fuzzCount, "SyncSendForHamFuzz", 0){HamComByteBuffer param;
+char *rawModuleName = DT_SetGetString(&g_Element[0], 5, 10000, "123");
+std::string data = rawModuleName ? std::string(rawModuleName) : "unknown";
+param.len = data.size();
+param.data = new uint8_t[data.size()];
+memcpy_s(param.data, data.size(), data.c_str(), data.size());
 
-        HamComByteBuffer result = {nullptr, 0};
+HamComByteBuffer result = {nullptr, 0};
 
-        RackSyncSendForHam(&param, &result);
+RackSyncSendForHam(&param, &result);
 
-        if (param.data) {
-            delete[] param.data;
-            param.data = nullptr;
-            param.len = 0;
-        }
+if (param.data) {
+    delete[] param.data;
+    param.data = nullptr;
+    param.len = 0;
+}
 
-        if (result.data) {
-            free(result.data);
-            result.data = nullptr;
-            result.len = 0;
-        }
-    }
-    DT_FUZZ_END()
+if (result.data) {
+    free(result.data);
+    result.data = nullptr;
+    result.len = 0;
+}
+}
+DT_FUZZ_END()
 }
 
 TEST_F(VirtAgentHamMigrateFuzz, AsyncSendForHamFuzz)
@@ -136,4 +126,4 @@ TEST_F(VirtAgentHamMigrateFuzz, AsyncSendForHamFuzz)
     DT_FUZZ_END()
 }
 
-}  // namespace ubse::virt::hammigrate
+} // namespace ubse::virt::hammigrate
