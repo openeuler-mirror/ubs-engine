@@ -13,62 +13,12 @@
 #ifndef UBSE_TOPOLOGY_INTERFACE_H
 #define UBSE_TOPOLOGY_INTERFACE_H
 
-#include <stddef.h>
-#include <stdint.h>
 #include <map>
 #include <string>
 #include <vector>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "ubse_error.h"
 
-constexpr const uint32_t UbseLcneOk = 0;     // 0 返回成功
-constexpr const uint32_t UbseLcneError = 1;  // 1 返回失败
-
-// 定义故障类型
-typedef enum {
-    REBOOT = 1003,
-    REBOOT_ACK = 1004,
-    OOM = 1005,
-    OOM_ACK = 1006,
-    PANIC = 1007,
-    PANIC_ACK = 1008,
-    KERNEL_REBOOT = 1009,
-    KERNEL_REBOOT_ACK = 1010,
-    MEM_FAULT = 1013,
-} TOPOLOGY_FAULT_TYPE;
-
-// 定义故障处理函数指针
-typedef uint32_t (*topology_fault_handler)(TOPOLOGY_FAULT_TYPE fault_type, const char *fault_info);
-
-/*
- * 接口结构体：ubse_topology_interface
- */
-typedef struct ubse_topology_interface {
-    /**
-     * 注册回调函数
-     * @param fault_type [in] 故障类型
-     * @param handler [in] 回调函数
-     * @return 返回值: 0 (成功) 或其他错误码
-     */
-    uint32_t (*register_fault_handler)(TOPOLOGY_FAULT_TYPE *fault_type, topology_fault_handler handler);
-
-    /**
-     * 通知本地 System sentry 故障处理结果
-     * @param fault_type [in] 对应的故障类型
-     * @param result [in] 故障处理结果
-     * @return 返回值: 0 (成功) 或其他错误码
-     */
-    uint32_t (*notify_fault_handle_result)(TOPOLOGY_FAULT_TYPE *fault_type, char *result);
-} ubse_topology_interface;
-
-// 获取实例
-ubse_topology_interface *get_ubse_topology_instance(void);
-
-#ifdef __cplusplus
-}
-#endif
 namespace ubse::mti {
 // LCNE感知的节点信息
 struct MtiNodeInfo {
@@ -102,37 +52,13 @@ struct DevName {
     {
         size_t pos = devName.find('-');
         if (pos == std::string::npos) {
-            return UbseLcneError;
+            return UBSE_ERROR;
         } else {
             nodeId = devName.substr(0, pos);
             socketId = devName.substr(pos + 1);
         }
-        return UbseLcneOk;
+        return UBSE_OK;
     }
-};
-
-// 查询全量规划的urma通信EID
-struct UbseLcnePortInfo {
-    std::string urmaEid; // 端口eid
-};
-
-struct UbseLcneSocketInfo {
-    std::string primaryEid;                              // port-group-id 字段对应的 urma-eid
-    std::map<std::string, UbseLcnePortInfo> portEidList; // 此处为由于框内通信端口的eid（feid最小的部分）
-    // key为port-id
-};
-
-struct IODieInfo {
-    char primaryEid[16];
-    char portEid[9][16];
-    char peerPortEid[9][16];
-    int socketId;
-};
-
-struct TopoInfo {
-    char bondingEid[16];
-    IODieInfo ioDieInfo[2];
-    bool isCurNode;
 };
 
 // 查询节点信息

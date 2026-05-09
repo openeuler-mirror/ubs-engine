@@ -247,13 +247,13 @@ UbseResult UbseRasHandler::NodeFaultHandle(alarm_msg *alarmMsgPtr)
     switch (alarmMsgPtr->usAlarmId) {
         case ALARM_REBOOT_EVENT:
             return HandleBMCFault(faultInfo);
-        case TOPOLOGY_FAULT_TYPE::OOM:
+        case ALARM_OOM_EVENT:
             return HandleOomFault(alarmMsgPtr);
-        case TOPOLOGY_FAULT_TYPE::PANIC:
+        case ALARM_PANIC_EVENT:
             return HandlePanicAndRebootFault(ALARM_PANIC_EVENT, faultInfo);
-        case TOPOLOGY_FAULT_TYPE::KERNEL_REBOOT:
+        case ALARM_KERNEL_REBOOT_EVENT:
             return HandlePanicAndRebootFault(ALARM_KERNEL_REBOOT_EVENT, faultInfo);
-        case TOPOLOGY_FAULT_TYPE::MEM_FAULT:
+        case ALARM_MEM_FAULT:
             return HandleMemoryFault(ALARM_MEM_FAULT, faultInfo);
         default:
             UBSE_LOG_WARN << "fault type is invalid, type=" << alarmMsgPtr->usAlarmId << ", info=" << faultInfo;
