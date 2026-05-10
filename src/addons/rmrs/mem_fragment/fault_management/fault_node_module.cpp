@@ -19,6 +19,8 @@
 #include <limits>
 #include <set>
 #include <unordered_map>
+#include <chrono>
+#include <thread>
 
 #include "exporter.h"
 #include "export_type.h"
@@ -77,6 +79,37 @@ MpResult FaultNodeModule::DetermineNodeTypeOverCommit(const std::string nodeId, 
     } else {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager][OverCommit] Node:" << nodeId << " NodeType: BORROW_IN.";
+        nodeType = NodeType::BORROW_IN;
+    }
+    return ret;
+}
+
+MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, NodeType &nodeType)
+{
+    MpResult ret = MEM_POOLING_OK;
+    std::vector<BorrowRecord> fragMentFaultBorrowRecords;
+    UbseResult retErrorCode = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(nodeId, 
+                                                                                           fragMentFaultBorrowRecords);
+    if (retErrorCode != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] GetFragMentFaultBorrowRecords failed.";
+        nodeType = NodeType::ABNORMAL;
+        return MEM_POOLING_ERROR;
+    }
+    if (fragMentFaultBorrowRecords.empty()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] Node:" << nodeId << " has no debt infos, ret=" << ret << ".";
+        nodeType = NodeType::NO_RECORD;
+        return ret;
+    }
+    // nodeId与记录中借出节点相同
+    if (fragMentFaultBorrowRecords[0].lentNode == nodeId) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] Node:" << nodeId << " NodeType: BORROW_OUT.";
+        nodeType = NodeType::BORROW_OUT;
+    } else {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] Node:" << nodeId << " NodeType: BORROW_IN.";
         nodeType = NodeType::BORROW_IN;
     }
     return ret;
@@ -233,10 +266,10 @@ bool FaultNodeModule::ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, s
 
 MpResult FaultNodeModule::GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord> &borrowRecords)
 {
-    MpResult res = BorrowRecordHelper::Instance().CollectBorrowRecordsWithFault(nodeId, borrowRecords);
+    UbseResult retErrorCode = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(borrowRecords);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [FaultLentNode] Collect BorrowRecords failed " << nodeId;
+            << "[FaultManager] [FaultLentNode] GetFragMentFaultBorrowRecords failed, nodeId=" << nodeId;
         return MEM_POOLING_ERROR;
     }
     return MEM_POOLING_OK;
@@ -706,7 +739,7 @@ MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bo
         return MEM_POOLING_ERROR;
     }
     // 填充执行借用的其余参数
-    res != FillBorrowExecuteParam(borrowExecuteParamCollectList);
+    res |= FillBorrowExecuteParam(borrowExecuteParamCollectList);
     if (res != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
@@ -714,7 +747,7 @@ MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bo
     std::vector<BorrowExecuteParam> successExecuteParamCollectList;
     ExecuteBorrow(borrowExecuteParamCollectList, successExecuteParamCollectList, forwardMemIdParamList);
     // 借入节点的待销毁远端numa处理 替换&归还 发rpc
-    bool failFlag;
+    bool failFlag = true;
     ExecuteNumaReplaceAndReturn(successExecuteParamCollectList, failFlag, forceDeleteMem);
     if (ForwardMemIdFaultDeal(forwardMemIdParamList, forceDeleteMem) == MEM_POOLING_OK && !failFlag) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] [FaultLentNode] Node fault deal success.";
