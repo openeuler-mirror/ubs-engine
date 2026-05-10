@@ -143,8 +143,10 @@ public:
     }
 
     MpResult Init();
-    MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType& nodeType);
-    MpResult DetermineNodeType(const std::string nodeId, NodeType& nodeType);
+    MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType &nodeType);
+    MpResult DetermineNodeTypeFragMent(const std::string nodeId, NodeType &nodeType);
+    MpResult FragMentHandleFault(const std::string nodeId);
+    MpResult DetermineNodeType(const std::string nodeId, NodeType &nodeType);
     MpResult ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem);
 
     MpResult GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords);

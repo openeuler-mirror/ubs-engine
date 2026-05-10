@@ -320,19 +320,23 @@ public:
     // isFilter标志位，表示是否为filter函数调用账本采集，默认值为false
     MpResult UpdateBorrowRecords(bool isFilter = false);
     MpResult UpdateBorrowRecordsAllWithFault();
-    MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
-    MpResult CollectBorrowableInfo(const std::string& nodeId,
-                                   NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem);
-    MpResult CollectBorrowableInfoList(const std::vector<std::string>& nodeId,
-                                       std::vector<NodeMemoryInfoWithReservedMem>& nodeMemoryInfoList);
+    MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+    MpResult UpdateBorrowRecordsWithFragMentFault(const std::string nodeId, 
+                                                  std::vector<BorrowRecord> &fragMentFaultBorrowRecords);
+    MpResult CollectBorrowableInfo(const std::string &nodeId,
+                                   NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
+    MpResult CollectBorrowableInfoList(const std::vector<std::string> &nodeId,
+                                       std::vector<NodeMemoryInfoWithReservedMem> &nodeMemoryInfoList);
     // 根据借入呈现numaId，获取全量borrowId/name
-    MpResult GetBorrowIdByNumaId(std::vector<std::string>& borrowIds, const uint16_t numaId, const std::string nodeId);
-    MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
-    MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    MpResult GetBorrowIdByNumaId(std::vector<std::string> &borrowIds, const uint16_t numaId, const std::string nodeId);
+    MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+    MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+    MpResult GetFragMentFaultBorrowRecords(std::vector<BorrowRecord> &fragMentFaultBorrowRecords);
 
 private:
     MpResult GenBorrowRecords(const rapidjson::Value& doc, std::vector<BorrowRecord>& borrowRecords);
     std::vector<BorrowRecord> gBorrowRecords;
+    std::vector<BorrowRecord> gBorrowRecordsFragMentFault;
 };
 
 class MemReturnManager {

@@ -89,6 +89,12 @@ uint32_t MpConfiguration::LoadConfig()
     }
     LOG_DEBUG << "Param: enableBorrowSplit=" << enableBorrowSplit << " .";
 
+    ret = UbseGetBool("plugin_mempooling", "rmrs.fragment.faultProcessTimeout", faultProcessTimeout);
+    if (ret != MEM_POOLING_OK) {
+        LOG_WARN << "Get config failed, key=rmrs.fragment.faultProcessTimeout.";
+    }
+    LOG_DEBUG << "Param: faultProcessTimeout=" << faultProcessTimeout << " min.";
+
     LoadUCacheConfig();
 
     LoadMultiNumaSceneConfig();
