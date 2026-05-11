@@ -147,9 +147,8 @@ VmResult FastRecovery::BorrowFastRecovery(BorrowInfo& borrowInfo, BorrowResponse
     }
     UbseMemAddrDesc desc;
     int flag = vm::NO_1; // Non-relay
-    /* static_cast<uint8_t>(ExportAccessMode::FAST_RECOVERY_MODE), */
     auto ubsRet = UbseMemAddrCreate(borrowInfo.name,
-        borrower, lender, flag, desc);
+        borrower, lender, flag, static_cast<uint8_t>(ExportAccessMode::FAST_RECOVERY_MODE), desc);
     if (ubsRet != UBSE_OK) {
         UBSE_LOG_ERROR << "[fastrecovery] [borrow] ubse mem addr borrow return error. "
                         << FormatRetCode(static_cast<uint32_t>(ubsRet));

@@ -50,7 +50,7 @@ UbseResult UbseMemAddrCreateReqIsValid(const std::string &name, const UbseMemBor
                                        const UbseMemProcessLender &lender);
 
 void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower &borrower,
-                                 const UbseMemProcessLender &lender, uint32_t flag,
+                                 const UbseMemProcessLender &lender, uint32_t flag, uint8_t exportAccessMode,
                                  UbseMemAddrBorrowReq &addrBorrowReq);
 } // namespace ubse::mem::controller
 

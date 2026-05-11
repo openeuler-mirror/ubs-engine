@@ -566,7 +566,8 @@ UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &bor
 }
 
 UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &borrower,
-                             const UbseMemProcessLender &lender, uint32_t flag, UbseMemAddrDesc &desc)
+                             const UbseMemProcessLender &lender, uint32_t flag,
+                             uint8_t exportAccessMode, UbseMemAddrDesc &desc)
 {
     // 参数校验
     auto ret = UbseMemAddrCreateReqIsValid(name, borrower, lender);
@@ -576,7 +577,7 @@ UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &bor
     // 请求转换
     UbseMemAddrBorrowReq addrBorrowReq;
     UbseMemOperationResp resp;
-    ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, addrBorrowReq);
+    ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, exportAccessMode, addrBorrowReq);
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemAddrBorrow(addrBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {

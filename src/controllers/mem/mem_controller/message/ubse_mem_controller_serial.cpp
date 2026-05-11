@@ -731,7 +731,7 @@ bool UbseMemAddrInfoDeserialization(UbseDeSerialization &in, UbseMemAddrInfo &ub
 void UbseMemAddrBorrowReqSerialization(UbseSerialization &out, const UbseMemAddrBorrowReq &req)
 {
     out << req.importNodeId << req.importPid << req.exportNodeId << req.exportPid << req.srcSocket << req.srcNuma
-        << req.dstSocket << req.dstNuma << req.wrDelayComp;
+        << req.dstSocket << req.dstNuma << req.wrDelayComp << req.exportAccessMode;
     out << (right_v<size_t>(req.exportAddrList.size()));
     for (auto addrInfo : req.exportAddrList) {
         UbseMemAddrInfoSerialization(out, addrInfo);
@@ -742,7 +742,7 @@ void UbseMemAddrBorrowReqSerialization(UbseSerialization &out, const UbseMemAddr
 bool UbseMemAddrBorrowReqDeserialization(UbseDeSerialization &in, UbseMemAddrBorrowReq &req)
 {
     in >> req.importNodeId >> req.importPid >> req.exportNodeId >> req.exportPid >> req.srcSocket >> req.srcNuma >>
-        req.dstSocket >> req.dstNuma >> req.wrDelayComp;
+        req.dstSocket >> req.dstNuma >> req.wrDelayComp >> req.exportAccessMode;
     size_t size{};
     in >> size;
     if (!in.Check()) {return false;}

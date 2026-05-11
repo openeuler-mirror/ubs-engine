@@ -405,9 +405,8 @@ void HamMigrate::LendMemInDstNode(UbseByteBuffer &resp, const HamMigrateDstInfo&
     }
     UbseMemAddrDesc desc;
     int flag = vm::NO_1; // Non-relay
-    /* hamMigrateVmInfo.exportAccessMode, */
     auto ubsRet = UbseMemAddrCreate(hamMigrateVmInfo.borrowName, borrower,
-                                    lender, flag, desc);
+                                    lender, flag, hamMigrateVmInfo.exportAccessMode, desc);
     if (ubsRet != UBSE_OK) {
         UBSE_LOG_ERROR << "[ham migrate] [borrow] ubse mem addr borrow return error. "
                        << FormatRetCode(static_cast<uint32_t>(ubsRet));

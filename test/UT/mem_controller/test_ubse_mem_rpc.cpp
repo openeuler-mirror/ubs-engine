@@ -138,7 +138,8 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowMessageHandler)
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    UbseComBaseMessageHandlerCtxPtr ctx{};
+    auto ctx = new (std::nothrow)
+        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
 
     UbseMemAddrBorrowMessageHandler ubseMemAddrBorrowMessageHandler{};
     EXPECT_EQ(ubseMemAddrBorrowMessageHandler.Handle(req, rsp, ctx), UBSE_ERROR);

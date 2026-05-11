@@ -23,7 +23,8 @@ using namespace ubse::adapter_plugins::mmi;
  * @param resp [IN/OUT] 操作结果
  * @return 0: 成功; 非0: 失败
  */
-uint32_t UbseMemAddrBorrow(const UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp);
+uint32_t UbseMemAddrBorrow(const UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp,
+                           const std::string &realRequestNodeId);
 
 /* *
  * Addr类型内存的Export对象回调
