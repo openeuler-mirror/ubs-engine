@@ -1103,13 +1103,16 @@ uint32_t ShareImportRunningHandler(UbseMemOperationResp &resp, UbseMemShareBorro
             return UBSE_ERR_INTERNAL;
         }
     }
-    if (realExe) {
-        auto res = RealImportDecoder(chipDiePair, importObj);
-        if (res != UBSE_OK) {
-            return res;
+    {
+        std::shared_lock lock(GetDecoderImportMutex());
+        if (realExe) {
+            auto res = RealImportDecoder(chipDiePair, importObj);
+            if (res != UBSE_OK) {
+                return res;
+            }
         }
+        ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
     }
-    ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
     if (auto ret = UbseMmiInterface::GetInstance().ShmImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to import, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << importObj.req.requestId;

@@ -76,7 +76,10 @@ UbseResult CycleCheckDecoderHandle()
         return res;
     }
     decoder::utils::DecoderLocTohandleValueMap allHandleValues{};
-    res = decoder::utils::MemDecoderUtils::GetAllHandles(UB_MEMORY_HANDLE_DEFAULT_USED_NODE, allHandleValues);
+    {
+        std::unique_lock lock(GetDecoderImportMutex());
+        res = decoder::utils::MemDecoderUtils::GetAllHandles(UB_MEMORY_HANDLE_DEFAULT_USED_NODE, allHandleValues);
+    }
     for (const auto &[loc, handles] : allHandleValues) {
         UBSE_LOG_INFO << "allHandleValues size is " << handles.size();
         for (const auto &handle : handles) {

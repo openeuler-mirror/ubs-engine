@@ -28,7 +28,6 @@
 #include "ubse_error.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
-#include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::controller {
@@ -56,6 +55,8 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::strin
 
 uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult errorCode,
                                        MemOperationType type = MemOperationType::FD_BORROW);
+
+std::shared_mutex& GetDecoderImportMutex();
 
 inline std::string GenerateExportObjKey(const std::string &name, const std::string &importNodeId)
 {

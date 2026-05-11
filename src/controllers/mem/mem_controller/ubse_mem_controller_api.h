@@ -14,6 +14,7 @@
 #define UBSE_MEM_CONTROLLER_API_H
 
 #include <cstdint>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -36,6 +37,8 @@ enum class BorrowedType {
     ADDR,
     SHARED
 };
+
+std::shared_mutex& GetDecoderImportMutex();
 
 /* *
  * 初始化

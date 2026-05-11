@@ -12,6 +12,7 @@
 
 #include "ubse_mem_controller_api_common.h"
 #include <cstdint>
+#include <shared_mutex>
 
 #include "../message/node_mem_debtInfo_query_req_simpo.h"
 #include "../message/ubse_mem_operation_resp_simpo.h"
@@ -45,6 +46,14 @@ std::atomic<uint64_t> g_fdUnimportFailedCount{0};
 std::atomic<uint64_t> g_numaUnimportFailedCount{0};
 std::atomic<uint64_t> g_shareUnimportFailedCount{0};
 std::atomic<uint64_t> g_addrUnimportFailedCount{0};
+
+std::shared_mutex g_decoderImportMutex;
+
+std::shared_mutex& GetDecoderImportMutex()
+{
+    return g_decoderImportMutex;
+}
+
 bool IsSdkRequest(uint64_t requestId)
 {
     return UbseRequestIdUtil::ParseRequestType(requestId) == ubse::utils::UbseRequestType::SDK_REQUEST;
