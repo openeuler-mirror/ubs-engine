@@ -144,7 +144,7 @@ private:
     bool multiNumaScene = false;
     bool mustSamePlane = true;
     bool enableBorrowSplit = true;
-    uint32_t faultProcessTimeout{10};
+    uint32_t faultProcessTimeout{540000};
 };
 
 } // namespace mempooling
