@@ -207,12 +207,28 @@ UbseResult RmObmmExecutor::ObmmUnExport(mem_id id)
     return UBSE_OK;
 }
 
+static void FillObmmImportFlags(const ObmmOpParam &opParam, int &obmmFlags)
+{
+    if (opParam.borrowType == UbseBorrowType::NUMA_BORROW || opParam.borrowType == UbseBorrowType::ADDR_BORROW) {
+        obmmFlags = obmmFlags | OBMM_IMPORT_FLAG_NUMA_REMOTE;
+    }
+    if (opParam.borrowType == UbseBorrowType::FD_BORROW || opParam.borrowType == UbseBorrowType::SHARE_BORROW) {
+        obmmFlags = obmmFlags | OBMM_IMPORT_FLAG_ALLOW_MMAP;
+    }
+    if (opParam.borrowType == UbseBorrowType::NUMA_BORROW && opParam.customMeta.decoderResult.staticHandle != 0) {
+        obmmFlags = obmmFlags | OBMM_IMPORT_FLAG_PREIMPORT;
+    }
+    if (opParam.borrowType == UbseBorrowType::ADDR_BORROW &&
+        opParam.customMeta.exportAccessMode == OFF_SITE_FAST_RECOVERY_MODE) {
+        obmmFlags = obmmFlags | OBMM_IMPORT_FLAG_NUMA_NO_ACCESS;
+    }
+}
+
 /**
  * 导入内存。
  * 根据提供的内存描述符、标志和NUMA节点ID，使用OBMM导入内存。
  * @param desc 内存描述符。
  * @param opParam obmm
- * @param flags 导入内存的标志。
  * @param numa 导入的NUMA节点ID。
  * @return 成功时返回导入的内存ID，失败时返回INVALID_MEM_ID。
  */
@@ -227,15 +243,7 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc &desc, const Obmm
     UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "Start to use Obmm Import interface, opParam is "
                    << opParam.toString();
     auto obmmFlags = 0;
-    if (opParam.borrowType == UbseBorrowType::NUMA_BORROW || opParam.borrowType == UbseBorrowType::ADDR_BORROW) {
-        obmmFlags = obmmFlags | OBMM_IMPORT_FLAG_NUMA_REMOTE;
-    }
-    if (opParam.borrowType == UbseBorrowType::FD_BORROW || opParam.borrowType == UbseBorrowType::SHARE_BORROW) {
-        obmmFlags = obmmFlags | OBMM_IMPORT_FLAG_ALLOW_MMAP;
-    }
-    if (opParam.borrowType == UbseBorrowType::NUMA_BORROW && opParam.customMeta.decoderResult.staticHandle != 0) {
-        obmmFlags = obmmFlags | OBMM_IMPORT_FLAG_PREIMPORT;
-    }
+    FillObmmImportFlags(opParam, obmmFlags);
     auto obmmMemDesc = ConstructImportMemDesc(opParam, desc);
     if (obmmMemDesc == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ConstructImportMemDesc return null.";
@@ -456,6 +464,9 @@ UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam &param, ubse_mem_obm
         return UBSE_ERROR_NULLPTR;
     }
     auto flag = 0;
+    if (customMeta.exportAccessMode == OFF_SITE_FAST_RECOVERY_MODE) {
+        flag = flag | OBMM_EXPORT_FLAG_KEEP_ACCESS;
+    }
     UBSE_LOG_INFO << MMI_LOG_INFO << "The pid=" << param.pid << ", va=" << reinterpret_cast<uint64_t>(param.va)
                   << ", size=" << param.size;
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);

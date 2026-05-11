@@ -110,7 +110,8 @@ std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowReq &obj)
     os << "(" << static_cast<const UbseMemBaseBorrowReq &>(obj) << " requestNodeId: " << obj.requestNodeId
        << " importNodeId: " << obj.importNodeId << " srcSocket: " << obj.srcSocket << " srcNuma: " << obj.srcNuma
        << " dstSocket: " << obj.dstSocket << " dstNuma: " << obj.dstNuma << " importPid: " << obj.importPid
-       << " exportNodeId: " << obj.exportNodeId << " exportPid: " << obj.exportPid << " exportAddrList: ";
+       << " exportNodeId: " << obj.exportNodeId << " exportPid: " << obj.exportPid << " wrDelayComp: "
+       << obj.wrDelayComp << " exportAccessMode: " << static_cast<int>(obj.exportAccessMode) << " exportAddrList: ";
     for (const auto &addrList : obj.exportAddrList) {
         os << addrList << ",";
     }

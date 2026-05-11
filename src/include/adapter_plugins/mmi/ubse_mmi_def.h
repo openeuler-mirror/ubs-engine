@@ -170,6 +170,7 @@ struct UbseTrustRingData {
 
 static constexpr int INVALID_SOCKET_ID = -1;
 static constexpr int INVALID_PORT_ID = -1;
+static constexpr int OFF_SITE_FAST_RECOVERY_MODE = 1;
 // 所有借用类型的基本类型
 struct UbseMemBaseBorrowReq {
     std::string name{};
@@ -271,6 +272,7 @@ struct UbseMemAddrBorrowReq : public UbseMemBaseBorrowReq {
     uint64_t exportPid{0};                         // 借出进程PID
     std::vector<UbseMemAddrInfo> exportAddrList{}; // 借出地址段  最大段数=CPU核数
     uint16_t wrDelayComp{1}; // 目前仅支持接力/非接力模式，1为非接力模式，0为接力模式，默认使用非接力模式
+    uint8_t exportAccessMode{0}; // 导出端内存访问模式，0为invalid(适用于虚机迁移)，1为valid（适用于异地快恢）。默认为0即invalid
     friend std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowReq &obj);
 };
 

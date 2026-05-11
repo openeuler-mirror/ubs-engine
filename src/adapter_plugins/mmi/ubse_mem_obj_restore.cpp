@@ -814,6 +814,7 @@ void SetAddrReqInfo(UbseMemAddrBorrowReq &req, const UbseMemLocalObmmMetaData ob
     req.dstSocket = obmmMetaData.customMeta.dstSocket;
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
+    req.exportAccessMode = obmmMetaData.customMeta.exportAccessMode;
 }
 
 void ConstructSingleAddrImportObj(
@@ -906,6 +907,7 @@ void SetAddrReqByMetaData(UbseMemAddrBorrowReq &req, const UbseMemLocalObmmMetaD
     req.dstSocket = obmmMetaData.customMeta.dstSocket;
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
+    req.exportAccessMode = obmmMetaData.customMeta.exportAccessMode;
 }
 
 void ConstructSingleAddrExportObj(
