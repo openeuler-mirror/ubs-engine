@@ -266,7 +266,7 @@ bool FaultNodeModule::ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, s
 
 MpResult FaultNodeModule::GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord> &borrowRecords)
 {
-    UbseResult retErrorCode = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(borrowRecords);
+    UbseResult res = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(borrowRecords);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] [FaultLentNode] GetFragMentFaultBorrowRecords failed, nodeId=" << nodeId;
@@ -714,6 +714,58 @@ MpResult FaultNodeModule::ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> f
         }
     }
     return res;
+}
+
+MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault start.";
+    const uint32_t faultProcessTimeoutMs = MpConfiguration::GetInstance().GetFaultProcessTimeout();
+    const auto startTime = std::chrono::steady_clock::now();
+
+    while(true) {
+        // =========基于不信任原则，获取账本并筛选合法条目
+        std::vector<BorrowRecord> fragMentFaultBorrowRecords;
+        MpResult res = UpdateBorrowRecordsWithFragMentFault(nodeId, fragMentFaultBorrowRecords);
+        if (res != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] UpdateBorrowRecordsWithFragMentFault failed.";
+            return res;
+        }
+        // =========超时判断：计算已耗时，超时则退出轮询并返回错误=========
+        auto currentTime = std::chrono::steady_clock::now();
+        auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+        if (elapsedMs >= faultProcessTimeoutMs)
+        {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] [FaultLentNode] ProcessBorrowOutNodeFault timeout! Elapsed: " << elapsedMs
+                << "ms, Timeout threshold: " << faultProcessTimeoutMs << "ms, NodeId: " << nodeId;
+            if (fragMentFaultBorrowRecords.empty()) {
+                UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault succeed."
+                return MEM_POOLING_OK;
+            }
+            return MEM_POOLING_ERROR;
+        }
+
+        NodeType nodeType = NodeType::ABNORMAL;
+        MpResult res = FaultNodeModule::Instance().DetermineNodeTypeFragment(nodeId, nodeType);
+        if (res != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] DetermineNodeType failed " << eventMessage << ".";
+            continue;
+        }
+        if (nodeType == NodeType::BORROW_IN) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by MXE.";
+        } else if (nodeType == NodeType::BORROW_OUT) {
+            res = FaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId, true);                 
+            if (res != MEM_POOLING_OK) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[FaultManager] Process BORROW_OUT node fault failed, eventMessage:" << eventMessage << ".";
+            }
+        }
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault end.";
+    return MEM_POOLING_OK;
 }
 
 MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem)
