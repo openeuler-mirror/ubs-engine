@@ -77,7 +77,7 @@ TEST_F(VirtAgentHamMigrateFuzz, StartIpcClientFuzz)
     {
         uint16_t timeout = *(u16 *)DTSetGetNumberRange(&g_Element[0], 1, 0, U16_MAX, "");
 
-        RackStartIpcClientWithTimeout(timeout);
+        ubs_virt_agent_set_timeout(timeout, 1);
     }
     DT_FUZZ_END()
 }
@@ -86,16 +86,16 @@ TEST_F(VirtAgentHamMigrateFuzz, SyncSendForHamFuzz)
 {
     DT_FUZZ_START(0, fuzzCount, "SyncSendForHamFuzz", 0)
     {
-        HamComByteBuffer param;
+        VirtAgentByteBuffer param;
         char *rawModuleName = DT_SetGetString(&g_Element[0], 5, 10000, "123");
         std::string data = rawModuleName ? std::string(rawModuleName) : "unknown";
         param.len = data.size();
         param.data = new uint8_t[data.size()];
         memcpy_s(param.data, data.size(), data.c_str(), data.size());
 
-        HamComByteBuffer result = {nullptr, 0};
+        VirtAgentByteBuffer result = {nullptr, 0};
 
-        RackSyncSendForHam(&param, &result);
+        ubs_sync_send_msg(&param, &result, 1);
 
         if (param.data) {
             delete[] param.data;
@@ -116,16 +116,16 @@ TEST_F(VirtAgentHamMigrateFuzz, AsyncSendForHamFuzz)
 {
     DT_FUZZ_START(0, fuzzCount, "ASyncSendForHamFuzz", 0)
     {
-        HamComByteBuffer param;
+        VirtAgentByteBuffer param;
         char *rawModuleName = DT_SetGetString(&g_Element[0], 5, 10000, "123");
         std::string data = rawModuleName ? std::string(rawModuleName) : "unknown";
         const std::size_t maxSize = data.size() + 1;
         param.len = data.size() + 1;
         param.data = (uint8_t *)malloc(maxSize);
         strncpy_s((char *)param.data, maxSize, data.c_str(), maxSize);
-        HamComCallbackDef result;
+        VirtAgentCallbackDef result;
 
-        RackAsyncSendForHam(&param, &result);
+        ubs_async_send_msg(&param, &result, 1);
 
         if (param.data) {
             free(param.data);

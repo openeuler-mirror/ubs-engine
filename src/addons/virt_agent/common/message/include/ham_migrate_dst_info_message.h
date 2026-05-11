@@ -16,12 +16,20 @@
 #define HAM_MIGRATE_DST_INFO_MESSAGE_H
 
 #include "base_message.h"
+#include "vm_http_util.h"
 
 namespace vm {
 
 struct HamMigrateDstInfo {
+    std::string borrowName{};
+    std::string srcNodeId{};
+    int16_t srcSocket{-1};
+    uint32_t vaListSize{0};
+    std::vector<VirtualAddress> vaLists{};
+    int64_t responseNumaId{-1};
     uint64_t dstPid{};
     std::string dstNodeId{};
+    uint8_t exportAccessMode{0};
 };
 
 class HamMigrateDstInfoMessage : public BaseMessage {
@@ -43,15 +51,27 @@ public:
         return hamMigrateDstInfo;
     }
 
-    inline void SetHamMigrateDstInfo(int dstPid, const std::string &dstNodeId)
+    inline void SetHamMigrateDstInfo(const HamMigrateDstInfo& hamMigrateDstInfoIn)
     {
-        hamMigrateDstInfo.dstPid = dstPid;
-        hamMigrateDstInfo.dstNodeId = dstNodeId;
+        hamMigrateDstInfo.borrowName = hamMigrateDstInfoIn.borrowName;
+        hamMigrateDstInfo.srcNodeId = hamMigrateDstInfoIn.srcNodeId;
+        hamMigrateDstInfo.srcSocket = hamMigrateDstInfoIn.srcSocket;
+        hamMigrateDstInfo.vaListSize = hamMigrateDstInfoIn.vaListSize;
+        hamMigrateDstInfo.vaLists = hamMigrateDstInfoIn.vaLists;
+        hamMigrateDstInfo.responseNumaId = hamMigrateDstInfoIn.responseNumaId;
+        hamMigrateDstInfo.dstPid = hamMigrateDstInfoIn.dstPid;
+        hamMigrateDstInfo.dstNodeId = hamMigrateDstInfoIn.dstNodeId;
+        hamMigrateDstInfo.exportAccessMode = hamMigrateDstInfoIn.exportAccessMode;
     }
 
     inline std::string ToString() const override
     {
-        return "dstPid: " + std::to_string(hamMigrateDstInfo.dstPid) + "; dstNodeId: " + hamMigrateDstInfo.dstNodeId;
+        return "dstPid: " + std::to_string(hamMigrateDstInfo.dstPid) + "; dstNodeId: " + hamMigrateDstInfo.dstNodeId +
+               "borrowName: " + hamMigrateDstInfo.borrowName + "; srcNodeId: " + hamMigrateDstInfo.srcNodeId +
+               "srcSocket: " + std::to_string(hamMigrateDstInfo.srcSocket) +
+               "; vaListSize: " + std::to_string(hamMigrateDstInfo.vaListSize) +
+               "responseNumaId: " + std::to_string(hamMigrateDstInfo.responseNumaId) +
+               "; exportAccessMode: " + std::to_string(hamMigrateDstInfo.exportAccessMode);
     };
 
 private:

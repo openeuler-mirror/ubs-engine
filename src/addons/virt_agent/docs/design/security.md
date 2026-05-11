@@ -70,10 +70,10 @@
 
 | 接口名称         | SDK                                                                                                                                                                     | 权限组        | 使用用户 |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|------|
-| 迁移方式决策       | `virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName, uint32_t destNumaId, uint32_t *migrateStrategy);` | vm.migrate | nova |
-| 设置IPC连接超时时间  | `virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);`                                                                                                       | vm.migrate | nova |
-| 创建客户端，发送同步消息 | `int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);`                                                                                       | vm.migrate | nova |
-| 创建客户端，发送异步消息 | `int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);`                                                                                       | vm.migrate | nova |
+| 迁移方式决策       | virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName, uint32_t destNumaId, uint32_t *migrateStrategy); | vm.migrate | nova |
+| 设置IPC连接超时时间  | virt_agent_ret_t ubs_virt_agent_set_timeout(uint16_t timeout, uint16_t scene);                                                                                                        | vm.migrate | nova |
+| 创建客户端，发送同步消息 | int ubs_sync_send_msg(VirtAgentByteBuffer *request, VirtAgentByteBuffer *response, uint16_t scene);                                                                                     | vm.migrate | nova |
+| 创建客户端，发送异步消息 | int ubs_async_send_msg(VirtAgentByteBuffer *request, VirtAgentCallbackDef *callback, uint16_t scene);                                                                                   | vm.migrate | nova |
 
 ### 3.4 容器化场景接口
 

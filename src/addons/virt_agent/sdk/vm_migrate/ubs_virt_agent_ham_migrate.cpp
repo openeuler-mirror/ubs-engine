@@ -23,8 +23,9 @@
 #include "ham_make_decision_msg.h"
 #include "vm_sdk_def.h"
 
-static uint16_t g_ipctimeout = 1200;
-static const uint16_t ipctimeout_max = 1200;
+static uint16_t g_ipctimeoutHamMigrate = 3;
+static uint16_t g_ipctimeoutFastRecovery = 1200;
+static const uint16_t ipctimeout_max = 1800;
 // 48(max numa num) * 60 (size per block) + 2048 (other)
 static const uint32_t HAM_MAX_INPUT_LENGTH = 4928;
 static pthread_mutex_t g_ipctimeout_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -69,31 +70,52 @@ virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout)
+virt_agent_ret_t ubs_virt_agent_set_timeout(uint16_t timeout, const uint16_t scene)
 {
     pthread_mutex_lock(&g_ipctimeout_mutex);
+    uint16_t timeoutTemp = 1800;
     if (timeout > ipctimeout_max) {
-        g_ipctimeout = ipctimeout_max;
+        timeoutTemp = ipctimeout_max;
     } else if (timeout <= 0) {
         pthread_mutex_unlock(&g_ipctimeout_mutex);
         return VA_ERROR_BASE;
     } else {
-        g_ipctimeout = timeout;
+        timeoutTemp = timeout;
+    }
+    switch (scene) {
+        case UBS_VA_HAM_MIGRATE_SCENE:
+            g_ipctimeoutHamMigrate = timeoutTemp;
+            break;
+        case UBS_VA_FAST_RECOVERY_SCENE:
+            g_ipctimeoutFastRecovery = timeoutTemp;
+            break;
+        default:
+            pthread_mutex_unlock(&g_ipctimeout_mutex);
+            return VA_ERROR_BASE;
     }
     pthread_mutex_unlock(&g_ipctimeout_mutex);
     return VA_SUCCESS;
 }
 
-uint16_t GetTimeout()
+static int GetTimeout(const uint16_t scene, uint16_t &timeout)
 {
-    uint16_t timeout;
     pthread_mutex_lock(&g_ipctimeout_mutex);
-    timeout = g_ipctimeout;
+    switch (scene) {
+        case UBS_VA_HAM_MIGRATE_SCENE:
+            timeout = g_ipctimeoutHamMigrate;
+            break;
+        case UBS_VA_FAST_RECOVERY_SCENE:
+            timeout = g_ipctimeoutFastRecovery;
+            break;
+        default:
+            pthread_mutex_unlock(&g_ipctimeout_mutex);
+            return VA_ERROR_BASE;
+    }
     pthread_mutex_unlock(&g_ipctimeout_mutex);
-    return timeout;
+    return VA_SUCCESS;
 }
 
-int AllocateRequestBuffer(ubse_api_buffer_t *request_buffer, HamComByteBuffer *request)
+int AllocateRequestBuffer(ubse_api_buffer_t *request_buffer, VirtAgentByteBuffer *request)
 {
     request_buffer->length = static_cast<uint32_t>(request->len);
     request_buffer->buffer = new (std::nothrow) uint8_t[request_buffer->length];
@@ -112,7 +134,7 @@ int AllocateRequestBuffer(ubse_api_buffer_t *request_buffer, HamComByteBuffer *r
 }
 
 int CallExternalApiWithTimeout(ubse_api_buffer_t *request_buffer,
-                               ubse_api_buffer_t *response_buffer, uint16_t timeout_time)
+    ubse_api_buffer_t *response_buffer, const uint16_t timeout_time)
 {
     std::mutex mtx;
     std::condition_variable cv;
@@ -158,7 +180,7 @@ int CallExternalApiWithTimeout(ubse_api_buffer_t *request_buffer,
     return VA_SUCCESS;
 }
 
-int ProcessResponse(HamComByteBuffer *response, ubse_api_buffer_t *response_buffer)
+int ProcessResponse(VirtAgentByteBuffer *response, ubse_api_buffer_t *response_buffer)
 {
     if (response_buffer == nullptr) {
         return VA_ERROR_BASE;
@@ -179,16 +201,20 @@ int ProcessResponse(HamComByteBuffer *response, ubse_api_buffer_t *response_buff
     return VA_SUCCESS;
 }
 
-int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response)
+int ubs_sync_send_msg(VirtAgentByteBuffer *request, VirtAgentByteBuffer *response, const uint16_t scene)
 {
     if (request == nullptr || request->data == nullptr || request->len > HAM_MAX_INPUT_LENGTH || request->len == 0 ||
         request->data + request->len < request->data) {
         return VA_ERROR_INVALID_PARAM;
     }
-    uint16_t timeout = GetTimeout();
+    uint16_t timeout = 0;
+    int ret = GetTimeout(scene, timeout);
+    if (ret != VA_SUCCESS) {
+        return ret;
+    }
 
     ubse_api_buffer_t request_buffer = {nullptr, 0};
-    int ret = AllocateRequestBuffer(&request_buffer, request);
+    ret = AllocateRequestBuffer(&request_buffer, request);
     if (ret != VA_SUCCESS) {
         return ret;
     }
@@ -216,7 +242,7 @@ void backgroundTask(std::shared_ptr<ubse_api_buffer_t> req_buf)
     ubse_api_buffer_free(&response_buffer);
 }
 
-int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback)
+int ubs_async_send_msg(VirtAgentByteBuffer *request, VirtAgentCallbackDef *callback, uint16_t scene)
 {
     if (request == nullptr || request->data == nullptr || request->len > HAM_MAX_INPUT_LENGTH  || request->len == 0 ||
         request->data + request->len < request->data) {
