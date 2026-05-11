@@ -326,6 +326,7 @@ TEST_F(TestUbseUdsServer, AsyncSendLongLink_SendFailed)
     requestMessage.header.bodyLen = 100; // 数据长度100
     std::unordered_set<int> fds = { 123 };
     server->clientMap_[{ requestMessage.header.moduleCode, requestMessage.header.opCode }] = fds;
+    MOCKER_CPP(&UbseUDSServer::GetClientInfoByFd).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseUDSServer::SendReq).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     // 调用函数
     std::vector<uint64_t> reqList;

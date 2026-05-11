@@ -862,13 +862,15 @@ uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, con
     clientMapMutex_.unlock();
     for (auto fd : fds) {
         UbseClientInfo peerClientInfo{};
-        if (GetClientInfoByFd(fd, peerClientInfo)) {
-            if (!CheckClientPermission(clientInfo, peerClientInfo)) {
-                UBSE_LOG_WARN << "Permission denied for fd=" << fd << ", skip sending. reqUid=" << clientInfo.uid
-                               << ", peerUid=" << peerClientInfo.uid << ", peerGid=" << peerClientInfo.gid
-                               << ", peerPid=" << peerClientInfo.pid;
-                continue;
-            }
+        if (!GetClientInfoByFd(fd, peerClientInfo)) {
+            UBSE_LOG_WARN << "GetClientInfoByFd failed for fd=" << fd << ", skip sending.";
+            continue;
+        }
+        if (!CheckClientPermission(clientInfo, peerClientInfo)) {
+            UBSE_LOG_INFO << "Permission denied for fd=" << fd << ", skip sending. reqUid=" << clientInfo.uid
+                           << ", peerUid=" << peerClientInfo.uid << ", peerGid=" << peerClientInfo.gid
+                           << ", peerPid=" << peerClientInfo.pid;
+            continue;
         }
         auto sendRet = SendReq(fd, requestMessage, ctx, handler);
         if (sendRet != UBSE_OK) {
