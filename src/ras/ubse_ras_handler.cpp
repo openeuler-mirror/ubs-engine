@@ -26,8 +26,6 @@
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_mem_controller_fault_handle.h"
-#include "ubse_mem_controller_module.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
@@ -552,7 +550,13 @@ UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std
         UBSE_LOG_ERROR << "fault info is invalid. ";
         return ret;
     }
-    mem::controller::UbseMemFaultManager::MemReportWhenExportNodeOnFault(faultType, faultNodeId);
+    std::string panicAndRebootFaultLocalEventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMsg = faultNodeId + "_" + std::to_string(static_cast<uint32_t>(faultType));
+    if (ret = ubse::event::UbsePubEvent(panicAndRebootFaultLocalEventId, eventMsg); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Publish panic and reboot fault local event failed, eventId="
+                      << panicAndRebootFaultLocalEventId << ", eventMsg=" << eventMsg
+                      << ", " << FormatRetCode(ret);
+    }
     SwitchRoleWhenMasterFault(faultNodeId);
 
     UbseRoleInfo roleInfo;

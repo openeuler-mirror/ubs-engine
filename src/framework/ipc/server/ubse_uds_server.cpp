@@ -43,6 +43,11 @@ const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SESSION_CLOSE_WAITING_TIME = 30; // session等待会话自行关闭时间, 超时未关闭服务端主动关闭 单位s,
 
+static bool CheckClientPermission(const UbseClientInfo &client, const UbseClientInfo &peer)
+{
+    return client.uid == peer.uid;
+}
+
 // 添加事件到epoll
 static bool AddEpollEvent(int epoll_fd, int fd, uint32_t events)
 {
@@ -841,8 +846,8 @@ uint32_t UbseUDSServer::SendReq(int fd, UbseRequestMessage requestMessage, void 
     return sendRet;
 }
 
-uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, void *ctx,
-                                          UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList)
+uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo &clientInfo,
+                                          void *ctx, UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList)
 {
     UBSE_LOG_INFO << "req moduleCode=" << requestMessage.header.moduleCode
                   << ", opCode=" << requestMessage.header.opCode;
@@ -856,6 +861,15 @@ uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, voi
     std::unordered_set fds = clientMap_[{requestMessage.header.moduleCode, requestMessage.header.opCode}];
     clientMapMutex_.unlock();
     for (auto fd : fds) {
+        UbseClientInfo peerClientInfo{};
+        if (GetClientInfoByFd(fd, peerClientInfo)) {
+            if (!CheckClientPermission(clientInfo, peerClientInfo)) {
+                UBSE_LOG_ERROR << "Permission denied for fd=" << fd << ", skip sending. reqUid=" << clientInfo.uid
+                               << ", peerUid=" << peerClientInfo.uid << ", peerGid=" << peerClientInfo.gid
+                               << ", peerPid=" << peerClientInfo.pid;
+                return UBSE_ERR_PERMISSION_DENIED;
+            }
+        }
         auto sendRet = SendReq(fd, requestMessage, ctx, handler);
         if (sendRet != UBSE_OK) {
             UBSE_LOG_ERROR << "req moduleCode=" << requestMessage.header.moduleCode
@@ -982,4 +996,16 @@ void UbseUDSServer::RemoveSession(int fd, bool isPreClosing)
     UBSE_LOG_INFO << "Total active connections=" << sessions_.size() << ", pending connections=" << totalPending_
                   << ", persistent connections=" << globalPersistent_ << ", transient connections=" << globalTransient_;
 }
+
+bool UbseUDSServer::GetClientInfoByFd(int fd, UbseClientInfo &clientInfo)
+{
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    auto it = sessions_.find(fd);
+    if (it == sessions_.end()) {
+        return false;
+    }
+    clientInfo = it->second.clientInfo;
+    return true;
+}
+
 } // namespace ubse::ipc

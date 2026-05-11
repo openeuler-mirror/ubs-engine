@@ -66,8 +66,8 @@ public:
 
     void RegisterHandler(UbseRequestHandler handler);
 
-    uint32_t AsyncSendLongLink(UbseRequestMessage requestMessage, void *ctx, UbseAsyncResponseHandler handler,
-                               std::vector<uint64_t> &reqList);
+    uint32_t AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo &clientInfo, void *ctx,
+                               UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList);
 
 private:
     enum class SessionState {
@@ -157,6 +157,7 @@ private:
     void RegisterLongLinkAsyncCallback(uint64_t reqId, UbseAsyncCallBack callBack);
 
     void HandleRequest(ClientSession *session);
+    bool GetClientInfoByFd(int fd, UbseClientInfo &clientInfo);
     uint32_t SendReq(int fd, UbseRequestMessage requestMessage, void *ctx, UbseAsyncResponseHandler handler);
     void ReceiveResponse(const ClientSession *session);
     void ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessage &response);

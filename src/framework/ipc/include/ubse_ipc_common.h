@@ -26,7 +26,9 @@ typedef enum {
 } ubse_ipc_module_code_t;
 
 typedef enum {
-    UBSE_LONGLINK_FAULT = 0x0001,
+    UBSE_LONGLINK_FAULT_SHM = 0x0001,
+    UBSE_LONGLINK_FAULT_FD = 0x0002,
+    UBSE_LONGLINK_FAULT_NUMA = 0x0003,
 } ubse_ipc_long_link_op_code_t;
 
 typedef enum {

@@ -3,7 +3,7 @@
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
-  *          http://license.coscl.org.cn/MulanPSL2
+ *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -17,9 +17,11 @@
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_event.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_fault_handle.cpp"
 #include "ubse_mem_controller_fault_handle.h"
+#include "ubse_mem_debt_ledger.h"
 #include "ubse_ras.h"
 #include "ubse_serial_util.h"
 
@@ -29,8 +31,10 @@ using namespace ubse::mem::controller;
 using namespace ubse::config;
 using namespace ubse::context;
 using namespace ubse::election;
-using namespace ubse::mem::controller;
 using namespace ubse::serial;
+using namespace ubse::event;
+using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
 
 void TestUbseMemControllerFaultHandle::SetUp()
 {
@@ -38,151 +42,235 @@ void TestUbseMemControllerFaultHandle::SetUp()
 }
 void TestUbseMemControllerFaultHandle::TearDown()
 {
+    UbseMemFaultManager::executorPtr = nullptr;
+    UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     Test::TearDown();
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager)
+TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_CreateTaskExecutorFailed)
 {
-    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name,
-                                               AlarmFaultHandler handler, AlarmHandlerPriority priority))
+    MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_RegisterAlarmFailed)
+{
+    MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
         .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
+        .will(returnValue(UBSE_ERROR));
     EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
-    MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
-    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_NE(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
 }
 
-// TEST_F(TestUbseMemControllerFaultHandle, MemFaultReportTask)
-// {
-//     g_reportTaskCtrlMap["test"].ready = true;
-
-//     UbseMemFaultMsg msg;
-//     msg.faultNode = "1";
-//     msg.nodeNum = 2;
-//     msg.notifiedNode = "2";
-//     UbseMemFaultInfo info(1, "test", "fault");
-//     msg.info = info;
-
-//     MOCKER(&UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
-
-//     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
-
-//     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
-//     MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
-//     MOCKER(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
-//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportTask(msg));
-// }
-
-TEST_F(TestUbseMemControllerFaultHandle, GetMemNameById)
+TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_SubEventFailed)
 {
+    MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
+        .stubs()
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseSubEvent).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_Success)
+{
+    MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
+        .stubs()
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseSubEvent).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_OK, UbseMemFaultManager::InitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_UnRegisterFailed)
+{
+    MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::DeInitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_RemoveTaskExecutorFailed)
+{
+    MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseMemFaultManager::RemoveTaskExecutor).stubs().will(returnValue(UBSE_ERROR_NULLPTR));
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseMemFaultManager::DeInitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_Success)
+{
+    MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseMemFaultManager::RemoveTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_OK, UbseMemFaultManager::DeInitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_EmptyMessage)
+{
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage;
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_InvalidFormat)
+{
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "invalid_no_underscore";
+    EXPECT_NE(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+
+    std::string eventMessage2 = "nodeId_invalid_type";
+    EXPECT_NE(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage2), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_InvalidFaultType)
+{
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "1_not_a_number";
+    EXPECT_NE(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_ValidMessage)
+{
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "2_1013";
+    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault)
+        .stubs()
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, MemReportWhenExportNodeOnFault_EmptyFaultId)
+{
+    std::string faultId;
+    EXPECT_EQ(UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_MEM_FAULT, faultId), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, MemReportWhenExportNodeOnFault_NullExecutor)
+{
+    UbseMemFaultManager::executorPtr = nullptr;
+    std::string faultId = "1";
+    EXPECT_EQ(UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_MEM_FAULT, faultId), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParseFaultInfo_InvalidJson)
+{
+    uint64_t memId = 0;
+    UbMemFaultType type;
+    EXPECT_NE(ParseFaultInfo("not json", memId, type), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParseFaultInfo_MissingMemId)
+{
+    uint64_t memId = 0;
+    UbMemFaultType type;
+    EXPECT_NE(ParseFaultInfo(R"({"raw_ubus_mem_err_type": 0})", memId, type), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParseFaultInfo_MissingFaultType)
+{
+    uint64_t memId = 0;
+    UbMemFaultType type;
+    EXPECT_NE(ParseFaultInfo(R"({"memid": 1})", memId, type), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParseFaultInfo_ValidJson)
+{
+    uint64_t memId = 0;
+    UbMemFaultType type;
+    EXPECT_EQ(ParseFaultInfo(R"({"memid": 100, "raw_ubus_mem_err_type": 0})", memId, type), UBSE_OK);
+    EXPECT_EQ(memId, 100);
+    EXPECT_EQ(type, UB_MEM_ATOMIC_DATA_ERR);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_GetNodeIdFailed)
+{
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
     uint64_t memId = 1;
-    std::string memName = "test1";
-    std::string nodeId = "node1";
-    MOCKER(&GetCurrentNodeId).stubs().with(outBound(nodeId)).will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_NE(UbseMemFaultManager::GetMemNameById(memId, memName), UBSE_OK);
-
-    EXPECT_EQ(UbseMemFaultManager::GetMemNameById(memId, memName), UBSE_OK);
+    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
+    std::string memName;
+    std::string memType;
+    UbseUdsInfo udsInfo;
+    EXPECT_NE(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
 }
 
-/*
-TEST_F(TestUbseMemControllerFaultHandle, StartMemFaultReportTask)
+TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInShareImport)
 {
-    UbseMemFaultMsg msg;
-    MOCKER_CPP(&UbseMemFaultManager::MemFaultReportTask);
-    EXPECT_NO_THROW(UbseMemFaultManager::StartMemFaultReportTask(msg));
-}
-*/
+    UbseRoleInfo roleInfo("1", "master");
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
 
-TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager)
+    UbseMemShareBorrowImportObj shareImportObj{};
+    shareImportObj.req.name = "shareTest";
+    shareImportObj.importNodeId = "1";
+    shareImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    shareImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo exportNmaInfo{.nodeId = "2", .socketId = 0, .numaId = 0, .size = 128};
+    shareImportObj.algoResult.exportNumaInfos.emplace_back(exportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", "shareTest", shareImportObj);
+
+    uint64_t memId = 100;
+    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
+    std::string memName;
+    std::string memType;
+    UbseUdsInfo udsInfo;
+    EXPECT_EQ(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    EXPECT_EQ(memName, "shareTest");
+    EXPECT_EQ(memType, "share");
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInFdImport)
 {
-    MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemFaultManager::DeInitMemFaultManager(), UBSE_ERROR);
-    EXPECT_EQ(UbseMemFaultManager::DeInitMemFaultManager(), UBSE_ERROR_NULLPTR);
-    MOCKER(UbseMemFaultManager::RemoveTaskExecutor).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemFaultManager::DeInitMemFaultManager(), UBSE_OK);
+    UbseRoleInfo roleInfo("1", "master");
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+
+    UbseMemFdBorrowImportObj fdImportObj{};
+    fdImportObj.req.name = "fdTest";
+    fdImportObj.req.importNodeId = "1";
+    fdImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    fdImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 200});
+    UbseMemDebtNumaInfo exportNmaInfo{.nodeId = "2", .socketId = 0, .numaId = 0, .size = 128};
+    fdImportObj.algoResult.exportNumaInfos.emplace_back(exportNmaInfo);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("1", "fdTest", fdImportObj);
+
+    uint64_t memId = 200;
+    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
+    std::string memName;
+    std::string memType;
+    UbseUdsInfo udsInfo;
+    EXPECT_EQ(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    EXPECT_EQ(memName, "fdTest");
+    EXPECT_EQ(memType, "fd");
 }
 
-// TEST_F(TestUbseMemControllerFaultHandle, MemFaultHandler)
-// {
-//     ALARM_FAULT_TYPE alarmFaultEvent;
-//     std::string faultInfo = "test";
-//     auto ret = UbseMemFaultManager::MemFaultHandler(alarmFaultEvent, faultInfo);
-//     EXPECT_NE(ret, UBSE_OK);
-//     faultInfo = R"({"memid" : 1, "raw_ubus_mem_err_type": 0})";
-//     MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
-//     ret = UbseMemFaultManager::MemFaultHandler(alarmFaultEvent, faultInfo);
-//     EXPECT_NE(ret, UBSE_OK);
-// }
+TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_NotFound)
+{
+    UbseRoleInfo roleInfo("1", "master");
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
 
-// TEST_F(TestUbseMemControllerFaultHandle, MemFaultReportHandler)
-// {
-//     GTEST_SKIP();
-//     UbseByteBuffer req;
-//     UbseByteBuffer resp;
-//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportHandler(req, resp));
-//     UbseRoleInfo curNodeInfo{};
-//     curNodeInfo.nodeRole = ELECTION_ROLE_MASTER;
-//     MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
-//     UbseSerialization serialization;
-//     UbseMemFaultMsg msg;
-//     UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
-//     msg.info = info;
-//     msg.nodeNum = 2;
-//     msg.faultNode = 1;
-//     msg.notifiedNode = 1;
-//     serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
-//                   << msg.info.faultInfo_;
-//     req.data = serialization.GetBuffer();
-//     req.len = serialization.GetLength();
-//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultReportHandler(req, resp));
-// }
+    uint64_t memId = 999;
+    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
+    std::string memName;
+    std::string memType;
+    UbseUdsInfo udsInfo;
+    EXPECT_NE(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    EXPECT_EQ(memType, "unknown");
+}
 
-// TEST_F(TestUbseMemControllerFaultHandle, MemFaultNotifyReplyHandler)
-// {
-//     UbseByteBuffer req;
-//     UbseByteBuffer resp;
-//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyReplyHandler(req, resp));
-//     UbseRoleInfo curNodeInfo{};
-//     curNodeInfo.nodeRole = ELECTION_ROLE_MASTER;
-//     MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
-//     UbseSerialization serialization;
-//     UbseMemFaultMsg msg;
-//     UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
-//     msg.info = info;
-//     msg.nodeNum = 2;
-//     msg.faultNode = 1;
-//     msg.notifiedNode = 1;
-//     serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
-//                   << msg.info.faultInfo_;
-//     req.data = serialization.GetBuffer();
-//     req.len = serialization.GetLength();
-//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyReplyHandler(req, resp));
-// }
+TEST_F(TestUbseMemControllerFaultHandle, SendMemFaultMessageByType_NullExecutor)
+{
+    UbseMemFaultManager::executorPtr = nullptr;
+    UbseUdsInfo udsInfo{};
+    EXPECT_EQ(UbseMemFaultManager::SendMemFaultMessageByType("share", 1, "test", udsInfo, UB_MEM_ATOMIC_DATA_ERR),
+              UBSE_ERROR_NULLPTR);
+}
 
-// TEST_F(TestUbseMemControllerFaultHandle, MemFaultNotifyHandler)
-// {
-//     GTEST_SKIP();
-//     UbseByteBuffer req;
-//     UbseByteBuffer resp;
-//     UbseSerialization serialization;
-//     UbseMemFaultMsg msg;
-//     UbseMemFaultInfo info(0, "test", R"({"memid" : 1, "raw_ubus_mem_err_type": 0})");
-//     msg.info = info;
-//     msg.nodeNum = 2;
-//     msg.faultNode = 1;
-//     msg.notifiedNode = 1;
-//     serialization << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
-//                   << msg.info.faultInfo_;
-//     req.data = serialization.GetBuffer();
-//     req.len = serialization.GetLength();
-//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyHandler(req, resp));
+TEST_F(TestUbseMemControllerFaultHandle, MemFaultHandler_ParseFaultInfoFailed)
+{
+    EXPECT_NE(UbseMemFaultManager::MemFaultHandler(ALARM_MEM_FAULT, "invalid"), UBSE_OK);
+}
 
-//     std::shared_ptr<UbseApiServerModule> apiServerPtr = std::make_shared<UbseApiServerModule>();
-//     MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerPtr));
-//     EXPECT_NO_THROW(UbseMemFaultManager::MemFaultNotifyHandler(req, resp));
-// }
+TEST_F(TestUbseMemControllerFaultHandle, MemFaultHandler_FindNameFailed)
+{
+    UbseRoleInfo roleInfo("1", "master");
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+    EXPECT_NE(UbseMemFaultManager::MemFaultHandler(ALARM_MEM_FAULT, R"({"memid": 999, "raw_ubus_mem_err_type": 0})"),
+              UBSE_OK);
+}
 } // namespace ubse::mem_controller::ut

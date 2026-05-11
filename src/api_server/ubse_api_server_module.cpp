@@ -128,14 +128,16 @@ uint32_t UbseApiServerModule::SendResponse(uint32_t statusCode, uint64_t request
     return ipcServer_->SendResponse(statusCode, requestId, response);
 }
 
-uint32_t UbseApiServerModule::AsyncSendLongLink(UbseRequestMessage request, void *ctx, UbseAsyncResponseHandler handler,
-                                                std::vector<uint64_t> &reqList)
+uint32_t UbseApiServerModule::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo &clientInfo,
+                                                void *ctx, UbseAsyncResponseHandler handler,
+                                                std::vector<uint64_t> &reqList) const
 {
     if (ipcServer_ == nullptr) {
         UBSE_LOG_ERROR << "Ipc service not start";
         return UBSE_ERROR_NULLPTR;
     }
-    UBSE_LOG_INFO << "Async Send, moduleCode=" << request.header.moduleCode << ", opCode=" << request.header.opCode;
-    return ipcServer_->AsyncSendLongLink(request, ctx, handler, reqList);
+    UBSE_LOG_INFO << "Async Send, moduleCode=" << requestMessage.header.moduleCode
+                  << ", opCode=" << requestMessage.header.opCode;
+    return ipcServer_->AsyncSendLongLink(requestMessage, clientInfo, ctx, handler, reqList);
 }
 } // namespace api::server
