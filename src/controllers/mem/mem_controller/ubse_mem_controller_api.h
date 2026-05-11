@@ -37,6 +37,8 @@ enum class BorrowedType {
     SHARED
 };
 
+bool IsDecoderImportGuardActive();
+
 /* *
  * 初始化
  * @return 0: 成功; 非0: 失败

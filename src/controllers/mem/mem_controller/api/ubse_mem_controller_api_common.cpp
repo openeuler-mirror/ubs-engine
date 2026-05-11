@@ -46,6 +46,12 @@ std::atomic<uint64_t> g_numaUnimportFailedCount{0};
 std::atomic<uint64_t> g_shareUnimportFailedCount{0};
 std::atomic<uint64_t> g_addrUnimportFailedCount{0};
 std::atomic<uint32_t> g_decoderImportGuard{0};
+
+bool IsDecoderImportGuardActive()
+{
+    return g_decoderImportGuard.load(std::memory_order_acquire) > 0;
+}
+
 bool IsSdkRequest(uint64_t requestId)
 {
     return UbseRequestIdUtil::ParseRequestType(requestId) == ubse::utils::UbseRequestType::SDK_REQUEST;

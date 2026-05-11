@@ -28,7 +28,6 @@
 #include "ubse_error.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
-#include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::controller {
@@ -46,21 +45,6 @@ extern std::atomic<uint64_t> g_shareUnimportFailedCount;
 extern std::atomic<uint64_t> g_addrUnimportFailedCount;
 extern std::atomic<uint32_t> g_decoderImportGuard;
 
-inline bool IsDecoderImportGuardActive()
-{
-    return g_decoderImportGuard.load(std::memory_order_acquire) > 0;
-}
-
-class DecoderImportGuardLock {
-public:
-    DecoderImportGuardLock() { g_decoderImportGuard.fetch_add(1, std::memory_order_acq_rel); }
-    ~DecoderImportGuardLock() { g_decoderImportGuard.fetch_sub(1, std::memory_order_acq_rel); }
-    DecoderImportGuardLock(const DecoderImportGuardLock &) = delete;
-    DecoderImportGuardLock &operator=(const DecoderImportGuardLock &) = delete;
-    DecoderImportGuardLock(DecoderImportGuardLock &&) = delete;
-    DecoderImportGuardLock &operator=(DecoderImportGuardLock &&) = delete;
-};
-
 struct UbseMemBorrowStatus {
     bool hasImport = false;
     bool hasExport = false;
@@ -72,6 +56,18 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::strin
 
 uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult errorCode,
                                        MemOperationType type = MemOperationType::FD_BORROW);
+
+bool IsDecoderImportGuardActive();
+
+class DecoderImportGuardLock {
+public:
+    DecoderImportGuardLock() { g_decoderImportGuard.fetch_add(1, std::memory_order_acq_rel); }
+    ~DecoderImportGuardLock() { g_decoderImportGuard.fetch_sub(1, std::memory_order_acq_rel); }
+    DecoderImportGuardLock(const DecoderImportGuardLock &) = delete;
+    DecoderImportGuardLock &operator=(const DecoderImportGuardLock &) = delete;
+    DecoderImportGuardLock(DecoderImportGuardLock &&) = delete;
+    DecoderImportGuardLock &operator=(DecoderImportGuardLock &&) = delete;
+};
 
 inline std::string GenerateExportObjKey(const std::string &name, const std::string &importNodeId)
 {
