@@ -43,7 +43,6 @@ extern std::atomic<uint64_t> g_fdUnimportFailedCount;
 extern std::atomic<uint64_t> g_numaUnimportFailedCount;
 extern std::atomic<uint64_t> g_shareUnimportFailedCount;
 extern std::atomic<uint64_t> g_addrUnimportFailedCount;
-extern std::atomic<uint32_t> g_decoderImportGuard;
 
 struct UbseMemBorrowStatus {
     bool hasImport = false;
@@ -57,17 +56,7 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::strin
 uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult errorCode,
                                        MemOperationType type = MemOperationType::FD_BORROW);
 
-bool IsDecoderImportGuardActive();
-
-class DecoderImportGuardLock {
-public:
-    DecoderImportGuardLock() { g_decoderImportGuard.fetch_add(1, std::memory_order_acq_rel); }
-    ~DecoderImportGuardLock() { g_decoderImportGuard.fetch_sub(1, std::memory_order_acq_rel); }
-    DecoderImportGuardLock(const DecoderImportGuardLock &) = delete;
-    DecoderImportGuardLock &operator=(const DecoderImportGuardLock &) = delete;
-    DecoderImportGuardLock(DecoderImportGuardLock &&) = delete;
-    DecoderImportGuardLock &operator=(DecoderImportGuardLock &&) = delete;
-};
+std::shared_mutex& GetDecoderImportMutex();
 
 inline std::string GenerateExportObjKey(const std::string &name, const std::string &importNodeId)
 {

@@ -708,7 +708,7 @@ uint32_t FdImportRunningHandler(UbseMemFdBorrowImportObj &importObj, const std::
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "fd";
     {
-        DecoderImportGuardLock guard;
+        std::shared_lock lock(GetDecoderImportMutex());
         res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;

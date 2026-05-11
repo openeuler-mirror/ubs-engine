@@ -1104,7 +1104,7 @@ uint32_t ShareImportRunningHandler(UbseMemOperationResp &resp, UbseMemShareBorro
         }
     }
     {
-        DecoderImportGuardLock guard;
+        std::shared_lock lock(GetDecoderImportMutex());
         if (realExe) {
             auto res = RealImportDecoder(chipDiePair, importObj);
             if (res != UBSE_OK) {

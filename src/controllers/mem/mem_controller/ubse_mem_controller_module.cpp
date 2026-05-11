@@ -69,10 +69,6 @@ void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &a
 
 UbseResult CycleCheckDecoderHandle()
 {
-    if (IsDecoderImportGuardActive()) {
-        UBSE_LOG_INFO << "Decoder import in progress, skip cycle check";
-        return UBSE_OK;
-    }
     std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> socketIdToChipDie{};
     auto res = decoder::utils::MemDecoderUtils::GetCurNodeSocketInfo(socketIdToChipDie);
     if (res != UBSE_OK) {
@@ -80,7 +76,10 @@ UbseResult CycleCheckDecoderHandle()
         return res;
     }
     decoder::utils::DecoderLocTohandleValueMap allHandleValues{};
-    res = decoder::utils::MemDecoderUtils::GetAllHandles(UB_MEMORY_HANDLE_DEFAULT_USED_NODE, allHandleValues);
+    {
+        std::unique_lock lock(GetDecoderImportMutex());
+        res = decoder::utils::MemDecoderUtils::GetAllHandles(UB_MEMORY_HANDLE_DEFAULT_USED_NODE, allHandleValues);
+    }
     for (const auto &[loc, handles] : allHandleValues) {
         UBSE_LOG_INFO << "allHandleValues size is " << handles.size();
         for (const auto &handle : handles) {
