@@ -864,10 +864,10 @@ uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, con
         UbseClientInfo peerClientInfo{};
         if (GetClientInfoByFd(fd, peerClientInfo)) {
             if (!CheckClientPermission(clientInfo, peerClientInfo)) {
-                UBSE_LOG_ERROR << "Permission denied for fd=" << fd << ", skip sending. reqUid=" << clientInfo.uid
+                UBSE_LOG_WARN << "Permission denied for fd=" << fd << ", skip sending. reqUid=" << clientInfo.uid
                                << ", peerUid=" << peerClientInfo.uid << ", peerGid=" << peerClientInfo.gid
                                << ", peerPid=" << peerClientInfo.pid;
-                return UBSE_ERR_PERMISSION_DENIED;
+                continue;
             }
         }
         auto sendRet = SendReq(fd, requestMessage, ctx, handler);
