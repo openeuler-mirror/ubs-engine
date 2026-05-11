@@ -101,58 +101,6 @@ static MpResult FaultMemIdManageHelper(bool isOverCommit, std::string importNode
     }
 }
 
-MpResult EventHandler::FragMentHandleFault(std::string nodeId) 
-{
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragMentHandleFault start.";
-    const uint32_t faultProcessTimeoutMs = MpConfiguration::GetInstance().GetFaultProcessTimeout();
-    const auto startTime = std::chrono::steady_clock::now();
-
-    while(true) {
-        // =========基于不信任原则，获取账本并筛选合法条目
-        std::vector<BorrowRecord> fragMentFaultBorrowRecords;
-        MpResult res = UpdateBorrowRecordsWithFragMentFault(nodeId, fragMentFaultBorrowRecords);
-        if (res != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] UpdateBorrowRecordsWithFragMentFault failed.";
-            return res;
-        }
-        // =========超时判断：计算已耗时，超时则退出轮询并返回错误=========
-        auto currentTime = std::chrono::steady_clock::now();
-        auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
-        if (elapsedMs >= faultProcessTimeoutMs)
-        {
-            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] [FaultLentNode] ProcessBorrowOutNodeFault timeout! Elapsed: " << elapsedMs
-                << "ms, Timeout threshold: " << faultProcessTimeoutMs << "ms, NodeId: " << nodeId;
-            if (fragMentFaultBorrowRecords.empty()) {
-                UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragMentHandleFault succeed."
-                return MEM_POOLING_OK;
-            }
-            return MEM_POOLING_ERROR;
-        }
-
-        NodeType nodeType = NodeType::ABNORMAL;
-        MpResult res = FaultNodeModule::Instance().DetermineNodeTypeFragment(nodeId, nodeType);
-        if (res != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] DetermineNodeType failed " << eventMessage << ".";
-            continue;
-        }
-        if (nodeType == NodeType::BORROW_IN) {
-            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by MXE.";
-        } else if (nodeType == NodeType::BORROW_OUT) {
-            res = FaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId, true);                 
-            if (res != MEM_POOLING_OK) {
-                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[FaultManager] Process BORROW_OUT node fault failed, eventMessage:" << eventMessage << ".";
-            }
-        }
-    }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragMentHandleFault end.";
-    return MEM_POOLING_OK;
-}
-
 MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::string eventMessage)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -165,14 +113,14 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
             << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
         return MEM_POOLING_ERROR;
     }
+    std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
-        MpResult resFragMent = FaultNodeModule::Instance().FragMentHandleFault(nodeId);
+        MpResult resFragMent = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
         if (resFragMent != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragMentHandleFault failed.";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
             return resFragMent;
         }
     } else { //超分场景
-        std::string nodeId = eventMessage;
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
         NodeType nodeType = NodeType::ABNORMAL;
         MpResult res = FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);
@@ -252,15 +200,14 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
             << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
         return MEM_POOLING_ERROR;
     }
-
+    std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
-        MpResult resFragMent = FaultNodeModule::Instance().FragMentHandleFault(nodeId);
+        MpResult resFragMent = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
         if (resFragMent != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragMentHandleFault failed.";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
             return resFragMent;
         }
     } else { //超分场景
-        std::string nodeId = eventMessage;
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
         NodeType nodeType = NodeType::ABNORMAL;
         MpResult res = FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);
@@ -299,15 +246,14 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
             << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
         return MEM_POOLING_ERROR;
     }
-
+    std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
-        MpResult resFragMent = FaultNodeModule::Instance().FragMentHandleFault(nodeId);
+        MpResult resFragMent = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
         if (resFragMent != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragMentHandleFault failed.";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
             return resFragMent;
         }
     } else { //超分场景
-        std::string nodeId = eventMessage;
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
         NodeType nodeType = NodeType::ABNORMAL;
         MpResult res = FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);
