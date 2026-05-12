@@ -53,6 +53,40 @@ struct SrcMemoryBorrowParam {
     }
 };
 
+struct BatchSrcMemoryBorrowParam {
+    BatchSrcMemoryBorrowParam() = default;
+
+    std::string srcNid{};              // 借入方节点Id
+    uint16_t srcNumaNum{1};            // 借入方NUMA数量
+    std::vector<int16_t> srcNumaId{};  // 借入方NUMA Id数组
+    uid_t uid{0};                      // 借入方用户uid
+    std::string username{};            // 借入方用户名
+
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "{";
+        oss << "srcNid=" << srcNid << ",";
+        oss << "srcNumaNum=" << srcNumaNum << ",";
+        oss << "srcNumaId=[";
+        for (size_t i = 0; i < srcNumaId.size(); ++i) {
+            oss << srcNumaId[i];
+            if (i < srcNumaId.size() - 1) {
+                oss << ",";
+            }
+        }
+        oss << "],";
+        oss << "uid=" << uid << ",";
+        oss << "username=" << username;
+        oss << "}";
+        return oss.str();
+    }
+};
+
+enum class BorrowStrategy : uint8_t {
+    AVERAGE = 0  // 平均分配策略
+};
+
 struct DestMemoryBorrowParam {
     DestMemoryBorrowParam() = default;
 
@@ -350,6 +384,44 @@ struct WaterMark {
     }
 };
 
+struct NumaQuota {
+    uint32_t numaId{};
+    uint32_t quota{};  // 单位 KB
+
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "{numaId=" << numaId << ",quota=" << quota << "KB}";
+        return oss.str();
+    }
+};
+
+struct PageSwapPair {
+    std::vector<NumaQuota> localNumas{};
+    std::vector<NumaQuota> remoteNumas{};
+
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "{localNumas=[";
+        for (size_t i = 0; i < localNumas.size(); ++i) {
+            oss << localNumas[i].ToString();
+            if (i < localNumas.size() - 1) {
+                oss << ",";
+            }
+        }
+        oss << "],remoteNumas=[";
+        for (size_t i = 0; i < remoteNumas.size(); ++i) {
+            oss << remoteNumas[i].ToString();
+            if (i < remoteNumas.size() - 1) {
+                oss << ",";
+            }
+        }
+        oss << "]}";
+        return oss.str();
+    }
+};
+
 struct PidInfo {
     pid_t pid{};
     uint64_t localUsedMem{};
@@ -390,6 +462,18 @@ uint32_t UBSRMRSUpdateAntiNode(const std::map<std::string, std::vector<std::stri
  */
 uint32_t UBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &outSrcParam, const uint64_t &borrowSize,
                                   MemBorrowStrategyResult &outBorrowStrategyResult);
+
+/**
+ * @brief 批量内存借用策略
+ * @param outSrcParam 批量借入节点信息
+ * @param borrowSize 需要借入的内存大小(单位kB)
+ * @param outBorrowStrategyResult 借用策略结果数组
+ * @param borrowStrategy 借用策略类型
+ * @return  0为成功, 非0为异常
+ */
+uint32_t UBSRMRSBatchBorrowStrategy(const BatchSrcMemoryBorrowParam &outSrcParam, const uint64_t &borrowSize,
+                                    std::vector<MemBorrowStrategyResult> &outBorrowStrategyResult,
+                                    BorrowStrategy borrowStrategy);
 /**
  * @brief 内存借用执行
  * @param outSrcParam 借入节点信息
@@ -544,6 +628,14 @@ int UBSRMRSSmapRemoveProcessTracking(const std::vector<pid_t> &pidVec, int flags
  * @return 0为成功, SMAP未初始化返回-1，参数错误返回-22，超时返回-110,  OSTurbo通信失败返回17
  */
 int UBSRMRSSmapEnableProcessMigrate(std::vector<pid_t> pidVec, int enable, int flags = 0);
+
+/**
+ * @brief 分组启用进程冷热迁移
+ * @param pid 进程PID
+ * @param pageSwapPairs 页交换配对数组（每个PageSwapPair映射为一个MigrationGroup）
+ * @return  0为成功, 非0为异常
+ */
+uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<PageSwapPair> &pageSwapPairs);
 
 /* *
  * @brief   设置进程迁移到远端NUMA，异步调用接口

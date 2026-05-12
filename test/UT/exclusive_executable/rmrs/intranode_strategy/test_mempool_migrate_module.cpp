@@ -15,13 +15,17 @@
 
 #include "gtest/gtest.h"
 #include "mem_borrow_executor.h"
+#include "mem_manager.h"
 #include "mempool_migrate_module.h"
+#include "mempooling_interface.h"
 #include "mockcpp/mokc.h"
 #include "mp_smap_helper.h"
 #include "exporter.h"
 #include "mempooling_message.h"
 #include "rmrs_serialize.h"
 #include "exporter.h"
+#include "ubse_mem_controller.h"
+#include "ubse_node_controller.h"
 #include "ubse_topology_interface.h"
 #include "LibvirtHelper.h"
 
@@ -37,7 +41,7 @@ using namespace mempooling::message;
 using namespace rmrs::serialize;
 
 namespace mempooling::migrate {
-
+using Str2NodeInfo = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>;
 // 测试类
 class TestMempoolMigrateModule : public ::testing::Test {
 protected:
@@ -65,10 +69,10 @@ void AdjustMigrationRatio(uint64_t difference, uint64_t &accumulatedMigrateMem,
                           std::vector<std::tuple<pid_t, uint64_t, uint16_t>> &potentialMigration,
                           std::map<pid_t, uint16_t> &vmFreqPidRatioMap);
 
-uint32_t TestDeserializeNumaInfos(std::vector<NumaInfo> &numaInfos, const std::vector<std::string> &data)
+uint32_t TestDeserializeNumaInfos(std::vector<mempooling::exportV2::NumaInfo> &numaInfos, const std::vector<std::string> &data)
 {
-    NumaInfo numaInfo;
-    NumaMetaData numaMetaInfo;
+    mempooling::exportV2::NumaInfo numaInfo;
+    mempooling::exportV2::NumaMetaData numaMetaInfo;
     numaMetaInfo.nodeId = "Node1";
     numaMetaInfo.numaId = 1;
     numaInfo.metaData = numaMetaInfo;
@@ -122,10 +126,10 @@ uint32_t TestDeserializeVmDomainInfosImplSuccess(std::vector<VmDomainInfo> &doma
     return MEM_POOLING_OK;
 }
 
-uint32_t TestGetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos)
+uint32_t TestGetNumaInfoImmediately(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
 {
-    NumaInfo numaInfo;
-    NumaMetaData numaMetaInfo;
+    mempooling::exportV2::NumaInfo numaInfo;
+    mempooling::exportV2::NumaMetaData numaMetaInfo;
     numaMetaInfo.nodeId = "Node1";
     numaInfo.metaData = numaMetaInfo;
     numaInfos.push_back(numaInfo);
@@ -160,7 +164,7 @@ TEST_F(TestMempoolMigrateModule, FillDestNumaFreeHugePageMap1)
 
 MpResult TestGetNumaInfoImmediately_1(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
 {
-    NumaInfo numaInfo;
+    mempooling::exportV2::NumaInfo numaInfo;
     numaInfo.metaData.numaId = 1;
     numaInfos.push_back(numaInfo);
     return 0;
@@ -746,9 +750,9 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_success2)
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-MpResult Test_GetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos)
+MpResult Test_GetNumaInfoImmediately(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
 {
-    NumaInfo numaInfo;
+    mempooling::exportV2::NumaInfo numaInfo;
     numaInfo.metaData.isLocal = false;
     mempooling::exportV2::NumaPageData numaPageData1 = {2048, 1024, 1024};
     numaInfo.metaData.numaPageInfo[2048] = numaPageData1;
@@ -759,9 +763,9 @@ MpResult Test_GetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos)
     return 0;
 }
 
-MpResult Test_GetNumaInfoImmediately2(std::vector<NumaInfo> &numaInfos)
+MpResult Test_GetNumaInfoImmediately2(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
 {
-    NumaInfo numaInfo;
+    mempooling::exportV2::NumaInfo numaInfo;
     numaInfo.metaData.isLocal = true;
     mempooling::exportV2::NumaPageData numaPageData1 = {2048, 1024, 1024};
     numaInfo.metaData.numaPageInfo[2048] = numaPageData1;

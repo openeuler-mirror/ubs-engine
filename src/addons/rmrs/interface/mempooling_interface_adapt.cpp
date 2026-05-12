@@ -14,16 +14,26 @@
 
 #include <bits/types.h>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 #include <atomic>
+#include <regex>
+#include <sstream>
+#include <fstream>
+#include <cstring>
+#include <cstdlib>
 
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_helper.h"
+#include "mempool_migrate_module.h"
 #include "rmrs_resource_query.h"
 #include "exporter.h"
 #include "mp_smap_helper.h"
 #include "mp_smap_controller.h"
+#include "ubse_node_controller.h"
+#include "LibvirtHelper.h"
+#include "mp_vm_quota_util.h"
 
 namespace mempooling {
 constexpr int SMAP_OK = 0;
@@ -186,6 +196,249 @@ uint32_t mempooling::outinterface::UBSRMRSMemBorrowStrategy(
     }
 
     return ret;
+}
+
+static uint32_t ValidateBasicParams(
+    const mempooling::outinterface::BatchSrcMemoryBorrowParam &outSrcParam,
+    const uint64_t &borrowSize)
+{
+    if (outSrcParam.srcNid != MpConfiguration::GetInstance().GetNodeId()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Validate] Input nodeId param invalid.";
+        return MEM_POOLING_ERROR;
+    }
+
+    if (outSrcParam.srcNumaNum < 1) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Validate] Input srcNumaNum param invalid, must >= 1.";
+        return MEM_POOLING_ERROR;
+    }
+
+    if (outSrcParam.srcNumaId.size() != outSrcParam.srcNumaNum) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Validate] Input srcNumaId size mismatch with srcNumaNum.";
+        return MEM_POOLING_ERROR;
+    }
+
+    if (borrowSize == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Validate] Input borrowSize param invalid, must > 0.";
+        return MEM_POOLING_ERROR;
+    }
+
+    if (borrowSize > MIGRATE_MEM_MAX_SIZE) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Validate] Input borrowSize exceeds max limit " << MIGRATE_MEM_MAX_SIZE << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    return MEM_POOLING_OK;
+}
+
+static uint32_t ValidateNumaIdFormat(const std::vector<int16_t> &srcNumaId)
+{
+    for (size_t i = 0; i < srcNumaId.size(); ++i) {
+        if (srcNumaId[i] < 0) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[BatchBorrow][Validate] srcNumaId[" << i << "]=" << srcNumaId[i]
+                << " is invalid, must >= 0.";
+            return MEM_POOLING_ERROR;
+        }
+    }
+
+    std::set<int16_t> numaIdSet;
+    for (size_t i = 0; i < srcNumaId.size(); ++i) {
+        if (numaIdSet.find(srcNumaId[i]) != numaIdSet.end()) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[BatchBorrow][Validate] Duplicate srcNumaId=" << srcNumaId[i]
+                << " found at index " << i << ", NUMA IDs must be unique.";
+            return MEM_POOLING_ERROR;
+        }
+        numaIdSet.insert(srcNumaId[i]);
+    }
+
+    return MEM_POOLING_OK;
+}
+
+static uint32_t ValidateNumaIdExistence(const std::vector<int16_t> &srcNumaId)
+{
+    std::vector<mempooling::exportV2::NumaInfo> localNumaInfos;
+    if (mempooling::exportV2::Exporter::GetNumaInfoImmediately(localNumaInfos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Validate] GetNumaInfoImmediately failed, cannot validate NUMA IDs.";
+        return MEM_POOLING_ERROR;
+    }
+
+    for (size_t i = 0; i < srcNumaId.size(); ++i) {
+        bool found = false;
+        for (const auto &numaInfo : localNumaInfos) {
+            if (numaInfo.metaData.numaId == srcNumaId[i]) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[BatchBorrow][Validate] srcNumaId[" << i << "]=" << srcNumaId[i]
+                << " does not exist in local node.";
+            return MEM_POOLING_ERROR;
+        }
+    }
+
+    return MEM_POOLING_OK;
+}
+
+uint32_t ValidateParamsOfBatchBorrowStrategy(
+    const mempooling::outinterface::BatchSrcMemoryBorrowParam &outSrcParam,
+    const uint64_t &borrowSize)
+{
+    uint32_t ret = ValidateBasicParams(outSrcParam, borrowSize);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    ret = ValidateNumaIdFormat(outSrcParam.srcNumaId);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    ret = ValidateNumaIdExistence(outSrcParam.srcNumaId);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    return MEM_POOLING_OK;
+}
+
+static uint32_t GetAlignedBorrowSize(
+    const std::string &srcNid,
+    uint64_t borrowSize,
+    uint64_t &alignedBorrowSize)
+{
+    constexpr uint64_t MB_TO_KB = 1024ULL;
+
+    const auto allNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
+    auto nodeIt = allNodeInfo.find(srcNid);
+    if (nodeIt == allNodeInfo.end()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][AlignSize] Cannot find node info for nodeId=" << srcNid;
+        return MEM_POOLING_ERROR;
+    }
+
+    uint32_t blockSizeMB = nodeIt->second.blockSize;
+    if (blockSizeMB == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][AlignSize] blockSize=" << blockSizeMB
+            << "MB is invalid, must be non-zero.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint64_t blockSizeKB = static_cast<uint64_t>(blockSizeMB) * MB_TO_KB;
+    alignedBorrowSize = ((borrowSize + blockSizeKB - 1) / blockSizeKB) * blockSizeKB;
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[BatchBorrow][AlignSize] borrowSize=" << borrowSize << "KB rounded up to "
+        << alignedBorrowSize << "KB (blockSize=" << blockSizeMB << "MB).";
+
+    return MEM_POOLING_OK;
+}
+
+static void ConvertResultsToOutInterface(
+    const std::vector<mempooling::MemBorrowStrategyResult> &borrowStrategyResults,
+    const mempooling::outinterface::BatchSrcMemoryBorrowParam &outSrcParam,
+    std::vector<mempooling::outinterface::MemBorrowStrategyResult> &outBorrowStrategyResult)
+{
+    for (const auto &result : borrowStrategyResults) {
+        mempooling::outinterface::MemBorrowStrategyResult outResult;
+        outResult.borrowSize = result.borrowSize;
+        outResult.srcParam.srcNid = result.srcParam.srcNid;
+        outResult.srcParam.srcNumaId = result.srcParam.srcNumaId;
+        outResult.srcParam.srcSocketId = result.srcParam.srcSocketId;
+        outResult.srcParam.uid = outSrcParam.uid;
+        outResult.srcParam.username = outSrcParam.username;
+
+        for (const auto &destParam : result.destParam) {
+            mempooling::outinterface::DestMemoryBorrowParam outDestParam;
+            outDestParam.destNid = destParam.destNid;
+            outDestParam.destSocketId = destParam.destSocketId;
+            outDestParam.destNumaNum = destParam.destNumaNum;
+            outDestParam.destNumaId = destParam.destNumaId;
+            outDestParam.memSize = destParam.memSize;
+            outResult.destParam.push_back(outDestParam);
+        }
+
+        outBorrowStrategyResult.push_back(outResult);
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[BatchBorrow][Convert] Converted " << outBorrowStrategyResult.size() << " results.";
+
+    for (size_t i = 0; i < outBorrowStrategyResult.size(); ++i) {
+        const auto &result = outBorrowStrategyResult[i];
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Convert] Result[" << i << "]: "
+            << "srcNid=" << result.srcParam.srcNid
+            << ", srcNumaId=" << result.srcParam.srcNumaId
+            << ", borrowSize=" << result.borrowSize << "KB"
+            << ", destParam.size()=" << result.destParam.size();
+
+        for (size_t j = 0; j < result.destParam.size(); ++j) {
+            const auto &dest = result.destParam[j];
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[BatchBorrow][Convert]   Dest[" << j << "]: "
+                << "destNid=" << dest.destNid
+                << ", destSocketId=" << dest.destSocketId
+                << ", destNumaId=" << (dest.destNumaId.empty() ? -1 : dest.destNumaId[0])
+                << ", memSize=" << (dest.memSize.empty() ? 0 : dest.memSize[0]) << "KB";
+        }
+    }
+}
+
+uint32_t mempooling::outinterface::UBSRMRSBatchBorrowStrategy(
+    const mempooling::outinterface::BatchSrcMemoryBorrowParam &outSrcParam,
+    const uint64_t &borrowSize,
+    std::vector<mempooling::outinterface::MemBorrowStrategyResult> &outBorrowStrategyResult,
+    mempooling::outinterface::BorrowStrategy borrowStrategy)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[BatchBorrow][Strategy] UBSRMRSBatchBorrowStrategy start.";
+
+    uint32_t retParam = ValidateParamsOfBatchBorrowStrategy(outSrcParam, borrowSize);
+    if (retParam != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Strategy] Input param invalid.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint64_t alignedBorrowSize = 0;
+    uint32_t ret = GetAlignedBorrowSize(outSrcParam.srcNid, borrowSize, alignedBorrowSize);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    MempoolingInterfaceAdapt guard;
+    std::vector<mempooling::MemBorrowStrategyResult> borrowStrategyResults;
+
+    auto &mgr = ApiConcurrencyManager::getInstance();
+    if (!mgr.TryEnterOtherFunc()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Strategy] Concurrency is not supported.";
+        return MEM_POOLING_ERROR;
+    }
+
+    ret = migrate::MempoolMigrateModule::BatchBorrowStrategyImpl(
+        outSrcParam.srcNid, outSrcParam.srcNumaId, alignedBorrowSize, borrowStrategy, borrowStrategyResults);
+
+    mgr.ExitOtherFunc();
+
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[BatchBorrow][Strategy] BatchBorrowStrategyImpl failed, ret=" << ret << ".";
+        return ret;
+    }
+
+    ConvertResultsToOutInterface(borrowStrategyResults, outSrcParam, outBorrowStrategyResult);
+    return MEM_POOLING_OK;
 }
 
 uint32_t mempooling::outinterface::UBSRMRSMemBorrowExecute(
@@ -878,6 +1131,134 @@ int mempooling::outinterface::MigrateOut(const std::vector<MigrateOutPayload> &i
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "MigrateOut, with code = " << ret2 << ".";
     return ret2;
+}
+
+static uint32_t ValidateAndConvertPageSwapPairs(
+    const std::vector<mempooling::outinterface::PageSwapPair> &pageSwapPairs,
+    smap::GroupedMigrateOutMsg &msg)
+{
+    msg.count = 1;
+    msg.payload[0].groupCount = static_cast<int>(pageSwapPairs.size());
+
+    for (size_t i = 0; i < pageSwapPairs.size(); ++i) {
+        const auto &pair = pageSwapPairs[i];
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapCtrl][Convert] PageSwapPair[" << i << "] " << pair.ToString() << ".";
+
+        if (pair.localNumas.empty() || pair.localNumas.size() > MAX_GROUP_LOCAL_NUMA) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[SmapCtrl][Convert] localNumas size invalid.";
+            return MEM_POOLING_ERROR;
+        }
+
+        if (pair.remoteNumas.empty() || pair.remoteNumas.size() > REMOTE_NUMA_NUM) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[SmapCtrl][Convert] remoteNumas size invalid.";
+            return MEM_POOLING_ERROR;
+        }
+
+        msg.payload[0].groups[i].localCount = static_cast<int>(pair.localNumas.size());
+        for (size_t j = 0; j < pair.localNumas.size(); ++j) {
+            msg.payload[0].groups[i].locals[j].nid = static_cast<int>(pair.localNumas[j].numaId);
+            msg.payload[0].groups[i].locals[j].size = pair.localNumas[j].quota;
+        }
+
+        msg.payload[0].groups[i].targetCount = static_cast<int>(pair.remoteNumas.size());
+        for (size_t k = 0; k < pair.remoteNumas.size(); ++k) {
+            msg.payload[0].groups[i].targets[k].nid = static_cast<int>(pair.remoteNumas[k].numaId);
+            msg.payload[0].groups[i].targets[k].size = pair.remoteNumas[k].quota;
+        }
+    }
+
+    return MEM_POOLING_OK;
+}
+
+static void LogGroupedMigrateOutMsg(const smap::GroupedMigrateOutMsg &msg)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[SmapCtrl][LogMsg] msg.count=" << msg.count
+        << ", pid=" << msg.payload[0].pid
+        << ", groupCount=" << msg.payload[0].groupCount << ".";
+
+    for (int i = 0; i < msg.payload[0].groupCount; ++i) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapCtrl][LogMsg] Group[" << i << "]"
+            << " localCount=" << msg.payload[0].groups[i].localCount
+            << ", targetCount=" << msg.payload[0].groups[i].targetCount << ".";
+
+        for (int j = 0; j < msg.payload[0].groups[i].localCount; ++j) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[SmapCtrl][LogMsg] Group[" << i << "] local[" << j << "]"
+                << " nid=" << msg.payload[0].groups[i].locals[j].nid
+                << ", size=" << msg.payload[0].groups[i].locals[j].size << "KB.";
+        }
+
+        for (int k = 0; k < msg.payload[0].groups[i].targetCount; ++k) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[SmapCtrl][LogMsg] Group[" << i << "] target[" << k << "]"
+                << " nid=" << msg.payload[0].groups[i].targets[k].nid
+                << ", size=" << msg.payload[0].groups[i].targets[k].size << "KB.";
+        }
+    }
+}
+
+uint32_t mempooling::outinterface::UBSRMRSSmapEnableProcessMigrateGrouped(
+    pid_t pid, const std::vector<mempooling::outinterface::PageSwapPair> &pageSwapPairs)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[SmapCtrl][MigrateGrouped] Entry, pid=" << pid << ".";
+
+    if (pageSwapPairs.empty() || pageSwapPairs.size() > MAX_MIGRATION_GROUP_NUM) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapCtrl][MigrateGrouped] pageSwapPairs size invalid=" << pageSwapPairs.size() << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint32_t validateRet = MpVmQuotaUtil::ValidateNumaQuota(pid, pageSwapPairs);
+    if (validateRet != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapCtrl][MigrateGrouped] NUMA quota validation failed.";
+        return validateRet;
+    }
+
+    auto& mgr = ApiConcurrencyManager::getInstance();
+    if (!mgr.TryEnterOtherFunc()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapCtrl][MigrateGrouped] Concurrency is not supported.";
+        return MEM_POOLING_ERROR;
+    }
+
+    smap::GroupedMigrateOutMsg msg{};
+    msg.payload[0].pid = pid;
+    
+    uint32_t ret = ValidateAndConvertPageSwapPairs(pageSwapPairs, msg);
+    if (ret != MEM_POOLING_OK) {
+        mgr.ExitOtherFunc();
+        return ret;
+    }
+
+    smap::SmapMigrateOutGroupedFunc smapMigrateOutGroupedFunc = smap::SmapModule::GetSmapMigrateOutGroupedFunc();
+    if (smapMigrateOutGroupedFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapCtrl][MigrateGrouped] GetSmapMigrateOutGroupedFunc failed.";
+        mgr.ExitOtherFunc();
+        return MEM_POOLING_ERROR;
+    }
+
+    LogGroupedMigrateOutMsg(msg);
+
+    int smapRet = smapMigrateOutGroupedFunc(&msg, PID_TYPE);
+    mgr.ExitOtherFunc();
+
+    if (smapRet == SMAP_OK) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapCtrl][MigrateGrouped] succeeded.";
+        return MEM_POOLING_OK;
+    }
+
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[SmapCtrl][MigrateGrouped] failed, ret=" << smapRet << ".";
+    return MEM_POOLING_ERROR;
 }
 
 bool mempooling::outinterface::ApiConcurrencyManager::TryEnterOtherFunc()

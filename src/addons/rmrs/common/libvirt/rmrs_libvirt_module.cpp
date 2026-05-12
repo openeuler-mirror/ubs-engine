@@ -38,6 +38,7 @@ VirConnectDomainEventRegisterFunc LibvirtModule::virConnectDomainEventRegisterFu
 VirConnectDomainEventDeRegisterFunc LibvirtModule::virConnectDomainEventDeRegisterFunc = nullptr;
 VirConnectSetKeepAliveFunc LibvirtModule::virConnectSetKeepAliveFunc = nullptr;
 VirDomainLookupByNameFunc LibvirtModule::virDomainLookupByNameFunc = nullptr;
+VirDomainGetXMLDescFunc LibvirtModule::virDomainGetXMLDescFunc = nullptr;
 
 MpResult LibvirtModule::Init()
 {
@@ -74,6 +75,7 @@ void LibvirtModule::CloseLibvirtHandle()
     virConnectDomainEventDeRegisterFunc = nullptr;
     virConnectSetKeepAliveFunc = nullptr;
     virDomainLookupByNameFunc = nullptr;
+    virDomainGetXMLDescFunc = nullptr;
     return;
 }
 
@@ -321,5 +323,20 @@ VirDomainLookupByNameFunc LibvirtModule::VirDomainLookupByName()
         return nullptr;
     }
     return virDomainLookupByNameFunc;
+}
+
+VirDomainGetXMLDescFunc LibvirtModule::VirDomainGetXMLDesc()
+{
+    if (virDomainGetXMLDescFunc != nullptr) {
+        return virDomainGetXMLDescFunc;
+    }
+    virDomainGetXMLDescFunc =
+        reinterpret_cast<VirDomainGetXMLDescFunc>(dlsym(libvirtHandle, "virDomainGetXMLDesc"));
+    if (virDomainGetXMLDescFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "Get virDomainGetXMLDesc ptr failed. " << std::string(strerror(errno)) << ".";
+        return nullptr;
+    }
+    return virDomainGetXMLDescFunc;
 }
 } // namespace mempooling::libvirt
