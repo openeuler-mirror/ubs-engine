@@ -103,11 +103,6 @@ public:
         return enableBorrowSplit;
     }
 
-    uint32_t GetFaultProcessTimeout()
-    {
-        return faultProcessTimeout;
-    }
-
     inline bool GetMultiNumaScene()
     {
         return multiNumaScene;
@@ -144,7 +139,6 @@ private:
     bool multiNumaScene = false;
     bool mustSamePlane = true;
     bool enableBorrowSplit = true;
-    uint32_t faultProcessTimeout{540000};
 };
 
 } // namespace mempooling
