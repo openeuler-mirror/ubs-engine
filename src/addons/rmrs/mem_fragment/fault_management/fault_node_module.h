@@ -187,8 +187,9 @@ public:
 private:
     FaultNodeModule() = default;
     ~FaultNodeModule() = default;
-    FaultNodeModule(const FaultNodeModule&) = delete;
-    FaultNodeModule& operator=(const FaultNodeModule&) = delete;
+    FaultNodeModule(const FaultNodeModule &) = delete;
+    FaultNodeModule &operator=(const FaultNodeModule &) = delete;
+    uint16_t faultHandleCurRound = 0;
 };
 
 void NodeNumaReplaceReturnHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);

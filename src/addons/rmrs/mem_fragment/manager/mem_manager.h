@@ -58,6 +58,7 @@ struct BorrowRecord {
     std::vector<uint64_t> borrowMemId{}; //  借入memId
     uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
     std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uint16_t borrowSocketId{0};            //  借入内存socketId
 
     std::string ToString() const
     {
@@ -72,6 +73,7 @@ struct BorrowRecord {
             oss << memid << ",";
         }
         oss << "lent_Socket_Id=" << lentSocketId << ",";
+        oss << "borrow_Socket_Id=" << borrowSocketId << ",";
         oss << "lent_Numa=";
         for (const auto& numa : lentNuma) {
             oss << numa.ToString() << ",";

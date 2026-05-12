@@ -43,6 +43,8 @@ struct BorrowInNodeData {
     std::string borrowId;
     uid_t uid{0};
     std::string username{};
+    int16_t borrowNumaId{0};
+    int16_t borrowSocketId{0};
 };
 
 struct MemBorrowStrategyParam {
