@@ -558,8 +558,9 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemAddrCreateReqTest)
         // 设置当前节点信息
         UbseRoleInfo currentRoleInfo;
         currentRoleInfo.nodeId = "1";
+        uint8_t mode = 0;
         MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentRoleInfo)).will(returnValue(UBSE_OK));
-        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, addrBorrowReq);
+        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, mode, addrBorrowReq);
         // 验证结果
         EXPECT_EQ(addrBorrowReq.name, name);
         EXPECT_EQ(addrBorrowReq.requestNodeId, currentRoleInfo.nodeId);
@@ -583,8 +584,9 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemAddrCreateReqTest)
         lender.pid = 1234;
         lender.vaLists = {{.size = 4 * 1024 * 1024}};
         uint32_t flag = 0;
+        uint8_t mode = 0;
         UbseMemAddrBorrowReq addrBorrowReq;
-        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, addrBorrowReq);
+        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, mode, addrBorrowReq);
         EXPECT_EQ(addrBorrowReq.name, name); // 空名称应该被保留
     }
     // 测试用例3: 空vaLists
@@ -595,8 +597,9 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemAddrCreateReqTest)
         lender.pid = 1234;
         lender.vaLists = {}; // 空列表
         uint32_t flag = 0;
+        uint8_t mode = 0;
         UbseMemAddrBorrowReq addrBorrowReq;
-        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, addrBorrowReq);
+        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, mode, addrBorrowReq);
         EXPECT_TRUE(addrBorrowReq.exportAddrList.empty());
     }
     // 测试用例4: 多个地址
@@ -608,7 +611,8 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemAddrCreateReqTest)
         lender.vaLists = {{.addr = 0x1000, .size = 4 * 1024 * 1024}, {.addr = 0x2000, .size = 8 * 1024 * 1024}};
         uint32_t flag = 0;
         UbseMemAddrBorrowReq addrBorrowReq;
-        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, addrBorrowReq);
+        uint8_t mode = 0;
+        ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, mode, addrBorrowReq);
         ASSERT_EQ(addrBorrowReq.exportAddrList.size(), 2);
         EXPECT_EQ(addrBorrowReq.exportAddrList[0].addr, 0x1000);
         EXPECT_EQ(addrBorrowReq.exportAddrList[0].size, 4 * 1024 * 1024);

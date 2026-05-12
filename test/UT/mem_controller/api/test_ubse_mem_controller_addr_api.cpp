@@ -172,7 +172,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSuccess)
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
     MOCKER_CPP(&GetNumaInfoFromAgent).stubs().will(returnValue(UBSE_OK));
     SendAddrExportObjMockSet();
-    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp, NODE_ONE), UBSE_OK);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowChangeHandlerFailed)
@@ -188,7 +188,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowChangeHandlerFailed)
     MOCKER_CPP(&GetNumaInfoFromAgent).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp, NODE_ONE), UBSE_OK);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
@@ -214,7 +214,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
     MOCKER_CPP(&GetNumaInfoFromAgent).stubs().will(returnValue(UBSE_OK));
     MasterSendAddrExpoprtObjMockSetError();
     MOCKER_CPP(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp), UBSE_OK);
+    EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp, NODE_ONE), UBSE_OK);
 }
 
 // 辅助函数，设置公共的mock配置

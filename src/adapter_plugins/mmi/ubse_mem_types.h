@@ -75,6 +75,7 @@ struct UbseMemLocalObmmCustomMeta {
     uint64_t srcPid{};  // 进程借用 导出端存储 src pid, 应用借用时为应用进程的Pid
     uint64_t dstPid{};  // 进程借用 导出端存储 dst pid
     uint64_t virAddr{}; // 进程借用 虚拟地址
+
     // 用于判断一个obmm设备有没有被使用，存储pid可以快速判断，没有pid用lsof判断
     char exportNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};
     char requestNodeId[UBSE_MEM_MAX_NODE_ID_LENGTH]{};

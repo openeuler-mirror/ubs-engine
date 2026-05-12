@@ -223,7 +223,8 @@ UbseResult UbseMemAddrCreateReqIsValid(const std::string& name, const UbseMemBor
 }
 
 void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower &borrower,
-                                 const UbseMemProcessLender &lender, uint32_t flag, UbseMemAddrBorrowReq &addrBorrowReq)
+                                 const UbseMemProcessLender &lender, uint32_t flag, uint8_t exportAccessMode,
+                                 UbseMemAddrBorrowReq &addrBorrowReq)
 {
     addrBorrowReq.name = name;
     addrBorrowReq.requestNodeId = GetCurNodeId();
@@ -237,5 +238,11 @@ void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower 
     }
     addrBorrowReq.requestId = GenRequestId();
     addrBorrowReq.wrDelayComp = flag;
+    if (exportAccessMode != 0 && exportAccessMode != 1) {
+        UBSE_LOG_WARN << "Invalid exportAccessMode: " << exportAccessMode << ", set exportAccessMode = 0";
+        addrBorrowReq.exportAccessMode = 0;
+    } else {
+        addrBorrowReq.exportAccessMode = exportAccessMode;
+    }
 }
 } // namespace ubse::mem::controller

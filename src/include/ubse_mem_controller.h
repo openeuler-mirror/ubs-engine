@@ -282,11 +282,13 @@ struct UbseMemAddrDesc {
  * @param borrower [IN] 必填，借用方信息
  * @param lenders [IN] 必填，借出方信息
  * @param flag [IN] 额外的内存借用属性，1为非接力模式，0为接力模式
+ * @param exportAccessMode [IN] 导出端内存访问模式、0为invalid(适用于虚机迁移), 1为valid(适用于异地快恢), 默认为0;输出非0和1时默认为0
  * @param desc [OUT] 借用形成的远端numa信息
  * @return UbseResult
  */
 UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &borrower,
-                             const UbseMemProcessLender &lender, uint32_t flag, UbseMemAddrDesc &desc);
+                             const UbseMemProcessLender &lender, uint32_t flag, uint8_t exportAccessMode,
+                             UbseMemAddrDesc &desc);
 
 /**
  * @brief 删除addr借用;

@@ -140,10 +140,10 @@ UbseResult UbseMemAddrBorrowMessageHandler::Handle(const UbseBaseMessagePtr &req
     }
     // 使用线程池异步执行
     std::string traceId = TraceContext::GetTraceId();
-    resourceExecutor->Execute([request, traceId]() {
+    resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemAddrBorrow(request->GetUbseMemAddrBorrowReq(), resp);
+        UbseMemAddrBorrow(request->GetUbseMemAddrBorrowReq(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;

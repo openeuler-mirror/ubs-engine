@@ -363,23 +363,24 @@ TEST_F(TestUbseMemController, UbseMemAddrCreate)
     UbseMemBorrower borrower{.nodeId = "1"};
     UbseMemProcessLender lender;
     uint32_t flag = 0;
+    uint8_t exportAccessMode = 0;
     UbseMemAddrDesc desc;
 
     // 场景 1: 参数校验失败
     MOCKER(UbseMemAddrCreateReqIsValid).stubs().will(returnValue(UBSE_ERR_INVALID_ARG));
-    EXPECT_EQ(UbseMemAddrCreate(name, borrower, lender, flag, desc), UBSE_ERR_INVALID_ARG);
+    EXPECT_EQ(UbseMemAddrCreate(name, borrower, lender, flag, exportAccessMode, desc), UBSE_ERR_INVALID_ARG);
 
     // 场景 2: 调用内部接口失败
     MOCKER(UbseMemAddrCreateReqIsValid).reset();
     MOCKER(UbseMemAddrCreateReqIsValid).stubs().will(returnValue(UBSE_OK));
     MOCKER(ubse::mem::controller::agent::UbseMemAddrBorrow).stubs().will(invoke(MockUbseMemAddrBorrowRespError));
-    EXPECT_EQ(UbseMemAddrCreate(name, borrower, lender, flag, desc), UBSE_ERR_INTERNAL);
+    EXPECT_EQ(UbseMemAddrCreate(name, borrower, lender, flag, exportAccessMode, desc), UBSE_ERR_INTERNAL);
 
     // 场景 3: 成功
     MOCKER(ubse::mem::controller::agent::UbseMemAddrBorrow).reset();
     MOCKER(ubse::mem::controller::agent::UbseMemAddrBorrow).stubs().will(invoke(MockUbseMemAddrBorrowRespSuccess));
     MOCKER(ubse::mem::controller::UbseMemAddrGet).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemAddrCreate(name, borrower, lender, flag, desc), UBSE_OK);
+    EXPECT_EQ(UbseMemAddrCreate(name, borrower, lender, flag, exportAccessMode, desc), UBSE_OK);
 }
 
 TEST_F(TestUbseMemController, UbseMemAddrDelete)
