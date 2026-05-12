@@ -717,9 +717,9 @@ MpResult FaultNodeModule::ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> f
 
 MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
 {
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault start.";
-    const uint32_t faultProcessTimeoutMs = MpConfiguration::GetInstance().GetFaultProcessTimeout();
-    const auto startTime = std::chrono::steady_clock::now();
+    faultHandleCurRound++;
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round " 
+                                                      << faultHandleCurRound << " start.";
 
     // =========基于不信任原则，获取账本并筛选合法条目===========
     // =========仅处理合法条目，处理完后返回失败，利用UBSE故障重试机制继续处理===========
@@ -737,7 +737,7 @@ MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] DetermineNodeType failed.";
-        continue;
+        return MEM_POOLING_ERROR;
     }
     if (nodeType == NodeType::BORROW_IN) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -749,8 +749,10 @@ MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
                 << "[FaultManager] Process BORROW_OUT node fault failed.";
         }
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault end.";
-    return MEM_POOLING_OK;
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round " 
+                                                      << faultHandleCurRound << " end.";
+    // 处理完后返回失败，利用UBSE故障重试机制继续处理
+    return MEM_POOLING_ERROR;
 }
 
 MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem)

@@ -1443,11 +1443,12 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1491,12 +1492,13 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault(const std::str
         record.size = debtInfo.size / KB_TO_BYTES;
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
-        // 下标防护
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] lentSocketIdList is empty.";
-            continue;
+        // lentSocketIdList加上空校验
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
+            return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1555,11 +1557,12 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsAllWithFault()
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1633,11 +1636,12 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsWithFault(const std::string nod
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;

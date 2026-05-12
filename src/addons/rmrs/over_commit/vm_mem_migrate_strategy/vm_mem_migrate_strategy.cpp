@@ -1218,7 +1218,7 @@ void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t> &remoteNuma,
                              std::vector<BorrowRecord> &borrowRecord)
 {
     for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecord) {
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecord) {
         if (srcNumaId != -1 && srcNumaId != borrowLocalNuma) {
             continue;
         }
@@ -1231,7 +1231,7 @@ void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t> &remoteNuma,
     }
 
     for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecord) {
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecord) {
         if (remoteNuma.find(borrowRemoteNuma) == remoteNuma.end()) {
             continue;
         }

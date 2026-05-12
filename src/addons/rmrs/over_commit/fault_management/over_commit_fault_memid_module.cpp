@@ -174,7 +174,7 @@ uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string &localNodeId, uint
     }
     uint64_t borrowSize{0};
     for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (bindType == NumaBindType::BIND_SINGLE) {
             if ((borrowLocalNuma == localNumaId) && (borrowRemoteNuma == remoteNumaId)) {
                 borrowSize += size;
@@ -203,7 +203,7 @@ MpResult GetLocalBorrowNumaIdOfMemId(const std::string &localNodeId, int16_t &lo
         return MEM_POOLING_ERROR;
     }
     for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         auto it = std::find(borrowMemId.begin(), borrowMemId.end(), memId);
         if (it != borrowMemId.end()) {
             localNumaId = borrowLocalNuma;
