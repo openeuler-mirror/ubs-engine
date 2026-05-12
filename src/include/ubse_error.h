@@ -211,6 +211,7 @@
 #define UBSE_MMI_OBMM_OP_FAILED UBSE_INTERNAL_ERROR_DEF(700)                    /* OBMM 接口调用失败 */
 #define UBSE_MMI_DAEMON_FAILED UBSE_INTERNAL_ERROR_DEF(701)                     /* UBSE 接口调用失败 */
 #define UBSE_MMI_OPEN_FAILED UBSE_INTERNAL_ERROR_DEF(702)                       /* 文件打不开 */
+#define UBSE_MMI_OBMM_OP_TIMEOUT UBSE_INTERNAL_ERROR_DEF(703)                  /* OBMM 接口调用超时 */
 
 /* ====================== Mem Scheduler错误码 (10800~10899) ====================== */
 #define UBSE_SCHEDULER_ERROR_INVAL UBSE_INTERNAL_ERROR_DEF(800)             /* 借用参数不合法错误 */

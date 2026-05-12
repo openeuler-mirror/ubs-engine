@@ -12,6 +12,7 @@
 
 #ifndef UBSE_MANAGER_RM_OBMM_EXECUTOR_H
 #define UBSE_MANAGER_RM_OBMM_EXECUTOR_H
+#include <csignal>
 #include <vector>
 
 #include <dlfcn.h>
@@ -27,6 +28,7 @@
 #include "ubse_mmi_interface.h"
 #include "ubse_mmi_obmm_def.h"
 #include "ubse_security_module.h"
+#include "ubse_mmi_timeout_manager.h"
 
 namespace ubse::mmi {
 #define MODULE_LOG_NAME "ubse"
@@ -76,6 +78,7 @@ public:
     UbseResult ObmmUnExport(mem_id id);
     mem_id ObmmImport(const ubse_mem_obmm_mem_desc &desc, const ObmmOpParam &opParam, int *numa);
     UbseResult ObmmUnImport(mem_id id);
+    UbseResult ObmmUnImport(mem_id id, uint64_t timeoutMs);
 
     // 批量导出导入
     std::vector<mem_id> ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam &opParam,
@@ -84,6 +87,7 @@ public:
     std::vector<mem_id> ObmmImport(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
                                    UbseMemImportStatus &status, int *numa);
     UbseResult ObmmUnImport(const std::vector<mem_id> &id);
+    UbseResult ObmmUnImport(const std::vector<mem_id> &id, uint64_t timeoutMs);
     UbseResult ObmmExportPid(ObmmPidExportParam &param, struct ubse_mem_obmm_mem_desc &desc,
                              const UbseMemLocalObmmCustomMeta &customMeta, const UbMemPrivData &ubMemPrivData);
     UbseResult ObmmQueryUBPaByMemId(uint64_t handle, unsigned long offset, unsigned long *pa);
@@ -95,6 +99,8 @@ public:
     mem_id ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam &opParam);
 
     uint64_t GetObmmBlockSize();
+
+    static uint64_t CalculateUnImportTimeout(uint64_t blockSizeMb);
 
     template <typename T>
     UbseResult DlOpenFunName(T &funPtr, const std::string &funName)
@@ -171,6 +177,8 @@ private:
     static constexpr auto OBMM_PATH = "libobmm.so.1";
     bool preOnlineSwitch{false};
     void *handle{nullptr};
+
+    void RegisterSigusr1Handler();
 
     ObmmExportPtr obmmExportFunc{};
     ObmmUnexportPtr obmmUnexportFunc{};

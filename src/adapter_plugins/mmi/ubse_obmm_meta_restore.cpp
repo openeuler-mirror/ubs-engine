@@ -543,4 +543,33 @@ UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
     numa = index;
     return UBSE_OK;
 }
+
+UbseResult RmObmmDevRead::GetNameByMemId(mem_id memId, std::string &name)
+{
+    std::string path = "/sys/devices/obmm/obmm_shmdev" + std::to_string(memId);
+    UbseMemLocalObmmCustomMeta customMeta{};
+    UbMemPrivData privData{};
+    auto ret = GetCustomMeta(path, customMeta, privData);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "GetNameByMemId failed to read customMeta, memid=" << memId << ", ret=" << ret;
+        return ret;
+    }
+    name = std::string(customMeta.name);
+    return UBSE_OK;
+}
+
+UbseResult RmObmmDevRead::GetBorrowTypeByMemId(mem_id memId, uint8_t &borrowType)
+{
+    std::string path = "/sys/devices/obmm/obmm_shmdev" + std::to_string(memId);
+    UbseMemLocalObmmCustomMeta customMeta{};
+    UbMemPrivData privData{};
+    auto ret = GetCustomMeta(path, customMeta, privData);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "GetBorrowTypeByMemId failed, memid=" << memId << ", ret=" << ret;
+        return ret;
+    }
+    borrowType = customMeta.type;
+    return UBSE_OK;
+}
+
 } // namespace ubse::mmi

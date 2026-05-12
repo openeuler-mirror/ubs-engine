@@ -129,7 +129,7 @@ TEST_F(TestUbseMmiModule, UbseMemFdUnImportExecutor_Success)
     importObj.status.expectState = UBSE_MEM_STATE_DESTROYING;
     importObj.status.scna = 0x401;
     importObj.status.importResults = {{1, -1}, {2, -1}, {3, -1}, {4, -1}, {5, -1}, {6, -1}, {7, -1}, {8, -1}};
-    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](mem_id id, unsigned long flags) {
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
         return 0;
     };
     auto ret = module.UbseMemFdUnImportExecutor(importObj);
@@ -296,7 +296,7 @@ TEST_F(TestUbseMmiModule, UbseMemNumaUnImportExecutor_Success)
     importObj.status.expectState = UBSE_MEM_STATE_DESTROYING;
     importObj.status.scna = 0x401;
     importObj.status.importResults = {{1, -1}, {2, -1}, {3, -1}, {4, -1}, {5, -1}, {6, -1}, {7, -1}, {8, -1}};
-    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](mem_id id, unsigned long flags) {
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
         return 0;
     };
     auto ret = module.UbseMemNumaUnImportExecutor(importObj);

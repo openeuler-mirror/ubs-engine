@@ -10,6 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <array>
+#include <csignal>
+#include <unistd.h>
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
@@ -36,7 +38,20 @@ UbseResult RmObmmExecutor::Init()
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get obmm funcs failed from libobmm.so.";
         return ret;
     }
+    RegisterSigusr1Handler();
     return UBSE_OK;
+}
+
+void RmObmmExecutor::RegisterSigusr1Handler()
+{
+    struct sigaction sa {};
+    sa.sa_handler = [](int) {
+        const char msg[] = "SIGUSR1 received, obmm_unimport interrupted\n";
+        write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    };
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGUSR1, &sa, nullptr);
 }
 
 UbseResult RmObmmExecutor::Exit()
@@ -297,6 +312,45 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id)
     return UBSE_OK;
 }
 
+UbseResult RmObmmExecutor::ObmmUnImport(mem_id id, uint64_t timeoutMs)
+{
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "Start to use Obmm Unimport with timeout interface, mem_id="
+                   << id << ", timeoutMs=" << timeoutMs;
+    auto obmmFlags = 0;
+    int ret;
+    errno = 0;
+    if (obmmUnimportFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmUnimportFunc is nullptr, please check.";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    pthread_t targetTid = pthread_self();
+    UbseMmiTimeoutGuard guard(timeoutMs, [targetTid]() {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "obmm_unimport timeout, sending SIGUSR1 to interrupt target thread.";
+        pthread_kill(targetTid, SIGUSR1);
+    });
+
+    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    ret = obmmUnimportFunc(id, obmmFlags);
+    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+
+    guard.Cancel();
+
+    if (ret && errno != ENOENT) {
+        char buf[STR_ERROR_BUF_SIZE] = {0};
+        if (errno == EINTR) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport interrupted by timeout, memid=" << id;
+            return UBSE_MMI_OBMM_OP_TIMEOUT;
+        }
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport error! memid=" << id << ", ret=" << ret
+                       << ", flag=" << obmmFlags << ", errno=" << errno << ", errMsg="
+                       << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
+        return UBSE_MMI_OBMM_OP_FAILED;
+    }
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport memid=" << id << ", ret=" << ret;
+    return UBSE_OK;
+}
+
 mem_id RmObmmExecutor::ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam &opParam)
 {
     if (opParam.borrowType == UbseBorrowType::NUMA_BORROW || opParam.borrowType == UbseBorrowType::ADDR_BORROW) {
@@ -350,6 +404,22 @@ UbseResult RmObmmExecutor::ObmmUnImport(const std::vector<mem_id> &id)
     std::vector<uint64_t> successfulList;
     for (mem_id memId : id) {
         const auto ret = ObmmUnImport(memId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "All memIds=" << RmCommonUtils::GetInstance().MemToStr(id)
+                           << ", successfulList=" << RmCommonUtils::GetInstance().MemToStr(successfulList)
+                           << ", errCode=" << ret;
+            return ret;
+        }
+        successfulList.push_back(memId);
+    }
+    return UBSE_OK;
+}
+
+UbseResult RmObmmExecutor::ObmmUnImport(const std::vector<mem_id> &id, uint64_t timeoutMs)
+{
+    std::vector<uint64_t> successfulList;
+    for (mem_id memId : id) {
+        const auto ret = ObmmUnImport(memId, timeoutMs);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "All memIds=" << RmCommonUtils::GetInstance().MemToStr(id)
                            << ", successfulList=" << RmCommonUtils::GetInstance().MemToStr(successfulList)
@@ -556,6 +626,12 @@ UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info *preimport
     UBSE_LOG_INFO << MMI_LOG_INFO << "UnPreImport success, remote numa_id=" << preimport_info->numa_id
                   << ", scna=" << preimport_info->scna;
     return UBSE_OK;
+}
+
+uint64_t RmObmmExecutor::CalculateUnImportTimeout(uint64_t blockSizeMb)
+{
+    static uint64_t minTimeOutMs = 5000;
+    return minTimeOutMs + blockSizeMb;
 }
 
 } // namespace ubse::mmi
