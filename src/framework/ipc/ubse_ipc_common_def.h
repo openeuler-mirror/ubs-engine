@@ -38,9 +38,9 @@ enum class UbseIpcMemFaultType {
     UB_MEM_HEALTHY = 1000, // 无故障
 };
 
-struct UbseShmFault {
-    std::string shmName;
-    uint64_t memId;
+struct UbseMemFault {
+    std::string memName;
+    uint64_t handleId;
     UbseIpcMemFaultType type;
 };
 } // namespace ubse::ipc

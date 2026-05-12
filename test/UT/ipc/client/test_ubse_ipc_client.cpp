@@ -175,7 +175,7 @@ TEST_F(TestUbseIpcClient, ShmFaultRegister_WhenRegisterSuccessfully)
     // 验证处理程序是否注册成功
     UbseRequestMessage request;
     request.header.moduleCode = UBSE_LONG_LINK_REGISTER;
-    request.header.opCode = UBSE_LONGLINK_FAULT;
+    request.header.opCode = UBSE_LONGLINK_FAULT_SHM;
     request.header.clientRequestId = 0;
     request.header.bodyLen = 0;
     request.body = nullptr;
@@ -208,8 +208,8 @@ TEST_F(TestUbseIpcClient, SerializeShmFault_Normal)
 {
     uint8_t *buffer = nullptr;
     size_t size = 0;
-    UbseShmFault shmFault{"name", 1, UbseIpcMemFaultType::UB_MEM_HEALTHY};
-    uint32_t result = SerializeShmFault(shmFault, buffer, size);
+    UbseMemFault shmFault{"name", 1, UbseIpcMemFaultType::UB_MEM_HEALTHY};
+    uint32_t result = SerializeMemFault(shmFault, buffer, size);
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_NE(buffer, nullptr);
     EXPECT_GT(size, 0);
@@ -223,22 +223,22 @@ TEST_F(TestUbseIpcClient, DeSerializeShmFault_Normal)
 {
     uint8_t *buffer = nullptr;
     size_t size = 0;
-    UbseShmFault shmFault{"name", 1, UbseIpcMemFaultType::UB_MEM_HEALTHY};
+    UbseMemFault shmFault{"name", 1, UbseIpcMemFaultType::UB_MEM_HEALTHY};
 
     // 先进行序列化
-    uint32_t serializeResult = SerializeShmFault(shmFault, buffer, size);
+    uint32_t serializeResult = SerializeMemFault(shmFault, buffer, size);
     EXPECT_EQ(serializeResult, UBSE_OK);
     EXPECT_NE(buffer, nullptr);
     EXPECT_GT(size, 0);
 
     // 进行反序列化
-    UbseShmFault deserializedShmFault{};
-    uint32_t deserializeResult = DeSerializeShmFault(deserializedShmFault, buffer, size);
+    UbseMemFault deserializedShmFault{};
+    uint32_t deserializeResult = DeSerializeMemFault(deserializedShmFault, buffer, size);
     EXPECT_EQ(deserializeResult, UBSE_OK);
 
     // 验证反序列化结果
-    EXPECT_STREQ(deserializedShmFault.shmName.c_str(), shmFault.shmName.c_str());
-    EXPECT_EQ(deserializedShmFault.memId, shmFault.memId);
+    EXPECT_STREQ(deserializedShmFault.memName.c_str(), shmFault.memName.c_str());
+    EXPECT_EQ(deserializedShmFault.handleId, shmFault.handleId);
     EXPECT_EQ(deserializedShmFault.type, shmFault.type);
 
     // 释放缓冲区
@@ -252,12 +252,12 @@ TEST_F(TestUbseIpcClient, DeSerializeShmFault_Failure)
 {
     uint8_t *buffer = nullptr;
     size_t size = 0;
-    UbseShmFault deserializedShmFault;
+    UbseMemFault deserializedShmFault;
 
     // 故意设置不正确的大小
     size = 10; // 假设实际序列化后的大小大于10字节
 
-    uint32_t deserializeResult = DeSerializeShmFault(deserializedShmFault, buffer, size);
+    uint32_t deserializeResult = DeSerializeMemFault(deserializedShmFault, buffer, size);
     EXPECT_NE(deserializeResult, UBSE_OK);
 }
 
@@ -266,9 +266,9 @@ TEST_F(TestUbseIpcClient, DeSerializeShmFault_NullBuffer)
 {
     uint8_t *buffer = nullptr;
     size_t size = 0;
-    UbseShmFault deserializedShmFault;
+    UbseMemFault deserializedShmFault;
 
-    uint32_t deserializeResult = DeSerializeShmFault(deserializedShmFault, buffer, size);
+    uint32_t deserializeResult = DeSerializeMemFault(deserializedShmFault, buffer, size);
     EXPECT_NE(deserializeResult, UBSE_OK);
 }
 
@@ -277,9 +277,9 @@ TEST_F(TestUbseIpcClient, DeSerializeShmFault_ZeroSize)
 {
     uint8_t *buffer = new uint8_t[10]{}; // 分配10字节的测试缓冲区
     size_t size = 0;
-    UbseShmFault deserializedShmFault;
+    UbseMemFault deserializedShmFault;
 
-    uint32_t deserializeResult = DeSerializeShmFault(deserializedShmFault, buffer, size);
+    uint32_t deserializeResult = DeSerializeMemFault(deserializedShmFault, buffer, size);
     EXPECT_NE(deserializeResult, UBSE_OK);
 
     // 释放缓冲区

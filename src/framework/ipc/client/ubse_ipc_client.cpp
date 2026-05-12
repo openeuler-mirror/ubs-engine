@@ -202,22 +202,22 @@ uint32_t ubse_register_listen_event(uint16_t moduleCode, uint16_t opCode)
 uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler)
 {
     // 向服务端注册故障监听事件
-    uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT);
+    uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM);
     if (ret != UBSE_OK) {
         ubse::ipc::UbseUDSClient::GetInstance().Stop();
         return ret;
     }
     std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
     UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage &msg) -> uint32_t {
-        UbseShmFault fault{};
-        auto ret = DeSerializeShmFault(fault, msg.body, size_t(msg.header.bodyLen));
+        UbseMemFault fault{};
+        auto ret = DeSerializeMemFault(fault, msg.body, size_t(msg.header.bodyLen));
         if (ret != UBSE_OK) {
             IPC_LOG_ERROR << "deserialize fault info failed.";
             return ret;
         }
-        IPC_LOG_INFO << "sham fault name=" << fault.shmName;
-        return handler(fault.shmName.c_str(), fault.memId, static_cast<ubs_mem_fault_type_t>(fault.type));
+        IPC_LOG_INFO << "shm fault name=" << fault.memName;
+        return handler(fault.memName.c_str(), fault.handleId, static_cast<ubs_mem_fault_type_t>(fault.type));
     };
-    clientIpcHandlerMap[{UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT}] = ipcHandler;
+    clientIpcHandlerMap[{UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM}] = ipcHandler;
     return UBSE_OK;
 }

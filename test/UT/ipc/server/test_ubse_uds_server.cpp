@@ -310,7 +310,8 @@ TEST_F(TestUbseUdsServer, AsyncSendLongLink_MessageTooLarge)
 
     // 调用函数
     std::vector<uint64_t> reqList;
-    uint32_t ret = server->AsyncSendLongLink(requestMessage, nullptr, nullptr, reqList);
+    UbseClientInfo clientInfo{.uid = 0, .gid = 0, .pid = 0};
+    uint32_t ret = server->AsyncSendLongLink(requestMessage, clientInfo, nullptr, nullptr, reqList);
 
     // 验证结果
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
@@ -325,10 +326,12 @@ TEST_F(TestUbseUdsServer, AsyncSendLongLink_SendFailed)
     requestMessage.header.bodyLen = 100; // 数据长度100
     std::unordered_set<int> fds = { 123 };
     server->clientMap_[{ requestMessage.header.moduleCode, requestMessage.header.opCode }] = fds;
+    MOCKER_CPP(&UbseUDSServer::GetClientInfoByFd).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseUDSServer::SendReq).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     // 调用函数
     std::vector<uint64_t> reqList;
-    uint32_t ret = server->AsyncSendLongLink(requestMessage, nullptr, nullptr, reqList);
+    UbseClientInfo clientInfo{.uid = 0, .gid = 0, .pid = 0};
+    uint32_t ret = server->AsyncSendLongLink(requestMessage, clientInfo, nullptr, nullptr, reqList);
 
     // 验证结果
     EXPECT_NE(ret, UBSE_OK);

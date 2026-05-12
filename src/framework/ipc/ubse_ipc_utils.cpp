@@ -95,10 +95,10 @@ uint32_t SerializeResponseMessage(const UbseResponseMessage &responseMessage, st
     return UBSE_OK;
 }
 
-uint32_t SerializeShmFault(const UbseShmFault &shmFault, uint8_t *&buffer, size_t &size)
+uint32_t SerializeMemFault(const UbseMemFault &memFault, uint8_t *&buffer, size_t &size)
 {
     UbseSerialization outStream;
-    outStream << shmFault.shmName << shmFault.memId << enum_v(shmFault.type);
+    outStream << memFault.memName << memFault.handleId << enum_v(memFault.type);
     if (!outStream.Check()) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
@@ -107,10 +107,10 @@ uint32_t SerializeShmFault(const UbseShmFault &shmFault, uint8_t *&buffer, size_
     return UBSE_OK;
 }
 
-uint32_t DeSerializeShmFault(UbseShmFault &shmFault, uint8_t *buffer, size_t size)
+uint32_t DeSerializeMemFault(UbseMemFault &memFault, uint8_t *buffer, size_t size)
 {
     UbseDeSerialization inStream(buffer, size);
-    inStream >> shmFault.shmName >> shmFault.memId >> enum_v(shmFault.type);
+    inStream >> memFault.memName >> memFault.handleId >> enum_v(memFault.type);
     if (!inStream.Check()) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }

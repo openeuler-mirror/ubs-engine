@@ -103,9 +103,9 @@ uint32_t UbseIpcServer::SendResponse(uint32_t statusCode, uint64_t requestId, Ub
     return udsServer_.SendResponse(requestId, responseMessage);
 }
 
-uint32_t UbseIpcServer::AsyncSendLongLink(UbseRequestMessage requestMessage, void *ctx,
-                                          UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList)
+uint32_t UbseIpcServer::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo &clientInfo,
+                                          void *ctx, UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList)
 {
-    return udsServer_.AsyncSendLongLink(requestMessage, ctx, handler, reqList);
+    return udsServer_.AsyncSendLongLink(requestMessage, clientInfo, ctx, handler, reqList);
 }
 } // namespace ubse::ipc
