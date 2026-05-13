@@ -16,14 +16,14 @@
 
 namespace ubse::utils {
 
-inline void SecureZeroMemory(void *ptr, std::size_t len)
+inline void SecureZeroMemory(void* ptr, std::size_t len)
 {
     if (!ptr || len == 0) {
         return;
     }
 
     // 方法：使用 volatile 指针遍历，确保写入操作不会被编译器优化掉
-    volatile auto *p = static_cast<volatile unsigned char *>(ptr);
+    volatile auto* p = static_cast<volatile unsigned char*>(ptr);
     while (len--) {
         *p++ = 0;
     }
@@ -33,14 +33,14 @@ template <class T>
 class SecureAllocator {
 public:
     using value_type = T;
-    using pointer = T *;
-    using const_pointer = const T *;
+    using pointer = T*;
+    using const_pointer = const T*;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
     SecureAllocator() = default;
     template <typename U>
-    SecureAllocator(const SecureAllocator<U> &) noexcept
+    SecureAllocator(const SecureAllocator<U>&) noexcept
     {
     }
 
@@ -80,7 +80,7 @@ struct SecureBuffer {
     SecureBuffer() = default;
 
     // 从 std::string 或 char* 构造
-    explicit SecureBuffer(const std::string &pwd)
+    explicit SecureBuffer(const std::string& pwd)
     {
         if (!pwd.empty()) {
             data.resize(pwd.size() + 1); // 预分配，减少扩容导致的潜在复制
@@ -89,7 +89,7 @@ struct SecureBuffer {
         }
     }
 
-    const char *c_str() const
+    const char* c_str() const
     {
         return data.empty() ? "" : data.data();
     }
@@ -115,13 +115,13 @@ struct SecureBuffer {
     }
 
     // 禁用拷贝构造和赋值，防止意外复制敏感数据到新的内存位置
-    SecureBuffer(const SecureBuffer &) = delete;
-    SecureBuffer &operator=(const SecureBuffer &) = delete;
+    SecureBuffer(const SecureBuffer&) = delete;
+    SecureBuffer& operator=(const SecureBuffer&) = delete;
 
     // 允许移动，但移动后源对象必须处于已清理状态
-    SecureBuffer(SecureBuffer &&other) noexcept : data(std::move(other.data)) {}
+    SecureBuffer(SecureBuffer&& other) noexcept : data(std::move(other.data)) {}
 
-    SecureBuffer &operator=(SecureBuffer &&other) noexcept
+    SecureBuffer& operator=(SecureBuffer&& other) noexcept
     {
         if (this != &other) {
             Wipe(); // 清理当前数据

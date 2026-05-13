@@ -74,14 +74,14 @@ struct Notify {
 
 class MemHandler {
 public:
-    static MemHandler &GetInstance();
+    static MemHandler& GetInstance();
     VmResult Init();
     void Terminate();
     static VmResult CheckNumaWaterLine();
-    static VmResult TransNotify(const std::string &notifyMessage, Notify &notify);
-    static VmResult GetBorrowedSizeMap(const std::vector<uint16_t> &remoteNumaIds,
-                                       std::map<uint16_t, uint64_t> &numaBorrowedSizeMap);
-    static VmResult GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int> &borrowInfo);
+    static VmResult TransNotify(const std::string& notifyMessage, Notify& notify);
+    static VmResult GetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
+                                       std::map<uint16_t, uint64_t>& numaBorrowedSizeMap);
+    static VmResult GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int>& borrowInfo);
 
     static uint64_t SizeByte2Mb(uint64_t size)
     {
@@ -100,12 +100,12 @@ private:
     static std::mutex timerTaskMutex;
     static std::string timerName;
     static std::string ToString(WatermarkWarningType warning);
-    static VmResult NotifyVm(WatermarkWarningType warningType, const Notify &notify);
+    static VmResult NotifyVm(WatermarkWarningType warningType, const Notify& notify);
 
-    static void NotifyReturnMem(const NumaCpuInfo &numaCpuInfo);
-    static bool IsVmExists(const NumaCpuInfo &numaCpuInfo, const HostVmDomainInfo &hostVmDomainInfo);
-    static WatermarkWarningType WaterNotifyEvent(const NumaCpuInfo &numaCpuInfo, const size_t &borrowInfoSize,
-                                                 Notify &notify);
+    static void NotifyReturnMem(const NumaCpuInfo& numaCpuInfo);
+    static bool IsVmExists(const NumaCpuInfo& numaCpuInfo, const HostVmDomainInfo& hostVmDomainInfo);
+    static WatermarkWarningType WaterNotifyEvent(const NumaCpuInfo& numaCpuInfo, const size_t& borrowInfoSize,
+                                                 Notify& notify);
 };
 } // namespace vm
 #endif // MEM_HANDLER_H

@@ -39,4 +39,4 @@ TEST_F(TestUbseMemControllerMasterOnlineHandler, Uninitial)
 {
     EXPECT_NO_THROW(UbseMemControllerMasterOnlineHandler::Uninitial());
 }
-}
+} // namespace ubse::mem_controller::ut

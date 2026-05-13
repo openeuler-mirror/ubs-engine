@@ -14,7 +14,7 @@
 
 namespace ubse::storage {
 using UbseStorageDealDataFunc =
-    std::function<void(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)>;
+    std::function<void(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)>;
 
 /**
  * @brief 向数据库中插入数据
@@ -23,7 +23,7 @@ using UbseStorageDealDataFunc =
  * @param[in] data: 数据值
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseStoragePutData(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data)
+uint32_t UbseStoragePutData(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data)
 {
     return 0;
 }
@@ -36,8 +36,8 @@ uint32_t UbseStoragePutData(const std::string &keyPrefix, const std::string &key
  * @param[in] func: 数据处理函数，函数调用完后，代表单条数据处理完成，数据内存被释放
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
-    UbseStorageDealDataFunc func)
+uint32_t UbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
+                              UbseStorageDealDataFunc func)
 {
     return 0;
 }
@@ -48,8 +48,8 @@ uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &k
  * @param[in] key: 数据键
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseStorageDeleteData(const std::string &keyPrefix, const std::string &key)
+uint32_t UbseStorageDeleteData(const std::string& keyPrefix, const std::string& key)
 {
     return 0;
 }
-}
+} // namespace ubse::storage

@@ -16,9 +16,9 @@
 #include <thread>
 
 #include "export_type.h"
-#include "rmrs_libvirt_module.h"
-#include "mp_error.h"
 #include "mp_configuration.h"
+#include "mp_error.h"
+#include "rmrs_libvirt_module.h"
 
 namespace mempooling::exportV2 {
 using mempooling::libvirt::VirConnectPtr;
@@ -27,10 +27,10 @@ using mempooling::libvirt::VirDomainPtr;
 class LibvirtHelper {
 public:
     LibvirtHelper() = default;
-    LibvirtHelper(const LibvirtHelper &) = delete;
-    LibvirtHelper &operator=(const LibvirtHelper &) = delete;
+    LibvirtHelper(const LibvirtHelper&) = delete;
+    LibvirtHelper& operator=(const LibvirtHelper&) = delete;
 
-    static inline LibvirtHelper &GetInstance()
+    static inline LibvirtHelper& GetInstance()
     {
         static LibvirtHelper instance;
         return instance;
@@ -48,15 +48,15 @@ public:
     void KeepAlive();
     void FreeDomain(VirDomainPtr domain);
 
-    MpResult GetDomainByName(const std::string &name, VirDomainPtr &domain);
-    MpResult GetVmUuidByDomain(VirDomainPtr domain, std::string &uuid);
-    MpResult GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomainInfo &info);
-    MpResult GetDomainXML(VirDomainPtr domain, std::string &xmlStr);
+    MpResult GetDomainByName(const std::string& name, VirDomainPtr& domain);
+    MpResult GetVmUuidByDomain(VirDomainPtr domain, std::string& uuid);
+    MpResult GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomainInfo& info);
+    MpResult GetDomainXML(VirDomainPtr domain, std::string& xmlStr);
 
 private:
     static inline constexpr size_t VM_UUID_LEN = 37; // 36(UUID位数) + 1(\0)
     VirConnectPtr virConnect{};
-    std::thread *virKeepAliveThread{nullptr};
+    std::thread* virKeepAliveThread{nullptr};
 };
 
 } // namespace mempooling::exportV2

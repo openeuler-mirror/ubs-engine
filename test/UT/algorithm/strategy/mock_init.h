@@ -26,7 +26,6 @@ StrategyParam GetRs1630DefaultParamMissingNuma();
 /** 1650代际, 内存池化算法参数初始化 */
 StrategyParam GetRs1650DefaultParam(int numHosts);
 
-
 StrategyParam GetRs1D8DefaultParam(int numHosts);
 
 #endif // UBS_ENGINE_MOCK_INIT_H

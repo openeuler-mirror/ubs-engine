@@ -39,7 +39,6 @@ public:
     }
 };
 
-
 TEST_F(TestMpJsonUtil, RackMemConvertMap2JsonStrSucceed)
 {
     JSON_MAP strMap1;
@@ -118,9 +117,10 @@ TEST_F(TestMpJsonUtil, GetJsonStringValue_SucceedAndFail)
     EXPECT_FALSE(JsonUtil::GetJsonStringValue(doc, "not_exist", out));
 
     // Value interface
-    const rapidjson::Value &val = doc;
+    const rapidjson::Value& val = doc;
     EXPECT_TRUE(JsonUtil::GetJsonStringValue(val, "str_key", out));
-    EXPECT_FALSE(JsonUtil::GetJsonStringValue(val, "num_key", out)); // Type error    EXPECT_FALSE(JsonUtil::GetJsonStringValue(val, nullptr, out));
+    EXPECT_FALSE(JsonUtil::GetJsonStringValue(
+        val, "num_key", out)); // Type error    EXPECT_FALSE(JsonUtil::GetJsonStringValue(val, nullptr, out));
     EXPECT_FALSE(JsonUtil::GetJsonStringValue(val, "not_exist", out));
 }
 
@@ -135,7 +135,8 @@ TEST_F(TestMpJsonUtil, GetJsonUint64Value_SucceedAndFail)
     EXPECT_TRUE(JsonUtil::GetJsonUint64Value(doc, "uint_key", out));
     EXPECT_EQ(out, 123456789012345);
 
-    EXPECT_FALSE(JsonUtil::GetJsonUint64Value(doc, "str_key", out)); // Type error    EXPECT_FALSE(JsonUtil::GetJsonUint64Value(doc, nullptr, out));
+    EXPECT_FALSE(JsonUtil::GetJsonUint64Value(
+        doc, "str_key", out)); // Type error    EXPECT_FALSE(JsonUtil::GetJsonUint64Value(doc, nullptr, out));
     EXPECT_FALSE(JsonUtil::GetJsonUint64Value(doc, "not_exist", out));
 }
 
@@ -167,7 +168,9 @@ TEST_F(TestMpJsonUtil, NumberBoundary_SucceedAndFail)
     EXPECT_FALSE(JsonUtil::GetJsonUint16Value(doc, "str_key", out_u16));     // Type error
     // Int16
     EXPECT_TRUE(JsonUtil::GetJsonInt16Value(doc, "valid_i16", out_i16));
-    EXPECT_FALSE(JsonUtil::GetJsonInt16Value(doc, "invalid_i16_max", out_i16)); // Upper limit overflow    EXPECT_FALSE(JsonUtil::GetJsonInt16Value(doc, "invalid_i16_min", out_i16)); // Lower limit overflow    EXPECT_FALSE(JsonUtil::GetJsonInt16Value(doc, "str_key", out_i16));         // Type error
+    EXPECT_FALSE(JsonUtil::GetJsonInt16Value(
+        doc, "invalid_i16_max",
+        out_i16)); // Upper limit overflow    EXPECT_FALSE(JsonUtil::GetJsonInt16Value(doc, "invalid_i16_min", out_i16)); // Lower limit overflow    EXPECT_FALSE(JsonUtil::GetJsonInt16Value(doc, "str_key", out_i16));         // Type error
     // Int
     EXPECT_TRUE(JsonUtil::GetJsonIntValue(doc, "valid_int", out_int));
     EXPECT_FALSE(JsonUtil::GetJsonIntValue(doc, "str_key", out_int));
@@ -211,4 +214,4 @@ TEST_F(TestMpJsonUtil, ConvertAbnormalCases)
     EXPECT_FALSE(JsonUtil::RackMemConvertJsonStr2Vec("invalid_json", vec1));
     EXPECT_FALSE(JsonUtil::RackMemConvertJsonStr2Vec("{}", vec1));
 }
-}
+} // namespace mempooling

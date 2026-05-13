@@ -12,10 +12,10 @@
 #ifndef UBSE_SSL_CONFIG_PATH_H
 #define UBSE_SSL_CONFIG_PATH_H
 namespace UbseSSLConfig {
-inline constexpr const char *ServerCertFile = "/var/lib/ubse/lcne_cert/server.pem";
-inline constexpr const char *TrustCertFile = "/var/lib/ubse/lcne_cert/trust.pem";
-inline constexpr const char *CrlFile = "/var/lib/ubse/lcne_cert/ca.crl";
-inline constexpr const char *ServerKeyFile = "/var/lib/ubse/lcne_cert/server_key.pem";
-inline constexpr const char *PasswordFile = "/var/lib/ubse/lcne_cert/key_pwd.txt";
+inline constexpr const char* ServerCertFile = "/var/lib/ubse/lcne_cert/server.pem";
+inline constexpr const char* TrustCertFile = "/var/lib/ubse/lcne_cert/trust.pem";
+inline constexpr const char* CrlFile = "/var/lib/ubse/lcne_cert/ca.crl";
+inline constexpr const char* ServerKeyFile = "/var/lib/ubse/lcne_cert/server_key.pem";
+inline constexpr const char* PasswordFile = "/var/lib/ubse/lcne_cert/key_pwd.txt";
 } // namespace UbseSSLConfig
 #endif

@@ -17,7 +17,7 @@ namespace ubse::event {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-void UbseEventDistribute::RegisterSubscribe(const std::string &eventId, UbseEventPriority priority,
+void UbseEventDistribute::RegisterSubscribe(const std::string& eventId, UbseEventPriority priority,
                                             UbseEventHandler registerFunc)
 {
     if (registerFunc == nullptr) {
@@ -33,10 +33,10 @@ void UbseEventDistribute::RegisterSubscribe(const std::string &eventId, UbseEven
     subscribes_[eventId].push_back(std::move(task));
 }
 
-void UbseEventDistribute::UnRegisterSubscribe(const std::string &eventId, UbseEventHandler registerFunc)
+void UbseEventDistribute::UnRegisterSubscribe(const std::string& eventId, UbseEventHandler registerFunc)
 {
     std::unique_lock<std::shared_mutex> writeLock(eventSubMutex_);
-    auto *targetFunc = registerFunc.target<uint32_t (*)(std::string &, std::string &)>();
+    auto* targetFunc = registerFunc.target<uint32_t (*)(std::string&, std::string&)>();
     if (targetFunc == nullptr) {
         UBSE_LOG_WARN << "register function is nil, will skip.";
         return;
@@ -46,11 +46,11 @@ void UbseEventDistribute::UnRegisterSubscribe(const std::string &eventId, UbseEv
     }
 
     // 使用迭代器遍历并删除，避免索引越界问题
-    auto &handlers = subscribes_[eventId];
+    auto& handlers = subscribes_[eventId];
     auto it = handlers.begin();
     while (it != handlers.end()) {
         // 获取需要比较的函数指针
-        auto *storedFunc = it->registerFunc.target<uint32_t (*)(std::string &, std::string &)>();
+        auto* storedFunc = it->registerFunc.target<uint32_t (*)(std::string&, std::string&)>();
 
         // 如果任意一个为 nullptr（类型不匹配），或者二者相等，移除
         if (storedFunc == nullptr || *storedFunc == *targetFunc) {
@@ -61,7 +61,7 @@ void UbseEventDistribute::UnRegisterSubscribe(const std::string &eventId, UbseEv
     }
 }
 
-void UbseEventDistribute::PubEvent(const std::string &eventId, const std::string &eventMsg)
+void UbseEventDistribute::PubEvent(const std::string& eventId, const std::string& eventMsg)
 {
     if (!IsRegisteredSubscribe(eventId)) {
         return;
@@ -73,10 +73,10 @@ void UbseEventDistribute::PubEvent(const std::string &eventId, const std::string
     notEmpty_.notify_one();
 }
 
-void UbseEventDistribute::Distribute(EventTask &task)
+void UbseEventDistribute::Distribute(EventTask& task)
 {
     // 首先检查 task 是否有效
-    if (&task == nullptr) {  // 检查引用是否为 null，虽然引用通常不能为null，但可以检查地址。
+    if (&task == nullptr) { // 检查引用是否为 null，虽然引用通常不能为null，但可以检查地址。
         UBSE_LOG_ERROR << "task reference is invalid";
         return;
     }
@@ -161,7 +161,7 @@ UbseResult UbseEventDistribute::Start()
     try {
         threadRunning_.store(true);
         distributeThread_ = std::thread(&UbseEventDistribute::RunDistribute, this);
-    } catch (const std::system_error &) {
+    } catch (const std::system_error&) {
         UBSE_LOG_ERROR << "start thread failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
@@ -189,14 +189,14 @@ void UbseEventDistribute::RunDistribute()
     }
 }
 
-void UbseEventDistribute::MonitorCongestion(const std::string &eventId, const std::string &eventMsg)
+void UbseEventDistribute::MonitorCongestion(const std::string& eventId, const std::string& eventMsg)
 {
     // 总量控制
     if (UBSE_UNLIKELY(events_.size() >= eventQueueCapacity_)) {
         if ((events_.size() - eventQueueCapacity_) % NO_128 ==
             NO_0) { // 超过队列上限时，每新增128条即打印一次队列内的事件组成
             std::ostringstream oos;
-            for (const auto &eventCnt : congestCntMap_) {
+            for (const auto& eventCnt : congestCntMap_) {
                 oos << "[EventId:" << eventCnt.first << ", num:" << eventCnt.second << "]";
             }
             UBSE_LOG_WARN << oos.str();

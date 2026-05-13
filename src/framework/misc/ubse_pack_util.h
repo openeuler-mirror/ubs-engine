@@ -21,7 +21,7 @@ namespace ubse::utils {
 class UbsePackUtil {
 public:
     // 构造函数：初始化解包缓冲区
-    explicit UbsePackUtil(uint8_t *buffer, size_t bufferSize) noexcept : ptr_(buffer), remaining_(bufferSize) {}
+    explicit UbsePackUtil(uint8_t* buffer, size_t bufferSize) noexcept : ptr_(buffer), remaining_(bufferSize) {}
     bool UbsePackUint8(uint8_t value)
     {
         if (remaining_ < sizeof(uint8_t)) {
@@ -91,7 +91,7 @@ public:
         return true;
     }
 
-    bool UbsePackString(const std::string &str, uint32_t maxLen)
+    bool UbsePackString(const std::string& str, uint32_t maxLen)
     {
         // 计算实际要写入的长度（不超过maxLen）
         auto len = static_cast<uint32_t>(str.length());
@@ -121,21 +121,22 @@ public:
         }
         return true;
     }
+
 private:
-    uint8_t *ptr_;     // 指针位置
+    uint8_t* ptr_;     // 指针位置
     size_t remaining_; // 剩余缓冲区大小
 };
 
 class UbseUnpackUtil {
 public:
     // 构造函数：初始化解包缓冲区
-    explicit UbseUnpackUtil(const uint8_t *buffer, uint32_t len) noexcept : ptr_(buffer), remaining_(len) {}
+    explicit UbseUnpackUtil(const uint8_t* buffer, uint32_t len) noexcept : ptr_(buffer), remaining_(len) {}
 
     // 解包 uint8_t
     bool UnpackUint8(uint8_t& value) noexcept
     {
         if (remaining_ < sizeof(uint8_t)) {
-            return false;  // 缓冲区不足
+            return false; // 缓冲区不足
         }
 
         auto ret = memcpy_s(&value, sizeof(uint8_t), ptr_, sizeof(uint8_t));
@@ -145,10 +146,10 @@ public:
         // 更新位置
         ptr_ += sizeof(uint8_t);
         remaining_ -= sizeof(uint8_t);
-        return true;  // 成功
+        return true; // 成功
     }
     // 解包 uint16_t
-    bool UnpackUint16(uint16_t &value) noexcept
+    bool UnpackUint16(uint16_t& value) noexcept
     {
         if (remaining_ < sizeof(uint16_t)) {
             return false; // 缓冲区不足
@@ -164,7 +165,7 @@ public:
         return true; // 成功
     }
     // 解包 uint32_t
-    bool UnpackUint32(uint32_t &value) noexcept
+    bool UnpackUint32(uint32_t& value) noexcept
     {
         if (remaining_ < sizeof(uint32_t)) {
             return false; // 缓冲区不足
@@ -181,7 +182,7 @@ public:
     }
 
     // 解包 uint64_t
-    bool UnpackUint64(uint64_t &value) noexcept
+    bool UnpackUint64(uint64_t& value) noexcept
     {
         if (remaining_ < sizeof(uint64_t)) {
             return false; // 缓冲区不足
@@ -197,7 +198,7 @@ public:
     }
 
     // 解包字符串 (带长度前缀)
-    bool UnpackString(std::string &str, uint32_t maxLen) noexcept
+    bool UnpackString(std::string& str, uint32_t maxLen) noexcept
     {
         uint32_t len = 0;
         if (!UnpackUint32(len)) {
@@ -220,7 +221,7 @@ public:
         }
 
         // 直接构造字符串，避免额外的内存拷贝
-        str.assign(reinterpret_cast<const char *>(ptr_), len);
+        str.assign(reinterpret_cast<const char*>(ptr_), len);
 
         // 更新位置
         ptr_ += len;
@@ -230,7 +231,7 @@ public:
 
     // 解包枚举
     template <typename EnumType>
-    bool UnpackEnum(EnumType &enumValue)
+    bool UnpackEnum(EnumType& enumValue)
     {
         static_assert(std::is_enum_v<EnumType>, "UnpackEnum only supports enumeration types");
         // 拷贝数据
@@ -243,8 +244,9 @@ public:
         enumValue = static_cast<EnumType>(rawValue);
         return true;
     }
+
 private:
-    const uint8_t *ptr_; // 当前解包指针位置
+    const uint8_t* ptr_; // 当前解包指针位置
     uint32_t remaining_; // 剩余缓冲区长度（字节数）
 };
 } // namespace ubse::utils

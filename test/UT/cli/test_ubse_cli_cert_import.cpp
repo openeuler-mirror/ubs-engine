@@ -11,10 +11,10 @@
  */
 
 #include "test_ubse_cli_cert_import.h"
-#include <filesystem>
-#include <fstream>
 #include <securec.h>
 #include <ubse_common_def.h>
+#include <filesystem>
+#include <fstream>
 #include <mockcpp/mockcpp.hpp>
 #include <string>
 #include "ubse_cert_cli_import.h"
@@ -33,12 +33,12 @@ void TestUbseCliCertImport::TearDown()
     GlobalMockObject::verify();
 }
 
-bool MockCopyFileContentsFail(const std::string &source, const std::string &dest)
+bool MockCopyFileContentsFail(const std::string& source, const std::string& dest)
 {
     return false;
 }
 
-bool MockImportCaCrlFail(std::string &caCrlPath)
+bool MockImportCaCrlFail(std::string& caCrlPath)
 {
     return false;
 }
@@ -118,7 +118,6 @@ TEST(TestUbseCliCertImport, ImportCaCrlFail)
     bool result = ImportCaCrl(caCrlPath, errMsg);
     EXPECT_FALSE(result);
 }
-
 
 TEST(TestUbseCliCertImport, DeleteCertSetFail)
 {

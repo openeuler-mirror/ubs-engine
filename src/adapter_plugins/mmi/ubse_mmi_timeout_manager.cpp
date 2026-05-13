@@ -32,7 +32,7 @@ UbseMmiTimeoutManager::~UbseMmiTimeoutManager()
     }
 }
 
-UbseMmiTimeoutManager &UbseMmiTimeoutManager::Instance()
+UbseMmiTimeoutManager& UbseMmiTimeoutManager::Instance()
 {
     static UbseMmiTimeoutManager instance;
     return instance;
@@ -51,8 +51,7 @@ uint64_t UbseMmiTimeoutManager::Register(uint64_t timeoutMs, std::function<void(
 void UbseMmiTimeoutManager::Unregister(uint64_t handle)
 {
     std::lock_guard<std::mutex> lock(mtx_);
-    auto it = std::find_if(entries_.begin(), entries_.end(),
-                           [handle](const Entry &e) { return e.handle == handle; });
+    auto it = std::find_if(entries_.begin(), entries_.end(), [handle](const Entry& e) { return e.handle == handle; });
     if (it != entries_.end()) {
         entries_.erase(it);
     }
@@ -66,7 +65,7 @@ void UbseMmiTimeoutManager::Run()
         auto earliestDeadline = std::chrono::steady_clock::time_point::max();
         uint64_t earliestHandle = 0;
 
-        for (auto &e : entries_) {
+        for (auto& e : entries_) {
             if (e.deadline < earliestDeadline) {
                 earliestDeadline = e.deadline;
                 earliestHandle = e.handle;
@@ -81,7 +80,7 @@ void UbseMmiTimeoutManager::Run()
         auto status = cv_.wait_until(lock, earliestDeadline);
         if (status == std::cv_status::timeout) {
             auto it = std::find_if(entries_.begin(), entries_.end(),
-                                   [earliestHandle](const Entry &e) { return e.handle == earliestHandle; });
+                                   [earliestHandle](const Entry& e) { return e.handle == earliestHandle; });
             if (it != entries_.end()) {
                 auto callback = std::move(it->callback);
                 entries_.erase(it);
@@ -111,4 +110,4 @@ void UbseMmiTimeoutGuard::Cancel()
     }
 }
 
-}  // namespace ubse::mmi
+} // namespace ubse::mmi

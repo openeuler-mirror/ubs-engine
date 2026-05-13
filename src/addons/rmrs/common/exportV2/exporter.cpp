@@ -13,11 +13,11 @@
 #include <filesystem>
 #include <fstream>
 
+#include <iostream>
+#include "ubse_logger.h"
 #include "LibvirtHelper/LibvirtHelper.h"
 #include "OsHelper/OsHelper.h"
-#include "ubse_logger.h"
 #include "exporter.h"
-#include <iostream>
 
 namespace mempooling::exportV2 {
 using namespace ubse::log;
@@ -32,7 +32,7 @@ constexpr size_t MAX_THREADPOOL_SIZE = 128;
 std::atomic<bool> Exporter::inited_{false};
 std::mutex Exporter::init_mu_;
 Exporter::Options Exporter::cfg_{};
-ThreadPool *Exporter::pool_ = nullptr;
+ThreadPool* Exporter::pool_ = nullptr;
 
 MpResult Exporter::Init()
 {
@@ -54,9 +54,9 @@ MpResult Exporter::Init(Options opt)
     LOG_DEBUG << "Thread pool size: " << n;
     try {
         pool_ = new ThreadPool(n);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LOG_ERROR << "ThreadPool init failed: " << e.what();
-        pool_ = nullptr;  // 防御性置空
+        pool_ = nullptr; // 防御性置空
         return MEM_POOLING_ERROR;
     }
     auto ret = LibvirtHelper::GetInstance().Init();
@@ -76,9 +76,9 @@ MpResult Exporter::Init(Options opt)
     return MEM_POOLING_OK;
 }
 
-ThreadPool &Exporter::Pool()
+ThreadPool& Exporter::Pool()
 {
-    auto *p = pool_;
+    auto* p = pool_;
     if (p == nullptr) {
         throw std::runtime_error("Exporter pool accessed after Shutdown()");
     }
@@ -124,7 +124,7 @@ void Exporter::StartGate::release()
     cv_.notify_all();
 }
 
-bool isVmDomainInfoError(const VmDomainInfo &info)
+bool isVmDomainInfoError(const VmDomainInfo& info)
 {
     if (info.timestamp == -1) {
         return false;
@@ -132,12 +132,12 @@ bool isVmDomainInfoError(const VmDomainInfo &info)
     return true;
 }
 
-void fillErrorVmDomainInfo(VmDomainInfo &info)
+void fillErrorVmDomainInfo(VmDomainInfo& info)
 {
     info.timestamp = -1;
 }
 
-VmDomainInfo Exporter::genVmDomainInfo(const std::string &vmName)
+VmDomainInfo Exporter::genVmDomainInfo(const std::string& vmName)
 {
     VmDomainInfo info;
     info.timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -169,7 +169,7 @@ VmDomainInfo Exporter::genVmDomainInfo(const std::string &vmName)
         }
         LibvirtHelper::GetInstance().FreeDomain(dom);
         return info;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LOG_ERROR << "Gen vm domain info threw std::exception, vm name: " << vmName << ", what=" << e.what();
         fillErrorVmDomainInfo(info);
         return info;
@@ -180,7 +180,7 @@ VmDomainInfo Exporter::genVmDomainInfo(const std::string &vmName)
     }
 }
 
-NumaInfo Exporter::genNumaInfo(const std::uint16_t &numaId)
+NumaInfo Exporter::genNumaInfo(const std::uint16_t& numaId)
 {
     NumaInfo info;
     info.timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -200,7 +200,7 @@ NumaInfo Exporter::genNumaInfo(const std::uint16_t &numaId)
             return info;
         }
         return info;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LOG_ERROR << "Gen numa info threw std::exception, numaId: " << numaId << ", what=" << e.what();
         return info;
     } catch (...) {
@@ -209,7 +209,7 @@ NumaInfo Exporter::genNumaInfo(const std::uint16_t &numaId)
     }
 }
 
-MpResult Exporter::GetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos)
+MpResult Exporter::GetNumaInfoImmediately(std::vector<NumaInfo>& numaInfos)
 {
     try {
         if (!inited_.load(std::memory_order_acquire)) {
@@ -230,7 +230,7 @@ MpResult Exporter::GetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos)
             numaSet, numaInfos, [](uint16_t numaId) -> NumaInfo { return genNumaInfo(numaId); },
             "Exporter.GetNumaInfo");
 
-        for (auto &numaInfo : numaInfos) {
+        for (auto& numaInfo : numaInfos) {
             LOG_DEBUG << "NumaInfo: " << numaInfo.ToString();
         }
 
@@ -240,7 +240,7 @@ MpResult Exporter::GetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos)
             ret = MEM_POOLING_ERROR;
         }
         return ret;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LOG_ERROR << "Exporter::GetNumaInfoImmediately caught std::exception: " << e.what();
         return MEM_POOLING_ERROR;
     } catch (...) {
@@ -249,7 +249,7 @@ MpResult Exporter::GetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos)
     }
 }
 
-MpResult Exporter::GetVmInfoImmediately(std::vector<VmDomainInfo> &vmInfos)
+MpResult Exporter::GetVmInfoImmediately(std::vector<VmDomainInfo>& vmInfos)
 {
     try {
         if (!inited_.load(std::memory_order_acquire)) {
@@ -269,7 +269,7 @@ MpResult Exporter::GetVmInfoImmediately(std::vector<VmDomainInfo> &vmInfos)
         }
         LOG_DEBUG << "GetVmInfoImmediately: vmNameSet size=" << vmNameSet.size();
         parallel_collect<std::string, VmDomainInfo>(
-            vmNameSet, vmInfos, [](const std::string &vmName) -> VmDomainInfo { return genVmDomainInfo(vmName); },
+            vmNameSet, vmInfos, [](const std::string& vmName) -> VmDomainInfo { return genVmDomainInfo(vmName); },
             "Exporter.GetVmInfo");
         for (auto it = vmInfos.begin(); it != vmInfos.end();) {
             if (!isVmDomainInfoError(*it)) {
@@ -286,7 +286,7 @@ MpResult Exporter::GetVmInfoImmediately(std::vector<VmDomainInfo> &vmInfos)
             ret = MEM_POOLING_ERROR;
         }
         return ret;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LOG_ERROR << "Exporter::GetVmInfoImmediately caught std::exception: " << e.what();
         return MEM_POOLING_ERROR;
     } catch (...) {
@@ -295,4 +295,4 @@ MpResult Exporter::GetVmInfoImmediately(std::vector<VmDomainInfo> &vmInfos)
     }
 }
 
-}  // namespace mempooling::exportV2
+} // namespace mempooling::exportV2

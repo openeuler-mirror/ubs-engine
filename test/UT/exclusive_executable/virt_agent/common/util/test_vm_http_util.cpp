@@ -29,15 +29,15 @@ void TestVmHttpUtil::TearDown()
     GlobalMockObject::verify();
 }
 
-uint32_t UBSRMRSSmapAddProcessTrackingFuncMockSuccess(const std::vector<pid_t> &pidVec,
-                                                      const std::vector<uint32_t> &scanTimeVec, int scanType,
-                                                      const std::optional<std::vector<uint32_t>> &)
+uint32_t UBSRMRSSmapAddProcessTrackingFuncMockSuccess(const std::vector<pid_t>& pidVec,
+                                                      const std::vector<uint32_t>& scanTimeVec, int scanType,
+                                                      const std::optional<std::vector<uint32_t>>&)
 {
     return VM_OK;
 }
-uint32_t UBSRMRSSmapAddProcessTrackingFuncMockError(const std::vector<pid_t> &pidVec,
-                                                    const std::vector<uint32_t> &scanTimeVec, int scanType,
-                                                    const std::optional<std::vector<uint32_t>> &)
+uint32_t UBSRMRSSmapAddProcessTrackingFuncMockError(const std::vector<pid_t>& pidVec,
+                                                    const std::vector<uint32_t>& scanTimeVec, int scanType,
+                                                    const std::optional<std::vector<uint32_t>>&)
 {
     return VM_ERROR;
 }
@@ -65,11 +65,11 @@ TEST_F(TestVmHttpUtil, AddProcessTracking)
     EXPECT_EQ(result, VM_ERROR);
     GlobalMockObject::verify();
 }
-uint32_t UBSRMRSSmapRemoveProcessTrackingFuncMockSuccess(const std::vector<pid_t> &pidVec, int flags = 0)
+uint32_t UBSRMRSSmapRemoveProcessTrackingFuncMockSuccess(const std::vector<pid_t>& pidVec, int flags = 0)
 {
     return VM_OK;
 }
-uint32_t UBSRMRSSmapRemoveProcessTrackingFuncMockError(const std::vector<pid_t> &pidVec, int flags = 0)
+uint32_t UBSRMRSSmapRemoveProcessTrackingFuncMockError(const std::vector<pid_t>& pidVec, int flags = 0)
 {
     return VM_ERROR;
 }
@@ -98,12 +98,12 @@ TEST_F(TestVmHttpUtil, RemoveProcessTracking)
     GlobalMockObject::verify();
 }
 
-uint32_t UBSRMRSSmapEnableProcessMigrateFuncMockSuccess(const std::vector<pid_t> &pidVec, int enable, int flags = 0)
+uint32_t UBSRMRSSmapEnableProcessMigrateFuncMockSuccess(const std::vector<pid_t>& pidVec, int enable, int flags = 0)
 {
     return VM_OK;
 }
 
-uint32_t UBSRMRSSmapEnableProcessMigrateFuncMockError(const std::vector<pid_t> &pidVec, int enable, int flags = 0)
+uint32_t UBSRMRSSmapEnableProcessMigrateFuncMockError(const std::vector<pid_t>& pidVec, int enable, int flags = 0)
 {
     return VM_ERROR;
 }

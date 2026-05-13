@@ -14,18 +14,18 @@
 #include <cstring>
 #include <iomanip>
 #include <set>
-#include "mem_pool_strategy_impl.h"
 #include "ubse_logger.h"
+#include "mem_pool_strategy_impl.h"
 
 namespace tc::rs::mem {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
-MemPoolConfig::MemPoolConfig(const StrategyParam &param)
+MemPoolConfig::MemPoolConfig(const StrategyParam& param)
 {
     CheckNodeParameters(param);
     // 初始化静态配置参数, 算法权重参数归一化
     memStaticParam = param;
     NormalizeStrategy(memStaticParam);
-    const BorrowAlgoParam &borrowParam = memStaticParam.borrowParam;
+    const BorrowAlgoParam& borrowParam = memStaticParam.borrowParam;
 
     // 开启自定义时延, 表示填写了numaLatencies, 未填写hostMeshLoc.
     if (memStaticParam.enableCustomLatencies) {
@@ -109,14 +109,14 @@ void MemPoolConfig::RefreshNumaDelays()
             auto jHostId = memStaticParam.availNumas[j].hostId;
             auto iSocketId = memStaticParam.availNumas[i].socketId;
             auto jSocketId = memStaticParam.availNumas[j].socketId;
-            const MeshLoc &iHostMeshLoc = memStaticParam.hostMeshLocs[iHostId];
-            const MeshLoc &jHostMeshLoc = memStaticParam.hostMeshLocs[jHostId];
+            const MeshLoc& iHostMeshLoc = memStaticParam.hostMeshLocs[iHostId];
+            const MeshLoc& jHostMeshLoc = memStaticParam.hostMeshLocs[jHostId];
             const auto iNeighborNodes = memStaticParam.neighborNodes[iHostId];
             const auto jNeighborNodes = memStaticParam.neighborNodes[jHostId];
             if (iHostId == jHostId) {
                 memLatencyInfo.numaToNumaLatency[i][j] = numaLatenciesInHost[iNumaIdxInHost][jNumaIdxInHost];
-            } else if (iNeighborNodes.find(jHostId) == iNeighborNodes.end()
-                       || jNeighborNodes.find(iHostId) == jNeighborNodes.end()) {
+            } else if (iNeighborNodes.find(jHostId) == iNeighborNodes.end() ||
+                       jNeighborNodes.find(iHostId) == jNeighborNodes.end()) {
                 // 非直连邻居，无法访问对端的内存，时延设置为负数
                 memLatencyInfo.numaToNumaLatency[i][j] = -1;
             } else if (iSocketId == jSocketId) {
@@ -167,7 +167,7 @@ BResult MemPoolConfig::BuildIndexMatrix()
     }
     int socketIndex = 0;
     for (int i = 0; i < memStaticParam.numAvailNumas; i++) {
-        const MemLoc &numa = memStaticParam.availNumas[i];
+        const MemLoc& numa = memStaticParam.availNumas[i];
         int numaId = numa.numaId - numa.numaId / NUM_NUMA_PER_SOCKET * NUM_NUMA_PER_SOCKET;
         memNumaLoc2Idx[numa.hostId][numa.numaId] = i;
         memNumaLocToIdx[numa.hostId][numa.socketId][numaId] = i;
@@ -207,8 +207,8 @@ BResult MemPoolConfig::SysLatencyProcess()
     memLatencyInfo.minSysLatency = INT32_MAX;
     for (int i = 0; i < memStaticParam.numAvailNumas; i++) {
         for (int j = 0; j < memStaticParam.numAvailNumas; j++) {
-            const MemLoc &numa1 = memStaticParam.availNumas[i];
-            const MemLoc &numa2 = memStaticParam.availNumas[j];
+            const MemLoc& numa1 = memStaticParam.availNumas[i];
+            const MemLoc& numa2 = memStaticParam.availNumas[j];
             int32_t latency = memLatencyInfo.numaToNumaLatency[i][j];
             UpdateMinLatency(latency);
             UpdateMaxLatency(latency);
@@ -236,7 +236,7 @@ BResult MemPoolConfig::SysLatencyProcess()
     return UBSE_OK;
 }
 
-void MemPoolConfig::CalculateLatency(int32_t &latency, int num)
+void MemPoolConfig::CalculateLatency(int32_t& latency, int num)
 {
     if (num == 0) {
         UBSE_LOG_ERROR << "SysLatencyProcess division by zero.";
@@ -300,7 +300,7 @@ int MemPoolConfig::GetNumaIndex(MemLoc loc)
     return memNumaLoc2Idx[loc.hostId][loc.numaId];
 }
 
-int *MemPoolConfig::GetNumaListInSocket(int32_t hostId, int32_t socketId)
+int* MemPoolConfig::GetNumaListInSocket(int32_t hostId, int32_t socketId)
 {
     if (hostId < 0 || hostId >= NUM_HOSTS || socketId < 0 || socketId >= NUM_SOCKET_PER_HOST) {
         UBSE_LOG_ERROR << "Get numa list in socket error! Array out of bounds!";
@@ -310,7 +310,7 @@ int *MemPoolConfig::GetNumaListInSocket(int32_t hostId, int32_t socketId)
     return memNumaLocToIdx[hostId][socketId];
 }
 
-int *MemPoolConfig::GetNumaListInHost(int32_t hostId)
+int* MemPoolConfig::GetNumaListInHost(int32_t hostId)
 {
     if (hostId < 0 || hostId >= NUM_HOSTS) {
         UBSE_LOG_ERROR << "Get numa list in host error! Array out of bounds!";
@@ -330,7 +330,7 @@ bool MemPoolConfig::IsNonPositive(MeshLoc cord) const
     return (cord.x < 0 || cord.y < 0);
 }
 
-void MemPoolConfig::CheckNodeParameters(const StrategyParam &param)
+void MemPoolConfig::CheckNodeParameters(const StrategyParam& param)
 {
     if (param.numHosts > NUM_HOSTS) {
         UBSE_LOG_ERROR << "Error! Number of hosts exceeds the maximum limit. Current value=" << param.numHosts

@@ -27,12 +27,12 @@ public:
     static VmResult Register();
 
 private:
-    static uint32_t GetMemInfoForPid(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t InjectWaterLineHandler(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t GetContainerPidsHandler(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static VmResult WaterLineMemBorrow(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static VmResult WaterLineMemMigrate(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static VmResult WaterLineMemReturn(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t GetMemInfoForPid(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t InjectWaterLineHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t GetContainerPidsHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult WaterLineMemBorrow(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult WaterLineMemMigrate(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult WaterLineMemReturn(const UbseIpcMessage& req, const UbseRequestContext& context);
 };
 } // namespace vm
 

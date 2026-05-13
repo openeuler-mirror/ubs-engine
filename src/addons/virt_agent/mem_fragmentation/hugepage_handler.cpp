@@ -27,7 +27,7 @@ namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
-VmResult HugePageHandler::SetHugePages(const uint64_t &numaId, const uint64_t &borrowedSize)
+VmResult HugePageHandler::SetHugePages(const uint64_t& numaId, const uint64_t& borrowedSize)
 {
     UBSE_LOG_INFO << "Set hugepages start.";
 
@@ -42,7 +42,7 @@ VmResult HugePageHandler::SetHugePages(const uint64_t &numaId, const uint64_t &b
     return ret;
 }
 
-VmResult HugePageHandler::AllocateHugePages(const HugePageInfo &pageInfo)
+VmResult HugePageHandler::AllocateHugePages(const HugePageInfo& pageInfo)
 {
     UBSE_LOG_INFO << "Allocate hugePages start, numaId=" << pageInfo.numaId
                   << ", borrowSizes=" << pageInfo.borrowedSize;
@@ -84,7 +84,7 @@ VmResult HugePageHandler::AllocateHugePages(const HugePageInfo &pageInfo)
     return VM_ERROR;
 }
 
-VmResult HugePageHandler::GetHugePageCanonicalPath(const std::string &numaId, std::string &filePath)
+VmResult HugePageHandler::GetHugePageCanonicalPath(const std::string& numaId, std::string& filePath)
 {
     if (!std::all_of(begin(numaId), end(numaId), [](char c) { return std::isdigit(c); })) {
         UBSE_LOG_ERROR << "numaId must be all digit.";
@@ -98,7 +98,7 @@ VmResult HugePageHandler::GetHugePageCanonicalPath(const std::string &numaId, st
     return VM_OK;
 }
 
-VmResult HugePageHandler::RewriteHugePages(const std::string &realPath, const uint64_t &targetHugePages)
+VmResult HugePageHandler::RewriteHugePages(const std::string& realPath, const uint64_t& targetHugePages)
 {
     std::ofstream outputFile(realPath, std::ios::out);
     if (!outputFile.is_open()) {
@@ -111,7 +111,7 @@ VmResult HugePageHandler::RewriteHugePages(const std::string &realPath, const ui
     return VM_OK;
 }
 
-VmResult HugePageHandler::GetCurrentHugePages(const std::string &realPath, uint64_t &currentHugePages)
+VmResult HugePageHandler::GetCurrentHugePages(const std::string& realPath, uint64_t& currentHugePages)
 {
     std::ifstream inputFile(realPath);
     if (!inputFile.is_open()) {

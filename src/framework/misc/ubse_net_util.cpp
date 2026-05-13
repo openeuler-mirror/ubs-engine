@@ -11,12 +11,12 @@
  */
 
 #include "ubse_net_util.h"
-#include <ifaddrs.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <netdb.h>
-#include <regex>
+#include <netinet/in.h>
 #include <securec.h>
+#include <regex>
 
 #include <fstream>
 #include <sstream>
@@ -37,7 +37,7 @@ bool UbseNetUtil::IsPortVaLid(const uint32_t port)
     return port >= MIN_PORT && port <= MAX_PORT;
 }
 
-bool UbseNetUtil::ValidIpv4Addr(const std::string &ip)
+bool UbseNetUtil::ValidIpv4Addr(const std::string& ip)
 {
     in_addr ipv4{};
     if (inet_pton(AF_INET, ip.c_str(), &ipv4) == 1) {
@@ -46,7 +46,7 @@ bool UbseNetUtil::ValidIpv4Addr(const std::string &ip)
     return false;
 }
 
-bool UbseNetUtil::ValidIpv6Addr(const std::string &ip)
+bool UbseNetUtil::ValidIpv6Addr(const std::string& ip)
 {
     in6_addr ipv6{};
     if (inet_pton(AF_INET6, ip.c_str(), &ipv6) == 1) {
@@ -56,7 +56,7 @@ bool UbseNetUtil::ValidIpv6Addr(const std::string &ip)
 }
 
 // 将点分十进制IP转为32位整数
-uint32_t UbseNetUtil::IpV4ToInt(const std::string &ip, uint32_t &intIp)
+uint32_t UbseNetUtil::IpV4ToInt(const std::string& ip, uint32_t& intIp)
 {
     std::istringstream iss(ip);
     uint32_t a;
@@ -84,7 +84,7 @@ std::string UbseNetUtil::IntToIpV4(uint32_t ip_int)
 }
 
 // 解析IP范围
-void UbseNetUtil::ParseIpRangeToList(const std::string &range, std::vector<std::string> &ips)
+void UbseNetUtil::ParseIpRangeToList(const std::string& range, std::vector<std::string>& ips)
 {
     std::vector<std::string> ipList;
     ubse::utils::Split(range, "-", ipList);
@@ -112,7 +112,7 @@ void UbseNetUtil::ParseIpRangeToList(const std::string &range, std::vector<std::
     }
 }
 
-bool UbseNetUtil::Ipv4StringToArr(const std::string &ip, uint8_t *arr)
+bool UbseNetUtil::Ipv4StringToArr(const std::string& ip, uint8_t* arr)
 {
     in_addr ipv4{};
     if (inet_pton(AF_INET, ip.c_str(), &ipv4) == 1) {
@@ -124,13 +124,13 @@ bool UbseNetUtil::Ipv4StringToArr(const std::string &ip, uint8_t *arr)
     return false;
 }
 
-std::string UbseNetUtil::Ipv4ArrToString(const uint8_t *arr)
+std::string UbseNetUtil::Ipv4ArrToString(const uint8_t* arr)
 {
     if (arr == nullptr) {
         return "";
     }
     char ipBuf[INET_ADDRSTRLEN]; // 足够存放IPv4地址的字符串
-    const char *result = inet_ntop(AF_INET, arr, ipBuf, INET_ADDRSTRLEN);
+    const char* result = inet_ntop(AF_INET, arr, ipBuf, INET_ADDRSTRLEN);
     if (result == nullptr) {
         // 错误处理，例如返回空字符串或抛出异常
         return "";
@@ -138,10 +138,10 @@ std::string UbseNetUtil::Ipv4ArrToString(const uint8_t *arr)
     return std::string(ipBuf);
 }
 
-std::string UbseNetUtil::Ipv6ArrToString(const uint8_t *arr)
+std::string UbseNetUtil::Ipv6ArrToString(const uint8_t* arr)
 {
     char buffer[INET6_ADDRSTRLEN];                // IPv6地址最大长度缓冲区
-    const char *result = inet_ntop(AF_INET6,      // IPv6地址族
+    const char* result = inet_ntop(AF_INET6,      // IPv6地址族
                                    arr,           // 输入地址结构体
                                    buffer,        // 输出缓冲区
                                    sizeof(buffer) // 缓冲区大小
@@ -153,16 +153,16 @@ std::string UbseNetUtil::Ipv6ArrToString(const uint8_t *arr)
     return std::string(buffer);
 }
 
-bool UbseNetUtil::IsSpecialIP(const std::string &ip)
+bool UbseNetUtil::IsSpecialIP(const std::string& ip)
 {
     // 排除特殊 IP 地址：0.0.0.0, 127.x.x.x, 169.254.x.x
     return std::regex_match(ip, std::regex("^(0\\.0\\.0\\.0|127\\..*|169\\.254\\..*)$"));
 }
 
-uint32_t UbseNetUtil::GetIpInfo(std::vector<std::string> &ipInfos)
+uint32_t UbseNetUtil::GetIpInfo(std::vector<std::string>& ipInfos)
 {
-    struct ifaddrs *ifaddr;
-    struct ifaddrs *ifa;
+    struct ifaddrs* ifaddr;
+    struct ifaddrs* ifa;
     int family;
     char host[NI_MAXHOST];
 
@@ -198,7 +198,7 @@ uint32_t UbseNetUtil::GetIpInfo(std::vector<std::string> &ipInfos)
     return UBSE_OK;
 }
 
-bool parseIpString(const std::string &ipStr, ubse::nodeController::UbseIpAddr &out)
+bool parseIpString(const std::string& ipStr, ubse::nodeController::UbseIpAddr& out)
 {
     // 尝试解析为IPv4
     in_addr ipv4{};

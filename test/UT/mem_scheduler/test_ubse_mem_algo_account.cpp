@@ -86,7 +86,7 @@ TEST_F(TestAlgoAccountManager, AddAlgoAccountByLcneTopo)
         std::make_shared<AccountImpl<BorrowAccount>>(importNumaInfos1, exportNumaInfos1, 36, 36, 128, 128);
     algoAccountPtr1->name = account1;
     algoAccountPtr1->importNodeId = "1";
-    algoAccountPtr1->type =  BorrowedType::NUMA;
+    algoAccountPtr1->type = BorrowedType::NUMA;
     AlgoAccountManger::GetInstance().AddAlgoAccount(algoAccountPtr1);
 
     std::string account2 = "account2";
@@ -98,7 +98,7 @@ TEST_F(TestAlgoAccountManager, AddAlgoAccountByLcneTopo)
         std::make_shared<AccountImpl<BorrowAccount>>(importNumaInfos2, exportNumaInfos2, 36, 36, 128, 128);
     algoAccountPtr2->name = account2;
     algoAccountPtr1->importNodeId = "1";
-    algoAccountPtr1->type =  BorrowedType::NUMA;
+    algoAccountPtr1->type = BorrowedType::NUMA;
     AlgoAccountManger::GetInstance().AddAlgoAccount(algoAccountPtr2);
     UbseNodeMemCnaInfoOutput cnaOutput{36};
 
@@ -133,4 +133,4 @@ TEST_F(TestAlgoAccountManager, GetAllAlgoAccount)
     size_t expect = 1;
     EXPECT_EQ(ret.size(), expect);
 }
-}
+} // namespace ubse::mem_scheduler::ut

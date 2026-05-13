@@ -14,13 +14,13 @@
 #include "mockcpp/mokc.h"
 
 #include "ubse_election.h"
+#include "event_handler.h"
+#include "event_listener.h"
 #include "rack_ucache_plugin.h"
 #include "ucache_agent.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
 #include "ucache_master.h"
-#include "event_handler.h"
-#include "event_listener.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -44,16 +44,16 @@ protected:
 };
 
 namespace ucache {
-    uint32_t HandleChangeToMaster(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
-    uint32_t HandleChangeToStandby(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
-    uint32_t HandleChangeToAgent(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
-    uint32_t HandleStandbyToMaster(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
-    uint32_t HandleSwitchOver(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
-    uint32_t RegEvent(UbseElectionEventType type, const std::string &handlerName, ElectinHandler HandlerFunction);
-    uint32_t DeregEvent(UbseElectionEventType type, const std::string &handlerName, ElectinHandler HandlerFunction);
-    void RegRackElectionEvent();
-    void DeregRackElectionEvent();
-    void TryInitUCacheMaster();
+uint32_t HandleChangeToMaster(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
+uint32_t HandleChangeToStandby(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
+uint32_t HandleChangeToAgent(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
+uint32_t HandleStandbyToMaster(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
+uint32_t HandleSwitchOver(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
+uint32_t RegEvent(UbseElectionEventType type, const std::string& handlerName, ElectinHandler HandlerFunction);
+uint32_t DeregEvent(UbseElectionEventType type, const std::string& handlerName, ElectinHandler HandlerFunction);
+void RegRackElectionEvent();
+void DeregRackElectionEvent();
+void TryInitUCacheMaster();
 } // namespace ucache
 
 TEST_F(RackUcachePluginTest, UbseElectionHandlerTest)
@@ -155,7 +155,7 @@ TEST_F(RackUcachePluginTest, UbsePluginInitOKTest)
 TEST_F(RackUcachePluginTest, UbsePluginInitFailedTest)
 {
     const uint16_t modCode = 888;
-    
+
     MOCKER(ucache::agent::Init).stubs().will(returnValue(UCACHE_ERR));
     uint32_t ret = UbsePluginInit(modCode);
     EXPECT_EQ(ret, UCACHE_ERR);
@@ -166,7 +166,7 @@ TEST_F(RackUcachePluginTest, UbsePluginInitFailedTest)
     EXPECT_EQ(ret, UCACHE_ERR);
     UbsePluginDeInit();
 
-    MOCKER_CPP(&ucache::UcacheConfig::Initialize, uint32_t(*)(void *, uint16_t)).stubs().will(returnValue(UCACHE_ERR));
+    MOCKER_CPP(&ucache::UcacheConfig::Initialize, uint32_t(*)(void*, uint16_t)).stubs().will(returnValue(UCACHE_ERR));
     ret = UbsePluginInit(modCode);
     EXPECT_EQ(ret, UCACHE_ERR);
     UbsePluginDeInit();

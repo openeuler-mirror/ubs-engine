@@ -21,7 +21,7 @@ namespace vm {
 
 class FragmentationVmCollection {
 public:
-    static FragmentationVmCollection &GetInstance();
+    static FragmentationVmCollection& GetInstance();
     VmResult FragInit();
     void FragTerminate();
     /**

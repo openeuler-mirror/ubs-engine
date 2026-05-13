@@ -14,22 +14,22 @@
 
 #include <string>
 
+#include "ubse_node.h"
+#include "ubse_node_controller.h"
 #include "mp_configuration.h"
 #include "mp_json_util.h"
-#include "ubse_node_controller.h"
-#include "ubse_node.h"
 
 namespace mempooling {
 using namespace ubse::log;
 using namespace ubse::nodeController;
 
-bool MpUpdateAntiNodeParam::FromJson(const std::string &jsonString)
+bool MpUpdateAntiNodeParam::FromJson(const std::string& jsonString)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemBorrow][AntiAffinity] Start get anti data from jsonString : " << jsonString;
     JSON_MAP MpUpdateAntiNodeParamMap;
     std::vector<std::string> nodeList = MpConfiguration::GetInstance().GetNodeIds();
-    for (auto &node : nodeList) {
+    for (auto& node : nodeList) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][AntiAffinity] nodeId=" << node;
         MpUpdateAntiNodeParamMap.emplace(node, "");
     }
@@ -41,7 +41,7 @@ bool MpUpdateAntiNodeParam::FromJson(const std::string &jsonString)
         return false;
     }
 
-    for (const auto &[key, param] : MpUpdateAntiNodeParamMap) {
+    for (const auto& [key, param] : MpUpdateAntiNodeParamMap) {
         JSON_VEC antiNodeVec;
         if (!JsonUtil::RackMemConvertJsonStr2Vec(param, antiNodeVec)) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -73,9 +73,9 @@ bool MpUpdateAntiNodeParam::FromJson(const std::string &jsonString)
 std::string MpUpdateAntiNodeParam::ToJson() const
 {
     JSON_MAP MpUpdateAntiNodeMap;
-    for (auto &item : this->nodeAntiAffinityMap) {
+    for (auto& item : this->nodeAntiAffinityMap) {
         JSON_VEC AntiNodeVec;
-        for (auto &numa : item.second) {
+        for (auto& numa : item.second) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][AntiAffinity] node = " << item.first << " ,antiNode = " << numa;
             (void)AntiNodeVec.emplace_back(numa);
@@ -89,7 +89,7 @@ std::string MpUpdateAntiNodeParam::ToJson() const
         (void)MpUpdateAntiNodeMap.emplace(item.first, AntiNodeStr);
     }
     std::vector<std::string> nodeList = MpConfiguration::GetInstance().GetNodeIds();
-    for (auto &node : nodeList) {
+    for (auto& node : nodeList) {
         if (MpUpdateAntiNodeMap.find(node) != MpUpdateAntiNodeMap.end()) {
             continue;
         }

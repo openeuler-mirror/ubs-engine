@@ -20,7 +20,7 @@ using namespace ubse::log;
 using namespace ubse::election::data::conversion;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseElectionReplyPktSimpo::UbseElectionReplyPktSimpo(const ElectionReplyPkt &pkt)
+UbseElectionReplyPktSimpo::UbseElectionReplyPktSimpo(const ElectionReplyPkt& pkt)
 {
     electionReplyPkt_ = pkt;
 }

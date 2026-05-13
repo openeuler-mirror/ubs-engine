@@ -11,19 +11,19 @@
  */
 
 #include "test_ubse_mem_debInfo_query_handler.h"
-#include "debt/ubse_mem_debt_info_query.h"
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_controller_def_simpo.h"
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
-#include "message/ubse_mem_debt_info_partial_fetch_req.h"
-#include "message/ubse_mem_debt_info_partial_fetch_res.h"
 #include "ubse_base_message.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_mem_controller_api.h"
-#include "ubse_module.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_debt_info_partial_fetch.h"
+#include "ubse_module.h"
+#include "debt/ubse_mem_debt_info_query.h"
+#include "message/node_mem_debt_info_simpo.h"
+#include "message/ubse_mem_controller_def_simpo.h"
+#include "message/ubse_mem_debt_info_partial_fetch_req.h"
+#include "message/ubse_mem_debt_info_partial_fetch_res.h"
+#include "message/ubse_mem_debt_info_query_req_simpo.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::context;
@@ -32,7 +32,6 @@ using namespace ubse::com;
 using namespace ubse::mem::controller::rpc;
 using namespace ubse::mem::controller::message;
 using namespace ubse::mem::controller::debt;
-
 
 void TestUbseMemDebInfoQueryHandler::SetUp()
 {
@@ -355,7 +354,6 @@ TEST_F(TestUbseMemDebInfoQueryHandler, UbseMemDebtInfoFdListHandler_Handle_Busin
     auto ret = handler.Handle(req, rsp, ctx);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
-
 
 TEST_F(TestUbseMemDebInfoQueryHandler, UbseMemDebtInfoNumaGetHandler_Handle_BusinessFail)
 {

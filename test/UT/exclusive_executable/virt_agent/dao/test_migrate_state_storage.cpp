@@ -28,10 +28,10 @@ void TestMigrateStateStorage::TearDown()
     Test::TearDown();
 }
 
-uint32_t MockUbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t MockUbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
                                   UbseStorageDealDataFunc func)
 {
-    auto *numaVMInfoMaps = static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    auto* numaVMInfoMaps = static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     NumaVMInfoMap numaVMInfoMap;
     numaVMInfoMaps->emplace_back(numaVMInfoMap);
     return VM_OK;
@@ -148,7 +148,7 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenCtxIsNull)
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = 0;
-    void *ctx = nullptr;
+    void* ctx = nullptr;
 
     // Act
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
@@ -162,11 +162,11 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenBuffDataIsNull)
     UbseByteBuffer buff;
     buff.data = nullptr;
     buff.len = 0;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
 
     // Act
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
 }
 
 TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenBuffDataIsValid)
@@ -176,13 +176,13 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenBuffDataIsValid)
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = BUFF_LEN;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
     MigrateStateMapMessage migrateStateMapMessage;
     MOCKER_CPP_VIRTUAL(&migrateStateMapMessage, &MigrateStateMapMessage::Deserialize).stubs().will(returnValue(VM_OK));
 
     // Act
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     delete[] buff.data;
 }
 
@@ -193,10 +193,10 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnError_WhenSetInputRawDa
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = BUFF_LEN;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
     MOCKER(&BaseMessage::SetInputRawData).stubs().will(returnValue(VM_ERROR));
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     delete[] buff.data;
 }
 
@@ -207,14 +207,14 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnError_WhenDeserializeFa
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = BUFF_LEN;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
     MOCKER(&BaseMessage::SetInputRawData).stubs().will(returnValue(VM_OK));
     MigrateStateMapMessage migrateStateMapMessage;
     MOCKER_CPP_VIRTUAL(&migrateStateMapMessage, &MigrateStateMapMessage::Deserialize)
         .stubs()
         .will(returnValue(VM_ERROR));
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     delete[] buff.data;
 }
 

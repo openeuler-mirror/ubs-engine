@@ -23,7 +23,7 @@ using namespace ubse::log;
 std::mutex FragmentationVmCollection::timerTaskMutex;
 std::string FragmentationVmCollection::timerName = "fragCollectVmInfoTimer";
 
-FragmentationVmCollection &FragmentationVmCollection::GetInstance()
+FragmentationVmCollection& FragmentationVmCollection::GetInstance()
 {
     static FragmentationVmCollection fragmentationVmCollection;
     return fragmentationVmCollection;

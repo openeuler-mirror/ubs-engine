@@ -82,9 +82,9 @@ std::pair<uint64_t, uint64_t> CalculateWatermarks(const NodeMemoryInfo& borrower
             << "). Force migration target set.";
         uint64_t emergencyStopBuffer = static_cast<uint64_t>(borrower.totalMemory * urgentMemMultiplier);
         uint64_t emergencyStop = high + emergencyStopBuffer;
-        return { high / pageSizeKb, emergencyStop / pageSizeKb };
+        return {high / pageSizeKb, emergencyStop / pageSizeKb};
     }
-    
+
     uint64_t deltaMemory = availableMemory - high;
     if (deltaMemory < minPageSize) {
         startWaterMark = high + minPageSize;
@@ -93,21 +93,21 @@ std::pair<uint64_t, uint64_t> CalculateWatermarks(const NodeMemoryInfo& borrower
         startWaterMark = migrateRate * borrower.usedMemory + high;
     }
     stopWaterMark = std::max(startWaterMark, high) + availableMemory * stopMarkMultiplier;
-    return { startWaterMark / pageSizeKb, stopWaterMark / pageSizeKb };
+    return {startWaterMark / pageSizeKb, stopWaterMark / pageSizeKb};
 }
 
-uint32_t GetBestLenderNumaId(const std::vector<NodeMemBorrowInfo> &lenders, const std::string &bestLenderId,
-                             int &bestLenderNumaId)
+uint32_t GetBestLenderNumaId(const std::vector<NodeMemBorrowInfo>& lenders, const std::string& bestLenderId,
+                             int& bestLenderNumaId)
 {
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "bestLenderId: " << bestLenderId;
-    for (const auto &lender : lenders) {
+    for (const auto& lender : lenders) {
         if (lender.destNodeId == bestLenderId) {
             bestLenderNumaId = lender.dstNumaId;
             return UCACHE_OK;
         }
     }
-    UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) <<
-            "GetBestLenderNumaId error, can't find destNodeId: " << bestLenderId << "in lenders.";
+    UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+        << "GetBestLenderNumaId error, can't find destNodeId: " << bestLenderId << "in lenders.";
     return UCACHE_ERR;
 }
 std::vector<std::string> GettempDockerIds(const std::map<std::string, PageCacheSensitiveTag>& borrowBodeTags)
@@ -124,15 +124,14 @@ std::vector<std::string> GettempDockerIds(const std::map<std::string, PageCacheS
 std::vector<MigrationAction> MemoryMigrationStrategy(
     const std::map<std::string, std::vector<NodeMemBorrowInfo>>& borrowMap,
     const std::map<std::string, NodeMemoryInfo>& nodes,
-    const std::map<std::string, std::map<std::string, PageCacheSensitiveTag>>& nodeTags
-)
+    const std::map<std::string, std::map<std::string, PageCacheSensitiveTag>>& nodeTags)
 {
     std::vector<MigrationAction> actions;
     for (const auto& [borrowerId, lenders] : borrowMap) {
         auto borrowerIt = nodes.find(borrowerId);
         if (borrowerIt == nodes.end()) {
-            UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) <<
-            "MemoryMigrationStrategy error, borrowerKey:" << borrowerId << "not found.";
+            UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+                << "MemoryMigrationStrategy error, borrowerKey:" << borrowerId << "not found.";
             break;
         }
         std::vector<std::string> tempDockerIds;
@@ -145,7 +144,7 @@ std::vector<MigrationAction> MemoryMigrationStrategy(
             continue;
         }
         std::vector<std::pair<std::string, NodeMemoryInfo>> candidates;
-    
+
         for (const auto& lender : lenders) {
             auto lenderIt = nodes.find(lender.destNodeId);
             if (lenderIt != nodes.end()) {
@@ -153,7 +152,7 @@ std::vector<MigrationAction> MemoryMigrationStrategy(
             }
         }
         std::sort(candidates.begin(), candidates.end(), CompareNodes);
-         
+
         if (!candidates.empty()) {
             const auto& [bestLenderId, _] = candidates.front();
             int bestLenderNumaId = 0;
@@ -172,12 +171,10 @@ std::vector<MigrationAction> MemoryMigrationStrategy(
             tempAction.dstNumaId = bestLenderNumaId;
             tempAction.startWatermark = start;
             tempAction.stopWatermark = stop;
-            actions.push_back({
-                tempAction
-            });
+            actions.push_back({tempAction});
         }
     }
     return actions;
 }
-}
-}
+} // namespace migration
+} // namespace ucache::master

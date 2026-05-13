@@ -14,9 +14,9 @@
 
 #include "mockcpp/mockcpp.hpp"
 
+#include "ubse_error.h"
 #include "message/ubse_mem_controller_serial.h"
 #include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "ubse_error.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::mem::serial;
@@ -67,10 +67,7 @@ TEST_F(TestUbseMemFdBorrowExportobjSimpo, Deserialize)
     auto buffer = new (std::nothrow) uint8_t[size];
     EXPECT_NE(nullptr, buffer);
     obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
-    MOCKER_CPP(&UbseMemFdBorrowExportObjDeserialization)
-        .stubs()
-        .will(returnValue(false))
-        .then(returnValue(true));
+    MOCKER_CPP(&UbseMemFdBorrowExportObjDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
     EXPECT_TRUE(UBSE_OK == obj->Deserialize());
 }

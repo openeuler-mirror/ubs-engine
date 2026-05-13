@@ -16,17 +16,16 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "exporter.h"
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_module.h"
 #include "mp_error.h"
 #include "mp_json_util.h"
-#include "exporter.h"
-
 
 namespace mempooling {
 using namespace mempooling::migrate;
 
-constexpr size_t VECTOR_REMOTE_NUMA_SIZE = 2;   // 规定接收memid故障处理远端迁移远端的数组大小为2
+constexpr size_t VECTOR_REMOTE_NUMA_SIZE = 2; // 规定接收memid故障处理远端迁移远端的数组大小为2
 const uint64_t m_miniUnitMemSize = 131072;
 const uint64_t m_maxUnitMemSize = 4194304;
 
@@ -59,7 +58,7 @@ struct CurNumaInfoMF {
     std::string destPreNid;   // 故障memid是从那个物理节点借用
     uint16_t destSocketId;    // 故障memid是从那个SocketId借用
 
-    void SetValues(uint16_t rNumaId, uint64_t mBorrowIdSize, const std::string &bId, const std::string &dPreNid,
+    void SetValues(uint16_t rNumaId, uint64_t mBorrowIdSize, const std::string& bId, const std::string& dPreNid,
                    uint16_t dSocketId)
     {
         remoteNumaId = rNumaId;
@@ -87,13 +86,11 @@ struct FMSameNidParam {
     std::string borrowIdNew;
 };
 
-
 // 不相同节点故障处理，查询虚拟机信息，发送参数，序列化和反序列化
 struct FMVmInfoParam {
     uint16_t remoteNumaId;
     uint64_t memBorrowIdSize;
 };
-
 
 // 不相同节点故障处理，查询虚拟机信息，接收结果，序列化和反序列化
 struct FMVmInfoResult {
@@ -116,80 +113,79 @@ struct UCEMemoryParam {
 };
 
 struct NotSameNidMemoryParam {
-    std::string borrowId;       // 需要归还内存的borrowId
+    std::string borrowId;        // 需要归还内存的borrowId
     uint64_t totalNeedBorrowMem; // 需要借用内存的大小 kb
 };
 
-uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void MemIdFaultNotSameNidResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-uint32_t MemIdFaultSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void MemIdFaultSameNidResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-uint32_t MemIdFaultNotSameNidVmInfoRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void MemIdFaultNotSameNidVmInfoResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-
+uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void MemIdFaultNotSameNidResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+uint32_t MemIdFaultSameNidRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void MemIdFaultSameNidResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+uint32_t MemIdFaultNotSameNidVmInfoRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void MemIdFaultNotSameNidVmInfoResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
 class FaultMemIdCollect {
 public:
-    static FaultMemIdCollect &Instance()
+    static FaultMemIdCollect& Instance()
     {
         static FaultMemIdCollect instance;
         return instance;
     }
-    MpResult GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfo> &allVmNumaInfoInfoList,
-                            std::map<pid_t, VmNumaInfo> &vmNumaInfoMap);
-    MpResult GetSocketIdOfNUMA(std::string borrowInNid, SrcMemoryBorrowParam &srcParam);
-    MpResult IsBorrowIdOfCurNid(BorrowInNodeData &borrowInNodeData, uint64_t &memBorrowIdSize, uint16_t &remoteNumaId,
-                                std::string &destPreNid, uint16_t &destSocketId);
+    MpResult GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfo>& allVmNumaInfoInfoList,
+                              std::map<pid_t, VmNumaInfo>& vmNumaInfoMap);
+    MpResult GetSocketIdOfNUMA(std::string borrowInNid, SrcMemoryBorrowParam& srcParam);
+    MpResult IsBorrowIdOfCurNid(BorrowInNodeData& borrowInNodeData, uint64_t& memBorrowIdSize, uint16_t& remoteNumaId,
+                                std::string& destPreNid, uint16_t& destSocketId);
     MpResult NotSameNidVmInfoRpc(std::string importNodeId, uint16_t remoteNumaId, uint64_t memBorrowIdSize,
-                                 FMVmInfoResult &fMVmInfoResult);
-    MpResult NotSameNidVmInfo(uint16_t remoteNumaId, uint64_t memBorrowIdSize, std::vector<pid_t> &pids,
-                              uint64_t &totalNeedBorrowMem);
+                                 FMVmInfoResult& fMVmInfoResult);
+    MpResult NotSameNidVmInfo(uint16_t remoteNumaId, uint64_t memBorrowIdSize, std::vector<pid_t>& pids,
+                              uint64_t& totalNeedBorrowMem);
 };
 
 class FaultMemIdExecute {
 public:
-    static FaultMemIdExecute &Instance()
+    static FaultMemIdExecute& Instance()
     {
         static FaultMemIdExecute instance;
         return instance;
     }
     MpResult EchoHugepages(uint64_t remoteNumeId, uint64_t borrowMemSize);
-    MpResult NotSameNidExecute(std::vector<uint16_t> remoteNumas, uint64_t totalNeedBorrowMem, std::vector<pid_t> &pids,
+    MpResult NotSameNidExecute(std::vector<uint16_t> remoteNumas, uint64_t totalNeedBorrowMem, std::vector<pid_t>& pids,
                                std::string borrowId, bool isForce);
-    MpResult NotSameNidExecuteRpc(NotSameNidExecuteParam &param, std::vector<pid_t> &pids, std::string borrowIdNew);
+    MpResult NotSameNidExecuteRpc(NotSameNidExecuteParam& param, std::vector<pid_t>& pids, std::string borrowIdNew);
     MpResult SameNidExecuteRpc(std::string importNodeId, uint64_t remoteNumaHuge, uint64_t memBorrowIdSize,
                                std::string borrowId, std::string borrowIdNew);
     MpResult SameNidExecute(uint64_t remoteNumaHuge, uint64_t memBorrowIdSize, std::string borrowId,
                             std::string borrowIdNew);
-    MpResult VmsMigrateOtherRemoteNuma(std::vector<pid_t> &pids, uint16_t remoteNumaId, uint16_t remoteNumaHuge,
+    MpResult VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, uint16_t remoteNumaId, uint16_t remoteNumaHuge,
                                        std::string borrowId, bool isForce);
 };
 
-
 class FaultMemIdStrategy {
 public:
-    static FaultMemIdStrategy &Instance()
+    static FaultMemIdStrategy& Instance()
     {
         static FaultMemIdStrategy instance;
         return instance;
     }
-    MpResult AdjustNeedBorrowMem(uint64_t &needBorrowMem);
-    bool IsMemBorrowNotWipeTheEdge(const std::vector<pid_t> &pids, const std::vector<VmNumaInfo> &allVmNumaInfoInfoList,
-                                   uint64_t &totalNeedBorrowMem);
-    MpResult ApplyMemBorrowStrategyMultipleUB(const mempooling::SrcMemoryBorrowParam &srcParam,
-                                              const std::vector<uint64_t> &borrowSizes,
-                                              const MemBorrowStrategyParam &memBorrowStrategyParam,
-                                              MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                                              bool &isSameDestNid);
-    void PrintBorrowStrategyMultiResult(const MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-        const bool &isSameDestNid);
+    MpResult AdjustNeedBorrowMem(uint64_t& needBorrowMem);
+    bool IsMemBorrowNotWipeTheEdge(const std::vector<pid_t>& pids, const std::vector<VmNumaInfo>& allVmNumaInfoInfoList,
+                                   uint64_t& totalNeedBorrowMem);
+    MpResult ApplyMemBorrowStrategyMultipleUB(const mempooling::SrcMemoryBorrowParam& srcParam,
+                                              const std::vector<uint64_t>& borrowSizes,
+                                              const MemBorrowStrategyParam& memBorrowStrategyParam,
+                                              MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                                              bool& isSameDestNid);
+    void PrintBorrowStrategyMultiResult(const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                                        const bool& isSameDestNid);
     MpResult MemBorrPostprocess(std::string borrowId,
-        const mempooling::MemBorrowExecuteResult &borrowExecuteResultNotSameNid, uint64_t totalNeedBorrowMem);
+                                const mempooling::MemBorrowExecuteResult& borrowExecuteResultNotSameNid,
+                                uint64_t totalNeedBorrowMem);
 };
 
 class FaultMemIdModule {
 public:
-    static FaultMemIdModule &Instance()
+    static FaultMemIdModule& Instance()
     {
         static FaultMemIdModule instance;
         return instance;
@@ -199,26 +195,26 @@ public:
 
     MpResult MemIdFaultManage(std::string borrowInNid, uint64_t memId, bool isForce, bool byNodeFault);
 
-    static bool compareVmNumaInfo(const VmNumaInfo &a, const VmNumaInfo &b);
+    static bool compareVmNumaInfo(const VmNumaInfo& a, const VmNumaInfo& b);
 
-    MpResult FindClosestVmForMemAlloc(std::vector<VmNumaInfo> &allVmNumaInfoInfoList, uint64_t memSizeSingle,
-                                      std::vector<pid_t> &pids, uint64_t &totalNeedBorrowMem);
+    MpResult FindClosestVmForMemAlloc(std::vector<VmNumaInfo>& allVmNumaInfoInfoList, uint64_t memSizeSingle,
+                                      std::vector<pid_t>& pids, uint64_t& totalNeedBorrowMem);
 
-    MpResult ClosestVmVector(const std::vector<VmNumaInfo> &allVmNumaInfoInfoList, uint64_t memSizeSingle,
-                             std::vector<pid_t> &pids, uint64_t &totalNeedBorrowMem);
+    MpResult ClosestVmVector(const std::vector<VmNumaInfo>& allVmNumaInfoInfoList, uint64_t memSizeSingle,
+                             std::vector<pid_t>& pids, uint64_t& totalNeedBorrowMem);
 
-    MpResult BorrowFromSameNid(std::string borrowInNid, const mempooling::SrcMemoryBorrowParam &srcParam,
-                               const MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                               const UCEMemoryParam &memParam, bool isForce);
+    MpResult BorrowFromSameNid(std::string borrowInNid, const mempooling::SrcMemoryBorrowParam& srcParam,
+                               const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                               const UCEMemoryParam& memParam, bool isForce);
 
-    MpResult BorrowFromNotSameNid(std::string borrowInNid, const CurNumaInfoMF &curNumaInfoMF,
-                                  const mempooling::SrcMemoryBorrowParam &srcParam, bool byNodeFault, bool isForce);
+    MpResult BorrowFromNotSameNid(std::string borrowInNid, const CurNumaInfoMF& curNumaInfoMF,
+                                  const mempooling::SrcMemoryBorrowParam& srcParam, bool byNodeFault, bool isForce);
 
-    MpResult NotSameMemBoorNidExecute(const mempooling::SrcMemoryBorrowParam &srcParam,
-                                      const MemBorrowStrategyMultiResult &borrowStrategyMultiResultNotSameNid,
-                                      std::string &borrowIdNew, uint64_t totalNeedBorrowMem, uint16_t &remoteNumaHuge);
+    MpResult NotSameMemBoorNidExecute(const mempooling::SrcMemoryBorrowParam& srcParam,
+                                      const MemBorrowStrategyMultiResult& borrowStrategyMultiResultNotSameNid,
+                                      std::string& borrowIdNew, uint64_t totalNeedBorrowMem, uint16_t& remoteNumaHuge);
 
-    MpResult GetSocketIdOfNUMA(std::string borrowInNid, SrcMemoryBorrowParam &srcParam, std::string destPreNid,
+    MpResult GetSocketIdOfNUMA(std::string borrowInNid, SrcMemoryBorrowParam& srcParam, std::string destPreNid,
                                uint16_t destSocketId);
 
     MpResult NotSameNidDeleteUpdate(std::string borrowId, std::string borrowIdNew);
@@ -226,11 +222,11 @@ public:
 private:
     FaultMemIdModule() = default;
     ~FaultMemIdModule() = default;
-    FaultMemIdModule(const FaultMemIdModule &) = delete;
-    FaultMemIdModule &operator=(const FaultMemIdModule &) = delete;
+    FaultMemIdModule(const FaultMemIdModule&) = delete;
+    FaultMemIdModule& operator=(const FaultMemIdModule&) = delete;
 
-    void findCombination(const std::vector<VmNumaInfo> &allVmNumaInfoInfoList, uint64_t memSizeSingle, int start,
-                         CombinationState &state);
+    void findCombination(const std::vector<VmNumaInfo>& allVmNumaInfoInfoList, uint64_t memSizeSingle, int start,
+                         CombinationState& state);
 };
 
 } // namespace mempooling

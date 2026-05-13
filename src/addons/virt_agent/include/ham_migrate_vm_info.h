@@ -64,22 +64,22 @@ struct HamMigrateVmInfo {
     time_point<system_clock> timeout;
     int count = 1;
 
-    bool operator<(const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator<(const HamMigrateVmInfo& hamMigrateVmInfo) const
     {
         return timeout > hamMigrateVmInfo.timeout;
     }
 
-    bool operator>(const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator>(const HamMigrateVmInfo& hamMigrateVmInfo) const
     {
         return timeout < hamMigrateVmInfo.timeout;
     }
 
-    bool operator==(const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator==(const HamMigrateVmInfo& hamMigrateVmInfo) const
     {
         return nodeId == hamMigrateVmInfo.nodeId && pid == hamMigrateVmInfo.pid;
     }
 
-    static std::string VmStateToString(const VmState &vmState)
+    static std::string VmStateToString(const VmState& vmState)
     {
         std::ostringstream oss;
         if (vmState == VmState::NOPE) {
@@ -96,7 +96,7 @@ struct HamMigrateVmInfo {
         return oss.str();
     }
 
-    static std::string VmOpStateToString(const VmOpState &vmOpState)
+    static std::string VmOpStateToString(const VmOpState& vmOpState)
     {
         std::ostringstream oss;
         if (vmOpState == VmOpState::NOPE) {
@@ -111,7 +111,7 @@ struct HamMigrateVmInfo {
         return oss.str();
     }
 
-    static std::string OpStateToString(const OpState &opState)
+    static std::string OpStateToString(const OpState& opState)
     {
         std::ostringstream oss;
         if (opState == OpState::NOPE) {
@@ -124,7 +124,7 @@ struct HamMigrateVmInfo {
         return oss.str();
     }
 
-    static std::string NodeStateToString(const NodeState &nodeState)
+    static std::string NodeStateToString(const NodeState& nodeState)
     {
         std::ostringstream oss;
         if (nodeState == NodeState::NOPE) {

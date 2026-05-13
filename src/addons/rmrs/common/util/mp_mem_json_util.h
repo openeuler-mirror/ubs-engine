@@ -18,10 +18,10 @@
 #include <string>
 #include <vector>
 
+#include "ubse_logger.h"
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_module.h"
 #include "mp_error.h"
-#include "ubse_logger.h"
 
 namespace mempooling {
 using namespace mempooling::migrate;
@@ -29,7 +29,7 @@ using namespace ubse::log;
 
 struct MpMigrateParam {
     std::string ToJson();
-    bool FromJson(const std::string &jsonString);
+    bool FromJson(const std::string& jsonString);
 
     std::string borrowInNode;
     std::vector<VMPresetParam> vmInfoList;
@@ -38,7 +38,7 @@ struct MpMigrateParam {
 
 struct MpMigrateStrategyResultParam {
     std::string ToJson();
-    bool FromJson(const std::string &jsonString);
+    bool FromJson(const std::string& jsonString);
 
     std::vector<VMMigrateOutParam> vmInfoList;
     uint64_t waitingTime; // 单位ms
@@ -46,7 +46,7 @@ struct MpMigrateStrategyResultParam {
 
 struct MpMemBorrRBParam {
     std::string ToJson();
-    bool FromJson(const std::string &jsonString);
+    bool FromJson(const std::string& jsonString);
 
     std::string borrowInNode;
     std::vector<std::string> borrowIdsList;
@@ -55,7 +55,7 @@ struct MpMemBorrRBParam {
     void log() const
     {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "borrowInNode: " << borrowInNode;
-        
+
         for (const auto& borrowId : borrowIdsList) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "borrowIdsList: " << borrowId;
         }
@@ -64,11 +64,11 @@ struct MpMemBorrRBParam {
 
 struct MpFaultMemIdParam {
     std::string ToJson();
-    bool FromJson(const std::string &jsonString);
- 
+    bool FromJson(const std::string& jsonString);
+
     std::string importNodeId;
     uint64_t importMemId;
- 
+
     void log() const
     {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "importNodeId: " << importNodeId;

@@ -13,8 +13,8 @@
 #ifndef UBSE_CLI_REG_H
 #define UBSE_CLI_REG_H
 
-#include <sys/wait.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <atomic>
 #include <chrono>
@@ -42,9 +42,9 @@ constexpr int UBSE_SPINNER_TIME = 250;
 
 class UbseCliParse {
 public:
-    bool UbseCliArgsParse(const std::vector<std::string> &args);
+    bool UbseCliArgsParse(const std::vector<std::string>& args);
 
-    std::map<std::string, std::string> &UbseCliGetInputOptionMap()
+    std::map<std::string, std::string>& UbseCliGetInputOptionMap()
     {
         return this->inputOptionMap_;
     }
@@ -55,13 +55,13 @@ public:
     }
 
 private:
-    bool UbseCliArgsMapParse(const std::vector<std::string> &args);
+    bool UbseCliArgsMapParse(const std::vector<std::string>& args);
 
-    static bool UbseIsLongOption(const std::string &arg, bool &is_long_option);
-    static std::string UbseCliGetInputOptionName(const std::string &arg, bool is_long_option);
-    static bool UbseCliValidateOption(const std::string &option_name, bool is_long_option);
-    bool UbseCliProcessOption(size_t &arg_index, const std::vector<std::string> &args, const std::string &option_name,
-        bool is_long_option);
+    static bool UbseIsLongOption(const std::string& arg, bool& is_long_option);
+    static std::string UbseCliGetInputOptionName(const std::string& arg, bool is_long_option);
+    static bool UbseCliValidateOption(const std::string& option_name, bool is_long_option);
+    bool UbseCliProcessOption(size_t& arg_index, const std::vector<std::string>& args, const std::string& option_name,
+                              bool is_long_option);
 
 private:
     std::map<std::string, std::string> inputOptionMap_{};
@@ -75,31 +75,31 @@ constexpr size_t UBSE_INDENT_SIZE = 45;
 
 class UbseCliModuleRegistry {
 public:
-    using UbseCliModuleCreator = std::function<UbseCliRegModule *()>;
+    using UbseCliModuleCreator = std::function<UbseCliRegModule*()>;
 
-    static UbseCliModuleRegistry &GetInstance()
+    static UbseCliModuleRegistry& GetInstance()
     {
         static UbseCliModuleRegistry instance;
         return instance;
     }
 
-    UbseCliModuleRegistry(const UbseCliModuleRegistry &) = delete;
+    UbseCliModuleRegistry(const UbseCliModuleRegistry&) = delete;
 
-    UbseCliModuleRegistry(UbseCliModuleRegistry &&) = delete;
+    UbseCliModuleRegistry(UbseCliModuleRegistry&&) = delete;
 
-    UbseCliModuleRegistry &operator = (const UbseCliModuleRegistry &) = delete;
+    UbseCliModuleRegistry& operator=(const UbseCliModuleRegistry&) = delete;
 
-    UbseCliModuleRegistry &operator = (UbseCliModuleRegistry &&) = delete;
+    UbseCliModuleRegistry& operator=(UbseCliModuleRegistry&&) = delete;
 
-    void UbseCliLoadedModule(const std::string &module_name, UbseCliModuleCreator module_creator);
+    void UbseCliLoadedModule(const std::string& module_name, UbseCliModuleCreator module_creator);
 
     void UbseCliCallAllModuleSignUp();
 
-    void UbseCliRegister(std::vector<UbseCliCommandInfo> &commands_info);
+    void UbseCliRegister(std::vector<UbseCliCommandInfo>& commands_info);
 
-    bool UbseCliCommandExist(const std::string &command_key);
+    bool UbseCliCommandExist(const std::string& command_key);
 
-    bool UbseCliHelpInfoParse(const std::vector<std::string> &args);
+    bool UbseCliHelpInfoParse(const std::vector<std::string>& args);
 
     void UbseCliReset()
     {
@@ -107,27 +107,27 @@ public:
         this->fullCommandInfo_.clear();
     }
 
-    UbseCliCommandInfo &UbseCliGetMatchCommand()
+    UbseCliCommandInfo& UbseCliGetMatchCommand()
     {
         return this->matchCommand_;
     }
 
-    UbseCliParse &UbseCliGetParseTool()
+    UbseCliParse& UbseCliGetParseTool()
     {
         return this->parseTool_;
     }
 
 private:
-    void UbseCliRegisterOptions(const std::string &command_key, const UbseCliCommandInfo &command_info);
+    void UbseCliRegisterOptions(const std::string& command_key, const UbseCliCommandInfo& command_info);
 
     void UbseCliDisplayHelpInfo();
 
-    void UbseCliDisplayCommandOptionsHelpInfo(const std::string &command, const std::string &type);
+    void UbseCliDisplayCommandOptionsHelpInfo(const std::string& command, const std::string& type);
 
-    void UbseCliDisplayParamsHelpInfo(const std::vector<UbseCliOptionsInfo> &options, size_t &line_width_limit);
+    void UbseCliDisplayParamsHelpInfo(const std::vector<UbseCliOptionsInfo>& options, size_t& line_width_limit);
 
-    void UbseCliDisplayOptionInfoWithWidthLimit(const std::string &one_option_help_info, size_t line_width_limit,
-        const std::string &delimiter) const;
+    void UbseCliDisplayOptionInfoWithWidthLimit(const std::string& one_option_help_info, size_t line_width_limit,
+                                                const std::string& delimiter) const;
 
 private:
     UbseCliModuleRegistry() = default;
@@ -144,7 +144,7 @@ public:
 
     virtual ~UbseCliRegModule() = default;
 
-    static inline std::shared_ptr<UbseCliResultEcho> UbseCliStringPromptReply(const std::string &str)
+    static inline std::shared_ptr<UbseCliResultEcho> UbseCliStringPromptReply(const std::string& str)
     {
         return std::make_shared<UbseCliStringEcho>(str);
     }
@@ -154,7 +154,7 @@ public:
     }
     static inline bool DisableTimeoutTimer()
     {
-        struct itimerval timer{};
+        struct itimerval timer {};
         return setitimer(ITIMER_REAL, &timer, nullptr) == 0;
     }
     void UbseCliRegisterCmd()

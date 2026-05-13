@@ -40,11 +40,11 @@ void UbseMemConfiguration::setPageType()
     }
 }
 
-void UbseMemConfiguration::SetConfig(const NodeInfoMap &nodeMap)
+void UbseMemConfiguration::SetConfig(const NodeInfoMap& nodeMap)
 {
     nodeConfigs.clear();
 
-    for (const auto &[nodeId, nodeInfo] : nodeMap) {
+    for (const auto& [nodeId, nodeInfo] : nodeMap) {
         if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
             nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
             continue;
@@ -54,7 +54,7 @@ void UbseMemConfiguration::SetConfig(const NodeInfoMap &nodeMap)
     }
 }
 
-std::optional<uint32_t> UbseMemConfiguration::GetPmdMappingById(const std::string &nodeId) const
+std::optional<uint32_t> UbseMemConfiguration::GetPmdMappingById(const std::string& nodeId) const
 {
     auto nodeConfig = nodeConfigs.find(nodeId);
     if (nodeConfig == nodeConfigs.end()) {
@@ -63,7 +63,7 @@ std::optional<uint32_t> UbseMemConfiguration::GetPmdMappingById(const std::strin
     return nodeConfig->second.pmdMapping;
 }
 
-std::optional<UbseAllocator> UbseMemConfiguration::GetObmmAllocatorById(const std::string &nodeId) const
+std::optional<UbseAllocator> UbseMemConfiguration::GetObmmAllocatorById(const std::string& nodeId) const
 {
     auto nodeConfig = nodeConfigs.find(nodeId);
     if (nodeConfig == nodeConfigs.end()) {
@@ -72,7 +72,7 @@ std::optional<UbseAllocator> UbseMemConfiguration::GetObmmAllocatorById(const st
     return nodeConfig->second.allocator;
 }
 
-std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeById(const std::string &nodeId) const
+std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeById(const std::string& nodeId) const
 {
     auto nodeConfig = nodeConfigs.find(nodeId);
     if (nodeConfig == nodeConfigs.end()) {
@@ -83,7 +83,7 @@ std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeById(const std::string
 
 std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeFromLenderNode() const
 {
-    for (const auto &[_, config] : nodeConfigs) {
+    for (const auto& [_, config] : nodeConfigs) {
         if (config.isLender) {
             return config.blockSize;
         }
@@ -93,7 +93,7 @@ std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeFromLenderNode() const
 
 std::optional<UbseAllocator> UbseMemConfiguration::GetAllocatorFromLenderNode() const
 {
-    for (const auto &[_, config] : nodeConfigs) {
+    for (const auto& [_, config] : nodeConfigs) {
         if (config.isLender) {
             return config.allocator;
         }

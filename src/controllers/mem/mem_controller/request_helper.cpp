@@ -23,7 +23,7 @@
 namespace ubse::mem_controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
-std::shared_ptr<FutureMgr> FutureMgr::CreateInstance(const std::string &requestId)
+std::shared_ptr<FutureMgr> FutureMgr::CreateInstance(const std::string& requestId)
 {
     std::unique_lock<std::mutex> mapLock(mapMutex);
 
@@ -41,7 +41,7 @@ std::shared_ptr<FutureMgr> FutureMgr::CreateInstance(const std::string &requestI
     return newFutureObject;
 }
 
-bool FutureMgr::SetResult(const std::string &requestId, const std::any &result)
+bool FutureMgr::SetResult(const std::string& requestId, const std::any& result)
 {
     std::unique_lock<std::mutex> lock(mapMutex);
     auto it = mgrInstanceMap.find(requestId);
@@ -56,7 +56,7 @@ bool FutureMgr::SetResult(const std::string &requestId, const std::any &result)
     return futureMgr->SetResult(result);
 }
 
-bool FutureMgr::Find(const std::string &requestId)
+bool FutureMgr::Find(const std::string& requestId)
 {
     std::unique_lock<std::mutex> lock(mapMutex);
     auto it = mgrInstanceMap.find(requestId);
@@ -76,7 +76,7 @@ size_t FutureMgr::GetSize()
     return mgrInstanceMap.size();
 }
 
-bool FutureMgr::SetResult(const std::any &result)
+bool FutureMgr::SetResult(const std::any& result)
 {
     std::unique_lock<std::mutex> lock(mtx_);
     bool match = false;

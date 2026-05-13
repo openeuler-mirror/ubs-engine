@@ -17,16 +17,16 @@
 #include <string>
 #include <vector>
 
-#include "mp_error.h"
 #include "ubse_logger.h"
+#include "mp_error.h"
 
 namespace mempooling {
 using namespace ubse::log;
 
 struct MpUpdateAntiNodeParam {
     std::string ToJson() const;
-    bool FromJson(const std::string &jsonString);
-    
+    bool FromJson(const std::string& jsonString);
+
     std::map<std::string, std::vector<std::string>> nodeAntiAffinityMap;
 };
 

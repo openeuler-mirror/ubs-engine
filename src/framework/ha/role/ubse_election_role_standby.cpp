@@ -17,7 +17,7 @@
 namespace ubse::election {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
-Standby::Standby(RoleContext &ctx) : turnId_(0), lastHeartTime_()
+Standby::Standby(RoleContext& ctx) : turnId_(0), lastHeartTime_()
 {
     Node myself;
     if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself)) {
@@ -60,7 +60,7 @@ void Standby::SwitchMaster()
     RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::STANDBY_CHANGE_TO_MASTER, ctx.masterId);
 }
 
-void HandleMasterOnlineNotification(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
+void HandleMasterOnlineNotification(const ElectionPkt& rcvPkt, ElectionReplyPkt& reply)
 {
     if (rcvPkt.broadcast == 0) {
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION,
@@ -70,7 +70,7 @@ void HandleMasterOnlineNotification(const ElectionPkt &rcvPkt, ElectionReplyPkt 
     }
 }
 
-uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
+uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
     if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         // 备节点拒绝所有选主报文，不管主如何，备优先会成为主
@@ -82,7 +82,7 @@ uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Election
     }
     return 0;
 }
-void Standby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
+void Standby::RecvPktForHeart(const ElectionPkt& rcvPkt, ElectionReplyPkt& reply)
 {
     if (rcvPkt.masterId == masterId_) {
         if (rcvPkt.standbyId == standbyId_) {

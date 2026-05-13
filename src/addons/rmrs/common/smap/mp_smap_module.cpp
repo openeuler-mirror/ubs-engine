@@ -17,7 +17,7 @@
 namespace mempooling::smap {
 using namespace ubse::log;
 
-void *SmapModule::smapHandle = nullptr;
+void* SmapModule::smapHandle = nullptr;
 SmapInitFunc SmapModule::smapInitFunc = nullptr;
 SmapMigrateOutFunc SmapModule::smapMigrateOutFunc = nullptr;
 SmapMigrateOutSyncFunc SmapModule::smapMigrateOutSyncFunc = nullptr;
@@ -137,7 +137,7 @@ void SmapModule::CloseSmapHandle()
     smapMigrateOutGroupedFunc = nullptr;
 }
 
-void SmapModule::RackVmLog(int level, const char *str, const char *moduleName)
+void SmapModule::RackVmLog(int level, const char* str, const char* moduleName)
 {
     if (moduleName == nullptr) {
         moduleName = MP_MODULE_NAME;
@@ -336,8 +336,7 @@ SmapMigrateOutGroupedFunc SmapModule::GetSmapMigrateOutGroupedFunc()
         return nullptr;
     }
 
-    smapMigrateOutGroupedFunc =
-        (SmapMigrateOutGroupedFunc)dlsym(smapHandle, "ubturbo_smap_migrate_out_grouped");
+    smapMigrateOutGroupedFunc = (SmapMigrateOutGroupedFunc)dlsym(smapHandle, "ubturbo_smap_migrate_out_grouped");
     if (smapMigrateOutGroupedFunc == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[RmrsSmapModule] Get ubturbo_smap_migrate_out_grouped ptr failed.";
@@ -346,4 +345,4 @@ SmapMigrateOutGroupedFunc SmapModule::GetSmapMigrateOutGroupedFunc()
     return smapMigrateOutGroupedFunc;
 }
 
-}  // namespace mempooling::smap
+} // namespace mempooling::smap

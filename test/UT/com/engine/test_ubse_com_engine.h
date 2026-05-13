@@ -13,9 +13,9 @@
 #ifndef TEST_UBSE_COM_ENGINE_H
 #define TEST_UBSE_COM_ENGINE_H
 
+#include "engine/ubse_com_engine.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "engine/ubse_com_engine.h"
 
 namespace ubse::ut::com {
 using namespace ubse::com;
@@ -27,7 +27,7 @@ public:
 
     void TearDown() override;
 
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
 };
 
 class TestUbseComLinkManager : public testing::Test {
@@ -62,5 +62,5 @@ public:
 
     UbseCommunication manager;
 };
-}
+} // namespace ubse::ut::com
 #endif // TEST_UBSE_COM_ENGINE_H

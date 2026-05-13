@@ -19,7 +19,7 @@
 namespace vm::mempooling {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 
-void *MempoolingModule::libmempoolingHandler_ = nullptr;
+void* MempoolingModule::libmempoolingHandler_ = nullptr;
 UBSRMRSUpdateAntiNodeFunc MempoolingModule::ubsRMRSUpdateAntiNodeFunc_ = nullptr;
 UBSRMRSMemBorrowStrategyFunc MempoolingModule::ubsRMRSMemBorrowStrategyFunc_ = nullptr;
 UBSRMRSMemBorrowExecuteFunc MempoolingModule::ubsRMRSMemBorrowExecuteFunc_ = nullptr;

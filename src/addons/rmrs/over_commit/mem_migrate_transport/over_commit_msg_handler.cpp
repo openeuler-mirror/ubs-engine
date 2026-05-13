@@ -14,6 +14,7 @@
 
 #include <climits>
 
+#include "ubse_logger.h"
 #include "mempooling_message.h"
 #include "mp_configuration.h"
 #include "mp_json_util.h"
@@ -27,7 +28,6 @@
 #include "set_smap_remote_numa_info_trans_msg.h"
 #include "smap_remote_process_query_trans_msg.h"
 #include "smap_remove_trans_msg.h"
-#include "ubse_logger.h"
 #include "vm_mem_migrate_strategy.h"
 
 namespace mempooling::over_commit {
@@ -39,15 +39,15 @@ const int SMAP_QUERY_PID_NUM = 40;
 constexpr int SMAP_OK = 0;
 constexpr int SMAP_ERROR = 1;
 
-void LogMigrationDetails(const std::vector<MemBorrowInfoWithSrc> &memBorrowInfoWithSrcs,
-                         const std::vector<MemMigrateResult> &memMigrateResults)
+void LogMigrationDetails(const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs,
+                         const std::vector<MemMigrateResult>& memMigrateResults)
 {
     std::ostringstream oss;
-    for (const auto &memBorrowInfo : memBorrowInfoWithSrcs) {
+    for (const auto& memBorrowInfo : memBorrowInfoWithSrcs) {
         oss << memBorrowInfo.ToString() << R"(,)";
     }
     std::ostringstream oss2;
-    for (const auto &memMigrateResult : memMigrateResults) {
+    for (const auto& memMigrateResult : memMigrateResults) {
         oss2 << memMigrateResult.ToString() << R"(,)";
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -55,9 +55,9 @@ void LogMigrationDetails(const std::vector<MemBorrowInfoWithSrc> &memBorrowInfoW
         << " memBorrowInfoWithSrcs=" << oss.str() << ", memMigrateResults=" << oss2.str() << ".";
 }
 
-MpResult OverCommitMsgHandler::MigrateLocalHandler(const outinterface::SrcMemoryBorrowParam &srcMemoryBorrowParam,
+MpResult OverCommitMsgHandler::MigrateLocalHandler(const outinterface::SrcMemoryBorrowParam& srcMemoryBorrowParam,
                                                    const std::vector<MemBorrowInfoWithSrc> memBorrowInfoWithSrcs,
-                                                   const std::vector<MemMigrateResult> &memMigrateResults)
+                                                   const std::vector<MemMigrateResult>& memMigrateResults)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] MigrateLocalHandler start.";
     LogMigrationDetails(memBorrowInfoWithSrcs, memMigrateResults);
@@ -104,8 +104,8 @@ MpResult OverCommitMsgHandler::MigrateLocalHandler(const outinterface::SrcMemory
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult> &memMigrateResults,
-                                           const std::vector<MemBorrowInfoWithSrc> &memBorrowInfoWithSrcs,
+MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult>& memMigrateResults,
+                                           const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs,
                                            int16_t srcNumaId)
 {
     auto ret = MEM_POOLING_OK;
@@ -136,7 +136,7 @@ MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult> &
     return ret;
 }
 
-MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SetSmapRemoteNumaHandler start.";
     if (req.data == nullptr || req.len == 0) {
@@ -155,7 +155,7 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer &re
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &[presentNumaIds, borrowSize] : memBorrowInfos) {
+    for (const auto& [presentNumaIds, borrowSize] : memBorrowInfos) {
         RemoteNumaInfo remoteNumaInfo{
             .srcNid = srcMemoryBorrowParam.srcNumaId, .destNid = presentNumaIds, .size = borrowSize >> KB2MB};
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -171,8 +171,8 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer &re
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface::SrcMemoryBorrowParam &srcParam,
-                                                             const std::vector<MemBorrowInfo> &memBorrowInfos)
+MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface::SrcMemoryBorrowParam& srcParam,
+                                                             const std::vector<MemBorrowInfo>& memBorrowInfos)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SetSmapRemoteNumaLocalHandler start.";
     const auto SetSmapRemoteNumaInfo = SmapModule::GetSetSmapRemoteNumaInfo();
@@ -181,7 +181,7 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface:
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &[presentNumaIds, borrowSize] : memBorrowInfos) {
+    for (const auto& [presentNumaIds, borrowSize] : memBorrowInfos) {
         RemoteNumaInfo remoteNumaInfo{
             .srcNid = srcParam.srcNumaId, .destNid = presentNumaIds, .size = borrowSize >> KB2MB};
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -198,7 +198,7 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface:
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::RemoveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+MpResult OverCommitMsgHandler::RemoveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] RemoveHandler start.";
     if (req.data == nullptr || req.len == 0) {
@@ -238,7 +238,7 @@ MpResult OverCommitMsgHandler::RemoveHandler(const UbseByteBuffer &req, UbseByte
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, const std::vector<pid_t> &pids)
+MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, const std::vector<pid_t>& pids)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] RemoveLocalHandler start.";
     const auto smapRemove = SmapModule::GetSmapRemoveFunc();
@@ -270,7 +270,7 @@ MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, 
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     if (req.data == nullptr || req.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] ProcessQueryHandler req.data is null.";
@@ -322,8 +322,8 @@ MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer &req, Ub
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32_t> &numaIds,
-                                                        std::string &numa2pidMapJson, bool isReturn)
+MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32_t>& numaIds,
+                                                        std::string& numa2pidMapJson, bool isReturn)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] ProcessQueryLocalHandler start.";
     const auto smapQueryProcessConfig = SmapModule::GetSmapGetRemoteProcessesFunc();
@@ -374,8 +374,8 @@ MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32
     return MEM_POOLING_OK;
 }
 
-void OverCommitMsgHandler::SetResponse(ResponseInfoSimpo &response, const MpResult &retCode, const std::string &msg,
-                                       UbseByteBuffer &resBuffer)
+void OverCommitMsgHandler::SetResponse(ResponseInfoSimpo& response, const MpResult& retCode, const std::string& msg,
+                                       UbseByteBuffer& resBuffer)
 {
     response.SetResponseInfo(retCode, msg);
     RmrsOutStream builder;
@@ -386,12 +386,12 @@ void OverCommitMsgHandler::SetResponse(ResponseInfoSimpo &response, const MpResu
     resBuffer.freeFunc = DefaultFreeFunc;
 }
 
-uint32_t NumaBindTypeNotify(UbseByteBuffer &buffer)
+uint32_t NumaBindTypeNotify(UbseByteBuffer& buffer)
 {
     return OverCommitStorage::Instance().PutNumaBindTypeRawData(buffer);
 }
 
-uint32_t NumaBindTypeGetData(UbseByteBuffer &data)
+uint32_t NumaBindTypeGetData(UbseByteBuffer& data)
 {
     return OverCommitStorage::Instance().GetNumaBindTypeRawData(data, true);
 }
@@ -496,7 +496,7 @@ uint32_t InitExportReg()
     return ret;
 }
 
-uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidNumaInfoCollectRecvHandler start.";
     if (req.data == nullptr || req.len == 0) {
@@ -531,7 +531,7 @@ uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer
         builder << pidNumaInfoCollectResult;
         resp.data = builder.GetBufferPointer();
         resp.len = builder.GetSize();
-        resp.freeFunc = [](uint8_t *data) {
+        resp.freeFunc = [](uint8_t* data) {
             delete[] data;
         };
         return errCode;
@@ -541,15 +541,15 @@ uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer
     builderOut << pidNumaInfoCollectResult;
     resp.data = builderOut.GetBufferPointer();
     resp.len = builderOut.GetSize();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidNumaInfoCollect sucess.";
     return MEM_POOLING_OK;
 }
 
-uint32_t PidNumaInfoCollectHandler(const turbo::rmrs::PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                                   turbo::rmrs::PidNumaInfoCollectResult &pidNumaInfoCollectResult)
+uint32_t PidNumaInfoCollectHandler(const turbo::rmrs::PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                                   turbo::rmrs::PidNumaInfoCollectResult& pidNumaInfoCollectResult)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidNumaInfoCollectHandler start.";
 
@@ -571,7 +571,7 @@ uint32_t PidNumaInfoCollectHandler(const turbo::rmrs::PidNumaInfoCollectParam &p
     return MEM_POOLING_OK;
 }
 
-void PidNumaInfoCollectRpcResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void PidNumaInfoCollectRpcResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -579,8 +579,8 @@ void PidNumaInfoCollectRpcResHandler(void *ctx, const UbseByteBuffer &respData, 
         return;
     }
     turbo::rmrs::PidNumaInfoCollectResult result;
-    turbo::rmrs::PidNumaInfoCollectResult *pidNumaInfoCollectResult =
-        static_cast<turbo::rmrs::PidNumaInfoCollectResult *>(ctx);
+    turbo::rmrs::PidNumaInfoCollectResult* pidNumaInfoCollectResult =
+        static_cast<turbo::rmrs::PidNumaInfoCollectResult*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "send error, res=" << resCode << ".";
     } else {

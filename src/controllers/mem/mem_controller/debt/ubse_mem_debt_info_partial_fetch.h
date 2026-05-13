@@ -13,12 +13,12 @@
 #ifndef UBS_ENGINE_UBSE_MEM_DEBT_INFO_PARTIAL_FETCH_H
 #define UBS_ENGINE_UBSE_MEM_DEBT_INFO_PARTIAL_FETCH_H
 
+#include "ubse_common_def.h"
 #include "../message/ubse_mem_debt_info_partial_fetch_req.h"
 #include "../message/ubse_mem_debt_info_partial_fetch_res.h"
-#include "ubse_common_def.h"
 namespace ubse::mem::controller::debt {
 ubse::common::def::UbseResult FetchDebtInfoByTypeAndPage(
-    const ubse::mem::controller::message::DebtFetchInfo &debtFetchInfo, message::PartialFetchRes &flatDebtInformation);
+    const ubse::mem::controller::message::DebtFetchInfo& debtFetchInfo, message::PartialFetchRes& flatDebtInformation);
 ubse::common::def::UbseResult ValidateDebtFetchInfo(message::DebtFetchInfo debtFetchInfo);
 } // namespace ubse::mem::controller::debt
 

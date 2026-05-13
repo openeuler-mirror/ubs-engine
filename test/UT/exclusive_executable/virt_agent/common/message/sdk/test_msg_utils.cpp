@@ -47,7 +47,7 @@ TEST_F(TestMsgUtils, NormalCase)
 TEST_F(TestMsgUtils, NullDest)
 {
     // 测试dest为空指针的情况
-    char *dest = nullptr;
+    char* dest = nullptr;
     std::string src = "test";
     auto ret = StringToC(dest, src, 10);
     EXPECT_EQ(ret, VM_INVALID_PARAM_ERROR);

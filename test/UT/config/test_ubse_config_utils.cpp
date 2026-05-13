@@ -12,8 +12,8 @@
 
 #include "test_ubse_config_utils.h"
 
-#include <string>
 #include <random>
+#include <string>
 
 namespace ubse::ut::config {
 // 随机生成一个包含指定数量的字符的字符串
@@ -40,4 +40,4 @@ uint32_t RandomNumber(uint32_t min, uint32_t max)
 
     return dis(gen);
 }
-}
+} // namespace ubse::ut::config

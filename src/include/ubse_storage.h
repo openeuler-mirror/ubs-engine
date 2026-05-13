@@ -13,26 +13,26 @@
 #ifndef UBSE_STORAGE_H
 #define UBSE_STORAGE_H
 
-#include <vector>
 #include <functional>
+#include <vector>
 #include "ubse_def.h"
 
 namespace ubse::storage {
 
 struct KV {
     std::string key;
-    uint8_t *value = nullptr;
+    uint8_t* value = nullptr;
     uint32_t valueLen = 0;
 
     // 重载大于运算符
-    bool operator>(const KV &other) const
+    bool operator>(const KV& other) const
     {
         return key > other.key; // 按照 key 的字典顺序从大到小比较
     }
 };
 
-using UbseStorageDealDataFunc = std::function<void(
-    const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)>;
+using UbseStorageDealDataFunc =
+    std::function<void(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)>;
 
 /**
  * @brief 向数据库中插入数据
@@ -41,7 +41,7 @@ using UbseStorageDealDataFunc = std::function<void(
  * @param data[in]: 数据值
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseStoragePutData(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data);
+uint32_t UbseStoragePutData(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data);
 
 /**
  * @brief 从数据库中查询数据
@@ -51,8 +51,8 @@ uint32_t UbseStoragePutData(const std::string &keyPrefix, const std::string &key
  * @param func[in]: 数据处理函数，函数调用完后，代表单条数据处理完成，数据内存被释放
  * @return UbseResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
-    UbseStorageDealDataFunc func);
+uint32_t UbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
+                              UbseStorageDealDataFunc func);
 
 /**
  * @brief 从数据库中删除数据
@@ -60,8 +60,8 @@ uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &k
  * @param key[in]: 数据键
  * @return UbseResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseStorageDeleteData(const std::string &keyPrefix, const std::string &key);
+uint32_t UbseStorageDeleteData(const std::string& keyPrefix, const std::string& key);
 
-}
+} // namespace ubse::storage
 
 #endif // UBSE_STORAGE_H

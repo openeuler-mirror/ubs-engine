@@ -14,13 +14,13 @@
 #include <grp.h>
 #include <httplib.h>
 #include <securec.h>
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_http_common.h"
 #include "ubse_http_server.h"
 #include "ubse_pointer_process.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::ut::http {
 using namespace ubse::http;
@@ -70,7 +70,9 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopUdsServer)
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
     ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
     MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
-    struct group testGroup{.gr_name = "ubm_nuds"};
+    struct group testGroup {
+        .gr_name = "ubm_nuds"
+    };
     MOCKER(getgrnam).stubs().will(returnValue(&testGroup));
 
     EXPECT_EQ(UbseHttpServer::GetInstance().Start(false), false);
@@ -158,7 +160,7 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfMoudleFailed)
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
-static UbseResult GetConfMocker(UbseConfModule *This, std::string &section, std::string &configKey, uint32_t &configVal)
+static UbseResult GetConfMocker(UbseConfModule* This, std::string& section, std::string& configKey, uint32_t& configVal)
 {
     configVal = INVALID_TCP_SERVER_PORT;
     return UBSE_OK;
@@ -190,8 +192,8 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfFailed)
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
-static UbseResult GetConfMockerWithValidPort(UbseConfModule *This, std::string &section, std::string &configKey,
-                                             uint32_t &configVal)
+static UbseResult GetConfMockerWithValidPort(UbseConfModule* This, std::string& section, std::string& configKey,
+                                             uint32_t& configVal)
 {
     configVal = TCP_SERVER_PORT;
     return UBSE_OK;
@@ -217,7 +219,7 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortSucceed)
     EXPECT_EQ(port, TCP_SERVER_PORT);
 }
 
-static uint32_t TestHandlerForTcpReg(const UbseHttpRequest &req, UbseHttpResponse &resp)
+static uint32_t TestHandlerForTcpReg(const UbseHttpRequest& req, UbseHttpResponse& resp)
 {
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
     return UBSE_OK;

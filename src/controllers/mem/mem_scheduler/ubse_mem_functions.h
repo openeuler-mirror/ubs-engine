@@ -12,8 +12,8 @@
 #ifndef MXE_MEM_FUNCTIONS_H
 #define MXE_MEM_FUNCTIONS_H
 #include <cstdint>
-#include "ubse_mem_constants.h"
 #include "ubse_logger.h"
+#include "ubse_mem_constants.h"
 
 namespace ubse::mem::strategy {
 #define MODULE_LOG_NAME "ubse_mem_strategy"
@@ -67,22 +67,22 @@ inline uint64_t SizeGb2Byte(uint64_t size)
 }
 
 template <typename T>
-bool SafeAdd(T a, T b, T &result)
+bool SafeAdd(T a, T b, T& result)
 {
     const auto ret = __builtin_add_overflow(a, b, &result);
     return ret;
 }
 
 template <typename T>
-bool SafeSub(T a, T b, T &result)
+bool SafeSub(T a, T b, T& result)
 {
     const auto ret = __builtin_sub_overflow(a, b, &result);
     return ret;
 }
 
-inline bool StrToULong(const std::string &src, uint64_t &value)
+inline bool StrToULong(const std::string& src, uint64_t& value)
 {
-    char *remain = nullptr;
+    char* remain = nullptr;
     errno = 0;
     value = std::strtoul(src.c_str(), &remain, 10L); // 10 is decimal digits
     if ((value == 0 && src != "0") || remain == nullptr || strlen(remain) > 0 || errno == ERANGE) {
@@ -91,9 +91,9 @@ inline bool StrToULong(const std::string &src, uint64_t &value)
     return true;
 }
 
-inline bool StrToULL(const std::string &src, uint64_t &value, int base = 10L)
+inline bool StrToULL(const std::string& src, uint64_t& value, int base = 10L)
 {
-    char *remain = nullptr;
+    char* remain = nullptr;
     errno = 0;
     value = std::strtoull(src.c_str(), &remain, base);
     if (base == 16U && value == 0 && src == "0x0") {
@@ -105,19 +105,19 @@ inline bool StrToULL(const std::string &src, uint64_t &value, int base = 10L)
     return true;
 }
 
-inline void UpdateSizeWithCheckFlow(uint64_t &srcSize, uint64_t updateSize, bool isAdd)
+inline void UpdateSizeWithCheckFlow(uint64_t& srcSize, uint64_t updateSize, bool isAdd)
 {
     if (isAdd) {
         if (updateSize > UINT64_MAX - srcSize) {
-            UBSE_LOG_ERROR << "update debtNumaInfo Size is overflow! " << "srcSize is " << srcSize
-                           << ", updateSize size is " << updateSize;
+            UBSE_LOG_ERROR << "update debtNumaInfo Size is overflow! "
+                           << "srcSize is " << srcSize << ", updateSize size is " << updateSize;
             return;
         }
         srcSize += updateSize;
     } else {
         if (updateSize > srcSize) {
-            UBSE_LOG_ERROR << "update debtNumaInfo Size is underflow! " << "srcSize is " << srcSize
-                           << ", updateSize size is " << updateSize;
+            UBSE_LOG_ERROR << "update debtNumaInfo Size is underflow! "
+                           << "srcSize is " << srcSize << ", updateSize size is " << updateSize;
             return;
         }
         srcSize -= updateSize;

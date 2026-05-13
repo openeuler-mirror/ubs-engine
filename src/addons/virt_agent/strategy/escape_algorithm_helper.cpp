@@ -18,7 +18,7 @@ namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
-EscapeAlgorithmHelper &EscapeAlgorithmHelper::GetInstance()
+EscapeAlgorithmHelper& EscapeAlgorithmHelper::GetInstance()
 {
     static EscapeAlgorithmHelper gInstance;
     return gInstance;
@@ -44,9 +44,9 @@ VmResult EscapeAlgorithmHelper::Init()
     return VM_OK;
 }
 
-void EscapeAlgorithmHelper::GetStrategyConf(StrategyConfig &strategyConf)
+void EscapeAlgorithmHelper::GetStrategyConf(StrategyConfig& strategyConf)
 {
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     strategyConf.borrowWatermark = vmConfig.GetBorrowWatermark();
     strategyConf.lowWatermark = vmConfig.GetLowWatermark();
     strategyConf.highWatermark = vmConfig.GetHighWatermark();

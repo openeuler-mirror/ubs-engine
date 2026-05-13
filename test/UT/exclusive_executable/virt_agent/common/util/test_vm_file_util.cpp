@@ -12,7 +12,7 @@ const std::string TEST_VM_FILE_UTIL_TEST_DIR = "./testVmFileUtil";
 const std::string TEST_FILE_DIR = TEST_VM_FILE_UTIL_TEST_DIR + "/sys/devices/system/node/node0";
 const std::string TEST_FILE = TEST_FILE_DIR + "/cpulist";
 
-void TestWriteFile(const std::string &filePath, const std::string &message)
+void TestWriteFile(const std::string& filePath, const std::string& message)
 {
     std::ofstream testOutputFile;
     testOutputFile.open(filePath);

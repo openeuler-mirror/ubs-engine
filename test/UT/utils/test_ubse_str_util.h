@@ -24,7 +24,6 @@ private:
     void SetUp() override;
     void TearDown() override;
 };
-}
-
+} // namespace ubse::ut::utils
 
 #endif // UBSE_MANAGER_TEST_UBSE_STR_UTIL_H

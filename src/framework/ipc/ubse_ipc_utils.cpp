@@ -30,13 +30,13 @@ uint64_t RandomId()
     return dis(gen);
 }
 
-uint32_t SerializeRequestMessage(const UbseRequestMessage &requestMessage, std::vector<uint8_t> &buffer)
+uint32_t SerializeRequestMessage(const UbseRequestMessage& requestMessage, std::vector<uint8_t>& buffer)
 {
     const uint32_t totalLength = sizeof(bool) + sizeof(UbseRequestHeader) + requestMessage.header.bodyLen;
     // 分配缓冲区
     try {
         buffer.resize(totalLength);
-    } catch (const std::bad_alloc &e) {
+    } catch (const std::bad_alloc& e) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
     bool isResp = false;
@@ -59,7 +59,7 @@ uint32_t SerializeRequestMessage(const UbseRequestMessage &requestMessage, std::
     return UBSE_OK;
 }
 
-uint32_t SerializeResponseMessage(const UbseResponseMessage &responseMessage, std::vector<uint8_t> &buffer)
+uint32_t SerializeResponseMessage(const UbseResponseMessage& responseMessage, std::vector<uint8_t>& buffer)
 {
     // 计算总长度
     const uint32_t totalLength = sizeof(bool) + sizeof(UbseResponseHeader) + responseMessage.header.bodyLen;
@@ -67,7 +67,7 @@ uint32_t SerializeResponseMessage(const UbseResponseMessage &responseMessage, st
     // 分配缓冲区
     try {
         buffer.resize(totalLength);
-    } catch (const std::bad_alloc &e) {
+    } catch (const std::bad_alloc& e) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
 
@@ -95,7 +95,7 @@ uint32_t SerializeResponseMessage(const UbseResponseMessage &responseMessage, st
     return UBSE_OK;
 }
 
-uint32_t SerializeMemFault(const UbseMemFault &memFault, uint8_t *&buffer, size_t &size)
+uint32_t SerializeMemFault(const UbseMemFault& memFault, uint8_t*& buffer, size_t& size)
 {
     UbseSerialization outStream;
     outStream << memFault.memName << memFault.handleId << enum_v(memFault.type);
@@ -107,7 +107,7 @@ uint32_t SerializeMemFault(const UbseMemFault &memFault, uint8_t *&buffer, size_
     return UBSE_OK;
 }
 
-uint32_t DeSerializeMemFault(UbseMemFault &memFault, uint8_t *buffer, size_t size)
+uint32_t DeSerializeMemFault(UbseMemFault& memFault, uint8_t* buffer, size_t size)
 {
     UbseDeSerialization inStream(buffer, size);
     inStream >> memFault.memName >> memFault.handleId >> enum_v(memFault.type);

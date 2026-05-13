@@ -17,10 +17,6 @@
 #include <unordered_set>
 #include "securec.h"
 
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_busInstance.h"
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_host_info.h"
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_node_info.h"
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_urma_eid.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_event_module.h"
@@ -29,6 +25,10 @@
 #include "ubse_net_util.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_busInstance.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_host_info.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_node_info.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_urma_eid.h"
 
 namespace ubse::mti {
 using namespace ubse::module;
@@ -44,7 +44,7 @@ using namespace adapter_plugins::mti;
 BASE_DYNAMIC_CREATE(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-using UvsSetTopoInfo = uint32_t (*)(void *topo, uint32_t topNum);
+using UvsSetTopoInfo = uint32_t (*)(void* topo, uint32_t topNum);
 
 UbseResult UbseLcneModule::GetLcneConf()
 {
@@ -74,7 +74,7 @@ UbseResult UbseLcneModule::GetLcneConf()
     return UBSE_OK;
 }
 
-UbseResult UbseLcneModule::ConvertPortConfStrToInt(const std::string &portStr, int &port)
+UbseResult UbseLcneModule::ConvertPortConfStrToInt(const std::string& portStr, int& port)
 {
     if (ConvertStrToInt(portStr, port) != UBSE_OK) {
         UBSE_LOG_ERROR << "The value of portStr " << portStr << " can not convert to int.";
@@ -104,7 +104,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
     std::vector<std::string> ipRangeVec;
     std::vector<std::string> ips;
     Split(defaultVal, ",", ipRangeVec);
-    for (auto &range : ipRangeVec) {
+    for (auto& range : ipRangeVec) {
         if (range.find('-') != std::string::npos) {
             UbseNetUtil::ParseIpRangeToList(range, ips);
         } else if (UbseNetUtil::ValidIpv4Addr(range) || UbseNetUtil::ValidIpv6Addr(range)) {
@@ -120,7 +120,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
         UBSE_LOG_ERROR << "Collect ip list failed, " << FormatRetCode(ret);
         return;
     }
-    for (auto &ip : localIps) {
+    for (auto& ip : localIps) {
         if (auto it = std::find(ips.begin(), ips.end(), ip); it != ips.end()) {
             localIp = *it;
         }
@@ -185,7 +185,7 @@ UbseResult UbseLcneModule::Start()
 
 void UbseLcneModule::Stop() {}
 
-UbseResult UbseLcneModule::GenerateBondingEid(const std::string &nodeId, unsigned char *bondingEid)
+UbseResult UbseLcneModule::GenerateBondingEid(const std::string& nodeId, unsigned char* bondingEid)
 {
     uint32_t slotNumber = 0;
     UbseResult ret = ConvertStrToUint32(nodeId, slotNumber);
@@ -204,10 +204,10 @@ UbseResult UbseLcneModule::GenerateBondingEid(const std::string &nodeId, unsigne
 
 UbseResult UbseLcneModule::FillNodeComInfo()
 {
-    std::string &localNodeId = ubseLcneBusInstanceInfo.localNodeId;
+    std::string& localNodeId = ubseLcneBusInstanceInfo.localNodeId;
     ubseNodeInfos_.clear();
 
-    for (const auto &socketComEid : allSocketComEid) {
+    for (const auto& socketComEid : allSocketComEid) {
         std::string nodeId;
         std::string socketId;
         socketComEid.first.SplitDevName(nodeId, socketId);
@@ -236,9 +236,9 @@ UbseResult UbseLcneModule::FillNodeComInfo()
     return UBSE_OK;
 }
 
-UbseResult UbseLcneModule::GetBondingEidByNodeId(std::string &bondingEid, const std::string &nodeId)
+UbseResult UbseLcneModule::GetBondingEidByNodeId(std::string& bondingEid, const std::string& nodeId)
 {
-    for (MtiNodeInfo &nodeInfo : ubseNodeInfos_) {
+    for (MtiNodeInfo& nodeInfo : ubseNodeInfos_) {
         if (nodeId == nodeInfo.nodeId) {
             bondingEid = nodeInfo.eid;
             return UBSE_OK;
@@ -282,9 +282,9 @@ std::string UbseLcneModule::BytesToIPv6String(const unsigned char inBytes[IPV6_B
     return buffer.data();
 }
 
-bool UbseLcneModule::IsPrimaryEidExist(const std::string &nodeId)
+bool UbseLcneModule::IsPrimaryEidExist(const std::string& nodeId)
 {
-    for (const auto &nodeInfo : ubseNodeInfos_) {
+    for (const auto& nodeInfo : ubseNodeInfos_) {
         if (nodeId == nodeInfo.nodeId) {
             return true;
         }
@@ -292,21 +292,21 @@ bool UbseLcneModule::IsPrimaryEidExist(const std::string &nodeId)
     return false;
 }
 
-UbseResult UbseLcneModule::UbseGetLocalNodeInfo(MtiNodeInfo &ubseNodeInfo)
+UbseResult UbseLcneModule::UbseGetLocalNodeInfo(MtiNodeInfo& ubseNodeInfo)
 {
     std::shared_lock<std::shared_mutex> lock(rw_mutex);
     ubseNodeInfo = ubseNodeInfo_;
     return UBSE_OK;
 }
 
-UbseResult UbseLcneModule::UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos)
+UbseResult UbseLcneModule::UbseGetAllNodeInfos(std::vector<MtiNodeInfo>& ubseNodeInfos)
 {
     std::shared_lock<std::shared_mutex> lock(rw_mutex);
     ubseNodeInfos = ubseNodeInfos_;
     return UBSE_OK;
 }
 
-UbseResult UbseLcneModule::UbseGetDevTopology(UbseDevTopology &devTopology)
+UbseResult UbseLcneModule::UbseGetDevTopology(UbseDevTopology& devTopology)
 {
     return ubseLcneTopology.UbseGetDevTopology(devTopology);
 }

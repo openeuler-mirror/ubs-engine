@@ -20,7 +20,7 @@
 namespace vm {
 class HugePageHandler {
 public:
-    static VmResult SetHugePages(const uint64_t &numaId, const uint64_t &borrowedSize);
+    static VmResult SetHugePages(const uint64_t& numaId, const uint64_t& borrowedSize);
 
 private:
     static inline const std::string HUGEPAGES_PATH_HEAD = "/sys/devices/system/node/node";
@@ -28,10 +28,10 @@ private:
     static constexpr size_t MAX_WRITE_HUGE_PAGE_RETRY_TIME = 2;   // retry only once
     static constexpr uint16_t WRITE_HUGE_PAGE_RETRY_INTERVAL = 1; //  wait 1s
 
-    static VmResult GetCurrentHugePages(const std::string &realPath, uint64_t &currentHugePages);
-    static VmResult AllocateHugePages(const HugePageInfo &pageInfo);
-    static VmResult GetHugePageCanonicalPath(const std::string &numaId, std::string &filePath);
-    static VmResult RewriteHugePages(const std::string &realPath, const uint64_t &targetHugePages);
+    static VmResult GetCurrentHugePages(const std::string& realPath, uint64_t& currentHugePages);
+    static VmResult AllocateHugePages(const HugePageInfo& pageInfo);
+    static VmResult GetHugePageCanonicalPath(const std::string& numaId, std::string& filePath);
+    static VmResult RewriteHugePages(const std::string& realPath, const uint64_t& targetHugePages);
 };
 } // namespace vm
 

@@ -92,7 +92,7 @@ struct VMNodeLocInfo {
     int16_t socketId{};
     int16_t numaId{};
 
-    bool operator<(const VMNodeLocInfo &a) const
+    bool operator<(const VMNodeLocInfo& a) const
     {
         if (hostId != a.hostId) {
             return hostId < a.hostId;
@@ -105,7 +105,7 @@ struct VMNodeLocInfo {
         }
     }
 
-    bool operator==(const VMNodeLocInfo &a) const
+    bool operator==(const VMNodeLocInfo& a) const
     {
         return (hostId == a.hostId && socketId == a.socketId && numaId == a.numaId);
     }
@@ -229,7 +229,7 @@ struct VMBasicInfo
         oss << R"("remoteUsedMem":)" << remoteUsedMem << R"(,)";
         oss << R"("vmCreateTime":)" << vmCreateTime << R"(,)";
         oss << R"("numaMemInfo":[)";
-        for (const auto &item : numaMemInfo) {
+        for (const auto& item : numaMemInfo) {
             oss << item.second.ToString() << ",";
         }
         oss << R"(],)";
@@ -358,7 +358,7 @@ struct AlarmNumaInfo {
         oss << R"("numaLoc":)" << numaLoc.ToString() << R"(,)";
         oss << R"("vmBasicInfos":{)";
         size_t count = 0;
-        for (auto &vmBasicInfo : vmBasicInfos) {
+        for (auto& vmBasicInfo : vmBasicInfos) {
             if (count != 0) {
                 oss << R"(,)";
             }
@@ -375,7 +375,7 @@ struct AlarmNumaInfo {
 using GlobalNumaInfoMap = std::map<VMNodeLocInfo, GlobalNumaInfo>;
 
 struct StrategyTipInfo {
-    static std::string StrategyTipToString(const StrategyTip &strategyTip)
+    static std::string StrategyTipToString(const StrategyTip& strategyTip)
     {
         std::ostringstream oss;
         if (strategyTip == StrategyTip::NOPE) {
@@ -392,7 +392,7 @@ struct StrategyTipInfo {
         return oss.str();
     }
 
-    static std::string StrategyTips(const std::vector<StrategyTip> &strategyTips)
+    static std::string StrategyTips(const std::vector<StrategyTip>& strategyTips)
     {
         std::ostringstream oss;
         oss << R"("strategyTip": [)";
@@ -443,7 +443,7 @@ struct EscapeAction {
         oss << "]}";
         return oss.str();
     }
-    void GetEscapeActionType(std::ostringstream &oss) const
+    void GetEscapeActionType(std::ostringstream& oss) const
     {
         oss << R"("escapeActionType": )";
         if (actionType == EscapeActionType::BORROW) {

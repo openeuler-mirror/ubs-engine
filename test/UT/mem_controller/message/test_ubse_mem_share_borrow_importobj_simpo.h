@@ -29,6 +29,6 @@ public:
 private:
     UbseMemShareBorrowImportobjSimpoPtr obj;
 };
-} // ubse::mem::controller::message::ut
+} // namespace ubse::mem::controller::message::ut
 
 #endif // UBSE_ENGINE_TEST_MXE_MEM_SHARE_BORROW_IMPORTOBJ_SIMPO_H

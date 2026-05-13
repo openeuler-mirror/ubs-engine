@@ -13,14 +13,14 @@
 #include "fault_memid_module.h"
 #include <algorithm>
 
+#include "ubse_com.h"
+#include "ubse_logger.h"
 #include "exporter.h"
 #include "fault_node_module.h"
 #include "mem_borrow_executor.h"
 #include "mem_manager.h"
 #include "mp_smap_helper.h"
 #include "rmrs_serialize.h"
-#include "ubse_com.h"
-#include "ubse_logger.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -45,9 +45,9 @@ constexpr size_t RESP_LENGTH = 2;
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
 
-MpResult FaultMemIdModule::BorrowFromSameNid(std::string borrowInNid, const mempooling::SrcMemoryBorrowParam &srcParam,
-                                             const MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                                             const UCEMemoryParam &memParam, bool isForce)
+MpResult FaultMemIdModule::BorrowFromSameNid(std::string borrowInNid, const mempooling::SrcMemoryBorrowParam& srcParam,
+                                             const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                                             const UCEMemoryParam& memParam, bool isForce)
 {
     LOG_DEBUG << "[FaultManager][MemId] MemIdFaultManage is same dest nid.";
     uint64_t memBorrowIdSize = memParam.memBorrowIdSize;
@@ -171,7 +171,7 @@ MpResult FaultMemIdExecute::EchoHugepages(uint64_t remoteNumeId, uint64_t borrow
 
 // 分支二：查询远端nuam虚拟机信息
 MpResult FaultMemIdCollect::NotSameNidVmInfoRpc(std::string importNodeId, uint16_t remoteNumaId,
-                                                uint64_t memBorrowIdSize, FMVmInfoResult &fMVmInfoResult)
+                                                uint64_t memBorrowIdSize, FMVmInfoResult& fMVmInfoResult)
 {
     LOG_DEBUG << "[FaultManager][MemId] Master invoke the agent NotSameNidVmInfoRpc. AgentNodeId=" << importNodeId
               << ".";
@@ -200,8 +200,8 @@ MpResult FaultMemIdCollect::NotSameNidVmInfoRpc(std::string importNodeId, uint16
     return MEM_POOLING_OK;
 }
 
-MpResult FaultMemIdCollect::NotSameNidVmInfo(uint16_t remoteNumaId, uint64_t memBorrowIdSize, std::vector<pid_t> &pids,
-                                             uint64_t &totalNeedBorrowMem)
+MpResult FaultMemIdCollect::NotSameNidVmInfo(uint16_t remoteNumaId, uint64_t memBorrowIdSize, std::vector<pid_t>& pids,
+                                             uint64_t& totalNeedBorrowMem)
 {
     LOG_DEBUG << "[FaultManager][MemId] Entry NotSameNidVmInfo.";
     LOG_DEBUG << "[FaultManager][MemId] Input param, remote NumaId=" << remoteNumaId
@@ -233,8 +233,8 @@ MpResult FaultMemIdCollect::NotSameNidVmInfo(uint16_t remoteNumaId, uint64_t mem
 }
 
 // 分支二：从不同的物理节点借用内存
-MpResult FaultMemIdModule::BorrowFromNotSameNid(std::string borrowInNid, const CurNumaInfoMF &curNumaInfoMF,
-                                                const mempooling::SrcMemoryBorrowParam &srcParam, bool byNodeFault,
+MpResult FaultMemIdModule::BorrowFromNotSameNid(std::string borrowInNid, const CurNumaInfoMF& curNumaInfoMF,
+                                                const mempooling::SrcMemoryBorrowParam& srcParam, bool byNodeFault,
                                                 bool isForce)
 {
     // 如果借不来相同邻居节点的内存,采用以单个memId归还
@@ -287,9 +287,9 @@ MpResult FaultMemIdModule::BorrowFromNotSameNid(std::string borrowInNid, const C
 }
 
 MpResult FaultMemIdModule::NotSameMemBoorNidExecute(
-    const mempooling::SrcMemoryBorrowParam &srcParam,
-    const MemBorrowStrategyMultiResult &borrowStrategyMultiResultNotSameNid, std::string &borrowIdNew,
-    uint64_t totalNeedBorrowMem, uint16_t &remoteNumaHuge)
+    const mempooling::SrcMemoryBorrowParam& srcParam,
+    const MemBorrowStrategyMultiResult& borrowStrategyMultiResultNotSameNid, std::string& borrowIdNew,
+    uint64_t totalNeedBorrowMem, uint16_t& remoteNumaHuge)
 {
     MemBorrowExecuteResult borrowExecuteResultNotSameNid;
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowExecute(
@@ -308,7 +308,7 @@ MpResult FaultMemIdModule::NotSameMemBoorNidExecute(
     return MEM_POOLING_OK;
 }
 
-MpResult FaultMemIdExecute::NotSameNidExecuteRpc(NotSameNidExecuteParam &param, std::vector<pid_t> &pids,
+MpResult FaultMemIdExecute::NotSameNidExecuteRpc(NotSameNidExecuteParam& param, std::vector<pid_t>& pids,
                                                  std::string borrowIdNew)
 {
     std::string importNodeId = param.importNodeId;          // 内存借入节点
@@ -339,7 +339,7 @@ MpResult FaultMemIdExecute::NotSameNidExecuteRpc(NotSameNidExecuteParam &param, 
 }
 
 MpResult FaultMemIdExecute::NotSameNidExecute(std::vector<uint16_t> remoteNumas, uint64_t totalNeedBorrowMem,
-                                              std::vector<pid_t> &pids, std::string borrowId, bool isForce)
+                                              std::vector<pid_t>& pids, std::string borrowId, bool isForce)
 {
     LOG_DEBUG << "[FaultManager][MemId] Entry NotSameNidExecute.";
     if (remoteNumas.size() != VECTOR_REMOTE_NUMA_SIZE) {
@@ -366,7 +366,7 @@ MpResult FaultMemIdExecute::NotSameNidExecute(std::vector<uint16_t> remoteNumas,
 }
 
 // pid级别迁移到其他远端numa
-MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t> &pids, uint16_t remoteNumaId,
+MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, uint16_t remoteNumaId,
                                                       uint16_t remoteNumaHuge, std::string borrowId, bool isForce)
 {
     if (pids.size() != 0) {
@@ -428,7 +428,7 @@ MpResult FaultMemIdModule::NotSameNidDeleteUpdate(std::string borrowId, std::str
 }
 
 // 查询numa节点的socket
-MpResult FaultMemIdModule::GetSocketIdOfNUMA(std::string borrowInNid, SrcMemoryBorrowParam &srcParam,
+MpResult FaultMemIdModule::GetSocketIdOfNUMA(std::string borrowInNid, SrcMemoryBorrowParam& srcParam,
                                              std::string destPreNid, uint16_t destSocketId)
 {
     LOG_DEBUG << "[FaultManager][MemId] Input param, borrowInNid=" << borrowInNid << ", destPreNid=" << destPreNid
@@ -445,15 +445,15 @@ MpResult FaultMemIdModule::GetSocketIdOfNUMA(std::string borrowInNid, SrcMemoryB
 
     // 遍历nodeTopology，找到故障borrowId对于内存借出节点和内存借出socketId同平面的故障节点id的socket
     std::string key = destPreNid + "-" + std::to_string(destSocketId);
-    for (const auto &pair : nodeTopology) {
-        const std::string &host = pair.first;
-        const auto &memNodeList = pair.second;
+    for (const auto& pair : nodeTopology) {
+        const std::string& host = pair.first;
+        const auto& memNodeList = pair.second;
         if (host != key) {
             continue;
         }
         LOG_DEBUG << "[FaultManager][MemId] Host=" << host << ", Total MemNodeData count=" << memNodeList.size() << ".";
         for (size_t i = 0; i < memNodeList.size(); ++i) {
-            const auto &memNode = memNodeList[i];
+            const auto& memNode = memNodeList[i];
             LOG_DEBUG << "[FaultManager][MemId] Index=" << i << ", NodeId=" << memNode.nodeId
                       << ", socketId=" << memNode.socket.socketId << ".";
             if (memNode.nodeId != borrowInNid) {
@@ -548,8 +548,8 @@ MpResult FaultMemIdModule::MemIdFaultManage(std::string borrowInNid, uint64_t me
 }
 
 // 1.获取当前远端numa上面的虚拟机
-MpResult FaultMemIdCollect::GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfo> &allVmNumaInfoInfoList,
-                                             std::map<pid_t, VmNumaInfo> &vmNumaInfoMap)
+MpResult FaultMemIdCollect::GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfo>& allVmNumaInfoInfoList,
+                                             std::map<pid_t, VmNumaInfo>& vmNumaInfoMap)
 {
     std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
     MpResult ret = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
@@ -563,10 +563,10 @@ MpResult FaultMemIdCollect::GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<
         return MEM_POOLING_OK;
     }
 
-    for (const auto &vmDomainInfo : vmDomainInfos) {
+    for (const auto& vmDomainInfo : vmDomainInfos) {
         VmNumaInfo info;
         info.pid = vmDomainInfo.metaData.pid;
-        for (const auto &[numaId, numaInfo] : vmDomainInfo.numaInfo) {
+        for (const auto& [numaId, numaInfo] : vmDomainInfo.numaInfo) {
             if (numaInfo.isLocal) {
                 // 本地 NUMA
                 info.localNumaId = numaInfo.numaId;
@@ -594,7 +594,7 @@ MpResult FaultMemIdCollect::GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<
     return MEM_POOLING_OK;
 }
 
-bool FaultMemIdModule::compareVmNumaInfo(const VmNumaInfo &a, const VmNumaInfo &b)
+bool FaultMemIdModule::compareVmNumaInfo(const VmNumaInfo& a, const VmNumaInfo& b)
 {
     // 根据虚机占用远端内存大小，从小到大排序
     if (a.remoteUsedMem != b.remoteUsedMem) {
@@ -603,9 +603,9 @@ bool FaultMemIdModule::compareVmNumaInfo(const VmNumaInfo &a, const VmNumaInfo &
     return a.pid < b.pid;
 }
 
-MpResult FaultMemIdModule::FindClosestVmForMemAlloc(std::vector<VmNumaInfo> &allVmNumaInfoInfoList,
-                                                    uint64_t memSizeSingle, std::vector<pid_t> &pids,
-                                                    uint64_t &totalNeedBorrowMem)
+MpResult FaultMemIdModule::FindClosestVmForMemAlloc(std::vector<VmNumaInfo>& allVmNumaInfoInfoList,
+                                                    uint64_t memSizeSingle, std::vector<pid_t>& pids,
+                                                    uint64_t& totalNeedBorrowMem)
 {
     // 初始化出参
     pids.clear();
@@ -663,9 +663,9 @@ MpResult FaultMemIdModule::FindClosestVmForMemAlloc(std::vector<VmNumaInfo> &all
 }
 
 // 判断需要借用的内存量不要擦边界，不擦边界返回true，擦边界返回false
-bool FaultMemIdStrategy::IsMemBorrowNotWipeTheEdge(const std::vector<pid_t> &pids,
-                                                   const std::vector<VmNumaInfo> &allVmNumaInfoInfoList,
-                                                   uint64_t &totalNeedBorrowMem)
+bool FaultMemIdStrategy::IsMemBorrowNotWipeTheEdge(const std::vector<pid_t>& pids,
+                                                   const std::vector<VmNumaInfo>& allVmNumaInfoInfoList,
+                                                   uint64_t& totalNeedBorrowMem)
 {
     // 如果调整后的总借用大小大于m_maxMigrateMem，返回false
     if (totalNeedBorrowMem > m_maxUnitMemSize) {
@@ -677,11 +677,11 @@ bool FaultMemIdStrategy::IsMemBorrowNotWipeTheEdge(const std::vector<pid_t> &pid
     return true;
 }
 
-MpResult FaultMemIdStrategy::ApplyMemBorrowStrategyMultipleUB(const mempooling::SrcMemoryBorrowParam &srcParam,
-                                                              const std::vector<uint64_t> &borrowSizes,
-                                                              const MemBorrowStrategyParam &memBorrowStrategyParam,
-                                                              MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                                                              bool &isSameDestNid)
+MpResult FaultMemIdStrategy::ApplyMemBorrowStrategyMultipleUB(const mempooling::SrcMemoryBorrowParam& srcParam,
+                                                              const std::vector<uint64_t>& borrowSizes,
+                                                              const MemBorrowStrategyParam& memBorrowStrategyParam,
+                                                              MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                                                              bool& isSameDestNid)
 {
     std::string destPreNid = memBorrowStrategyParam.destPreNid;
     uint16_t destSocketId = memBorrowStrategyParam.destSocketId;
@@ -719,8 +719,8 @@ MpResult FaultMemIdStrategy::ApplyMemBorrowStrategyMultipleUB(const mempooling::
     return MEM_POOLING_OK;
 }
 
-void FaultMemIdStrategy::PrintBorrowStrategyMultiResult(const MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                                                        const bool &isSameDestNid)
+void FaultMemIdStrategy::PrintBorrowStrategyMultiResult(const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                                                        const bool& isSameDestNid)
 {
     LOG_DEBUG << "[FaultManager][MemId] Result destParam size=" << borrowStrategyMultiResult.destParam.size() << ".";
     for (size_t i = 0; i < borrowStrategyMultiResult.destParam.size(); i++) {
@@ -735,13 +735,13 @@ void FaultMemIdStrategy::PrintBorrowStrategyMultiResult(const MemBorrowStrategyM
                   << ", destSocketId=" << borrowStrategyMultiResult.destParam[i].destSocketId
                   << ", destNumaNum=" << borrowStrategyMultiResult.destParam[i].destNumaNum
                   << ", destNumaId[0]=" << (borrowStrategyMultiResult.destParam[i].destNumaId[0])
-                  << ", memSize[0]=" << (borrowStrategyMultiResult.destParam[i].memSize[0]) << ", isSameDestNid="
-                  << isSameDestNid << ".";
+                  << ", memSize[0]=" << (borrowStrategyMultiResult.destParam[i].memSize[0])
+                  << ", isSameDestNid=" << isSameDestNid << ".";
     }
 }
 
 // 选取最接近且大于借用内存的memSize
-MpResult FaultMemIdStrategy::AdjustNeedBorrowMem(uint64_t &needBorrowMem)
+MpResult FaultMemIdStrategy::AdjustNeedBorrowMem(uint64_t& needBorrowMem)
 {
     if (needBorrowMem == 0) {
         needBorrowMem = m_miniUnitMemSize;
@@ -757,8 +757,8 @@ MpResult FaultMemIdStrategy::AdjustNeedBorrowMem(uint64_t &needBorrowMem)
 }
 
 // 辅助函数：回溯搜索组合
-void FaultMemIdModule::findCombination(const std::vector<VmNumaInfo> &allVmNumaInfoInfoList, uint64_t memSizeSingle,
-                                       int start, CombinationState &state)
+void FaultMemIdModule::findCombination(const std::vector<VmNumaInfo>& allVmNumaInfoInfoList, uint64_t memSizeSingle,
+                                       int start, CombinationState& state)
 {
     // 当前和大于等于目标时，计算差值并更新最优解
     if (state.currentSum >= memSizeSingle) {
@@ -781,8 +781,8 @@ void FaultMemIdModule::findCombination(const std::vector<VmNumaInfo> &allVmNumaI
 }
 
 // 选取虚拟机远端占用内存累加最接近memId内存大小的
-MpResult FaultMemIdModule::ClosestVmVector(const std::vector<VmNumaInfo> &allVmNumaInfoInfoList, uint64_t memSizeSingle,
-                                           std::vector<pid_t> &pids, uint64_t &totalNeedBorrowMem)
+MpResult FaultMemIdModule::ClosestVmVector(const std::vector<VmNumaInfo>& allVmNumaInfoInfoList, uint64_t memSizeSingle,
+                                           std::vector<pid_t>& pids, uint64_t& totalNeedBorrowMem)
 {
     CombinationState state;
     findCombination(allVmNumaInfoInfoList, memSizeSingle, 0, state);
@@ -816,8 +816,8 @@ MpResult FaultMemIdModule::ClosestVmVector(const std::vector<VmNumaInfo> &allVmN
     return MEM_POOLING_OK;
 }
 
-MpResult FaultMemIdCollect::IsBorrowIdOfCurNid(BorrowInNodeData &borrowInNodeData, uint64_t &memBorrowIdSize,
-                                               uint16_t &remoteNumaId, std::string &destPreNid, uint16_t &destSocketId)
+MpResult FaultMemIdCollect::IsBorrowIdOfCurNid(BorrowInNodeData& borrowInNodeData, uint64_t& memBorrowIdSize,
+                                               uint16_t& remoteNumaId, std::string& destPreNid, uint16_t& destSocketId)
 {
     LOG_DEBUG << "[FaultManager][MemId] IsBorrowIdOfCurNid start.";
     // 查询账本信息
@@ -844,8 +844,8 @@ MpResult FaultMemIdCollect::IsBorrowIdOfCurNid(BorrowInNodeData &borrowInNodeDat
             destSocketId = borrowRecords[i].lentSocketId;
             LOG_DEBUG << "[FaultManager][MemId] Find memId=" << memId << ", in Nid=" << borrowInNid
                       << ", with borrowId=" << borrowInNodeData.borrowId << ", with uid=" << borrowInNodeData.uid
-                      << ", with username=" << borrowInNodeData.username << ", with memBorrowIdSize="
-                      << memBorrowIdSize << ", remoteNumaId=" << remoteNumaId << ", destPreNid=" << destPreNid
+                      << ", with username=" << borrowInNodeData.username << ", with memBorrowIdSize=" << memBorrowIdSize
+                      << ", remoteNumaId=" << remoteNumaId << ", destPreNid=" << destPreNid
                       << ", destSocketId=" << destSocketId << ".";
             return MEM_POOLING_OK;
         }
@@ -861,7 +861,7 @@ MpResult FaultMemIdModule::Init()
 }
 
 // memid级别故障处理：从不同的nid物理机节点借用内存
-uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     LOG_DEBUG << "[FaultManager][MemId] MemIdFaultNotSameNidRecvHandler start.";
 
@@ -893,7 +893,7 @@ uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuff
     if (retDelete != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][MemId] Not same nid delete and upadate failed.";
     }
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (MEM_POOLING_OK != res || MEM_POOLING_OK != retDelete) {
@@ -918,13 +918,13 @@ uint32_t MemIdFaultNotSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuff
     return MEM_POOLING_OK;
 }
 
-void MemIdFaultNotSameNidResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void MemIdFaultNotSameNidResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
         return;
     }
-    uint32_t *result = static_cast<uint32_t *>(ctx);
+    uint32_t* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         LOG_ERROR << "[FaultManager][MemId] ResHandler result error.";
@@ -935,7 +935,7 @@ void MemIdFaultNotSameNidResHandler(void *ctx, const UbseByteBuffer &respData, u
 }
 
 // memid级别故障处理：相同的nid物理机节点借用内存
-uint32_t MemIdFaultSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t MemIdFaultSameNidRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     LOG_DEBUG << "[FaultManager][MemId] MemIdFaultSameNidRecvHandler start.";
 
@@ -949,7 +949,7 @@ uint32_t MemIdFaultSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuffer 
 
     MpResult res = FaultMemIdExecute::Instance().SameNidExecute(param.remoteNumaHuge, param.memBorrowIdSize,
                                                                 param.borrowId, param.borrowIdNew);
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (MEM_POOLING_OK != res) {
@@ -975,13 +975,13 @@ uint32_t MemIdFaultSameNidRecvHandler(const UbseByteBuffer &req, UbseByteBuffer 
     return res;
 }
 
-void MemIdFaultSameNidResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void MemIdFaultSameNidResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
         return;
     }
-    uint32_t *result = static_cast<uint32_t *>(ctx);
+    uint32_t* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         return;
@@ -990,7 +990,7 @@ void MemIdFaultSameNidResHandler(void *ctx, const UbseByteBuffer &respData, uint
 }
 
 // memid级别故障处理：不同的nid物理机节点虚拟机信息查询
-uint32_t MemIdFaultNotSameNidVmInfoRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t MemIdFaultNotSameNidVmInfoRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     LOG_INFO << "[FaultManager][MemId] MemIdFaultNotSameNidVmInfoRecvHandler start.";
 
@@ -1010,7 +1010,7 @@ uint32_t MemIdFaultNotSameNidVmInfoRecvHandler(const UbseByteBuffer &req, UbseBy
     builder << result;
     resp.len = builder.GetSize();
     resp.data = builder.GetBufferPointer();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (MEM_POOLING_OK != res) {
@@ -1019,14 +1019,14 @@ uint32_t MemIdFaultNotSameNidVmInfoRecvHandler(const UbseByteBuffer &req, UbseBy
     return res;
 }
 
-void MemIdFaultNotSameNidVmInfoResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void MemIdFaultNotSameNidVmInfoResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] Ctx or respData is null.";
         return;
     }
     FMVmInfoResult result;
-    FMVmInfoResult *fMVmInfoResult = static_cast<FMVmInfoResult *>(ctx);
+    FMVmInfoResult* fMVmInfoResult = static_cast<FMVmInfoResult*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][MemId] Send error, with ret=" << resCode << ".";
     } else {

@@ -30,7 +30,7 @@ class ResponseInfoMessage : public BaseMessage {
 public:
     ResponseInfoMessage() = default;
     explicit ResponseInfoMessage(ResponseInfo responseInfoInput) : responseInfo(std::move(responseInfoInput)) {}
-    explicit ResponseInfoMessage(uint8_t *rawData, uint32_t size)
+    explicit ResponseInfoMessage(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -44,7 +44,7 @@ public:
         return responseInfo;
     }
 
-    inline void SetResponseInfo(unsigned int code, const std::string &message)
+    inline void SetResponseInfo(unsigned int code, const std::string& message)
     {
         responseInfo.code = code;
         responseInfo.message = message;

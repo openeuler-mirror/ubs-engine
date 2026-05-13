@@ -14,11 +14,11 @@
 
 #include <string.h>
 
-#include "ubs_error_info.h"
 #include "ubse_error_info.h"
+#include "ubs_error_info.h"
 
 // 公共查找函数
-static const ubs_error_info_t *ubs_get_error_info(int32_t error)
+static const ubs_error_info_t* ubs_get_error_info(int32_t error)
 {
     // 检查公共错误码范围
     static const size_t common_error_info_count = sizeof(common_error_infos) / sizeof(common_error_infos[0]);
@@ -35,18 +35,18 @@ static const ubs_error_info_t *ubs_get_error_info(int32_t error)
 }
 
 // API实现
-const char *ubs_error_name(int32_t error)
+const char* ubs_error_name(int32_t error)
 {
-    const ubs_error_info_t *info = ubs_get_error_info(error);
+    const ubs_error_info_t* info = ubs_get_error_info(error);
     if (info != NULL) {
         return info->name;
     }
     return "UBS_UNKNOWN_ERROR";
 }
 
-const char *ubs_error_string(int32_t error)
+const char* ubs_error_string(int32_t error)
 {
-    const ubs_error_info_t *info = ubs_get_error_info(error);
+    const ubs_error_info_t* info = ubs_get_error_info(error);
     if (info != NULL) {
         return info->message;
     }

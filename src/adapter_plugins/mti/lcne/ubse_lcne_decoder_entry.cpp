@@ -41,20 +41,20 @@ std::string UIntToHex(const uint32_t number)
     return "0x" + ss.str();
 }
 
-bool Convert2Uint64(const std::string &str, uint64_t &value)
+bool Convert2Uint64(const std::string& str, uint64_t& value)
 {
     try {
         size_t pos = 0;
         value = std::stoull(str, &pos);
         return pos == str.length();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "[MTI_MEM] Covert string to uint64 failed, " << e.what();
     }
     return false;
 }
 
-UbseResult BuildAddReqStr(const UbseMamiMemImportInfo &importInfo,
-    const ubse::adapter_plugins::mti::UbseDecoderTrustRingData &trustRingData, std::string &body)
+UbseResult BuildAddReqStr(const UbseMamiMemImportInfo& importInfo,
+                          const ubse::adapter_plugins::mti::UbseDecoderTrustRingData& trustRingData, std::string& body)
 {
     election::UbseRoleInfo curNodeInfo{};
     if (const auto ret = UbseGetCurrentNodeInfo(curNodeInfo); ret != UBSE_OK) {
@@ -64,7 +64,7 @@ UbseResult BuildAddReqStr(const UbseMamiMemImportInfo &importInfo,
 
     Document doc;
     doc.SetObject();
-    auto &allocator = doc.GetAllocator();
+    auto& allocator = doc.GetAllocator();
     Value innerObj(kObjectType);
 
     try {
@@ -103,7 +103,7 @@ UbseResult BuildAddReqStr(const UbseMamiMemImportInfo &importInfo,
     return UBSE_OK;
 }
 
-UbseResult BuildBaseReqStr(const UbseMamiMemWithdraw &drawInfo, const std::string &key, std::string &body)
+UbseResult BuildBaseReqStr(const UbseMamiMemWithdraw& drawInfo, const std::string& key, std::string& body)
 {
     election::UbseRoleInfo curNodeInfo{};
     if (const auto ret = UbseGetCurrentNodeInfo(curNodeInfo); ret != UBSE_OK) {
@@ -113,7 +113,7 @@ UbseResult BuildBaseReqStr(const UbseMamiMemWithdraw &drawInfo, const std::strin
 
     Document doc;
     doc.SetObject();
-    auto &allocator = doc.GetAllocator();
+    auto& allocator = doc.GetAllocator();
     Value innerObj(kObjectType);
 
     try {
@@ -135,18 +135,18 @@ UbseResult BuildBaseReqStr(const UbseMamiMemWithdraw &drawInfo, const std::strin
     return UBSE_OK;
 }
 
-UbseResult BuildDeleteReqStr(const UbseMamiMemWithdraw &drawInfo, std::string &body)
+UbseResult BuildDeleteReqStr(const UbseMamiMemWithdraw& drawInfo, std::string& body)
 {
     return BuildBaseReqStr(drawInfo, KEY_DELETE, body);
 }
 
-UbseResult BuildInvalidateReqStr(const UbseMamiMemWithdraw &drawInfo, std::string &body)
+UbseResult BuildInvalidateReqStr(const UbseMamiMemWithdraw& drawInfo, std::string& body)
 {
     return BuildBaseReqStr(drawInfo, KEY_INVALIDATE, body);
 }
 
-UbseResult ParseBaseRespBody(const std::string &responseStr, const std::string &key,
-                             const std::string &operationName, Document &doc, const Value*& output)
+UbseResult ParseBaseRespBody(const std::string& responseStr, const std::string& key, const std::string& operationName,
+                             Document& doc, const Value*& output)
 {
     UBSE_LOG_INFO << "[MTI_MEM] Response is " << responseStr;
     if (doc.Parse(responseStr.c_str()).HasParseError()) {
@@ -159,22 +159,21 @@ UbseResult ParseBaseRespBody(const std::string &responseStr, const std::string &
         return UBSE_ERROR;
     }
 
-    const Value &decoder = doc[key.c_str()];
+    const Value& decoder = doc[key.c_str()];
     if (!decoder.IsObject() || !decoder.HasMember("huawei-vbussw-service:output")) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse output object failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
 
-    const Value &outputValue = decoder["huawei-vbussw-service:output"];
+    const Value& outputValue = decoder["huawei-vbussw-service:output"];
     std::string result{};
-    if (const UbseResult res = UbseJsonUtil::GetStrFromJsonPtr(outputValue, "result", result);
-        res != UBSE_OK) {
+    if (const UbseResult res = UbseJsonUtil::GetStrFromJsonPtr(outputValue, "result", result); res != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse result failed, " << FormatRetCode(res);
         return res;
     }
     if (result != "success") {
-        UBSE_LOG_ERROR << "[MTI_MEM] " << operationName << " decoder failed, the result of response is "
-                       << result << ", " << FormatRetCode(UBSE_ERROR);
+        UBSE_LOG_ERROR << "[MTI_MEM] " << operationName << " decoder failed, the result of response is " << result
+                       << ", " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
 
@@ -182,8 +181,7 @@ UbseResult ParseBaseRespBody(const std::string &responseStr, const std::string &
     return UBSE_OK;
 }
 
-UbseResult ParseAddRespBody(const std::string &responseStr,
-                            UbseMamiMemImportResult &importResult)
+UbseResult ParseAddRespBody(const std::string& responseStr, UbseMamiMemImportResult& importResult)
 {
     Document doc{};
     const Value* output = nullptr;
@@ -192,37 +190,36 @@ UbseResult ParseAddRespBody(const std::string &responseStr,
         return ret;
     }
 
-    if (std::string hpa{};
-        UbseJsonUtil::GetStrFromJsonPtr(*output, "hpa", hpa) != UBSE_OK ||
-        ConvertStrToUint64(hpa, importResult.hpa) != UBSE_OK) {
+    if (std::string hpa{}; UbseJsonUtil::GetStrFromJsonPtr(*output, "hpa", hpa) != UBSE_OK ||
+                           ConvertStrToUint64(hpa, importResult.hpa) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse hpa failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
-    if (std::string handle{};
-        UbseJsonUtil::GetStrFromJsonPtr(*output, "handle", handle) != UBSE_OK ||
-        ConvertStrToUint64(handle, importResult.handle) != UBSE_OK) {
+    if (std::string handle{}; UbseJsonUtil::GetStrFromJsonPtr(*output, "handle", handle) != UBSE_OK ||
+                              ConvertStrToUint64(handle, importResult.handle) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse handle failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-UbseResult ParseDeleteRespBody(const std::string &responseStr)
+UbseResult ParseDeleteRespBody(const std::string& responseStr)
 {
     Document doc{};
     const Value* output = nullptr;
     return ParseBaseRespBody(responseStr, KEY_DELETE, "Delete", doc, output);
 }
 
-UbseResult ParseInvalidateRespBody(const std::string &responseStr)
+UbseResult ParseInvalidateRespBody(const std::string& responseStr)
 {
     Document doc{};
     const Value* output = nullptr;
     return ParseBaseRespBody(responseStr, KEY_INVALIDATE, "Invalidate", doc, output);
 }
 
-UbseResult UbseLcneDecoderEntry::AddDecoderEntry(const UbseMamiMemImportInfo &importInfo,
-    UbseMamiMemImportResult &importResult, const ubse::adapter_plugins::mti::UbseDecoderTrustRingData &trustRingData)
+UbseResult UbseLcneDecoderEntry::AddDecoderEntry(
+    const UbseMamiMemImportInfo& importInfo, UbseMamiMemImportResult& importResult,
+    const ubse::adapter_plugins::mti::UbseDecoderTrustRingData& trustRingData)
 {
     // 1. 构建请求体
     importResult.marId = importInfo.marId;
@@ -245,7 +242,7 @@ UbseResult UbseLcneDecoderEntry::AddDecoderEntry(const UbseMamiMemImportInfo &im
     return ParseAddRespBody(rspJson, importResult);
 }
 
-UbseResult UbseLcneDecoderEntry::DeleteDecoderEntry(const UbseMamiMemWithdraw &drawInfo)
+UbseResult UbseLcneDecoderEntry::DeleteDecoderEntry(const UbseMamiMemWithdraw& drawInfo)
 {
     // 1. 构建请求体
     std::string reqJson;
@@ -267,7 +264,7 @@ UbseResult UbseLcneDecoderEntry::DeleteDecoderEntry(const UbseMamiMemWithdraw &d
     return ParseDeleteRespBody(rspJson);
 }
 
-UbseResult UbseLcneDecoderEntry::InvalidateDecoderEntry(const UbseMamiMemWithdraw &drawInfo)
+UbseResult UbseLcneDecoderEntry::InvalidateDecoderEntry(const UbseMamiMemWithdraw& drawInfo)
 {
     std::string reqJson;
     UbseResult res = BuildInvalidateReqStr(drawInfo, reqJson);

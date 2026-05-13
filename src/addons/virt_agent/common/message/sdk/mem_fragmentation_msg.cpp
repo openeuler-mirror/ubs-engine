@@ -119,7 +119,7 @@ VmResult MemFragmentationMsg::Serialize()
         return VM_ERROR_INVAL;
     }
     out << size;
-    for (auto &info : numaInfos_) {
+    for (auto& info : numaInfos_) {
         out << info.timestamp;
         out << info.metaData.nodeId;
         out << info.metaData.hostName;
@@ -131,7 +131,7 @@ VmResult MemFragmentationMsg::Serialize()
 
         auto pageInfoSize = info.metaData.numaPageInfo.size();
         out << pageInfoSize;
-        for (const auto &[pageType, pageData] : info.metaData.numaPageInfo) {
+        for (const auto& [pageType, pageData] : info.metaData.numaPageInfo) {
             out << pageType;
             out << pageData.pageSize;
             out << pageData.hugePageTotal;
@@ -199,10 +199,10 @@ VmResult MemFragmentationMsg::Deserialize()
     return VM_OK;
 }
 
-VmResult MemFragmentationMsg::GetNumaInfo(std::vector<numa_info_t> &numaInfo)
+VmResult MemFragmentationMsg::GetNumaInfo(std::vector<numa_info_t>& numaInfo)
 {
     numaInfo.clear();
-    for (auto &info : numaInfos_) {
+    for (auto& info : numaInfos_) {
         numa_info_t data;
         data.timestamp = info.timestamp;
         auto ret = StringToC(data.node_id, info.metaData.nodeId, VIRT_MEM_MAX_NODE_ID_LENGTH);
@@ -223,7 +223,7 @@ VmResult MemFragmentationMsg::GetNumaInfo(std::vector<numa_info_t> &numaInfo)
                 return VM_ERROR_NOMEM;
             }
             uint64_t i = 0;
-            for (auto &[pageType, numaPageData] : info.metaData.numaPageInfo) {
+            for (auto& [pageType, numaPageData] : info.metaData.numaPageInfo) {
                 data.huge_page_data[i].pageSize = numaPageData.pageSize;
                 data.huge_page_data[i].hugePageTotal = numaPageData.hugePageTotal;
                 data.huge_page_data[i].hugePageFree = numaPageData.hugePageFree;
@@ -243,7 +243,7 @@ VmResult MemFragmentationVmInfoMsg::Serialize()
         return VM_ERROR_INVAL;
     }
     out << size;
-    for (auto &info : vmInfoList_) {
+    for (auto& info : vmInfoList_) {
         out << info.metaData.nodeId;
         out << info.metaData.hostName;
         out << info.metaData.uuid;
@@ -254,7 +254,7 @@ VmResult MemFragmentationVmInfoMsg::Serialize()
         out << info.metaData.pid;
         auto numaInfoSize = info.numaInfo.size();
         out << numaInfoSize;
-        for (auto &[numaId, vmDomainNumaInfo] : info.numaInfo) {
+        for (auto& [numaId, vmDomainNumaInfo] : info.numaInfo) {
             out << numaId;
             out << vmDomainNumaInfo.numaId;
             out << vmDomainNumaInfo.pageSize;
@@ -329,7 +329,7 @@ VmResult MemFragmentationVmInfoMsg::Deserialize()
 std::vector<vm_domain_info_for_c> MemFragmentationVmInfoMsg::GetVmInfo()
 {
     std::vector<vm_domain_info_for_c> vmInfo{};
-    for (auto &info : vmInfoList_) {
+    for (auto& info : vmInfoList_) {
         vm_domain_info_for_c data;
         data.timestamp = info.timestamp;
         auto ret = StringToC(data.metadata.nodeId, info.metaData.nodeId, VIRT_MEM_MAX_NODE_ID_LENGTH);
@@ -350,7 +350,7 @@ std::vector<vm_domain_info_for_c> MemFragmentationVmInfoMsg::GetVmInfo()
             return {};
         }
         uint64_t i = 0;
-        for (auto &[numaId, vmDomainNumaInfo] : info.numaInfo) {
+        for (auto& [numaId, vmDomainNumaInfo] : info.numaInfo) {
             data.numaInfo[i].numaId = vmDomainNumaInfo.numaId;
             data.numaInfo[i].socketId = vmDomainNumaInfo.socketId;
             data.numaInfo[i].isLocal = vmDomainNumaInfo.isLocal;
@@ -418,7 +418,7 @@ VmResult MemRollbackMsg::Serialize()
         return VM_ERROR;
     }
 
-    for (const auto &borrow_id : rollbackParams_.borrow_id_list) {
+    for (const auto& borrow_id : rollbackParams_.borrow_id_list) {
         out << borrow_id;
         if (!out.Check()) {
             return VM_ERROR;
@@ -478,7 +478,7 @@ src_memory_borrow_param MemFragmentationMemBorrowStrategyInputMsg::GetInputMsg()
 VmResult MemBorrowSettingMsg::Serialize()
 {
     VmSerialization out;
-    borrow_strategy_c &strategy = borrowSettingC_.borrow_strategy;
+    borrow_strategy_c& strategy = borrowSettingC_.borrow_strategy;
 
     out << strategy.src_host_id;
     out << strategy.src_socket_id;
@@ -531,7 +531,7 @@ VmResult MemBorrowSettingMsg::Deserialize()
     }
 
     VmDeSerialization in(mInputRawData, mInputRawDataSize);
-    borrow_strategy_c &strategy = borrowSettingC_.borrow_strategy;
+    borrow_strategy_c& strategy = borrowSettingC_.borrow_strategy;
     std::string tmpMsg;
     in >> tmpMsg;
     VmResult ret = StringToC(strategy.src_host_id, tmpMsg, VIRT_MEM_MAX_NODE_ID_LENGTH);
@@ -594,7 +594,7 @@ VmResult MemTaskResultQueryMsg::Serialize()
     uint32_t status_value = static_cast<uint32_t>(asyncTaskInfoC_.status);
     out << status_value;
     out << asyncTaskInfoC_.resultCode;
-    const auto &result = asyncTaskInfoC_.memBorrowResult;
+    const auto& result = asyncTaskInfoC_.memBorrowResult;
 
     if (result.borrow_ids_size > MAX_BORROW_ID_COUNT)
         return VM_ERROR_INVAL;
@@ -650,7 +650,7 @@ VmResult MemTaskResultQueryMsg::Deserialize()
         return VM_ERROR;
     }
 
-    mem_borrow_result_c &result = asyncTaskInfoC_.memBorrowResult;
+    mem_borrow_result_c& result = asyncTaskInfoC_.memBorrowResult;
     in >> result.borrow_ids_size;
     if (!in.Check()) {
         return VM_ERROR;
@@ -690,7 +690,7 @@ borrow_strategy_c MemFragmentationMemBorrowStrategyOutputMsg::GetMemBorrowStrate
     return outputMsg_;
 }
 
-VmResult MemFragmentationMemBorrowStrategyOutputMsg::SetOutputMsg(const MemBorrowStrategyResult &result)
+VmResult MemFragmentationMemBorrowStrategyOutputMsg::SetOutputMsg(const MemBorrowStrategyResult& result)
 {
     auto ret = StringToC(outputMsg_.src_host_id, result.srcParam.srcNid, VIRT_MEM_MAX_NODE_ID_LENGTH);
     if (ret != VM_OK) {

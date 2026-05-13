@@ -70,9 +70,9 @@ void MyHandlerPrint()
     std::cout << "OS test PRINTSIG" << std::endl;
 }
 
-int32_t ITestCmdExceptionTest(ProcessMmap *pMmap)
+int32_t ITestCmdExceptionTest(ProcessMmap* pMmap)
 {
-    UbseContext &ctx = UbseContext::GetInstance();
+    UbseContext& ctx = UbseContext::GetInstance();
     auto ubseException = ctx.GetModule<UbseExceptionModule>();
     if (ubseException == nullptr) {
         std::cout << "Cannot get ubseExceptionModule" << std::endl;
@@ -106,4 +106,4 @@ int32_t ITestCmdExceptionTest(ProcessMmap *pMmap)
     TestSIGSYS();
     return UBSE_OK;
 }
-}
+} // namespace ubse::it::exception

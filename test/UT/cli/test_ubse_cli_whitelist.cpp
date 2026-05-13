@@ -25,9 +25,9 @@ TEST_F(TestUbseCliWhitelist, ClearWhiteList)
     UbseCliWhitelist wtl;
     wtl.UbseCliClearWhitelist();
     EXPECT_FALSE(wtl.UbseCliIsAllowed("abcdefghijklmnopqrstuvwxyz\"\n"
-        "            \"ABCDEFGHIJKLMNOPQRSTUVWXYZ\"\n"
-        "            \"0123456789\"\n"
-        "            \"-._"));
+                                      "            \"ABCDEFGHIJKLMNOPQRSTUVWXYZ\"\n"
+                                      "            \"0123456789\"\n"
+                                      "            \"-._"));
     EXPECT_TRUE("");
 }
 TEST_F(TestUbseCliWhitelist, DefaultWhiteList)

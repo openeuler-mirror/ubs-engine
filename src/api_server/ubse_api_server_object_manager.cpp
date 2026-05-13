@@ -22,7 +22,7 @@ using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 UbseApiServerObjectManager::UbseApiServerObjectManager() = default;
 
-void UbseApiServerObjectManager::AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string &object)
+void UbseApiServerObjectManager::AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object)
 {
     std::unique_lock lock(objectMapMutex_); // 获取独占锁（写锁）
     if (objectMap_.find(std::make_pair(moduleCode, opCode)) != objectMap_.end()) {
@@ -44,7 +44,7 @@ std::string UbseApiServerObjectManager::GetObjectString(uint16_t moduleCode, uin
 }
 
 void UbseApiServerObjectManager::AddObjectMappingNoCheck(uint16_t moduleCode, uint16_t opCode,
-                                                         const std::string &object)
+                                                         const std::string& object)
 {
     objectMap_.emplace(std::make_pair(moduleCode, opCode), object);
 }

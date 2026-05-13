@@ -14,13 +14,6 @@
 #include <cstdint>
 #include <shared_mutex>
 
-#include "../message/node_mem_debtInfo_query_req_simpo.h"
-#include "../message/ubse_mem_operation_resp_simpo.h"
-#include "../ubse_mem_account.h"
-#include "../ubse_mem_rpc_processor.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -29,6 +22,13 @@
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mmi_interface.h"
+#include "../message/node_mem_debtInfo_query_req_simpo.h"
+#include "../message/ubse_mem_operation_resp_simpo.h"
+#include "../ubse_mem_account.h"
+#include "../ubse_mem_rpc_processor.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -59,7 +59,7 @@ bool IsSdkRequest(uint64_t requestId)
     return UbseRequestIdUtil::ParseRequestType(requestId) == ubse::utils::UbseRequestType::SDK_REQUEST;
 }
 
-void SendParamSwitcher(const MemOperationType &type, SendParam &sendParam)
+void SendParamSwitcher(const MemOperationType& type, SendParam& sendParam)
 {
     switch (type) {
         case MemOperationType::SHARED_BORROW:
@@ -88,8 +88,8 @@ void SendParamSwitcher(const MemOperationType &type, SendParam &sendParam)
     }
 }
 
-uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::string &name,
-                                    const std::string &requestNodeId, std::string errMsg, uint32_t errorCode,
+uint32_t BuildOperationRespWhenFail(UbseMemOperationResp& resp, const std::string& name,
+                                    const std::string& requestNodeId, std::string errMsg, uint32_t errorCode,
                                     MemOperationType type)
 {
     election::UbseRoleInfo currNodeInfo;
@@ -139,7 +139,7 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::strin
     return ret;
 }
 
-uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult errorCode, MemOperationType type)
+uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp& resp, UbseResult errorCode, MemOperationType type)
 {
     election::UbseRoleInfo currNodeInfo;
     election::UbseGetCurrentNodeInfo(currNodeInfo);
@@ -183,16 +183,16 @@ uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult er
     return ret;
 }
 
-void InitializeResponse(const UbseMemReturnReq &req, UbseMemOperationResp &resp)
+void InitializeResponse(const UbseMemReturnReq& req, UbseMemOperationResp& resp)
 {
     resp.name = req.name;
     resp.requestNodeId = req.requestNodeId;
     resp.requestId = req.requestId;
 }
 
-void SetMamiImportInfoByDecoderParam(const std::pair<uint32_t, uint32_t> &chipDiePair,
-                                     const decoder::utils::ImportDecoderParam &importDecoderParam,
-                                     UbseMamiMemImportInfo &mamiImportInfo)
+void SetMamiImportInfoByDecoderParam(const std::pair<uint32_t, uint32_t>& chipDiePair,
+                                     const decoder::utils::ImportDecoderParam& importDecoderParam,
+                                     UbseMamiMemImportInfo& mamiImportInfo)
 {
     mamiImportInfo.ubpuId = chipDiePair.first;
     mamiImportInfo.iouId = chipDiePair.second;
@@ -203,7 +203,7 @@ void SetMamiImportInfoByDecoderParam(const std::pair<uint32_t, uint32_t> &chipDi
     mamiImportInfo.lb = 0;
 }
 
-void SetMamiImportInfoByExportInfo(const UbseMemObmmInfo &exportInfo, UbseMamiMemImportInfo &mamiImportInfo)
+void SetMamiImportInfoByExportInfo(const UbseMemObmmInfo& exportInfo, UbseMamiMemImportInfo& mamiImportInfo)
 {
     mamiImportInfo.size = exportInfo.desc.length;
     mamiImportInfo.tokenId = exportInfo.desc.tokenid;
@@ -212,7 +212,7 @@ void SetMamiImportInfoByExportInfo(const UbseMemObmmInfo &exportInfo, UbseMamiMe
     mamiImportInfo.marId = exportInfo.desc.marId;
 }
 
-void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo &mamiImportInfo, decoder::utils::DecoderEntryLoc &loc)
+void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo& mamiImportInfo, decoder::utils::DecoderEntryLoc& loc)
 {
     loc.ubpuId = mamiImportInfo.ubpuId;
     loc.iouId = mamiImportInfo.iouId;
@@ -220,8 +220,8 @@ void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo &mamiImportInfo, 
     loc.marId = mamiImportInfo.marId;
 }
 
-UbseResult AddDecoderEntryByPreOnline(const decoder::utils::DecoderEntryLoc &loc, UbseMamiMemImportInfo &mamiImportInfo,
-                                      UbseMemImportStatus &status)
+UbseResult AddDecoderEntryByPreOnline(const decoder::utils::DecoderEntryLoc& loc, UbseMamiMemImportInfo& mamiImportInfo,
+                                      UbseMemImportStatus& status)
 {
     UbseMamiMemImportResult importResult{};
     auto res = decoder::utils::UbseMemPrehandleManager::GetInstance().GetPreHandleByDcna(loc, mamiImportInfo.dstCNA,
@@ -242,10 +242,10 @@ UbseResult AddDecoderEntryByPreOnline(const decoder::utils::DecoderEntryLoc &loc
     return UBSE_OK;
 }
 
-UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
-                                   const std::vector<UbseMemObmmInfo> &exportObmmInfo,
-                                   const decoder::utils::ImportDecoderParam &importDecoderParam,
-                                   UbseMemImportStatus &status)
+UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair,
+                                   const std::vector<UbseMemObmmInfo>& exportObmmInfo,
+                                   const decoder::utils::ImportDecoderParam& importDecoderParam,
+                                   UbseMemImportStatus& status)
 {
     status.decoderResult.clear();
     UbseMamiMemImportInfo mamiImportInfo{};
@@ -284,7 +284,7 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDieP
             if (res == UBSE_OK) {
                 break;
             }
-            retry --;
+            retry--;
         }
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed";
@@ -295,17 +295,17 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDieP
     return UBSE_OK;
 }
 
-void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair, UbseMemImportStatus &status,
+void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair, UbseMemImportStatus& status,
                                uint8_t decoderId)
 {
     std::vector<UbseMamiMemImportResult> failedDecoderResult{};
-    for (const auto &decoderVal : status.decoderResult) {
+    for (const auto& decoderVal : status.decoderResult) {
         UbseMamiMemWithdraw mamiDelInfo{chipDiePair.first, chipDiePair.second, decoderVal.marId, decoderId,
                                         decoderVal.handle};
         auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().DeleteDecoderEntry(mamiDelInfo);
         if (res != UBSE_OK) {
-            UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed, handle=" << decoderVal.handle << ", hpa="
-                           << decoderVal.hpa << ", marId=" << decoderVal.marId;
+            UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed, handle=" << decoderVal.handle
+                           << ", hpa=" << decoderVal.hpa << ", marId=" << decoderVal.marId;
             failedDecoderResult.push_back(decoderVal);
         }
     }
@@ -313,7 +313,7 @@ void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
     status.decoderResult = failedDecoderResult;
 }
 
-uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus &status, uint8_t decoderId)
+uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus& status, uint8_t decoderId)
 {
     std::pair<uint32_t, uint32_t> chipDiePair{attachSocketId, attachSocketId};
     auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(attachSocketId, chipDiePair);
@@ -321,7 +321,7 @@ uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatu
         UBSE_LOG_ERROR << "GetChipAndDieId failed, decoderId=" << decoderId;
         return res;
     }
-    for (auto &decoderVal : status.decoderResult) {
+    for (auto& decoderVal : status.decoderResult) {
         if (decoderVal.valid) {
             continue;
         }
@@ -329,8 +329,8 @@ uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatu
                                         decoderVal.handle};
         auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().InvalidateDecoderEntry(mamiDelInfo);
         if (res != UBSE_OK) {
-            UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, handle=" << decoderVal.handle << ", hpa="
-                           << decoderVal.hpa << ", marId=" << decoderVal.marId;
+            UBSE_LOG_ERROR << "InvalidateDecoderEntry failed, handle=" << decoderVal.handle
+                           << ", hpa=" << decoderVal.hpa << ", marId=" << decoderVal.marId;
             return res;
         }
         decoderVal.valid = true;
@@ -338,7 +338,7 @@ uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatu
     return res;
 }
 
-UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj &importObj, const bool &importObjExist)
+UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj& importObj, const bool& importObjExist)
 {
     if (!importObjExist) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -364,7 +364,7 @@ uint32_t GetWaitTimeOut()
     return MAX_WAIT_TIME;
 }
 
-bool CheckMemBelongToReqUds(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds)
+bool CheckMemBelongToReqUds(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds)
 {
     if (!memUds.username.empty()) {
         return memUds.username == reqUds.username;
@@ -372,9 +372,9 @@ bool CheckMemBelongToReqUds(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds
     return memUds.uid == reqUds.uid;
 }
 
-bool isRequestNodeIdValid(const std::string &realRequestNodeId, const std::vector<std::string> &roleIds)
+bool isRequestNodeIdValid(const std::string& realRequestNodeId, const std::vector<std::string>& roleIds)
 {
-    for (const auto &roleId : roleIds) {
+    for (const auto& roleId : roleIds) {
         if (!roleId.empty() && (roleId == realRequestNodeId)) {
             return true;
         }
@@ -382,8 +382,8 @@ bool isRequestNodeIdValid(const std::string &realRequestNodeId, const std::vecto
     return false;
 }
 
-bool CheckHasMemOwnerPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                const std::string &realRequestNodeId, const std::vector<std::string> &commonRoleIds)
+bool CheckHasMemOwnerPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                const std::string& realRequestNodeId, const std::vector<std::string>& commonRoleIds)
 {
     if (!CheckMemBelongToReqUds(memUds, reqUds)) {
         return false;
@@ -391,8 +391,8 @@ bool CheckHasMemOwnerPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &re
     return isRequestNodeIdValid(realRequestNodeId, commonRoleIds);
 }
 
-bool CheckHasRootPermission(const UbseUdsInfo &reqUds, const std::string &realRequestNodeId,
-                            const std::vector<std::string> &rootRoleIds)
+bool CheckHasRootPermission(const UbseUdsInfo& reqUds, const std::string& realRequestNodeId,
+                            const std::vector<std::string>& rootRoleIds)
 {
     if (reqUds.username == "root" || reqUds.username == "ubse" || reqUds.uid == 0) {
         if (isRequestNodeIdValid(realRequestNodeId, rootRoleIds)) {
@@ -402,9 +402,9 @@ bool CheckHasRootPermission(const UbseUdsInfo &reqUds, const std::string &realRe
     return false;
 }
 
-bool CheckCommonReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                 const std::string &realRequestNodeId, const std::string &importNodeId,
-                                 const std::string &exportNodeId)
+bool CheckCommonReturnPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                 const std::string& realRequestNodeId, const std::string& importNodeId,
+                                 const std::string& exportNodeId)
 {
     std::string masterId;
     if (ubse::election::UbseGetMasterNodeId(masterId) != UBSE_OK) {
@@ -421,15 +421,15 @@ bool CheckCommonReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &r
     return false;
 }
 
-bool CheckShareReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                const std::string &realRequestNodeId, const UbseShmRegionDesc &shareRegion)
+bool CheckShareReturnPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                const std::string& realRequestNodeId, const UbseShmRegionDesc& shareRegion)
 {
     std::string masterId;
     if (ubse::election::UbseGetMasterNodeId(masterId) != UBSE_OK) {
         return false;
     }
     std::vector<std::string> commonRoleIds{};
-    for (const auto &node : shareRegion.nodelist) {
+    for (const auto& node : shareRegion.nodelist) {
         commonRoleIds.push_back(node.nodeId);
     }
     if (isRequestNodeIdValid(realRequestNodeId, commonRoleIds)) {
@@ -442,8 +442,8 @@ bool CheckShareReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &re
     return false;
 }
 
-bool CheckShareDetachPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                const std::string &realRequestNodeId, const std::string &importNodeId)
+bool CheckShareDetachPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                const std::string& realRequestNodeId, const std::string& importNodeId)
 {
     std::vector<std::string> commonRoleIds{importNodeId};
     if (CheckHasMemOwnerPermission(memUds, reqUds, realRequestNodeId, commonRoleIds)) {

@@ -10,9 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "ubse_mem_advice.h"
 #include <map>
 #include "ubse_logger.h"
-#include "ubse_mem_advice.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse_fault");
@@ -24,16 +24,13 @@ static std::map<MemAdvice, std::string> advices = {
     {MemAdvice::NODE_IN_MAINTENANCE, "please wait for the node to join the cluster or complete the smoothing stats."},
     {MemAdvice::RESOURCE_NOT_EXIST, "please check whether the resource exists."},
     {MemAdvice::RESOURCE_OPERATION_CONFLICT, "please wait for the resource creation or deletion operation to finish."},
-    {MemAdvice::UBSE_NO_OPERATION_PERMISSION, "please check whether the user has permission to operate this resource."}
-};
+    {MemAdvice::UBSE_NO_OPERATION_PERMISSION,
+     "please check whether the user has permission to operate this resource."}};
 
 static std::map<ProcessType, std::string> processTypes = {
-    {ProcessType::BORROW_FAILED, "Borrow Schedule failed"},
-    {ProcessType::IMPORT_FAILED, "Import failed"},
-    {ProcessType::EXPORT_FAILED, "Export failed"},
-    {ProcessType::RETURN_FAILED, "Return Schedule failed"},
-    {ProcessType::UNIMPORT_FAILED, "UnImport failed"},
-    {ProcessType::UNEXPORT_FAILED, "UnExport failed"},
+    {ProcessType::BORROW_FAILED, "Borrow Schedule failed"}, {ProcessType::IMPORT_FAILED, "Import failed"},
+    {ProcessType::EXPORT_FAILED, "Export failed"},          {ProcessType::RETURN_FAILED, "Return Schedule failed"},
+    {ProcessType::UNIMPORT_FAILED, "UnImport failed"},      {ProcessType::UNEXPORT_FAILED, "UnExport failed"},
 };
 
 void BorrowFailedAdvice(ProcessType processType, std::string name, std::string borrowType, size_t size,
@@ -45,7 +42,7 @@ void BorrowFailedAdvice(ProcessType processType, std::string name, std::string b
     std::ostringstream oss;
     oss << "[UBSE_MEM] " << prefix << ". RequestName=" << name << ", BorrowType=" << borrowType
         << ", RequestSize=" << size << "byte, ExportNode=" << exportNode << ", ImportNode=" << importNode
-        << ", ErrorCode=" << errorCode << ", AdviceCode=" << adviceCode << ", Advice="  << adviceStr;
+        << ", ErrorCode=" << errorCode << ", AdviceCode=" << adviceCode << ", Advice=" << adviceStr;
     UBSE_LOG_INFO << oss.str();
 }
 } // namespace ubse::mem::controller

@@ -16,10 +16,10 @@
 #include <securec.h>
 #include <iostream>
 
+#include "ubse_error.h"
 #include "ubse_file_util.h"
 #include "ubse_json_util.h"
 #include "ubse_logger.h"
-#include "ubse_error.h"
 
 namespace ubse::plugin {
 using namespace ubse::context;
@@ -181,7 +181,7 @@ UbseResult UbsePluginManager::LoadPluginModule(const std::string& pluginName, co
 {
     if (loadedPluginModules_.find(pluginName) != loadedPluginModules_.end()) {
         UBSE_LOG_INFO << "The plugin: " << pluginName << " has been loaded and does not need to be loaded again.";
-        return UBSE_PLUGIN_ERROR_LOAD_AGAIN;  // 插件已经加载
+        return UBSE_PLUGIN_ERROR_LOAD_AGAIN; // 插件已经加载
     }
 
     void* handle = dlopen(fileName.c_str(), RTLD_LAZY);
@@ -226,4 +226,4 @@ void* UbsePluginManager::GetLoadedPlugin(const string& pluginName)
     return loadedPluginModules_[pluginName];
 }
 
-}  // namespace ubse::plugin
+} // namespace ubse::plugin

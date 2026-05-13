@@ -11,9 +11,9 @@
  */
 
 #include "test_ubse_com_base.h"
+#include "ubse_com_module.h"
 #include "test_ubse_com_mock.h"
 #include "ubse_com_base.cpp"
-#include "ubse_com_module.h"
 
 using namespace ubse::com;
 
@@ -69,7 +69,7 @@ UbseResult TestComBaseMessage::Deserialize()
     return DeserializeRet;
 }
 
-UbseResult TestUbseComBaseMessage::Handle(const UbseBaseMessage &req, const UbseBaseMessage &rsp)
+UbseResult TestUbseComBaseMessage::Handle(const UbseBaseMessage& req, const UbseBaseMessage& rsp)
 {
     return handRet;
 }
@@ -84,10 +84,10 @@ uint16_t TestUbseComBaseMessage::GetOpCode()
     return 0;
 }
 
-void TestReply(UbseComMessageCtx &message, const UbseComDataDesc &data, const UbseComCallback &usrCb) {}
+void TestReply(UbseComMessageCtx& message, const UbseComDataDesc& data, const UbseComCallback& usrCb) {}
 
-uint32_t MockUbsePubEvent(ubse::event::UbseEventModule *eventModule, const std::string &eventId,
-                          std::string &eventMessage)
+uint32_t MockUbsePubEvent(ubse::event::UbseEventModule* eventModule, const std::string& eventId,
+                          std::string& eventMessage)
 {
     return 0;
 }
@@ -115,7 +115,7 @@ TEST_F(TestUbseComBase, Reply)
     EXPECT_NO_FATAL_FAILURE(Reply(ctx, UbseBaseMessage::Convert<TestComBaseMessage>(g_reqMsgPtr)));
 }
 
-UbseResult TestAsyncCall(const std::string &engineName, UbseComMessageCtx &message, const UbseComCallback &usrCb)
+UbseResult TestAsyncCall(const std::string& engineName, UbseComMessageCtx& message, const UbseComCallback& usrCb)
 {
     return UBSE_OK;
 }
@@ -389,10 +389,11 @@ TEST_F(TestUbseComBase, TestLinkNotify)
     UbseLinkState state3 = UbseLinkState::LINK_STATE_UNKNOWN;
     MockUbseComBase mockUbseComBase(testName, testName);
     UBSHcomChannelPtr ch;
-    LinkNotifyFunction func = [](const std::vector<UbseLinkInfo> &linkInfoList) {
+    LinkNotifyFunction func = [](const std::vector<UbseLinkInfo>& linkInfoList) {
     };
     mockUbseComBase.AddLinkNotifyFunc(func);
-    mockUbseComBase.gLinkEventHandler_ = [](const std::vector<UbseLinkInfo> &linkInfoList) {};
+    mockUbseComBase.gLinkEventHandler_ = [](const std::vector<UbseLinkInfo>& linkInfoList) {
+    };
     EXPECT_NO_THROW(mockUbseComBase.LinkNotify(info, curNodeId, ch, UbseLinkState::LINK_UP));
     EXPECT_NO_THROW(mockUbseComBase.LinkNotify(info, curNodeId, ch, UbseLinkState::LINK_DOWN));
     EXPECT_NO_THROW(mockUbseComBase.LinkNotify(info, curNodeId, ch, UbseLinkState::LINK_STATE_UNKNOWN));
@@ -625,7 +626,7 @@ TEST_F(TestUbseComBase, TestSetGetQueryEidByNodeIdCb)
 {
     std::string testName = "test";
     MockUbseComBase mockUbseComBase(testName, testName);
-    QueryEidByNodeIdCb cb1 = [](std::string nodeId, std::string &eid) {
+    QueryEidByNodeIdCb cb1 = [](std::string nodeId, std::string& eid) {
         if (nodeId == "TestSetGetQueryEidByNodeIdCb") {
             return true;
         } else {
@@ -653,9 +654,9 @@ TEST_F(TestUbseComBase, TestBufferSerialize)
 {
     uint16_t testNum = 0;
     uint16_t testLen = 3;
-    uint16_t *data = new uint16_t[testLen];
+    uint16_t* data = new uint16_t[testLen];
     UbseComBaseBufferMessage ubseBMNull(nullptr, testNum);
-    UbseComBaseBufferMessage ubseBM(reinterpret_cast<uint8_t *>(data), testLen);
+    UbseComBaseBufferMessage ubseBM(reinterpret_cast<uint8_t*>(data), testLen);
     EXPECT_EQ(UBSE_OK, ubseBMNull.Serialize());
     EXPECT_EQ(UBSE_OK, ubseBM.Serialize());
     SafeDeleteArray(data);
@@ -672,7 +673,7 @@ TEST_F(TestUbseComBase, TestBufferSerialize)
 TEST_F(TestUbseComBase, TestBufferDeserialize)
 {
     uint16_t testLen = 3;
-    auto *data = new uint8_t[testLen];
+    auto* data = new uint8_t[testLen];
     UbseComBaseBufferMessage ubseBM(data, testLen);
     ubseBM.SetInputRawData(data, testLen);
     EXPECT_EQ(UBSE_OK, ubseBM.Deserialize());

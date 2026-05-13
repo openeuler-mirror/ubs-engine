@@ -9,8 +9,8 @@
 #include <thread>
 #include <unordered_set>
 #include "ubse_common_def.h"
-#include "ubse_node_controller.h"
 #include "ubse_mmi_interface.h"
+#include "ubse_node_controller.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::nodeController;
@@ -38,9 +38,9 @@ struct PreOnLineResp {
 
 // 主节点记录，当前集群中存在的预上线任务
 struct PreOnLineTask {
-    std::string taskName;                    // 预上线任务名称-全局唯一
-    std::string nodeId;                      // 预上线节点id
-    uint64_t timestamp;                      // 预上线任务创建时间，超时后需要将状态置为offline
+    std::string taskName; // 预上线任务名称-全局唯一
+    std::string nodeId;   // 预上线节点id
+    uint64_t timestamp;   // 预上线任务创建时间，超时后需要将状态置为offline
     std::vector<std::string> preOnLineNodes; // 与预上线节点存在LCNE直连关系的节点，需要对直连节点依次下发预上线请求
     // 预期状态，初始为 online
     // 只要有一个节点预上线失败，将预期状态置为offline，并刷新节点状态map，若最后一个节点上线完毕，且预期状态仍是online，刷新节点状态map
@@ -58,7 +58,7 @@ bool IsClusterPreOnLineReady();
 /**
  * 判断某个节点是否预上线成功
  */
-bool IsNodeOnLine(const std::string &nodeId);
+bool IsNodeOnLine(const std::string& nodeId);
 
 /**
 * 校验当前是否需要进行预上线
@@ -67,7 +67,7 @@ bool IsNodeOnLine(const std::string &nodeId);
 * @param nodeId
 * @return
 */
-bool ValidPreOnLine(const std::string &nodeId);
+bool ValidPreOnLine(const std::string& nodeId);
 
 /**
 * 注册给Node controller回调，在触发时需要根据当前集群节点数进行操作
@@ -77,7 +77,7 @@ bool ValidPreOnLine(const std::string &nodeId);
 * @param node
 * @return
 */
-UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &node);
+UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo& node);
 
 /**
 * 注册给事件模块，监听LCNE拓扑变化回调，对拓扑变化节点执行预上线操作；上线逻辑同上平滑回调
@@ -85,7 +85,7 @@ UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &node);
 * @param eventMessage
 * @return
 */
-UbseResult LcneTopologyChangeHandler(std::string &eventId, std::string &eventMessage);
+UbseResult LcneTopologyChangeHandler(std::string& eventId, std::string& eventMessage);
 
 /**
 * 过滤出当前集群内与当前节点LCNE直连的非故障节点；故障状态：Fault, Unknown
@@ -99,7 +99,7 @@ std::unordered_set<std::string> FilterLcneRemote(ubse::nodeController::UbseNodeI
 * @param nodeId
 * @return
 */
-std::vector<SocketCnaInfo> GeneratePreOnLineCna(const std::string &nodeId);
+std::vector<SocketCnaInfo> GeneratePreOnLineCna(const std::string& nodeId);
 
 /**
 * 主节点-下发预上线请求
@@ -127,13 +127,13 @@ void handlePreOnLineTask(PreOnLineResp reply);
  */
 void PreOnLineUnInit();
 
-uint32_t SerializePreOnLine(PreOnLineReq req, uint8_t *&buffer, size_t &size);
+uint32_t SerializePreOnLine(PreOnLineReq req, uint8_t*& buffer, size_t& size);
 
-uint32_t DeSerializePreOnLine(PreOnLineReq &req, uint8_t *buffer, size_t size);
+uint32_t DeSerializePreOnLine(PreOnLineReq& req, uint8_t* buffer, size_t size);
 
-uint32_t SerializePreOnlineResp(PreOnLineResp resp, uint8_t *&buffer, size_t &size);
+uint32_t SerializePreOnlineResp(PreOnLineResp resp, uint8_t*& buffer, size_t& size);
 
-uint32_t DeSerializePreOnLineResp(PreOnLineResp &resp, uint8_t *buffer, size_t size);
+uint32_t DeSerializePreOnLineResp(PreOnLineResp& resp, uint8_t* buffer, size_t size);
 
 /**
 * 主备倒换后清空预上线map

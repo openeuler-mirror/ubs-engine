@@ -13,15 +13,9 @@
 #include "ubse_error.h"
 
 namespace ubse::adapter_plugins::mti {
-UbseDevName::UbseDevName(const std::string& name) : devName(name)
-{
-}
-UbseDevName::UbseDevName(std::string&& name) : devName(std::move(name))
-{
-}
-UbseDevName::UbseDevName(const std::string& nodeId, const std::string& socketId) : devName(nodeId + "-" + socketId)
-{
-}
+UbseDevName::UbseDevName(const std::string& name) : devName(name) {}
+UbseDevName::UbseDevName(std::string&& name) : devName(std::move(name)) {}
+UbseDevName::UbseDevName(const std::string& nodeId, const std::string& socketId) : devName(nodeId + "-" + socketId) {}
 
 bool UbseDevName::operator==(const UbseDevName& other) const
 {
@@ -46,12 +40,8 @@ UbseDevPortName::UbseDevPortName(const std::string& slotId, const std::string& c
     : name(slotId + ":" + chipId + ":" + cardId + ":" + portId)
 {
 }
-UbseDevPortName::UbseDevPortName(const std::string& name) : name(name)
-{
-}
-UbseDevPortName::UbseDevPortName(std::string&& name) : name(std::move(name))
-{
-}
+UbseDevPortName::UbseDevPortName(const std::string& name) : name(name) {}
+UbseDevPortName::UbseDevPortName(std::string&& name) : name(std::move(name)) {}
 
 bool UbseDevPortName::operator==(const UbseDevPortName& other) const
 {
@@ -69,4 +59,4 @@ std::size_t UbseDevNameHash::operator()(const UbseDevName& obj) const
     auto hash = std::hash<std::string>{}(obj.devName);
     return hash;
 }
-}  // namespace ubse::adapter_plugins::mti
+} // namespace ubse::adapter_plugins::mti

@@ -26,7 +26,7 @@ TEST_F(TestUbseNodeControllerAgent, RegAgentMsgHandler)
     EXPECT_EQ(RegAgentMsgHandler(), UBSE_OK);
 }
 
-Ref<UbseTaskExecutor> MockAgentCreateNullTaskPtr(const std::string &name, uint16_t threadNum, uint32_t queueCapacity)
+Ref<UbseTaskExecutor> MockAgentCreateNullTaskPtr(const std::string& name, uint16_t threadNum, uint32_t queueCapacity)
 {
     return nullptr;
 }
@@ -66,7 +66,7 @@ TEST_F(TestUbseNodeControllerAgent, CollectTopology)
     EXPECT_NO_THROW(CollectTopology(info));
 }
 
-UbseResult MockCollectNodeTopology(UbseNodeInfo &ubseNodeInfo)
+UbseResult MockCollectNodeTopology(UbseNodeInfo& ubseNodeInfo)
 {
     ubseNodeInfo.nodeId = "node1";
     ubseNodeInfo.slotId = 1;
@@ -78,7 +78,7 @@ TEST_F(TestUbseNodeControllerAgent, UbseNodeInfoCollect)
     MOCKER_CPP(CollectNodeBaseInfo).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     MOCKER_CPP(CollectNodeTopology).stubs().will(returnValue(UBSE_ERROR)).then(invoke(MockCollectNodeTopology));
 
-    UbseNodeInfo defaultNodeInfo{nodeId : "node0"};
+    UbseNodeInfo defaultNodeInfo{nodeId: "node0"};
     MOCKER(&UbseNodeController::GetCurNode).stubs().will(returnValue(defaultNodeInfo));
     MOCKER(&UbseNodeController::UpdateNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
@@ -87,7 +87,7 @@ TEST_F(TestUbseNodeControllerAgent, UbseNodeInfoCollect)
     EXPECT_EQ(UbseNodeInfoCollect().nodeId, "node1");
 }
 
-uint32_t MockUbseGetMasterInfo(UbseRoleInfo &roleInfo)
+uint32_t MockUbseGetMasterInfo(UbseRoleInfo& roleInfo)
 {
     roleInfo.nodeId = "node1";
     return UBSE_OK;
@@ -95,7 +95,7 @@ uint32_t MockUbseGetMasterInfo(UbseRoleInfo &roleInfo)
 
 TEST_F(TestUbseNodeControllerAgent, UbseNodeInfoLcneNotifyHandler)
 {
-    UbseNodeInfo info{nodeId : "node0"};
+    UbseNodeInfo info{nodeId: "node0"};
     MOCKER(UbseNodeInfoCollect).stubs().will(returnValue(info));
     MOCKER(&UbseNodeController::UpdateNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
@@ -143,7 +143,7 @@ TEST_F(TestUbseNodeControllerAgent, UbseNodeInfoReportTimerHandler)
 {
     UbseNodeControllerAgent agent{};
     agent.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(agent.UbseNodeInfoReportTimerHandler(), UBSE_OK);
 }
@@ -152,7 +152,7 @@ TEST_F(TestUbseNodeControllerAgent, Start)
 {
     UbseNodeControllerAgent agent{};
     agent.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(agent.Start(), UBSE_OK);
 }
@@ -189,9 +189,7 @@ TEST_F(TestUbseNodeControllerAgent, SafeSerializeUbseNode_Success)
     UbseNodeInfo info{};
     UbseByteBuffer buffer{};
 
-    MOCKER(SerializeUbseNode)
-        .stubs()
-        .will(invoke(MockSerializeUbseNode_Success));
+    MOCKER(SerializeUbseNode).stubs().will(invoke(MockSerializeUbseNode_Success));
 
     auto ret = SafeSerializeUbseNode(info, buffer);
 
@@ -206,9 +204,7 @@ TEST_F(TestUbseNodeControllerAgent, SafeSerializeUbseNode_Fail)
     UbseNodeInfo info{};
     UbseByteBuffer buffer{};
 
-    MOCKER(SerializeUbseNode)
-        .stubs()
-        .will(invoke(MockSerializeUbseNode_Fail));
+    MOCKER(SerializeUbseNode).stubs().will(invoke(MockSerializeUbseNode_Fail));
 
     auto ret = SafeSerializeUbseNode(info, buffer);
 
@@ -360,8 +356,8 @@ TEST_F(TestUbseNodeControllerAgent, HandleGetDirConnectInfoCallback_Success)
 
     MOCKER(DeSerializeDevDirConnectInfo).stubs().will(returnValue(UBSE_OK));
 
-    HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote,
-                                    getRet, callbackCalled, mtx, cv);
+    HandleGetDirConnectInfoCallback(nodeId, respData, resCode, devDirConnectInfoRemote, getRet, callbackCalled, mtx,
+                                    cv);
 
     EXPECT_EQ(getRet, UBSE_OK);
     EXPECT_TRUE(callbackCalled);

@@ -32,9 +32,9 @@
 namespace ubse::ipc {
 using namespace ubse::common::def;
 
-const uint32_t CONNECT_RETRY_DURATION = 200;  // 200毫秒
+const uint32_t CONNECT_RETRY_DURATION = 200; // 200毫秒
 
-UbseUDSClient::UbseUDSClient(const std::string &socketPath)
+UbseUDSClient::UbseUDSClient(const std::string& socketPath)
     : socketPath_(socketPath),
       sockFd_(-1),
       epollFd_(-1),
@@ -94,9 +94,9 @@ uint32_t UbseUDSClient::Connect()
     return UBSE_OK;
 }
 
-uint32_t UbseUDSClient::ConnectToServer(sockaddr_un &addr)
+uint32_t UbseUDSClient::ConnectToServer(sockaddr_un& addr)
 {
-    int result = connect(sockFd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+    int result = connect(sockFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
     if (result < 0) {
         if (errno == EINPROGRESS) {
             // Wait for the connection to complete or timeout
@@ -173,12 +173,12 @@ bool UbseUDSClient::IsConnected() const
     return sockFd_ != -1;
 }
 
-uint32_t UbseUDSClient::Send(const UbseRequestMessage &request, UbseResponseMessage &response, uint32_t totalTimeout)
+uint32_t UbseUDSClient::Send(const UbseRequestMessage& request, UbseResponseMessage& response, uint32_t totalTimeout)
 {
     IPC_LOG_INFO << "Starting Send operation with timeout: " << totalTimeout << "ms";
     if (request.header.bodyLen > UBSE_MESSAGE_SIZE) {
-        IPC_LOG_ERROR << "Invalid argument: request body length " << request.header.bodyLen
-                      << " exceeds maximum size " << UBSE_MESSAGE_SIZE;
+        IPC_LOG_ERROR << "Invalid argument: request body length " << request.header.bodyLen << " exceeds maximum size "
+                      << UBSE_MESSAGE_SIZE;
         return UBSE_ERROR_INVAL;
     }
 
@@ -265,7 +265,7 @@ uint32_t UbseUDSClient::WaitForDataReadable(uint32_t timeoutMs)
     }
 }
 
-uint32_t UbseUDSClient::Receive(uint32_t remainingTime, UbseResponseMessage &response,
+uint32_t UbseUDSClient::Receive(uint32_t remainingTime, UbseResponseMessage& response,
                                 std::chrono::steady_clock::time_point startTime, uint32_t totalTimeout)
 {
     IPC_LOG_INFO << "Starting Receive operation with remaining time: " << remainingTime << "ms";
@@ -293,8 +293,8 @@ uint32_t UbseUDSClient::Receive(uint32_t remainingTime, UbseResponseMessage &res
     // Receive response body
     if (header.bodyLen > 0) {
         if (header.bodyLen > UBSE_MESSAGE_SIZE) {
-            IPC_LOG_ERROR << "Invalid argument: response body length " << header.bodyLen
-                          << " exceeds maximum size " << UBSE_MESSAGE_SIZE;
+            IPC_LOG_ERROR << "Invalid argument: response body length " << header.bodyLen << " exceeds maximum size "
+                          << UBSE_MESSAGE_SIZE;
             return UBSE_IPC_ERROR_RECV_FAILED;
         }
 
@@ -304,8 +304,8 @@ uint32_t UbseUDSClient::Receive(uint32_t remainingTime, UbseResponseMessage &res
             return UBSE_IPC_ERROR_RECV_FAILED;
         }
 
-        response.freeFunc = [](void *p) {
-            delete[] static_cast<uint8_t *>(p);
+        response.freeFunc = [](void* p) {
+            delete[] static_cast<uint8_t*>(p);
         };
 
         if (RecvMsg(sockFd_, response.body, header.bodyLen, DEFAULT_RECEIVE_TIMEOUT) != UBSE_OK) {
@@ -322,7 +322,7 @@ uint32_t UbseUDSClient::Receive(uint32_t remainingTime, UbseResponseMessage &res
     return UBSE_OK;
 }
 
-uint32_t UbseUDSClient::WaitAndReceive(UbseResponseMessage &response, std::chrono::steady_clock::time_point startTime,
+uint32_t UbseUDSClient::WaitAndReceive(UbseResponseMessage& response, std::chrono::steady_clock::time_point startTime,
                                        uint32_t totalTimeout)
 {
     if (!IsConnected()) {
@@ -424,7 +424,7 @@ uint32_t UbseUDSClient::CreateEpoll()
         } catch (...) {
             // 忽略异常
         }
-        eventLoopThread_ = std::thread();  // 重置为空
+        eventLoopThread_ = std::thread(); // 重置为空
     }
 
     epollFd_ = epoll_create1(0);
@@ -453,7 +453,7 @@ uint32_t UbseUDSClient::CreateEpoll()
     try {
         eventLoopThread_ = std::thread(&UbseUDSClient::EventLoopThread, this);
         IPC_LOG_INFO << "event loop thread started";
-    } catch (const std::system_error &e) {
+    } catch (const std::system_error& e) {
         IPC_LOG_ERROR << "Failed to start event loop thread: " << e.what();
         // 线程启动失败时也关闭epollFd_
         if (epollFd_ != -1) {
@@ -558,7 +558,7 @@ void UbseUDSClient::ReconnectAfterBroken()
     try {
         reconnectThread_ = std::thread(&UbseUDSClient::ExecuteReconnectThread, this);
         IPC_LOG_INFO << "reconnect thread started";
-    } catch (const std::system_error &e) {
+    } catch (const std::system_error& e) {
         // 线程创建失败，释放锁并记录错误
         ReleaseReconnectLock();
         IPC_LOG_ERROR << "failed to create reconnect thread: " << e.what();
@@ -574,7 +574,7 @@ void UbseUDSClient::CleanupReconnectThread()
             isReConnect_.store(false);
             // 如果线程仍在运行，等待线程完成
             IPC_LOG_WARN << "old reconnect thread still alive, joining";
-            reconnectThread_.join();  // 等待线程结束
+            reconnectThread_.join(); // 等待线程结束
         } catch (...) {
             // 忽略所有异常
             IPC_LOG_ERROR << "Exception caught while cleaning up reconnect thread, but suppressed.";
@@ -666,7 +666,7 @@ bool UbseUDSClient::StopCurrentConnection()
 bool UbseUDSClient::PerformReconnectAttempts()
 {
     int attempt = 0;
-    const int maxAttempts = 20;  // 限制最大尝试次数
+    const int maxAttempts = 20; // 限制最大尝试次数
     while (isReConnect_.load() && attempt < maxAttempts) {
         attempt++;
         // 尝试连接
@@ -712,13 +712,13 @@ void UbseUDSClient::PerformListenerRegistration()
             // 发送注册请求
             auto ret = SendWithWait(request, response);
             if (ret == UBSE_OK) {
-                IPC_LOG_INFO << "listener registered: module=" << listener.first
-                             << ", op=" << listener.second << " (attempt " << regAttempt << ")";
-                break;  // 注册成功，跳出循环
+                IPC_LOG_INFO << "listener registered: module=" << listener.first << ", op=" << listener.second
+                             << " (attempt " << regAttempt << ")";
+                break; // 注册成功，跳出循环
             }
             // 注册失败
-            IPC_LOG_ERROR << "listener registration failed: module=" << listener.first
-                          << ", op=" << listener.second << " (attempt " << regAttempt << ")";
+            IPC_LOG_ERROR << "listener registration failed: module=" << listener.first << ", op=" << listener.second
+                          << " (attempt " << regAttempt << ")";
             // 等待1秒后重试
             for (int i = 0; i < 1 && isReConnect_.load(); i++) {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -813,10 +813,10 @@ void UbseUDSClient::ExecuteEventLoop()
         int numEvents = epoll_wait(epollFd_, events, MAX_EVENTS, 100);
         if (numEvents == -1) {
             if (errno == EINTR) {
-                continue;  // 信号中断，继续循环
+                continue; // 信号中断，继续循环
             }
             IPC_LOG_ERROR << "epoll wait error: " << strerror(errno);
-            break;  // 错误，退出循环
+            break; // 错误，退出循环
         }
         ProcessEpollEvents(events, numEvents);
     }
@@ -846,7 +846,7 @@ void UbseUDSClient::ProcessEpollEvents(struct epoll_event* events, int numEvents
                     ReconnectAfterBroken();
                 }
             }).detach();
-            return;  // 直接返回，结束事件循环
+            return; // 直接返回，结束事件循环
         }
         if (events[i].events & EPOLLIN) {
             try {
@@ -902,7 +902,7 @@ uint32_t UbseUDSClient::PerSistentConnect()
     return LongLinkConnect();
 }
 
-void UbseUDSClient::HandleServerEvent(epoll_event &ev)
+void UbseUDSClient::HandleServerEvent(epoll_event& ev)
 {
     IPC_LOG_INFO << "receive read event.";
     bool flag;
@@ -942,8 +942,8 @@ void UbseUDSClient::HandlerServerResp()
             IPC_LOG_ERROR << "Failed to allocate memory for response body, size: " << header.bodyLen << " bytes";
             return;
         }
-        response.freeFunc = [](void *p) {
-            delete[] static_cast<uint8_t *>(p);
+        response.freeFunc = [](void* p) {
+            delete[] static_cast<uint8_t*>(p);
         };
         if (RecvMsg(sockFd_, response.body, header.bodyLen, DEFAULT_RECEIVE_TIMEOUT) != UBSE_OK) {
             delete[] response.body;
@@ -983,8 +983,8 @@ void UbseUDSClient::HandlerServerReq()
             IPC_LOG_ERROR << "Failed to allocate memory for response body, size: " << header.bodyLen << " bytes";
             return;
         }
-        msg.freeFunc = [](void *p) {
-            delete[] static_cast<uint8_t *>(p);
+        msg.freeFunc = [](void* p) {
+            delete[] static_cast<uint8_t*>(p);
         };
         if (RecvMsg(sockFd_, msg.body, header.bodyLen, DEFAULT_RECEIVE_TIMEOUT) != UBSE_OK) {
             delete[] msg.body;
@@ -1005,7 +1005,7 @@ void UbseUDSClient::HandleRequest(UbseRequestMessage request)
     if (requestHandler_) {
         try {
             requestHandler_(request, response);
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             // 捕获异常并记录日志
             IPC_LOG_ERROR << "exception caught: " << e.what() << ", reqId=" << request.header.clientRequestId;
             response = {{UBSE_ERR_DAEMON_UNREACHABLE, 0, request.header.clientRequestId}, nullptr};
@@ -1037,7 +1037,7 @@ void UbseUDSClient::HandleRequest(UbseRequestMessage request)
     }
 }
 
-uint32_t UbseUDSClient::SendWithWait(UbseRequestMessage request, UbseResponseMessage &response)
+uint32_t UbseUDSClient::SendWithWait(UbseRequestMessage request, UbseResponseMessage& response)
 {
     constexpr int timeoutMs = 100000;
     if (request.header.bodyLen > UBSE_MESSAGE_SIZE) {

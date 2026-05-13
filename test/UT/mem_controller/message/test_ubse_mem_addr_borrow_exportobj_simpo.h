@@ -30,5 +30,5 @@ public:
 private:
     UbseMemAddrBorrowExportobjSimpoPtr obj;
 };
-} // mxe::mem::controller::message::ut
+} // namespace ubse::mem::controller::message::ut
 #endif // UBS_ENGINE_TEST_UBSE_MEM_ADDR_BORROW_EXPORTOBJ_SIMPO_H

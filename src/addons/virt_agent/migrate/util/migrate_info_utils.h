@@ -28,9 +28,9 @@ public:
 };
 class MigrateInfoUtil {
 public:
-    static pid_t GetPidByVmUUID(const string &uuid);
-    static VmResult GetNumaIdAndPageSizeByPid(pid_t pid, MigrateInfoBase &numaIdAndPageSize);
-    static VmResult GetSocketIdByNumaId(uint32_t numaId, uint32_t *socketId);
+    static pid_t GetPidByVmUUID(const string& uuid);
+    static VmResult GetNumaIdAndPageSizeByPid(pid_t pid, MigrateInfoBase& numaIdAndPageSize);
+    static VmResult GetSocketIdByNumaId(uint32_t numaId, uint32_t* socketId);
 
 private:
     static string cpuSocketPath;

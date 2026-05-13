@@ -32,8 +32,8 @@ static const uint32_t HAM_MAX_INPUT_LENGTH = 4928;
 static pthread_mutex_t g_ipctimeout_mutex = PTHREAD_MUTEX_INITIALIZER;
 constexpr auto MILLISECONDS_PER_SECOND = 1000;
 
-virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName,
-                                                      uint32_t destNumaId, uint32_t *migrateStrategy)
+virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char* uuid, const char* destHostName,
+                                                      uint32_t destNumaId, uint32_t* migrateStrategy)
 {
     if (migrateStrategy == nullptr || uuid == nullptr || strnlen(uuid, SDK_NO_128 + 1) > SDK_NO_128 ||
         destHostName == nullptr || strnlen(destHostName, SDK_NO_128 + 1) > SDK_NO_128 || vmMemoryMB <= 0) {
@@ -95,7 +95,7 @@ uint16_t GetTimeout()
     return timeout;
 }
 
-int AllocateRequestBuffer(ubse_api_buffer_t *request_buffer, HamComByteBuffer *request)
+int AllocateRequestBuffer(ubse_api_buffer_t* request_buffer, HamComByteBuffer* request)
 {
     request_buffer->length = static_cast<uint32_t>(request->len);
     request_buffer->buffer = new (std::nothrow) uint8_t[request_buffer->length];
@@ -113,7 +113,7 @@ int AllocateRequestBuffer(ubse_api_buffer_t *request_buffer, HamComByteBuffer *r
     return VA_SUCCESS;
 }
 
-int CallExternalApiWithTimeout(ubse_api_buffer_t *request_buffer, ubse_api_buffer_t *response_buffer,
+int CallExternalApiWithTimeout(ubse_api_buffer_t* request_buffer, ubse_api_buffer_t* response_buffer,
                                uint16_t timeout_time)
 {
     std::mutex mtx;
@@ -160,7 +160,7 @@ int CallExternalApiWithTimeout(ubse_api_buffer_t *request_buffer, ubse_api_buffe
     return VA_SUCCESS;
 }
 
-int ProcessResponse(HamComByteBuffer *response, ubse_api_buffer_t *response_buffer)
+int ProcessResponse(HamComByteBuffer* response, ubse_api_buffer_t* response_buffer)
 {
     if (response_buffer == nullptr) {
         return VA_ERROR_BASE;
@@ -181,7 +181,7 @@ int ProcessResponse(HamComByteBuffer *response, ubse_api_buffer_t *response_buff
     return VA_SUCCESS;
 }
 
-int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response)
+int RackSyncSendForHam(HamComByteBuffer* request, HamComByteBuffer* response)
 {
     if (request == nullptr || request->data == nullptr || request->len > HAM_MAX_INPUT_LENGTH || request->len == 0 ||
         request->data + request->len < request->data) {
@@ -218,13 +218,13 @@ void backgroundTask(std::shared_ptr<ubse_api_buffer_t> req_buf)
     ubse_api_buffer_free(&response_buffer);
 }
 
-int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback)
+int RackAsyncSendForHam(HamComByteBuffer* request, HamComCallbackDef* callback)
 {
     if (request == nullptr || request->data == nullptr || request->len > HAM_MAX_INPUT_LENGTH || request->len == 0 ||
         request->data + request->len < request->data) {
         return VA_ERROR_INVALID_PARAM;
     }
-    ubse_api_buffer_t *raw_buffer = new (std::nothrow) ubse_api_buffer_t{nullptr, 0};
+    ubse_api_buffer_t* raw_buffer = new (std::nothrow) ubse_api_buffer_t{nullptr, 0};
     if (raw_buffer == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for ubse_api_buffer_t.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;

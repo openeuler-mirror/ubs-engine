@@ -46,7 +46,7 @@ TEST_F(TestBaseMessage, SetInputRawDataTest)
     TestBaseMessageClass baseMessage;
     EXPECT_EQ(baseMessage.SetInputRawData(nullptr, 0, false), VM_ERROR_SERIALIZE_DESERIALIZE_COMMON_ERROR);
     std::string str = "test";
-    auto data = reinterpret_cast<uint8_t *>(str.data());
+    auto data = reinterpret_cast<uint8_t*>(str.data());
     auto len = str.length();
     EXPECT_EQ(baseMessage.SetInputRawData(data, 0, false), VM_ERROR_SERIALIZE_DESERIALIZE_COMMON_ERROR);
     MOCKER(memcpy_s).stubs().will(returnValue(1));

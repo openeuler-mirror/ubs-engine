@@ -11,12 +11,12 @@
  */
 
 #include "mp_parse_util.h"
+#include <rapidjson/document.h>
 #include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <string>
 #include <vector>
-#include <rapidjson/document.h>
 #include "mp_json_util.h"
 
 namespace mempooling {
@@ -26,12 +26,11 @@ bool CheckSrcParamSuccess(const rapidjson::Value& srcParam, std::vector<std::str
     bool checkSuccess = true;
     for (auto param : needPraseParam) {
         if (!srcParam.HasMember(param.c_str())) {
-            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "Json parse failed, dont have member " << param << ".";
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "Json parse failed, dont have member " << param << ".";
             checkSuccess = false;
         }
     }
     return checkSuccess;
 }
- 
+
 } // namespace mempooling

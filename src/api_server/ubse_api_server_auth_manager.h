@@ -38,9 +38,9 @@ public:
     UbseResult LoadAuthConfig();
 
     // 检查用户是否有权限访问对象
-    bool CheckPermission(const std::string &username, uint16_t moduleCode, uint16_t opCode);
+    bool CheckPermission(const std::string& username, uint16_t moduleCode, uint16_t opCode);
 
-    void AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string &object);
+    void AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object);
 
     // 清理所有加载的配置
     void clear();
@@ -50,15 +50,15 @@ private:
     void InitializeBuiltinAuth();
 
     // 验证配置项
-    static bool IsValidUserConfig(const std::string &user, const std::string &role);
-    static bool IsValidRoleConfig(const std::string &role, const std::vector<std::string> &objects);
+    static bool IsValidUserConfig(const std::string& user, const std::string& role);
+    static bool IsValidRoleConfig(const std::string& role, const std::vector<std::string>& objects);
 
     // 检查用户是否有权限访问对象
-    bool CheckPermission(const std::string &username, const std::string &targetObject);
+    bool CheckPermission(const std::string& username, const std::string& targetObject);
 
-    uint32_t ParseRoleConfig(const std::shared_ptr<UbseConfModule> &confModule, const std::string &configSection);
-    uint32_t ParseUserConfig(const std::shared_ptr<UbseConfModule> &confModule, const std::string &configSection);
-    static std::vector<std::string> ParseObjects(const std::string &objectsStr);
+    uint32_t ParseRoleConfig(const std::shared_ptr<UbseConfModule>& confModule, const std::string& configSection);
+    uint32_t ParseUserConfig(const std::shared_ptr<UbseConfModule>& confModule, const std::string& configSection);
+    static std::vector<std::string> ParseObjects(const std::string& objectsStr);
 
     // 内置常量
     static const std::string ADMIN_ROLE;

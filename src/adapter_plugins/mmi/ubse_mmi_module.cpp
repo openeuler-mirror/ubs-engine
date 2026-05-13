@@ -10,6 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "ubse_mmi_module.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -18,7 +19,6 @@
 #include "ubse_mem_def.h"
 #include "ubse_mem_instance_inner.h"
 #include "ubse_mem_types.h"
-#include "ubse_mmi_module.h"
 #include "ubse_obmm_executor.h"
 
 namespace ubse::mmi {
@@ -49,35 +49,35 @@ UbseResult UbseMmiModule::Start()
 
 void UbseMmiModule::Stop() {}
 
-static void PrintNodeMemDebtInfo(const NodeMemDebtInfo &memBorrowObj)
+static void PrintNodeMemDebtInfo(const NodeMemDebtInfo& memBorrowObj)
 {
-    for (const auto &map : memBorrowObj.fdExportObjMap) {
+    for (const auto& map : memBorrowObj.fdExportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
-    for (const auto &map : memBorrowObj.fdImportObjMap) {
+    for (const auto& map : memBorrowObj.fdImportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
-    for (const auto &map : memBorrowObj.numaExportObjMap) {
+    for (const auto& map : memBorrowObj.numaExportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
-    for (const auto &map : memBorrowObj.numaImportObjMap) {
+    for (const auto& map : memBorrowObj.numaImportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
-    for (const auto &map : memBorrowObj.shareExportObjMap) {
+    for (const auto& map : memBorrowObj.shareExportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
-    for (const auto &map : memBorrowObj.shareImportObjMap) {
+    for (const auto& map : memBorrowObj.shareImportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
-    for (const auto &map : memBorrowObj.addrImportObjMap) {
+    for (const auto& map : memBorrowObj.addrImportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
-    for (const auto &map : memBorrowObj.addrExportObjMap) {
+    for (const auto& map : memBorrowObj.addrExportObjMap) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << RmCommonUtils::GetInstance().TranStructToStr(map.second);
     }
 }
 
-uint32_t UbseMmiModule::UbseMemGetObjData(NodeMemDebtInfo &memBorrowObj)
+uint32_t UbseMmiModule::UbseMemGetObjData(NodeMemDebtInfo& memBorrowObj)
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemGetObjData start.";
     // 芯片表项碎片，导入一半的时候，进程挂掉了，从obmm获取数据前等3s,保证单次最大1G执行完成
@@ -106,10 +106,10 @@ uint32_t UbseMmiModule::UbseMemGetObjData(NodeMemDebtInfo &memBorrowObj)
  * @param importObj      [IN]/[OUT] fd类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemFdImportExecutor(UbseMemFdBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemFdImportExecutor(UbseMemFdBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(importObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -126,7 +126,7 @@ uint32_t UbseMmiModule::UbseMemFdImportExecutor(UbseMemFdBorrowImportObj &import
  * @param importObj      [IN]/[OUT] fd类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemFdImportPermissionExecutor(UbseMemFdBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemFdImportPermissionExecutor(UbseMemFdBorrowImportObj& importObj)
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdImportPermissionExecutor begin, name=" << importObj.req.name
                   << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
@@ -146,10 +146,10 @@ uint32_t UbseMmiModule::UbseMemFdImportPermissionExecutor(UbseMemFdBorrowImportO
  * @param importObj      [IN]/[OUT] fd类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemFdUnImportExecutor(const UbseMemFdBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemFdUnImportExecutor(const UbseMemFdBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdUnImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdUnImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(importObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -166,10 +166,10 @@ uint32_t UbseMmiModule::UbseMemFdUnImportExecutor(const UbseMemFdBorrowImportObj
  * @param exportObj      [IN]/[OUT] fd类型借用内存导出对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemFdExportExecutor(UbseMemFdBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemFdExportExecutor(UbseMemFdBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(exportObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -186,10 +186,10 @@ uint32_t UbseMmiModule::UbseMemFdExportExecutor(UbseMemFdBorrowExportObj &export
  * @param exportObj      [IN]/[OUT] fd类型借用内存导出对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemFdUnExportExecutor(const UbseMemFdBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemFdUnExportExecutor(const UbseMemFdBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdUnExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemFdUnExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(exportObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -206,10 +206,10 @@ uint32_t UbseMmiModule::UbseMemFdUnExportExecutor(const UbseMemFdBorrowExportObj
  * @param importObj      [IN]/[OUT] numa类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemNumaImportExecutor(UbseMemNumaBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemNumaImportExecutor(UbseMemNumaBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(importObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -229,10 +229,10 @@ uint32_t UbseMmiModule::UbseMemNumaImportExecutor(UbseMemNumaBorrowImportObj &im
  * @param importObj      [IN]/[OUT] numa类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemNumaUnImportExecutor(const UbseMemNumaBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemNumaUnImportExecutor(const UbseMemNumaBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaUnImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaUnImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(importObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -249,10 +249,10 @@ uint32_t UbseMmiModule::UbseMemNumaUnImportExecutor(const UbseMemNumaBorrowImpor
  * @param exportObj      [IN]/[OUT] numa类型借用内存导出对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemNumaExportExecutor(UbseMemNumaBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemNumaExportExecutor(UbseMemNumaBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(exportObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -274,10 +274,10 @@ uint32_t UbseMmiModule::UbseMemNumaExportExecutor(UbseMemNumaBorrowExportObj &ex
  * @param exportObj      [IN]/[OUT] numa类型借用内存导出对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemNumaUnExportExecutor(const UbseMemNumaBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemNumaUnExportExecutor(const UbseMemNumaBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaUnExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemNumaUnExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(exportObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -294,10 +294,10 @@ uint32_t UbseMmiModule::UbseMemNumaUnExportExecutor(const UbseMemNumaBorrowExpor
  * @param importObj      [IN]/[OUT] shm类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemShmImportExecutor(UbseMemShareBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemShmImportExecutor(UbseMemShareBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(importObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -323,10 +323,10 @@ uint32_t UbseMmiModule::UbseMemShmImportExecutor(UbseMemShareBorrowImportObj &im
  * @param importObj      [IN] shm类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemShmUnImportExecutor(const UbseMemShareBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemShmUnImportExecutor(const UbseMemShareBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(importObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -343,10 +343,10 @@ uint32_t UbseMmiModule::UbseMemShmUnImportExecutor(const UbseMemShareBorrowImpor
  * @param exportObj      [IN]/[OUT] shm类型借用内存导出对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemShmExportExecutor(UbseMemShareBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemShmExportExecutor(UbseMemShareBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(exportObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -363,10 +363,10 @@ uint32_t UbseMmiModule::UbseMemShmExportExecutor(UbseMemShareBorrowExportObj &ex
  * @param exportObj      [IN] shm类型借用内存导出对象的unexport操作执行器
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemShmUnExportExecutor(const UbseMemShareBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemShmUnExportExecutor(const UbseMemShareBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemShmUnExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     if (!MemInstanceInnerCommon::UbseMemExecutorCheckParam(exportObj)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Obj check param failed, name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -383,11 +383,11 @@ uint32_t UbseMmiModule::UbseMemShmUnExportExecutor(const UbseMemShareBorrowExpor
  * @param importObj      [IN]/[OUT] addr类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemAddrImportExecutor(UbseMemAddrBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemAddrImportExecutor(UbseMemAddrBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
-    for (const auto &numaInfo : importObj.algoResult.exportNumaInfos) {
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    for (const auto& numaInfo : importObj.algoResult.exportNumaInfos) {
         UBSE_LOG_INFO << MMI_LOG_INFO << numaInfo.nodeId << ", " << numaInfo.socketId << ", " << numaInfo.numaId << ", "
                       << numaInfo.size;
     }
@@ -403,10 +403,10 @@ uint32_t UbseMmiModule::UbseMemAddrImportExecutor(UbseMemAddrBorrowImportObj &im
  * @param importObj      [IN]/[OUT] addr类型借用内存导入对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemAddrUnImportExecutor(const UbseMemAddrBorrowImportObj &importObj)
+uint32_t UbseMmiModule::UbseMemAddrUnImportExecutor(const UbseMemAddrBorrowImportObj& importObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnImportExecutor, name=" << importObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(importObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnImportExecutor, name=" << importObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(importObj);
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnImportExecutor(importObj);
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnImportExecutor end, ret=" << ret << ", name=" << importObj.req.name
                   << ", memid=" << RmCommonUtils::GetInstance().MemToStr(importObj.status.importResults);
@@ -419,14 +419,14 @@ uint32_t UbseMmiModule::UbseMemAddrUnImportExecutor(const UbseMemAddrBorrowImpor
  * @param exportObj      [IN]/[OUT] addr类型借用内存导出对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemAddrExportExecutor(UbseMemAddrBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemAddrExportExecutor(UbseMemAddrBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrExportExecutor(exportObj);
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrExportExecutor end, ret=" << ret << ", name=" << exportObj.req.name
                   << ", memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
-    for (const auto &numaInfo : exportObj.algoResult.exportNumaInfos) {
+    for (const auto& numaInfo : exportObj.algoResult.exportNumaInfos) {
         UBSE_LOG_INFO << MMI_LOG_INFO << numaInfo.nodeId << ", " << numaInfo.socketId << ", " << numaInfo.numaId << ", "
                       << numaInfo.size;
     }
@@ -439,17 +439,17 @@ uint32_t UbseMmiModule::UbseMemAddrExportExecutor(UbseMemAddrBorrowExportObj &ex
  * @param exportObj      [IN]/[OUT] addr类型借用内存导出对象
  * @return int    0：操作成功；非0：获取失败
  */
-uint32_t UbseMmiModule::UbseMemAddrUnExportExecutor(const UbseMemAddrBorrowExportObj &exportObj)
+uint32_t UbseMmiModule::UbseMemAddrUnExportExecutor(const UbseMemAddrBorrowExportObj& exportObj)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnExportExecutor, name=" << exportObj.req.name << ", objDetails="
-                  << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
+    UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnExportExecutor, name=" << exportObj.req.name
+                  << ", objDetails=" << RmCommonUtils::GetInstance().TranStructToStr(exportObj);
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnExportExecutor(exportObj);
     UBSE_LOG_INFO << MMI_LOG_INFO << "UbseMemAddrUnExportExecutor end, ret=" << ret << ", name=" << exportObj.req.name
                   << ", memid=" << RmCommonUtils::GetInstance().MemToStr(exportObj.status.exportObmmInfo);
     return ret;
 }
 
-uint32_t UbseMmiModule::UbseMmiPreOnline(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint64_t preImportSize)
+uint32_t UbseMmiModule::UbseMmiPreOnline(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint64_t preImportSize)
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "Start to preOnline, preImportSize=" << preImportSize;
     if (cnaTopoInfos.empty()) {

@@ -32,8 +32,7 @@ uint64_t ConvertSizeToMB(const uint64_t value)
 const std::set<UbseMemState> allowedStates = {
     UbseMemState::UBSE_MEM_IMPORT_RUNNING,    UbseMemState::UBSE_MEM_EXPORT_RUNNING,
     UbseMemState::UBSE_MEM_IMPORT_SUCCESS,    UbseMemState::UBSE_MEM_EXPORT_SUCCESS,
-    UbseMemState::UBSE_MEM_IMPORT_DESTROYING, UbseMemState::UBSE_MEM_EXPORT_DESTROYING
-};
+    UbseMemState::UBSE_MEM_IMPORT_DESTROYING, UbseMemState::UBSE_MEM_EXPORT_DESTROYING};
 
 enum class AccoutObjType {
     SHM_EXPORT,
@@ -47,8 +46,8 @@ enum class AccoutObjType {
 };
 
 template <typename ObjType>
-bool ShouldRecordObject(const AccountType &type, AccoutObjType accountObjType, const DebtFetchInfo &debtFetchInfo,
-                        const ObjType &obj)
+bool ShouldRecordObject(const AccountType& type, AccoutObjType accountObjType, const DebtFetchInfo& debtFetchInfo,
+                        const ObjType& obj)
 {
     if (!debtFetchInfo.name.empty() && debtFetchInfo.name != obj.req.name) {
         return false;
@@ -76,8 +75,8 @@ bool ShouldRecordObject(const AccountType &type, AccoutObjType accountObjType, c
 }
 
 template <typename ObjType>
-void BuildFlatDebtInfo(const AccountType &type, AccoutObjType accountObjType, const DebtFetchInfo &debtFetchInfo,
-                       const ObjType &obj, FlatDebtInformation &flatDebtInfo)
+void BuildFlatDebtInfo(const AccountType& type, AccoutObjType accountObjType, const DebtFetchInfo& debtFetchInfo,
+                       const ObjType& obj, FlatDebtInformation& flatDebtInfo)
 {
     flatDebtInfo.name = obj.req.name;
     flatDebtInfo.type = type;
@@ -90,20 +89,20 @@ void BuildFlatDebtInfo(const AccountType &type, AccoutObjType accountObjType, co
     } else {
         flatDebtInfo.importId = obj.algoResult.importNumaInfos.begin()->nodeId;
     }
-    for (const auto &item : obj.algoResult.exportNumaInfos) {
+    for (const auto& item : obj.algoResult.exportNumaInfos) {
         flatDebtInfo.numaLendInfos.push_back({item.socketId, item.numaId, ConvertSizeToMB(item.size)});
     }
 }
 
 template <typename ObjType>
-void HandleImportResults(AccoutObjType accountObjType, const ObjType &obj, FlatDebtInformation &flatDebtInfo)
+void HandleImportResults(AccoutObjType accountObjType, const ObjType& obj, FlatDebtInformation& flatDebtInfo)
 {
     if (accountObjType == AccoutObjType::NUMA_IMPORT) {
         flatDebtInfo.handle =
             obj.status.importResults.empty() ? "" : std::to_string(obj.status.importResults.begin()->numaId);
     } else if (accountObjType == AccoutObjType::FD_IMPORT || accountObjType == AccoutObjType::SHM_IMPORT) {
         std::ostringstream oss;
-        for (const auto &item : obj.status.importResults) {
+        for (const auto& item : obj.status.importResults) {
             if (!oss.str().empty()) {
                 oss << ",";
             }
@@ -113,12 +112,13 @@ void HandleImportResults(AccoutObjType accountObjType, const ObjType &obj, FlatD
     }
 }
 
-template <typename T, typename = void> struct HasImportResultsInStruct : std::false_type {};
+template <typename T, typename = void>
+struct HasImportResultsInStruct : std::false_type {};
 template <typename T>
 struct HasImportResultsInStruct<T, std::void_t<decltype(std::declval<T>().status.importResults)>> : std::true_type {};
 template <typename ObjMapType>
-void CollectSingleAccountMap(const ObjMapType &objs, const AccountType &type, const DebtFetchInfo &debtFetchInfo,
-                             AccoutObjType accountObjType, PartialFetchRes &partialFetchRes)
+void CollectSingleAccountMap(const ObjMapType& objs, const AccountType& type, const DebtFetchInfo& debtFetchInfo,
+                             AccoutObjType accountObjType, PartialFetchRes& partialFetchRes)
 {
     if (debtFetchInfo.pageSize <= NO_0) {
         UBSE_LOG_ERROR << "An error is logged when the pageSize in debtFetchInfo is less than or equal to zero.";
@@ -140,7 +140,7 @@ void CollectSingleAccountMap(const ObjMapType &objs, const AccountType &type, co
         if (!it->second) {
             continue;
         }
-        const auto &obj = *(it->second);
+        const auto& obj = *(it->second);
         if (!ShouldRecordObject(type, accountObjType, debtFetchInfo, obj)) {
             continue;
         }
@@ -154,8 +154,8 @@ void CollectSingleAccountMap(const ObjMapType &objs, const AccountType &type, co
     }
 }
 
-void HandleExportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &partialFetchRes,
-                      const UbseNodeMemDebtInfo &nodeInfo)
+void HandleExportType(const DebtFetchInfo& debtFetchInfo, PartialFetchRes& partialFetchRes,
+                      const UbseNodeMemDebtInfo& nodeInfo)
 {
     if (debtFetchInfo.borrowType == AccountType::NUMA || debtFetchInfo.borrowType == AccountType::INIT) {
         CollectSingleAccountMap(nodeInfo.numaExportObjMap, AccountType::NUMA, debtFetchInfo, AccoutObjType::NUMA_EXPORT,
@@ -175,8 +175,8 @@ void HandleExportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &parti
     }
 }
 
-void HandleImportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &partialFetchRes,
-                      const UbseNodeMemDebtInfo &nodeInfo)
+void HandleImportType(const DebtFetchInfo& debtFetchInfo, PartialFetchRes& partialFetchRes,
+                      const UbseNodeMemDebtInfo& nodeInfo)
 {
     if (debtFetchInfo.borrowType == AccountType::NUMA || debtFetchInfo.borrowType == AccountType::INIT) {
         CollectSingleAccountMap(nodeInfo.numaImportObjMap, AccountType::NUMA, debtFetchInfo, AccoutObjType::NUMA_IMPORT,
@@ -196,7 +196,7 @@ void HandleImportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &parti
     }
 }
 
-UbseResult FetchDebtInfoByTypeAndPage(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &partialFetchRes)
+UbseResult FetchDebtInfoByTypeAndPage(const DebtFetchInfo& debtFetchInfo, PartialFetchRes& partialFetchRes)
 {
     auto nodeInfo = UbseMemDebtLedger::GetInstance().GetNodeMemDebtInfo(debtFetchInfo.nodeId, false);
     if (nodeInfo.fdImportObjMap.empty() && nodeInfo.fdExportObjMap.empty() && nodeInfo.numaImportObjMap.empty() &&

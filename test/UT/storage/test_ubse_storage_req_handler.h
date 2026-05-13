@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::storage
 
 #endif // TEST_UBSE_STORAGE_REQ_HANDLER_H

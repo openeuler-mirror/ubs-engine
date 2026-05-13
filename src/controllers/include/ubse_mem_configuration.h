@@ -34,10 +34,10 @@ constexpr auto UBSE_MEMORY = "ubse.memory";
 constexpr auto UBSE_LENDER_BALANCE = "lender.balance";
 
 template <typename T>
-ubse::common::def::UbseResult GetUbseConf(const std::string &section, const std::string &configKey, T &configValue)
+ubse::common::def::UbseResult GetUbseConf(const std::string& section, const std::string& configKey, T& configValue)
 {
     // 调取UbseConfModule类的单例对象
-    auto &ctxRef = ubse::context::UbseContext::GetInstance();
+    auto& ctxRef = ubse::context::UbseContext::GetInstance();
     auto cfgPtr = ctxRef.GetModule<ubse::config::UbseConfModule>();
     if (cfgPtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to get configuration module instance.";
@@ -53,7 +53,7 @@ struct NodeConfig {
     uint32_t pmdMapping;
 };
 
-enum class PageSizeType  {
+enum class PageSizeType {
     Page4K,
     Page64K
 };
@@ -68,7 +68,7 @@ class UbseMemConfiguration {
 public:
     using NodeInfoMap = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>;
 
-    inline static UbseMemConfiguration &GetInstance()
+    inline static UbseMemConfiguration& GetInstance()
     {
         static UbseMemConfiguration instance;
         return instance;
@@ -76,11 +76,11 @@ public:
 
     void Init();
 
-    UbseMemConfiguration(const UbseMemConfiguration &other) = delete;
-    UbseMemConfiguration(UbseMemConfiguration &&other) = delete;
-    UbseMemConfiguration &operator=(const UbseMemConfiguration &other) = delete;
-    UbseMemConfiguration &operator=(UbseMemConfiguration &&other) noexcept = delete;
-    void SetConfig(const NodeInfoMap &nodeMap);
+    UbseMemConfiguration(const UbseMemConfiguration& other) = delete;
+    UbseMemConfiguration(UbseMemConfiguration&& other) = delete;
+    UbseMemConfiguration& operator=(const UbseMemConfiguration& other) = delete;
+    UbseMemConfiguration& operator=(UbseMemConfiguration&& other) noexcept = delete;
+    void SetConfig(const NodeInfoMap& nodeMap);
     void setPageType();
 
     [[nodiscard]] bool GetManagerVmEnable() const
@@ -111,13 +111,13 @@ public:
     }
 
     /* 获取节点的pmdMapping配置，单位% */
-    std::optional<uint32_t> GetPmdMappingById(const std::string &nodeId) const;
+    std::optional<uint32_t> GetPmdMappingById(const std::string& nodeId) const;
 
     /* 获取节点的obmm allocator， */
-    std::optional<UbseAllocator> GetObmmAllocatorById(const std::string &nodeId) const;
+    std::optional<UbseAllocator> GetObmmAllocatorById(const std::string& nodeId) const;
 
     /* 获取节点的blocksize */
-    std::optional<uint32_t> GetBlockSizeById(const std::string &nodeId) const;
+    std::optional<uint32_t> GetBlockSizeById(const std::string& nodeId) const;
 
     /* 获取一个lender节点的blocksize */
     std::optional<uint32_t> GetBlockSizeFromLenderNode() const;

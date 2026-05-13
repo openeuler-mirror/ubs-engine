@@ -11,8 +11,8 @@
  */
 
 #include "ubse_storage_req_handler.h"
-#include "ubse_storage_module.h"
 #include "ubse_context.h"
+#include "ubse_storage_module.h"
 #include "ubse_storage_req_simpo.h"
 #include "ubse_storage_resp_simpo.h"
 
@@ -20,7 +20,7 @@ namespace ubse::storage {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::storage::message;
-UbseResult UbseStorageReqHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseStorageReqHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                          UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UbseStorageReqSimpoPtr request = UbseBaseMessage::DeConvert<UbseStorageReqSimpo>(req);

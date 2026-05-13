@@ -17,8 +17,8 @@
 #include <mutex>
 #include <thread>
 
-#include "ubse_ipc_common.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
 #include "ubse_sync_req.h"
 
 namespace ubse::ut::ipc {

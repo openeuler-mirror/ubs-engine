@@ -19,7 +19,7 @@
 
 namespace default_strategy {
 
-using Logfunc = void (*)(uint32_t, const char *);
+using Logfunc = void (*)(uint32_t, const char*);
 struct StrategyConfig {
     std::string borrowWatermark{};
     // Decision configuration, but it depends on mem for provisioning. In case of loading failure,
@@ -37,9 +37,9 @@ struct StrategyConfig {
 #ifdef __cplusplus
 extern "C" {
 #endif
-int EscapeAlgorithmInit(const StrategyConfig &strategyConf, Logfunc logfunc);
-int EscapeAlgorithm(const StrategyConfig &strategyConf, AlarmNumaInfo &alarmNumaInfo,
-                    GlobalNumaInfoMap &globalNumaInfoMap, EscapeAction &escapeAction);
+int EscapeAlgorithmInit(const StrategyConfig& strategyConf, Logfunc logfunc);
+int EscapeAlgorithm(const StrategyConfig& strategyConf, AlarmNumaInfo& alarmNumaInfo,
+                    GlobalNumaInfoMap& globalNumaInfoMap, EscapeAction& escapeAction);
 #ifdef __cplusplus
 }
 #endif
@@ -53,16 +53,16 @@ struct ExpectedRevenue {
 
 class DefaultStrategy {
 public:
-    static DefaultStrategy &GetInstance()
+    static DefaultStrategy& GetInstance()
     {
         static DefaultStrategy gInstance;
         return gInstance;
     };
-    DsResult Init(Logfunc &logFunc, const StrategyConfig &strategyConf);
-    void LoadConfig(const StrategyConfig &strategyConf);
-    DsResult InitLogFunc(const Logfunc &logFunc) const;
-    DsResult GetActionType(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                           EscapeAction &escapeAction, ExpectedRevenue &expectedRevenue) const;
+    DsResult Init(Logfunc& logFunc, const StrategyConfig& strategyConf);
+    void LoadConfig(const StrategyConfig& strategyConf);
+    DsResult InitLogFunc(const Logfunc& logFunc) const;
+    DsResult GetActionType(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                           EscapeAction& escapeAction, ExpectedRevenue& expectedRevenue) const;
     // memSecondLine range (0,1], MemFirstLine range (0,secondLine], MemReturnLine range (0,firstLine)
     DsResult SetWaterLine(float secondLine, float firstLine, float returnLine);
     DsResult SetMinMemOverageRecovery(float minOverageRecovery); // range (0,secondLine-returnLine)
@@ -84,8 +84,8 @@ public:
     uint64_t GetMaxPerTotalMemBorrowBytes() const;
     uint64_t GetOomBorrowMemSize() const;
 
-    DsResult EscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                               EscapeAction &escapeAction) const;
+    DsResult EscapeHandleEvent(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                               EscapeAction& escapeAction) const;
     void Exit() const {};
 
 private:
@@ -123,19 +123,19 @@ private:
         return oss.str();
     }
 
-    DsResult RealEscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                                   EscapeAction &escapeAction) const;
-    void PreprocessBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo &numaInfo, ExpectedRevenue &expectedRevenue,
-                             EscapeAction &escapeAction) const;
-    DsResult Preprocess(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                        ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const;
+    DsResult RealEscapeHandleEvent(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                                   EscapeAction& escapeAction) const;
+    void PreprocessBorrowMem(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfo& numaInfo, ExpectedRevenue& expectedRevenue,
+                             EscapeAction& escapeAction) const;
+    DsResult Preprocess(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                        ExpectedRevenue& expectedRevenue, EscapeAction& escapeAction) const;
 
-    StrategyTip CalBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo &numaInfo, uint64_t &expectedRevenue,
-                             std::vector<size_t> &borrowSizes) const;
+    StrategyTip CalBorrowMem(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfo& numaInfo, uint64_t& expectedRevenue,
+                             std::vector<size_t>& borrowSizes) const;
 
-    DsResult ReturnMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                       const ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const;
-    static std::string GlobalNumaInfoMapToString(const GlobalNumaInfoMap &globalNumaInfoMap);
+    DsResult ReturnMem(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                       const ExpectedRevenue& expectedRevenue, EscapeAction& escapeAction) const;
+    static std::string GlobalNumaInfoMapToString(const GlobalNumaInfoMap& globalNumaInfoMap);
 };
 } // namespace default_strategy
 #endif // VM_ESCAPE_STRATEGY_H

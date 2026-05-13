@@ -14,10 +14,10 @@
 
 #include <mockcpp/mokc.h>
 
-#include "lcne/ubse_lcne_sub_topo_change_info.h"
-#include "src/framework/http/ubse_http_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "lcne/ubse_lcne_sub_topo_change_info.h"
+#include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::lcne {
 using namespace ubse::context;
@@ -137,4 +137,4 @@ TEST_F(TestUbseLcneLinkInfo, ParseMonitorData_RspInvalidResult)
     UbseResult ret = UbseLcneLinkInfo::GetInstance().ParseMonitorData(resBody);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
-}  // namespace ubse::lcne
+} // namespace ubse::lcne

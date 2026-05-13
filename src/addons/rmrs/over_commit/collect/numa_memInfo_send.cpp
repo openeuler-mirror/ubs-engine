@@ -43,15 +43,15 @@ MpResult NumaMemInfoSend::SendMsg()
     }
     if (sendResult_ != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[Overcommit][Collect] "
-                                                          "Handle response failed."
-                                                       << sendResult_ << ".";
+                                                             "Handle response failed."
+                                                          << sendResult_ << ".";
         return sendResult_;
     }
 
     return MEM_POOLING_OK;
 }
 
-MpResult NumaMemInfoSend::CreateRequestData(UbseByteBuffer &reqData) const
+MpResult NumaMemInfoSend::CreateRequestData(UbseByteBuffer& reqData) const
 {
     over_commit::NumaMemInfoCollectParam param = NumaMemInfoCollectParam{numaId_};
     RmrsOutStream builder;
@@ -65,7 +65,7 @@ MpResult NumaMemInfoSend::CreateRequestData(UbseByteBuffer &reqData) const
     return MEM_POOLING_OK;
 }
 
-void NumaMemInfoSend::RespHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void NumaMemInfoSend::RespHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[Overcommit][Collect]"
@@ -73,7 +73,7 @@ void NumaMemInfoSend::RespHandler(void *ctx, const UbseByteBuffer &respData, uin
         return;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[Overcommit][Collect] Process response data.";
-    const auto numaMemInfoSend = static_cast<NumaMemInfoSend *>(ctx);
+    const auto numaMemInfoSend = static_cast<NumaMemInfoSend*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         numaMemInfoSend->sendResult_ = resCode;
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[Overcommit][Collect] Send msg failed," << resCode << ".";
@@ -87,12 +87,12 @@ void NumaMemInfoSend::RespHandler(void *ctx, const UbseByteBuffer &respData, uin
     numaMemInfoSend->resJson_ = message;
     if (code != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[Overcommit][Collect] "
-                                                          "Query numa mem Info failed, retCode="
-                                                       << code << ".";
+                                                             "Query numa mem Info failed, retCode="
+                                                          << code << ".";
     } else {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[Overcommit][Collect] "
-                                                         "Handle result="
-                                                      << message << ".";
+                                                            "Handle result="
+                                                         << message << ".";
     }
 }
 

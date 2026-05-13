@@ -14,10 +14,10 @@
 
 #include <mockcpp/mokc.h>
 
-#include "lcne/ubse_topo_cna.h"
-#include "src/framework/http/ubse_http_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "lcne/ubse_topo_cna.h"
+#include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::lcne {
 using namespace ubse::context;
@@ -298,4 +298,4 @@ TEST_F(TestUbseTopoCna, QueryTopoCna_CnaInvalid)
     UbseResult ret = UbseTopoCna::GetInstance().QueryTopoCna(lcneNodeCnaInfos);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
-}  // namespace ubse::lcne
+} // namespace ubse::lcne

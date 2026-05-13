@@ -15,7 +15,7 @@
 namespace ubse::election {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController;
-Agent::Agent(RoleContext &ctx) : turnId_(0), lastHeartTime_()
+Agent::Agent(RoleContext& ctx) : turnId_(0), lastHeartTime_()
 {
     Node myself;
     UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself);
@@ -50,7 +50,7 @@ void Agent::ProcTimer()
     }
 }
 
-void Agent::HandleMasterChange(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
+void Agent::HandleMasterChange(const ElectionPkt& rcvPkt, ElectionReplyPkt& reply)
 {
     // 在节点还未触发转换角色前，丢失一定次数心跳，收到另一个主节点的心跳，则接收该节点为主。
     uint32_t acceptMasterAfterLossThreshold = (ElectionRole::GetHbLostTimes() - NO_1);
@@ -70,7 +70,7 @@ void Agent::HandleMasterChange(const ElectionPkt &rcvPkt, ElectionReplyPkt &repl
     }
 }
 
-uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
+uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
     if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         RecvPktForSelect(reply);
@@ -83,7 +83,7 @@ uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionRe
     return 0;
 }
 
-void Agent::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
+void Agent::RecvPktForHeart(const ElectionPkt& rcvPkt, ElectionReplyPkt& reply)
 {
     masterStatus_ = rcvPkt.masterStatus;
     standbyStatus_ = rcvPkt.standbyStatus;
@@ -118,12 +118,12 @@ void Agent::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
     }
 }
 
-void Agent::DisconnectAgents(const ElectionPkt &rcvPkt)
+void Agent::DisconnectAgents(const ElectionPkt& rcvPkt)
 {
     if (rcvPkt.standbyId.empty() || rcvPkt.agentCount <= NO_1) {
         return;
     }
-    for (const auto &agent : rcvPkt.agentIds) {
+    for (const auto& agent : rcvPkt.agentIds) {
         if (agent != myselfID_) {
             RoleMgr::GetInstance().GetCommMgr()->DisConnect(agent);
         }
@@ -133,15 +133,15 @@ void Agent::DisconnectAgents(const ElectionPkt &rcvPkt)
         UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
         return;
     }
-    for (const auto &node : ubseNodeInfos) {
-        if (node.nodeId != masterId_ && node.nodeId != standbyId_ && node.nodeId != myselfID_
-            && std::find(rcvPkt.agentIds.begin(), rcvPkt.agentIds.end(), node.nodeId) == rcvPkt.agentIds.end()) {
+    for (const auto& node : ubseNodeInfos) {
+        if (node.nodeId != masterId_ && node.nodeId != standbyId_ && node.nodeId != myselfID_ &&
+            std::find(rcvPkt.agentIds.begin(), rcvPkt.agentIds.end(), node.nodeId) == rcvPkt.agentIds.end()) {
             RoleMgr::GetInstance().GetCommMgr()->DisConnect(node.nodeId);
         }
     }
 }
 
-void Agent::RecvPktForSelect(ElectionReplyPkt &reply) const
+void Agent::RecvPktForSelect(ElectionReplyPkt& reply) const
 {
     // 在节点还未触发转换角色前，丢失一定次数心跳，收到另一个节点的选主报文，回复同意。（需等到收到心跳，才会被收编）
     uint32_t acceptMasterAfterLossThreshold = (ElectionRole::GetHbLostTimes() - NO_1);
@@ -199,4 +199,4 @@ bool Agent::IsAgentHeartBeatTimeout(uint32_t heartbeatMultiplier) const
     // 判断时间差是否超过了允许的最大间隔时间
     return timeSinceLastHeartbeat > maxAllowedHeartbeatInterval;
 }
-}
+} // namespace ubse::election

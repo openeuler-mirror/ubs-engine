@@ -10,17 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "borrow_decision_maker.h"
 #include <algorithm>
 #include <cstring>
 #include <iomanip>
-#include "borrow_decision_maker.h"
-#include "mem_pool_config.h"
 #include "ubse_logger.h"
+#include "mem_pool_config.h"
 
 namespace tc::rs::mem {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
-BResult BorrowDecisionMaker::DetermineLenderGreedy(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
-                                                   BorrowResult &borrowResult) const
+BResult BorrowDecisionMaker::DetermineLenderGreedy(const BorrowRequest& borrowRequest, const SysStatus& sysStatus,
+                                                   BorrowResult& borrowResult) const
 {
     int idxMaxFree = 0;
     uint64_t maxNumaFreeSizeBytes = 0;
@@ -42,8 +42,8 @@ BResult BorrowDecisionMaker::DetermineLenderGreedy(const BorrowRequest &borrowRe
     return UBSE_OK;
 }
 
-BResult BorrowDecisionMaker::MemoryBorrowGreedy(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                                                BorrowResult &borrowResult) const
+BResult BorrowDecisionMaker::MemoryBorrowGreedy(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                                                BorrowResult& borrowResult) const
 {
     mStrategyImpl_->InitSysStatus(ubseStatus);
     DetermineLenderGreedy(borrowRequest, mStrategyImpl_->memSysStatus_, borrowResult);
@@ -54,7 +54,7 @@ BResult BorrowDecisionMaker::MemoryBorrowGreedy(const BorrowRequest &borrowReque
     return UBSE_OK;
 }
 
-int BorrowDecisionMaker::GetBorrowedNum(MemLoc requestLoc, const SysStatus &sysStatus) const
+int BorrowDecisionMaker::GetBorrowedNum(MemLoc requestLoc, const SysStatus& sysStatus) const
 {
     int hasBorrowed = 0;
     for (int i = 0; i < memConfig_->memStaticParam.numHosts; i++) {
@@ -70,18 +70,18 @@ bool BorrowDecisionMaker::IsBorrowedMax(int hasBorrowed, MemLoc requestLoc) cons
     return (hasBorrowed >= memConfig_->memStaticParam.maxBorrowHosts[requestLoc.hostId]);
 }
 
-bool BorrowDecisionMaker::IsNeverBorrowed(MemLoc requestLoc, MemLoc targetLoc, const SysStatus &sysStatus) const
+bool BorrowDecisionMaker::IsNeverBorrowed(MemLoc requestLoc, MemLoc targetLoc, const SysStatus& sysStatus) const
 {
     return (sysStatus.debtInfo.debtSize[requestLoc.hostId][targetLoc.hostId] == 0);
 }
 
-BResult BorrowDecisionMaker::ComputeSocketCosts(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
-                                                int numAvailSockets, std::vector<TargetSocket> &targetSockets,
-                                                std::vector<double> &socketCosts) const
+BResult BorrowDecisionMaker::ComputeSocketCosts(const BorrowRequest& borrowRequest, const SysStatus& sysStatus,
+                                                int numAvailSockets, std::vector<TargetSocket>& targetSockets,
+                                                std::vector<double>& socketCosts) const
 {
-    const MemLoc &requestLoc = borrowRequest.requestLoc;
-    const int32_t &requestSize = borrowRequest.requestSize;
-    const RequestUrgentLevel &urgentLevel = borrowRequest.urgentLevel;
+    const MemLoc& requestLoc = borrowRequest.requestLoc;
+    const int32_t& requestSize = borrowRequest.requestSize;
+    const RequestUrgentLevel& urgentLevel = borrowRequest.urgentLevel;
     RequestMode mode = RequestMode::BORROW;
 
     // 统计域内存状态, 用于计算域均衡性评分
@@ -91,7 +91,7 @@ BResult BorrowDecisionMaker::ComputeSocketCosts(const BorrowRequest &borrowReque
     }
     // 系统所有socket计算借用代价
     for (int i = 0; i < memConfig_->memAvailSocketsCnt; i++) {
-        const MemLoc &targetLoc = memConfig_->memAvailSockets[i];
+        const MemLoc& targetLoc = memConfig_->memAvailSockets[i];
         if (targetSockets[i].resLen == 0) {
             socketCosts[i] = MAX_DEBT_COST;
         } else {
@@ -112,21 +112,21 @@ BResult BorrowDecisionMaker::ComputeSocketCosts(const BorrowRequest &borrowReque
     return UBSE_OK;
 }
 
-BResult BorrowDecisionMaker::GetSocketBorrowCost(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
-                                                 std::vector<BorrowResult> &socketResults,
-                                                 std::vector<double> &socketCosts) const
+BResult BorrowDecisionMaker::GetSocketBorrowCost(const BorrowRequest& borrowRequest, const SysStatus& sysStatus,
+                                                 std::vector<BorrowResult>& socketResults,
+                                                 std::vector<double>& socketCosts) const
 {
     // 借用请求方
-    const MemLoc &requestLoc = borrowRequest.requestLoc;
-    const int32_t &requestSize = borrowRequest.requestSize;
-    const RequestUrgentLevel &urgentLevel = borrowRequest.urgentLevel;
+    const MemLoc& requestLoc = borrowRequest.requestLoc;
+    const int32_t& requestSize = borrowRequest.requestSize;
+    const RequestUrgentLevel& urgentLevel = borrowRequest.urgentLevel;
     RequestMode mode = RequestMode::BORROW;
     TargetSocket numaList;
 
     // 系统所有socket初筛, 初筛通过则拆分为numa
     std::vector<TargetSocket> targetSockets(memConfig_->memAvailSocketsCnt);
     for (int i = 0; i < memConfig_->memAvailSocketsCnt; i++) {
-        const MemLoc &targetLoc = memConfig_->memAvailSockets[i];
+        const MemLoc& targetLoc = memConfig_->memAvailSockets[i];
         // 判断目标socket是否是候选socket
         bool filter = LenderFilter(requestLoc, targetLoc, sysStatus);
         if (filter) {
@@ -164,15 +164,15 @@ BResult BorrowDecisionMaker::GetSocketBorrowCost(const BorrowRequest &borrowRequ
     return UBSE_OK;
 }
 
-BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus &sysStatus,
-                                           BorrowResult &borrowResult) const
+BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus& sysStatus,
+                                           BorrowResult& borrowResult) const
 {
     if (borrowResult.lenderLength <= 0) {
         return UBSE_ERROR;
     }
 
     // 借出方socket
-    const MemLoc &targetSocket = borrowResult.lenderLocs[0];
+    const MemLoc& targetSocket = borrowResult.lenderLocs[0];
     int targetSocketIdx = memConfig_->GetSocketIndex(targetSocket);
 
     // 借入方socket. 若requestLoc是numa, 取其所在socket; 若requestLoc是host, 取剩余内存最少的socket
@@ -195,7 +195,7 @@ BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus &s
     }
 
     // 借入方numa是借入方socket上, 与借出方socket链路时延最低的numa
-    int *numaIdx = memConfig_->GetNumaListInSocket(requestSocket.hostId, requestSocket.socketId);
+    int* numaIdx = memConfig_->GetNumaListInSocket(requestSocket.hostId, requestSocket.socketId);
     int32_t latencyMax = INT32_MAX;
     MemLoc resNuma;
     for (int i = 0; i < NUM_NUMA_PER_SOCKET; i++) {
@@ -219,8 +219,8 @@ BResult BorrowDecisionMaker::Borrower2Numa(MemLoc requestLoc, const SysStatus &s
     return UBSE_OK;
 }
 
-BResult BorrowDecisionMaker::SelectTopKBorrow(const BorrowRequest &borrowRequest, const SysStatus &sysStatus, int topK,
-                                              BorrowResult *borrowResults) const
+BResult BorrowDecisionMaker::SelectTopKBorrow(const BorrowRequest& borrowRequest, const SysStatus& sysStatus, int topK,
+                                              BorrowResult* borrowResults) const
 {
     // 初始化搜索结果
     topK = std::min(topK, memConfig_->memAvailSocketsCnt);
@@ -269,8 +269,8 @@ BResult BorrowDecisionMaker::SelectTopKBorrow(const BorrowRequest &borrowRequest
     return UBSE_OK;
 }
 
-BResult BorrowDecisionMaker::SingleMemBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                                             BorrowResult &borrowResult)
+BResult BorrowDecisionMaker::SingleMemBorrow(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                                             BorrowResult& borrowResult)
 {
     UBSE_LOG_INFO << "RequestLoc, requestSize, urgentLevel: " << borrowRequest.requestLoc.hostId << "/"
                   << static_cast<int>(borrowRequest.requestLoc.socketId) << "/"

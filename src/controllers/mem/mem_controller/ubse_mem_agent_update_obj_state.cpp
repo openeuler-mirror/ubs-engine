@@ -19,9 +19,9 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 namespace {
 template <typename ImportObjType>
-common::def::UbseResult CheckAndUpdateImportObjState(const ImportObjType &importObj)
+common::def::UbseResult CheckAndUpdateImportObjState(const ImportObjType& importObj)
 {
-    auto &ledger = debt::UbseMemDebtLedger::GetInstance();
+    auto& ledger = debt::UbseMemDebtLedger::GetInstance();
     auto objPtr = ledger.GetDebtMap<ImportObjType>().GetResource(importObj.req.importNodeId, importObj.req.name);
     if (!objPtr) {
         return UBSE_ERROR;
@@ -36,8 +36,8 @@ common::def::UbseResult CheckAndUpdateImportObjState(const ImportObjType &import
 }
 } // namespace
 
-common::def::UbseResult UbseMemAgentUpdateObjState::Handle(const ubse::message::UbseBaseMessagePtr &req,
-                                                           const ubse::message::UbseBaseMessagePtr &rsp,
+common::def::UbseResult UbseMemAgentUpdateObjState::Handle(const ubse::message::UbseBaseMessagePtr& req,
+                                                           const ubse::message::UbseBaseMessagePtr& rsp,
                                                            ubse::com::UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UBSE_LOG_INFO << "Handle UbseMemAgentUpdateObjState.";

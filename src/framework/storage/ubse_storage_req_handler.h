@@ -21,8 +21,8 @@ class UbseStorageReqHandler : public UbseComBaseMessageHandler {
 public:
     UbseStorageReqHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
-        UbseComBaseMessageHandlerCtxPtr ctx) override;
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     inline uint16_t GetOpCode() override
     {
@@ -34,5 +34,5 @@ public:
         return static_cast<uint16_t>(UbseModuleCode::STORAGE);
     }
 };
-}
+} // namespace ubse::storage
 #endif // UBSE_STORAGE_REQ_HANDLER_H

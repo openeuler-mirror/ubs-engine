@@ -25,7 +25,7 @@ class UbseMemAddrBorrowImportobjSimpo : public UbseBaseMessage {
 public:
     UbseMemAddrBorrowImportobjSimpo() = default;
 
-    explicit UbseMemAddrBorrowImportobjSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemAddrBorrowImportobjSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

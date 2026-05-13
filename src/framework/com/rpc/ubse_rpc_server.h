@@ -19,15 +19,15 @@ const uint32_t SLEEP_TIME = 2;
 const uint32_t RETRY_TIME = 5;
 class UbseRpcServer : public UbseComBase {
 public:
-    UbseRpcServer(const std::string &ip, const uint16_t &port, const std::string &name, const std::string &nodeId)
+    UbseRpcServer(const std::string& ip, const uint16_t& port, const std::string& name, const std::string& nodeId)
         : UbseComBase(nodeId, name),
           ip_(std::move(ip)),
           port_(port)
     {
     }
 
-    UbseRpcServer(const std::string &ip, const uint16_t &port, const std::string &name, const std::string &nodeId,
-                  const std::map<std::string, std::pair<std::string, uint16_t>> &serverList)
+    UbseRpcServer(const std::string& ip, const uint16_t& port, const std::string& name, const std::string& nodeId,
+                  const std::map<std::string, std::pair<std::string, uint16_t>>& serverList)
         : UbseComBase(nodeId, name),
           ip_(std::move(ip)),
           port_(port),
@@ -39,9 +39,9 @@ public:
 
     void Stop() override;
 
-    UbseResult ConnectWithOption(ConnectOption option, std::string &remoteNodeId) override;
+    UbseResult ConnectWithOption(ConnectOption option, std::string& remoteNodeId) override;
 
-    UbseResult GetHcomHbTimeout(uint16_t &hcomHbTimeout);
+    UbseResult GetHcomHbTimeout(uint16_t& hcomHbTimeout);
 
     UbseResult Connect() override;
 
@@ -62,5 +62,5 @@ private:
     UbseComCallBackForHA newChannelCb = nullptr;
     UbseComCallBackForHA brokenChannelCb = nullptr;
 };
-}
+} // namespace ubse::com
 #endif // UBSE_RPC_SERVER_H

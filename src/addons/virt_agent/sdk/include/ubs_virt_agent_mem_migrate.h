@@ -25,7 +25,7 @@ extern "C" {
  * @param uuid [IN] vm uuid
  * @return 0 for success, non-zero for error
  */
-int32_t update_page_flow_and_status(const char *opt, const char *uuid);
+int32_t update_page_flow_and_status(const char* opt, const char* uuid);
 
 #ifdef __cplusplus
 }

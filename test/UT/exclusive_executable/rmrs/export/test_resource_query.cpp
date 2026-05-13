@@ -16,6 +16,9 @@
 
 #include <rmrs_serialize.h>
 #include <securec.h>
+#include "ubse_com.h"
+#include "ubse_event.h"
+#include "ubse_pointer_process.h"
 #include "event_handler.h"
 #include "mempooling_message.h"
 #include "mp_configuration.h"
@@ -25,9 +28,6 @@
 #include "numa_memInfo_send.h"
 #include "over_commit_msg_handler.h"
 #include "over_commit_serializer.h"
-#include "ubse_pointer_process.h"
-#include "ubse_com.h"
-#include "ubse_event.h"
 
 #define private public
 #include "rmrs_resource_query.h"
@@ -39,7 +39,7 @@ namespace mempooling {
 using namespace ubse::log;
 using namespace mempooling::event;
 
-MpResult FillNumaInfo(mempooling::NumaMetaData &numaInfo, JSON_MAP numaInfoStrMap);
+MpResult FillNumaInfo(mempooling::NumaMetaData& numaInfo, JSON_MAP numaInfoStrMap);
 
 // 测试类
 class TestResourceQuery : public ::testing::Test {
@@ -159,22 +159,22 @@ TEST_F(TestResourceQuery, HelpGetNumaMemInfoCollect_Success)
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-MpResult ExporterGetVmInfoImmediatelySuccessMock(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos)
+MpResult ExporterGetVmInfoImmediatelySuccessMock(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
 {
     return MEM_POOLING_OK;
 }
 
-MpResult ExporterGetVmInfoImmediatelyThrowMock(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos)
+MpResult ExporterGetVmInfoImmediatelyThrowMock(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
 {
     throw std::runtime_error("Mock Exception for GetVmInfoImmediately");
 }
 
-MpResult ExporterGetNumaInfoImmediatelySuccessMock(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
+MpResult ExporterGetNumaInfoImmediatelySuccessMock(std::vector<mempooling::exportV2::NumaInfo>& numaInfos)
 {
     return MEM_POOLING_OK;
 }
 
-MpResult ExporterGetNumaInfoImmediatelyThrowMock(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
+MpResult ExporterGetNumaInfoImmediatelyThrowMock(std::vector<mempooling::exportV2::NumaInfo>& numaInfos)
 {
     throw std::runtime_error("Mock Exception for GetNumaInfoImmediately");
 }
@@ -184,11 +184,11 @@ MpResult ExporterInitMockFail()
     return MEM_POOLING_ERROR;
 }
 
-uint32_t UbseRpcSendMockOk(const ubse::com::UbseComEndpoint &endpoint, const UbseByteBuffer &req, void *ctx,
-                                const UbseComRespHandler &handler)
+uint32_t UbseRpcSendMockOk(const ubse::com::UbseComEndpoint& endpoint, const UbseByteBuffer& req, void* ctx,
+                           const UbseComRespHandler& handler)
 {
     if (ctx != nullptr) {
-        auto *res = static_cast<turbo::rmrs::PidNumaInfoCollectResult *>(ctx);
+        auto* res = static_cast<turbo::rmrs::PidNumaInfoCollectResult*>(ctx);
         turbo::rmrs::PidInfo info;
         info.pid = 1234;
         info.totalLocalUsedMem = 1000;
@@ -207,11 +207,11 @@ uint32_t UbseRpcSendMockOk(const ubse::com::UbseComEndpoint &endpoint, const Ubs
     return MEM_POOLING_OK;
 }
 
-uint32_t UbseRpcSendMockInvalidPid(const ubse::com::UbseComEndpoint &endpoint, const UbseByteBuffer &req, void *ctx,
-                                   const UbseComRespHandler &handler)
+uint32_t UbseRpcSendMockInvalidPid(const ubse::com::UbseComEndpoint& endpoint, const UbseByteBuffer& req, void* ctx,
+                                   const UbseComRespHandler& handler)
 {
     if (ctx != nullptr) {
-        auto *res = static_cast<turbo::rmrs::PidNumaInfoCollectResult *>(ctx);
+        auto* res = static_cast<turbo::rmrs::PidNumaInfoCollectResult*>(ctx);
         turbo::rmrs::PidInfo info;
         info.pid = -1; // Trigger exception branch
         res->pidInfoList.push_back(info);
@@ -219,8 +219,8 @@ uint32_t UbseRpcSendMockInvalidPid(const ubse::com::UbseComEndpoint &endpoint, c
     return MEM_POOLING_OK;
 }
 
-MpResult PidNumaInfoCollectHandlerMockSuccess(const turbo::rmrs::PidNumaInfoCollectParam &param,
-                                              turbo::rmrs::PidNumaInfoCollectResult &result)
+MpResult PidNumaInfoCollectHandlerMockSuccess(const turbo::rmrs::PidNumaInfoCollectParam& param,
+                                              turbo::rmrs::PidNumaInfoCollectResult& result)
 {
     turbo::rmrs::PidInfo info;
     info.pid = 5678;
@@ -247,7 +247,7 @@ MpResult PidNumaInfoCollectHandlerMockSuccess(const turbo::rmrs::PidNumaInfoColl
 TEST_F(TestResourceQuery, HelpGetVmInfoListOnNode_Succeed)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> &))
+               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .will(invoke(ExporterGetVmInfoImmediatelySuccessMock));
 
@@ -259,7 +259,7 @@ TEST_F(TestResourceQuery, HelpGetVmInfoListOnNode_Succeed)
 TEST_F(TestResourceQuery, HelpGetVmInfoListOnNode_Exception)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> &))
+               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .will(invoke(ExporterGetVmInfoImmediatelyThrowMock)); // Trigger std::exception catch branch
     std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
@@ -271,7 +271,7 @@ TEST_F(TestResourceQuery, HelpGetVmInfoListOnNode_Exception)
 TEST_F(TestResourceQuery, HelpGetNumaInfoListOnNode_Succeed)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> &))
+               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(invoke(ExporterGetNumaInfoImmediatelySuccessMock));
 
@@ -283,7 +283,7 @@ TEST_F(TestResourceQuery, HelpGetNumaInfoListOnNode_Succeed)
 TEST_F(TestResourceQuery, HelpGetNumaInfoListOnNode_Exception)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> &))
+               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(invoke(ExporterGetNumaInfoImmediatelyThrowMock));
 
@@ -326,8 +326,8 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_EmptyList_ReturnOK)
 
 TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_Succeed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint &, const UbseByteBuffer &, void *,
-                                         const UbseComRespHandler &))
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendMockOk));
 
@@ -345,8 +345,8 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_Succeed)
 
 TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_InvalidPid_Fail)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint &, const UbseByteBuffer &, void *,
-                                         const UbseComRespHandler &))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
+                                         const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendMockInvalidPid)); // Trigger pid == -1
 
@@ -361,8 +361,8 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_InvalidPid_Fail)
 
 TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_RpcFail)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint &, const UbseByteBuffer &, void *,
-                                         const UbseComRespHandler &))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*,
+                                         const UbseComRespHandler&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR)); // Simulate RPC failure
 
@@ -389,7 +389,7 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfoByLocalNode_EmptyList_Retur
 TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfoByLocalNode_Succeed)
 {
     MOCKER_CPP(&PidNumaInfoCollectHandler,
-               MpResult(*)(const turbo::rmrs::PidNumaInfoCollectParam &, turbo::rmrs::PidNumaInfoCollectResult &))
+               MpResult(*)(const turbo::rmrs::PidNumaInfoCollectParam&, turbo::rmrs::PidNumaInfoCollectResult&))
         .stubs()
         .will(invoke(PidNumaInfoCollectHandlerMockSuccess));
 
@@ -409,7 +409,7 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfoByLocalNode_Succeed)
 TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfoByLocalNode_HandlerFail)
 {
     MOCKER_CPP(&PidNumaInfoCollectHandler,
-               MpResult(*)(const turbo::rmrs::PidNumaInfoCollectParam &, turbo::rmrs::PidNumaInfoCollectResult &))
+               MpResult(*)(const turbo::rmrs::PidNumaInfoCollectParam&, turbo::rmrs::PidNumaInfoCollectResult&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR)); // Simulate direct processing failure
     ResourceQuery rq;

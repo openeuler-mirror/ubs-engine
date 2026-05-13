@@ -15,14 +15,13 @@
 
 #include <iostream>
 #include <string>
-#include "mp_error.h"
-#include "fault_memid_module.h"
-#include "ubse_logger.h"
 #include "ubse_com.h"
 #include "ubse_common_def.h"
-#include "mp_module.h"
+#include "ubse_logger.h"
+#include "fault_memid_module.h"
 #include "mempooling_message.h"
-
+#include "mp_error.h"
+#include "mp_module.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -36,7 +35,7 @@ struct FaultMemIdManageParam {
 
 class FaultMemIdHelper {
 public:
-    static FaultMemIdHelper &Instance()
+    static FaultMemIdHelper& Instance()
     {
         static FaultMemIdHelper instance;
         return instance;
@@ -49,8 +48,8 @@ public:
 private:
     FaultMemIdHelper() = default;
     ~FaultMemIdHelper() = default;
-    FaultMemIdHelper(const FaultMemIdHelper &) = delete;
-    FaultMemIdHelper &operator = (const FaultMemIdHelper &) = delete;
+    FaultMemIdHelper(const FaultMemIdHelper&) = delete;
+    FaultMemIdHelper& operator=(const FaultMemIdHelper&) = delete;
 };
 
 class MpFaultMemIdSubModule : public MpSubModule {
@@ -87,7 +86,7 @@ public:
     }
     void DeInit() override
     {
-        return ;
+        return;
     }
     const std::string Name() override
     {

@@ -14,8 +14,8 @@
 #define UBSE_LOGGER_MODULE_H
 
 #include "ubse_common_def.h" // for UbseResult
-#include "ubse_module.h"     // for UbseModule
 #include "ubse_logger.h"
+#include "ubse_module.h" // for UbseModule
 
 namespace ubse::log {
 using namespace ubse::module;
@@ -30,5 +30,5 @@ public:
 
     void Stop() override;
 };
-}
+} // namespace ubse::log
 #endif // UBSE_LOGGER_MODULE_H

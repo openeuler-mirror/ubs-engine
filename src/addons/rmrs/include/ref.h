@@ -74,7 +74,8 @@ protected:
 };
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 8 && __GNUC_PATCHLEVEL__ == 5
-template <class T, class U = T> T exchangeHdagger(T &obj, U &&new_value)
+template <class T, class U = T>
+T exchangeHdagger(T& obj, U&& new_value)
 {
     T old_value = std::move(obj);
     obj = std::forward<U>(new_value);
@@ -82,13 +83,14 @@ template <class T, class U = T> T exchangeHdagger(T &obj, U &&new_value)
 }
 #endif
 
-template <typename T> class Ref {
+template <typename T>
+class Ref {
 public:
     // constructor
     Ref() noexcept = default;
 
     // fix: can't be explicit
-    Ref(T *newObj) noexcept
+    Ref(T* newObj) noexcept
     {
         // if new obj is not null, increase reference count and assign to mObj
         // else nothing need to do as mObj is nullptr by default
@@ -98,7 +100,7 @@ public:
         }
     }
 
-    Ref(const Ref<T> &other) noexcept
+    Ref(const Ref<T>& other) noexcept
     {
         // if other's obj is not null, increase reference count and assign to mObj
         // else nothing need to do as mObj is nullptr by default
@@ -109,9 +111,9 @@ public:
     }
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 8 && __GNUC_PATCHLEVEL__ == 5
-    Ref(Ref<T> &&other) noexcept : mObj(exchangeHdagger(other.mObj, nullptr))
+    Ref(Ref<T>&& other) noexcept : mObj(exchangeHdagger(other.mObj, nullptr))
 #else
-    Ref(Ref<T> &&other) noexcept : mObj(std::__exchange(other.mObj, nullptr))
+    Ref(Ref<T>&& other) noexcept : mObj(std::__exchange(other.mObj, nullptr))
 #endif
     {
         // move constructor
@@ -127,13 +129,13 @@ public:
     }
 
     // operator =
-    inline Ref<T> &operator = (T *newObj)
+    inline Ref<T>& operator=(T* newObj)
     {
         this->Set(newObj);
         return *this;
     }
 
-    inline Ref<T> &operator = (const Ref<T> &other)
+    inline Ref<T>& operator=(const Ref<T>& other)
     {
         if (this != &other) {
             this->Set(other.mObj);
@@ -141,7 +143,7 @@ public:
         return *this;
     }
 
-    Ref<T> &operator = (Ref<T> &&other) noexcept
+    Ref<T>& operator=(Ref<T>&& other) noexcept
     {
         if (this != &other) {
             auto tmp = mObj;
@@ -158,38 +160,38 @@ public:
     }
 
     // equal operator
-    inline bool operator == (const Ref<T> &other) const
+    inline bool operator==(const Ref<T>& other) const
     {
         return mObj == other.mObj;
     }
 
-    inline bool operator == (T *other) const
+    inline bool operator==(T* other) const
     {
         return mObj == other;
     }
 
-    inline bool operator != (const Ref<T> &other) const
+    inline bool operator!=(const Ref<T>& other) const
     {
         return mObj != other.mObj;
     }
 
-    inline bool operator != (T *other) const
+    inline bool operator!=(T* other) const
     {
         return mObj != other;
     }
 
     // get operator and set
-    inline T *operator->() const
+    inline T* operator->() const
     {
         return mObj;
     }
 
-    inline T *Get() const
+    inline T* Get() const
     {
         return mObj;
     }
 
-    inline void Set(T *newObj)
+    inline void Set(T* newObj)
     {
         if (newObj == mObj) {
             return;
@@ -207,7 +209,7 @@ public:
     }
 
 private:
-    T *mObj = nullptr;
+    T* mObj = nullptr;
 };
 
 /*
@@ -217,10 +219,11 @@ private:
  *
  * @return Ref object, if new failed internal, an empty Ref object will be returned
  */
-template <typename C, typename... ARGS> static inline Ref<C> MakeRef(ARGS &&... args)
+template <typename C, typename... ARGS>
+static inline Ref<C> MakeRef(ARGS&&... args)
 {
     return new (std::nothrow) C(std::forward<ARGS>(args)...);
 }
-}
-}
+} // namespace common
+} // namespace mempooling
 #endif // _H

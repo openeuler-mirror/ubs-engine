@@ -42,7 +42,7 @@ enum class StrategyTip : int {
 };
 
 struct StrategyTipInfo {
-    static std::string StrategyTipToString(const StrategyTip &strategyTip)
+    static std::string StrategyTipToString(const StrategyTip& strategyTip)
     {
         std::ostringstream oss;
         if (strategyTip == StrategyTip::NOPE) {
@@ -59,7 +59,7 @@ struct StrategyTipInfo {
         return oss.str();
     }
 
-    static std::string StrategyTips(const std::vector<StrategyTip> &strategyTips)
+    static std::string StrategyTips(const std::vector<StrategyTip>& strategyTips)
     {
         std::ostringstream oss;
         oss << "\"strategyTip\": [";
@@ -85,7 +85,7 @@ struct VMNodeLocInfo {
     int16_t socketId{};
     int16_t numaId{};
 
-    bool operator<(const VMNodeLocInfo &a) const
+    bool operator<(const VMNodeLocInfo& a) const
     {
         if (hostId != a.hostId) {
             return hostId < a.hostId;
@@ -98,7 +98,7 @@ struct VMNodeLocInfo {
         }
     }
 
-    bool operator==(const VMNodeLocInfo &a) const
+    bool operator==(const VMNodeLocInfo& a) const
     {
         return (hostId == a.hostId && socketId == a.socketId && numaId == a.numaId);
     }

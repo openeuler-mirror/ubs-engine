@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <securec.h>           // for memcpy_s, EOK, errno_t
-#include <cstdint>             // for uint8_t, uint32_t
-#include <new>                 // for nothrow
+#include <securec.h> // for memcpy_s, EOK, errno_t
+#include <cstdint>   // for uint8_t, uint32_t
+#include <new>       // for nothrow
 
-#include "ubse_error.h"        // for UBSE_ERROR, UBSE_OK, UBSE_ERROR_NU...
-#include "ubse_logger.h"       // for UBSE_DEFINE_THIS_MODULE, UbseLogge...
-#include "ubse_pointer_process.h"
 #include "ubse_base_message.h"
+#include "ubse_error.h"  // for UBSE_ERROR, UBSE_OK, UBSE_ERROR_NU...
+#include "ubse_logger.h" // for UBSE_DEFINE_THIS_MODULE, UbseLogge...
+#include "ubse_pointer_process.h"
 
 namespace ubse::message {
 using namespace ubse::log;
@@ -36,7 +36,7 @@ UbseResult UbseBaseMessage::SetInputRawDataFromShared(std::shared_ptr<uint8_t[]>
     return UBSE_OK;
 }
 
-UbseResult UbseBaseMessage::SetInputRawData(uint8_t *rawData, uint32_t size, bool copy)
+UbseResult UbseBaseMessage::SetInputRawData(uint8_t* rawData, uint32_t size, bool copy)
 {
     if (rawData == nullptr) {
         UBSE_LOG_ERROR << "set_input_raw_data input rawData is null.";

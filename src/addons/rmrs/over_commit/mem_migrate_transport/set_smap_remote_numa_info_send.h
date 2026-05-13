@@ -39,7 +39,7 @@ public:
      * @param reqData 消息body体
      * @return
      */
-    MpResult CreateRequestData(UbseByteBuffer &reqData) const;
+    MpResult CreateRequestData(UbseByteBuffer& reqData) const;
 
     /**
      * 处理返回消息
@@ -47,7 +47,7 @@ public:
      * @param respData 返回消息体
      * @param resCode 接口调用结果
      */
-    static void RespHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+    static void RespHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
 private:
     outinterface::SrcMemoryBorrowParam srcMemoryBorrowParam_;

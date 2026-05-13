@@ -11,11 +11,11 @@
  */
 
 #include "test_ubse_storage.h"
-#include "mockcpp/mockcpp.hpp"
-#include "ubse_storage.h"
-#include "ubse_storage_module.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_storage.h"
+#include "ubse_storage_module.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ldc::ut {
 using namespace ubse::config;
@@ -25,14 +25,14 @@ using namespace ubse::storage;
 namespace {
 int g_callbackCount = 0;
 
-void callbackFunc(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)
+void callbackFunc(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)
 {
     g_callbackCount++;
     EXPECT_EQ("key", keyPrefix);
     EXPECT_EQ("_ssu", key);
     EXPECT_NE(nullptr, ctx);
 }
-}
+} // namespace
 
 void TestUbseStorage::SetUp()
 {
@@ -65,7 +65,7 @@ TEST_F(TestUbseStorage, UbseStoragePutData)
     std::shared_ptr<UbseStorageModule> nullModule = nullptr;
     std::shared_ptr<UbseStorageModule> module = std::make_shared<UbseStorageModule>();
     std::string value = "value";
-    UbseByteBuffer data{ reinterpret_cast<uint8_t *>(value.data()), value.size(), nullptr };
+    UbseByteBuffer data{reinterpret_cast<uint8_t*>(value.data()), value.size(), nullptr};
 
     MOCKER(&UbseContext::GetModule<UbseStorageModule>)
         .stubs()
@@ -73,9 +73,7 @@ TEST_F(TestUbseStorage, UbseStoragePutData)
         .then(returnValue(module))
         .then(returnValue(module))
         .then(returnValue(module));
-    MOCKER(&UbseStorageModule::Put)
-        .stubs()
-        .will(returnObjectList(UBSE_ERROR, UBSE_OK));
+    MOCKER(&UbseStorageModule::Put).stubs().will(returnObjectList(UBSE_ERROR, UBSE_OK));
 
     EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, UbseStoragePutData("key", "_ssu", &data));
     EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseStoragePutData("key", "_ssu", nullptr));
@@ -109,9 +107,7 @@ TEST_F(TestUbseStorage, UbseStorageQueryData)
         .will(returnValue(nullModule))
         .then(returnValue(module))
         .then(returnValue(module));
-    MOCKER(&UbseStorageModule::Get)
-        .stubs()
-        .will(returnObjectList(UBSE_ERROR, UBSE_OK));
+    MOCKER(&UbseStorageModule::Get).stubs().will(returnObjectList(UBSE_ERROR, UBSE_OK));
 
     EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseStorageQueryData("key", "_ssu", &ctx, nullptr));
     EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, UbseStorageQueryData("key", "_ssu", &ctx, callbackFunc));
@@ -137,17 +133,12 @@ TEST_F(TestUbseStorage, UbseStorageDeleteData)
 {
     std::shared_ptr<UbseStorageModule> nullModule = nullptr;
     std::shared_ptr<UbseStorageModule> module = std::make_shared<UbseStorageModule>();
-    MOCKER(&UbseContext::GetModule<UbseStorageModule>)
-        .stubs()
-        .will(returnValue(nullModule))
-        .then(returnValue(module));
-    MOCKER(&UbseStorageModule::Delete)
-        .stubs()
-        .will(returnObjectList(UBSE_ERROR, UBSE_OK));
+    MOCKER(&UbseContext::GetModule<UbseStorageModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
+    MOCKER(&UbseStorageModule::Delete).stubs().will(returnObjectList(UBSE_ERROR, UBSE_OK));
 
     EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, UbseStorageDeleteData("key", "_ssu"));
     EXPECT_EQ(UBSE_ERROR, UbseStorageDeleteData("key", "_ssu"));
     EXPECT_EQ(UBSE_OK, UbseStorageDeleteData("key", "_ssu"));
     module.reset();
 }
-}
+} // namespace ubse::ldc::ut

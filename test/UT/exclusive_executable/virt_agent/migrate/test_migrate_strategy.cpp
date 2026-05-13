@@ -60,9 +60,9 @@ TEST_F(TestMigrateStrategy, GetMigrateStrategy_ShouldReturnError_WhenMakeMigrate
     MOCKER(VirtMigrateStrategy::MakeMigrateStrategyDecision).reset();
 }
 
-uint32_t MockMakeMigrateStrategyDecisionOK(uint32_t vmMemoryMB, const std::string &uuid,
-                                           const std::string &destHostName, uint32_t destNumaId,
-                                           uint32_t *migrateStrategy)
+uint32_t MockMakeMigrateStrategyDecisionOK(uint32_t vmMemoryMB, const std::string& uuid,
+                                           const std::string& destHostName, uint32_t destNumaId,
+                                           uint32_t* migrateStrategy)
 {
     return VM_OK;
 }
@@ -112,24 +112,24 @@ constexpr uint32_t bigVal = 8192;
 constexpr uint32_t smallVal = 100;
 constexpr uint32_t validVal = 2048;
 
-uint32_t MockUbseGetUIntError(const std::string &section, const std::string &configKey, uint32_t &configVal)
+uint32_t MockUbseGetUIntError(const std::string& section, const std::string& configKey, uint32_t& configVal)
 {
     return VM_ERROR;
 }
 
-uint32_t MockUbseGetUIntBig(const std::string &section, const std::string &configKey, uint32_t &configVal)
+uint32_t MockUbseGetUIntBig(const std::string& section, const std::string& configKey, uint32_t& configVal)
 {
     configVal = bigVal;
     return VM_OK;
 }
 
-uint32_t MockUbseGetUIntSmall(const std::string &section, const std::string &configKey, uint32_t &configVal)
+uint32_t MockUbseGetUIntSmall(const std::string& section, const std::string& configKey, uint32_t& configVal)
 {
     configVal = smallVal;
     return VM_OK;
 }
 
-uint32_t MockUbseGetUIntValid(const std::string &section, const std::string &configKey, uint32_t &configVal)
+uint32_t MockUbseGetUIntValid(const std::string& section, const std::string& configKey, uint32_t& configVal)
 {
     configVal = validVal;
     return VM_OK;
@@ -154,55 +154,55 @@ TEST_F(TestMigrateStrategy, GetMigrateOneCopyMemoryBound)
     MOCKER(UbseGetUInt).reset();
 }
 
-pid_t MockGetPidByVmUUIDFailed(const string &uuid)
+pid_t MockGetPidByVmUUIDFailed(const string& uuid)
 {
     return -1;
 }
 
-pid_t MockGetPidByVmUUIDSuccess(const string &uuid)
+pid_t MockGetPidByVmUUIDSuccess(const string& uuid)
 {
     return 1;
 }
 
-VmResult MockGetNumaIdAndPageSizeByPidFailed(const pid_t pid, MigrateInfoBase &numaIdAndPageSize)
+VmResult MockGetNumaIdAndPageSizeByPidFailed(const pid_t pid, MigrateInfoBase& numaIdAndPageSize)
 {
     return VM_ERROR;
 }
 
-VmResult MockGetNumaIdAndPageSizeByPidOK(const pid_t pid, MigrateInfoBase &numaIdAndPageSize)
+VmResult MockGetNumaIdAndPageSizeByPidOK(const pid_t pid, MigrateInfoBase& numaIdAndPageSize)
 {
     return VM_OK;
 }
 
-VmResult MockGetLocalMigrateInfo(MigrateInfoBase &migrateInfoLocal, const std::string &uuid)
+VmResult MockGetLocalMigrateInfo(MigrateInfoBase& migrateInfoLocal, const std::string& uuid)
 {
     return VM_OK;
 }
 
-VmResult MockGetRemoteMigrateInfo(MigrateInfoBase &migrateInfoRemote, const std::string &destHostName,
-                                  uint32_t destNumaId, const std::string &dstNid)
+VmResult MockGetRemoteMigrateInfo(MigrateInfoBase& migrateInfoRemote, const std::string& destHostName,
+                                  uint32_t destNumaId, const std::string& dstNid)
 {
     return VM_OK;
 }
 
-VmResult MockGetSocketIdByNumaIdFailed(const uint32_t numaId, uint32_t *socketId)
+VmResult MockGetSocketIdByNumaIdFailed(const uint32_t numaId, uint32_t* socketId)
 {
     return VM_ERROR;
 }
 
-VmResult MockGetSocketIdByNumaIdOK(const uint32_t numaId, uint32_t *socketId)
+VmResult MockGetSocketIdByNumaIdOK(const uint32_t numaId, uint32_t* socketId)
 {
     return VM_OK;
 }
 
-uint32_t UbseVmGetNodeTopologyInfoFailed(const JumpCount &jump,
-                                         std::unordered_map<std::string, std::vector<VmNodeData>> &nodeData)
+uint32_t UbseVmGetNodeTopologyInfoFailed(const JumpCount& jump,
+                                         std::unordered_map<std::string, std::vector<VmNodeData>>& nodeData)
 {
     return VM_ERROR;
 }
 
-uint32_t UbseVmGetNodeTopologyInfoOK(const JumpCount &jump,
-                                     std::unordered_map<std::string, std::vector<VmNodeData>> &nodeData)
+uint32_t UbseVmGetNodeTopologyInfoOK(const JumpCount& jump,
+                                     std::unordered_map<std::string, std::vector<VmNodeData>>& nodeData)
 {
     std::vector<VmNodeData> nodeDataList;
     TelemetrySocketData telemetrySocketData{.nodeId = "1", .hostname = "node"};
@@ -288,7 +288,7 @@ TEST_F(TestMigrateStrategy, GetMigrateInfo_ShouldReturnOK_WhenEverythingIsOk)
     MOCKER(UbseVmGetNodeTopologyInfo).reset();
 }
 
-uint32_t MockUbseGetNodeInfos(std::vector<NodeInfo> &nodeInfos)
+uint32_t MockUbseGetNodeInfos(std::vector<NodeInfo>& nodeInfos)
 {
     NodeInfo nodeInfo{.hostName = "node"};
     nodeInfos.push_back(nodeInfo);
@@ -329,7 +329,7 @@ TEST_F(TestMigrateStrategy, MakeMigrateStrategyDecision_ShouldReturnOnecopy_When
     MOCKER(UbseGetBool).reset();
 }
 
-uint32_t MockUbseGetBool(const std::string &section, const std::string &configKey, bool &configVal)
+uint32_t MockUbseGetBool(const std::string& section, const std::string& configKey, bool& configVal)
 {
     configVal = true;
     return VM_OK;
@@ -351,14 +351,14 @@ TEST_F(TestMigrateStrategy, MakeMigrateStrategyDecision_ShouldReturnOnecopy_When
     MOCKER(UbseGetBool).reset();
 }
 
-uint32_t MockUbseGetCurrentNodeInfo(UbseRoleInfo &currentNode)
+uint32_t MockUbseGetCurrentNodeInfo(UbseRoleInfo& currentNode)
 {
     currentNode.nodeId = "1";
     currentNode.nodeRole = ELECTION_ROLE_MASTER;
     return VM_OK;
 }
 
-uint32_t MockUbseMemDebtCircleCheck(const std::string &srcNodeId, const std::string &dstNodeId, bool &isCircle)
+uint32_t MockUbseMemDebtCircleCheck(const std::string& srcNodeId, const std::string& dstNodeId, bool& isCircle)
 {
     isCircle = false;
     return VM_OK;

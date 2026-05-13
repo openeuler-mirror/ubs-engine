@@ -23,7 +23,7 @@ namespace vm::libvirt {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
-void *LibvirtModule::libvirtHandle = nullptr;
+void* LibvirtModule::libvirtHandle = nullptr;
 VirConnectOpenFunc LibvirtModule::virConnectOpenFunc = nullptr;
 VirConnectCloseFunc LibvirtModule::virConnectCloseFunc = nullptr;
 VirDomainFreeFunc LibvirtModule::virDomainFreeFunc = nullptr;

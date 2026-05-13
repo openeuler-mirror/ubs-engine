@@ -13,34 +13,33 @@
 #ifndef RMRS_LIBVIRT_MODULE_H
 #define RMRS_LIBVIRT_MODULE_H
 
-#include <cstdint>
 #include <libvirt/libvirt.h>
+#include <cstdint>
 #include "mp_error.h"
 
 namespace mempooling::libvirt {
-using VirConnectPtr = void *;
-using VirDomainPtr = void *;
+using VirConnectPtr = void*;
+using VirDomainPtr = void*;
 
-
-using VirConnectOpenFunc = void *(*)(const char *);
-using VirConnectCloseFunc = void (*)(void *);
-using VirConnectListAllDomainsFunc = int (*)(void *, void ***, virConnectListAllDomainsFlags);
-using VirDomainGetNameFunc = const char *(*)(void *);
-using VirDomainGetIDFunc = unsigned int (*)(void *);
-using VirDomainGetUUIDStringFunc = int (*)(void *, char *);
-using VirDomainGetInfoFunc = int (*)(void *, void *);
-using VirDomainGetVcpusFunc = int (*)(void *, void *, int, unsigned char *, int);
-using VirConnectGetHostnameFunc = char *(*)(void *);
-using VirDomainFreeFunc = int (*)(void *);
-using VirConnectIsAliveFunc = int (*)(void *);
-using VirConnectDomainEventCallbackFunc = int (*)(void *, void *, int, int, void *);
+using VirConnectOpenFunc = void* (*)(const char*);
+using VirConnectCloseFunc = void (*)(void*);
+using VirConnectListAllDomainsFunc = int (*)(void*, void***, virConnectListAllDomainsFlags);
+using VirDomainGetNameFunc = const char* (*)(void*);
+using VirDomainGetIDFunc = unsigned int (*)(void*);
+using VirDomainGetUUIDStringFunc = int (*)(void*, char*);
+using VirDomainGetInfoFunc = int (*)(void*, void*);
+using VirDomainGetVcpusFunc = int (*)(void*, void*, int, unsigned char*, int);
+using VirConnectGetHostnameFunc = char* (*)(void*);
+using VirDomainFreeFunc = int (*)(void*);
+using VirConnectIsAliveFunc = int (*)(void*);
+using VirConnectDomainEventCallbackFunc = int (*)(void*, void*, int, int, void*);
 using VirEventRegisterDefaultImplFunc = int (*)();
 using VirEventRunDefaultImplFunc = int (*)();
-using VirConnectDomainEventRegisterFunc = int (*)(void *, VirConnectDomainEventCallbackFunc, void *, void *);
-using VirConnectDomainEventDeRegisterFunc = int (*)(void *, VirConnectDomainEventCallbackFunc);
-using VirConnectSetKeepAliveFunc = int (*)(void *, int, unsigned int);
-using VirDomainLookupByNameFunc = void *(*)(void *, const char *);
-using VirDomainGetXMLDescFunc = char *(*)(void *, unsigned int);
+using VirConnectDomainEventRegisterFunc = int (*)(void*, VirConnectDomainEventCallbackFunc, void*, void*);
+using VirConnectDomainEventDeRegisterFunc = int (*)(void*, VirConnectDomainEventCallbackFunc);
+using VirConnectSetKeepAliveFunc = int (*)(void*, int, unsigned int);
+using VirDomainLookupByNameFunc = void* (*)(void*, const char*);
+using VirDomainGetXMLDescFunc = char* (*)(void*, unsigned int);
 
 class LibvirtModule {
 public:
@@ -83,8 +82,9 @@ public:
     static VirDomainLookupByNameFunc VirDomainLookupByName();
 
     static VirDomainGetXMLDescFunc VirDomainGetXMLDesc();
+
 private:
-    static void *libvirtHandle;
+    static void* libvirtHandle;
     static VirConnectOpenFunc virConnectOpenFunc;
     static VirConnectCloseFunc virConnectCloseFunc;
     static VirConnectListAllDomainsFunc virConnectListAllDomainsFunc;
@@ -104,6 +104,6 @@ private:
     static VirDomainLookupByNameFunc virDomainLookupByNameFunc;
     static VirDomainGetXMLDescFunc virDomainGetXMLDescFunc;
 };
-} // mempooling::libvirt
+} // namespace mempooling::libvirt
 
 #endif // RMRS_LIBVIRT_MODULE_H

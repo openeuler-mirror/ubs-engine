@@ -12,10 +12,10 @@
 
 #include "test_ubse_mem_sign_verifier.h"
 
-#include "ubse_mem_sign_verifier.h"
-#include "adapter_plugins/mmi/ubse_mmi_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_mem_sign_verifier.h"
+#include "adapter_plugins/mmi/ubse_mmi_def.h"
 #include "src/framework/vscok/ubse_vsock_client.h"
 
 namespace ubse::mem_controller::ut {

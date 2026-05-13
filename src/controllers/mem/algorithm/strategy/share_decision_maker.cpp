@@ -21,7 +21,7 @@ UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 int ShareDecisionMaker::GetNumbSocket(int16_t hostId) const
 {
     int socketNumPerHost = 0;
-    for (auto &mAvailSocket : memConfig_->memAvailSockets) {
+    for (auto& mAvailSocket : memConfig_->memAvailSockets) {
         if (mAvailSocket.hostId == hostId) {
             socketNumPerHost++;
         }
@@ -29,7 +29,7 @@ int ShareDecisionMaker::GetNumbSocket(int16_t hostId) const
     return socketNumPerHost;
 }
 
-int ShareDecisionMaker::GetNumbNumaInHost(int *numaList) const
+int ShareDecisionMaker::GetNumbNumaInHost(int* numaList) const
 {
     int numValidNuma = 0;
     for (int i = 0; i < NUM_NUMA_PER_HOST; i++) {
@@ -40,19 +40,19 @@ int ShareDecisionMaker::GetNumbNumaInHost(int *numaList) const
     return numValidNuma;
 }
 
-BResult ShareDecisionMaker::ShareScoreAndFilter(const ShareRequest &shareRequest, MemLoc targetLoc,
-                                                const RegionStatus &regionStatus, struct TmpResult &shareCurrentResult,
-                                                ShareResult &result) const
+BResult ShareDecisionMaker::ShareScoreAndFilter(const ShareRequest& shareRequest, MemLoc targetLoc,
+                                                const RegionStatus& regionStatus, struct TmpResult& shareCurrentResult,
+                                                ShareResult& result) const
 {
     RequestMode mode = RequestMode::SHARE;
-    UBSE_LOG_INFO << "Before Filter, " << "hostId=" << targetLoc.hostId
-                   << " socketId=" << static_cast<int32_t>(targetLoc.socketId)
-                   << " numaId=" << static_cast<int32_t>(targetLoc.numaId);
+    UBSE_LOG_INFO << "Before Filter, "
+                  << "hostId=" << targetLoc.hostId << " socketId=" << static_cast<int32_t>(targetLoc.socketId)
+                  << " numaId=" << static_cast<int32_t>(targetLoc.numaId);
     MemLoc fill; // 满足下方接口，在共享中无使用场景，可忽略
 
     // Set TotalCost
     TargetSocket numaList;
-    const SysStatus &sysStatus = mStrategyImpl_->memSysStatus_;
+    const SysStatus& sysStatus = mStrategyImpl_->memSysStatus_;
     bool maxOutFilterRes = mStrategyImpl_->MaxOutFilter(targetLoc, shareRequest.requestSize, mode, sysStatus);
     bool memFreeFilterRes = mStrategyImpl_->MemFreeFilter(targetLoc, shareRequest.requestSize, shareRequest.urgentLevel,
                                                           sysStatus, numaList);
@@ -74,7 +74,7 @@ BResult ShareDecisionMaker::ShareScoreAndFilter(const ShareRequest &shareRequest
                            memConfig_->memStaticParam.shareParam.wReliabilityCost * reliabilityCost +
                            memConfig_->memStaticParam.shareParam.wDivideNumaCost * divideNumaCost;
         UBSE_LOG_INFO << "Share cost=" << totalCost << " (" << latencyCost << " + " << regionCost << " + "
-                       << balanceCost << " + " << reliabilityCost << " + " << divideNumaCost << ")";
+                      << balanceCost << " + " << reliabilityCost << " + " << divideNumaCost << ")";
         if (totalCost < shareCurrentResult.optimalSocketCost) {
             shareCurrentResult.optimalSocketCost = totalCost;
             shareCurrentResult.optimalSocket = shareCurrentResult.socketIndex;
@@ -91,10 +91,11 @@ BResult ShareDecisionMaker::ShareScoreAndFilter(const ShareRequest &shareRequest
     return UBSE_ERROR;
 }
 
-BResult ShareDecisionMaker::MemoryShare(const ShareRequest &shareRequest, const UbseStatus &ubseStatus,
-                                        ShareResult &result) const
+BResult ShareDecisionMaker::MemoryShare(const ShareRequest& shareRequest, const UbseStatus& ubseStatus,
+                                        ShareResult& result) const
 {
-    UBSE_LOG_INFO << "MemoryShare Self Algorithm" << "Required Size=" << shareRequest.requestSize << "MB";
+    UBSE_LOG_INFO << "MemoryShare Self Algorithm"
+                  << "Required Size=" << shareRequest.requestSize << "MB";
     mStrategyImpl_->InitSysStatus(ubseStatus);
     RegionStatus regionStatus;
     if (!memConfig_->memIsFullyConnected) {
@@ -106,11 +107,13 @@ BResult ShareDecisionMaker::MemoryShare(const ShareRequest &shareRequest, const 
     // 分别判断指定Host中的Sockets
     MemLoc targetLoc;
     if (static_cast<bool>(shareRequest.region.type) == 0) {
-        UBSE_LOG_INFO << "Region Type :" << "ALL2ALL_SHARE";
+        UBSE_LOG_INFO << "Region Type :"
+                      << "ALL2ALL_SHARE";
     } else {
-        UBSE_LOG_INFO << "Region Type : ONE2ALL_SHARE. Share Location : " << "hostId=" << shareRequest.srcLoc.hostId
-                       << " socketId=" << static_cast<int32_t>(shareRequest.srcLoc.socketId)
-                       << " numaId=" << static_cast<int32_t>(shareRequest.srcLoc.numaId);
+        UBSE_LOG_INFO << "Region Type : ONE2ALL_SHARE. Share Location : "
+                      << "hostId=" << shareRequest.srcLoc.hostId
+                      << " socketId=" << static_cast<int32_t>(shareRequest.srcLoc.socketId)
+                      << " numaId=" << static_cast<int32_t>(shareRequest.srcLoc.numaId);
     }
 
     if (shareRequest.region.type == ShmRegionType::ONE2ALL_SHARE) {
@@ -132,8 +135,8 @@ BResult ShareDecisionMaker::MemoryShare(const ShareRequest &shareRequest, const 
     return UBSE_OK;
 }
 
-void ShareDecisionMaker::ShareOperator(const ShareRequest &shareRequest, const RegionStatus &regionStatus,
-                                       MemLoc targetLoc, TmpResult &shareCurrentResult, ShareResult &result) const
+void ShareDecisionMaker::ShareOperator(const ShareRequest& shareRequest, const RegionStatus& regionStatus,
+                                       MemLoc targetLoc, TmpResult& shareCurrentResult, ShareResult& result) const
 {
     int socketNum = GetNumbSocket(targetLoc.hostId);
     for (int socketJ = 0; socketJ < socketNum; socketJ++) {
@@ -143,12 +146,12 @@ void ShareDecisionMaker::ShareOperator(const ShareRequest &shareRequest, const R
     }
 }
 
-BResult ShareDecisionMaker::MemoryShareGreedy(const ShareRequest &shareRequest, const UbseStatus &ubseStatus,
-                                              ShareResult &result) const
+BResult ShareDecisionMaker::MemoryShareGreedy(const ShareRequest& shareRequest, const UbseStatus& ubseStatus,
+                                              ShareResult& result) const
 {
     UBSE_LOG_INFO << "---- MemoryShare Greedy Algorithm ----";
     mStrategyImpl_->InitSysStatus(ubseStatus);
-    const SysStatus &sysStatus = mStrategyImpl_->memSysStatus_;
+    const SysStatus& sysStatus = mStrategyImpl_->memSysStatus_;
 
     MemLoc targetLoc;
 
@@ -160,7 +163,7 @@ BResult ShareDecisionMaker::MemoryShareGreedy(const ShareRequest &shareRequest, 
         targetLoc.hostId = shareRequest.region.type == ShmRegionType::ONE2ALL_SHARE ?
                                shareRequest.srcLoc.hostId :
                                static_cast<int16_t>(shareRequest.region.nodeId[idx]);
-        int *numaList = memConfig_->GetNumaListInHost(targetLoc.hostId);
+        int* numaList = memConfig_->GetNumaListInHost(targetLoc.hostId);
         numbNumaInHost = GetNumbNumaInHost(numaList);
         for (int idxOne = 0; idxOne < numbNumaInHost; idxOne++) {
             if (sysStatus.numaStatus[numaList[idxOne]].memFree < shareRequest.requestSize) {

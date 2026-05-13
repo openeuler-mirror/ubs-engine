@@ -14,15 +14,15 @@
 #define UCACHE_STRING_UTIL_H
 
 #include <charconv>
-#include <string>
 #include <limits>
+#include <string>
 
 #include "ucache_error.h"
 
 namespace ucache {
 
 template <typename T>
-uint32_t SafeStoInt(const std::string &s, T &out)
+uint32_t SafeStoInt(const std::string& s, T& out)
 {
     if (s.empty()) {
         return EMPTY_STRING;
@@ -47,6 +47,6 @@ uint32_t SafeStoInt(const std::string &s, T &out)
     out = static_cast<T>(temp);
     return UCACHE_OK;
 }
-}  // namespace ucache
+} // namespace ucache
 
-#endif  // UCACHE_STRING_UTIL_H
+#endif // UCACHE_STRING_UTIL_H

@@ -21,17 +21,17 @@ namespace ubse::mem::controller {
 
 class LoggingLockGuard {
 public:
-    explicit LoggingLockGuard(const std::string &name);
+    explicit LoggingLockGuard(const std::string& name);
 
     ~LoggingLockGuard();
 
     // 禁止复制
-    LoggingLockGuard(const LoggingLockGuard &) = delete;
-    LoggingLockGuard &operator=(const LoggingLockGuard &) = delete;
+    LoggingLockGuard(const LoggingLockGuard&) = delete;
+    LoggingLockGuard& operator=(const LoggingLockGuard&) = delete;
 
 private:
-    std::shared_ptr<std::mutex> GetObjMutex(const std::string &objId);
-    void RemoveObjMutex(const std::string &objId);
+    std::shared_ptr<std::mutex> GetObjMutex(const std::string& objId);
+    void RemoveObjMutex(const std::string& objId);
 
     std::shared_ptr<std::mutex> mutex_;
     std::string name_;

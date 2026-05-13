@@ -16,12 +16,12 @@
 #include <string>
 #include <vector>
 
-#include "mp_configuration.h"
 #include "ubse_logger.h"
+#include "mp_configuration.h"
 
 namespace mempooling {
 /* 获取doc子节点中key对应value,并转为字符串,不进行类型检查 */
-bool JsonUtil::GetJsonStringValueWithoutCheck(const rapidjson::Value &value, const char *key, std::string &output)
+bool JsonUtil::GetJsonStringValueWithoutCheck(const rapidjson::Value& value, const char* key, std::string& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -37,7 +37,7 @@ bool JsonUtil::GetJsonStringValueWithoutCheck(const rapidjson::Value &value, con
 }
 
 /* 获取doc子节点中key对应的string类型value,类型检查失败返回false */
-bool JsonUtil::GetJsonStringValue(const rapidjson::Document &doc, const char *key, std::string &output)
+bool JsonUtil::GetJsonStringValue(const rapidjson::Document& doc, const char* key, std::string& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -56,7 +56,7 @@ bool JsonUtil::GetJsonStringValue(const rapidjson::Document &doc, const char *ke
     return true;
 }
 
-bool JsonUtil::GetJsonStringValue(const rapidjson::Value &value, const char *key, std::string &output)
+bool JsonUtil::GetJsonStringValue(const rapidjson::Value& value, const char* key, std::string& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -76,7 +76,7 @@ bool JsonUtil::GetJsonStringValue(const rapidjson::Value &value, const char *key
 }
 
 /* 获取doc子节点中key对应的UInt64类型value,类型检查失败返回false */
-bool JsonUtil::GetJsonUint64Value(const rapidjson::Document &doc, const char *key, uint64_t &output)
+bool JsonUtil::GetJsonUint64Value(const rapidjson::Document& doc, const char* key, uint64_t& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -95,7 +95,7 @@ bool JsonUtil::GetJsonUint64Value(const rapidjson::Document &doc, const char *ke
     return true;
 }
 
-bool JsonUtil::GetJsonUint64Value(const rapidjson::Value &value, const char *key, uint64_t &output)
+bool JsonUtil::GetJsonUint64Value(const rapidjson::Value& value, const char* key, uint64_t& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -115,7 +115,7 @@ bool JsonUtil::GetJsonUint64Value(const rapidjson::Value &value, const char *key
 }
 
 /* 获取value子节点中key对应的UInt16类型value,类型检查失败返回false */
-bool JsonUtil::GetJsonUint16Value(const rapidjson::Value &value, const char *key, uint16_t &output)
+bool JsonUtil::GetJsonUint16Value(const rapidjson::Value& value, const char* key, uint16_t& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -140,7 +140,7 @@ bool JsonUtil::GetJsonUint16Value(const rapidjson::Value &value, const char *key
 }
 
 /* 获取value子节点中key对应的int类型value,类型检查失败返回false */
-bool JsonUtil::GetJsonIntValue(const rapidjson::Value &value, const char *key, int &output)
+bool JsonUtil::GetJsonIntValue(const rapidjson::Value& value, const char* key, int& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -160,7 +160,7 @@ bool JsonUtil::GetJsonIntValue(const rapidjson::Value &value, const char *key, i
 }
 
 /* 获取value子节点中key对应的Int16类型value,类型检查失败返回false */
-bool JsonUtil::GetJsonInt16Value(const rapidjson::Value &value, const char *key, int16_t &output)
+bool JsonUtil::GetJsonInt16Value(const rapidjson::Value& value, const char* key, int16_t& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -185,7 +185,7 @@ bool JsonUtil::GetJsonInt16Value(const rapidjson::Value &value, const char *key,
 }
 
 /* 将document对象打印成json字符串 */
-JSON_STR JsonUtil::PrintJsonString(const rapidjson::Document &doc)
+JSON_STR JsonUtil::PrintJsonString(const rapidjson::Document& doc)
 {
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -195,7 +195,7 @@ JSON_STR JsonUtil::PrintJsonString(const rapidjson::Document &doc)
 }
 
 /* 将Value对象打印成json字符串 */
-JSON_STR JsonUtil::PrintJsonString(const rapidjson::Value &value)
+JSON_STR JsonUtil::PrintJsonString(const rapidjson::Value& value)
 {
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -205,7 +205,7 @@ JSON_STR JsonUtil::PrintJsonString(const rapidjson::Value &value)
 }
 
 /* 返回doc对象中key对应的子节点的json字符串,其中的json string类型会带引号 */
-bool JsonUtil::RackMemGetJsonItemStr(const rapidjson::Document &doc, const char *key, JSON_STR &jsonStr)
+bool JsonUtil::RackMemGetJsonItemStr(const rapidjson::Document& doc, const char* key, JSON_STR& jsonStr)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -216,12 +216,12 @@ bool JsonUtil::RackMemGetJsonItemStr(const rapidjson::Document &doc, const char 
         return false;
     }
 
-    const rapidjson::Value &child = doc[key];
+    const rapidjson::Value& child = doc[key];
     jsonStr = PrintJsonString(child);
     return true;
 }
 
-bool JsonUtil::RackMemGetJsonItemStr(const rapidjson::Value &value, const char *key, JSON_STR &jsonStr)
+bool JsonUtil::RackMemGetJsonItemStr(const rapidjson::Value& value, const char* key, JSON_STR& jsonStr)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Input key is nullptr.";
@@ -232,19 +232,19 @@ bool JsonUtil::RackMemGetJsonItemStr(const rapidjson::Value &value, const char *
         return false;
     }
 
-    const rapidjson::Value &child = value[key];
+    const rapidjson::Value& child = value[key];
     jsonStr = PrintJsonString(child);
     return true;
 }
 
 /* 将map转为json字符串，其中map的value可以是json字符串,也可以是不加引号的string字符串 */
-bool JsonUtil::RackMemConvertMap2JsonStr(const JSON_MAP &strMap, JSON_STR &jsonStr)
+bool JsonUtil::RackMemConvertMap2JsonStr(const JSON_MAP& strMap, JSON_STR& jsonStr)
 {
     rapidjson::Document doc;
     doc.SetObject();
-    for (const auto &item : strMap) {
-        const JSON_STR &key = item.first;
-        const JSON_STR &value = item.second;
+    for (const auto& item : strMap) {
+        const JSON_STR& key = item.first;
+        const JSON_STR& value = item.second;
         // 此处保证临时对象与doc使用相同的allocator
         rapidjson::Document tmpDoc(&doc.GetAllocator());
         tmpDoc.Parse(value.c_str());
@@ -262,7 +262,7 @@ bool JsonUtil::RackMemConvertMap2JsonStr(const JSON_MAP &strMap, JSON_STR &jsonS
 }
 
 /* 将object类型的json字符串转为map，其中map的key须提前填充，value也可以是json字符串 */
-bool JsonUtil::RackMemConvertJsonStr2Map(const JSON_STR &jsonStr, JSON_MAP &strMap)
+bool JsonUtil::RackMemConvertJsonStr2Map(const JSON_STR& jsonStr, JSON_MAP& strMap)
 {
     Document pJson;
     pJson.Parse(jsonStr.c_str());
@@ -274,14 +274,14 @@ bool JsonUtil::RackMemConvertJsonStr2Map(const JSON_STR &jsonStr, JSON_MAP &strM
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Json string is not object.";
         return false;
     }
-    for (auto &[fst, snd] : strMap) {
+    for (auto& [fst, snd] : strMap) {
         if (!pJson.HasMember(fst.c_str())) {
             return false;
         }
         if (pJson[fst.c_str()].IsString()) {
             snd = pJson[fst.c_str()].GetString();
         } else {
-            const auto &pcVal = pJson[fst.c_str()];
+            const auto& pcVal = pJson[fst.c_str()];
             StringBuffer buffer;
             PrettyWriter<StringBuffer> writer(buffer);
             pcVal.Accept(writer);
@@ -292,11 +292,11 @@ bool JsonUtil::RackMemConvertJsonStr2Map(const JSON_STR &jsonStr, JSON_MAP &strM
 }
 
 /* 将vector转为json字符串，其中vector的value可以是json字符串,也可以是不加引号的string字符串 */
-bool JsonUtil::RackMemConvertVector2JsonStr(const JSON_VEC &strVec, JSON_STR &jsonStr)
+bool JsonUtil::RackMemConvertVector2JsonStr(const JSON_VEC& strVec, JSON_STR& jsonStr)
 {
     rapidjson::Document doc;
     doc.SetArray();
-    for (const auto &item : strVec) {
+    for (const auto& item : strVec) {
         // 此处保证临时对象与doc使用相同的allocator
         rapidjson::Document tmpDoc(&doc.GetAllocator());
         tmpDoc.Parse(item.c_str());
@@ -313,16 +313,16 @@ bool JsonUtil::RackMemConvertVector2JsonStr(const JSON_VEC &strVec, JSON_STR &js
 }
 
 /* 将array类型的json字符串转为vec,value也可以是json字符串 */
-bool JsonUtil::RackMemConvertJsonStr2Vec(const JSON_STR &jsonStr, JSON_VEC &strVec)
+bool JsonUtil::RackMemConvertJsonStr2Vec(const JSON_STR& jsonStr, JSON_VEC& strVec)
 {
     rapidjson::Document pJson;
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     pJson.Parse(jsonStr.c_str());
     if (pJson.HasParseError() || !pJson.IsArray()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Json Parse error, input json str=" << jsonStr << ".";
         return false;
     }
-    const rapidjson::Value &array = pJson.GetArray();
+    const rapidjson::Value& array = pJson.GetArray();
     size_t length = array.Size();
     // 遍历Json数组将所有字符串加入Vector
     for (size_t i = 0; i < length; ++i) {

@@ -12,12 +12,12 @@
 
 #include "test_ubse_election_role.h"
 #include <memory>
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_comm_mgr.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
+#include "role/ubse_election_role_mgr.h"
 
 namespace ubse::event::election {
 using namespace ubse::election;
@@ -30,7 +30,7 @@ void TestUbseElectionRole::TearDown()
     GlobalMockObject::verify();
 }
 
-UbseResult FakeGetConfRole(UbseConfModule *This, std::string &section, std::string &configKey, std::string &role)
+UbseResult FakeGetConfRole(UbseConfModule* This, std::string& section, std::string& configKey, std::string& role)
 {
     role = "NotValid";
     return UBSE_OK;
@@ -40,7 +40,7 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesAcce
 {
     // given
     UBSE_ID_TYPE myselfID = "NODE0";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2"};
     std::shared_ptr<UbseElectionCommMgr> commMgr =
         std::make_shared<UbseElectionCommMgr>("Node1", "UbseMasterRpcServer");
     MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
@@ -56,14 +56,14 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesAcce
     EXPECT_EQ(result, ELECTION_PKT_RESULT_ACCEPT);
 }
 
-UbseResult FAKE_SendElectionPktReject(UbseElectionCommMgr *pthis, UBSE_ID_TYPE destID, const ElectionPkt &pkt,
-    ElectionReplyPkt &reply)
+UbseResult FAKE_SendElectionPktReject(UbseElectionCommMgr* pthis, UBSE_ID_TYPE destID, const ElectionPkt& pkt,
+                                      ElectionReplyPkt& reply)
 {
     reply.replyResult = ELECTION_PKT_TYPE_REJECT;
 }
 
-UbseResult FAKE_SendElectionPktHasMaster(UbseElectionCommMgr *pthis, UBSE_ID_TYPE destID, const ElectionPkt &pkt,
-    ElectionReplyPkt &reply)
+UbseResult FAKE_SendElectionPktHasMaster(UbseElectionCommMgr* pthis, UBSE_ID_TYPE destID, const ElectionPkt& pkt,
+                                         ElectionReplyPkt& reply)
 {
     reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
 }
@@ -72,7 +72,7 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesReje
 {
     // given
     UBSE_ID_TYPE myselfID = "NODE0";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::SendElectionPkt).stubs().will(invoke(FAKE_SendElectionPktReject));
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     std::shared_ptr<UbseElectionCommMgr> commMgr =
@@ -90,7 +90,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnAccept_WhenIamSmallest)
 {
     // given
     UBSE_ID_TYPE myselfID = "NODE0";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     MOCKER(SendElectionPkt).stubs().will(returnValue((uint32_t)0));
 
@@ -105,7 +105,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnAccept_WhenIamNotSmallest
 {
     // given
     UBSE_ID_TYPE myselfID = "NODE3";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     MOCKER(SendElectionPkt).stubs().will(returnValue((uint32_t)0));
 
@@ -130,7 +130,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnReject_WhenElectionPktRej
 {
     // given
     UBSE_ID_TYPE myselfID = "NODE0";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     MOCKER(SendElectionPkt).stubs().will(returnValue(ELECTION_PKT_TYPE_REJECT));
 
@@ -142,7 +142,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnReject_WhenElectionPktRej
 TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesHasMasterREJECT)
 {
     UBSE_ID_TYPE myselfID = "NODE0";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::SendElectionPkt).stubs().will(invoke(FAKE_SendElectionPktHasMaster));
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     std::shared_ptr<UbseElectionCommMgr> commMgr =
@@ -165,68 +165,66 @@ TEST_F(TestUbseElectionRole, IsSmallestNode_ShouldReturnTrue_WhenIDSmallest)
 
 TEST_F(TestUbseElectionRole, IsSmallestNode_ShouldReturnTrue_WhenOneNodes)
 {
-    Node myself = { "NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED };
-    std::vector<Node> allNodes = { myself };
+    Node myself = {"NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED};
+    std::vector<Node> allNodes = {myself};
 
     EXPECT_TRUE(IsSmallestNode(myself, allNodes));
 }
 
 TEST_F(TestUbseElectionRole, IsSmallestNode_ShouldReturnTrue_WhenMyselfIsSmallest)
 {
-    Node myself = { "NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED };
-    std::vector<Node> allNodes = { myself,
-        { "NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED },
-        { "NODE3", "192.168.1.3", 8082, UbseNodeChangeState::UNCHANGED } };
+    Node myself = {"NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED};
+    std::vector<Node> allNodes = {myself,
+                                  {"NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED},
+                                  {"NODE3", "192.168.1.3", 8082, UbseNodeChangeState::UNCHANGED}};
 
     EXPECT_TRUE(IsSmallestNode(myself, allNodes));
 }
 
 TEST_F(TestUbseElectionRole, IsSmallestNode_ShouldReturnFalse_WhenMyselfIsNotSmallest)
 {
-    Node myself = { "NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED };
-    std::vector<Node> allNodes = { { "NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED },
-        myself,
-        { "NODE3", "192.168.1.3", 8082, UbseNodeChangeState::UNCHANGED } };
+    Node myself = {"NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED};
+    std::vector<Node> allNodes = {{"NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED},
+                                  myself,
+                                  {"NODE3", "192.168.1.3", 8082, UbseNodeChangeState::UNCHANGED}};
     EXPECT_FALSE(IsSmallestNode(myself, allNodes));
 }
 
 TEST_F(TestUbseElectionRole, IsSecondSmallestNode_ShouldReturnTrueWhenLessThanTwoNodes)
 {
-    Node myself = { "NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED };
-    std::vector<Node> allNodes = { myself };
+    Node myself = {"NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED};
+    std::vector<Node> allNodes = {myself};
     EXPECT_TRUE(IsSecondSmallestNode(myself, allNodes));
 }
 
 TEST_F(TestUbseElectionRole, IsSecondSmallestNode_ShouldReturnTrue_WhenTwoNodesAndMyselfIsSecondSmallest)
 {
-    Node myself = { "NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED };
-    std::vector<Node> allNodes = { { "NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED }, myself };
+    Node myself = {"NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED};
+    std::vector<Node> allNodes = {{"NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED}, myself};
     EXPECT_TRUE(IsSecondSmallestNode(myself, allNodes));
 }
 
 TEST_F(TestUbseElectionRole, IsSecondSmallestNode_ShouldReturnFalseWhenTwoNodesAndMyselfIsNotSecondSmallest)
 {
-    Node myself = { "NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED };
-    std::vector<Node> allNodes = { { "NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED }, myself };
+    Node myself = {"NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED};
+    std::vector<Node> allNodes = {{"NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED}, myself};
     EXPECT_FALSE(IsSecondSmallestNode(myself, allNodes));
 }
 
 TEST_F(TestUbseElectionRole, IsSecondSmallestNode_ShouldReturnTrue_WhenMultipleNodesAndMyselfIsSecondSmallest)
 {
-    Node myself = { "NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED };
-    std::vector<Node> allNodes = { { "NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED },
-        myself,
-        { "NODE3", "192.168.1.3", 8082, UbseNodeChangeState::UNCHANGED } };
+    Node myself = {"NODE2", "192.168.1.2", 8081, UbseNodeChangeState::UNCHANGED};
+    std::vector<Node> allNodes = {{"NODE1", "192.168.1.1", 8080, UbseNodeChangeState::UNCHANGED},
+                                  myself,
+                                  {"NODE3", "192.168.1.3", 8082, UbseNodeChangeState::UNCHANGED}};
     EXPECT_TRUE(IsSecondSmallestNode(myself, allNodes));
 }
 
 TEST_F(TestUbseElectionRole, IsSecondSmallestNode_ShouldReturnFalse_WhenMultipleNodesAndMyselfIsNotSecondSmallest)
 {
-    Node myself = { "NODE0", "192.168.1.0", 8079 };
-    std::vector<Node> allNodes = { { "NODE1", "192.168.1.1", 8080 },
-        { "NODE2", "192.168.1.2", 8081 },
-        myself,
-        { "NODE3", "192.168.1.3", 8082 } };
+    Node myself = {"NODE0", "192.168.1.0", 8079};
+    std::vector<Node> allNodes = {
+        {"NODE1", "192.168.1.1", 8080}, {"NODE2", "192.168.1.2", 8081}, myself, {"NODE3", "192.168.1.3", 8082}};
     EXPECT_FALSE(IsSecondSmallestNode(myself, allNodes));
 }
 
@@ -241,7 +239,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnInvalid_W
 TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnSmallest_WhenMasterIsNotIncluded)
 {
     UBSE_ID_TYPE masterId = "NODE1";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE2", "NODE3" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE2", "NODE3"};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMaster(masterId, allNodes);
     EXPECT_EQ(result, "NODE2");
 }
@@ -249,7 +247,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnSmallest_
 TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnSmallest_WhenMasterIsIncluded)
 {
     UBSE_ID_TYPE masterId = "NODE1";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2", "NODE3" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2", "NODE3"};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMaster(masterId, allNodes);
     EXPECT_EQ(result, "NODE2");
 }
@@ -257,7 +255,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnSmallest_
 TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnNextSmallest_WhenMasterIsSmallest)
 {
     UBSE_ID_TYPE masterId = "NODE0";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE0", "NODE1", "NODE2", "NODE3" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE0", "NODE1", "NODE2", "NODE3"};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMaster(masterId, allNodes);
     EXPECT_EQ(result, "NODE1");
 }
@@ -265,7 +263,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnNextSmall
 TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMaster_ShouldReturnSmallest_WhenMasterIsNotSmallest)
 {
     UBSE_ID_TYPE masterId = "NODE1";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2", "NODE0", "NODE3" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2", "NODE0", "NODE3"};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMaster(masterId, allNodes);
     EXPECT_EQ(result, "NODE0");
 }
@@ -283,7 +281,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludingMasterAndAgent_ShouldReturnI
 {
     UBSE_ID_TYPE masterId = "NODE1";
     UBSE_ID_TYPE agentID = "NODE2";
-    std::vector<UBSE_ID_TYPE> allNodes = { masterId, agentID };
+    std::vector<UBSE_ID_TYPE> allNodes = {masterId, agentID};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMasterAndAgent(allNodes, masterId, agentID);
     EXPECT_EQ(result, INVALID_NODE_ID);
 }
@@ -292,7 +290,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludMasterAndAgent_ShouldReturnSmal
 {
     UBSE_ID_TYPE masterId = "NODE1";
     UBSE_ID_TYPE agentID = "NODE2";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE3", "NODE4" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE3", "NODE4"};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMasterAndAgent(allNodes, masterId, agentID);
     EXPECT_EQ(result, "NODE3");
 }
@@ -301,7 +299,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludMasterAndAgent_ShouldReturnSmal
 {
     UBSE_ID_TYPE masterId = "NODE1";
     UBSE_ID_TYPE agentID = "NODE2";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE1", "NODE2", "NODE3", "NODE4" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2", "NODE3", "NODE4"};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMasterAndAgent(allNodes, masterId, agentID);
     EXPECT_EQ(result, "NODE3");
 }
@@ -310,7 +308,7 @@ TEST_F(TestUbseElectionRole, FindSmallestIdExcludMasterAndAgent_ShouldReturnNode
 {
     UBSE_ID_TYPE masterId = "NODE1";
     UBSE_ID_TYPE agentID = "NODE2";
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE0", "NODE1", "NODE2", "NODE3", "NODE4" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE0", "NODE1", "NODE2", "NODE3", "NODE4"};
     UBSE_ID_TYPE result = FindSmallestIdExcludingMasterAndAgent(allNodes, masterId, agentID);
     EXPECT_EQ(result, "NODE0");
 }
@@ -370,4 +368,4 @@ TEST_F(TestUbseElectionRole, ConnectAllNodes_WhenReturnOk)
     auto result = ConnectAllNodes();
     EXPECT_EQ(result, UBSE_OK);
 }
-}
+} // namespace ubse::event::election

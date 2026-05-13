@@ -21,7 +21,7 @@ VmResult HamMigrateVmInfoMessage::Serialize()
     VmSerialization out;
     auto size = hamMigrateVmInfos_.size();
     out << size;
-    for (auto &hamMigrateVmInfo : hamMigrateVmInfos_) {
+    for (auto& hamMigrateVmInfo : hamMigrateVmInfos_) {
         int64_t timeoutMs =
             std::chrono::duration_cast<milliseconds>(hamMigrateVmInfo.timeout.time_since_epoch()).count();
         if (timeoutMs < 0) {

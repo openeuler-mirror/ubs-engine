@@ -1,11 +1,11 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "test_ras_oom_handler.h"
-#include "securec.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
-#include "ubse_ras_oom_handler.cpp"
 #include "ubse_ras_oom_handler.h"
+#include "securec.h"
+#include "ubse_ras_oom_handler.cpp"
 
 namespace ubse::ras::ut {
 using namespace ubse::ras;

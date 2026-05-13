@@ -23,12 +23,12 @@ using namespace ubse::mem::controller;
 class UbseMemOptResultSimpo : public UbseBaseMessage {
 public:
     UbseMemOptResultSimpo() = default;
-    explicit UbseMemOptResultSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemOptResultSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
 
-    void SetResp(const UbseMemResult &input)
+    void SetResp(const UbseMemResult& input)
     {
         resp_ = input;
     }

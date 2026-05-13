@@ -18,4 +18,4 @@ UbseMtiInterface& UbseMtiInterface::GetInstance()
     static UbseMtiInterfaceDefault instance;
     return instance;
 }
-}  // namespace ubse::adapter_plugins::mti
+} // namespace ubse::adapter_plugins::mti

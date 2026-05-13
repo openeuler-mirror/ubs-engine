@@ -12,8 +12,8 @@
 
 #include "test_ubse_context.h"
 
-#include "ubse_module.h"
 #include "ubse_error.h"
+#include "ubse_module.h"
 
 namespace ubse::ut::context {
 using namespace ubse::context;
@@ -25,7 +25,7 @@ const int ARGC = 3; // 参数个数
 const std::string ARG_NAME = "f";
 const std::string ARG_VAL = "conf";
 const std::string DASH_ARG_NAME = "-" + ARG_NAME;
-char *g_argv[] = {(char *)"", (char *)DASH_ARG_NAME.c_str(), (char *)ARG_VAL.c_str()};
+char* g_argv[] = {(char*)"", (char*)DASH_ARG_NAME.c_str(), (char*)ARG_VAL.c_str()};
 
 TEST_F(TestUbseContext, EMPTYMODULES)
 {
@@ -55,7 +55,7 @@ TEST_F(TestUbseContext, RegisterArgError)
 TEST_F(TestUbseContext, ParserArgsError)
 {
     char empty[3] = "";
-    char *errArgv[] = {empty, const_cast<char *>(ARG_NAME.c_str()), const_cast<char *>(ARG_VAL.c_str())};
+    char* errArgv[] = {empty, const_cast<char*>(ARG_NAME.c_str()), const_cast<char*>(ARG_VAL.c_str())};
     context.CreateModules(); // 创建模块
     auto module = context.GetModule<MockUbseModule>().get();
     EXPECT_CALL(*module, RegArgs()).WillRepeatedly(Return());
@@ -154,4 +154,4 @@ void TestUbseContext::TearDown()
 {
     Test::TearDown();
 }
-}
+} // namespace ubse::ut::context

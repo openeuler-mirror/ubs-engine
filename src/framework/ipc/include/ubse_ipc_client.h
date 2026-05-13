@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    uint8_t *buffer;
+    uint8_t* buffer;
     uint32_t length;
 } ubse_api_buffer_t;
 
@@ -31,7 +31,7 @@ typedef struct {
  *
  * @param socket_path The file path where the socket will be located.
  */
-void ubse_socket_path_set(const char *socket_path);
+void ubse_socket_path_set(const char* socket_path);
 
 /**
  * @brief Invokes a remote API interface
@@ -43,8 +43,8 @@ void ubse_socket_path_set(const char *socket_path);
  * Must be freed by calling ubse_api_buffer_free() after use.
  * @return uint32_t API status code (0 = success, non-zero = error code)
  */
-uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
-                          ubse_api_buffer_t *response_data);
+uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                          ubse_api_buffer_t* response_data);
 
 /**
  * @brief Releases memory resources for API data buffers
@@ -59,9 +59,9 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
  * - Double-free may cause undefined behavior
  * - Passing invalid pointers may lead to segmentation faults
  */
-void ubse_api_buffer_free(ubse_api_buffer_t *apiBuffer);
+void ubse_api_buffer_free(ubse_api_buffer_t* apiBuffer);
 
-void ubse_api_buffer_delete(ubse_api_buffer_t *apiBuffer);
+void ubse_api_buffer_delete(ubse_api_buffer_t* apiBuffer);
 
 uint32_t ubse_long_link_connect(void);
 

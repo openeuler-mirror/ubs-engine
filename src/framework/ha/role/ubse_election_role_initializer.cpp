@@ -36,7 +36,7 @@ Initializer::Initializer() : lastTimeMs_(0)
 }
 Initializer::~Initializer() {}
 
-void Initializer::CheckAndSwitchMaster(const Node &myself, const std::vector<Node> &allNodes, RoleContext ctx)
+void Initializer::CheckAndSwitchMaster(const Node& myself, const std::vector<Node>& allNodes, RoleContext ctx)
 {
     if ((lastTimeMs_ - startTimeMs_) <= GetHeartTimeInterval() * NO_2) {
         if (IsSmallestNode(myself, allNodes)) {
@@ -103,7 +103,7 @@ void Initializer::ProcTimer()
     }
 }
 
-uint32_t Initializer::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
+uint32_t Initializer::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
     UbseNodeLocalState localState = UbseElectionNodeMgr::GetInstance().GetLocalNodeState();
     if (localState == UbseNodeLocalState::UBSE_NODE_RESTORE) {

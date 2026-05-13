@@ -12,12 +12,12 @@
 
 #include "over_commit_ucache_strategy.h"
 
+#include "ubse_com.h"
+#include "ubse_logger.h"
 #include "mempooling_message.h"
 #include "mp_configuration.h"
 #include "mp_error.h"
 #include "rmrs_serialize.h"
-#include "ubse_com.h"
-#include "ubse_logger.h"
 
 namespace mempooling::over_commit {
 using namespace ubse::log;
@@ -34,14 +34,14 @@ constexpr float MAX_UCACHE_RATIO = 0.5;
 constexpr float MIN_UCACHE_RATIO = 0.0;
 } // namespace
 
-static void FreeMemory(uint8_t *data)
+static void FreeMemory(uint8_t* data)
 {
     delete[] data;
 }
 
-void GenUCacheMigrationStrategy(int16_t localNumaId, const std::vector<pid_t> &pids,
-                                const std::vector<uint16_t> &remoteNumaIds, const std::string &nodeId,
-                                UCacheMigrationStrategyParam &ucacheStrategy)
+void GenUCacheMigrationStrategy(int16_t localNumaId, const std::vector<pid_t>& pids,
+                                const std::vector<uint16_t>& remoteNumaIds, const std::string& nodeId,
+                                UCacheMigrationStrategyParam& ucacheStrategy)
 {
     ucacheStrategy.localNumaId = localNumaId;
     ucacheStrategy.ucacheUsageRatio = GetUcacheUsageRatio(nodeId);
@@ -58,7 +58,7 @@ void GenUCacheMigrationStrategy(int16_t localNumaId, const std::vector<pid_t> &p
         << "[Mem_migrate][ucache] UCacheMigrationStrategy is :" << ucacheStrategy.ToString();
 }
 
-uint32_t SendUCacheMigrationStrategy(UCacheMigrationStrategyParam &ucacheStrategy, const std::string &srcNid)
+uint32_t SendUCacheMigrationStrategy(UCacheMigrationStrategyParam& ucacheStrategy, const std::string& srcNid)
 {
     uint32_t result = MEM_POOLING_OK;
     UbseComEndpoint endpoint = {
@@ -75,7 +75,7 @@ uint32_t SendUCacheMigrationStrategy(UCacheMigrationStrategyParam &ucacheStrateg
     return result;
 }
 
-void CheckAndStopUCacheMigration(const std::string &srcNid)
+void CheckAndStopUCacheMigration(const std::string& srcNid)
 {
     uint32_t result = MEM_POOLING_OK;
     // 实际无需入参
@@ -93,7 +93,7 @@ void CheckAndStopUCacheMigration(const std::string &srcNid)
     }
 }
 
-void UpdateUcacheUsageRatio(const std::vector<pid_t> &pids, uint64_t borrowMemKB, const std::string &nodeId)
+void UpdateUcacheUsageRatio(const std::vector<pid_t>& pids, uint64_t borrowMemKB, const std::string& nodeId)
 {
     UbseComEndpoint endpoint = {
         .moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_UPDATE_UCACHE_RATIO, .address = nodeId};
@@ -120,7 +120,7 @@ void UpdateUcacheUsageRatio(const std::vector<pid_t> &pids, uint64_t borrowMemKB
     return;
 }
 
-float GetUcacheUsageRatio(const std::string &nodeId)
+float GetUcacheUsageRatio(const std::string& nodeId)
 {
     if (!MpConfiguration::GetInstance().GetUcacheEnable()) {
         return 0.0;
@@ -204,7 +204,7 @@ uint32_t InitUCacheOverCommitReg()
     return MEM_POOLING_OK;
 }
 
-bool ValidateBuffer(const UbseByteBuffer &req)
+bool ValidateBuffer(const UbseByteBuffer& req)
 {
     if (req.data == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Empty request buffer!";
@@ -217,7 +217,7 @@ bool ValidateBuffer(const UbseByteBuffer &req)
     return true;
 }
 
-void UCacheSendMigrationStrategyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UCacheSendMigrationStrategyRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[over-commit][ucache] Call turbo UCacheMigrateStrategy start.";
@@ -245,7 +245,7 @@ void UCacheSendMigrationStrategyRecvHandler(const UbseByteBuffer &req, UbseByteB
     resp.freeFunc = FreeMemory;
 }
 
-void UCacheStopMigrationRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UCacheStopMigrationRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[over-commit][ucache] Call turbo UCacheStopMigration start.";
     ResCode result;
@@ -261,7 +261,7 @@ void UCacheStopMigrationRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &r
     resp.freeFunc = FreeMemory;
 }
 
-void UCacheSendMigrationStrategyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void UCacheSendMigrationStrategyResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[over-commit][ucache] Ctx or respData is null.";
@@ -283,15 +283,14 @@ void UCacheSendMigrationStrategyResHandler(void *ctx, const UbseByteBuffer &resp
         return;
     }
     builderIn >> result;
-    ResCode *ucacheSendMigrationStrategyResult = static_cast<ResCode *>(ctx);
+    ResCode* ucacheSendMigrationStrategyResult = static_cast<ResCode*>(ctx);
     *ucacheSendMigrationStrategyResult = result;
 }
 
-void UCacheStopMigrationResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void UCacheStopMigrationResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OverCommit][ucache] Ctx or respData is null.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][ucache] Ctx or respData is null.";
         return;
     }
     if (resCode != MEM_POOLING_OK) {
@@ -310,11 +309,11 @@ void UCacheStopMigrationResHandler(void *ctx, const UbseByteBuffer &respData, ui
             << "[over-commit][ucache] Failed to deserialize respData to ResCode.";
         return;
     }
-    ResCode *ucacheStopMigrationResult = static_cast<ResCode *>(ctx);
+    ResCode* ucacheStopMigrationResult = static_cast<ResCode*>(ctx);
     *ucacheStopMigrationResult = result;
 }
 
-void UpdateUCacheRatioRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UpdateUCacheRatioRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     if (!ValidateBuffer(req)) {
         return;
@@ -343,11 +342,10 @@ void UpdateUCacheRatioRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     over_commit::UpdateLocalUcacheUsageRatio(result.ucacheUsageRatio);
 }
 
-void UpdateUCacheRatioResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void UpdateUCacheRatioResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OverCommit][ucache] Ctx or respData is null.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][ucache] Ctx or respData is null.";
         return;
     }
     if (resCode != MEM_POOLING_OK) {
@@ -366,7 +364,7 @@ void UpdateUCacheRatioResHandler(void *ctx, const UbseByteBuffer &respData, uint
             << "[over-commit][ucache] Failed to deserialize respData to UCacheRatioRes.";
         return;
     }
-    UCacheRatioRes *updateUCacheRatioResult = static_cast<UCacheRatioRes *>(ctx);
+    UCacheRatioRes* updateUCacheRatioResult = static_cast<UCacheRatioRes*>(ctx);
     *updateUCacheRatioResult = result;
 }
 

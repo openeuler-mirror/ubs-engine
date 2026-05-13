@@ -11,10 +11,10 @@
  */
 
 #include <gmock/gmock.h>
-#include <stdexcept>
 #include <limits>
-#include <vector>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "mp_string_util.h"
 
@@ -182,7 +182,7 @@ TEST_F(TestMpStringUtil, SafeStof_InvalidInput)
 TEST_F(TestMpStringUtil, SafeStof_OutOfRange)
 {
     float_t result;
-    EXPECT_EQ(MpStringUtil::SafeStof("1e1000", result), MEM_POOLING_ERROR_EXCEEDS_RANGE);  // Exceeds range for float
+    EXPECT_EQ(MpStringUtil::SafeStof("1e1000", result), MEM_POOLING_ERROR_EXCEEDS_RANGE); // Exceeds range for float
 }
 
-}  // namespace mempooling
+} // namespace mempooling

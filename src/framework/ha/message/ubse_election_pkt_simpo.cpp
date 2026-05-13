@@ -21,7 +21,7 @@ using namespace ubse::election::data::conversion;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseElectionPktSimpo::UbseElectionPktSimpo(const ElectionPkt &pkt)
+UbseElectionPktSimpo::UbseElectionPktSimpo(const ElectionPkt& pkt)
 {
     electionPkt_ = pkt;
 }

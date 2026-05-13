@@ -22,20 +22,20 @@
 namespace vm {
 class VmStringUtil {
 public:
-    static uint32_t SafeStoul(const std::string &str);
-    static uint64_t SafeStoull(const std::string &str);
-    static int16_t SafeStoi16(const std::string &str);
-    static int32_t SafeStoi32(const std::string &str);
-    static uint16_t SafeStou16(const std::string &str);
-    static int64_t SafeStoi64(const std::string &str);
-    static float_t SafeStof(const std::string &str);
+    static uint32_t SafeStoul(const std::string& str);
+    static uint64_t SafeStoull(const std::string& str);
+    static int16_t SafeStoi16(const std::string& str);
+    static int32_t SafeStoi32(const std::string& str);
+    static uint16_t SafeStou16(const std::string& str);
+    static int64_t SafeStoi64(const std::string& str);
+    static float_t SafeStof(const std::string& str);
     static std::string GenerateUUID();
-    static pid_t SafeStopid(const std::string &str);
-    static uint64_t ValToByte(uint64_t val, const std::string &unit);
-    static uint16_t SafeNotEmptyStou16(const std::string &str);
-    static uint64_t SafeNotEmptyStoull(const std::string &str);
-    static pid_t SafeNotEmptyStopid(const std::string &str);
-    static void StrSplit(const std::string &src, const std::string &sep, std::vector<std::string> &out);
+    static pid_t SafeStopid(const std::string& str);
+    static uint64_t ValToByte(uint64_t val, const std::string& unit);
+    static uint16_t SafeNotEmptyStou16(const std::string& str);
+    static uint64_t SafeNotEmptyStoull(const std::string& str);
+    static pid_t SafeNotEmptyStopid(const std::string& str);
+    static void StrSplit(const std::string& src, const std::string& sep, std::vector<std::string>& out);
 
 private:
     static std::unordered_map<std::string, uint64_t> unitMap;

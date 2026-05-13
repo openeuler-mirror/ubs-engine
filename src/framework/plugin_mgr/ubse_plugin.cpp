@@ -18,7 +18,7 @@
 namespace ubse::plugin {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-bool GetPluginInitRes(const std::string &pluginName)
+bool GetPluginInitRes(const std::string& pluginName)
 {
     auto module = UbseContext::GetInstance().GetModule<UbsePluginModule>();
     if (module == nullptr) {
@@ -27,7 +27,7 @@ bool GetPluginInitRes(const std::string &pluginName)
     }
     return module->GetPluginLoaded(pluginName);
 }
-bool GetPluginReadyStatus(const std::string &pluginName)
+bool GetPluginReadyStatus(const std::string& pluginName)
 {
     auto module = UbseContext::GetInstance().GetModule<UbsePluginModule>();
     if (module == nullptr) {
@@ -36,7 +36,7 @@ bool GetPluginReadyStatus(const std::string &pluginName)
     }
     return module->GetPluginReadyStatus(pluginName);
 }
-uint32_t NotifyPluginReadyStatus(const std::string &pluginName, bool status)
+uint32_t NotifyPluginReadyStatus(const std::string& pluginName, bool status)
 {
     auto module = UbseContext::GetInstance().GetModule<UbsePluginModule>();
     if (module == nullptr) {

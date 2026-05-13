@@ -15,8 +15,8 @@
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
 
-#include "ubs_virt_agent_ham_migrate.h"
 #include "ubse_ipc_client.h"
+#include "ubs_virt_agent_ham_migrate.h"
 #include "vm_serial_util.h"
 
 using namespace vm;
@@ -90,8 +90,8 @@ TEST_F(TestUbsVirtAgentHamMigrate, TestNullRequest)
 {
     HamComByteBuffer request = {nullptr, 0};
     HamComCallbackDef callback = {nullptr, nullptr};
-    char *data = "request";
-    request.data = reinterpret_cast<uint8_t *>(data);
+    char* data = "request";
+    request.data = reinterpret_cast<uint8_t*>(data);
     request.len = strlen(data);
     int ret = RackAsyncSendForHam(&request, &callback);
     EXPECT_EQ(ret, 0);

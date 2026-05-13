@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::lcne
+} // namespace ubse::lcne
 
-#endif  // TEST_UBSE_LCNE_URMA_EID_H
+#endif // TEST_UBSE_LCNE_URMA_EID_H

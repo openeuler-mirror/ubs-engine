@@ -89,7 +89,7 @@ UbseResult UbseHttpModule::Start()
         if (UbseHttpServer::GetInstance().Start(isTcpServer)) {
             return UBSE_OK;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Failed to start server, error=" << e.what();
     }
     UBSE_LOG_ERROR << "Failed to start server";
@@ -101,16 +101,16 @@ void UbseHttpModule::Stop()
     try {
         UbseHttpServer::GetInstance().Stop();
         UBSE_LOG_INFO << "http stop end";
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Failed to stop server, error=" << e.what();
     }
 }
 
-UbseResult UbseHttpModule::RegHttpService(UbseHttpMethod method, const std::string &url, UbseHttpHandlerFunc func)
+UbseResult UbseHttpModule::RegHttpService(UbseHttpMethod method, const std::string& url, UbseHttpHandlerFunc func)
 {
     try {
         UbseHttpServer::GetInstance().RegisterRoute(url, UbseHttpMethodToString(method), std::move(func));
-    } catch (const std::exception &) {
+    } catch (const std::exception&) {
         UBSE_LOG_ERROR << "Failed to RegisterRoute.";
         return UBSE_ERROR;
     }
@@ -145,7 +145,7 @@ UbseResult UbseHttpModule::MakeError(uint32_t code)
     return UBSE_HTTP_ERROR_FAILURE;
 }
 
-bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpRsp, httplib::Error &error)
+bool UbseHttpModule::TcpSend(httplib::Request& httpReq, httplib::Response& httpRsp, httplib::Error& error)
 {
     // UBFM TCP服务端口为本机，端口为配置文件中读取的端口
     SecureBuffer serverKeyPassword = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
@@ -169,7 +169,7 @@ bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpR
     cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
     cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
     cli.set_path_encode(false);
-    SSL_CTX *ctx = cli.ssl_context();
+    SSL_CTX* ctx = cli.ssl_context();
     if (ctx && !cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
         UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
         return false;
@@ -178,7 +178,7 @@ bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpR
     return true;
 }
 
-void UbseHttpModule::UdsSend(httplib::Request &httpReq, httplib::Response &httpRsp, httplib::Error &error)
+void UbseHttpModule::UdsSend(httplib::Request& httpReq, httplib::Response& httpRsp, httplib::Error& error)
 {
     // UBFM UDS服务地址为 UBFM_UDS_ADDRESS
     httplib::Client cli(UBM_UDS_ADDRESS);
@@ -188,11 +188,11 @@ void UbseHttpModule::UdsSend(httplib::Request &httpReq, httplib::Response &httpR
     cli.send(httpReq, httpRsp, error);
 }
 
-UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
+UbseResult UbseHttpModule::HttpSend(UbseHttpRequest& req, UbseHttpResponse& rsp)
 {
     httplib::Error error;
     httplib::Headers headerMap;
-    for (auto &header : req.headers) {
+    for (auto& header : req.headers) {
         headerMap.emplace(header.first, header.second);
     }
     // 禁用Expect头
@@ -222,7 +222,7 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
 
     rsp.status = httpRsp.status;
     rsp.body = std::move(httpRsp.body);
-    for (auto &header : httpRsp.headers) {
+    for (auto& header : httpRsp.headers) {
         rsp.headers.emplace(header.first, header.second);
     }
     if (error != httplib::Error::Success) {
@@ -235,8 +235,8 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
     return UBSE_OK;
 }
 
-UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, const std::string &body,
-                                                   std::string &jsonRsp)
+UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string& path, const std::string& body,
+                                                   std::string& jsonRsp)
 {
     Request req{};
     req.method = "POST";

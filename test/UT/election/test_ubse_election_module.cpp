@@ -11,10 +11,10 @@
  */
 
 #include "test_ubse_election_module.h"
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_conf_module.h"
-#include "ubse_election_module.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
+#include "role/ubse_election_role_mgr.h"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
@@ -82,7 +82,6 @@ TEST_F(TestUbseElectionModule, UbseGetMasterNodeReturnUbseERROR)
     UbseResult result = module.UbseGetMasterNode(masterNode);
     EXPECT_EQ(result, UBSE_ERROR);
 }
-
 
 TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetStandbyNode)
 {
@@ -176,10 +175,10 @@ TEST_F(TestUbseElectionModule, UbseGetAllNodes)
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
     Standby standby(ctx);
-    standby.agentIds_= {"NODE3"};
+    standby.agentIds_ = {"NODE3"};
     EXPECT_EQ(standby.GetRoleType(), RoleType::STANDBY);
-    std::vector<Node> allNodes = { Node{ "NODE0", "192.168.0.1", 10004 }, Node{ "NODE1", "192.168.0.2", 10005 },
-                                   Node{ "NODE3", "192.168.0.3", 10006 } };
+    std::vector<Node> allNodes = {Node{"NODE0", "192.168.0.1", 10004}, Node{"NODE1", "192.168.0.2", 10005},
+                                  Node{"NODE3", "192.168.0.3", 10006}};
     MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().with(outBound(allNodes)).will(returnValue(UBSE_OK));
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
     UbseElectionModule module;
@@ -219,7 +218,9 @@ TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_ERROR_WhenCommMgrStartFail
     UbseElectionModule module;
     auto commMgr = std::make_shared<UbseElectionCommMgr>("NODE0", "UbseMasterRpcServer");
     MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
-    MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
     UbseResult result = module.Start();
     EXPECT_EQ(result, UBSE_ERROR);
 }
@@ -302,7 +303,10 @@ TEST_F(TestUbseElectionModule, GetNodeIpInfoById_ShouldReturnOk_WhenGetNodeIpByI
     std::string nodeId = "NODE1";
     std::string ip = "192.168.0.1";
     UbseElectionModule module;
-    MOCKER(&UbseElectionNodeMgr::GetNodeIpById).stubs().with(mockcpp::any(), mockcpp::outBound(ip)).will(mockcpp::returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::GetNodeIpById)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::outBound(ip))
+        .will(mockcpp::returnValue(UBSE_OK));
     std::string resultIp;
     UbseResult result = module.GetNodeIpInfoById(nodeId, resultIp);
     EXPECT_EQ(result, UBSE_OK);
@@ -348,4 +352,4 @@ TEST_F(TestUbseElectionModule, Stop_ShouldStopComService_WhenUbseComModuleNotNul
     module.Stop();
 }
 
-}
+} // namespace ubse::ut::election

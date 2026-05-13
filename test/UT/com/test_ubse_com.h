@@ -12,11 +12,11 @@
 
 #ifndef TEST_UBSE_COM_H
 #define TEST_UBSE_COM_H
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_com_base.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
 using namespace ubse::com;
 
 namespace ubse::ut::com {
@@ -25,14 +25,15 @@ public:
     TestUbseCom() = default;
     void SetUp() override;
     void TearDown() override;
+
 private:
-    uint8_t *testTransData;
+    uint8_t* testTransData;
     UbseByteBuffer TEST_BUFFER;
 };
 
 class MockUbseServer : public UbseComBase {
 public:
-    MockUbseServer(const std::string &nodeId, const std::string &name) : UbseComBase(nodeId, name) {}
+    MockUbseServer(const std::string& nodeId, const std::string& name) : UbseComBase(nodeId, name) {}
 
     UbseResult Start() override
     {
@@ -59,6 +60,6 @@ public:
     }
     ~MockUbseBaseMessage() override {}
 };
-}
+} // namespace ubse::ut::com
 
 #endif // TEST_UBSE_COM_H

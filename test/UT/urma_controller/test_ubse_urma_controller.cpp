@@ -13,8 +13,6 @@
 #include "test_ubse_urma_controller.h"
 #include <string>
 #include <vector>
-#include "adapter_plugins/urma/ubse_urma_uvs.h"
-#include "test_ubse_urma_controller_def.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -27,6 +25,8 @@
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
+#include "adapter_plugins/urma/ubse_urma_uvs.h"
+#include "test_ubse_urma_controller_def.h"
 
 namespace ubse::urmaController::ut {
 
@@ -734,8 +734,8 @@ TEST_F(TestUbseUrmaController, DoNodeJoin_NotJoinNodeReturnsOk)
     curNode.slotId = 0;
     MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeIouList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(
-        const std::string &, std::vector<std::vector<UbseMtiFeInfo>> &)>(
+    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(const std::string&,
+                                                                             std::vector<std::vector<UbseMtiFeInfo>>&)>(
         &UbseUrmaControllerManager::ConstructNewUrmaInfo);
     MOCKER_CPP(constructFn).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeTopo).stubs().will(returnValue(UBSE_OK));
@@ -832,8 +832,8 @@ TEST_F(TestUbseUrmaController, HandleNodeJoinWithRetry_Success)
     curNode.slotId = 0;
     MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeIouList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(
-        const std::string &, std::vector<std::vector<UbseMtiFeInfo>> &)>(
+    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(const std::string&,
+                                                                             std::vector<std::vector<UbseMtiFeInfo>>&)>(
         &UbseUrmaControllerManager::ConstructNewUrmaInfo);
     MOCKER_CPP(constructFn).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeTopo).stubs().will(returnValue(UBSE_OK));
@@ -865,8 +865,8 @@ TEST_F(TestUbseUrmaController, DoNodeJoin_ConstructNewUrmaInfoFails)
     curNode.nodeId = "0";
     MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeIouList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(
-        const std::string &, std::vector<std::vector<UbseMtiFeInfo>> &)>(
+    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(const std::string&,
+                                                                             std::vector<std::vector<UbseMtiFeInfo>>&)>(
         &UbseUrmaControllerManager::ConstructNewUrmaInfo);
     MOCKER_CPP(constructFn).stubs().will(returnValue(UBSE_ERROR));
     auto ret = UrmaController::GetInstance().DoNodeJoin("test");
@@ -879,8 +879,8 @@ TEST_F(TestUbseUrmaController, DoNodeJoin_QueryAllPortsDownFails)
     curNode.nodeId = "0";
     MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeIouList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(
-        const std::string &, std::vector<std::vector<UbseMtiFeInfo>> &)>(
+    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(const std::string&,
+                                                                             std::vector<std::vector<UbseMtiFeInfo>>&)>(
         &UbseUrmaControllerManager::ConstructNewUrmaInfo);
     MOCKER_CPP(constructFn).stubs().will(returnValue(UBSE_OK));
     bool isAllPortDown = false;

@@ -17,7 +17,7 @@
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
 
-void print_mem_fd_desc(const ubs_mem_fd_desc_t *fd_desc)
+void print_mem_fd_desc(const ubs_mem_fd_desc_t* fd_desc)
 {
     printf("Memory Resource Descriptor:\n");
     printf("Resource Name: %s\n", fd_desc->name);
@@ -35,7 +35,7 @@ void print_mem_fd_desc(const ubs_mem_fd_desc_t *fd_desc)
 void ubse_mem_fd_create_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     const uint64_t mem_size = 128 * 1024 * 1024; // 200MB
     ubs_mem_fd_owner_t uds_info = {.uid = getuid(), .gid = getgid(), .pid = getpid()};
     ubs_mem_distance_t distance = MEM_DISTANCE_L0; // 直连节点
@@ -56,7 +56,7 @@ void ubse_mem_fd_create_example(void)
 void ubse_mem_fd_get_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     ubs_mem_fd_desc_t fd_desc = {0}; // 结果存储结构体
 
     // 2. 调用查询函数
@@ -73,7 +73,7 @@ void ubse_mem_fd_get_example(void)
 
 void ubse_mem_fd_list_example(void)
 {
-    ubs_mem_fd_desc_t *fd_desc_list = NULL;
+    ubs_mem_fd_desc_t* fd_desc_list = NULL;
     uint32_t fd_desc_cnt = 0;
 
     printf("Retrieving fd desc list...\n");
@@ -100,7 +100,7 @@ void ubse_mem_fd_list_example(void)
 void ubse_mem_fd_delete_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
 
     // 2. 调用删除函数
     ubs_error_t result = ubs_mem_fd_delete(mem_name);

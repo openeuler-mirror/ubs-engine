@@ -65,12 +65,12 @@ public:
 protected:
     MemOpStruct memOpStruct{};
     [[nodiscard]] bool RunPreflight(MemOpType type) const;
-    VmResult RunMemBorrow(MemBorrowExecuteResult &borrowResult);
+    VmResult RunMemBorrow(MemBorrowExecuteResult& borrowResult);
     VmResult OutMemMigrate();
     VmResult OutMemReturn();
 
 private:
-    void CleanEmptyBorrowRes(MemBorrowExecuteResult &result);
+    void CleanEmptyBorrowRes(MemBorrowExecuteResult& result);
 };
 } // namespace vm::overcommit
 #endif // VM_MEM_MANAGER_H

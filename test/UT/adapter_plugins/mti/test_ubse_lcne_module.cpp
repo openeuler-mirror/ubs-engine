@@ -15,18 +15,18 @@
 #include <dlfcn.h>
 #include <mockcpp/mokc.h>
 
-#include "lcne/ubse_lcne_busInstance.h"
-#include "lcne/ubse_lcne_host_info.h"
-#include "lcne/ubse_lcne_node_info.h"
-#include "lcne/ubse_lcne_urma_eid.h"
-#include "ubse_conf_module.h"
 #include "ubse_conf.h"
+#include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_lcne_module.h"
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "lcne/ubse_lcne_busInstance.h"
+#include "lcne/ubse_lcne_host_info.h"
+#include "lcne/ubse_lcne_node_info.h"
+#include "lcne/ubse_lcne_urma_eid.h"
 namespace ubse::mti {
 using namespace ubse::context;
 using namespace ubse::lcne;
@@ -292,4 +292,4 @@ TEST_F(TestUbseLcneModule, FillNodeComInfo_Success)
     EXPECT_EQ(module.ubseNodeInfos_.front().nodeId, localNodeId);
     EXPECT_EQ(module.ubseNodeInfos_.front().eid, expectedBondingEidString);
 }
-}  // namespace ubse::mti
+} // namespace ubse::mti

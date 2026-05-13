@@ -14,16 +14,16 @@
 
 #include <dlfcn.h>
 #include <cstdint>
-#include "ucache_error.h"
-#include "ucache_config.h"
 #include "ubse_logger.h"
+#include "ucache_config.h"
+#include "ucache_error.h"
 
 namespace turbo::ucache {
 using namespace ubse::log;
 using namespace ::ucache;
 
 static constexpr char LIBOSTURBO_CLIENT_PATH[] = "/usr/lib64/libubturbo_client.so";
-void *TurboRuntimeManager::osturboClientHandle = nullptr;
+void* TurboRuntimeManager::osturboClientHandle = nullptr;
 UBTurboUCacheExecuteTaskPtr TurboRuntimeManager::ucacheExecuteTask = nullptr;
 
 uint32_t TurboRuntimeManager::InitOSTurboIpcClient()
@@ -42,7 +42,7 @@ uint32_t TurboRuntimeManager::DlsymUcacheInterface()
     ucacheExecuteTask =
         reinterpret_cast<UBTurboUCacheExecuteTaskPtr>(dlsym(osturboClientHandle, "UBTurboUCacheExecuteTask"));
     if (ucacheExecuteTask == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "Get ucacheExecuteTask ptr failed, error=" << (error ? error : "Unknown error") << ".";
         return UCACHE_ERR;
@@ -71,7 +71,7 @@ void TurboRuntimeManager::Deinit()
 {
     if (osturboClientHandle) {
         if (dlclose(osturboClientHandle) != 0) {
-            const char *error = dlerror();
+            const char* error = dlerror();
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
                 << "Failed to close ucacheExecuteTask: " << (error ? error : "Unknown error");
         }

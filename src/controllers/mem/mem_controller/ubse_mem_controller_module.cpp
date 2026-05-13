@@ -6,12 +6,6 @@
 #include <atomic>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
-#include "rpc/ubse_mem_controller_rpc_register.h"
-#include "rpc/ubse_mem_get_opt_result_handler.h"
-#include "src/adapter_plugins/mmi/ubse_mmi_module.h"
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
-#include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_dispatcher.h"
@@ -20,6 +14,12 @@
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_timer.h"
+#include "rpc/ubse_mem_controller_rpc_register.h"
+#include "rpc/ubse_mem_get_opt_result_handler.h"
+#include "src/adapter_plugins/mmi/ubse_mmi_module.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
+#include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::controller::agent;
@@ -33,14 +33,14 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 const uint32_t CYCLE_CHECK_TIME_S = 300;
 static std::atomic<bool> g_startCheckDecoderHandle{false};
 
-void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &allHandleValues,
-                        const mem::decoder::utils::DecoderLocTohandleMap &handleMap,
-                        std::vector<UbseMamiMemWithdraw> &faultInfo)
+void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap& allHandleValues,
+                        const mem::decoder::utils::DecoderLocTohandleMap& handleMap,
+                        std::vector<UbseMamiMemWithdraw>& faultInfo)
 {
     UBSE_LOG_INFO << "DelHandleByMapDiff Begin";
     std::vector<UbseMamiMemWithdraw> diffHandleInfo{};
-    for (const auto &[loc, hanValues] : allHandleValues) {
-        for (const auto &handValue : hanValues) {
+    for (const auto& [loc, hanValues] : allHandleValues) {
+        for (const auto& handValue : hanValues) {
             if (handleMap.find(loc) == handleMap.end() || handleMap.at(loc).count(handValue.handle) != 1) {
                 UbseMamiMemWithdraw tmpDelInfo{.ubpuId = loc.ubpuId,
                                                .iouId = loc.iouId,
@@ -53,7 +53,7 @@ void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &a
     }
 
     UbseResult res = UBSE_OK;
-    for (const auto &delInfo : diffHandleInfo) {
+    for (const auto& delInfo : diffHandleInfo) {
         UBSE_LOG_INFO << "one diff handle, ubpuId is " << delInfo.ubpuId << " iouId is " << delInfo.iouId
                       << " marId is " << delInfo.marId << " decoderId is " << delInfo.decoderIdx << "handle is "
                       << delInfo.handle;
@@ -80,9 +80,9 @@ UbseResult CycleCheckDecoderHandle()
         std::unique_lock lock(GetDecoderImportMutex());
         res = decoder::utils::MemDecoderUtils::GetAllHandles(UB_MEMORY_HANDLE_DEFAULT_USED_NODE, allHandleValues);
     }
-    for (const auto &[loc, handles] : allHandleValues) {
+    for (const auto& [loc, handles] : allHandleValues) {
         UBSE_LOG_INFO << "allHandleValues size is " << handles.size();
-        for (const auto &handle : handles) {
+        for (const auto& handle : handles) {
             UBSE_LOG_INFO << "handles value is " << handle.handle;
         }
     }
@@ -112,7 +112,7 @@ UbseResult CycleCheckDecoderHandle()
     return UBSE_OK;
 }
 
-uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo &node)
+uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo& node)
 {
     if (node.localState == UbseNodeLocalState::UBSE_NODE_READY) {
         CycleCheckDecoderHandle();
@@ -192,7 +192,7 @@ void UbseMemControllerModule::Stop()
     ubse::mem::controller::Stop();
 }
 
-uint32_t UbseGetMemDebtInfo(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t UbseGetMemDebtInfo(const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
 {
     return UbseGetMemDebtInfoFromMaster(nodeId, memDebtInfoMap);
 }

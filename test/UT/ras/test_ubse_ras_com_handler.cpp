@@ -67,10 +67,10 @@ TEST_F(TestUbseRasComHandler, HandleSuccess)
     const UbseBaseMessagePtr req = new UbseRasMessage();
     const UbseBaseMessagePtr rsp = new UbseRasMessage();
     UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
-    NodeStateHandler func = [](const std::string &faultInfo) {
+    NodeStateHandler func = [](const std::string& faultInfo) {
     };
     UbseRasComHandler handler;
-    auto nodeCtrlCallback = [](const std::string &nodeId) {
+    auto nodeCtrlCallback = [](const std::string& nodeId) {
         return UBSE_OK;
     };
     auto request = UbseBaseMessage::DeConvert<UbseRasMessage>(req);
@@ -156,4 +156,4 @@ TEST_F(TestUbseRasComHandler, CheckCommonParamWhenInvalidArgs)
     ret = CheckCommonParam(messageValue, "test event message");
     ASSERT_EQ(ret, UBSE_ERROR_INVAL);
 }
-}  // namespace ubse::ras::ut
+} // namespace ubse::ras::ut

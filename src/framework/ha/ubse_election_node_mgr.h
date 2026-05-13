@@ -28,11 +28,11 @@ public:
     /* *
      * @brief 获取 Node 单例实例
      */
-    static UbseElectionNodeMgr &GetInstance();
+    static UbseElectionNodeMgr& GetInstance();
 
     // 禁用拷贝和赋值
-    UbseElectionNodeMgr(const UbseElectionNodeMgr &) = delete;
-    UbseElectionNodeMgr &operator=(const UbseElectionNodeMgr &) = delete;
+    UbseElectionNodeMgr(const UbseElectionNodeMgr&) = delete;
+    UbseElectionNodeMgr& operator=(const UbseElectionNodeMgr&) = delete;
 
     /* *
      * @brief 构造函数
@@ -51,7 +51,7 @@ public:
      * @param Node 用于存储当前节点的信息
      * @return 成功返回0，不成功返回非 0
      */
-    UbseResult GetMyselfNode(Node &myself);
+    UbseResult GetMyselfNode(Node& myself);
 
     static ubse::nodeController::UbseNodeLocalState GetLocalNodeState();
     /* *
@@ -59,30 +59,30 @@ public:
      * @param allNodes 用于存储所有节点的信息
      * @return 成功返回0，不成功返回非0
      */
-    UbseResult GetAllNode(std::vector<Node> &allNodes);
+    UbseResult GetAllNode(std::vector<Node>& allNodes);
 
     /* *
      * 获取所有邻居节点
      * @param neighbourNodes 存储所有邻居节点的信息
      * @return 成功返回0
      */
-    UbseResult GetAllNeighbourNode(std::vector<Node> &neighbourNodes);
+    UbseResult GetAllNeighbourNode(std::vector<Node>& neighbourNodes);
 
     std::unordered_set<UBSE_ID_TYPE> GetTopoLinkedNodes() const;
 
     void ParseAllNodesVector();
 
-    UbseResult GetNodeInfoByID(const UBSE_ID_TYPE &id, std::string &ip, uint16_t &port);
+    UbseResult GetNodeInfoByID(const UBSE_ID_TYPE& id, std::string& ip, uint16_t& port);
 
-    UbseResult GetPortByIp(const std::string &ip, uint16_t &port);
+    UbseResult GetPortByIp(const std::string& ip, uint16_t& port);
 
-    UbseResult UpdateNodeIdWithConnect(const std::string &ip, const std::string &id);
+    UbseResult UpdateNodeIdWithConnect(const std::string& ip, const std::string& id);
 
-    UbseResult GetNodeIdByIp(const std::string &ip, std::string &id);
+    UbseResult GetNodeIdByIp(const std::string& ip, std::string& id);
 
-    UbseResult GetNodeIpById(const std::string &id, std::string &ip);
+    UbseResult GetNodeIpById(const std::string& id, std::string& ip);
 
-    UbseResult GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE> &nodeIpMap);
+    UbseResult GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE>& nodeIpMap);
 
     /* *
      * 获取心跳时间

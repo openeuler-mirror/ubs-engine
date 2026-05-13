@@ -27,12 +27,12 @@ class UbseApiServerObjectManager {
 public:
     UbseApiServerObjectManager();
 
-    void AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string &object);
+    void AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object);
 
     std::string GetObjectString(uint16_t moduleCode, uint16_t opCode) const;
 
 private:
-    inline void AddObjectMappingNoCheck(uint16_t moduleCode, uint16_t opCode, const std::string &object);
+    inline void AddObjectMappingNoCheck(uint16_t moduleCode, uint16_t opCode, const std::string& object);
 
     ubse::utils::PairMap<uint16_t, uint16_t, std::string> objectMap_;
 

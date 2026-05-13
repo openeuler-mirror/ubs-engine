@@ -12,8 +12,8 @@
 
 #include "mock_module.h"
 
-#include "mock_dependency_module.h"
 #include "ubse_context.h"
+#include "mock_dependency_module.h"
 
 namespace ubse::mock {
 using namespace ubse::context;
@@ -28,4 +28,4 @@ UbseResult MockModule::Start()
     return 0;
 }
 void MockModule::Stop() {}
-}
+} // namespace ubse::mock

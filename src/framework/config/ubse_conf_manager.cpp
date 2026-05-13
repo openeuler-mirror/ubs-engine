@@ -7,12 +7,12 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <fstream>
-#include <sstream>
 #include <regex>
+#include <sstream>
 
 #include "ubse_conf_common_def.h"
-#include "ubse_error.h"
 #include "ubse_context.h"
+#include "ubse_error.h"
 #include "ubse_logger_audit.h"
 #include "ubse_logger_module.h"
 #include "ubse_str_util.h"
@@ -23,19 +23,19 @@ using namespace ubse::utils;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-const uint8_t SUFFIX_SIZE = 5;  // .conf后缀长度
+const uint8_t SUFFIX_SIZE = 5; // .conf后缀长度
 const std::string DELIMITER = "/";
 const std::regex NON_VAL_CHARS(R"(^[a-zA-Z0-9\.\_\-]+$)");
 const std::regex VAL_CHARS(R"(^[a-zA-Z0-9\.\_\-\:\,\/\;]+$)");
 const uint32_t MAX_GROUP_SIZE = 64 * 64 + 64; // hostname最大长度64字节，最多支持64个节点，包含64个间隔符
 const uint32_t MAX_PROVIDER_SIZE = 64 * 64 + 64; // hostname最大长度64字节，最多支持64个节点，包含64个间隔符
-const std::map<std::string, uint32_t> whiteList = { { "group", MAX_GROUP_SIZE }, { "provider", MAX_PROVIDER_SIZE } };
+const std::map<std::string, uint32_t> whiteList = {{"group", MAX_GROUP_SIZE}, {"provider", MAX_PROVIDER_SIZE}};
 
 UbseResult TravelDepthLimitedFiles(std::vector<std::string>& filePaths, const std::string& path, int depth);
 
-std::string PathJoin(const std::string& baseDir, const std::string& baseName);  // 获取路径
+std::string PathJoin(const std::string& baseDir, const std::string& baseName); // 获取路径
 
-bool IsConfFile(const std::string& filename);  // 是否conf文件
+bool IsConfFile(const std::string& filename); // 是否conf文件
 
 std::string CatString(const std::vector<std::string>& infoVec, const std::string& delimiter = " ");
 
@@ -47,9 +47,7 @@ bool CheckNoIllegalChars(const std::string& str, bool isConfigVal = false);
 std::string FormatErrorMessage(const std::string& message, size_t lineCount, const std::string& section = "",
                                const std::string& configKey = "", const std::string& configVal = "");
 
-UbseConfigManager::UbseConfigManager() : format_()
-{
-}
+UbseConfigManager::UbseConfigManager() : format_() {}
 
 UbseResult UbseConfigManager::Init(const std::string& confDir, const std::string& filePrefix)
 {
@@ -88,16 +86,16 @@ UbseResult UbseConfigManager::Init(const std::string& confDir, const std::string
     return ret;
 }
 
-UbseResult UbseConfigManager::ParseFile(const std::string &filePath)
+UbseResult UbseConfigManager::ParseFile(const std::string& filePath)
 {
-    char *canonicalPath = new (std::nothrow) char[PATH_MAX];
+    char* canonicalPath = new (std::nothrow) char[PATH_MAX];
     if (canonicalPath == nullptr) {
         std::cerr << "Warning: Memory allocation failed for canonicalPath" << std::endl;
         return UBSE_CONF_ERROR_KEY_OFFSETMEMORY_ALLOCATION_FAILED;
     }
     if (realpath(filePath.c_str(), canonicalPath) == nullptr) {
-        std::cerr << "Warning: Could not canonicalize file path " << filePath << " ,err=" << std::strerror(errno) <<
-            std::endl;
+        std::cerr << "Warning: Could not canonicalize file path " << filePath << " ,err=" << std::strerror(errno)
+                  << std::endl;
         delete[] canonicalPath;
         return UBSE_CONF_ERROR_KEY_OFFSETPATH_CANONICALIZATION_FAILED;
     }
@@ -105,7 +103,7 @@ UbseResult UbseConfigManager::ParseFile(const std::string &filePath)
     return ReadConfFile(filePath);
 }
 
-UbseResult UbseConfigManager::ReadConfFile(const std::string &filePath)
+UbseResult UbseConfigManager::ReadConfFile(const std::string& filePath)
 {
     std::ifstream fileStream(filePath);
     // 文件无法打开
@@ -114,7 +112,7 @@ UbseResult UbseConfigManager::ReadConfFile(const std::string &filePath)
         return UBSE_CONF_ERROR_KEY_OFFSETFILE_OPEN_ERROR;
     }
     std::string defaultSection = filePath.substr(filePath.find_last_of("/\\") + 1,
-        filePath.size() - filePath.find_last_of("/\\") - 1 - SUFFIX_SIZE);
+                                                 filePath.size() - filePath.find_last_of("/\\") - 1 - SUFFIX_SIZE);
     std::string tempSection = Trim(defaultSection);
 
     // 逐行读取
@@ -267,14 +265,14 @@ UbseResult UbseConfigManager::GetAllConf(const std::string& seactionPrefix,
     }
     if (!CheckNoIllegalChars(seactionPrefix)) {
         UBSE_LOG_WARN << "Prefix has illegal character, "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETPREFIX_ILLEGAL_CHAR);
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETPREFIX_ILLEGAL_CHAR);
         return UBSE_CONF_ERROR_KEY_OFFSETPREFIX_ILLEGAL_CHAR;
     }
 
     configVals.clear();
     if (configMap_.empty()) {
         UBSE_LOG_WARN << "Config Module has not been loaded, "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL);
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL);
         return UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL;
     }
 
@@ -285,7 +283,7 @@ UbseResult UbseConfigManager::GetAllConf(const std::string& seactionPrefix,
             continue;
         }
 
-        configVals[pair.first];  // 适配空section
+        configVals[pair.first]; // 适配空section
         for (const auto& config : pair.second) {
             configVals[pair.first][config.first] = config.second;
             configNum++;
@@ -304,7 +302,7 @@ UbseResult UbseConfigManager::GetAllConf(const std::string& seactionPrefix,
     return UBSE_OK;
 }
 
-void UbseConfigManager::AddConfig(const std::string &section, const std::string &key, const std::string &value)
+void UbseConfigManager::AddConfig(const std::string& section, const std::string& key, const std::string& value)
 {
     if (section.size() < CONFIG_MIN_FIELD_LENGTH || section.size() > CONFIG_SECTION_MAX_FIELD_LENGTH) {
         return;
@@ -336,17 +334,17 @@ UbseResult CheckParamValidation(const std::string& section, const std::string& c
     // 非法字符检查
     if (!CheckNoIllegalChars(section)) {
         UBSE_LOG_WARN << "Section has invalid character, "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETSECTION_HAVE_ILLEGAL_CHAR);
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETSECTION_HAVE_ILLEGAL_CHAR);
         return UBSE_CONF_ERROR_KEY_OFFSETSECTION_HAVE_ILLEGAL_CHAR;
     }
     if (!CheckNoIllegalChars(configKey)) {
         UBSE_LOG_WARN << "Key has invalid character, "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETKEY_HAVE_ILLEGAL_CHAR);
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETKEY_HAVE_ILLEGAL_CHAR);
         return UBSE_CONF_ERROR_KEY_OFFSETKEY_HAVE_ILLEGAL_CHAR;
     }
     if (!CheckNoIllegalChars(configVal, true) && checkValue) {
         UBSE_LOG_WARN << "The configuration value contains illegal chars, "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETVALUE_HAVE_ILLEGAL_CHAR);
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETVALUE_HAVE_ILLEGAL_CHAR);
         return UBSE_CONF_ERROR_KEY_OFFSETVALUE_HAVE_ILLEGAL_CHAR;
     }
 
@@ -365,7 +363,7 @@ UbseResult CheckParamValidation(const std::string& section, const std::string& c
         flag = (it == whiteList.end()) ? true : (configVal.size() >= it->second);
         if (flag) {
             UBSE_LOG_WARN << "Value length too long or too short, "
-                << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH);
+                          << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH);
             return UBSE_CONF_ERROR_KEY_OFFSETVALUE_ILLEGAL_LENGTH;
         }
     }
@@ -406,7 +404,7 @@ UbseResult TravelDepthLimitedFiles(std::vector<std::string>& filePaths, const st
     DIR* pd = opendir(path.c_str());
     if (pd == nullptr) {
         UBSE_LOG_WARN << "Unable to open dir " << path << ", "
-                    << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR);
+                      << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR);
         return UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR;
     }
     const dirent* dir;
@@ -472,4 +470,4 @@ bool IsConfFile(const std::string& filename)
 {
     return filename.size() > SUFFIX_SIZE && filename.compare(filename.size() - SUFFIX_SIZE, SUFFIX_SIZE, ".conf") == 0;
 }
-}  // namespace ubse::config
+} // namespace ubse::config

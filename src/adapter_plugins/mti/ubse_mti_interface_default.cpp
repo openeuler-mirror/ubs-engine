@@ -12,14 +12,14 @@
 
 #include "ubse_mti_interface_default.h"
 #include <securec.h>
+#include "ubse_context.h"
+#include "ubse_lcne_module.h"
+#include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "lcne/ubse_lcne_decoder_entry.h"
 #include "lcne/ubse_lcne_decoder_handle.h"
 #include "lcne/ubse_lcne_qos.h"
 #include "lcne/ubse_lcne_vfe_eid.h"
-#include "ubse_context.h"
-#include "ubse_lcne_module.h"
-#include "ubse_str_util.h"
 
 namespace ubse::adapter_plugins::mti {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -27,20 +27,20 @@ using namespace common::def;
 using namespace adapter_plugins::mti;
 using namespace ubse::mti;
 using namespace context;
-void SwapNodeInfo(UbseMtiNodeInfo &distNodeInfo, const MtiNodeInfo &srcNodeInfo)
+void SwapNodeInfo(UbseMtiNodeInfo& distNodeInfo, const MtiNodeInfo& srcNodeInfo)
 {
     distNodeInfo.eid = srcNodeInfo.eid;
     distNodeInfo.nodeId = srcNodeInfo.nodeId;
 }
-void SwapNodeInfoList(std::vector<UbseMtiNodeInfo> &distNodeInfoList, std::vector<MtiNodeInfo> &srcNodeInfoList)
+void SwapNodeInfoList(std::vector<UbseMtiNodeInfo>& distNodeInfoList, std::vector<MtiNodeInfo>& srcNodeInfoList)
 {
-    for (auto &nodeInfo : srcNodeInfoList) {
+    for (auto& nodeInfo : srcNodeInfoList) {
         UbseMtiNodeInfo ubseNodeInfo;
         SwapNodeInfo(ubseNodeInfo, nodeInfo);
         distNodeInfoList.push_back(ubseNodeInfo);
     }
 }
-UbseResult UbseMtiInterfaceDefault::GetLocalNodeInfo(UbseMtiNodeInfo &nodeInfo)
+UbseResult UbseMtiInterfaceDefault::GetLocalNodeInfo(UbseMtiNodeInfo& nodeInfo)
 {
     auto module = UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
     if (module == nullptr) {
@@ -55,7 +55,7 @@ UbseResult UbseMtiInterfaceDefault::GetLocalNodeInfo(UbseMtiNodeInfo &nodeInfo)
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::GetClusterNodeInfoList(std::vector<UbseMtiNodeInfo> &nodeInfoList)
+UbseResult UbseMtiInterfaceDefault::GetClusterNodeInfoList(std::vector<UbseMtiNodeInfo>& nodeInfoList)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -70,7 +70,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterNodeInfoList(std::vector<UbseMtiNo
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap &topo)
+UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& topo)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -83,7 +83,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap &top
     }
     std::map<UbseDevName, UbseUrmaEidInfo> allSocketComEid = module->GetAllSocketComEid();
     std::map<UbseDevName, UbseLcneIODieInfo> localBoardIOInfo = module->GetLocalBoardIOInfo();
-    for (const auto &[devName, devicInfoPair] : devTopology) {
+    for (const auto& [devName, devicInfoPair] : devTopology) {
         std::string devNodeId, socketId;
         devName.SplitDevName(devNodeId, socketId);
         UbseMtiCpuTopoInfo info{};
@@ -101,7 +101,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap &top
         info.eid = localBoardIOInfo[devName].ubControllerEid; // LCNE获取时能保证key存在
         info.guid = localBoardIOInfo[devName].guid;           // LCNE获取时能保证key存在
         info.portInfos = devicInfoPair.second;
-        for (auto &portInfo : info.portInfos) {
+        for (auto& portInfo : info.portInfos) {
             portInfo.second.urmaEid = allSocketComEid[devName].portEidList[portInfo.second.portId];
         }
         topo[devName] = info;
@@ -109,7 +109,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap &top
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::GetLocalIp(std::string &localIp)
+UbseResult UbseMtiInterfaceDefault::GetLocalIp(std::string& localIp)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -119,7 +119,7 @@ UbseResult UbseMtiInterfaceDefault::GetLocalIp(std::string &localIp)
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::GetClusterIpList(std::vector<std::string> &ipList)
+UbseResult UbseMtiInterfaceDefault::GetClusterIpList(std::vector<std::string>& ipList)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -128,30 +128,30 @@ UbseResult UbseMtiInterfaceDefault::GetClusterIpList(std::vector<std::string> &i
     ipList = std::move(module->GetClusterIpList());
     return UBSE_OK;
 }
-UbseResult UbseMtiInterfaceDefault::AddDecoderEntry(const mami::UbseMamiMemImportInfo &importInfo,
-                                                    mami::UbseMamiMemImportResult &importResult,
-                                                    const lcne::UbseDecoderTrustRingData &trustRingData)
+UbseResult UbseMtiInterfaceDefault::AddDecoderEntry(const mami::UbseMamiMemImportInfo& importInfo,
+                                                    mami::UbseMamiMemImportResult& importResult,
+                                                    const lcne::UbseDecoderTrustRingData& trustRingData)
 {
     return lcne::UbseLcneDecoderEntry::AddDecoderEntry(importInfo, importResult, trustRingData);
 }
 
-UbseResult UbseMtiInterfaceDefault::DeleteDecoderEntry(const mami::UbseMamiMemWithdraw &drawInfo)
+UbseResult UbseMtiInterfaceDefault::DeleteDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo)
 {
     return lcne::UbseLcneDecoderEntry::DeleteDecoderEntry(drawInfo);
 }
 
-UbseResult UbseMtiInterfaceDefault::InvalidateDecoderEntry(const mami::UbseMamiMemWithdraw &drawInfo)
+UbseResult UbseMtiInterfaceDefault::InvalidateDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo)
 {
     return lcne::UbseLcneDecoderEntry::InvalidateDecoderEntry(drawInfo);
 }
 
-UbseResult UbseMtiInterfaceDefault::GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo &queryInfo,
-                                                     std::vector<mami::UbseMamiMemHandleValue> &handleValues)
+UbseResult UbseMtiInterfaceDefault::GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo& queryInfo,
+                                                     std::vector<mami::UbseMamiMemHandleValue>& handleValues)
 {
     return lcne::UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, handleValues);
 }
 
-UbseResult UbseMtiInterfaceDefault::GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo> &socketInfoMap)
+UbseResult UbseMtiInterfaceDefault::GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo>& socketInfoMap)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -161,7 +161,7 @@ UbseResult UbseMtiInterfaceDefault::GetAllSocketComEid(std::map<UbseDevName, Ubs
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseResult UbseMtiInterfaceDefault::UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     return lcne::UbseLcneVfeEid::GetInstance().GetVfeEid(iouInfo, allFeInfos);
 }
@@ -176,7 +176,7 @@ UbseResult UbseMtiInterfaceDefault::UbseDeleteQosProfile(std::string profileName
     return lcne::UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseQueryQosProfile(std::string profileName, UbseMtiQosProfile &ubseLcneQosProfile)
+UbseResult UbseMtiInterfaceDefault::UbseQueryQosProfile(std::string profileName, UbseMtiQosProfile& ubseLcneQosProfile)
 {
     return lcne::UbseLcneQos::GetInstance().QueryQosProfile(profileName, ubseLcneQosProfile);
 }
@@ -191,7 +191,7 @@ UbseResult UbseMtiInterfaceDefault::UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
     return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& profileName)
 {
     return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
 }

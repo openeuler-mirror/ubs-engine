@@ -3,9 +3,9 @@
 #ifndef RACK_MANAGER_MXE_RAS_OOM_MESSAGE_H
 #define RACK_MANAGER_MXE_RAS_OOM_MESSAGE_H
 #include <string>
+#include "ubse_base_message.h"
 #include "ubse_error.h"
 #include "ubse_serial_util.h"
-#include "ubse_base_message.h"
 
 namespace ubse::ras {
 using namespace ubse::message;
@@ -37,9 +37,9 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    void Serialization(UbseSerialization &out);
+    void Serialization(UbseSerialization& out);
 
-    UbseResult Deserialization(UbseDeSerialization &in);
+    UbseResult Deserialization(UbseDeSerialization& in);
 
 private:
     std::string nodeId;
@@ -48,5 +48,5 @@ private:
 };
 
 using UbseRasOomMessagePtr = Ref<UbseRasOomMessage>;
-} // namespace mxe::ras
+} // namespace ubse::ras
 #endif // RACK_MANAGER_MXE_RAS_OOM_MESSAGE_H

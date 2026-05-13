@@ -15,7 +15,7 @@ uint32_t TraceContext::InitUuid()
     // 防止重复初始化
     bool expected = false;
     if (!IsEnabled_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-        return 0;  // 已初始化，返回成功
+        return 0; // 已初始化，返回成功
     }
     void* lib = dlopen("libuuid.so.1", RTLD_LAZY);
     if (lib == nullptr) {

@@ -44,20 +44,20 @@ struct PageFlowResultParam {
 class VmMigrate {
 public:
     static VmResult Register();
-    static uint32_t UpdatePageFlowAndStatus(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t UpdatePageFlowAndStatus(const UbseIpcMessage& req, const UbseRequestContext& context);
 
 private:
-    static VmResult ProcessRequest(MemMigrateInputParams &inputParams, UbseIpcMessage &response);
+    static VmResult ProcessRequest(MemMigrateInputParams& inputParams, UbseIpcMessage& response);
 
-    static VmResult BuildIpcResponse(const std::string &message, UbseIpcMessage &resp);
+    static VmResult BuildIpcResponse(const std::string& message, UbseIpcMessage& resp);
 
-    static VmResult FindNodeIdPid(const std::string &uuid, std::string &nodeId, pid_t &pid,
-                                  NumaMemInfoMap &numaMemInfoMap);
+    static VmResult FindNodeIdPid(const std::string& uuid, std::string& nodeId, pid_t& pid,
+                                  NumaMemInfoMap& numaMemInfoMap);
 
-    static VmResult ToUpdateVmStatus(const NumaMemInfoMap &numaMemInfoMap, const std::string &uuid, pid_t pid,
+    static VmResult ToUpdateVmStatus(const NumaMemInfoMap& numaMemInfoMap, const std::string& uuid, pid_t pid,
                                      VmMigrateStatus vmMigrateStatus);
-    static VmResult UpdateVmStatusByMigrateStatus(const std::string &opt, const NumaMemInfoMap &numaMemInfoMap,
-                                                  const std::string &uuid, pid_t pid, UbseIpcMessage &response);
+    static VmResult UpdateVmStatusByMigrateStatus(const std::string& opt, const NumaMemInfoMap& numaMemInfoMap,
+                                                  const std::string& uuid, pid_t pid, UbseIpcMessage& response);
 };
 } // namespace vm
 

@@ -13,8 +13,8 @@
 #ifndef UBSE_PLUGIN_ADMISSION_H
 #define UBSE_PLUGIN_ADMISSION_H
 #include <mutex>
-#include <shared_mutex>
 #include <optional>
+#include <shared_mutex>
 
 #include "ubse_common_def.h"
 
@@ -23,11 +23,11 @@ using namespace ubse::common::def;
 class UbsePluginAdmission {
 public:
     UbseResult LoadAdmissionConfig();
-    UbseResult ProcessPluginValue(const std::string &pkgName, const std::string &pkgValue);
+    UbseResult ProcessPluginValue(const std::string& pkgName, const std::string& pkgValue);
 
     // 增删改查方法
-    const std::map<std::string, uint16_t> &GetAllowedPlugins() const;
-    std::optional<uint16_t> GetPluginConfig(const std::string &pluginName) const;
+    const std::map<std::string, uint16_t>& GetAllowedPlugins() const;
+    std::optional<uint16_t> GetPluginConfig(const std::string& pluginName) const;
 
 private:
     mutable std::shared_mutex allowedPluginsMutex_;

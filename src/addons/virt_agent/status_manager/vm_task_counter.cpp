@@ -21,13 +21,13 @@ using namespace ubse::log;
 
 std::atomic<int> VmTaskCounter::count(0);
 
-void VmTaskCounter::StartTask(const std::string &name)
+void VmTaskCounter::StartTask(const std::string& name)
 {
     UBSE_LOG_INFO << "start task, task = " << name;
     count.fetch_add(1);
 }
 
-void VmTaskCounter::CompleteTask(const std::string &name)
+void VmTaskCounter::CompleteTask(const std::string& name)
 {
     UBSE_LOG_INFO << "complete task, task = " << name;
     count.fetch_sub(1);

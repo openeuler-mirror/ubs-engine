@@ -26,7 +26,7 @@ struct UbsVirtNumaMemoryDebtInfo : UbseNumaMemoryImportDebtInfo {
     int16_t numaId;
 
     UbsVirtNumaMemoryDebtInfo() = default;
-    explicit UbsVirtNumaMemoryDebtInfo(const UbseNumaMemoryImportDebtInfo &base, int16_t id = 255)
+    explicit UbsVirtNumaMemoryDebtInfo(const UbseNumaMemoryImportDebtInfo& base, int16_t id = 255)
         : UbseNumaMemoryImportDebtInfo(base),
           numaId(id)
     {
@@ -38,32 +38,32 @@ public:
     static std::mutex alarmLock;
 
     VmResult Init();
-    static AlarmHandler &GetInstance()
+    static AlarmHandler& GetInstance()
     {
         static AlarmHandler gInstance;
         return gInstance;
     }
-    static VmResult AlarmEventHandler(AlarmNumaInfo &alarmNumaInfo, std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos,
+    static VmResult AlarmEventHandler(AlarmNumaInfo& alarmNumaInfo, std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
                                       WatermarkWarningType eventType);
-    static VmResult MemNotifyEventHandler(std::string &eventId, std::string &eventMessage);
+    static VmResult MemNotifyEventHandler(std::string& eventId, std::string& eventMessage);
 
 private:
     AlarmHandler() = default;
     ~AlarmHandler() = default;
-    static void FillGlobalWithNumaMemInfo(const AlarmNumaInfo &alarmNumaInfo,
-                                          std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos,
-                                          GlobalNumaInfoMap &globalNumaInfoMapIn);
-    static GlobalNumaInfoMap GetGlobalResource(const AlarmNumaInfo &alarmNumaInfo,
-                                               std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos);
-    static VmResult BorrowClearEventHandler(const AlarmNumaInfo &alarmNumaInfo);
-    static bool HandlerNoUsedBorrowIds(const AlarmNumaInfo &alarmNumaInfo, WatermarkWarningType eventType);
-    static std::vector<std::string> GenVectorByBorrowItem(const AlarmNumaInfo &alarmNumaInfo);
-    static VmResult GetVirtDebtInfos(std::vector<UbsVirtNumaMemoryDebtInfo> &virtDebtInfos);
-    static VmResult GenAlarmNumaInfo(const Notify &notify, std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos,
-                                     AlarmNumaInfo &alarmNumaInfo);
-    static VmResult ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos,
-                                                        std::vector<UbsVirtNumaMemoryDebtInfo> &virtDebtInfos);
-    static VmResult ParseOomMessage(const std::string &eventMessage, Notify &notify);
+    static void FillGlobalWithNumaMemInfo(const AlarmNumaInfo& alarmNumaInfo,
+                                          std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
+                                          GlobalNumaInfoMap& globalNumaInfoMapIn);
+    static GlobalNumaInfoMap GetGlobalResource(const AlarmNumaInfo& alarmNumaInfo,
+                                               std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos);
+    static VmResult BorrowClearEventHandler(const AlarmNumaInfo& alarmNumaInfo);
+    static bool HandlerNoUsedBorrowIds(const AlarmNumaInfo& alarmNumaInfo, WatermarkWarningType eventType);
+    static std::vector<std::string> GenVectorByBorrowItem(const AlarmNumaInfo& alarmNumaInfo);
+    static VmResult GetVirtDebtInfos(std::vector<UbsVirtNumaMemoryDebtInfo>& virtDebtInfos);
+    static VmResult GenAlarmNumaInfo(const Notify& notify, std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
+                                     AlarmNumaInfo& alarmNumaInfo);
+    static VmResult ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos,
+                                                        std::vector<UbsVirtNumaMemoryDebtInfo>& virtDebtInfos);
+    static VmResult ParseOomMessage(const std::string& eventMessage, Notify& notify);
 };
 } // namespace vm
 #endif // VM_ALARM_HANDLER_H

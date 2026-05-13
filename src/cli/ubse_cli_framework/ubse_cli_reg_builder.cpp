@@ -20,20 +20,20 @@ UbseCliRegBuilder::UbseCliRegBuilder()
     this->commandInfo_.commandFunc = nullptr;
 }
 
-UbseCliRegBuilder &UbseCliRegBuilder::UbseCliSetCommand(const std::string &command)
+UbseCliRegBuilder& UbseCliRegBuilder::UbseCliSetCommand(const std::string& command)
 {
     this->commandInfo_.command = command;
     return *this;
 }
 
-UbseCliRegBuilder &UbseCliRegBuilder::UbseCliSetType(const std::string &type)
+UbseCliRegBuilder& UbseCliRegBuilder::UbseCliSetType(const std::string& type)
 {
     this->commandInfo_.type = type;
     return *this;
 }
 
-UbseCliRegBuilder &UbseCliRegBuilder::UbseCliAddOption(const std::string &short_opt, const std::string &long_opt,
-    const std::string &desc)
+UbseCliRegBuilder& UbseCliRegBuilder::UbseCliAddOption(const std::string& short_opt, const std::string& long_opt,
+                                                       const std::string& desc)
 {
     UbseCliOptionsInfo option_info;
     option_info.shortOpt = short_opt;
@@ -43,7 +43,7 @@ UbseCliRegBuilder &UbseCliRegBuilder::UbseCliAddOption(const std::string &short_
     return *this;
 }
 
-UbseCliRegBuilder &UbseCliRegBuilder::UbseCliSetFunc(UbseCliCommandFunc func)
+UbseCliRegBuilder& UbseCliRegBuilder::UbseCliSetFunc(UbseCliCommandFunc func)
 {
     this->commandInfo_.commandFunc = func;
     return *this;

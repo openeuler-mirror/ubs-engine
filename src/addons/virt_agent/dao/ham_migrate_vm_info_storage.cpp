@@ -26,9 +26,9 @@ static const std::string HAM_MIGRATE_KEY = "ham_migrate";
 ReadWriteLock HamMigrateVmInfoStorage::hamMigrateLock{};
 std::vector<HamMigrateVmInfo> HamMigrateVmInfoStorage::hamMigrateCache{};
 
-VmResult HamMigrateVmInfoStorage::SetHamMigrateVmInfo(const HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrateVmInfoStorage::SetHamMigrateVmInfo(const HamMigrateVmInfo& hamMigrateVmInfo)
 {
-    return OpHamMigrate(hamMigrateCache, [&hamMigrateVmInfo](std::vector<HamMigrateVmInfo> &vmInfos) {
+    return OpHamMigrate(hamMigrateCache, [&hamMigrateVmInfo](std::vector<HamMigrateVmInfo>& vmInfos) {
         UBSE_LOG_DEBUG << "[StoreHamMigrates] updated, nodeId = " << hamMigrateVmInfo.nodeId
                        << ", pid = " << hamMigrateVmInfo.pid;
         vmInfos.erase(remove(vmInfos.begin(), vmInfos.end(), hamMigrateVmInfo), vmInfos.end());
@@ -36,10 +36,10 @@ VmResult HamMigrateVmInfoStorage::SetHamMigrateVmInfo(const HamMigrateVmInfo &ha
     });
 }
 
-VmResult HamMigrateVmInfoStorage::SetHamMigrateVmInfos(const std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult HamMigrateVmInfoStorage::SetHamMigrateVmInfos(const std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
-    return OpHamMigrate(hamMigrateCache, [&hamMigrateVmInfos](std::vector<HamMigrateVmInfo> &vmInfos) {
-        for (const auto &hamMigrateVmInfo : hamMigrateVmInfos) {
+    return OpHamMigrate(hamMigrateCache, [&hamMigrateVmInfos](std::vector<HamMigrateVmInfo>& vmInfos) {
+        for (const auto& hamMigrateVmInfo : hamMigrateVmInfos) {
             UBSE_LOG_DEBUG << "[StoreHamMigrates] updated, nodeId = " << hamMigrateVmInfo.nodeId
                            << ", pid = " << hamMigrateVmInfo.pid;
             vmInfos.erase(remove(vmInfos.begin(), vmInfos.end(), hamMigrateVmInfo), vmInfos.end());
@@ -48,11 +48,11 @@ VmResult HamMigrateVmInfoStorage::SetHamMigrateVmInfos(const std::vector<HamMigr
     });
 }
 
-VmResult HamMigrateVmInfoStorage::GetHamMigrateVmInfo(const std::string &nodeId, int pid,
-                                                      HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrateVmInfoStorage::GetHamMigrateVmInfo(const std::string& nodeId, int pid,
+                                                      HamMigrateVmInfo& hamMigrateVmInfo)
 {
     ReadLocker<ReadWriteLock> lock(&hamMigrateLock);
-    for (const auto &vmInfo : hamMigrateCache) {
+    for (const auto& vmInfo : hamMigrateCache) {
         if (nodeId == vmInfo.nodeId && pid == vmInfo.pid) {
             hamMigrateVmInfo = vmInfo;
             UBSE_LOG_INFO << "[GetHamMigrate] nodeId = " << nodeId << ", pid = " << pid
@@ -64,11 +64,11 @@ VmResult HamMigrateVmInfoStorage::GetHamMigrateVmInfo(const std::string &nodeId,
     return VM_ERROR;
 }
 
-void HamMigrateVmInfoStorage::GetHamMigrateVmInfos(const std::string &nodeId,
-                                                   std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+void HamMigrateVmInfoStorage::GetHamMigrateVmInfos(const std::string& nodeId,
+                                                   std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     ReadLocker<ReadWriteLock> lock(&hamMigrateLock);
-    for (const auto &vmInfo : hamMigrateCache) {
+    for (const auto& vmInfo : hamMigrateCache) {
         if (nodeId == vmInfo.nodeId) {
             hamMigrateVmInfos.emplace_back(vmInfo);
         }
@@ -76,20 +76,20 @@ void HamMigrateVmInfoStorage::GetHamMigrateVmInfos(const std::string &nodeId,
     UBSE_LOG_INFO << "[GetHamMigrate] nodeId = " << nodeId << ", size = " << hamMigrateVmInfos.size();
 }
 
-VmResult HamMigrateVmInfoStorage::DelHamMigrateVmInfo(const std::string &nodeId, pid_t pid)
+VmResult HamMigrateVmInfoStorage::DelHamMigrateVmInfo(const std::string& nodeId, pid_t pid)
 {
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.nodeId = nodeId;
     hamMigrateVmInfo.pid = pid;
-    return OpHamMigrate(hamMigrateCache, [&hamMigrateVmInfo](std::vector<HamMigrateVmInfo> &vmInfos) {
+    return OpHamMigrate(hamMigrateCache, [&hamMigrateVmInfo](std::vector<HamMigrateVmInfo>& vmInfos) {
         UBSE_LOG_DEBUG << "[StoreHamMigrates] deleted, nodeId = " << hamMigrateVmInfo.nodeId
                        << ", pid = " << hamMigrateVmInfo.pid;
         vmInfos.erase(remove(vmInfos.begin(), vmInfos.end(), hamMigrateVmInfo), vmInfos.end());
     });
 }
 
-VmResult HamMigrateVmInfoStorage::OpHamMigrate(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos,
-                                               const std::function<void(std::vector<HamMigrateVmInfo> &)> &func)
+VmResult HamMigrateVmInfoStorage::OpHamMigrate(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos,
+                                               const std::function<void(std::vector<HamMigrateVmInfo>&)>& func)
 {
     UBSE_LOG_INFO << "[SaveHamMigrates] start.";
     UBSE_LOG_DEBUG << "[SaveHamMigrates] hamMigrateVmInfos size = " << hamMigrateVmInfos.size();
@@ -124,7 +124,7 @@ VmResult HamMigrateVmInfoStorage::OpHamMigrate(std::vector<HamMigrateVmInfo> &ha
     return VM_OK;
 }
 
-VmResult HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     ReadLocker<ReadWriteLock> lock(&hamMigrateLock);
     auto ret = UbseStorageQueryData(HAM_MIGRATE_KEY_PREFIX, HAM_MIGRATE_KEY, &hamMigrateVmInfos, QueryHandler);
@@ -138,11 +138,11 @@ VmResult HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos(std::vector<HamMigrate
     return ret;
 }
 
-void HamMigrateVmInfoStorage::GetHamMigrateVmInfosByDstNodeId(const std::string &dstNodeId,
-                                                              std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+void HamMigrateVmInfoStorage::GetHamMigrateVmInfosByDstNodeId(const std::string& dstNodeId,
+                                                              std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     ReadLocker<ReadWriteLock> lock(&hamMigrateLock);
-    for (const auto &vmInfo : hamMigrateCache) {
+    for (const auto& vmInfo : hamMigrateCache) {
         if (vmInfo.dstNodeId == dstNodeId) {
             hamMigrateVmInfos.emplace_back(vmInfo);
         }
@@ -150,10 +150,10 @@ void HamMigrateVmInfoStorage::GetHamMigrateVmInfosByDstNodeId(const std::string 
     UBSE_LOG_INFO << "[GetHamMigrate] dstNodeId = " << dstNodeId << ", size = " << hamMigrateVmInfos.size();
 }
 
-void HamMigrateVmInfoStorage::QueryHandler(const std::string &keyPrefix, const std::string &key,
-                                           const UbseByteBuffer &buff, void *ctx)
+void HamMigrateVmInfoStorage::QueryHandler(const std::string& keyPrefix, const std::string& key,
+                                           const UbseByteBuffer& buff, void* ctx)
 {
-    auto *hamMigrateVmInfos = static_cast<std::vector<HamMigrateVmInfo> *>(ctx);
+    auto* hamMigrateVmInfos = static_cast<std::vector<HamMigrateVmInfo>*>(ctx);
     if (hamMigrateVmInfos == nullptr || buff.data == nullptr) {
         UBSE_LOG_WARN << "[GetHamMigrates] ctx or buff is nullptr.";
         return;
@@ -170,15 +170,15 @@ void HamMigrateVmInfoStorage::QueryHandler(const std::string &keyPrefix, const s
         return;
     }
     auto hamMigrateVmInfo = hamMigrateVmInfoSimpo.GetData();
-    for (const auto &migrateVmInfo : hamMigrateVmInfo) {
+    for (const auto& migrateVmInfo : hamMigrateVmInfo) {
         hamMigrateVmInfos->emplace_back(migrateVmInfo);
     }
 }
 
-std::string HamMigrateVmInfoStorage::ToString(const std::vector<HamMigrateVmInfo> &HamMigrateVmInfos)
+std::string HamMigrateVmInfoStorage::ToString(const std::vector<HamMigrateVmInfo>& HamMigrateVmInfos)
 {
     std::ostringstream oss;
-    for (auto &hamMigrateVmInfo : HamMigrateVmInfos) {
+    for (auto& hamMigrateVmInfo : HamMigrateVmInfos) {
         oss << "(";
         oss << hamMigrateVmInfo.ToString();
         oss << "),";

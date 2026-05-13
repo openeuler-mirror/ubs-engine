@@ -17,12 +17,12 @@
 #include <shared_mutex>
 #include <vector>
 
-#include "ubse_module.h"
-#include "src/framework/context/ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_lcne_topology.h"
 #include "ubse_logger.h"
+#include "ubse_module.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "src/framework/context/ubse_context.h"
 
 namespace ubse::mti {
 using namespace ubse::module;
@@ -47,20 +47,20 @@ public:
      * @param[out] ubseNodeInfo: 当前节点信息
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult UbseGetLocalNodeInfo(MtiNodeInfo &ubseNodeInfo);
+    UbseResult UbseGetLocalNodeInfo(MtiNodeInfo& ubseNodeInfo);
 
     /* *
      * @brief 获取LCNE感知的集群节点信息
      * @param[out] ubseNodeInfos: 整个集群节点信息
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos);
+    UbseResult UbseGetAllNodeInfos(std::vector<MtiNodeInfo>& ubseNodeInfos);
 
     UbseResult UbseGetDevTopology(adapter_plugins::mti::UbseDevTopology& devTopology);
 
     UbseLcneOSInfo GetUbseLcneOSInfo();
 
-    UbseResult GetBondingEidByNodeId(std::string &bondingEid, const std::string &nodeId);
+    UbseResult GetBondingEidByNodeId(std::string& bondingEid, const std::string& nodeId);
 
     const std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo> GetAllSocketComEid();
     const std::map<adapter_plugins::mti::UbseDevName, UbseLcneIODieInfo> GetLocalBoardIOInfo();
@@ -72,7 +72,7 @@ public:
 private:
     // 内部功能函数
     UbseResult GetLcneConf();
-    UbseResult ConvertPortConfStrToInt(const std::string &portStr, int &port);
+    UbseResult ConvertPortConfStrToInt(const std::string& portStr, int& port);
 
     UbseResult GetLcneData();
 
@@ -80,7 +80,7 @@ private:
 
     static std::string BytesToIPv6String(const unsigned char inBytes[IPV6_BYTE_COUNT]);
 
-    bool IsPrimaryEidExist(const std::string &nodeId);
+    bool IsPrimaryEidExist(const std::string& nodeId);
 
     void UpdateClusterIpListAndLocalIp();
 
@@ -88,10 +88,10 @@ private:
     UbseLcneTopology ubseLcneTopology;
     // 查询全量规划的urma通信EID（物理意义）
     std::map<adapter_plugins::mti::UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo>
-        allSocketComEid;  // key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
+        allSocketComEid; // key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
     // 查询节点信息（物理意义）
     std::map<adapter_plugins::mti::UbseDevName, UbseLcneIODieInfo>
-        localBoardIOInfo;  // key为devName: nodeId+socketId 值为当前设备的UbseLcneIODieInfo
+        localBoardIOInfo; // key为devName: nodeId+socketId 值为当前设备的UbseLcneIODieInfo
 
     // 查询Host信息（逻辑意义）
     UbseLcneOSInfo localBoardHostInfo;
@@ -103,7 +103,7 @@ private:
     std::string localIp;
     std::vector<std::string> clusterIpList;
     std::shared_mutex rw_mutex;
-    UbseResult GenerateBondingEid(const std::string &nodeId, unsigned char *bondingEid);
+    UbseResult GenerateBondingEid(const std::string& nodeId, unsigned char* bondingEid);
 };
 } // namespace ubse::mti
 

@@ -16,15 +16,15 @@
 #include <bits/types.h>
 #include <cstring>
 #include <map>
-#include <unordered_map>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
-#include <mutex>
 #include "exporter.h"
-#include "rmrs_resource_query.h"
 #include "mp_smap_helper.h"
+#include "rmrs_resource_query.h"
 
 extern "C" {
 namespace mempooling::outinterface {
@@ -33,10 +33,10 @@ using namespace mempooling::smap;
 struct SrcMemoryBorrowParam {
     SrcMemoryBorrowParam() = default;
 
-    std::string srcNid{};  // 借入方节点Id
-    int16_t srcSocketId{}; // 借入方socket Id
-    int16_t srcNumaId{};   // 借入方numa Id 当前限制为1
-    uid_t uid{0};          // 借入方用户uid
+    std::string srcNid{};   // 借入方节点Id
+    int16_t srcSocketId{};  // 借入方socket Id
+    int16_t srcNumaId{};    // 借入方numa Id 当前限制为1
+    uid_t uid{0};           // 借入方用户uid
     std::string username{}; // 借入方用户名
 
     std::string ToString() const
@@ -56,11 +56,11 @@ struct SrcMemoryBorrowParam {
 struct BatchSrcMemoryBorrowParam {
     BatchSrcMemoryBorrowParam() = default;
 
-    std::string srcNid{};              // 借入方节点Id
-    uint16_t srcNumaNum{1};            // 借入方NUMA数量
-    std::vector<int16_t> srcNumaId{};  // 借入方NUMA Id数组
-    uid_t uid{0};                      // 借入方用户uid
-    std::string username{};            // 借入方用户名
+    std::string srcNid{};             // 借入方节点Id
+    uint16_t srcNumaNum{1};           // 借入方NUMA数量
+    std::vector<int16_t> srcNumaId{}; // 借入方NUMA Id数组
+    uid_t uid{0};                     // 借入方用户uid
+    std::string username{};           // 借入方用户名
 
     std::string ToString() const
     {
@@ -84,7 +84,7 @@ struct BatchSrcMemoryBorrowParam {
 };
 
 enum class BorrowStrategy : uint8_t {
-    AVERAGE = 0  // 平均分配策略
+    AVERAGE = 0 // 平均分配策略
 };
 
 struct DestMemoryBorrowParam {
@@ -106,7 +106,7 @@ struct DestMemoryBorrowParam {
         oss << "destSocketId:" << destSocketId << ",";
         oss << "destNumaId:[";
         total = destNumaId.size();
-        for (const auto &destNumaIdItem : destNumaId) {
+        for (const auto& destNumaIdItem : destNumaId) {
             oss << destNumaIdItem;
             if (++count < total) {
                 oss << ",";
@@ -116,7 +116,7 @@ struct DestMemoryBorrowParam {
         oss << "memSize[";
         count = 0;
         total = memSize.size();
-        for (const auto &memSizeItem : memSize) {
+        for (const auto& memSizeItem : memSize) {
             oss << memSizeItem;
             if (++count < total) {
                 oss << ",";
@@ -134,7 +134,7 @@ struct MemBorrowExecuteResult {
     std::vector<std::string> borrowIds{};   // 内存描述符数组
     std::vector<uint16_t> presentNumaIds{}; // 呈现的远端Numa数组
 
-    bool operator==(const MemBorrowExecuteResult &memBorrowExecuteResult) const
+    bool operator==(const MemBorrowExecuteResult& memBorrowExecuteResult) const
     {
         if (this->borrowIds == memBorrowExecuteResult.borrowIds &&
             this->presentNumaIds == memBorrowExecuteResult.presentNumaIds) {
@@ -150,7 +150,7 @@ struct MemBorrowExecuteResult {
         std::ostringstream oss;
         oss << "borrowIds:[";
         total = borrowIds.size();
-        for (const auto &borrowId : borrowIds) {
+        for (const auto& borrowId : borrowIds) {
             oss << borrowId;
             if (++count < total) {
                 oss << ",";
@@ -160,7 +160,7 @@ struct MemBorrowExecuteResult {
         oss << "presentNumaIds[";
         count = 0;
         total = presentNumaIds.size();
-        for (const auto &presentNumaId : presentNumaIds) {
+        for (const auto& presentNumaId : presentNumaIds) {
             oss << presentNumaId;
             if (++count < total) {
                 oss << ",";
@@ -189,7 +189,7 @@ struct MemBorrowStrategyResult {
         oss << "borrowSize:" << borrowSize << ",";
         oss << "destParam:[";
         total = destParam.size();
-        for (const auto &destParamItem : destParam) {
+        for (const auto& destParamItem : destParam) {
             oss << destParamItem.ToString();
             if (++count < total) {
                 oss << ",";
@@ -276,9 +276,9 @@ struct VmDomainNumaInfo {
 struct VmDomainInfo {
     VmDomainInfo() = default;
 
-    VmMetaData metaData{};   // 元信息
+    VmMetaData metaData{};                                    // 元信息
     std::unordered_map<int16_t, VmDomainNumaInfo> numaInfo{}; // 虚机使用numa信息,key为numaId
-    time_t timestamp{}; // 时间戳
+    time_t timestamp{};                                       // 时间戳
 
     std::string ToString() const
     {
@@ -289,7 +289,7 @@ struct VmDomainInfo {
         oss << "metaData:[" << metaData.ToString() << "],";
         oss << "numaInfo:[";
         bool first = true;
-        for (const auto &it : numaInfo) {
+        for (const auto& it : numaInfo) {
             if (!first) {
                 oss << ",";
             }
@@ -319,13 +319,13 @@ struct NumaPageData {
 struct NumaMetaData {
     NumaMetaData() = default;
 
-    std::string nodeId{};     // 节点Id
-    std::string hostName{};   // 节点HostName
-    int16_t numaId{};         // numaId
-    int16_t socketId{};       // 该numa绑定cpu映射socketId
-    bool isLocal{};           // 是否是本地numa  0：非本地  1：本地
-    uint64_t memTotal{};      // 该numa节点内存总量(包含)，系统文件采集，kb
-    uint64_t memFree{};       // 该numa上空闲内存，系统文件采集，kb
+    std::string nodeId{};   // 节点Id
+    std::string hostName{}; // 节点HostName
+    int16_t numaId{};       // numaId
+    int16_t socketId{};     // 该numa绑定cpu映射socketId
+    bool isLocal{};         // 是否是本地numa  0：非本地  1：本地
+    uint64_t memTotal{};    // 该numa节点内存总量(包含)，系统文件采集，kb
+    uint64_t memFree{};     // 该numa上空闲内存，系统文件采集，kb
     std::unordered_map<uint64_t, NumaPageData> numaPageInfo; // 该numa上页信息，key为该numaId上页类型
 
     std::string ToString() const
@@ -342,7 +342,7 @@ struct NumaMetaData {
         oss << "memFree:" << memFree << ",";
         oss << "numaPageInfo:[";
         bool first = true;
-        for (const auto &it : numaPageInfo) {
+        for (const auto& it : numaPageInfo) {
             if (!first) {
                 oss << ",";
             }
@@ -386,7 +386,7 @@ struct WaterMark {
 
 struct NumaQuota {
     uint32_t numaId{};
-    uint32_t quota{};  // 单位 KB
+    uint32_t quota{}; // 单位 KB
 
     std::string ToString() const
     {
@@ -452,7 +452,7 @@ struct PidInfo {
  * @param nodeAntiAffinityMap 反亲和性节点映射
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSUpdateAntiNode(const std::map<std::string, std::vector<std::string>> &nodeAntiMap);
+uint32_t UBSRMRSUpdateAntiNode(const std::map<std::string, std::vector<std::string>>& nodeAntiMap);
 
 /**
  * @brief 内存借用策略
@@ -460,8 +460,8 @@ uint32_t UBSRMRSUpdateAntiNode(const std::map<std::string, std::vector<std::stri
  * @param borrowSize 需要借入的内存大小(单位kB)
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &outSrcParam, const uint64_t &borrowSize,
-                                  MemBorrowStrategyResult &outBorrowStrategyResult);
+uint32_t UBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam& outSrcParam, const uint64_t& borrowSize,
+                                  MemBorrowStrategyResult& outBorrowStrategyResult);
 
 /**
  * @brief 批量内存借用策略
@@ -471,8 +471,8 @@ uint32_t UBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &outSrcParam, const
  * @param borrowStrategy 借用策略类型
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSBatchBorrowStrategy(const BatchSrcMemoryBorrowParam &outSrcParam, const uint64_t &borrowSize,
-                                    std::vector<MemBorrowStrategyResult> &outBorrowStrategyResult,
+uint32_t UBSRMRSBatchBorrowStrategy(const BatchSrcMemoryBorrowParam& outSrcParam, const uint64_t& borrowSize,
+                                    std::vector<MemBorrowStrategyResult>& outBorrowStrategyResult,
                                     BorrowStrategy borrowStrategy);
 /**
  * @brief 内存借用执行
@@ -481,9 +481,9 @@ uint32_t UBSRMRSBatchBorrowStrategy(const BatchSrcMemoryBorrowParam &outSrcParam
  * @param outBorrowExecuteResult 执行结果（内存描述符数组，呈现的远端Numa数组）
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMemBorrowExecute(const SrcMemoryBorrowParam &outSrcParam,
-                                 const std::vector<DestMemoryBorrowParam> &outDestParam,
-                                 MemBorrowExecuteResult &outBorrowExecuteResult);
+uint32_t UBSRMRSMemBorrowExecute(const SrcMemoryBorrowParam& outSrcParam,
+                                 const std::vector<DestMemoryBorrowParam>& outDestParam,
+                                 MemBorrowExecuteResult& outBorrowExecuteResult);
 /**
  * @brief 内存迁出策略
  * @param borrowInNode 内存借入节点
@@ -492,8 +492,8 @@ uint32_t UBSRMRSMemBorrowExecute(const SrcMemoryBorrowParam &outSrcParam,
  * @param outMigrateStrategyResult 内存迁出策略结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMigrateStrategy(const std::string &borrowInNode, const std::vector<VMPresetParam> &outVmInfoList,
-                                const uint64_t &borrowSize, MigrateStrategyResult &outMigrateStrategyResult);
+uint32_t UBSRMRSMigrateStrategy(const std::string& borrowInNode, const std::vector<VMPresetParam>& outVmInfoList,
+                                const uint64_t& borrowSize, MigrateStrategyResult& outMigrateStrategyResult);
 
 /**
  * @brief 内存迁出执行
@@ -503,8 +503,8 @@ uint32_t UBSRMRSMigrateStrategy(const std::string &borrowInNode, const std::vect
  * @param borrowIdList 内存描述符列表
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMigrateExecute(const std::string &borrowInNode, const std::vector<VMMigrateOutParam> &outVmInfoList,
-                               const std::uint64_t &waitingTime, const std::vector<std::string> &borrowIds);
+uint32_t UBSRMRSMigrateExecute(const std::string& borrowInNode, const std::vector<VMMigrateOutParam>& outVmInfoList,
+                               const std::uint64_t& waitingTime, const std::vector<std::string>& borrowIds);
 
 /**
  * @brief 内存归还策略与执行
@@ -516,7 +516,7 @@ uint32_t UBSRMRSMigrateExecute(const std::string &borrowInNode, const std::vecto
  *         3   迁移失败通用错误码
  *         4   内存资源删除失败
  */
-uint32_t UBSRMRSMemFree(const std::string &nodeId);
+uint32_t UBSRMRSMemFree(const std::string& nodeId);
 
 /**
  * @brief 借用内存回滚
@@ -524,21 +524,21 @@ uint32_t UBSRMRSMemFree(const std::string &nodeId);
  * @param borrowIds 借用记录id
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMemBorrowRollback(const std::string &borrowInNode, const std::vector<std::string> &borrowIds);
+uint32_t UBSRMRSMemBorrowRollback(const std::string& borrowInNode, const std::vector<std::string>& borrowIds);
 
 /**
  * @brief 查询本节点所有虚机信息
  * @param outVmDomainInfos 虚机字段信息列表
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSGetVmInfoListOnNode(std::vector<VmDomainInfo> &outVmDomainInfos);
+uint32_t UBSRMRSGetVmInfoListOnNode(std::vector<VmDomainInfo>& outVmDomainInfos);
 
 /**
  * @brief 查询本节点所有NUMA信息
  * @param outNumaInfos  NUMA字段信息列表
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSGetNumaInfoListOnNode(std::vector<NumaInfo> &outNumaInfos);
+uint32_t UBSRMRSGetNumaInfoListOnNode(std::vector<NumaInfo>& outNumaInfos);
 
 /**
  * @brief 超分内存借用
@@ -547,8 +547,8 @@ uint32_t UBSRMRSGetNumaInfoListOnNode(std::vector<NumaInfo> &outNumaInfos);
  * @param result 执行结果（内存描述符数组，呈现的远端Numa数组）
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam &srcParam, const std::vector<uint64_t> &borrowSizes,
-                          const WaterMark &waterMark, MemBorrowExecuteResult &result);
+uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam& srcParam, const std::vector<uint64_t>& borrowSizes,
+                          const WaterMark& waterMark, MemBorrowExecuteResult& result);
 
 /**
  * @brief 超分内存分配
@@ -557,8 +557,8 @@ uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam &srcParam, const std::vecto
  * @param result 执行结果（内存描述符数组，呈现的远端Numa数组
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vector<VMPresetParam> &vmPresetParams,
-                           const MemBorrowExecuteResult &result);
+uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam& srcParam, const std::vector<VMPresetParam>& vmPresetParams,
+                           const MemBorrowExecuteResult& result);
 
 /**
  * @brief 超分归还请求
@@ -567,8 +567,8 @@ uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vect
  * @param pids 借入numa上虚拟机进程列表
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vector<std::string> &borrowIds,
-                          const std::vector<pid_t> &pids);
+uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& borrowIds,
+                          const std::vector<pid_t>& pids);
 
 /**
  * @brief 容器numa信息采集
@@ -577,17 +577,17 @@ uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vecto
  * @param pidInfos 存放容器信息采集结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSPidNumaInfoCollect(const SrcMemoryBorrowParam &srcParam, const std::vector<pid_t> &pids,
-                                   std::vector<PidInfo> &pidInfos);
+uint32_t UBSRMRSPidNumaInfoCollect(const SrcMemoryBorrowParam& srcParam, const std::vector<pid_t>& pids,
+                                   std::vector<PidInfo>& pidInfos);
 
-uint32_t UBSRMRSSetWaterMark(const WaterMark &waterMark);
+uint32_t UBSRMRSSetWaterMark(const WaterMark& waterMark);
 
 /**
  * @brief 设置超分/碎片场景
  * @param runMode 场景类型 (0:超分场景; 1:内存碎片场景)
  * @return 0为成功, SMAP未初始化返回21，参数错误返回22，其他错误情况返回1
  */
-uint32_t UBSRMRSSetRunMode(const int &runMode);
+uint32_t UBSRMRSSetRunMode(const int& runMode);
 
 /**
  * @brief 通知SMAP添加进程扫描，并设置扫描周期参数
@@ -597,8 +597,8 @@ uint32_t UBSRMRSSetRunMode(const int &runMode);
  * @param durationVec 统计周期数组，有效值{1~300}，单位s，在scanType=2时使用，默认值为1s
  * @return 0为成功, SMAP未初始化返回-1, 参数错误返回-22, 内核态内存申请失败返回-9, 用户态内存申请失败返回-12, OSTurbo通信失败返回17
  */
-int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t> &pidVec, const std::vector<uint32_t> &scanTimeVec,
-                                  int scanType, const std::optional<std::vector<uint32_t>> &durationVec = std::nullopt);
+int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t>& pidVec, const std::vector<uint32_t>& scanTimeVec,
+                                  int scanType, const std::optional<std::vector<uint32_t>>& durationVec = std::nullopt);
 
 /**
  * @brief 查询虚机冷热信息
@@ -609,8 +609,8 @@ int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t> &pidVec, const std::v
  * @param dataSource 标识数据来源，0表示迁移进程的冷热信息，1表示统计扫描进程的冷热信息
  * @return 0为成功, SMAP未初始化返回-1, 参数错误返回-22, 没有达到统计周期返回-11, OSTurbo通信失败返回17
  */
-int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const uint32_t &lengthIn,
-                         uint32_t &lengthOut, const int &dataSource);
+int UBSRMRSSmapQueryFreq(const pid_t& pid, std::vector<uint16_t>& dataVec, const uint32_t& lengthIn,
+                         uint32_t& lengthOut, const int& dataSource);
 
 /**
  * @brief 通知SMAP移除进程扫描
@@ -618,7 +618,7 @@ int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const
  * @param flags 保留字段, 默认值为0
  * @return 0为成功, SMAP未初始化返回-1，参数错误返回-22, OSTurbo通信失败返回17
  */
-int UBSRMRSSmapRemoveProcessTracking(const std::vector<pid_t> &pidVec, int flags = 0);
+int UBSRMRSSmapRemoveProcessTracking(const std::vector<pid_t>& pidVec, int flags = 0);
 
 /**
  * @brief 启用/禁用PID对应虚机的冷热迁移和迁回
@@ -635,7 +635,7 @@ int UBSRMRSSmapEnableProcessMigrate(std::vector<pid_t> pidVec, int enable, int f
  * @param pageSwapPairs 页交换配对数组（每个PageSwapPair映射为一个MigrationGroup）
  * @return  0为成功, 非0为异常
  */
-uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<PageSwapPair> &pageSwapPairs);
+uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<PageSwapPair>& pageSwapPairs);
 
 /* *
  * @brief   设置进程迁移到远端NUMA，异步调用接口
@@ -644,7 +644,7 @@ uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<Pag
  * @param pidType  [IN] 进程类型，目前支持4KB和2MB进程类型，int配置类型：0-进程（4K）1-虚拟机（2M）
  * @return int  0：操作成功；非0：操作失败
  */
-int MigrateOut(const std::vector<MigrateOutPayload> &items, int pidType);
+int MigrateOut(const std::vector<MigrateOutPayload>& items, int pidType);
 
 /* *
  * @brief   移除进程的冷热页迁移
@@ -688,12 +688,11 @@ public:
 private:
     // 私有构造函数
     ApiConcurrencyManager() = default;
-    
+
     std::mutex m_mtx;
     bool m_isRunningOther = false;
     int m_runningMemReturnCount = 0;
 };
-
 
 } // namespace mempooling::outinterface
 }

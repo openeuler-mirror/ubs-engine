@@ -45,7 +45,7 @@ UbseApiServerAuthManager::UbseApiServerAuthManager()
 void UbseApiServerAuthManager::InitializeBuiltinAuth()
 {
     // 设置内置用户到管理员角色的映射
-    for (const auto &user : BUILTIN_USERS) {
+    for (const auto& user : BUILTIN_USERS) {
         userToRole_[user] = ADMIN_ROLE;
     }
 
@@ -78,14 +78,14 @@ UbseResult UbseApiServerAuthManager::LoadAuthConfig()
     return UBSE_OK;
 }
 
-static inline std::string trim(const std::string &s)
+static inline std::string trim(const std::string& s)
 {
     auto front = std::find_if_not(s.begin(), s.end(), [](int c) { return std::isspace(c); });
     auto back = std::find_if_not(s.rbegin(), s.rend(), [](int c) { return std::isspace(c); }).base();
     return (back <= front ? std::string() : std::string(front, back));
 }
 
-std::vector<std::string> UbseApiServerAuthManager::ParseObjects(const std::string &objectsStr)
+std::vector<std::string> UbseApiServerAuthManager::ParseObjects(const std::string& objectsStr)
 {
     std::vector<std::string> objects{};
     std::istringstream iss(objectsStr);
@@ -100,8 +100,8 @@ std::vector<std::string> UbseApiServerAuthManager::ParseObjects(const std::strin
     return objects;
 }
 
-uint32_t UbseApiServerAuthManager::ParseRoleConfig(const std::shared_ptr<UbseConfModule> &confModule,
-                                                   const std::string &configSection)
+uint32_t UbseApiServerAuthManager::ParseRoleConfig(const std::shared_ptr<UbseConfModule>& confModule,
+                                                   const std::string& configSection)
 {
     std::map<std::string, std::map<std::string, std::string>> roleConfigVals{};
     auto ret = confModule->GetAllConfigWithPrefix(configSection, roleConfigVals);
@@ -115,9 +115,9 @@ uint32_t UbseApiServerAuthManager::ParseRoleConfig(const std::shared_ptr<UbseCon
         UBSE_LOG_WARN << "No configuration found or empty section: " << configSection;
         return UBSE_ERROR_CONF_INVALID;
     }
-    const auto &configVals = it->second;
+    const auto& configVals = it->second;
 
-    for (const auto &[role, objectsStr] : configVals) {
+    for (const auto& [role, objectsStr] : configVals) {
         if (objectsStr.size() >= MAX_OBJECT_STR) {
             UBSE_LOG_ERROR << "objectsStr size exceeded MAX_OBJECT_STR. Current size: " << objectsStr.size()
                            << " , Max size: " << MAX_OBJECT_STR;
@@ -133,8 +133,8 @@ uint32_t UbseApiServerAuthManager::ParseRoleConfig(const std::shared_ptr<UbseCon
     return UBSE_OK;
 }
 
-uint32_t UbseApiServerAuthManager::ParseUserConfig(const std::shared_ptr<UbseConfModule> &confModule,
-                                                   const std::string &configSection)
+uint32_t UbseApiServerAuthManager::ParseUserConfig(const std::shared_ptr<UbseConfModule>& confModule,
+                                                   const std::string& configSection)
 {
     std::map<std::string, std::map<std::string, std::string>> userConfigVals{};
     auto ret = confModule->GetAllConfigWithPrefix(configSection, userConfigVals);
@@ -148,8 +148,8 @@ uint32_t UbseApiServerAuthManager::ParseUserConfig(const std::shared_ptr<UbseCon
         UBSE_LOG_WARN << "No configuration found or empty section: " << configSection;
         return UBSE_ERROR_CONF_INVALID;
     }
-    const auto &configVals = it->second;
-    for (const auto &[user, role] : configVals) {
+    const auto& configVals = it->second;
+    for (const auto& [user, role] : configVals) {
         if (IsValidUserConfig(user, role)) {
             userToRole_[user] = role;
         } else {
@@ -159,7 +159,7 @@ uint32_t UbseApiServerAuthManager::ParseUserConfig(const std::shared_ptr<UbseCon
     return UBSE_OK;
 }
 
-bool UbseApiServerAuthManager::IsValidUserConfig(const std::string &user, const std::string &role)
+bool UbseApiServerAuthManager::IsValidUserConfig(const std::string& user, const std::string& role)
 {
     // 检查是否包含内置用户
     if (std::find(BUILTIN_USERS.begin(), BUILTIN_USERS.end(), user) != BUILTIN_USERS.end()) {
@@ -174,7 +174,7 @@ bool UbseApiServerAuthManager::IsValidUserConfig(const std::string &user, const 
     return !user.empty() && !role.empty();
 }
 
-bool UbseApiServerAuthManager::IsValidRoleConfig(const std::string &role, const std::vector<std::string> &objects)
+bool UbseApiServerAuthManager::IsValidRoleConfig(const std::string& role, const std::vector<std::string>& objects)
 {
     // 检查是否包含管理员角色
     if (role == ADMIN_ROLE) {
@@ -189,7 +189,7 @@ bool UbseApiServerAuthManager::IsValidRoleConfig(const std::string &role, const 
     return !role.empty() && !objects.empty();
 }
 
-bool UbseApiServerAuthManager::CheckPermission(const std::string &username, const std::string &targetObject)
+bool UbseApiServerAuthManager::CheckPermission(const std::string& username, const std::string& targetObject)
 {
     UBSE_LOG_INFO << "Starting permission check, user=" << username << ", target object=" << targetObject;
     // 查找用户角色
@@ -199,7 +199,7 @@ bool UbseApiServerAuthManager::CheckPermission(const std::string &username, cons
         return false; // 用户未找到
     }
 
-    const std::string &role = userIt->second;
+    const std::string& role = userIt->second;
     UBSE_LOG_DEBUG << "User " << username << " has role " << role;
 
     // 查找角色对应的对象集合
@@ -209,7 +209,7 @@ bool UbseApiServerAuthManager::CheckPermission(const std::string &username, cons
         return false; // 角色未找到
     }
 
-    const auto &objects = roleIt->second;
+    const auto& objects = roleIt->second;
 
     // 检查是否拥有all权限或具体对象权限
     return objects.find(ALL_OBJECT) != objects.end() || objects.find(targetObject) != objects.end();
@@ -225,7 +225,7 @@ void UbseApiServerAuthManager::clear()
     InitializeBuiltinAuth();
 }
 
-bool UbseApiServerAuthManager::CheckPermission(const std::string &username, uint16_t moduleCode, uint16_t opCode)
+bool UbseApiServerAuthManager::CheckPermission(const std::string& username, uint16_t moduleCode, uint16_t opCode)
 {
     UBSE_LOG_INFO << "Attempting to check permissions for user=" << username << ", moduleCode=" << moduleCode
                   << ", opCode=" << opCode;
@@ -248,7 +248,7 @@ bool UbseApiServerAuthManager::CheckPermission(const std::string &username, uint
     return CheckPermission(username, object);
 }
 
-void UbseApiServerAuthManager::AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string &object)
+void UbseApiServerAuthManager::AddObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object)
 {
     objectManager_.AddObjectMapping(moduleCode, opCode, object);
 }

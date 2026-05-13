@@ -67,7 +67,7 @@ uint32_t RegisterAlarmFaultHandler(AlarmHandler alarmHandler);
 uint32_t RegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
                                    AlarmHandlerPriority priority = AlarmHandlerPriority::MEDIUM);
 
-uint32_t UnRegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string &name);
+uint32_t UnRegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string& name);
 } // namespace ubse::ras
 
 #endif // UBSE_MANAGER_UBSE_RAS_H

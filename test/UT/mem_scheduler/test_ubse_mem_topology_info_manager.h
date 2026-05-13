@@ -26,7 +26,6 @@ public:
 
     void TearDown() override;
 };
-}
-
+} // namespace ubse::mem_scheduler::ut
 
 #endif // UBS_ENGINE_TEST_UBSE_MEM_TOPOLOGY_INFO_MANAGER_H

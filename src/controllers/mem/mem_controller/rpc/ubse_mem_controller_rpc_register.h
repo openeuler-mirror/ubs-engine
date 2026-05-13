@@ -16,5 +16,5 @@
 namespace ubse::mem::controller::rpc {
 using namespace ubse::common::def;
 UbseResult RegMemControllerHandler();
-}  // namespace ubse::mem::controller::rpc
-#endif  // UBSE_MEM_CONTROLLER_RPC_REGISTER_H
+} // namespace ubse::mem::controller::rpc
+#endif // UBSE_MEM_CONTROLLER_RPC_REGISTER_H

@@ -21,8 +21,7 @@ namespace api::server {
 using namespace ubse::context;
 using namespace ubse::log;
 
-uint32_t RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler,
-                            const std::string &object)
+uint32_t RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler, const std::string& object)
 {
     auto apiServerModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
@@ -36,7 +35,7 @@ uint32_t RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler
     return ret;
 }
 
-uint32_t SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &response)
+uint32_t SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response)
 {
     auto apiServerModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {

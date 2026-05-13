@@ -21,7 +21,7 @@ class UbseMemDebtInfoQueryHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoQueryHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -46,7 +46,7 @@ class UbseMemDebtInfoFdGetHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoFdGetHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -68,7 +68,7 @@ class UbseMemDebtInfoFdListHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoFdListHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -90,7 +90,7 @@ class UbseMemDebtInfoNumaGetHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoNumaGetHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -112,7 +112,7 @@ class UbseMemDebtInfoNumaGetWithImportNodeHandler : public UbseComBaseMessageHan
 public:
     UbseMemDebtInfoNumaGetWithImportNodeHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -134,7 +134,7 @@ class UbseMemDebtInfoNumaListHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoNumaListHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -156,7 +156,7 @@ class UbseMemDebtInfoShmGetHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoShmGetHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -178,7 +178,7 @@ class UbseMemDebtInfoShmListHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoShmListHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -200,7 +200,7 @@ class UbseMemDebtInfoShmStatusGetHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoShmStatusGetHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -222,7 +222,7 @@ class UbseMemDebtInfoAddrGetHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoAddrGetHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -245,7 +245,7 @@ class UbseMemDebtInfoPartialFetchHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoPartialFetchHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -267,7 +267,7 @@ class UbseMemNodeBorrowQueryHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemNodeBorrowQueryHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -290,7 +290,7 @@ class UbseMemIdInfoGetHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemIdInfoGetHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override

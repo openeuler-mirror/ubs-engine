@@ -10,11 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <unistd.h>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <unistd.h>
-#include <cstring>
 #include "securec.h"
 
 #include <gmock/gmock.h>
@@ -32,7 +32,7 @@
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace mempooling {
-    MpResult ClearData(const std::vector<std::string> &keyList);
+MpResult ClearData(const std::vector<std::string>& keyList);
 }
 
 namespace mempooling::over_commit {
@@ -51,35 +51,35 @@ protected:
     }
 };
 
-uint32_t RackStorageQueryAllDataForWaterMark(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t RackStorageQueryAllDataForWaterMark(const std::string& keyPrefix, const std::string& key, void* ctx,
                                              UbseStorageDealDataFunc func)
 {
-    std::unordered_map<std::string, uint16_t> &map = *(static_cast<std::unordered_map<std::string, uint16_t> *>(ctx));
+    std::unordered_map<std::string, uint16_t>& map = *(static_cast<std::unordered_map<std::string, uint16_t>*>(ctx));
     map["high_water"] = 90;
     map["low_water"] = 60;
     return 0;
 }
 
-uint32_t RackStorageQueryAllDataForWaterMarkFail1(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t RackStorageQueryAllDataForWaterMarkFail1(const std::string& keyPrefix, const std::string& key, void* ctx,
                                                   UbseStorageDealDataFunc func)
 {
-    std::unordered_map<std::string, uint16_t> &map = *(static_cast<std::unordered_map<std::string, uint16_t> *>(ctx));
+    std::unordered_map<std::string, uint16_t>& map = *(static_cast<std::unordered_map<std::string, uint16_t>*>(ctx));
     map[HIGH_WATER_MAKR] = 92;
     return 0;
 }
 
-uint32_t RackStorageQueryAllDataForWaterMarkFail2(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t RackStorageQueryAllDataForWaterMarkFail2(const std::string& keyPrefix, const std::string& key, void* ctx,
                                                   UbseStorageDealDataFunc func)
 {
-    std::unordered_map<std::string, uint16_t> &map = *(static_cast<std::unordered_map<std::string, uint16_t> *>(ctx));
+    std::unordered_map<std::string, uint16_t>& map = *(static_cast<std::unordered_map<std::string, uint16_t>*>(ctx));
     map[LOW_WATER_MAKR] = 80;
     return 0;
 }
 
-uint32_t RackStorageQueryAllDataForKeyList(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t RackStorageQueryAllDataForKeyList(const std::string& keyPrefix, const std::string& key, void* ctx,
                                            UbseStorageDealDataFunc func)
 {
-    std::unordered_map<std::string, uint16_t> &map = *(static_cast<std::unordered_map<std::string, uint16_t> *>(ctx));
+    std::unordered_map<std::string, uint16_t>& map = *(static_cast<std::unordered_map<std::string, uint16_t>*>(ctx));
     map["high_water"] = 90;
     map["low_water"] = 60;
     return 0;
@@ -87,8 +87,8 @@ uint32_t RackStorageQueryAllDataForKeyList(const std::string &keyPrefix, const s
 
 TEST_F(TestOverCommitStorageModule, GetWaterMarkSuccess)
 {
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key,
-                                                                void *ctx, ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryAllDataForWaterMark));
     struct WaterMark waterMark;
@@ -98,8 +98,8 @@ TEST_F(TestOverCommitStorageModule, GetWaterMarkSuccess)
 
 TEST_F(TestOverCommitStorageModule, GetWaterMarkFail)
 {
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key,
-                                                                void *ctx, ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryAllDataForWaterMarkFail1));
     struct WaterMark waterMark;
@@ -109,8 +109,8 @@ TEST_F(TestOverCommitStorageModule, GetWaterMarkFail)
 
 TEST_F(TestOverCommitStorageModule, GetWaterMarkFail2)
 {
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key,
-                                                                void *ctx, ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryAllDataForWaterMarkFail2));
     struct WaterMark waterMark;
@@ -120,8 +120,8 @@ TEST_F(TestOverCommitStorageModule, GetWaterMarkFail2)
 
 TEST_F(TestOverCommitStorageModule, GetWaterMarkFail3)
 {
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key,
-                                                                void *ctx, ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     struct WaterMark waterMark;
@@ -132,7 +132,7 @@ TEST_F(TestOverCommitStorageModule, GetWaterMarkFail3)
 TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataSuccessWhenNoData)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     UbseByteBuffer buffer;
@@ -143,7 +143,7 @@ TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataSuccessWhenNoData)
 TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataSuccessWithData)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     UbseByteBuffer buffer;
@@ -156,7 +156,7 @@ TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataSuccessWithData)
 
 TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataFail1)
 {
-    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string &, void *ctx, UbseStorageDealDataFunc))
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(returnValue(1));
     UbseByteBuffer buffer;
@@ -167,10 +167,10 @@ TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataFail1)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-uint32_t RackStorageQueryAllDataForBindType(const std::string &keyPrefix, void *ctx, UbseStorageDealDataFunc func)
+uint32_t RackStorageQueryAllDataForBindType(const std::string& keyPrefix, void* ctx, UbseStorageDealDataFunc func)
 {
     UbseByteBuffer buff;
-    std::vector<std::string> &vec = *(static_cast<std::vector<std::string> *>(ctx));
+    std::vector<std::string>& vec = *(static_cast<std::vector<std::string>*>(ctx));
     vec.emplace_back("BIND_MULTIPLE");
     return 0;
 }
@@ -178,7 +178,7 @@ uint32_t RackStorageQueryAllDataForBindType(const std::string &keyPrefix, void *
 TEST_F(TestOverCommitStorageModule, GetNumaBindTypeRawDataSuccessWithData)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     UbseByteBuffer buffer;
@@ -192,7 +192,7 @@ TEST_F(TestOverCommitStorageModule, GetNumaBindTypeRawDataSuccessWithData)
 TEST_F(TestOverCommitStorageModule, GetNumaBindTypeRawDataSuccessWithoutData)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     UbseByteBuffer buffer;
@@ -206,7 +206,7 @@ TEST_F(TestOverCommitStorageModule, GetNumaBindTypeRawDataSuccessWithoutData)
 TEST_F(TestOverCommitStorageModule, GetNumaBindTypeRawDataFail1)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               uint32_t(*)(const std::string &, const std::string &, void *ctx, UbseStorageDealDataFunc))
+               uint32_t(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(returnValue(1));
     UbseByteBuffer buffer;
@@ -220,7 +220,7 @@ TEST_F(TestOverCommitStorageModule, GetNumaBindTypeRawDataFail1)
 TEST_F(TestOverCommitStorageModule, UpdateBindTypeDBFail2)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto bindType = NumaBindType::BIND_SINGLE;
@@ -250,7 +250,7 @@ TEST_F(TestOverCommitStorageModule, SelectBindTypeDBSuccess)
 TEST_F(TestOverCommitStorageModule, UpdateWaterMarkSuccess)
 {
     MOCKER_CPP(&OverCommitStorage::UpdateUint16,
-               MpResult(*)(const std::string &keyPrefix, const std::string &key, const uint16_t &value))
+               MpResult(*)(const std::string& keyPrefix, const std::string& key, const uint16_t& value))
         .stubs()
         .will(returnValue(0))
         .then(returnValue(0));
@@ -261,7 +261,7 @@ TEST_F(TestOverCommitStorageModule, UpdateWaterMarkSuccess)
 TEST_F(TestOverCommitStorageModule, UpdateWaterMarkFail1)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(1));
     auto ret = OverCommitStorage::Instance().UpdateWaterMark(92, 80);
@@ -270,7 +270,7 @@ TEST_F(TestOverCommitStorageModule, UpdateWaterMarkFail1)
 
 TEST_F(TestOverCommitStorageModule, UpdateWaterMarkFail2)
 {
-    MOCKER_CPP(&memcpy_s, int (*)(void *dest, size_t destMax, const void *src, size_t count))
+    MOCKER_CPP(&memcpy_s, int (*)(void* dest, size_t destMax, const void* src, size_t count))
         .stubs()
         .will(returnValue(1));
     auto ret = OverCommitStorage::Instance().UpdateWaterMark(92, 80);
@@ -280,7 +280,7 @@ TEST_F(TestOverCommitStorageModule, UpdateWaterMarkFail2)
 TEST_F(TestOverCommitStorageModule, UpdateUint16Fail1)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(1));
 
@@ -290,7 +290,7 @@ TEST_F(TestOverCommitStorageModule, UpdateUint16Fail1)
 
 TEST_F(TestOverCommitStorageModule, UpdateUint16Fail2)
 {
-    MOCKER_CPP(&memcpy_s, int (*)(void *dest, size_t destMax, const void *src, size_t count))
+    MOCKER_CPP(&memcpy_s, int (*)(void* dest, size_t destMax, const void* src, size_t count))
         .stubs()
         .will(returnValue(1));
 
@@ -301,7 +301,7 @@ TEST_F(TestOverCommitStorageModule, UpdateUint16Fail2)
 TEST_F(TestOverCommitStorageModule, UpdateUint16Success)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
 

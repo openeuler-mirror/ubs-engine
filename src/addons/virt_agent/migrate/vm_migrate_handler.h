@@ -30,7 +30,7 @@ public:
 private:
     VmResult InitVmMigrateData();
     void FlushExpireData();
-    static void FlushExpireVm(const VMNodeLocInfo &nodeLoc, const std::unordered_map<std::string, VMBasicInfo> &vmMap,
+    static void FlushExpireVm(const VMNodeLocInfo& nodeLoc, const std::unordered_map<std::string, VMBasicInfo>& vmMap,
                               time_t currentTime);
     uint32_t intervalSeconds{};
     bool init{};

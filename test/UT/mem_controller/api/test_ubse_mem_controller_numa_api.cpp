@@ -10,21 +10,21 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "test_ubse_mem_controller_numa_api.h"
- 
+
 #include "ubse_com_module.h"
-#include "ubse_mem_controller_numa_api.cpp"
-#include "ubse_mem_numa_borrow_exportobj_simpo.h"
 #include "ubse_election.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "ubse_mmi_interface_impl.h"
-#include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_debt_info_query.h"
- 
+#include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_numa_borrow_exportobj_simpo.h"
+#include "ubse_mmi_interface_impl.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "ubse_mem_controller_numa_api.cpp"
+
 namespace ubse::mem_controller::numa::ut {
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::controller::message;
 using namespace ubse::mem::controller;
- 
+
 void TestUbseMemControllerNumaApi::SetUp()
 {
     Test::SetUp();
@@ -34,7 +34,7 @@ void TestUbseMemControllerNumaApi::TearDown()
     Test::TearDown();
     GlobalMockObject::verify();
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, GetPortIdSuccess)
 {
     UbseCpuInfo cpuInfo;
@@ -47,7 +47,7 @@ TEST_F(TestUbseMemControllerNumaApi, GetPortIdSuccess)
     auto ret = ubse::mem::controller::GetPortId(cpuInfo, numaInfo, "1");
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, GetPortIdFail)
 {
     UbseCpuInfo cpuInfo;
@@ -59,7 +59,7 @@ TEST_F(TestUbseMemControllerNumaApi, GetPortIdFail)
     auto ret = ubse::mem::controller::GetPortId(cpuInfo, numaInfo, "1");
     EXPECT_EQ(ret, UBSE_ERROR);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, FillChipIdAndPortIdForExport)
 {
     ubse::nodeController::UbseNodeInfo nodeInfo;
@@ -75,7 +75,7 @@ TEST_F(TestUbseMemControllerNumaApi, FillChipIdAndPortIdForExport)
     auto ret = ubse::mem::controller::FillChipIdAndPortIdByNodeId(nodeInfo, numaInfo, "1");
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, FillChipIdForImport)
 {
     ubse::nodeController::UbseNodeInfo nodeInfo;
@@ -90,7 +90,7 @@ TEST_F(TestUbseMemControllerNumaApi, FillChipIdForImport)
     auto ret = ubse::mem::controller::FillChipIdAndPortIdForImport(nodeInfo, numaInfo);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, ConstructNumaObjs)
 {
     UbseMemNumaBorrowImportObj importObj;
@@ -108,7 +108,7 @@ TEST_F(TestUbseMemControllerNumaApi, ConstructNumaObjs)
     auto ret = ubse::mem::controller::ConstructNumaObjs(importObj, exportObj, req);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, AgentSendNumaExportObj)
 {
     std::shared_ptr<ubse::com::UbseComModule> comModule = std::make_shared<ubse::com::UbseComModule>();
@@ -122,7 +122,7 @@ TEST_F(TestUbseMemControllerNumaApi, AgentSendNumaExportObj)
     auto ret = AgentSendNumaExportObj(comModule, sendParam, ptr, ubseResponsePtr, exportObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, HandleSendNumaExportError)
 {
     UbseMemOperationResp resp;
@@ -136,7 +136,7 @@ TEST_F(TestUbseMemControllerNumaApi, HandleSendNumaExportError)
     auto ret = HandleSendNumaExportError(resp, req, importObj, exportObj);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, ValidSocketAndNumaIdParams)
 {
     UbseMemNumaBorrowReq req;
@@ -151,7 +151,7 @@ TEST_F(TestUbseMemControllerNumaApi, ValidSocketAndNumaIdParams)
     auto ret = ValidSocketAndNumaIdParams(req);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnExportObjFailed)
 {
     UbseMemOperationResp resp;
@@ -161,7 +161,7 @@ TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnExportObjFailed)
     auto ret = DealSendNumaUnExportObjFailed(resp, name, exportObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnImportObjFailed)
 {
     UbseMemNumaBorrowImportObj importObj;
@@ -172,7 +172,7 @@ TEST_F(TestUbseMemControllerNumaApi, DealSendNumaUnImportObjFailed)
     auto ret = DealSendNumaUnImportObjFailed(importObj, req, resp, name);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportExportDestroyed)
 {
     UbseMemNumaBorrowImportObj importObj;
@@ -185,7 +185,7 @@ TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportExportDestroyed)
     auto ret = NumaReturnExistImport(importObj, hasExport, exportObj, req, resp);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportImportDestroyed)
 {
     UbseMemNumaBorrowImportObj importObj;
@@ -202,7 +202,7 @@ TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportImportDestroyed)
     auto ret = NumaReturnExistImport(importObj, hasExport, exportObj, req, resp);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportImportSuccess)
 {
     UbseMemNumaBorrowImportObj importObj;
@@ -219,16 +219,18 @@ TEST_F(TestUbseMemControllerNumaApi, NumaReturnExistImportImportSuccess)
     auto ret = NumaReturnExistImport(importObj, hasExport, exportObj, req, resp);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, FindBorrowObjPair)
 {
     const std::string name = "test";
     const std::string importNodeId = "1";
-    auto [importObjPtr, exportObjPtr] = ubse::mem::controller::debt::FindBorrowObjPair<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>(name, importNodeId);
+    auto [importObjPtr, exportObjPtr] =
+        ubse::mem::controller::debt::FindBorrowObjPair<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>(
+            name, importNodeId);
     EXPECT_EQ(importObjPtr, nullptr);
     EXPECT_EQ(exportObjPtr, nullptr);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, HandleSingleExportReturnExportDestroyed)
 {
     const UbseMemReturnReq req;
@@ -239,7 +241,7 @@ TEST_F(TestUbseMemControllerNumaApi, HandleSingleExportReturnExportDestroyed)
     auto ret = HandleSingleExportReturn(req, resp, exportObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, HandleSingleExportReturnExportSuccess)
 {
     const UbseMemReturnReq req;
@@ -250,7 +252,7 @@ TEST_F(TestUbseMemControllerNumaApi, HandleSingleExportReturnExportSuccess)
     auto ret = HandleSingleExportReturn(req, resp, exportObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnImportNodeNok)
 {
     UbseMemReturnReq req;
@@ -274,7 +276,7 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnNoBorrowObj)
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturn)
 {
     UbseMemReturnReq req;
@@ -286,7 +288,7 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturn)
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
- 
+
 TEST_F(TestUbseMemControllerNumaApi, CheckNumaResourceState)
 {
     std::string name = "test";
@@ -294,11 +296,11 @@ TEST_F(TestUbseMemControllerNumaApi, CheckNumaResourceState)
     UbseMemNumaBorrowImportObj importObj;
     importObj.req.name = name;
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name,
-        std::make_shared<UbseMemNumaBorrowImportObj>(importObj));
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(
+        importNodeId, name, std::make_shared<UbseMemNumaBorrowImportObj>(importObj));
     auto ret = CheckNumaResourceState(name, importNodeId);
     EXPECT_EQ(ret, UBSE_ERR_EXISTED);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().RemoveResource(importNodeId, name);
 }
- 
+
 } // namespace ubse::mem_controller::numa::ut

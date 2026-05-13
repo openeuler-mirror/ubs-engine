@@ -13,7 +13,6 @@
 #ifndef UBSE_MANAGER_MEM_INSTANCE_INNER_H
 #define UBSE_MANAGER_MEM_INSTANCE_INNER_H
 
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_mem_common_utils.h"
@@ -22,6 +21,7 @@
 #include "ubse_obmm_executor.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
 #include <shared_mutex>
 #include <sstream>
@@ -33,32 +33,32 @@ using namespace ubse::common::def;
 
 class MemInstanceInnerCommon {
 public:
-    static MemInstanceInnerCommon &GetInstance()
+    static MemInstanceInnerCommon& GetInstance()
     {
         static MemInstanceInnerCommon instance;
         return instance;
     }
-    MemInstanceInnerCommon(const MemInstanceInnerCommon &other) = delete;
-    MemInstanceInnerCommon(MemInstanceInnerCommon &&other) = delete;
-    MemInstanceInnerCommon &operator=(const MemInstanceInnerCommon &other) = delete;
-    MemInstanceInnerCommon &operator=(MemInstanceInnerCommon &&other) noexcept = delete;
+    MemInstanceInnerCommon(const MemInstanceInnerCommon& other) = delete;
+    MemInstanceInnerCommon(MemInstanceInnerCommon&& other) = delete;
+    MemInstanceInnerCommon& operator=(const MemInstanceInnerCommon& other) = delete;
+    MemInstanceInnerCommon& operator=(MemInstanceInnerCommon&& other) noexcept = delete;
 
     UbseResult RemoteNumaIdInit();
 
-    int GetNuma(const std::string &nodesocketPair) const noexcept;
+    int GetNuma(const std::string& nodesocketPair) const noexcept;
 
-    uint32_t MemGetObjData(NodeMemDebtInfo &memBorrowObj, std::vector<UbseMemLocalObmmMetaData> &allObmmDatas);
+    uint32_t MemGetObjData(NodeMemDebtInfo& memBorrowObj, std::vector<UbseMemLocalObmmMetaData>& allObmmDatas);
 
-    UbseResult MemPreOnline(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint64_t preImportSize);
+    UbseResult MemPreOnline(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint64_t preImportSize);
 
     UbseResult MemUnPreOnline();
 
-    void RollbackImport(const std::vector<mem_id> &memids);
+    void RollbackImport(const std::vector<mem_id>& memids);
 
-    void RollbackExport(const std::vector<mem_id> &memids);
+    void RollbackExport(const std::vector<mem_id>& memids);
 
     template <typename Obj>
-    static bool UbseMemExecutorCheckParam(const Obj &obj)
+    static bool UbseMemExecutorCheckParam(const Obj& obj)
     {
         if (typeid(obj.req) == typeid(UbseMemShareBorrowReq)) {
             return !obj.algoResult.exportNumaInfos.empty() && !obj.req.name.empty() && obj.req.size > 0;
@@ -67,10 +67,10 @@ public:
                !obj.req.name.empty() && obj.req.size > 0;
     }
 
-    void SetPrivDataByShareReq(UbMemPrivData &destPrivData, UbseMemPrivData &sourcePrivData);
+    void SetPrivDataByShareReq(UbMemPrivData& destPrivData, UbseMemPrivData& sourcePrivData);
 
     template <typename ExportObj>
-    uint32_t UnExportExecutor(const ExportObj &exportObj, const std::string &expectedName, uint8_t expectedBorrowType)
+    uint32_t UnExportExecutor(const ExportObj& exportObj, const std::string& expectedName, uint8_t expectedBorrowType)
     {
         UbseResult ret = UBSE_OK;
         for (size_t i = 0; i < exportObj.status.exportObmmInfo.size(); i++) {
@@ -103,15 +103,15 @@ public:
         return ret;
     }
 
-    uint64_t SetObmmDescDefaultErrorValue(std::vector<ubse_mem_obmm_mem_desc> &obmmMemDescs, const uint64_t totalSize,
+    uint64_t SetObmmDescDefaultErrorValue(std::vector<ubse_mem_obmm_mem_desc>& obmmMemDescs, const uint64_t totalSize,
                                           const uint64_t blockSize);
     template <typename Obj>
-    uint32_t GetObmmExportParamFromRequest(Obj &exportObj, std::vector<ubse_mem_obmm_mem_desc> &obmmMemDescs,
+    uint32_t GetObmmExportParamFromRequest(Obj& exportObj, std::vector<ubse_mem_obmm_mem_desc>& obmmMemDescs,
                                            size_t sizes[MAX_NUMA_NODES], int arraySize)
     {
         obmmMemDescs.clear();
         auto blockSize = RmCommonUtils::GetInstance().SizeMb2Byte(exportObj.algoResult.blockSize);
-        const auto &numaIds = exportObj.algoResult.exportNumaInfos;
+        const auto& numaIds = exportObj.algoResult.exportNumaInfos;
 
         for (size_t i = 0; i < numaIds.size(); i++) {
             std::vector<ubse_mem_obmm_mem_desc> descTmp{};
@@ -138,22 +138,22 @@ private:
 
 class MemInstanceInnerFdBorrow {
 public:
-    static MemInstanceInnerFdBorrow &GetInstance()
+    static MemInstanceInnerFdBorrow& GetInstance()
     {
         static MemInstanceInnerFdBorrow instance;
         return instance;
     }
 
-    uint32_t MemFdImportExecutor(UbseMemFdBorrowImportObj &importObj);
-    uint32_t MemFdImportPermissionExecutor(UbseMemFdBorrowImportObj &importObj);
-    uint32_t MemFdUnImportExecutor(const UbseMemFdBorrowImportObj &importObj);
-    uint32_t MemFdExportExecutor(UbseMemFdBorrowExportObj &exportObj);
-    uint32_t MemFdUnExportExecutor(const UbseMemFdBorrowExportObj &exportObj);
+    uint32_t MemFdImportExecutor(UbseMemFdBorrowImportObj& importObj);
+    uint32_t MemFdImportPermissionExecutor(UbseMemFdBorrowImportObj& importObj);
+    uint32_t MemFdUnImportExecutor(const UbseMemFdBorrowImportObj& importObj);
+    uint32_t MemFdExportExecutor(UbseMemFdBorrowExportObj& exportObj);
+    uint32_t MemFdUnExportExecutor(const UbseMemFdBorrowExportObj& exportObj);
 
-    MemInstanceInnerFdBorrow(const MemInstanceInnerFdBorrow &other) = delete;
-    MemInstanceInnerFdBorrow(MemInstanceInnerFdBorrow &&other) = delete;
-    MemInstanceInnerFdBorrow &operator=(const MemInstanceInnerFdBorrow &other) = delete;
-    MemInstanceInnerFdBorrow &operator=(MemInstanceInnerFdBorrow &&other) noexcept = delete;
+    MemInstanceInnerFdBorrow(const MemInstanceInnerFdBorrow& other) = delete;
+    MemInstanceInnerFdBorrow(MemInstanceInnerFdBorrow&& other) = delete;
+    MemInstanceInnerFdBorrow& operator=(const MemInstanceInnerFdBorrow& other) = delete;
+    MemInstanceInnerFdBorrow& operator=(MemInstanceInnerFdBorrow&& other) noexcept = delete;
 
 private:
     MemInstanceInnerFdBorrow() = default;
@@ -161,21 +161,21 @@ private:
 
 class MemInstanceInnerNumaBorrow {
 public:
-    static MemInstanceInnerNumaBorrow &GetInstance()
+    static MemInstanceInnerNumaBorrow& GetInstance()
     {
         static MemInstanceInnerNumaBorrow instance;
         return instance;
     }
 
-    uint32_t MemNumaImportExecutor(UbseMemNumaBorrowImportObj &importObj);
-    uint32_t MemNumaExportExecutor(UbseMemNumaBorrowExportObj &exportObj);
-    uint32_t MemNumaUnExportExecutor(const UbseMemNumaBorrowExportObj &exportObj);
-    uint32_t MemNumaUnImportExecutor(const UbseMemNumaBorrowImportObj &importObj);
+    uint32_t MemNumaImportExecutor(UbseMemNumaBorrowImportObj& importObj);
+    uint32_t MemNumaExportExecutor(UbseMemNumaBorrowExportObj& exportObj);
+    uint32_t MemNumaUnExportExecutor(const UbseMemNumaBorrowExportObj& exportObj);
+    uint32_t MemNumaUnImportExecutor(const UbseMemNumaBorrowImportObj& importObj);
 
-    MemInstanceInnerNumaBorrow(const MemInstanceInnerNumaBorrow &other) = delete;
-    MemInstanceInnerNumaBorrow(MemInstanceInnerNumaBorrow &&other) = delete;
-    MemInstanceInnerNumaBorrow &operator=(const MemInstanceInnerNumaBorrow &other) = delete;
-    MemInstanceInnerNumaBorrow &operator=(MemInstanceInnerNumaBorrow &&other) noexcept = delete;
+    MemInstanceInnerNumaBorrow(const MemInstanceInnerNumaBorrow& other) = delete;
+    MemInstanceInnerNumaBorrow(MemInstanceInnerNumaBorrow&& other) = delete;
+    MemInstanceInnerNumaBorrow& operator=(const MemInstanceInnerNumaBorrow& other) = delete;
+    MemInstanceInnerNumaBorrow& operator=(MemInstanceInnerNumaBorrow&& other) noexcept = delete;
 
 private:
     MemInstanceInnerNumaBorrow() = default;
@@ -183,28 +183,28 @@ private:
 
 class MemInstanceInnerAddrBorrow {
 public:
-    static MemInstanceInnerAddrBorrow &GetInstance()
+    static MemInstanceInnerAddrBorrow& GetInstance()
     {
         static MemInstanceInnerAddrBorrow instance;
         return instance;
     }
 
-    uint32_t MemAddrImportExecutor(UbseMemAddrBorrowImportObj &importObj);
-    uint32_t MemAddrUnImportExecutor(const UbseMemAddrBorrowImportObj &importObj);
-    uint32_t MemAddrExportExecutor(UbseMemAddrBorrowExportObj &exportObj);
-    uint32_t MemAddrUnExportExecutor(const UbseMemAddrBorrowExportObj &exportObj);
-    UbseResult AfterMemAddrExportExecutor(UbseMemAddrBorrowExportObj &exportObj,
-                                          const std::unordered_map<uint64_t, uint64_t> &exportNumaInfoMap,
-                                          const std::vector<mem_id> &memIds);
+    uint32_t MemAddrImportExecutor(UbseMemAddrBorrowImportObj& importObj);
+    uint32_t MemAddrUnImportExecutor(const UbseMemAddrBorrowImportObj& importObj);
+    uint32_t MemAddrExportExecutor(UbseMemAddrBorrowExportObj& exportObj);
+    uint32_t MemAddrUnExportExecutor(const UbseMemAddrBorrowExportObj& exportObj);
+    UbseResult AfterMemAddrExportExecutor(UbseMemAddrBorrowExportObj& exportObj,
+                                          const std::unordered_map<uint64_t, uint64_t>& exportNumaInfoMap,
+                                          const std::vector<mem_id>& memIds);
 
-    MemInstanceInnerAddrBorrow(const MemInstanceInnerAddrBorrow &other) = delete;
-    MemInstanceInnerAddrBorrow(MemInstanceInnerAddrBorrow &&other) = delete;
-    MemInstanceInnerAddrBorrow &operator=(const MemInstanceInnerAddrBorrow &other) = delete;
-    MemInstanceInnerAddrBorrow &operator=(MemInstanceInnerAddrBorrow &&other) noexcept = delete;
+    MemInstanceInnerAddrBorrow(const MemInstanceInnerAddrBorrow& other) = delete;
+    MemInstanceInnerAddrBorrow(MemInstanceInnerAddrBorrow&& other) = delete;
+    MemInstanceInnerAddrBorrow& operator=(const MemInstanceInnerAddrBorrow& other) = delete;
+    MemInstanceInnerAddrBorrow& operator=(MemInstanceInnerAddrBorrow&& other) noexcept = delete;
 
     void AddAddrRemoteNuma(int remoteNuma);
     void DeleteAddrRemoteNuma(int remoteNuma);
-    UbseResult GenerateAddrRemoteNuma(int &remoteNumaId);
+    UbseResult GenerateAddrRemoteNuma(int& remoteNumaId);
 
 private:
     std::mutex mAddrLock{};
@@ -215,21 +215,21 @@ private:
 
 class MemInstanceInnerShm {
 public:
-    static MemInstanceInnerShm &GetInstance()
+    static MemInstanceInnerShm& GetInstance()
     {
         static MemInstanceInnerShm instance;
         return instance;
     }
 
-    uint32_t MemShmImportExecutor(UbseMemShareBorrowImportObj &importObj);
-    uint32_t MemShmUnImportExecutor(const UbseMemShareBorrowImportObj &importObj);
-    uint32_t MemShmExportExecutor(UbseMemShareBorrowExportObj &exportObj);
-    uint32_t MemShmUnExportExecutor(const UbseMemShareBorrowExportObj &exportObj);
+    uint32_t MemShmImportExecutor(UbseMemShareBorrowImportObj& importObj);
+    uint32_t MemShmUnImportExecutor(const UbseMemShareBorrowImportObj& importObj);
+    uint32_t MemShmExportExecutor(UbseMemShareBorrowExportObj& exportObj);
+    uint32_t MemShmUnExportExecutor(const UbseMemShareBorrowExportObj& exportObj);
 
-    MemInstanceInnerShm(const MemInstanceInnerShm &other) = delete;
-    MemInstanceInnerShm(MemInstanceInnerShm &&other) = delete;
-    MemInstanceInnerShm &operator=(const MemInstanceInnerShm &other) = delete;
-    MemInstanceInnerShm &operator=(MemInstanceInnerShm &&other) noexcept = delete;
+    MemInstanceInnerShm(const MemInstanceInnerShm& other) = delete;
+    MemInstanceInnerShm(MemInstanceInnerShm&& other) = delete;
+    MemInstanceInnerShm& operator=(const MemInstanceInnerShm& other) = delete;
+    MemInstanceInnerShm& operator=(MemInstanceInnerShm&& other) noexcept = delete;
 
 private:
     MemInstanceInnerShm() = default;

@@ -12,9 +12,9 @@
 
 #ifndef UBSE_MMI_INTERFACE_H
 #define UBSE_MMI_INTERFACE_H
-#include "ubse_mmi_def.h"
 #include "ubse_def.h"
 #include "ubse_common_def.h"
+#include "ubse_mmi_def.h"
 
 namespace ubse::adapter_plugins::mmi {
 using namespace ubse::common::def;
@@ -184,5 +184,5 @@ public:
     */
     virtual UbseResult UnPreOnline() = 0;
 };
-}  // namespace ubse::adapter_plugins::mmi
-#endif  // UBSE_MMI_INTERFACE_H
+} // namespace ubse::adapter_plugins::mmi
+#endif // UBSE_MMI_INTERFACE_H

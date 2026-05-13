@@ -31,7 +31,7 @@ public:
     * @param path 私钥密码路径
     * @return  返回一个保存敏感信息的结构体，存储着密码结果
     */
-    static utils::SecureBuffer LoadPasswordFromFile(const char *path);
+    static utils::SecureBuffer LoadPasswordFromFile(const char* path);
 
     /**
      * @brief 配置吊销列表，用于校验证书是否可信
@@ -39,7 +39,7 @@ public:
      * @param ctx SSL上下文
      * @return 配置吊销列表是否成功
      */
-    static bool ConfigureCrlValidation(SSL_CTX *ctx);
+    static bool ConfigureCrlValidation(SSL_CTX* ctx);
 
     /**
      * @brief 检查对应路径文件是否完整
@@ -54,13 +54,13 @@ public:
      * @param ctx http client端的ssl ctx
      * @return 客户端配置吊销列表是否成功
      */
-    static bool ConfigureClientCrlValidation(SSL_CTX *ctx);
+    static bool ConfigureClientCrlValidation(SSL_CTX* ctx);
 
 private:
-    static X509 *LoadAndValidateCert(const char *path, const char *name);
-    static EVP_PKEY *LoadAndValidatePrivateKey(const char *keyPath, const char *password, const char *name);
-    static X509_STORE *LoadAndValidateCaStore(const char *caPath);
-    static bool VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const char *certName, const char *keyName);
+    static X509* LoadAndValidateCert(const char* path, const char* name);
+    static EVP_PKEY* LoadAndValidatePrivateKey(const char* keyPath, const char* password, const char* name);
+    static X509_STORE* LoadAndValidateCaStore(const char* caPath);
+    static bool VerifyCertAndKeyMatch(X509* cert, EVP_PKEY* pkey, const char* certName, const char* keyName);
     static bool ValidateCRLIfExists();
 };
 } // namespace ubse::cert

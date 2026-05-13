@@ -17,9 +17,9 @@
 #include "mockcpp/mockcpp.hpp"
 #include "securec.h"
 
-#include "ubse_logger.cpp"
 #include "ubse_logger.h"
 #include "ubse_logger_manager.h"
+#include "ubse_logger.cpp"
 
 namespace ubse::ut::log {
 class TestUbseLogger : public testing::Test {
@@ -28,5 +28,5 @@ public:
     virtual void SetUp(void);
     virtual void TearDown(void);
 };
-}
+} // namespace ubse::ut::log
 #endif // UBSE_MANAGER_TEST_UBSE_LOGGER_ENTRY_H

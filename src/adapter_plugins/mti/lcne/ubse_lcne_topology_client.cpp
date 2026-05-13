@@ -22,7 +22,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 
-uint32_t UbseLcneTopologyClient::GetTopology(std::vector<LcneNodeInfo> &lcneNodes)
+uint32_t UbseLcneTopologyClient::GetTopology(std::vector<LcneNodeInfo>& lcneNodes)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -40,7 +40,7 @@ uint32_t UbseLcneTopologyClient::GetTopology(std::vector<LcneNodeInfo> &lcneNode
     }
     if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
         UBSE_LOG_ERROR << "[MTI] Access the LCNE topology information interface failed. The HTTP status code is "
-                     << rsp.status;
+                       << rsp.status;
         return UBSE_ERROR;
     }
     if (rsp.body.empty()) {
@@ -57,7 +57,7 @@ uint32_t UbseLcneTopologyClient::GetTopology(std::vector<LcneNodeInfo> &lcneNode
     return UBSE_OK;
 }
 
-uint32_t UbseLcneTopologyClient::ParseData(std::string &resBody, std::vector<LcneNodeInfo> &lcneNodes)
+uint32_t UbseLcneTopologyClient::ParseData(std::string& resBody, std::vector<LcneNodeInfo>& lcneNodes)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
     if (ubseXml == nullptr) {
@@ -110,15 +110,16 @@ uint32_t UbseLcneTopologyClient::ParseData(std::string &resBody, std::vector<Lcn
     return UBSE_OK;
 }
 
-std::string UbseLcneTopologyClient::GetLcneNodeInfoString(const LcneNodeInfo &node)
+std::string UbseLcneTopologyClient::GetLcneNodeInfoString(const LcneNodeInfo& node)
 {
     std::ostringstream oss;
     oss << "slot_id=" << node.slotId << ", ";
     oss << "chip_id=" << node.chipId << ", ";
     oss << "iou_id=" << node.cardId << ", ";
     oss << "type=" << node.type << ", ";
-    oss << "ports_info=" << "\n";
-    for (const auto &port : node.ports) {
+    oss << "ports_info="
+        << "\n";
+    for (const auto& port : node.ports) {
         oss << "  port_id=" << port.portId << ", ";
         oss << "  interface_name=" << port.ifName << ", ";
         oss << "  port_role=" << port.portRole << ", ";
@@ -130,10 +131,11 @@ std::string UbseLcneTopologyClient::GetLcneNodeInfoString(const LcneNodeInfo &no
     return oss.str();
 }
 
-std::string UbseLcneTopologyClient::GetLcneNodesString(const std::vector<LcneNodeInfo> &lcneNodes)
+std::string UbseLcneTopologyClient::GetLcneNodesString(const std::vector<LcneNodeInfo>& lcneNodes)
 {
     std::ostringstream oss;
-    oss << "[MTI] Topology information printing:" << "\n";
+    oss << "[MTI] Topology information printing:"
+        << "\n";
     for (size_t i = 0; i < lcneNodes.size(); ++i) {
         oss << GetLcneNodeInfoString(lcneNodes[i]);
         oss << "\n";

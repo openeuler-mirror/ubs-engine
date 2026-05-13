@@ -16,15 +16,15 @@
 
 #include <set>
 
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_mem_controller_def.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_debt_info.h"
-#include "ubse_mem_controller_def.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_node_controller.h"
+#include "message/ubse_mem_debt_info_query_req_simpo.h"
 
 namespace ubse::mem_controller::ut {
 using namespace com;
@@ -67,7 +67,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseGetMemDebtInfo)
     EXPECT_EQ(UbseGetMemDebtInfo(nodeId, memDebtInfoMap), UBSE_OK);
 }
 
-void AddFdObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name)
+void AddFdObj(const std::string& importNodeId, const std::string& exportNodeId, const std::string& name)
 {
     // 构造 fdImportObj
     UbseMemFdBorrowImportObj fdImportObj{};
@@ -88,11 +88,13 @@ void AddFdObj(const std::string &importNodeId, const std::string &exportNodeId, 
     fdExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
     // 填充 ledger
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, fdExportObj);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(
+        exportNodeId, name + "_" + importNodeId, fdExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                        fdImportObj);
 }
 
-void AddNumaObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name)
+void AddNumaObj(const std::string& importNodeId, const std::string& exportNodeId, const std::string& name)
 {
     // 构造 numaImportObj
     UbseMemNumaBorrowImportObj numaImportObj{};
@@ -111,11 +113,13 @@ void AddNumaObj(const std::string &importNodeId, const std::string &exportNodeId
     numaExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
     // 填充 ledger
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, numaExportObj);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name, numaImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(
+        exportNodeId, name + "_" + importNodeId, numaExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                          numaImportObj);
 }
 
-void AddAddrObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name)
+void AddAddrObj(const std::string& importNodeId, const std::string& exportNodeId, const std::string& name)
 {
     // 构造 addrImportObj
     UbseMemAddrBorrowImportObj addrImportObj{};
@@ -134,11 +138,13 @@ void AddAddrObj(const std::string &importNodeId, const std::string &exportNodeId
     addrExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
     // 填充 ledger
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, addrExportObj);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(importNodeId, name, addrImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(
+        exportNodeId, name + "_" + importNodeId, addrExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                          addrImportObj);
 }
 
-void AddShareImportObj(const std::string &importNodeId, const std::string &name, uint64_t memId)
+void AddShareImportObj(const std::string& importNodeId, const std::string& name, uint64_t memId)
 {
     UbseMemShareBorrowImportObj shareImportObj{};
     shareImportObj.req.name = name;
@@ -147,7 +153,7 @@ void AddShareImportObj(const std::string &importNodeId, const std::string &name,
     shareImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = memId});
 
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name,
-                                                                                            shareImportObj);
+                                                                                           shareImportObj);
 }
 
 void BuildDebtMap()
@@ -221,7 +227,8 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemNodeBorrowQueryWhenGetCurrentNodeInfoFai
     EXPECT_TRUE(nodeBorrowInfo.empty());
 }
 
-template <typename T, typename = void> struct HasImportResultsInStruct : std::false_type {};
+template <typename T, typename = void>
+struct HasImportResultsInStruct : std::false_type {};
 template <typename T>
 struct HasImportResultsInStruct<T, std::void_t<decltype(std::declval<T>().status.importResults)>> : std::true_type {};
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemImportObjHasImportResults)
@@ -286,8 +293,10 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_FdSuccess)
     fdExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
     // 填充 ledger
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, fdExportObj);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(
+        exportNodeId, name + "_" + importNodeId, fdExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                        fdImportObj);
 
     // 构造请求和响应
     UbseMemIdQueryRequest request{};
@@ -335,8 +344,10 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_NumaSuccess)
     numaExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
     // 填充 ledger
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, numaExportObj);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name, numaImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(
+        exportNodeId, name + "_" + importNodeId, numaExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                          numaImportObj);
 
     // 构造请求和响应
     UbseMemIdQueryRequest request{};
@@ -384,8 +395,10 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ShmSuccess)
     shareExportObj.status.exportObmmInfo.emplace_back(UbseMemObmmInfo{.memId = exportMemId});
 
     // 填充 ledger
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource(exportNodeId, name, shareExportObj);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name, shareImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource(exportNodeId, name,
+                                                                                           shareExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                           shareImportObj);
 
     // 构造请求和响应
     UbseMemIdQueryRequest request{};
@@ -451,8 +464,10 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ImportMemIdNotFound)
     fdExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
 
     // 填充 ledger
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(exportNodeId, name + "_" + importNodeId, fdExportObj);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(
+        exportNodeId, name + "_" + importNodeId, fdExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                        fdImportObj);
 
     // 构造请求和响应
     UbseMemIdQueryRequest request{};
@@ -474,9 +489,9 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ImportMemIdNotFound)
 /**
  * 添加 FD 类型的 Import 对象，用于测试按 exportNodeId 查询
  */
-void AddFdImportObjWithExportNode(const std::string &importNodeId, const std::string &exportNodeId,
-                                  const std::string &name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
-                                  const std::vector<uint64_t> &memIds = {100})
+void AddFdImportObjWithExportNode(const std::string& importNodeId, const std::string& exportNodeId,
+                                  const std::string& name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
+                                  const std::vector<uint64_t>& memIds = {100})
 {
     UbseMemFdBorrowImportObj fdImportObj{};
     fdImportObj.req.name = name;
@@ -487,15 +502,16 @@ void AddFdImportObjWithExportNode(const std::string &importNodeId, const std::st
     }
     UbseMemDebtNumaInfo fdExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
     fdImportObj.algoResult.exportNumaInfos.emplace_back(fdExportNmaInfo);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                        fdImportObj);
 }
 
 /**
  * 添加 NUMA 类型的 Import 对象，用于测试按 exportNodeId 查询
  */
-void AddNumaImportObjWithExportNode(const std::string &importNodeId, const std::string &exportNodeId,
-                                    const std::string &name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
-                                    const std::vector<int64_t> &numaIds = {0})
+void AddNumaImportObjWithExportNode(const std::string& importNodeId, const std::string& exportNodeId,
+                                    const std::string& name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
+                                    const std::vector<int64_t>& numaIds = {0})
 {
     UbseMemNumaBorrowImportObj numaImportObj{};
     numaImportObj.req.name = name;
@@ -506,15 +522,16 @@ void AddNumaImportObjWithExportNode(const std::string &importNodeId, const std::
     }
     UbseMemDebtNumaInfo numaExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
     numaImportObj.algoResult.exportNumaInfos.emplace_back(numaExportNmaInfo);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name, numaImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                          numaImportObj);
 }
 
 /**
  * 添加 Share 类型的 Import 对象，用于测试按 exportNodeId 查询
  */
-void AddShareImportObjWithExportNode(const std::string &importNodeId, const std::string &exportNodeId,
-                                     const std::string &name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
-                                     const std::vector<uint64_t> &memIds = {100})
+void AddShareImportObjWithExportNode(const std::string& importNodeId, const std::string& exportNodeId,
+                                     const std::string& name, UbseMemState state = UBSE_MEM_IMPORT_SUCCESS,
+                                     const std::vector<uint64_t>& memIds = {100})
 {
     UbseMemShareBorrowImportObj shareImportObj{};
     shareImportObj.req.name = name;
@@ -525,16 +542,16 @@ void AddShareImportObjWithExportNode(const std::string &importNodeId, const std:
     }
     UbseMemDebtNumaInfo shareExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
     shareImportObj.algoResult.exportNumaInfos.emplace_back(shareExportNmaInfo);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name, shareImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                           shareImportObj);
 }
 
 /**
  * 添加带端口信息的 FD 类型 Import 对象，用于测试端口故障场景
  */
-void AddFdImportObjWithPortInfo(const std::string &importNodeId, const std::string &exportNodeId,
-                                const std::string &name, UbseMemState state,
-                                uint32_t chipId, uint32_t portId,
-                                const std::vector<uint64_t> &memIds = {100})
+void AddFdImportObjWithPortInfo(const std::string& importNodeId, const std::string& exportNodeId,
+                                const std::string& name, UbseMemState state, uint32_t chipId, uint32_t portId,
+                                const std::vector<uint64_t>& memIds = {100})
 {
     UbseMemFdBorrowImportObj fdImportObj{};
     fdImportObj.req.name = name;
@@ -545,19 +562,19 @@ void AddFdImportObjWithPortInfo(const std::string &importNodeId, const std::stri
     }
     UbseMemDebtNumaInfo fdExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
     fdImportObj.algoResult.exportNumaInfos.emplace_back(fdExportNmaInfo);
-    UbseMemDebtNumaInfo fdImportNmaInfo{.nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128,
-                                        .portId = portId, .chipId = chipId};
+    UbseMemDebtNumaInfo fdImportNmaInfo{
+        .nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128, .portId = portId, .chipId = chipId};
     fdImportObj.algoResult.importNumaInfos.emplace_back(fdImportNmaInfo);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name, fdImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                        fdImportObj);
 }
 
 /**
  * 添加带端口信息的 NUMA 类型 Import 对象，用于测试端口故障场景
  */
-void AddNumaImportObjWithPortInfo(const std::string &importNodeId, const std::string &exportNodeId,
-                                  const std::string &name, UbseMemState state,
-                                  uint32_t chipId, uint32_t portId,
-                                  const std::vector<int64_t> &numaIds = {0})
+void AddNumaImportObjWithPortInfo(const std::string& importNodeId, const std::string& exportNodeId,
+                                  const std::string& name, UbseMemState state, uint32_t chipId, uint32_t portId,
+                                  const std::vector<int64_t>& numaIds = {0})
 {
     UbseMemNumaBorrowImportObj numaImportObj{};
     numaImportObj.req.name = name;
@@ -568,19 +585,19 @@ void AddNumaImportObjWithPortInfo(const std::string &importNodeId, const std::st
     }
     UbseMemDebtNumaInfo numaExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
     numaImportObj.algoResult.exportNumaInfos.emplace_back(numaExportNmaInfo);
-    UbseMemDebtNumaInfo numaImportNmaInfo{.nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128,
-                                          .portId = portId, .chipId = chipId};
+    UbseMemDebtNumaInfo numaImportNmaInfo{
+        .nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128, .portId = portId, .chipId = chipId};
     numaImportObj.algoResult.importNumaInfos.emplace_back(numaImportNmaInfo);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name, numaImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                          numaImportObj);
 }
 
 /**
  * 添加带端口信息的 Share 类型 Import 对象，用于测试端口故障场景
  */
-void AddShareImportObjWithPortInfo(const std::string &importNodeId, const std::string &exportNodeId,
-                                   const std::string &name, UbseMemState state,
-                                   uint32_t chipId, uint32_t portId,
-                                   const std::vector<uint64_t> &memIds = {100})
+void AddShareImportObjWithPortInfo(const std::string& importNodeId, const std::string& exportNodeId,
+                                   const std::string& name, UbseMemState state, uint32_t chipId, uint32_t portId,
+                                   const std::vector<uint64_t>& memIds = {100})
 {
     UbseMemShareBorrowImportObj shareImportObj{};
     shareImportObj.req.name = name;
@@ -591,10 +608,11 @@ void AddShareImportObjWithPortInfo(const std::string &importNodeId, const std::s
     }
     UbseMemDebtNumaInfo shareExportNmaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
     shareImportObj.algoResult.exportNumaInfos.emplace_back(shareExportNmaInfo);
-    UbseMemDebtNumaInfo shareImportNmaInfo{.nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128,
-                                           .portId = portId, .chipId = chipId};
+    UbseMemDebtNumaInfo shareImportNmaInfo{
+        .nodeId = importNodeId, .socketId = 0, .numaId = 0, .size = 128, .portId = portId, .chipId = chipId};
     shareImportObj.algoResult.importNumaInfos.emplace_back(shareImportNmaInfo);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name, shareImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name,
+                                                                                           shareImportObj);
 }
 
 TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_NoImportData)
@@ -653,7 +671,8 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdImportHandleByExportNodeId_EmptyExpo
     fdImportObj.req.importNodeId = "1";
     fdImportObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
     fdImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("1", "fdEmptyExport", fdImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("1", "fdEmptyExport",
+                                                                                        fdImportObj);
 
     FdHandleInfoVec handleInfo;
     EXPECT_EQ(UbseQueryFdImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);

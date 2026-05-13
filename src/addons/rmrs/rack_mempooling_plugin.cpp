@@ -12,34 +12,34 @@
 
 #include "rack_mempooling_plugin.h"
 
-#include <ubse_com.h>
-#include <ubse_logger.h>
-#include <ubse_election.h>
 #include <securec.h>
+#include <ubse_com.h>
+#include <ubse_election.h>
+#include <ubse_logger.h>
 #include <chrono>
 #include <cstdint>
 #include <string>
 #include <thread>
 
-#include "mp_configuration.h"
+#include "ubse_storage.h"
 #include "event_listener.h"
+#include "exporter.h"
+#include "fault_memid_helper.h"
+#include "fault_node_module.h"
+#include "mem_borrow_executor.h"
 #include "mem_manager.h"
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_helper.h"
 #include "mempooling_message.h"
+#include "mp_configuration.h"
 #include "mp_error.h"
 #include "mp_heartbeat_monitor.h"
+#include "mp_module.h"
 #include "mp_smap_controller.h"
 #include "mp_sync_data_helper.h"
-#include "exporter.h"
+#include "over_commit_msg_handler.h"
 #include "rmrs_resource_query.h"
 #include "rmrs_serialize.h"
-#include "mp_module.h"
-#include "fault_node_module.h"
-#include "fault_memid_helper.h"
-#include "over_commit_msg_handler.h"
-#include "ubse_storage.h"
-#include "mem_borrow_executor.h"
 
 using namespace mempooling;
 using namespace ubse::com;
@@ -63,8 +63,7 @@ const std::vector<std::shared_ptr<mempooling::MpSubModule>> g_modules = {
     std::make_shared<mempooling::MpFaultMemIdSubModule>(),
     std::make_shared<mempooling::MpFaultNodeSubModule>(),
     std::make_shared<mempooling::MpManagerSubModule>(),
-    std::make_shared<mempooling::MpMemBorrowExecutorModule>()
-};
+    std::make_shared<mempooling::MpMemBorrowExecutorModule>()};
 
 uint32_t UbsePluginInit(const uint16_t modCode)
 {
@@ -76,12 +75,12 @@ uint32_t UbsePluginInit(const uint16_t modCode)
         return res;
     }
 
-    for (auto &modulePtr : g_modules) {
+    for (auto& modulePtr : g_modules) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit] " << modulePtr->Name() << " is starting.";
         res = modulePtr->Init();
         if (res != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit] " << modulePtr->Name()
-                << " init failed, res=" << res << ".";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit] " << modulePtr->Name() << " init failed, res=" << res << ".";
             return MEM_POOLING_ERROR;
         }
     }
@@ -102,5 +101,5 @@ void UbsePluginDeInit()
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginDeInit] " << g_modules[i]->Name() << " is ending.";
         g_modules[i]->DeInit();
     }
-    return ;
+    return;
 }

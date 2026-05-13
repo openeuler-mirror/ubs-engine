@@ -110,7 +110,7 @@ struct MemBorrowStrategyResult {
         oss << "borrowSize:" << borrowSize << ",";
         oss << "destParam:[";
         total = destParam.size();
-        for (const auto &destParamItem : destParam) {
+        for (const auto& destParamItem : destParam) {
             oss << destParamItem.ToString();
             if (++count < total) {
                 oss << ",";
@@ -198,7 +198,7 @@ struct MigrateStrategyResult {
         oss << "result:" << result << ",";
         oss << "vmInfoList:[";
         total = vmInfoList.size();
-        for (const auto &vmInfo : vmInfoList) {
+        for (const auto& vmInfo : vmInfoList) {
             oss << vmInfo.ToString();
             if (++count < total) {
                 oss << ",";
@@ -274,7 +274,7 @@ struct VmDomainInfo {
         oss << "{";
         oss << "metaData:[" << metaData.ToString() << "],";
         oss << "numaInfo:[";
-        for (const auto &item : numaInfo) {
+        for (const auto& item : numaInfo) {
             oss << item.second.ToString() << ",";
         }
         oss << "],";
@@ -316,7 +316,7 @@ struct NumaMetaData {
         oss << "numaPageInfo:";
         oss << "[";
         bool first = true;
-        for (const auto &[pageType, pageData] : numaPageInfo) {
+        for (const auto& [pageType, pageData] : numaPageInfo) {
             if (!first)
                 oss << ",";
             oss << pageType << ":";

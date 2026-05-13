@@ -27,21 +27,21 @@ using namespace ubse::storage;
 class HamMigrateVmInfoStorage {
 public:
     HamMigrateVmInfoStorage() = default;
-    static VmResult SetHamMigrateVmInfo(const HamMigrateVmInfo &hamMigrateVmInfo);
-    static VmResult SetHamMigrateVmInfos(const std::vector<HamMigrateVmInfo> &hamMigrateVmInfos);
-    static VmResult GetHamMigrateVmInfo(const std::string &nodeId, int pid, HamMigrateVmInfo &hamMigrateVmInfo);
-    static void GetHamMigrateVmInfos(const std::string &nodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos);
-    static VmResult GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos);
-    static void GetHamMigrateVmInfosByDstNodeId(const std::string &dstNodeId,
-                                                std::vector<HamMigrateVmInfo> &hamMigrateVmInfos);
-    static VmResult DelHamMigrateVmInfo(const std::string &nodeId, int pid);
-    static void QueryHandler(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                             void *ctx);
-    static std::string ToString(const std::vector<HamMigrateVmInfo> &HamMigrateVmInfos);
+    static VmResult SetHamMigrateVmInfo(const HamMigrateVmInfo& hamMigrateVmInfo);
+    static VmResult SetHamMigrateVmInfos(const std::vector<HamMigrateVmInfo>& hamMigrateVmInfos);
+    static VmResult GetHamMigrateVmInfo(const std::string& nodeId, int pid, HamMigrateVmInfo& hamMigrateVmInfo);
+    static void GetHamMigrateVmInfos(const std::string& nodeId, std::vector<HamMigrateVmInfo>& hamMigrateVmInfos);
+    static VmResult GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos);
+    static void GetHamMigrateVmInfosByDstNodeId(const std::string& dstNodeId,
+                                                std::vector<HamMigrateVmInfo>& hamMigrateVmInfos);
+    static VmResult DelHamMigrateVmInfo(const std::string& nodeId, int pid);
+    static void QueryHandler(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                             void* ctx);
+    static std::string ToString(const std::vector<HamMigrateVmInfo>& HamMigrateVmInfos);
 
 private:
-    static VmResult OpHamMigrate(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos,
-                                 const std::function<void(std::vector<HamMigrateVmInfo> &)> &func);
+    static VmResult OpHamMigrate(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos,
+                                 const std::function<void(std::vector<HamMigrateVmInfo>&)>& func);
     static ReadWriteLock hamMigrateLock;
     static std::vector<HamMigrateVmInfo> hamMigrateCache;
 };

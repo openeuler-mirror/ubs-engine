@@ -64,9 +64,9 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    static void Serialization(UbseSerialization &out, RasData &serialData);
+    static void Serialization(UbseSerialization& out, RasData& serialData);
 
-    static UbseResult Deserialization(UbseDeSerialization &in, RasData &deSerialData);
+    static UbseResult Deserialization(UbseDeSerialization& in, RasData& deSerialData);
 
 private:
     RasData data;

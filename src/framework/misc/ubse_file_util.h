@@ -13,10 +13,10 @@
 #ifndef UBSE_UBSE_FILE_UTIL_H
 #define UBSE_UBSE_FILE_UTIL_H
 
+#include <linux/limits.h>
 #include <regex>
 #include <string>
 #include <vector>
-#include <linux/limits.h>
 
 #include "ubse_common_def.h"
 
@@ -27,13 +27,13 @@ using namespace ubse::common::def;
 
 class UbseFileUtil {
 public:
-    static UbseResult GetFileInfo(const string &path, vector<string> &info);
+    static UbseResult GetFileInfo(const string& path, vector<string>& info);
 
-    static UbseResult IsAbsolutePath(const std::string &path);
+    static UbseResult IsAbsolutePath(const std::string& path);
 
-    static std::vector<std::string> ListFiles(const std::string &directory, const std::regex &pattern);
+    static std::vector<std::string> ListFiles(const std::string& directory, const std::regex& pattern);
 
-    static bool IsDirectory(const std::string &dir);
+    static bool IsDirectory(const std::string& dir);
 
     /**
      * @brief 通过绝对路径创建一个目录，并赋权限
@@ -42,9 +42,9 @@ public:
      * @param permission 权限值
      * @return 0位成功，非0位失败
      */
-    static UbseResult CreateAndChmodDirectory(const std::string &dir, mode_t permission = 0755);
+    static UbseResult CreateAndChmodDirectory(const std::string& dir, mode_t permission = 0755);
 
-    static bool CheckFileExists(const std::string &path);
+    static bool CheckFileExists(const std::string& path);
 
     /**
      * @brief 设置文件的所有者和属组
@@ -53,7 +53,7 @@ public:
      * @param gid 组ID，如果为0则保持不变
      * @return bool 成功返回true，失败返回false
      */
-    static bool SetFileOwnership(const std::string &path, uid_t uid = 0, gid_t gid = 0);
+    static bool SetFileOwnership(const std::string& path, uid_t uid = 0, gid_t gid = 0);
 
     /**
      * @brief 设置文件权限
@@ -61,7 +61,7 @@ public:
      * @param mode 权限模式，如0644、0755等
      * @return bool 成功返回true，失败返回false
      */
-    static bool SetFilePermissions(const std::string &path, mode_t mode);
+    static bool SetFilePermissions(const std::string& path, mode_t mode);
 
     /**
      * @brief 同时设置文件所有权和权限
@@ -71,14 +71,14 @@ public:
      * @param mode 权限模式
      * @return bool 成功返回true，失败返回false
      */
-    static bool SetFileAttributes(const std::string &path, uid_t uid = 0, gid_t gid = 0, mode_t mode = 0);
+    static bool SetFileAttributes(const std::string& path, uid_t uid = 0, gid_t gid = 0, mode_t mode = 0);
 
     /**
      * @brief 规范化路径
      * @param path 文件路径
      * @return bool 成功返回true，失败返回false
      */
-    static bool CanonicalPath(std::string &path);
+    static bool CanonicalPath(std::string& path);
 };
 } // namespace ubse::utils
 

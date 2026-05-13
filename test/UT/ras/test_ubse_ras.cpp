@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_error.h"
 #include "test_ubse_ras.h"
+#include "ubse_error.h"
 
 namespace ubse::ras::ut {
 void TestUbseRas::SetUp()
@@ -67,4 +67,4 @@ TEST_F(TestUbseRas, UnRegisterAlarmFaultHandlerWhenNoExistEvent)
     ASSERT_EQ(res, UBSE_ERROR_NULLPTR);
 }
 
-}
+} // namespace ubse::ras::ut

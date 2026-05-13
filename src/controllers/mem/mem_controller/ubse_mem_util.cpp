@@ -12,13 +12,13 @@
 
 #include "ubse_mem_util.h"
 
-#include "ubs_engine_mem.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_os_util.h"
+#include "ubs_engine_mem.h"
 
 namespace ubse::mem::util {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -27,7 +27,7 @@ using namespace ubse::mti;
 
 std::string GetCurNodeId()
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto module = ubseContext.GetModule<UbseLcneModule>();
     if (module == nullptr) {
         UBSE_LOG_ERROR << "get the lcne module failed.";
@@ -42,7 +42,7 @@ std::string GetCurNodeId()
     return info.nodeId;
 }
 
-UbseTaskExecutorPtr GetExecutor(const std::string &name)
+UbseTaskExecutorPtr GetExecutor(const std::string& name)
 {
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
@@ -55,7 +55,7 @@ UbseTaskExecutorPtr GetExecutor(const std::string &name)
     return resourceExecutor;
 }
 
-bool CheckName(const std::string &name)
+bool CheckName(const std::string& name)
 {
     if (name.empty() || name.size() >= UBS_MEM_MAX_NAME_LENGTH) {
         UBSE_LOG_ERROR << "Invalid name length:" << name.size();
@@ -72,12 +72,10 @@ bool CheckName(const std::string &name)
 
 bool isNumericString(const std::string& str)
 {
-    return !str.empty() &&
-           std::all_of(str.begin(), str.end(),
-                       [](unsigned char c) { return c >= '0' && c <= '9'; });
+    return !str.empty() && std::all_of(str.begin(), str.end(), [](unsigned char c) { return c >= '0' && c <= '9'; });
 }
 
-UbseUdsInfo GenUdsInfo(const api::server::UbseRequestContext &context)
+UbseUdsInfo GenUdsInfo(const api::server::UbseRequestContext& context)
 {
     UbseUdsInfo udsInfo = {context.clientInfo.uid, context.clientInfo.gid, context.clientInfo.pid, ""};
     auto ret = UbseOsUtil::GetUserNameById(context.clientInfo.uid, udsInfo.username);

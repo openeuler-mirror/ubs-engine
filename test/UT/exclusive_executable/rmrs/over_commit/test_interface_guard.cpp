@@ -120,7 +120,7 @@ TEST_F(TestInterfaceGuard, ExceptionTest)
     try {
         auto guard = InterfaceGuard::InvokeOutMemBorrow();
         throw std::runtime_error("Test exception");
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         // 异常在本测试中是预期行为，仅用于触发资源释放逻辑
         // 不需要进一步处理
     }

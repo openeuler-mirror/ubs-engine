@@ -28,9 +28,9 @@ public:
 
     common::def::UbseResult GetClusterIpList(std::vector<std::string>& ipList) override;
 
-    common::def::UbseResult AddDecoderEntry(const mami::UbseMamiMemImportInfo& importInfo,
-                                            mami::UbseMamiMemImportResult& importResult,
-                                            const ubse::adapter_plugins::mti::UbseDecoderTrustRingData &trustRingData = {}) override;
+    common::def::UbseResult AddDecoderEntry(
+        const mami::UbseMamiMemImportInfo& importInfo, mami::UbseMamiMemImportResult& importResult,
+        const ubse::adapter_plugins::mti::UbseDecoderTrustRingData& trustRingData = {}) override;
 
     common::def::UbseResult DeleteDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo) override;
 
@@ -38,22 +38,23 @@ public:
 
     common::def::UbseResult GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo& queryInfo,
                                              std::vector<mami::UbseMamiMemHandleValue>& handleValues) override;
-    common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo> &socketInfoMap) override;
+    common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo>& socketInfoMap) override;
 
-    common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos) override;
+    common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) override;
 
     common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile) override;
 
     common::def::UbseResult UbseDeleteQosProfile(std::string proflieName) override;
 
-    common::def::UbseResult UbseQueryQosProfile(std::string proflieName, UbseMtiQosProfile &ubseLcneQosProfile)  override;
+    common::def::UbseResult UbseQueryQosProfile(std::string proflieName,
+                                                UbseMtiQosProfile& ubseLcneQosProfile) override;
 
     common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName) override;
 
     common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo) override;
 
-    common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName) override;
+    common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& proflieName) override;
 };
-}  // namespace ubse::adapter_plugins::mti
+} // namespace ubse::adapter_plugins::mti
 
-#endif  // UBSE_MTI_INTERFACE_DEFAULT_H
+#endif // UBSE_MTI_INTERFACE_DEFAULT_H

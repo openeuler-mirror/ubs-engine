@@ -15,11 +15,11 @@
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
 
+#include "ubse_ipc_client.h"
 #include "mem_fragmentation_msg.h"
 #include "mempooling_def.h"
 #include "ubs_virt_agent_mem_fragmentation.h"
 #include "ubs_virt_agent_mem_fragmentation_helper.h"
-#include "ubse_ipc_client.h"
 #include "vm_serial_util.h"
 
 namespace ubse::vm::ut {
@@ -40,7 +40,7 @@ void TestLibvirtAgentMemFragmentationHelper::TearDown()
 
 TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_borrow_execute_msg_unpack_fail)
 {
-    uint8_t *buffer = nullptr;
+    uint8_t* buffer = nullptr;
     uint32_t len = 0;
 
     mem_borrow_result_c result{};
@@ -95,7 +95,7 @@ NodeAntiDictionary CreateTestNodeDict()
 TEST_F(TestLibvirtAgentMemFragmentationHelper, allocate_memory_Success)
 {
     size_t buffer_size = 1024;
-    uint8_t *buffer = allocate_memory(buffer_size);
+    uint8_t* buffer = allocate_memory(buffer_size);
 
     EXPECT_NE(buffer, nullptr);
     EXPECT_EQ(buffer_size, sizeof(uint8_t) * buffer_size);
@@ -113,13 +113,13 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Success)
 {
     NodeAntiDictionary node_dict = CreateTestNodeDict();
     size_t buffer_size = 4096;
-    uint8_t *buffer = allocate_memory(buffer_size);
+    uint8_t* buffer = allocate_memory(buffer_size);
 
     EXPECT_NE(buffer, nullptr);
 
     serialize_data(node_dict, buffer);
 
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     uint32_t entries_count = 0;
     memcpy_s(&entries_count, sizeof(uint32_t), ptr, sizeof(uint32_t));
     EXPECT_EQ(entries_count, node_dict.entry_count);
@@ -130,7 +130,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Success)
     EXPECT_EQ(key_length, strlen(node_dict.entries[0].key) + 1);
     ptr += sizeof(uint32_t);
 
-    char *key = new char[key_length];
+    char* key = new char[key_length];
     memcpy_s(key, key_length, ptr, key_length);
     EXPECT_STREQ(key, node_dict.entries[0].key);
     ptr += key_length;
@@ -145,7 +145,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, serialize_data_Success)
         memcpy_s(&value_length, sizeof(uint32_t), ptr, sizeof(uint32_t));
         ptr += sizeof(uint32_t);
 
-        char *value = new char[value_length];
+        char* value = new char[value_length];
         memcpy_s(value, value_length, ptr, value_length);
         EXPECT_STREQ(value, node_dict.entries[0].value[j]);
         ptr += value_length;
@@ -159,7 +159,7 @@ TEST_F(TestLibvirtAgentMemFragmentationHelper, ubse_mem_migrate_strategy_msg_unp
 {
     MemMigrateStrategy strategy = {0};
     strategy.vmInfoListSize = 2;
-    strategy.vmInfoList = (VmMigrateStrategy *)malloc(strategy.vmInfoListSize * sizeof(VmMigrateStrategy));
+    strategy.vmInfoList = (VmMigrateStrategy*)malloc(strategy.vmInfoListSize * sizeof(VmMigrateStrategy));
     strategy.vmInfoList[0].destNumaId = 1;
     strategy.vmInfoList[0].memSize = 2048;
     strategy.vmInfoList[0].pid = 1234;

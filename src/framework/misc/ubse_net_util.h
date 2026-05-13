@@ -22,29 +22,29 @@ class UbseNetUtil {
 public:
     static bool IsPortVaLid(const uint32_t port);
 
-    static bool ValidIpv4Addr(const std::string &ip);
+    static bool ValidIpv4Addr(const std::string& ip);
 
-    static bool ValidIpv6Addr(const std::string &ip);
+    static bool ValidIpv6Addr(const std::string& ip);
 
-    static uint32_t IpV4ToInt(const std::string &ip, uint32_t &intIp);
+    static uint32_t IpV4ToInt(const std::string& ip, uint32_t& intIp);
 
     static std::string IntToIpV4(uint32_t ip_int);
 
-    static void ParseIpRangeToList(const std::string &range, std::vector<std::string> &ips);
+    static void ParseIpRangeToList(const std::string& range, std::vector<std::string>& ips);
 
-    static bool Ipv4StringToArr(const std::string &ip, uint8_t *arr);
+    static bool Ipv4StringToArr(const std::string& ip, uint8_t* arr);
 
-    static std::string Ipv4ArrToString(const uint8_t *arr);
+    static std::string Ipv4ArrToString(const uint8_t* arr);
 
-    static std::string Ipv6ArrToString(const uint8_t *arr);
+    static std::string Ipv6ArrToString(const uint8_t* arr);
 
-    static bool IsSpecialIP(const std::string &ip);
+    static bool IsSpecialIP(const std::string& ip);
 
-    static uint32_t GetIpInfo(std::vector<std::string> &ipInfos);
+    static uint32_t GetIpInfo(std::vector<std::string>& ipInfos);
 };
 
 // 辅助函数：解析字符串IP为UbseIpAddr结构
-bool parseIpString(const std::string &ipStr, ubse::nodeController::UbseIpAddr &out);
+bool parseIpString(const std::string& ipStr, ubse::nodeController::UbseIpAddr& out);
 } // namespace ubse::utils
 
 #endif // UBSE_MANAGER_UBSE_NET_UTIL_H

@@ -32,19 +32,19 @@ public:
     static UbseResult DeInitMemFaultManager();
 
 private:
-    static uint32_t PanicRebootFaultEventHandler(std::string &eventId, std::string &eventMessage);
+    static uint32_t PanicRebootFaultEventHandler(std::string& eventId, std::string& eventMessage);
 
-    static UbseResult MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string &faultId);
+    static UbseResult MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string& faultId);
 
     static uint32_t MemFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
-    static UbseResult SendMemFaultMessageByType(const std::string &memType, uint64_t memId, const std::string &memName,
-                                                const adapter_plugins::mmi::UbseUdsInfo &udsInfo,
+    static UbseResult SendMemFaultMessageByType(const std::string& memType, uint64_t memId, const std::string& memName,
+                                                const adapter_plugins::mmi::UbseUdsInfo& udsInfo,
                                                 ubse::adapter_plugins::mmi::UbMemFaultType type);
 
-    static UbseResult CreateTaskExecutor(const std::string &name);
+    static UbseResult CreateTaskExecutor(const std::string& name);
 
-    static UbseResult RemoveTaskExecutor(const std::string &name);
+    static UbseResult RemoveTaskExecutor(const std::string& name);
 
     static UbseTaskExecutorPtr executorPtr;
 };

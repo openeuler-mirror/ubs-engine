@@ -15,10 +15,10 @@
 #include "main_test_it.h"
 namespace ubse::it::plugin {
 using namespace ubse::it;
-int32_t ITestCmdPluginAddPlugin(ProcessMmap *pMmap);
-int32_t ITestCmdPluginAddAdmission(ProcessMmap *pMmap);
-int32_t ITestCmdPluginDeleteAdmission(ProcessMmap *pMmap);
-int32_t ITestCmdPluginReloadPlugin(ProcessMmap *pMmap);
-}
+int32_t ITestCmdPluginAddPlugin(ProcessMmap* pMmap);
+int32_t ITestCmdPluginAddAdmission(ProcessMmap* pMmap);
+int32_t ITestCmdPluginDeleteAdmission(ProcessMmap* pMmap);
+int32_t ITestCmdPluginReloadPlugin(ProcessMmap* pMmap);
+} // namespace ubse::it::plugin
 
 #endif // UBSE_MANAGER_PLUGIN_IT_H

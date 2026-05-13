@@ -26,7 +26,7 @@ using namespace ubse::it::exception;
 
 static constexpr uint32_t TIME_OUT = 30;
 
-ProcessMmap *TestITInit::pMmap = nullptr;
+ProcessMmap* TestITInit::pMmap = nullptr;
 
 TestITInit::TestITInit() {}
 

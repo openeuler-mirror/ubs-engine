@@ -13,15 +13,15 @@
 #ifndef UBSE_LCNE_BUSINSTANCE_H
 #define UBSE_LCNE_BUSINSTANCE_H
 
-#include <memory>             // for allocator, unique_ptr
-#include <mutex>              // for call_once, once_flag
-#include <string>             // for string, basic_string
-#include <utility>            // for move
+#include <memory>  // for allocator, unique_ptr
+#include <mutex>   // for call_once, once_flag
+#include <string>  // for string, basic_string
+#include <utility> // for move
 
 #include "ubse_common_def.h"  // for UbseResult
 #include "ubse_http_common.h" // for UbseHttpMethod, UbseHttpResponse (ptr o...
 
- // for LcneServer
+// for LcneServer
 #include "ubse_lcne_def.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
@@ -32,14 +32,15 @@ using namespace ubse::mti;
 
 class UbseLcneBusInstance {
 public:
-    static UbseLcneBusInstance &GetInstance()
+    static UbseLcneBusInstance& GetInstance()
     {
-        static UbseLcneBusInstance instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
+        static UbseLcneBusInstance instance("127.0.0.1",
+                                            LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
         return instance;
     }
 
     // 查询节点物理上bus instance信息
-    UbseResult QueryBusinstance(UbseLcneBusInstanceInfo &busInstanceInfo);
+    UbseResult QueryBusinstance(UbseLcneBusInstanceInfo& busInstanceInfo);
 
 private:
     UbseLcneBusInstance(std::string host, int port) : host_(std::move(host)), port_(port) {}
@@ -47,7 +48,7 @@ private:
     std::string host_;
     int port_;
 
-    UbseResult ParseQueryBusinstanceResponse(const std::string &responseStr, UbseLcneBusInstanceInfo &responseObj);
+    UbseResult ParseQueryBusinstanceResponse(const std::string& responseStr, UbseLcneBusInstanceInfo& responseObj);
 };
 } // namespace ubse::lcne
 #endif // UBSE_LCNE_BUSINSTANCE_H

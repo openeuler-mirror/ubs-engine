@@ -49,7 +49,7 @@ struct UbseNodeTopology {
     uint64_t timestamp;
 
     // 重载==运算符，是用于节点上下线事件监听，比较前后差距，nodeId和state变化即为状态改变
-    bool operator==(const UbseNodeTopology &other) const
+    bool operator==(const UbseNodeTopology& other) const
     {
         return (nodeId == other.nodeId) && (state == other.state);
     }
@@ -63,14 +63,14 @@ struct TopologyEdgeInfo {
 
 struct NumaData {
     std::string numaId{};
-    bool operator==(const NumaData &numaData) const
+    bool operator==(const NumaData& numaData) const
     {
         return numaId == numaData.numaId;
     }
 };
 struct CpuData {
     std::string CpuId{};
-    bool operator==(const CpuData &cpuData) const
+    bool operator==(const CpuData& cpuData) const
     {
         return CpuId == cpuData.CpuId;
     }
@@ -80,7 +80,7 @@ struct SocketData {
     std::vector<NumaData> numas{};
     std::vector<CpuData> cpus{};
 
-    bool operator==(const SocketData &socketData) const
+    bool operator==(const SocketData& socketData) const
     {
         return socketId == socketData.socketId && numas == socketData.numas && cpus == socketData.cpus;
     }
@@ -96,9 +96,9 @@ struct TelemetrySocketData {
 struct MemNodeData : public TelemetrySocketData {
     bool isRegisterRm = false; // 该节点是否有可连接的RM,非OS固定为false
     MemNodeData() = default;
-    MemNodeData(TelemetrySocketData &&telemetryNodeData) : TelemetrySocketData(std::move(telemetryNodeData)){};
+    MemNodeData(TelemetrySocketData&& telemetryNodeData) : TelemetrySocketData(std::move(telemetryNodeData)){};
 
-    bool operator==(const MemNodeData &memNodeData) const
+    bool operator==(const MemNodeData& memNodeData) const
     {
         return isRegisterRm == memNodeData.isRegisterRm && nodeId == memNodeData.nodeId &&
                hostname == memNodeData.hostname && socket == memNodeData.socket;
@@ -108,7 +108,7 @@ struct MemNodeData : public TelemetrySocketData {
 struct VmNodeData : public MemNodeData {
     std::string bandWidth; // 带宽
     uint32_t jumpCount;    // 跳数
-    VmNodeData(MemNodeData &&memNodeData) : MemNodeData(std::move(memNodeData)){};
+    VmNodeData(MemNodeData&& memNodeData) : MemNodeData(std::move(memNodeData)){};
 };
 
 struct ElectionNodeInfo {
@@ -154,7 +154,7 @@ struct UbseNodeMemCnaInfoOutput {
  * @param topologies[out]: 节点的拓扑信息
  * @return UbseResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetNodeTopology(std::vector<UbseNodeTopology> &topologies);
+uint32_t UbseGetNodeTopology(std::vector<UbseNodeTopology>& topologies);
 
 /**
  * @brief 获取当前节点拓扑信息接口，提供跳数选项
@@ -162,22 +162,22 @@ uint32_t UbseGetNodeTopology(std::vector<UbseNodeTopology> &topologies);
  * @param[in] jump: 链接跳数
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseVmGetNodeTopologyInfo(const JumpCount &jump,
-                                   std::unordered_map<std::string, std::vector<VmNodeData>> &nodeData);
+uint32_t UbseVmGetNodeTopologyInfo(const JumpCount& jump,
+                                   std::unordered_map<std::string, std::vector<VmNodeData>>& nodeData);
 
 /**
  * @brief 获取全量拓扑信息接口
  * @param[out] nodeTopology: 所有节点和他的一跳链接信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology);
+uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology);
 
 /**
  * @brief 获取全量节点nodeId和hostname,IP绑定关系
  * @param[out] nodeInfos: 所有节点的nodeId和更多详细信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetNodeInfos(std::vector<NodeInfo> &nodeInfos);
+uint32_t UbseGetNodeInfos(std::vector<NodeInfo>& nodeInfos);
 
 /**
  * @brief 内存子系统获取拓扑cna信息接口
@@ -185,8 +185,8 @@ uint32_t UbseGetNodeInfos(std::vector<NodeInfo> &nodeInfos);
  * @param[out] ubseNodeMemCnaInfoOutput: 借入和借出节点的CPU的CNA信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput &ubseNodeMemCnaInfoInput,
-                                       UbseNodeMemCnaInfoOutput &ubseNodeMemCnaInfoOutput);
+uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput& ubseNodeMemCnaInfoInput,
+                                       UbseNodeMemCnaInfoOutput& ubseNodeMemCnaInfoOutput);
 
 /**
  * @brief 通过hostname获取nodeId接口
@@ -194,7 +194,7 @@ uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput &ubseNodeMe
  * @param[out] nodeId
  * @return 成功返回0, 失败返回非0,若不存在该hostname，返回非0
  */
-uint32_t UbseNodeGetNodeIdByHostname(const std::string &hostname, std::string &nodeId);
+uint32_t UbseNodeGetNodeIdByHostname(const std::string& hostname, std::string& nodeId);
 
 /**
  * @brief 基于入参的节点属性，返回其所在的nodeId，若其不存在或属性不存在，返回非0, 同时出参被置为 0xFFFFFFFF
@@ -203,14 +203,14 @@ uint32_t UbseNodeGetNodeIdByHostname(const std::string &hostname, std::string &n
  * @param nodeId [out] 节点id
  * @return 成功返回0, 失败返回非0,若不存在该值，返回非0
  */
-uint32_t UbseGetNodeIdByAttrValue(const NodeAttr &attr, const std::string &value, uint32_t &nodeId);
+uint32_t UbseGetNodeIdByAttrValue(const NodeAttr& attr, const std::string& value, uint32_t& nodeId);
 
 /**
  * @brief 在主节点 查询当前连通节点
  * @param roleInfos [out] 节点列表
  * @return
  */
-uint32_t UbseNodeGetLinkUpNodes(std::vector<UbseRoleInfo> &roleInfos);
+uint32_t UbseNodeGetLinkUpNodes(std::vector<UbseRoleInfo>& roleInfos);
 
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_TOPOLOGY_H

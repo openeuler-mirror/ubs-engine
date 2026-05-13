@@ -19,7 +19,6 @@
 #include "mempooling_interface.h"
 #include "over_commit_def.h"
 #include "over_commit_storage.h"
-#include "over_commit_storage.h"
 namespace mempooling {
 using namespace mempooling::over_commit;
 struct VmNumaInfoWithSocket {
@@ -67,7 +66,7 @@ struct OverCommitFaultMemIdExecuteParam {
     {
         std::ostringstream oss;
         std::string pidsStr;
-        for (auto &pid : pids) {
+        for (auto& pid : pids) {
             pidsStr += std::to_string(pid) + ", ";
         }
         oss << "{";
@@ -90,64 +89,64 @@ struct GetNumaSizePara {
     uint16_t preRemoteNumaId;
 };
 
-MpResult GetLocalBorrowNumaIdOfMemId(const std::string &localNodeId, int16_t &localNumaId, uint16_t memId);
-uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string &localNodeId, uint16_t localNumaId, uint16_t remoteNumaId,
+MpResult GetLocalBorrowNumaIdOfMemId(const std::string& localNodeId, int16_t& localNumaId, uint16_t memId);
+uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string& localNodeId, uint16_t localNumaId, uint16_t remoteNumaId,
                                             NumaBindType bindType);
-MpResult GetRemoteNumaSize(uint64_t &remoteNumaTotalSize, GetNumaSizePara param, NumaBindType bindType);
-MpResult GetPreRemoteNumaSize(uint64_t &preRemoteTotalSize, GetNumaSizePara param, NumaBindType bindType);
-void ShowPids(const FMVmInfoResult &fMVmInfoResult, const uint64_t faultMemSize);
-void GetBothVmNumaInfoMultiScene(std::vector<VmNumaInfoWithSocket> &allVmNumaInfoOnRemoteNuma,
-                                 std::vector<VmNumaInfo> &numaInfoOnBoth);
+MpResult GetRemoteNumaSize(uint64_t& remoteNumaTotalSize, GetNumaSizePara param, NumaBindType bindType);
+MpResult GetPreRemoteNumaSize(uint64_t& preRemoteTotalSize, GetNumaSizePara param, NumaBindType bindType);
+void ShowPids(const FMVmInfoResult& fMVmInfoResult, const uint64_t faultMemSize);
+void GetBothVmNumaInfoMultiScene(std::vector<VmNumaInfoWithSocket>& allVmNumaInfoOnRemoteNuma,
+                                 std::vector<VmNumaInfo>& numaInfoOnBoth);
 MpResult GetContainerNumaInfoList(outinterface::SrcMemoryBorrowParam oParam,
-                                  std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList, uint16_t remoteNumaId,
+                                  std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList, uint16_t remoteNumaId,
                                   NumaBindType bindType);
 MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, WaterMark water,
-                          MemBorrowExecuteResult &borrowExecuteResult);
+                          MemBorrowExecuteResult& borrowExecuteResult);
 MpResult SetSmapRemoteNumaInfoExec(int16_t localNumaId, uint16_t remoteNumaId, uint64_t borrowSize);
 
 class OverCommitFaultMemIdModule {
 public:
-    static OverCommitFaultMemIdModule &Instance()
+    static OverCommitFaultMemIdModule& Instance()
     {
         static OverCommitFaultMemIdModule instance;
         return instance;
     }
 
     MpResult MemIdFaultManage(std::string borrowInNid, uint64_t memId);
-    MpResult GetVmNumaInfoMapRpc(std::string importNodeId, std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
+    MpResult GetVmNumaInfoMapRpc(std::string importNodeId, std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
                                  uint16_t remoteNumaId);
-    void GetBothVmNumaInfo(std::vector<VmNumaInfoWithSocket> &allVmNumaInfoOnRemoteNuma, uint16_t localNumaId,
-                           std::vector<VmNumaInfo> &numaInfoOnBoth, int16_t &srcSocketId);
-    MpResult GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList);
+    void GetBothVmNumaInfo(std::vector<VmNumaInfoWithSocket>& allVmNumaInfoOnRemoteNuma, uint16_t localNumaId,
+                           std::vector<VmNumaInfo>& numaInfoOnBoth, int16_t& srcSocketId);
+    MpResult GetRemoteNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList);
 
     MpResult MemFreeExecuteRpc(std::string borrowId, std::string importNodeId);
     MpResult DisableSmapProcessMigrateRpc(std::vector<pid_t> pids, std::string importNodeId);
     MpResult MemFreeDirectlyExecuteRpc(std::string borrowId, std::string importNodeId);
     MpResult MemIdExecuteRpc(OverCommitFaultMemIdExecuteParam param, std::string importNodeId);
     MpResult MemIdExecute(OverCommitFaultMemIdExecuteParam param);
-    MpResult VmsMigrateOtherRemoteNuma(std::vector<pid_t> &pids, uint16_t preRemoteNumaId, uint16_t remoteNumaId,
+    MpResult VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, uint16_t preRemoteNumaId, uint16_t remoteNumaId,
                                        int16_t localNumaId, uint64_t remoteNumaTotalSize);
     MpResult SetAndDeleteResource(std::string borrowId, outinterface::SrcMemoryBorrowParam srcParam,
                                   std::vector<MemBorrowInfo> memBorrowInfos, uint64_t faultMemSize);
     MpResult ReturnFaultMem(outinterface::SrcMemoryBorrowParam outSrcParam, std::string borrowId,
                             uint16_t preRemoteNumaId, uint64_t faultMemSize, uint64_t remoteNumaSize);
-    MpResult PrepareParamForBorrowMem(outinterface::SrcMemoryBorrowParam &param, uint16_t memId,
-                                      uint16_t preRemoteNumaId, std::vector<VmNumaInfo> &allVmNumaInfoOnBoth,
-                                      mempooling::WaterMark &waterMark);
-    MpResult GetSelectPids(FMVmInfoResult &fMVmInfoResult, uint64_t faultMemSize,
-                           std::vector<VmNumaInfo> &allVmNumaInfoOnBoth);
+    MpResult PrepareParamForBorrowMem(outinterface::SrcMemoryBorrowParam& param, uint16_t memId,
+                                      uint16_t preRemoteNumaId, std::vector<VmNumaInfo>& allVmNumaInfoOnBoth,
+                                      mempooling::WaterMark& waterMark);
+    MpResult GetSelectPids(FMVmInfoResult& fMVmInfoResult, uint64_t faultMemSize,
+                           std::vector<VmNumaInfo>& allVmNumaInfoOnBoth);
     MpResult ExecEmpty(outinterface::SrcMemoryBorrowParam outSrcParam, std::string borrowId, uint16_t preRemoteNumaId,
                        uint64_t faultMemSize);
-    MpResult GetOverCommitScene(const std::string &nodeId);
+    MpResult GetOverCommitScene(const std::string& nodeId);
     MpResult GetPidNumaInfo(outinterface::SrcMemoryBorrowParam oParam,
-                            std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList, uint16_t remoteNumaId);
+                            std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList, uint16_t remoteNumaId);
 
     MpResult ClearFalutBidBorrowedMap()
     {
         falutBidBorrowedMap.clear();
     }
 
-    MpResult GetWaterMark(struct WaterMark &waterMark);
+    MpResult GetWaterMark(struct WaterMark& waterMark);
     /**
      * @brief 判断memID是否在本Node上、输出borrowID对应的远端numaID、输出memId对应的borrowID的内存借用大小
      * @param borrowInNodeData 借用内存块信息
@@ -155,12 +154,12 @@ public:
      * @param preRemoteNumaId 故障memID所在borrowId的远端NUMA
      * @return MpResult
      */
-    MpResult IsBorrowIdOfCurNidOverCommit(BorrowInNodeData &borrowInNodeData, uint64_t &faultMemSize,
-                                          uint16_t &preRemoteNumaId, uid_t &uid, std::string &username);
+    MpResult IsBorrowIdOfCurNidOverCommit(BorrowInNodeData& borrowInNodeData, uint64_t& faultMemSize,
+                                          uint16_t& preRemoteNumaId, uid_t& uid, std::string& username);
 
 private:
     std::unordered_map<std::string, MemBorrowExecuteResult> falutBidBorrowedMap;
-    FaultMemIdModule &baseInstance = FaultMemIdModule::Instance();
+    FaultMemIdModule& baseInstance = FaultMemIdModule::Instance();
     MpSceneType mSceneType{MpSceneType::VIRTUAL_SCENE};
     NumaBindType mBindType{NumaBindType::BIND_INVALID};
 };

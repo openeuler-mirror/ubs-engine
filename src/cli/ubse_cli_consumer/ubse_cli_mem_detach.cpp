@@ -32,7 +32,7 @@ class UbseCliMemDetach::UbseCliMemDetachImpl {
 public:
     UbseCliMemDetachImpl() {}
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDetachMem(const std::string &name)
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDetachMem(const std::string& name)
     {
         // 序列化
         UbseSerialization serial;
@@ -59,7 +59,7 @@ private:
     UbseCliMemQuery query;
 };
 
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemDetach::UbseCliDetachMem(const std::string &name)
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemDetach::UbseCliDetachMem(const std::string& name)
 {
     if (this->pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);

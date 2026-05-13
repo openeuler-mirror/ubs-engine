@@ -12,14 +12,14 @@
 
 #include "test_case_conf.h"
 #include <thread>
-#include "rack_vm_plugin.h"
+#include "ubse_com.h"
+#include "ubse_storage.h"
 #include "case_conf.h"
 #include "mempooling_module.h"
 #include "mockcpp/mockcpp.hpp"
+#include "rack_vm_plugin.h"
 #include "router.h"
 #include "securec.h"
-#include "ubse_com.h"
-#include "ubse_storage.h"
 #include "vm_configuration.h"
 #include "vm_json_util.h"
 #include "vm_string_util.h"
@@ -43,7 +43,7 @@ void TestCaseConf::TearDown()
     Test::TearDown();
 }
 
-VmResult MockQueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio &caseConf)
+VmResult MockQueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio& caseConf)
 {
     caseConf.curCase = OVER_COMMITMENT_CASE;
     caseConf.overCommitmentRatio = MAX_OVER_COMMITMENT_RATIO;
@@ -80,7 +80,7 @@ TEST_F(TestCaseConf, QueryCaseAndOverCommitmentRatioTest)
 TEST_F(TestCaseConf, UbseStorageDealDataTest)
 {
     std::string str = "caseType:overCommitment;overCommitment:1.25";
-    auto data = reinterpret_cast<uint8_t *>(str.data());
+    auto data = reinterpret_cast<uint8_t*>(str.data());
     const UbseByteBuffer buff = {.data = data, .len = str.length()};
     CaseAndOvercommitmentRatio caseAndOvercommitmentRatio{};
     // ctx为null
@@ -94,19 +94,19 @@ void MockUbsePluginDeInit()
     return;
 }
 
-VmResult MockQueryCaseAndOverCommitmentRatio2(CaseAndOvercommitmentRatio &caseConf)
+VmResult MockQueryCaseAndOverCommitmentRatio2(CaseAndOvercommitmentRatio& caseConf)
 {
     caseConf.curCase = MEM_FRAGMENTATION_CASE;
     caseConf.overCommitmentRatio = MEM_FRAGMENTATION_RATIO;
     return VM_OK;
 }
 
-uint32_t UBSRMRSSetRunModeSuccess(const int &runMode)
+uint32_t UBSRMRSSetRunModeSuccess(const int& runMode)
 {
     return VM_OK;
 }
 
-uint32_t UBSRMRSSetRunModeFail(const int &runMode)
+uint32_t UBSRMRSSetRunModeFail(const int& runMode)
 {
     return VM_ERROR;
 }
@@ -200,21 +200,21 @@ TEST_F(TestCaseConf, CaseConfInit)
 
 UBSRMRSSetRunModeFunc MockerRunMode()
 {
-    return [](const int &) {
+    return [](const int&) {
         return VM_OK;
     };
 }
 
 UBSRMRSSetWaterMarkFunc MockerSetWaterMarkFunc()
 {
-    return [](const WaterMark &) {
+    return [](const WaterMark&) {
         return VM_OK;
     };
 }
 
 UBSRMRSSetWaterMarkFunc MockerSetWaterMarkFail()
 {
-    return [](const WaterMark &) {
+    return [](const WaterMark&) {
         return VM_ERROR;
     };
 }

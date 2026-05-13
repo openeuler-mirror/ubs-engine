@@ -26,7 +26,7 @@ UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::nodeController;
 using namespace ubse::nodeController;
 
-static void PrintUbseStatus(tc::rs::mem::UbseStatus &ubseStatus)
+static void PrintUbseStatus(tc::rs::mem::UbseStatus& ubseStatus)
 {
     for (int i = 0; i < tc::rs::mem::NUM_TOTAL_NUMA; i++) {
         if (ubseStatus.numaStatus[i].memTotal <= 0 && ubseStatus.numaLedgerStatus[i].memLent <= 0 &&
@@ -44,9 +44,9 @@ static void PrintUbseStatus(tc::rs::mem::UbseStatus &ubseStatus)
     }
 }
 
-static UbseResult GetFdBorrowParam(const ubse::adapter_plugins::mmi::UbseMemFdBorrowReq &req,
-                                   tc::rs::mem::BorrowRequest &borrowRequest,
-                                   ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+static UbseResult GetFdBorrowParam(const ubse::adapter_plugins::mmi::UbseMemFdBorrowReq& req,
+                                   tc::rs::mem::BorrowRequest& borrowRequest,
+                                   ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     UbseMemNumaLoc borrowNode{"", -1, -1};
     if (req.size / ONE_M > UINT32_MAX) {
@@ -75,9 +75,9 @@ static UbseResult GetFdBorrowParam(const ubse::adapter_plugins::mmi::UbseMemFdBo
     return UBSE_OK;
 }
 
-static UbseResult GetNumaBorrowParam(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq &req,
-                                     tc::rs::mem::BorrowRequest &request,
-                                     ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+static UbseResult GetNumaBorrowParam(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq& req,
+                                     tc::rs::mem::BorrowRequest& request,
+                                     ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     UbseMemNumaLoc borrowNode{req.importNodeId, req.srcSocket, req.srcNuma};
     request.urgentLevel = tc::rs::mem::RequestUrgentLevel::LEVEL0;
@@ -97,7 +97,7 @@ static UbseResult GetNumaBorrowParam(const ubse::adapter_plugins::mmi::UbseMemNu
             UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(req.importNodeId, req.srcNuma);
         if (memNumaInfo == nullptr) {
             UBSE_LOG_WARN << "IdLocToIndexLoc failed, nodeId=" << borrowNode.nodeId
-                           << ", socketid=" << borrowNode.socketId << ", numaId=" << borrowNode.numaId;
+                          << ", socketid=" << borrowNode.socketId << ", numaId=" << borrowNode.numaId;
             return UBSE_ERROR;
         }
         if (memNumaInfo->mUbseMemNumaLoc.socketId != req.srcSocket) {
@@ -122,9 +122,9 @@ static UbseResult GetNumaBorrowParam(const ubse::adapter_plugins::mmi::UbseMemNu
     return UBSE_OK;
 }
 
-static UbseResult GetShareStrategyRequest(const ubse::adapter_plugins::mmi::UbseMemShareBorrowReq &req,
-                                          tc::rs::mem::ShareRequest &request,
-                                          ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+static UbseResult GetShareStrategyRequest(const ubse::adapter_plugins::mmi::UbseMemShareBorrowReq& req,
+                                          tc::rs::mem::ShareRequest& request,
+                                          ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     auto hostIndex = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(req.requestNodeId);
     if (hostIndex < 0 || hostIndex >= tc::rs::mem::NUM_HOSTS) {
@@ -162,8 +162,8 @@ static UbseResult GetShareStrategyRequest(const ubse::adapter_plugins::mmi::Ubse
     return UBSE_OK;
 }
 
-static UbseResult GetBorrowResultFromAlgoRes(ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
-                                             const tc::rs::mem::BorrowResult &borrowResult)
+static UbseResult GetBorrowResultFromAlgoRes(ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
+                                             const tc::rs::mem::BorrowResult& borrowResult)
 {
     UbseMemNumaLoc memIdLocLend{};
     UbseMemNumaLoc memIdLocBorrow{};
@@ -190,7 +190,7 @@ static UbseResult GetBorrowResultFromAlgoRes(ubse::adapter_plugins::mmi::UbseMem
         UBSE_LOG_INFO << "Algo result importNodeId=" << memIdLocBorrow.nodeId
                       << ", importSocket=" << memIdLocBorrow.socketId << ", exportNodeId=" << memIdLocLend.nodeId
                       << ", exportSocket=" << memIdLocLend.socketId << ", exportNumaId=" << memIdLocLend.numaId
-                      << ", blockSize="<< algoResult.blockSize;
+                      << ", blockSize=" << algoResult.blockSize;
         algoResult.importNumaInfos.emplace_back(importDebtNumaInfo);
     }
 
@@ -204,8 +204,8 @@ static UbseResult GetBorrowResultFromAlgoRes(ubse::adapter_plugins::mmi::UbseMem
     return ret;
 }
 
-static UbseResult ConstructNumaBorrowResultFromAlgoRes(const tc::rs::mem::BorrowResult &algoRes,
-                                                       UbseMemAlgoResult &algoResult)
+static UbseResult ConstructNumaBorrowResultFromAlgoRes(const tc::rs::mem::BorrowResult& algoRes,
+                                                       UbseMemAlgoResult& algoResult)
 {
     UbseMemNumaLoc memIdLocBorrow{};
     UbseMemNumaLoc memIdLocLend{};
@@ -247,9 +247,9 @@ static UbseResult ConstructNumaBorrowResultFromAlgoRes(const tc::rs::mem::Borrow
     return UBSE_OK;
 }
 
-static UbseResult ConstructShareBorrowResultFromAlgoRes(const UbseMemShareBorrowReq &req,
-                                                        const tc::rs::mem::ShareResult &algoRes,
-                                                        UbseMemAlgoResult &algoResult)
+static UbseResult ConstructShareBorrowResultFromAlgoRes(const UbseMemShareBorrowReq& req,
+                                                        const tc::rs::mem::ShareResult& algoRes,
+                                                        UbseMemAlgoResult& algoResult)
 {
     for (int i = 0; i < algoRes.numShareLocs; ++i) {
         UbseMemNumaIndexLoc memIndexLoc = {algoRes.sharerLocs[i].hostId, algoRes.sharerLocs[i].socketId,
@@ -264,17 +264,16 @@ static UbseResult ConstructShareBorrowResultFromAlgoRes(const UbseMemShareBorrow
         algoResult.exportNumaInfos.push_back(exportDebtNumaInfo);
         UBSE_LOG_INFO << "Algo result exportNodeId=" << exportDebtNumaInfo.nodeId
                       << ", exportSocket=" << exportDebtNumaInfo.socketId
-                      << ", exportNumaId=" << exportDebtNumaInfo.numaId
-                      << ", blockSize=" << algoResult.blockSize;
+                      << ", exportNumaId=" << exportDebtNumaInfo.numaId << ", blockSize=" << algoResult.blockSize;
     }
 
     return UBSE_OK;
 }
 
-static UbseResult ConstructAddrBorrowResultFromAlgoRes(const UbseMemAddrBorrowReq &req, UbseMemAlgoResult &algoResult)
+static UbseResult ConstructAddrBorrowResultFromAlgoRes(const UbseMemAddrBorrowReq& req, UbseMemAlgoResult& algoResult)
 {
     uint64_t size = 0;
-    for (const auto &valist : req.exportAddrList) {
+    for (const auto& valist : req.exportAddrList) {
         size += valist.size;
     }
     UbseMemDebtNumaInfo exportDebtNumaInfo{req.exportNodeId, req.dstSocket, req.dstNuma, size};
@@ -290,7 +289,7 @@ static UbseResult ConstructAddrBorrowResultFromAlgoRes(const UbseMemAddrBorrowRe
     return ret;
 }
 
-static bool GetWatermarkDateFromRequestAttr(const UbseMemNumaBorrowReq &req)
+static bool GetWatermarkDateFromRequestAttr(const UbseMemNumaBorrowReq& req)
 {
     auto highWatermark = req.highWatermark;
     auto lowWatermark = req.lowWatermark;
@@ -305,8 +304,8 @@ static bool GetWatermarkDateFromRequestAttr(const UbseMemNumaBorrowReq &req)
     return true;
 }
 
-static UbseResult GetImportNodeIdSocketIdStr(const NodeId &exportNodeId, const SocketId &exportSocketId,
-                                             const NodeId &importNodeId, std::string &importNodeIdSocketId)
+static UbseResult GetImportNodeIdSocketIdStr(const NodeId& exportNodeId, const SocketId& exportSocketId,
+                                             const NodeId& importNodeId, std::string& importNodeIdSocketId)
 {
     importNodeIdSocketId = "";
     UbseNodeMemCnaInfoInput cnaInput;
@@ -322,12 +321,12 @@ static UbseResult GetImportNodeIdSocketIdStr(const NodeId &exportNodeId, const S
     }
     importNodeIdSocketId = importNodeId + '-' + cnaOutput.borrowSocketId;
     UBSE_LOG_INFO << "get import socketId, exportNodeId=" << exportNodeId << ", exportSocketId=" << exportSocketId
-                   << ", importNodeId=" << importNodeId << ", importSocketId=" << importNodeIdSocketId;
+                  << ", importNodeId=" << importNodeId << ", importSocketId=" << importNodeIdSocketId;
     return UBSE_OK;
 }
 
-void UbseMemStrategyHelper::GetSocketCnaSize(const std::string &importNodeIdSocketId,
-                                             std::unordered_map<std::string, uint64_t> &socketCnaSize)
+void UbseMemStrategyHelper::GetSocketCnaSize(const std::string& importNodeIdSocketId,
+                                             std::unordered_map<std::string, uint64_t>& socketCnaSize)
 {
     auto item = socketCnaSizeCount_.find(importNodeIdSocketId);
     if (item == socketCnaSizeCount_.end()) {
@@ -338,8 +337,8 @@ void UbseMemStrategyHelper::GetSocketCnaSize(const std::string &importNodeIdSock
     socketCnaSize = item->second;
 }
 
-void UbseMemStrategyHelper::AddSocketCnaSize(const std::string &importNodeIdSocketId,
-                                             const std::string &exportNodeIdSocketId, uint64_t AddCnaSize)
+void UbseMemStrategyHelper::AddSocketCnaSize(const std::string& importNodeIdSocketId,
+                                             const std::string& exportNodeIdSocketId, uint64_t AddCnaSize)
 {
     auto item = socketCnaSizeCount_.find(importNodeIdSocketId);
     if (item == socketCnaSizeCount_.end()) {
@@ -362,8 +361,8 @@ void UbseMemStrategyHelper::AddSocketCnaSize(const std::string &importNodeIdSock
     return;
 }
 
-void UbseMemStrategyHelper::SubSocketCnaSize(const std::string &importNodeIdSocketId,
-                                             const std::string &exportNodeIdSocketId, uint64_t subCnaSize)
+void UbseMemStrategyHelper::SubSocketCnaSize(const std::string& importNodeIdSocketId,
+                                             const std::string& exportNodeIdSocketId, uint64_t subCnaSize)
 {
     auto item = socketCnaSizeCount_.find(importNodeIdSocketId);
     if (item == socketCnaSizeCount_.end()) {
@@ -387,8 +386,8 @@ void UbseMemStrategyHelper::SubSocketCnaSize(const std::string &importNodeIdSock
     return;
 }
 
-UbseResult UbseMemStrategyHelper::NumaMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq &req,
-                                                   ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
+UbseResult UbseMemStrategyHelper::NumaMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq& req,
+                                                   ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
                                                    uint64_t checkMaskCode)
 {
     UbseMemValidator validator{};
@@ -425,7 +424,7 @@ UbseResult UbseMemStrategyHelper::NumaMemoryBorrow(const ubse::adapter_plugins::
     ret = GetBorrowResultFromAlgoRes(algoResult, res);
     if (req.srcSocket != -1) {
         UBSE_LOG_INFO << "Req srcSocket is valid, srcSocket=" << req.srcSocket;
-        for (auto &importNumaInfo : algoResult.importNumaInfos) {
+        for (auto& importNumaInfo : algoResult.importNumaInfos) {
             importNumaInfo.socketId = req.srcSocket;
         }
     }
@@ -436,8 +435,8 @@ UbseResult UbseMemStrategyHelper::NumaMemoryBorrow(const ubse::adapter_plugins::
     return UBSE_OK;
 }
 
-UbseResult UbseMemStrategyHelper::FdMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemFdBorrowReq &req,
-                                                 ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
+UbseResult UbseMemStrategyHelper::FdMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemFdBorrowReq& req,
+                                                 ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
                                                  uint64_t checkMaskCode)
 {
     UbseMemValidator validator{};
@@ -474,16 +473,16 @@ UbseResult UbseMemStrategyHelper::FdMemoryBorrow(const ubse::adapter_plugins::mm
     return UBSE_OK;
 }
 
-UbseResult UbseMemStrategyHelper::ShareMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemShareBorrowReq &req,
-                                                    ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
+UbseResult UbseMemStrategyHelper::ShareMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemShareBorrowReq& req,
+                                                    ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
                                                     uint64_t checkMaskCode)
 {
     UbseMemValidator validator{};
     validator.requestSize_ = req.size;
     validator.providerList_ = req.providerList;
     validator.srcSocket_ = req.withAffinity.affinitySocketId;
-    validator.importNodeId_ = !req.withAffinity.createReqNodeId.empty() ?
-                               req.withAffinity.createReqNodeId : req.requestNodeId;
+    validator.importNodeId_ = !req.withAffinity.createReqNodeId.empty() ? req.withAffinity.createReqNodeId :
+                                                                          req.requestNodeId;
     validator.lenderInfo_ = req.lenderInfo;
     if (validator.CheckAndFilterParam(checkMaskCode) != UBSE_OK) {
         UBSE_LOG_ERROR << "CheckAndFilterParam failed";
@@ -516,8 +515,8 @@ UbseResult UbseMemStrategyHelper::ShareMemoryBorrow(const ubse::adapter_plugins:
     return ret;
 }
 
-UbseResult UbseMemStrategyHelper::AddrMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq &req,
-                                                   ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
+UbseResult UbseMemStrategyHelper::AddrMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq& req,
+                                                   ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
                                                    uint64_t checkMaskCode)
 {
     size_t totalSize = 0;
@@ -547,8 +546,8 @@ UbseResult UbseMemStrategyHelper::Init()
         UBSE_LOG_ERROR << "Strategy init failed, mem param check failed.";
         return UBSE_ERROR;
     }
-    static tc::rs::mem::MemPoolStrategy &strategy = tc::rs::mem::MemPoolStrategy::GetInstance();
-    strategy.SetLogFunction(Log);                                                // 设置算法日志
+    static tc::rs::mem::MemPoolStrategy& strategy = tc::rs::mem::MemPoolStrategy::GetInstance();
+    strategy.SetLogFunction(Log); // 设置算法日志
     const auto ret = strategy.Init(strategyParam);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Strategy init failed. ret=" << ret;
@@ -559,7 +558,7 @@ UbseResult UbseMemStrategyHelper::Init()
 }
 
 UbseResult UbseMemStrategyHelper::GetNumaDebtInfoFromNumaPair(
-    const GlobalNumaIndex &brwNumaGlobalIdx, const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo &lend, bool add)
+    const GlobalNumaIndex& brwNumaGlobalIdx, const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo& lend, bool add)
 {
     /* 借出方 */
     NodeId nodeId = lend.nodeId;
@@ -575,7 +574,7 @@ UbseResult UbseMemStrategyHelper::GetNumaDebtInfoFromNumaPair(
                        << ", lntNumaGlobalIdx=" << lntNumaGlobalIdx;
         return UBSE_ERROR;
     }
-    std::map<int16_t, uint64_t> *numaDebt = &debtDetail_.numaDebts[brwNumaGlobalIdx];
+    std::map<int16_t, uint64_t>* numaDebt = &debtDetail_.numaDebts[brwNumaGlobalIdx];
     if (add) {
         if (numaDebt->find(lntNumaGlobalIdx) != numaDebt->end()) {
             debtDetail_.numaDebts[brwNumaGlobalIdx][lntNumaGlobalIdx] += lend.size;

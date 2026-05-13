@@ -19,7 +19,7 @@ using namespace ubse::config;
 using namespace ubse::context;
 const std::string WorkGroup = "server";
 
-UbseResult GetUBEnableForRpc(bool &ubEnable)
+UbseResult GetUBEnableForRpc(bool& ubEnable)
 {
     auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (ubseConfModule == nullptr) {
@@ -88,7 +88,7 @@ void UbseRpcServer::Stop()
     UbseCommunication::DeleteUbseComEngine(name_);
 }
 
-UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string &remoteNodeId)
+UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string& remoteNodeId)
 {
     UbseResult ret = UBSE_ERROR;
     if (option.channelType == UbseChannelType::NORMAL) {
@@ -100,7 +100,7 @@ UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string &r
     return ret;
 }
 
-UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t &hcomHbTimeout)
+UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t& hcomHbTimeout)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (module == nullptr) {
@@ -149,4 +149,4 @@ UbseResult UbseRpcServer::RegBrokenChannelCb(UbseComCallBackForHA func)
     return UBSE_OK;
 }
 
-}
+} // namespace ubse::com

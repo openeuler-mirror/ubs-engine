@@ -44,12 +44,12 @@ uint32_t InitAgentTaskProcessor()
     return UCACHE_OK;
 }
 
-void FreeMemory(uint8_t *data)
+void FreeMemory(uint8_t* data)
 {
     delete[] data;
 }
 
-void FillErrorResp(UbseByteBuffer &resp, uint32_t errCode)
+void FillErrorResp(UbseByteBuffer& resp, uint32_t errCode)
 {
     TaskResponse taskRes{};
     taskRes.resCode = errCode;
@@ -61,7 +61,7 @@ void FillErrorResp(UbseByteBuffer &resp, uint32_t errCode)
     resp.freeFunc = FreeMemory;
 }
 
-void ProcessTask(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void ProcessTask(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     if ((!req.data && req.len > 0) || req.len > MAX_SAFE_SIZE) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Invalid byteBuffer.";

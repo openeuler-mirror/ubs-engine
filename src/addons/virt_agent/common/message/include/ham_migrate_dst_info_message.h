@@ -30,7 +30,7 @@ public:
         : hamMigrateDstInfo(std::move(hamMigrateDstInfoInput))
     {
     }
-    explicit HamMigrateDstInfoMessage(uint8_t *rawData, uint32_t size)
+    explicit HamMigrateDstInfoMessage(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -44,7 +44,7 @@ public:
         return hamMigrateDstInfo;
     }
 
-    inline void SetHamMigrateDstInfo(int dstPid, const std::string &dstNodeId)
+    inline void SetHamMigrateDstInfo(int dstPid, const std::string& dstNodeId)
     {
         hamMigrateDstInfo.dstPid = dstPid;
         hamMigrateDstInfo.dstNodeId = dstNodeId;

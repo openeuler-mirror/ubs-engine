@@ -21,7 +21,7 @@
 #include "ubs_virt_agent_mem_fragmentation_helper.h"
 #include "vm_sdk_def.h"
 
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_list, uint32_t *node_cnt)
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t** node_list, uint32_t* node_cnt)
 {
     if (node_list == nullptr || node_cnt == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: node_list or node_cnt is nullptr or node_cnt is invalid.";
@@ -45,7 +45,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_l
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_info_list, uint32_t *vm_info_cnt)
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t** vm_info_list, uint32_t* vm_info_cnt)
 {
     if (vm_info_list == nullptr || vm_info_cnt == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: vm_info_list or vm_info_cnt is nullptr or vm_info_cnt is invalid.";
@@ -69,7 +69,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary *dict)
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict)
 {
     if (dict == nullptr || dict->entry_count == 0 || dict->entry_count > MAX_NODE_NUM) {
         IPC_LOG_ERROR << "Invalid parameters: nodeAntiAffinityMapJson is nullptr or entry_count is out of range.";
@@ -89,9 +89,9 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeA
         }
     }
 
-    const NodeAntiDictionary &node_dict = *dict;
+    const NodeAntiDictionary& node_dict = *dict;
     size_t buffer_size = sizeof(node_dict);
-    uint8_t *buffer = allocate_memory(buffer_size);
+    uint8_t* buffer = allocate_memory(buffer_size);
     if (buffer == nullptr) {
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
@@ -117,8 +117,8 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeA
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param *src_param,
-                                                    borrow_strategy_c *borrow_strategy)
+virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param* src_param,
+                                                    borrow_strategy_c* borrow_strategy)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_borrow_strategy";
     if (src_param == nullptr || borrow_strategy == nullptr ||
@@ -155,7 +155,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_para
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borrow_setting, mem_borrow_result_c *result)
+virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c* borrow_setting, mem_borrow_result_c* result)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_borrow_execute";
     if (borrow_setting == nullptr || borrow_setting->borrow_strategy.dest_numa_infos_size > MAX_DEST_PARAM_SIZE ||
@@ -204,8 +204,8 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam *srcParam,
-                                                     MemMigrateStrategy *strategy)
+virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam* srcParam,
+                                                     MemMigrateStrategy* strategy)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_migrate_strategy";
     if (srcParam == nullptr || strategy == nullptr) {
@@ -251,14 +251,14 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrc
     return VA_SUCCESS;
 }
 
-static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t &response_buffer, char **task_id, uint32_t *task_id_len)
+static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t& response_buffer, char** task_id, uint32_t* task_id_len)
 {
     if (response_buffer.buffer == nullptr || response_buffer.length == 0) {
         IPC_LOG_ERROR << "Invalid response buffer: buffer is null or length is 0";
         return false;
     }
 
-    const char *response_str = reinterpret_cast<const char *>(response_buffer.buffer);
+    const char* response_str = reinterpret_cast<const char*>(response_buffer.buffer);
     size_t response_str_len = strnlen(response_str, response_buffer.length);
     if (response_str_len == 0) {
         IPC_LOG_ERROR << "Response buffer contains empty string";
@@ -285,7 +285,7 @@ static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t &response_buffer, c
     return true;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len)
+virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char** task_id, uint32_t* task_id_len)
 {
     if (task_id == nullptr) {
         IPC_LOG_ERROR << "task_id is null";
@@ -333,7 +333,7 @@ virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result)
+virt_agent_ret_t ubs_virt_agent_sync_task_query(char* task_id, uint32_t task_id_len, async_task_info_c* result)
 {
     if (task_id == nullptr || result == nullptr || task_id_len == 0) {
         IPC_LOG_ERROR << "Invalid input parameters: task_id or result is null";
@@ -377,7 +377,7 @@ virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam *srcParam)
+virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam* srcParam)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_migrate_execute";
     if (srcParam == nullptr) {
@@ -424,7 +424,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam)
+virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam)
 {
     if (srcParam == nullptr || strnlen(srcParam->node_id, VIRT_MEM_MAX_NODE_ID_LENGTH) >= VIRT_MEM_MAX_NODE_ID_LENGTH ||
         srcParam->borrow_id_size == 0 || srcParam->borrow_id_size > MAX_BORROW_ID_COUNT) {

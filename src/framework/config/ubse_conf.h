@@ -24,7 +24,7 @@ namespace ubse::config {
  * @return #UBSE_OK 0 成功
  * @return #非UBSE_OK 失败
  */
-uint32_t UbseGetUInt(const std::string &section, const std::string &configKey, uint32_t &configVal);
+uint32_t UbseGetUInt(const std::string& section, const std::string& configKey, uint32_t& configVal);
 
 /**
  * @brief 获取Float类型配置
@@ -34,7 +34,7 @@ uint32_t UbseGetUInt(const std::string &section, const std::string &configKey, u
  * @return #UBSE_OK 0 成功
  * @return #非UBSE_OK 失败
  */
-uint32_t UbseGetFloat(const std::string &section, const std::string &configKey, float &configVal);
+uint32_t UbseGetFloat(const std::string& section, const std::string& configKey, float& configVal);
 
 /**
  * @brief 获取字符串类型配置
@@ -44,7 +44,7 @@ uint32_t UbseGetFloat(const std::string &section, const std::string &configKey, 
  * @return #UBSE_OK 0 成功
  * @return #非UBSE_OK 失败
  */
-uint32_t UbseGetStr(const std::string &section, const std::string &configKey, std::string &configVal);
+uint32_t UbseGetStr(const std::string& section, const std::string& configKey, std::string& configVal);
 
 /**
  * @brief 获取布尔类型配置
@@ -54,7 +54,7 @@ uint32_t UbseGetStr(const std::string &section, const std::string &configKey, st
  * @return #UBSE_OK 0 成功
  * @return #非UBSE_OK 失败
  */
-uint32_t UbseGetBool(const std::string &section, const std::string &configKey, bool &configVal);
+uint32_t UbseGetBool(const std::string& section, const std::string& configKey, bool& configVal);
 
 /**
  * @brief 获取无符号长整数类型配置
@@ -64,8 +64,8 @@ uint32_t UbseGetBool(const std::string &section, const std::string &configKey, b
  * @return #UBSE_OK 0 成功
  * @return #非UBSE_OK 失败
  */
-uint32_t UbseGetULong(const std::string &section, const std::string &configKey, uint64_t &configVal);
+uint32_t UbseGetULong(const std::string& section, const std::string& configKey, uint64_t& configVal);
 
-}
+} // namespace ubse::config
 
 #endif // UBSE_CONF_H

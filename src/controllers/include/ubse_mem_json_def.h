@@ -30,22 +30,21 @@ struct UbseMemEventNotifyBorrowItem {
     std::string name;                            /* 资源的name */
     std::vector<UbseMemNumaLoc> exportLocInfo{}; /* 提供内存的numa位置, 应该不超过[MEM_MAX_NUMA_NUM_PER_ITEM]
                                                   * 单次借用最多是单个节点一个P上的两个numa */
-    std::vector<uint64_t> requestSize{};         /* 每个numa提供的内存大小应该不超过[MEM_MAX_NUMA_NUM_PER_ITEM]  */
-    uint64_t exportMemId{};                      /* 提供内存节点导出内存obmm生成的memid */
-    uint64_t importMemId{};                      /* 本地导入obmm生成的memid */
+    std::vector<uint64_t> requestSize{}; /* 每个numa提供的内存大小应该不超过[MEM_MAX_NUMA_NUM_PER_ITEM]  */
+    uint64_t exportMemId{};              /* 提供内存节点导出内存obmm生成的memid */
+    uint64_t importMemId{};              /* 本地导入obmm生成的memid */
 };
 
 // 高低水线后，发现的消息结构如下，需要转成json格式
 struct UbseMemEventNotifyMessage {
     std::string ToJson();
-    int oomEventFlag{};                          /* oomEventFlag为1时说明发生了OOM事件 */
-    int borrowItemNum{};                         /* 该numa借入账目的实际条数 */
-    std::string allNumaInfo{};                   /* 所有numa的统计信息 */
-    UbseMemNumaLoc notifyNumaLoc{};              /* 借入numa位置，如果是高水线，需要增加账本，低水线，需要减少账本 */
+    int oomEventFlag{};        /* oomEventFlag为1时说明发生了OOM事件 */
+    int borrowItemNum{};       /* 该numa借入账目的实际条数 */
+    std::string allNumaInfo{}; /* 所有numa的统计信息 */
+    UbseMemNumaLoc notifyNumaLoc{}; /* 借入numa位置，如果是高水线，需要增加账本，低水线，需要减少账本 */
     std::vector<UbseMemEventNotifyBorrowItem>
         borrowItem; /* 如果是低水线事件，可以通过选择一条账本归还，告警numa层级借入的所有账本 */
 };
-
 
 } // namespace ubse::mem::strategy
 

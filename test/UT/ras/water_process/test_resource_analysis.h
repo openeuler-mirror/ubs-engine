@@ -23,5 +23,5 @@ public:
     void TearDown() override;
 };
 
-}  // namespace ubse::mem::strategy::ut
-#endif  // TEST_RESOURCE_ANALYSIS_H
+} // namespace ubse::mem::strategy::ut
+#endif // TEST_RESOURCE_ANALYSIS_H

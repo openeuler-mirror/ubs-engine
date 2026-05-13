@@ -11,14 +11,14 @@
  */
 #include "ubse_mem_get_opt_result_handler.h"
 
-#include "../message/ubse_mem_opt_req_simpo.h"
-#include "../message/ubse_mem_opt_result_simpo.h"
-#include "../ubse_mem_controller_api.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
+#include "../message/ubse_mem_opt_req_simpo.h"
+#include "../message/ubse_mem_opt_result_simpo.h"
+#include "../ubse_mem_controller_api.h"
 namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
@@ -31,7 +31,7 @@ UbseResult UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler()
         UBSE_LOG_ERROR << "new register UbseMemDebtInfoQueryHandler failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
     }
-    UbseContext &ctx = UbseContext::GetInstance();
+    UbseContext& ctx = UbseContext::GetInstance();
     auto ubseComModule = ctx.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "get UbseComModule failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
@@ -47,7 +47,7 @@ UbseResult UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler()
     return UBSE_OK;
 }
 
-UbseResult UbseMemGetOptResultHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemGetOptResultHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                               UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto reqPtr = UbseBaseMessage::DeConvert<mem::controller::message::UbseMemOptReqSimpo>(req);

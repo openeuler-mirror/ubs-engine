@@ -15,14 +15,14 @@
 #include <functional>
 #include <map>
 
-#include "lock/ubse_lock.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
 #include "ubse_urma_def.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "ubse_urma_uvs_module.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "lock/ubse_lock.h"
 
 namespace ubse::urmaController {
 using namespace ubse::urma;
@@ -36,16 +36,16 @@ struct UbseUrmaInfoForQuery {
     UrmaDevType bondingType;
     UrmaDevState state;
     UrmaQosProfile qosProfile;
-    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
-                                                       const UbseUrmaInfoForQuery &info)
+    friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
+                                                       const UbseUrmaInfoForQuery& info)
     {
         serializer << info.urmaName << info.feNames << info.feEids << info.devEid
                    << ubse::serial::enum_v(info.bondingType) << ubse::serial::enum_v(info.state) << info.qosProfile;
         return serializer;
     }
 
-    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
-                                                         UbseUrmaInfoForQuery &info)
+    friend ubse::serial::UbseDeSerialization& operator>>(ubse::serial::UbseDeSerialization& deserializer,
+                                                         UbseUrmaInfoForQuery& info)
     {
         deserializer >> info.urmaName >> info.feNames >> info.feEids >> info.devEid >>
             ubse::serial::enum_v(info.bondingType) >> ubse::serial::enum_v(info.state) >> info.qosProfile;
@@ -55,47 +55,47 @@ struct UbseUrmaInfoForQuery {
 
 class UbseUrmaControllerManager {
 public:
-    static UbseUrmaControllerManager &GetInstance()
+    static UbseUrmaControllerManager& GetInstance()
     {
         static UbseUrmaControllerManager instance;
         return instance;
     }
     // 通过RPC通信获取其余节点的nodeInfo后，通过此方法存储
-    void InsertNewNodeInfo(const std::string &nodeId, UbseUrmaNodeInfo &insertNodeInfo);
+    void InsertNewNodeInfo(const std::string& nodeId, UbseUrmaNodeInfo& insertNodeInfo);
     // 更新对应节点的fe信息，计算出urmaInfo设备信息
-    UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &feInfos);
-    UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &&feInfos);
+    UbseResult ConstructNewUrmaInfo(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>& feInfos);
+    UbseResult ConstructNewUrmaInfo(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>&& feInfos);
 
-    void SetActiveState(const std::string &urmaDevEid, const std::string &nodeId);
-    void SetInactiveState(const std::string &urmaDevEid, const std::string &nodeId);
+    void SetActiveState(const std::string& urmaDevEid, const std::string& nodeId);
+    void SetInactiveState(const std::string& urmaDevEid, const std::string& nodeId);
 
-    UbseResult GetAllUrmaInfo(std::vector<std::string> &urmaInfoName, std::vector<uint32_t> &status,
-                              std::vector<uint64_t> &hwResIds);
-    void GetUrmaInfoForQuery(std::vector<UbseUrmaInfoForQuery> &devInfos);
+    UbseResult GetAllUrmaInfo(std::vector<std::string>& urmaInfoName, std::vector<uint32_t>& status,
+                              std::vector<uint64_t>& hwResIds);
+    void GetUrmaInfoForQuery(std::vector<UbseUrmaInfoForQuery>& devInfos);
 
-    UbseResult GetLocalUrmaDevInfo(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
+    UbseResult GetLocalUrmaDevInfo(const std::string& urmaName, UbseUrmaInfo& urmaInfo);
 
-    UbseResult AllocByUrmaName(const std::string &urmaName, std::vector<std::string> &feNames, std::string &eid);
-    UbseResult SetUrmaQos(const std::string &urmaInfoName, const UrmaQosProfile &urmaQosProfile);
-    UbseResult GetUrmaQos(const std::string &urmaInfoName, UrmaQosProfile &urmaQosProfile);
-    UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
-    void SetUrmaSubPath(const std::string &urmaEid, const std::string &urmaSubPath);
-    void SetFeName(const std::string &feEid, const std::string &urmaEidName);
-    UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
-    void SetAllUrmaInfoToInactiveForNode(const std::string &nodeId);
-    void SetAllUrmaInfoToActiveForNode(const std::string &nodeId);
+    UbseResult AllocByUrmaName(const std::string& urmaName, std::vector<std::string>& feNames, std::string& eid);
+    UbseResult SetUrmaQos(const std::string& urmaInfoName, const UrmaQosProfile& urmaQosProfile);
+    UbseResult GetUrmaQos(const std::string& urmaInfoName, UrmaQosProfile& urmaQosProfile);
+    UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
+    void SetUrmaSubPath(const std::string& urmaEid, const std::string& urmaSubPath);
+    void SetFeName(const std::string& feEid, const std::string& urmaEidName);
+    UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string& nodeId);
+    void SetAllUrmaInfoToInactiveForNode(const std::string& nodeId);
+    void SetAllUrmaInfoToActiveForNode(const std::string& nodeId);
 
-    uint64_t GetUrmaUpdateTimeStamp(const std::string &nodeId);
+    uint64_t GetUrmaUpdateTimeStamp(const std::string& nodeId);
 
 private:
-    UbseResult CreateAndInsertUrmaInfo(const std::string &nodeId, UbseMtiFeInfo &lcneFe0, UbseMtiFeInfo &lcneFe1);
+    UbseResult CreateAndInsertUrmaInfo(const std::string& nodeId, UbseMtiFeInfo& lcneFe0, UbseMtiFeInfo& lcneFe1);
     UbseResult GenerateUrmaDevEid(const uint32_t superNodeId, const uint32_t slotId, const uint32_t fe0Id,
-                                  const uint32_t fe1Id, std::string &devEid);
+                                  const uint32_t fe1Id, std::string& devEid);
     uint32_t GenerateUniqueFeId();
     uint64_t GenerateUrmaId();
-    void PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo);
-    UbseResult GetLocalUrmaDevInfoInner(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
-    bool IsLcneFeUsed(const UbseMtiFeInfo &fe0, const UbseMtiFeInfo &fe1);
+    void PrintNodeInfo(const UbseUrmaNodeInfo& nodeInfo);
+    UbseResult GetLocalUrmaDevInfoInner(const std::string& urmaName, UbseUrmaInfo& urmaInfo);
+    bool IsLcneFeUsed(const UbseMtiFeInfo& fe0, const UbseMtiFeInfo& fe1);
 
 private:
     utils::ReadWriteLock rwLock;

@@ -1,13 +1,13 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
 #include "test_alarm_handler.h"
 
+#include "ubse_error.h"
+#include "ubse_event.h"
 #include "alarm_handler.h"
 #include "escape_algorithm_helper.h"
 #include "mem_handler.h"
 #include "resource_collect.h"
 #include "status_manager.h"
-#include "ubse_error.h"
-#include "ubse_event.h"
 
 using namespace vm;
 namespace ubse::vm::ut {
@@ -101,7 +101,7 @@ TEST_F(TestAlarmHandler, MemNotifyEventHandlerMemNotify)
     MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
 }
 
-UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     numaNodeInfoList.push_back(UbseNodeNumaInfo{});
     return UBSE_OK;
@@ -178,8 +178,8 @@ TEST_F(TestAlarmHandler, TestBorrowClearEventHandler)
     EXPECT_EQ(ret, VM_OK);
 }
 
-int MyEscapeAlgorithmOK(const StrategyConfig &conf, AlarmNumaInfo &alarm, GlobalNumaInfoMap &globalMap,
-                        EscapeAction &action)
+int MyEscapeAlgorithmOK(const StrategyConfig& conf, AlarmNumaInfo& alarm, GlobalNumaInfoMap& globalMap,
+                        EscapeAction& action)
 {
     return 0;
 }
@@ -189,8 +189,8 @@ EscapeAlgorithmFunc MockGetStrategyAlgorithmReturnOK()
     return MyEscapeAlgorithmOK;
 }
 
-int MyEscapeAlgorithmWarn(const StrategyConfig &conf, AlarmNumaInfo &alarm, GlobalNumaInfoMap &globalMap,
-                          EscapeAction &action)
+int MyEscapeAlgorithmWarn(const StrategyConfig& conf, AlarmNumaInfo& alarm, GlobalNumaInfoMap& globalMap,
+                          EscapeAction& action)
 {
     return 1;
 }
@@ -348,7 +348,7 @@ TEST_F(TestAlarmHandler, HandlerNoUsedBorrowIdsTrue4)
     MOCKER_CPP(&ResourceCollect::GetGlobalBorrowMap, GlobalBorrowMap(ResourceCollect::*)()).reset();
 }
 
-std::vector<std::string> MockGenVectorByBorrowItem(const AlarmNumaInfo &alarmNumaInfo)
+std::vector<std::string> MockGenVectorByBorrowItem(const AlarmNumaInfo& alarmNumaInfo)
 {
     std::string borrowId = "host1";
     std::vector<std::string> borrowIdsInMem{borrowId};

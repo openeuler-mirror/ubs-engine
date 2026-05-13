@@ -19,14 +19,14 @@ namespace ubse::plugin {
  * @param pluginName[in]: 插件名
  * @return  初始化结果 true: 初始化成功, false: 未初始化成功
  */
-bool GetPluginInitRes(const std::string &pluginName);
+bool GetPluginInitRes(const std::string& pluginName);
 
 /**
  * 获取插件是否就绪，就绪代表插件已经能够向外部提供功能，标志位由插件自己向插件模块设置
  * @param pluginName[in]: 插件名
  * @return 就绪状态 true: 就绪, false: 未就绪;
  */
-bool GetPluginReadyStatus(const std::string &pluginName);
+bool GetPluginReadyStatus(const std::string& pluginName);
 
 /**
  * 插件方向插件模块通知自己是否已就绪
@@ -34,6 +34,6 @@ bool GetPluginReadyStatus(const std::string &pluginName);
  * @param status[in] ture: 就绪， false: 未就绪
  * @return 操作结果:0 成功 非0 失败
  */
-uint32_t NotifyPluginReadyStatus(const std::string &pluginName, bool status);
-}
+uint32_t NotifyPluginReadyStatus(const std::string& pluginName, bool status);
+} // namespace ubse::plugin
 #endif // UBSE_MANAGER_UBSE_PLUGIN_H

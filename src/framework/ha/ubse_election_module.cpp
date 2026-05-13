@@ -12,12 +12,12 @@
 
 #include "ubse_election_module.h"
 #include <chrono>
-#include "config.h"
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_pkt_handler.h"
+#include "config.h"
+#include "role/ubse_election_role_mgr.h"
 
 namespace ubse::election {
 using namespace ubse::context;
@@ -33,7 +33,7 @@ UbseResult UbseElectionModule::Initialize()
     return UBSE_OK;
 }
 
-UbseResult UbseElectionModule::GetNodeIpInfoById(const std::string &id, std::string &ip)
+UbseResult UbseElectionModule::GetNodeIpInfoById(const std::string& id, std::string& ip)
 {
     return UbseElectionNodeMgr::GetInstance().GetNodeIpById(id, ip);
 }
@@ -111,7 +111,7 @@ UbseResult UbseElectionModule::Start()
 void UbseElectionModule::Stop()
 {
     UBSE_LOG_DEBUG << "[ELECTION] UbseElectionModule::Stop - start.";
-    for (auto &th : threads_) {
+    for (auto& th : threads_) {
         if (th.joinable()) {
             th.join();
         }
@@ -129,9 +129,9 @@ void UbseElectionModule::Stop()
 
 void UbseElectionModule::UnInitialize() {}
 
-UbseResult UbseElectionModule::UbseGetMasterNode(Node &masterNode)
+UbseResult UbseElectionModule::UbseGetMasterNode(Node& masterNode)
 {
-    UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
     auto role = RoleMgr::GetInstance().GetRole();
     if (!role) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
@@ -151,9 +151,9 @@ UbseResult UbseElectionModule::UbseGetMasterNode(Node &masterNode)
     return UBSE_OK;
 }
 
-UbseResult UbseElectionModule::UbseGetStandbyNode(Node &standbyNode)
+UbseResult UbseElectionModule::UbseGetStandbyNode(Node& standbyNode)
 {
-    UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
     auto role = RoleMgr::GetInstance().GetRole();
     if (!role) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
@@ -173,9 +173,9 @@ UbseResult UbseElectionModule::UbseGetStandbyNode(Node &standbyNode)
     return UBSE_OK;
 }
 
-UbseResult UbseElectionModule::UbseGetAllNodes(Node &master, Node &standby, std::vector<Node> &agent)
+UbseResult UbseElectionModule::UbseGetAllNodes(Node& master, Node& standby, std::vector<Node>& agent)
 {
-    UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
     std::vector<Node> allNodes;
     ubseElectionNodeMgr.GetAllNode(allNodes);
     auto role = RoleMgr::GetInstance().GetRole();
@@ -193,7 +193,7 @@ UbseResult UbseElectionModule::UbseGetAllNodes(Node &master, Node &standby, std:
     }
     ubseElectionNodeMgr.GetNodeInfoByID(standby.id, standby.ip, standby.port);
 
-    for (auto &node : allNodes) {
+    for (auto& node : allNodes) {
         if (std::find(agentNodes.begin(), agentNodes.end(), node.id) != agentNodes.end()) {
             if (node.id != master.id && node.id != standby.id) {
                 agent.push_back(node);
@@ -207,7 +207,7 @@ bool UbseElectionModule::IsLeader()
 {
     Node currentNode;
     UBSE_ID_TYPE masterId;
-    UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
     UbseResult ret = ubseElectionNodeMgr.GetMyselfNode(currentNode);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Get myself nodeId failed";
@@ -221,7 +221,7 @@ bool UbseElectionModule::IsLeader()
     return false;
 }
 
-UbseResult UbseElectionModule::GetCurrentNode(Node &currentNode)
+UbseResult UbseElectionModule::GetCurrentNode(Node& currentNode)
 {
     UbseResult ret = UbseElectionNodeMgr::GetInstance().GetMyselfNode(currentNode);
     if (ret != UBSE_OK) {
@@ -230,19 +230,19 @@ UbseResult UbseElectionModule::GetCurrentNode(Node &currentNode)
     }
     return UBSE_OK;
 }
-UbseResult UbseElectionModule::GetMasterStatus(uint8_t &status)
+UbseResult UbseElectionModule::GetMasterStatus(uint8_t& status)
 {
     status = RoleMgr::GetInstance().GetRole()->GetMasterStatus();
     return UBSE_OK;
 }
 
-UbseResult UbseElectionModule::GetStandbyStatus(uint8_t &status)
+UbseResult UbseElectionModule::GetStandbyStatus(uint8_t& status)
 {
     status = RoleMgr::GetInstance().GetRole()->GetStandbyStatus();
     return UBSE_OK;
 }
 
-UbseResult UbseElectionModule::GetAllNodes(std::vector<Node> &allNodes)
+UbseResult UbseElectionModule::GetAllNodes(std::vector<Node>& allNodes)
 {
     UbseResult result = UbseElectionNodeMgr::GetInstance().GetAllNode(allNodes);
     if (result == UBSE_ERROR) {

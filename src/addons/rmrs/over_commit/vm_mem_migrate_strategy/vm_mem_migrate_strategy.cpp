@@ -43,15 +43,15 @@ std::map<uint16_t, uint64_t> VMMemMigrateStrategy::bestRemainingCapacity;
 std::map<pid_t, int16_t> VMMemMigrateStrategy::bestVmLocation;
 std::vector<MigrationStep> VMMemMigrateStrategy::bestMigrationSteps;
 
-void SortRemoteNUMAByBorrowSize(std::vector<RemoteNUMA> &remoteNUMAs)
+void SortRemoteNUMAByBorrowSize(std::vector<RemoteNUMA>& remoteNUMAs)
 {
     // 按借用配额降序排序
     std::sort(remoteNUMAs.begin(), remoteNUMAs.end(),
-              [](const auto &a, const auto &b) { return a.borrowSize > b.borrowSize; });
+              [](const auto& a, const auto& b) { return a.borrowSize > b.borrowSize; });
 }
 
-MpResult UpdatePidNumaInfos(const std::string &srcNid, const std::vector<pid_t> &pids,
-                            std::unordered_map<pid_t, VMInfo> &vmInfos)
+MpResult UpdatePidNumaInfos(const std::string& srcNid, const std::vector<pid_t>& pids,
+                            std::unordered_map<pid_t, VMInfo>& vmInfos)
 {
     auto ret = MEM_POOLING_OK;
     std::vector<mempooling::RmrsPidInfo> pidInfos;
@@ -61,23 +61,23 @@ MpResult UpdatePidNumaInfos(const std::string &srcNid, const std::vector<pid_t> 
             << "[VMMemMigrateStrategy] HelpGetContainerPidNumaInfoByLocalNode failed.";
         return ret;
     }
-    for (const auto &n : pidInfos) {
+    for (const auto& n : pidInfos) {
         pid_t id = n.pid;
         auto it = vmInfos.find(id);
         if (it != vmInfos.end()) {
-            VMInfo &vm = it->second;
-            vm.totalLocalUsedMem  = n.totalLocalUsedMem  / B2KB;
+            VMInfo& vm = it->second;
+            vm.totalLocalUsedMem = n.totalLocalUsedMem / B2KB;
             vm.totalRemoteUsedMem = n.totalRemoteUsedMem / B2KB;
             vm.remoteNumaId = n.remoteNumaId;
             vm.localNumaIds = n.localNumaIds;
             vm.metaNumaInfos.clear();
             vm.metaNumaInfos.reserve(n.metaNumaInfos.size());
-            for (const auto &meta : n.metaNumaInfos) {
+            for (const auto& meta : n.metaNumaInfos) {
                 MetaNumaInfo m;
-                m.numaId      = meta.numaId;
+                m.numaId = meta.numaId;
                 m.numaUsedMem = meta.numaUsedMem / B2KB;
                 m.isLocalNuma = meta.isLocalNuma;
-                m.socketId    = meta.socketId;
+                m.socketId = meta.socketId;
                 vm.metaNumaInfos.emplace_back(std::move(m));
             }
         }
@@ -85,8 +85,8 @@ MpResult UpdatePidNumaInfos(const std::string &srcNid, const std::vector<pid_t> 
     return ret;
 }
 
-MpResult UpdateContainerInfoInnode(const std::string &srcNid, const std::vector<pid_t> &pids,
-                                   std::unordered_map<pid_t, VMInfo> &vmInfos)
+MpResult UpdateContainerInfoInnode(const std::string& srcNid, const std::vector<pid_t>& pids,
+                                   std::unordered_map<pid_t, VMInfo>& vmInfos)
 {
     std::vector<mempooling::RmrsPidInfo> pidInfos;
     over_commit::PidNumaInfoCollectParam param(pids);
@@ -121,7 +121,7 @@ MpResult UpdateContainerInfoInnode(const std::string &srcNid, const std::vector<
         resp.freeFunc(resp.data);
         resp.data = nullptr;
     }
-    for (const auto &n : result.pidInfoList) {
+    for (const auto& n : result.pidInfoList) {
         pid_t id = n.pid;
         auto it = vmInfos.find(id);
         if (it != vmInfos.end()) {
@@ -136,10 +136,10 @@ MpResult UpdateContainerInfoInnode(const std::string &srcNid, const std::vector<
     return MEM_POOLING_OK;
 }
 
-void InitializeVMInformation(const std::vector<VMPresetParam> &vmParams, std::unordered_map<pid_t, VMInfo> &vmInfos,
-                             std::vector<pid_t> &pids)
+void InitializeVMInformation(const std::vector<VMPresetParam>& vmParams, std::unordered_map<pid_t, VMInfo>& vmInfos,
+                             std::vector<pid_t>& pids)
 {
-    for (const auto &param : vmParams) {
+    for (const auto& param : vmParams) {
         VMInfo vmInfo;
         vmInfo.pid = param.pid;
         vmInfo.ratio = param.ratio;
@@ -148,8 +148,8 @@ void InitializeVMInformation(const std::vector<VMPresetParam> &vmParams, std::un
     }
 }
 
-MpResult UpdateRemoteNumaId(const SrcMemoryBorrowParam &srcParasssm, const std::vector<BorrowRecord> &borrowRecord,
-                            std::unordered_map<pid_t, VMInfo> &vmInfos)
+MpResult UpdateRemoteNumaId(const SrcMemoryBorrowParam& srcParasssm, const std::vector<BorrowRecord>& borrowRecord,
+                            std::unordered_map<pid_t, VMInfo>& vmInfos)
 {
     // 将vmInfo里的remoteNumaId改为smap返回的remoteNumaId
     std::unordered_map<std::uint16_t, std::vector<pid_t>> numaIdVmPidsMap;
@@ -157,12 +157,12 @@ MpResult UpdateRemoteNumaId(const SrcMemoryBorrowParam &srcParasssm, const std::
     std::unordered_map<std::string, BorrowItem> timeoutRecord;
     MemReturnManager::Instance().QueryAll(timeoutRecord);
     std::vector<std::uint32_t> timeoutRemoteNumaIds;
-    for (const auto &[_, item] : timeoutRecord) {
+    for (const auto& [_, item] : timeoutRecord) {
         timeoutRemoteNumaIds.push_back(item.srcRemoteNumaId);
     }
     CollectUtil::GetRemoteVmPidsByLocal(timeoutRemoteNumaIds, numaIdVmPidsMap);
-    for (const auto &[_, vmPids] : numaIdVmPidsMap) {
-        for (const auto &vmPid : vmPids) {
+    for (const auto& [_, vmPids] : numaIdVmPidsMap) {
+        for (const auto& vmPid : vmPids) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[ProcessMemMigrateRemoteId] return timeout vm pid=" << vmPid << ".";
             vmInfos.erase(vmPid);
@@ -170,7 +170,7 @@ MpResult UpdateRemoteNumaId(const SrcMemoryBorrowParam &srcParasssm, const std::
     }
     std::vector<std::uint32_t> remoteNumaIds;
     std::transform(borrowRecord.begin(), borrowRecord.end(), std::back_inserter(remoteNumaIds),
-                   [](const BorrowRecord &record) { return record.borrowRemoteNuma; });
+                   [](const BorrowRecord& record) { return record.borrowRemoteNuma; });
     auto result = CollectUtil::GetRemoteVmPidsByLocal(remoteNumaIds, numaIdVmPidsMap);
     if (result != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[ProcessMemMigrateRemoteId] GetRemoteVmPids failed.";
@@ -178,10 +178,10 @@ MpResult UpdateRemoteNumaId(const SrcMemoryBorrowParam &srcParasssm, const std::
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[ProcessMemMigrateRemoteId] SrcNid=" << srcParasssm.srcNid << ".";
-    for (const auto &[numaId, vmPids] : numaIdVmPidsMap) {
-        for (const auto &vmPid : vmPids) {
+    for (const auto& [numaId, vmPids] : numaIdVmPidsMap) {
+        for (const auto& vmPid : vmPids) {
             if (vmInfos.count(vmPid)) {
-                VMInfo &vmInfo = vmInfos[vmPid];
+                VMInfo& vmInfo = vmInfos[vmPid];
                 UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[ProcessMemMigrateRemoteId] VmPid=" << vmPid
                     << ", original remoteNumaId=" << vmInfo.remoteNumaId << ", smap remoteNumaId=" << numaId << ".";
@@ -192,10 +192,10 @@ MpResult UpdateRemoteNumaId(const SrcMemoryBorrowParam &srcParasssm, const std::
     return result;
 }
 
-void FillMemMigrateResult(const std::vector<VMResult> &vmResults, std::vector<MemMigrateResult> &memMigrateResult)
+void FillMemMigrateResult(const std::vector<VMResult>& vmResults, std::vector<MemMigrateResult>& memMigrateResult)
 {
     // 因开发时MemMigrateResult尚未定义，故实现vmResult策略内部结构体，解耦方便未来MemMigrateResult修改不影响本策略
-    for (const auto &re : vmResults) {
+    for (const auto& re : vmResults) {
         MemMigrateResult result;
         result.pid = re.pid;
         result.remoteNumaId = re.remoteNumaId;
@@ -205,10 +205,10 @@ void FillMemMigrateResult(const std::vector<VMResult> &vmResults, std::vector<Me
     }
 }
 
-uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam &srcParasssm, const std::vector<VMPresetParam> &vmParams,
-                                   const std::vector<MemBorrowInfo> &memBorrowInfo,
-                                   const std::vector<BorrowRecord> &borrowRecord,
-                                   std::vector<MemMigrateResult> &memMigrateResult)
+uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam& srcParasssm, const std::vector<VMPresetParam>& vmParams,
+                                   const std::vector<MemBorrowInfo>& memBorrowInfo,
+                                   const std::vector<BorrowRecord>& borrowRecord,
+                                   std::vector<MemMigrateResult>& memMigrateResult)
 {
     // 拿到所有vm信息
     std::unordered_map<pid_t, VMInfo> vmInfos;
@@ -248,7 +248,7 @@ uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam &srcParasssm, cons
         // 如果远端内存大于所需迁移内存，且远端numa只有一个，则不走rebalance逻辑 (虚机多numa场景下无需做该判断)
         int16_t first = borrowRecord.front().borrowRemoteNuma;
         bool isOnlyRemoteNumaId = std::all_of(borrowRecord.begin(), borrowRecord.end(),
-                                              [first](const BorrowRecord &r) { return r.borrowRemoteNuma == first; });
+                                              [first](const BorrowRecord& r) { return r.borrowRemoteNuma == first; });
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[ProcessMemMigrateRemoteId] borrowSum=" << borrowSum
                                                          << ", isOnlyRemoteNumaId=" << isOnlyRemoteNumaId << ".";
         if (borrowSum != 0 && !isOnlyRemoteNumaId) {
@@ -270,8 +270,8 @@ VMMemMigrateStrategy::VMMemMigrateStrategy() noexcept {}
 
 VMMemMigrateStrategy::~VMMemMigrateStrategy() {}
 
-uint32_t VMMemMigrateStrategy::Execute(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                       std::vector<RemoteNUMA> &remoteNUMAs, std::vector<VMResult> &vmResults)
+uint32_t VMMemMigrateStrategy::Execute(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                       std::vector<RemoteNUMA>& remoteNUMAs, std::vector<VMResult>& vmResults)
 {
     uint32_t strategyReturnValue = MEM_POOLING_OK;
     if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE &&
@@ -294,15 +294,15 @@ uint32_t VMMemMigrateStrategy::Execute(const std::unordered_map<pid_t, VMInfo> &
     return strategyReturnValue;
 }
 
-uint32_t VMMemMigrateStrategy::MultiNumaVmAllocation(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                                     std::vector<RemoteNUMA> &remoteNUMAs,
-                                                     std::vector<VMResult> &vmResults)
+uint32_t VMMemMigrateStrategy::MultiNumaVmAllocation(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                                     std::vector<RemoteNUMA>& remoteNUMAs,
+                                                     std::vector<VMResult>& vmResults)
 {
     // 1、对vm进行分组：已迁出和未迁出的vm
     std::unordered_map<pid_t, VMInfo> vmInfosMigrated;
     std::unordered_map<pid_t, VMInfo> vmInfosNotMigrated;
     auto strategyReturnValue = MEM_POOLING_OK;
-    for (const auto &pair : vmInfos) {
+    for (const auto& pair : vmInfos) {
         if (pair.second.totalRemoteUsedMem != 0) {
             (void)vmInfosMigrated.emplace(pair);
         } else {
@@ -354,7 +354,7 @@ uint32_t VMMemMigrateStrategy::MultiNumaVmAllocation(const std::unordered_map<pi
     return strategyReturnValue;
 }
 
-uint32_t VMMemMigrateStrategy::GetRemoteNumasBorrowInfo(std::vector<RemoteNUMA> &remoteNUMAs)
+uint32_t VMMemMigrateStrategy::GetRemoteNumasBorrowInfo(std::vector<RemoteNUMA>& remoteNUMAs)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[VMMemMigrateStrategy][GetRemoteNumaBorrowInfo] start to get remoteNumasBorrowInfo.";
@@ -375,8 +375,8 @@ uint32_t VMMemMigrateStrategy::GetRemoteNumasBorrowInfo(std::vector<RemoteNUMA> 
     }
 
     // 2、过滤远端 && 计算空闲内存=空余大页+memFree（单位：KB）
-    for (const auto &info : numaInfos) {
-        const auto &meta = info.metaData;
+    for (const auto& info : numaInfos) {
+        const auto& meta = info.metaData;
         // 跳过本地NUMA
         if (meta.isLocal) {
             continue;
@@ -397,19 +397,19 @@ uint32_t VMMemMigrateStrategy::GetRemoteNumasBorrowInfo(std::vector<RemoteNUMA> 
     return MEM_POOLING_OK;
 }
 
-void VMMemMigrateStrategy::VmsAllocation(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                         std::vector<RemoteNUMA> &remoteNUMAs, std::vector<VMResult> &vmResults)
+void VMMemMigrateStrategy::VmsAllocation(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                         std::vector<RemoteNUMA>& remoteNUMAs, std::vector<VMResult>& vmResults)
 {
     // 1、根据可迁出配额对vmInfos进行降序排序
     auto strategyReturnValue = MEM_POOLING_OK;
     std::vector<std::pair<pid_t, uint64_t>> pid2RemainingQuotaMap;
-    for (const auto &pair : vmInfos) {
+    for (const auto& pair : vmInfos) {
         pid2RemainingQuotaMap.push_back(std::make_pair(pair.first, CalculateRemainingQuota(pair.second)));
     }
     SortVmsByRemainingQuota(pid2RemainingQuotaMap);
 
     // 2、遍历pid2RemainingQuota，对每个pid逐一生成迁移策略（一个pid可生成多个迁移策略结果）
-    for (auto &vm : pid2RemainingQuotaMap) {
+    for (auto& vm : pid2RemainingQuotaMap) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[VMMemMigrateStrategy][NumaVmAllocation] VM pid=" << vm.first
             << " Start to genrate migrate strategy, which's remainingQuota=" << vm.second << ".";
@@ -434,18 +434,18 @@ void VMMemMigrateStrategy::VmsAllocation(const std::unordered_map<pid_t, VMInfo>
     return;
 }
 
-uint32_t VMMemMigrateStrategy::ResetVmResult(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                             std::vector<VMResult> &vmResults)
+uint32_t VMMemMigrateStrategy::ResetVmResult(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                             std::vector<VMResult>& vmResults)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][ResetVmResult] Start reset vmResults.";
     // pid -> 所有 VMResult（历史 + 本次迁移）
     std::unordered_map<pid_t, std::vector<VMResult>> pid2Results;
 
     // 1. 从vmInfos注入“历史远端numa使用结果”
-    for (const auto &[pid, vmInfo] : vmInfos) {
+    for (const auto& [pid, vmInfo] : vmInfos) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[VMMemMigrateStrategy][ResetVmResult] The vmResult=" << vmInfo.ToString() << ".";
-        for (const auto &meta : vmInfo.metaNumaInfos) {
+            << "[VMMemMigrateStrategy][ResetVmResult] The vmResult=" << vmInfo.ToString() << ".";
+        for (const auto& meta : vmInfo.metaNumaInfos) {
             if (!meta.isLocalNuma) {
                 VMResult r;
                 r.pid = pid;
@@ -461,13 +461,13 @@ uint32_t VMMemMigrateStrategy::ResetVmResult(const std::unordered_map<pid_t, VMI
     }
 
     // 2. 注入“本次迁移决策结果”
-    for (const auto &r : vmResults) {
+    for (const auto& r : vmResults) {
         pid2Results[r.pid].push_back(r);
     }
 
     // 3. 重新生成vmResults
     std::vector<VMResult> newVmResults;
-    for (auto &[pid, results] : pid2Results) {
+    for (auto& [pid, results] : pid2Results) {
         auto it = vmInfos.find(pid);
         if (it == vmInfos.end()) {
             continue; // 理论不该发生，仅作为防御
@@ -480,8 +480,8 @@ uint32_t VMMemMigrateStrategy::ResetVmResult(const std::unordered_map<pid_t, VMI
     return MEM_POOLING_OK;
 }
 
-void VMMemMigrateStrategy::fillVmResults(const VMInfo &vmInfo, const std::vector<VMResult> &vmResults,
-                                         std::vector<VMResult> &newVmResults)
+void VMMemMigrateStrategy::fillVmResults(const VMInfo& vmInfo, const std::vector<VMResult>& vmResults,
+                                         std::vector<VMResult>& newVmResults)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[VMMemMigrateStrategy][fillVmResults] Start fill vmResults, vmPid=" << vmInfo.pid << ".";
@@ -499,14 +499,14 @@ void VMMemMigrateStrategy::fillVmResults(const VMInfo &vmInfo, const std::vector
 
     // 2. remoteNumaId -> size
     std::unordered_map<uint16_t, uint64_t> remoteNuma2Size;
-    for (const auto &r : vmResults) {
+    for (const auto& r : vmResults) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[VMMemMigrateStrategy][fillVmResults] VM pid=" << vmInfo.pid << ", vmResult=" << r.ToString() << ".";
         remoteNuma2Size[r.remoteNumaId] += r.size;
     }
 
     // 3. 生成最终 VMResult
-    for (const auto &[remoteNumaId, size] : remoteNuma2Size) {
+    for (const auto& [remoteNumaId, size] : remoteNuma2Size) {
         if (size == 0) {
             continue;
         }
@@ -525,10 +525,10 @@ void VMMemMigrateStrategy::fillVmResults(const VMInfo &vmInfo, const std::vector
     }
 }
 
-uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteVm(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                                        std::vector<RemoteNUMA> &remoteNUMAs,
-                                                        std::pair<pid_t, uint64_t> &vm,
-                                                        std::vector<VMResult> &vmResults)
+uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteVm(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                                        std::vector<RemoteNUMA>& remoteNUMAs,
+                                                        std::pair<pid_t, uint64_t>& vm,
+                                                        std::vector<VMResult>& vmResults)
 {
     uint32_t borrowedSize = vmInfos.at(vm.first).totalRemoteUsedMem;
     VMResult result;
@@ -541,7 +541,7 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteVm(const std::unordered_map
         return MEM_POOLING_OK;
     }
     // 遍历排序好的remoteNUMA，从大到小分配内存，直到remoteNUMA分配完或VM内存分配完
-    for (auto &remoteNUMA : remoteNUMAs) {
+    for (auto& remoteNUMA : remoteNUMAs) {
         result.remoteNumaId = remoteNUMA.remoteNumaId;
         result.maxRatio = vmInfos.at(vm.first).ratio;
         if (remoteNUMA.borrowSize >= vm.second) {
@@ -584,21 +584,21 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteVm(const std::unordered_map
     return MEM_POOLING_OK;
 }
 
-uint32_t VMMemMigrateStrategy::SingleNumaVmAllocation(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                                      std::vector<RemoteNUMA> &remoteNUMAs,
-                                                      std::vector<VMResult> &vmResults)
+uint32_t VMMemMigrateStrategy::SingleNumaVmAllocation(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                                      std::vector<RemoteNUMA>& remoteNUMAs,
+                                                      std::vector<VMResult>& vmResults)
 {
     // 步骤a 筛选已借用内存且符合自此远端NUMA的虚机进行分配
     std::unordered_map<pid_t, VMInfo> vmInfosBorrowed;
     auto strategyReturnValue = MEM_POOLING_OK;
-    for (const auto &pair : vmInfos) {
+    for (const auto& pair : vmInfos) {
         if (pair.second.totalRemoteUsedMem) {
             (void)vmInfosBorrowed.emplace(pair);
         }
     }
     std::vector<std::pair<pid_t, uint64_t>> borrowedVms = FilterBorrowedVms(vmInfosBorrowed, remoteNUMAs);
     SortVmsByRemainingQuota(borrowedVms);
-    for (const auto &vm : borrowedVms) {
+    for (const auto& vm : borrowedVms) {
         if (vm.second == 0) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[VMMemMigrateStrategy][SingleNumaVmAllocation] VM  pid = " << vm.first
@@ -627,7 +627,7 @@ uint32_t VMMemMigrateStrategy::SingleNumaVmAllocation(const std::unordered_map<p
     // 步骤b 若仍然有借用内存，从未借用过内存的虚拟机中分配
     std::vector<std::pair<pid_t, uint64_t>> unborrowedVms = FilterUnborrowedVms(vmInfos, remoteNUMAs);
     SortVmsByRemainingQuota(unborrowedVms);
-    for (const auto &vm : unborrowedVms) {
+    for (const auto& vm : unborrowedVms) {
         strategyReturnValue = AllocateMemoryToRemoteNoUsedVm(vmInfos, remoteNUMAs, vm, vmResults);
         if (strategyReturnValue == MEM_POOLING_ERROR) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -642,11 +642,11 @@ uint32_t VMMemMigrateStrategy::SingleNumaVmAllocation(const std::unordered_map<p
 }
 
 std::vector<std::pair<pid_t, uint64_t>> VMMemMigrateStrategy::FilterBorrowedVms(
-    const std::unordered_map<pid_t, VMInfo> &vmInfosBorrowed, std::vector<RemoteNUMA> &remoteNUMAs)
+    const std::unordered_map<pid_t, VMInfo>& vmInfosBorrowed, std::vector<RemoteNUMA>& remoteNUMAs)
 {
     std::vector<std::pair<pid_t, uint64_t>> result;
     // 这里筛选已借用过内存且借用的远端NUMA存在于此次内存子系统借用内存中的虚机
-    for (const auto &pair : vmInfosBorrowed) {
+    for (const auto& pair : vmInfosBorrowed) {
         for (const auto numa : remoteNUMAs) {
             if (pair.second.remoteNumaId == numa.remoteNumaId) {
                 result.push_back(std::make_pair(pair.first, CalculateRemainingQuota(pair.second)));
@@ -658,11 +658,11 @@ std::vector<std::pair<pid_t, uint64_t>> VMMemMigrateStrategy::FilterBorrowedVms(
 }
 
 std::vector<std::pair<pid_t, uint64_t>> VMMemMigrateStrategy::FilterUnborrowedVms(
-    const std::unordered_map<pid_t, VMInfo> &vmInfos, std::vector<RemoteNUMA> &remoteNUMAs)
+    const std::unordered_map<pid_t, VMInfo>& vmInfos, std::vector<RemoteNUMA>& remoteNUMAs)
 {
     std::vector<std::pair<pid_t, uint64_t>> result;
     // 这里筛选未借用过内存的虚机
-    for (const auto &pair : vmInfos) {
+    for (const auto& pair : vmInfos) {
         if (pair.second.totalRemoteUsedMem == 0 && pair.second.remoteNumaId == 0) {
             result.push_back(std::make_pair(pair.first, CalculateRemainingQuota(pair.second)));
         }
@@ -671,21 +671,21 @@ std::vector<std::pair<pid_t, uint64_t>> VMMemMigrateStrategy::FilterUnborrowedVm
     return result;
 }
 
-void VMMemMigrateStrategy::SortVmsByRemainingQuota(std::vector<std::pair<pid_t, std::uint64_t>> &borrowedVms)
+void VMMemMigrateStrategy::SortVmsByRemainingQuota(std::vector<std::pair<pid_t, std::uint64_t>>& borrowedVms)
 {
     // 按借用配额降序排序
-    std::sort(borrowedVms.begin(), borrowedVms.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
+    std::sort(borrowedVms.begin(), borrowedVms.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
 }
 
-uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                                            std::vector<RemoteNUMA> &remoteNUMAs,
-                                                            const std::pair<pid_t, std::uint64_t> &vm,
-                                                            std::vector<VMResult> &vmResults)
+uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                                            std::vector<RemoteNUMA>& remoteNUMAs,
+                                                            const std::pair<pid_t, std::uint64_t>& vm,
+                                                            std::vector<VMResult>& vmResults)
 {
     uint32_t borrowedSize = vmInfos.at(vm.first).totalRemoteUsedMem;
     VMResult result;
     result.pid = vm.first;
-    for (auto &remoteNUMA : remoteNUMAs) {
+    for (auto& remoteNUMA : remoteNUMAs) {
         if (remoteNUMA.remoteNumaId == vmInfos.at(vm.first).remoteNumaId) {
             result.remoteNumaId = remoteNUMA.remoteNumaId;
             result.maxRatio = vmInfos.at(vm.first).ratio;
@@ -720,10 +720,10 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered
     return MEM_POOLING_OK;
 }
 
-uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteNoUsedVm(const std::unordered_map<pid_t, VMInfo> &vmInfos,
-                                                              std::vector<RemoteNUMA> &remoteNUMAs,
-                                                              const std::pair<pid_t, std::uint64_t> &vm,
-                                                              std::vector<VMResult> &vmResults)
+uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteNoUsedVm(const std::unordered_map<pid_t, VMInfo>& vmInfos,
+                                                              std::vector<RemoteNUMA>& remoteNUMAs,
+                                                              const std::pair<pid_t, std::uint64_t>& vm,
+                                                              std::vector<VMResult>& vmResults)
 {
     uint32_t borrowedSize = vmInfos.at(vm.first).totalRemoteUsedMem;
     VMResult result;
@@ -767,7 +767,7 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteNoUsedVm(const std::unorder
     // 如果最大的remoteNUMA.borrowSize == 0  那就没必要再分配
 }
 
-uint64_t VMMemMigrateStrategy::CalculateRemainingQuota(const VMInfo &vm)
+uint64_t VMMemMigrateStrategy::CalculateRemainingQuota(const VMInfo& vm)
 {
     uint64_t actualUsage = vm.totalLocalUsedMem + vm.totalRemoteUsedMem;
     double maxBorrowDouble = actualUsage * (static_cast<double>(vm.ratio) / 100.0);
@@ -779,20 +779,20 @@ uint64_t VMMemMigrateStrategy::CalculateRemainingQuota(const VMInfo &vm)
     return maxBorrow - vm.totalRemoteUsedMem;
 }
 
-bool VMMemMigrateStrategy::FinishBorrowedMemAllocation(std::vector<RemoteNUMA> &remoteNUMAs)
+bool VMMemMigrateStrategy::FinishBorrowedMemAllocation(std::vector<RemoteNUMA>& remoteNUMAs)
 {
-    for (const auto &numa : remoteNUMAs) {
+    for (const auto& numa : remoteNUMAs) {
         if (numa.borrowSize > 0)
             return false;
     }
     return true;
 }
 
-bool VMMemMigrateStrategy::AreAllVmsAssigned(const std::vector<std::pair<pid_t, uint64_t>> &vmDemand,
-                                             std::map<pid_t, bool> &assigned)
+bool VMMemMigrateStrategy::AreAllVmsAssigned(const std::vector<std::pair<pid_t, uint64_t>>& vmDemand,
+                                             std::map<pid_t, bool>& assigned)
 {
     // 判断是否所有 VM 都分配好了
-    for (auto &vmPair : vmDemand) {
+    for (auto& vmPair : vmDemand) {
         if (!assigned[vmPair.first]) {
             return false;
         }
@@ -800,11 +800,11 @@ bool VMMemMigrateStrategy::AreAllVmsAssigned(const std::vector<std::pair<pid_t, 
     return true;
 }
 
-void VMMemMigrateStrategy::UpdateBestSituation(std::map<uint16_t, uint64_t> &remainingCapacity, VMStat &vmStat,
-                                               std::vector<MigrationStep> &steps)
+void VMMemMigrateStrategy::UpdateBestSituation(std::map<uint16_t, uint64_t>& remainingCapacity, VMStat& vmStat,
+                                               std::vector<MigrationStep>& steps)
 {
     uint64_t currentRemainingSum = 0;
-    for (auto &rPair : remainingCapacity) {
+    for (auto& rPair : remainingCapacity) {
         currentRemainingSum += rPair.second;
     }
     if (currentRemainingSum < minRemainingSum) {
@@ -815,7 +815,7 @@ void VMMemMigrateStrategy::UpdateBestSituation(std::map<uint16_t, uint64_t> &rem
     }
 }
 
-uint64_t CalBestRemainValue(const std::map<uint16_t, uint64_t> &resourceCapacity, const VMStat &vmStat,
+uint64_t CalBestRemainValue(const std::map<uint16_t, uint64_t>& resourceCapacity, const VMStat& vmStat,
                             std::map<pid_t, bool> assigned)
 {
     std::map<uint16_t, uint64_t> numaSum;
@@ -855,8 +855,8 @@ uint64_t CalBestRemainValue(const std::map<uint16_t, uint64_t> &resourceCapacity
     return sumMem;
 }
 
-bool VMMemMigrateStrategy::checkIsSkip(const VMStat &vmStat, std::map<pid_t, bool> &assigned,
-                                       std::map<uint16_t, uint64_t> &remainingCapacity)
+bool VMMemMigrateStrategy::checkIsSkip(const VMStat& vmStat, std::map<pid_t, bool>& assigned,
+                                       std::map<uint16_t, uint64_t>& remainingCapacity)
 {
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
@@ -874,8 +874,8 @@ bool VMMemMigrateStrategy::checkIsSkip(const VMStat &vmStat, std::map<pid_t, boo
     return false;
 }
 
-void VMMemMigrateStrategy::Dfs(std::map<uint16_t, uint64_t> &remainingCapacity, VMStat vmStat,
-                               std::map<pid_t, bool> &assigned, std::vector<MigrationStep> &steps)
+void VMMemMigrateStrategy::Dfs(std::map<uint16_t, uint64_t>& remainingCapacity, VMStat vmStat,
+                               std::map<pid_t, bool>& assigned, std::vector<MigrationStep>& steps)
 {
     if (AreAllVmsAssigned(vmStat.vmDemand, assigned)) {
         UpdateBestSituation(remainingCapacity, vmStat, steps);
@@ -884,7 +884,7 @@ void VMMemMigrateStrategy::Dfs(std::map<uint16_t, uint64_t> &remainingCapacity, 
     if (checkIsSkip(vmStat, assigned, remainingCapacity)) {
         return;
     }
-    for (auto &vmPair : vmStat.vmDemand) {
+    for (auto& vmPair : vmStat.vmDemand) {
         auto vm = vmPair.first;
         auto vmRemoteMem = vmPair.second;
         if (assigned[vm])
@@ -896,7 +896,7 @@ void VMMemMigrateStrategy::Dfs(std::map<uint16_t, uint64_t> &remainingCapacity, 
             remainingCapacity[originalRes] += vmRemoteMem; // 释放原资源
         }
 
-        for (auto &resPair : remainingCapacity) {
+        for (auto& resPair : remainingCapacity) {
             auto res = resPair.first;
             if (remainingCapacity[res] < vmRemoteMem) {
                 continue;
@@ -934,23 +934,23 @@ void VMMemMigrateStrategy::Dfs(std::map<uint16_t, uint64_t> &remainingCapacity, 
     }
 }
 
-std::vector<MigrationStep> VMMemMigrateStrategy::Allocate(std::map<uint16_t, uint64_t> &resourceCapacity,
-                                                          std::map<pid_t, uint64_t> &vmDemand,
-                                                          std::map<pid_t, int16_t> &currentVmLocation,
-                                                          std::map<pid_t, uint64_t> &vmQuota)
+std::vector<MigrationStep> VMMemMigrateStrategy::Allocate(std::map<uint16_t, uint64_t>& resourceCapacity,
+                                                          std::map<pid_t, uint64_t>& vmDemand,
+                                                          std::map<pid_t, int16_t>& currentVmLocation,
+                                                          std::map<pid_t, uint64_t>& vmQuota)
 {
     minRemainingSum = INT_MAX;
     bestRemainingCapacity.clear();
     bestVmLocation.clear();
     bestMigrationSteps.clear();
     std::map<pid_t, bool> assigned;
-    for (auto &vmPair : vmDemand) {
+    for (auto& vmPair : vmDemand) {
         assigned[vmPair.first] = false;
     }
     std::vector<std::pair<pid_t, uint64_t>> vec(vmDemand.begin(), vmDemand.end());
 
     // 按 value 降序排序
-    std::sort(vec.begin(), vec.end(), [](auto &a, auto &b) { return a.second > b.second; });
+    std::sort(vec.begin(), vec.end(), [](auto& a, auto& b) { return a.second > b.second; });
     VMStat vmStat(vec, currentVmLocation, vmQuota);
     bestRestMem = CalBestRemainValue(resourceCapacity, vmStat, assigned);
     std::vector<MigrationStep> steps;
@@ -964,7 +964,7 @@ std::vector<MigrationStep> VMMemMigrateStrategy::Allocate(std::map<uint16_t, uin
     return bestMigrationSteps;
 }
 
-bool containsPid(const std::vector<pid_t> &pids, pid_t targetPid)
+bool containsPid(const std::vector<pid_t>& pids, pid_t targetPid)
 {
     return std::find(pids.begin(), pids.end(), targetPid) != pids.end();
 }
@@ -989,11 +989,11 @@ static MpResult SetSmapRemoteNumaInfoExec(int16_t localNumaId, uint16_t remoteNu
     return MEM_POOLING_OK;
 }
 
-MpResult VMMemMigrateStrategy::processSteps(int16_t srcNumaId, std::vector<MigrationStep> &steps, uint8_t ratio,
-                                            std::map<uint16_t, uint64_t> &remoteMap2Size, std::vector<pid_t> &pidsAll)
+MpResult VMMemMigrateStrategy::processSteps(int16_t srcNumaId, std::vector<MigrationStep>& steps, uint8_t ratio,
+                                            std::map<uint16_t, uint64_t>& remoteMap2Size, std::vector<pid_t>& pidsAll)
 {
     auto ret = MEM_POOLING_OK;
-    for (auto &s : steps) {
+    for (auto& s : steps) {
         std::vector<pid_t> pids{s.vm};
         auto iter = remoteMap2Size.find(s.to);
         if (iter == remoteMap2Size.end()) {
@@ -1029,8 +1029,8 @@ MpResult VMMemMigrateStrategy::processSteps(int16_t srcNumaId, std::vector<Migra
     return ret;
 }
 
-MpResult ProcessStepsValidate(int16_t srcNumaId, std::vector<MigrationStep> &steps,
-                              std::map<uint16_t, uint64_t> &remoteMap2Size)
+MpResult ProcessStepsValidate(int16_t srcNumaId, std::vector<MigrationStep>& steps,
+                              std::map<uint16_t, uint64_t>& remoteMap2Size)
 {
     for (const auto p : remoteMap2Size) {
         auto res = SetSmapRemoteNumaInfoExec(srcNumaId, p.first, p.second);
@@ -1048,7 +1048,7 @@ MpResult ProcessStepsValidate(int16_t srcNumaId, std::vector<MigrationStep> &ste
     return MEM_POOLING_OK;
 }
 
-MpResult FillNumaInfo(mempooling::outinterface::NumaMetaData &numaInfo, JSON_MAP numaInfoStrMap)
+MpResult FillNumaInfo(mempooling::outinterface::NumaMetaData& numaInfo, JSON_MAP numaInfoStrMap)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FillNumaInfo] FillNumaInfo start.";
 
@@ -1106,8 +1106,8 @@ MpResult FillNumaInfo(mempooling::outinterface::NumaMetaData &numaInfo, JSON_MAP
     return MEM_POOLING_OK;
 }
 
-MpResult CollectNumaMemInfos(const std::string &srcNid, const std::set<uint16_t> &remoteNuma,
-                             std::map<int, NumaMetaData> &numaMemInfos)
+MpResult CollectNumaMemInfos(const std::string& srcNid, const std::set<uint16_t>& remoteNuma,
+                             std::map<int, NumaMetaData>& numaMemInfos)
 {
     for (uint16_t numaId : remoteNuma) {
         NumaMetaData numaInfo;
@@ -1139,7 +1139,7 @@ MpResult CollectNumaMemInfos(const std::string &srcNid, const std::set<uint16_t>
         JSON_MAP numaInfoStrMap;
         static const std::vector<std::string> requiredKeys = {"MemTotal", "MemFree", "HugePages_Total",
                                                               "HugePages_Free", "SocketId"};
-        for (auto const &str : requiredKeys) {
+        for (auto const& str : requiredKeys) {
             numaInfoStrMap[str] = {};
         }
         if (!JsonUtil::RackMemConvertJsonStr2Map(message, numaInfoStrMap)) {
@@ -1157,10 +1157,10 @@ MpResult CollectNumaMemInfos(const std::string &srcNid, const std::set<uint16_t>
     return MEM_POOLING_OK;
 }
 
-void CalculateVmDemandAndQuota(const std::unordered_map<pid_t, VMInfo> &vmInfos, uint8_t ratio,
-                               std::map<pid_t, uint64_t> &vmDemand, std::map<pid_t, uint64_t> &vmQuota)
+void CalculateVmDemandAndQuota(const std::unordered_map<pid_t, VMInfo>& vmInfos, uint8_t ratio,
+                               std::map<pid_t, uint64_t>& vmDemand, std::map<pid_t, uint64_t>& vmQuota)
 {
-    for (const auto &vm : vmInfos) {
+    for (const auto& vm : vmInfos) {
         vmDemand[vm.first] = vm.second.totalRemoteUsedMem;
         auto actualUsage = vm.second.totalRemoteUsedMem + vm.second.totalLocalUsedMem;
         auto maxBorrow = static_cast<uint64_t>(actualUsage * (static_cast<double>(ratio) / 100.0));
@@ -1168,10 +1168,10 @@ void CalculateVmDemandAndQuota(const std::unordered_map<pid_t, VMInfo> &vmInfos,
     }
 }
 
-MpResult VMMemMigrateStrategy::CollectProcessInformation(const std::set<uint16_t> &remoteNuma,
-                                                         const std::vector<pid_t> &pids,
-                                                         std::map<pid_t, int16_t> &currentVmLocation,
-                                                         std::unordered_map<pid_t, VMInfo> &vmInfos, uint8_t ratio)
+MpResult VMMemMigrateStrategy::CollectProcessInformation(const std::set<uint16_t>& remoteNuma,
+                                                         const std::vector<pid_t>& pids,
+                                                         std::map<pid_t, int16_t>& currentVmLocation,
+                                                         std::unordered_map<pid_t, VMInfo>& vmInfos, uint8_t ratio)
 {
     const auto smapQueryProcessConfig = mempooling::smap::SmapModule::GetSmapGetRemoteProcessesFunc();
     if (smapQueryProcessConfig == nullptr) {
@@ -1195,7 +1195,7 @@ MpResult VMMemMigrateStrategy::CollectProcessInformation(const std::set<uint16_t
         }
 
         for (int i = 0; i < retLen; ++i) {
-            const auto &n = processPayload[i];
+            const auto& n = processPayload[i];
             currentVmLocation[n.pid] = static_cast<int16_t>(numaId);
             vmInfos[n.pid].pid = n.pid;
             vmInfos[n.pid].ratio = ratio;
@@ -1212,12 +1212,12 @@ MpResult VMMemMigrateStrategy::CollectProcessInformation(const std::set<uint16_t
     return MEM_POOLING_OK;
 }
 
-void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t> &remoteNuma,
-                             std::map<uint16_t, uint64_t> &remoteMap2Size,
-                             std::vector<MemBorrowInfoWithSrc> &memBorrowInfoWithSrcs,
-                             std::vector<BorrowRecord> &borrowRecord)
+void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t>& remoteNuma,
+                             std::map<uint16_t, uint64_t>& remoteMap2Size,
+                             std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs,
+                             std::vector<BorrowRecord>& borrowRecord)
 {
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecord) {
         if (srcNumaId != -1 && srcNumaId != borrowLocalNuma) {
             continue;
@@ -1230,7 +1230,7 @@ void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t> &remoteNuma,
         }
     }
 
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecord) {
         if (remoteNuma.find(borrowRemoteNuma) == remoteNuma.end()) {
             continue;
@@ -1244,9 +1244,9 @@ void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t> &remoteNuma,
     }
 }
 
-void InParamPrint(std::set<uint16_t> &remoteNuma, std::map<uint16_t, uint64_t> &resourceCapacity,
-                  std::map<pid_t, uint64_t> &vmDemand, std::map<pid_t, uint64_t> &vmQuota,
-                  std::map<pid_t, int16_t> &currentVmLocation)
+void InParamPrint(std::set<uint16_t>& remoteNuma, std::map<uint16_t, uint64_t>& resourceCapacity,
+                  std::map<pid_t, uint64_t>& vmDemand, std::map<pid_t, uint64_t>& vmQuota,
+                  std::map<pid_t, int16_t>& currentVmLocation)
 {
     for (auto pair : remoteNuma) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1273,9 +1273,9 @@ void InParamPrint(std::set<uint16_t> &remoteNuma, std::map<uint16_t, uint64_t> &
     }
 }
 
-void TransNumaMemInfos(std::map<int, NumaMetaData> &numaMemInfos, std::map<uint16_t, uint64_t> &resourceCapacity)
+void TransNumaMemInfos(std::map<int, NumaMetaData>& numaMemInfos, std::map<uint16_t, uint64_t>& resourceCapacity)
 {
-    for (auto &numaMem : numaMemInfos) {
+    for (auto& numaMem : numaMemInfos) {
         if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE) {
             resourceCapacity[numaMem.first] = numaMem.second.numaPageInfo[HUAGE_SIZE].hugePageFree * HUAGE_SIZE;
         } else {
@@ -1284,7 +1284,7 @@ void TransNumaMemInfos(std::map<int, NumaMetaData> &numaMemInfos, std::map<uint1
     }
 }
 
-MpResult VMMemMigrateStrategy::Rebalance(std::string srcNid, int16_t srcNumaId, std::vector<pid_t> &pids, uint8_t ratio)
+MpResult VMMemMigrateStrategy::Rebalance(std::string srcNid, int16_t srcNumaId, std::vector<pid_t>& pids, uint8_t ratio)
 {
     // 查询账本
     std::vector<BorrowRecord> borrowRecord;

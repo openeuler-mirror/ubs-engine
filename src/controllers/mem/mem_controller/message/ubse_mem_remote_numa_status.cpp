@@ -10,7 +10,6 @@
  * See the Mulan PSL v2 for more details.
  */
 
-
 #include "ubse_mem_remote_numa_status.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"

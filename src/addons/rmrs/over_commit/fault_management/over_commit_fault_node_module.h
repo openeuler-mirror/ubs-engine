@@ -16,10 +16,10 @@
 #include <string>
 #include <vector>
 #include "ubse_logger.h"
+#include "ubse_mem_controller.h"
 #include "mem_manager.h"
 #include "mp_error.h"
 #include "over_commit_fault_memid_module.h"
-#include "ubse_mem_controller.h"
 #include "vm_mem_migrate_strategy.h"
 
 namespace mempooling {
@@ -54,59 +54,59 @@ struct RemoteNumaFault {
 
 class OverCommitFaultNodeModule {
 public:
-    static OverCommitFaultNodeModule &Instance()
+    static OverCommitFaultNodeModule& Instance()
     {
         static OverCommitFaultNodeModule instance;
         return instance;
     }
-    MpResult ProcessBorrowOutNodeFault(const std::string &nodeId);
-    MpResult ProcessBorrowOutNodeFaultByMemId(const std::string &nodeId);
-    MpResult ProcessBorrowOutNodeFaultMultiNuma(const std::string &nodeId);
-    MpResult HandleFaultRemoteNumasPerBorrowNode(const std::string &nodeId,
-                                                 const std::vector<BorrowRecord> &borrowRecords);
-    MpResult ExecuteFaultMemoryBorrow(const std::vector<BorrowRecord> &borrowRecords,
-                                      std::vector<RemoteNumaFault> &remoteNumas);
-    MpResult BorrowInNodeProcess(const FaultRecordsInNode &faultRecordsInNode);
-    MpResult BorrowMemoryByBorrowIds(const std::vector<BorrowRecord> &borrowRecords,
-                                     std::vector<RemoteNumaFault> &remoteNumas);
-    MpResult ReturnFaultRemoteNumaMemory(const int16_t faultNumaId, const std::vector<BorrowRecord> &borrowRecords,
-                                         const std::vector<RemoteNumaFault> &remoteNumas);
+    MpResult ProcessBorrowOutNodeFault(const std::string& nodeId);
+    MpResult ProcessBorrowOutNodeFaultByMemId(const std::string& nodeId);
+    MpResult ProcessBorrowOutNodeFaultMultiNuma(const std::string& nodeId);
+    MpResult HandleFaultRemoteNumasPerBorrowNode(const std::string& nodeId,
+                                                 const std::vector<BorrowRecord>& borrowRecords);
+    MpResult ExecuteFaultMemoryBorrow(const std::vector<BorrowRecord>& borrowRecords,
+                                      std::vector<RemoteNumaFault>& remoteNumas);
+    MpResult BorrowInNodeProcess(const FaultRecordsInNode& faultRecordsInNode);
+    MpResult BorrowMemoryByBorrowIds(const std::vector<BorrowRecord>& borrowRecords,
+                                     std::vector<RemoteNumaFault>& remoteNumas);
+    MpResult ReturnFaultRemoteNumaMemory(const int16_t faultNumaId, const std::vector<BorrowRecord>& borrowRecords,
+                                         const std::vector<RemoteNumaFault>& remoteNumas);
     MpResult EvaculateVmsStrategyByLocalNuma(const int16_t localNumaId,
-                                             const std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos,
-                                             const std::vector<RemoteNumaFault> &remoteNumas,
-                                             std::vector<mempooling::outinterface::VMResult> &vmResults);
-    MpResult ReSetRemoteNumaInfo(const std::vector<RemoteNumaFault> &remoteNumas);
-    MpResult EnablePidMigrate(int enable, int flags, std::vector<pid_t> &pids,
-                              const std::vector<mempooling::outinterface::VMResult> &vmResults);
-    MpResult EvaculateVmsFromFaultNuma(const std::unordered_map<int16_t, std::set<int16_t>> &remoteNumaId2LocalNumaId,
+                                             const std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos,
+                                             const std::vector<RemoteNumaFault>& remoteNumas,
+                                             std::vector<mempooling::outinterface::VMResult>& vmResults);
+    MpResult ReSetRemoteNumaInfo(const std::vector<RemoteNumaFault>& remoteNumas);
+    MpResult EnablePidMigrate(int enable, int flags, std::vector<pid_t>& pids,
+                              const std::vector<mempooling::outinterface::VMResult>& vmResults);
+    MpResult EvaculateVmsFromFaultNuma(const std::unordered_map<int16_t, std::set<int16_t>>& remoteNumaId2LocalNumaId,
                                        const int16_t faultNumaId,
-                                       std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos,
-                                       std::vector<RemoteNumaFault> &remoteNumas);
-    MpResult ConvertVminfoFormat(const std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos,
-                                 std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos);
-    MpResult SmapMigrateRemoteToRemote(const int16_t &faultNumaId,
-                                       const std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos,
-                                       const std::vector<mempooling::outinterface::VMResult> &vmResults);
-    MpResult CalculateRemainingQuotaOnFaultNuma(const mempooling::outinterface::VMInfo &vm);
+                                       std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos,
+                                       std::vector<RemoteNumaFault>& remoteNumas);
+    MpResult ConvertVminfoFormat(const std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos,
+                                 std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos);
+    MpResult SmapMigrateRemoteToRemote(const int16_t& faultNumaId,
+                                       const std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos,
+                                       const std::vector<mempooling::outinterface::VMResult>& vmResults);
+    MpResult CalculateRemainingQuotaOnFaultNuma(const mempooling::outinterface::VMInfo& vm);
     MpResult ProcessSingleFaultRemoteNuma(
-        const std::pair<const int16_t, std::vector<BorrowRecord>> &remoteNumaPair,
-        const std::unordered_map<int16_t, std::set<int16_t>> &remoteNumaId2LocalNumaId);
+        const std::pair<const int16_t, std::vector<BorrowRecord>>& remoteNumaPair,
+        const std::unordered_map<int16_t, std::set<int16_t>>& remoteNumaId2LocalNumaId);
     MpResult GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
-                                         std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos);
-    MpResult EvaculateVmsStrategy(const std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos,
-                                  const std::vector<RemoteNumaFault> &remoteNumas,
-                                  std::vector<mempooling::outinterface::VMResult> &vmResults);
-    MpResult EvaculateVmsExecute(const int16_t &faultNumaId,
-                                 const std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos,
+                                         std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos);
+    MpResult EvaculateVmsStrategy(const std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos,
+                                  const std::vector<RemoteNumaFault>& remoteNumas,
+                                  std::vector<mempooling::outinterface::VMResult>& vmResults);
+    MpResult EvaculateVmsExecute(const int16_t& faultNumaId,
+                                 const std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos,
                                  const std::vector<RemoteNumaFault> remoteNumas,
-                                 const std::vector<mempooling::outinterface::VMResult> &vmResults);
+                                 const std::vector<mempooling::outinterface::VMResult>& vmResults);
 
-    MpResult BorrowIdGroupProcess(const std::unordered_map<int16_t, std::set<int16_t>> &remoteNumaId2LocalNumaId,
-                                  const int16_t faultNumaId, const std::vector<BorrowRecord> &borrowRecords,
-                                  std::unordered_map<pid_t, mempooling::outinterface::VMInfo> &vmInfos);
+    MpResult BorrowIdGroupProcess(const std::unordered_map<int16_t, std::set<int16_t>>& remoteNumaId2LocalNumaId,
+                                  const int16_t faultNumaId, const std::vector<BorrowRecord>& borrowRecords,
+                                  std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos);
 
     MpResult GetVmListByRemoteNumaId(uint16_t remoteNumaId,
-                                     std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos);
+                                     std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos);
 };
 } // namespace mempooling
 #endif // MEMPOOLING_OVER_COMMIT_FAULT_NODE_MODULE_H

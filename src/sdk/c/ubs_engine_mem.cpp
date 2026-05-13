@@ -14,13 +14,13 @@
 
 #include <securec.h>
 
-#include "libubse_helper.h"
-#include "ubs_error.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_log.h"
+#include "libubse_helper.h"
+#include "ubs_error.h"
 
-int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t **numa_mems, uint32_t *numa_mem_cnt)
+int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t** numa_mems, uint32_t* numa_mem_cnt)
 {
     // 参数校验
     if (numa_mems == nullptr || numa_mem_cnt == nullptr) {
@@ -29,7 +29,7 @@ int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t **numa_mems, u
     }
     // 打包
     ubse_api_buffer_t request_buffer = {.buffer = nullptr, .length = 0};
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(sizeof(uint32_t)));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(sizeof(uint32_t)));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -58,8 +58,8 @@ int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t **numa_mems, u
     return ret;
 }
 
-int32_t ubs_mem_fd_create(const char *name, uint64_t size, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                          ubs_mem_distance_t distance, ubs_mem_fd_desc_t *fd_desc)
+int32_t ubs_mem_fd_create(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                          ubs_mem_distance_t distance, ubs_mem_fd_desc_t* fd_desc)
 {
     // 参数校验
     auto ret = ubse_mem_create_req_is_valid(name, size);
@@ -74,7 +74,7 @@ int32_t ubs_mem_fd_create(const char *name, uint64_t size, const ubs_mem_fd_owne
     const size_t total_len = ubse_mem_fd_create_req_calc_size(name);
 
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -105,8 +105,8 @@ int32_t ubs_mem_fd_create(const char *name, uint64_t size, const ubs_mem_fd_owne
     return ret;
 }
 
-int32_t ubs_mem_fd_create_with_lender(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                      const ubs_mem_lender_t *lender, uint32_t lender_cnt, ubs_mem_fd_desc_t *fd_desc)
+int32_t ubs_mem_fd_create_with_lender(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                      const ubs_mem_lender_t* lender, uint32_t lender_cnt, ubs_mem_fd_desc_t* fd_desc)
 {
     // 参数校验
     auto ret = ubse_mem_create_with_lender_req_is_valid(name, lender, lender_cnt);
@@ -121,7 +121,7 @@ int32_t ubs_mem_fd_create_with_lender(const char *name, const ubs_mem_fd_owner_t
     const size_t total_len = ubse_mem_fd_create_with_lender_req_calc_size(name, lender_cnt);
 
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -153,8 +153,8 @@ int32_t ubs_mem_fd_create_with_lender(const char *name, const ubs_mem_fd_owner_t
     return ret;
 }
 
-int32_t ubs_mem_fd_create_with_candidate(const char *name, uint64_t size, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                         const uint32_t *slot_ids, uint32_t slot_cnt, ubs_mem_fd_desc_t *fd_desc)
+int32_t ubs_mem_fd_create_with_candidate(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                         const uint32_t* slot_ids, uint32_t slot_cnt, ubs_mem_fd_desc_t* fd_desc)
 {
     // 参数校验
     auto ret = ubse_mem_create_with_candidate_req_is_valid(name, size, slot_ids, slot_cnt);
@@ -169,7 +169,7 @@ int32_t ubs_mem_fd_create_with_candidate(const char *name, uint64_t size, const 
     const size_t total_len = ubse_mem_fd_create_with_candidate_req_calc_size(name, slot_cnt);
 
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -202,7 +202,7 @@ int32_t ubs_mem_fd_create_with_candidate(const char *name, uint64_t size, const 
     return ret;
 }
 
-int32_t ubs_mem_fd_permission(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode)
+int32_t ubs_mem_fd_permission(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode)
 {
     // 参数校验
     auto ret = ubse_mem_name_is_valid(name);
@@ -213,7 +213,7 @@ int32_t ubs_mem_fd_permission(const char *name, const ubs_mem_fd_owner_t *owner,
     const size_t total_len = ubse_mem_fd_permission_req_calc_size(name);
 
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -238,7 +238,7 @@ int32_t ubs_mem_fd_permission(const char *name, const ubs_mem_fd_owner_t *owner,
     return ubse_map_daemon_error(ret);
 }
 
-int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *mem_desc)
+int32_t ubs_mem_fd_get(const char* name, ubs_mem_fd_desc_t* mem_desc)
 {
     // 参数校验
     auto ret = ubse_mem_name_is_valid(name);
@@ -252,7 +252,7 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *mem_desc)
     // 打包
     uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(length));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -282,7 +282,7 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *mem_desc)
     return ret;
 }
 
-int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t **fd_descs, uint32_t *fd_desc_cnt)
+int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t** fd_descs, uint32_t* fd_desc_cnt)
 {
     // 参数校验
     if (fd_descs == nullptr || fd_desc_cnt == nullptr) {
@@ -307,7 +307,7 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t **fd_descs, uint32_t *fd_desc_cnt)
     ubse_api_buffer_free(&response_buffer);
     return static_cast<int32_t>(ret);
 }
-int32_t ubs_mem_fd_delete(const char *name)
+int32_t ubs_mem_fd_delete(const char* name)
 {
     // 参数校验
     uint32_t ret = ubse_mem_name_is_valid(name);
@@ -317,7 +317,7 @@ int32_t ubs_mem_fd_delete(const char *name)
     // 申请内存
     uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(length));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -340,8 +340,8 @@ int32_t ubs_mem_fd_delete(const char *name)
     ubse_api_buffer_free(&response_buffer);
     return ubse_map_daemon_error(ret);
 }
-int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t distance,
-                            ubs_mem_numa_desc_t *numa_desc)
+int32_t ubs_mem_numa_create(const char* name, uint64_t size, ubs_mem_distance_t distance,
+                            ubs_mem_numa_desc_t* numa_desc)
 {
     // 参数校验
     auto ret = ubse_mem_create_req_is_valid(name, size);
@@ -355,7 +355,7 @@ int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t 
     // 申请内存
     const size_t total_len = ubse_mem_numa_create_req_calc_size(name);
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -386,8 +386,8 @@ int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t 
     return ret;
 }
 
-int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t *lender, uint32_t lender_cnt,
-                                        ubs_mem_numa_desc_t *numa_desc)
+int32_t ubs_mem_numa_create_with_lender(const char* name, const ubs_mem_lender_t* lender, uint32_t lender_cnt,
+                                        ubs_mem_numa_desc_t* numa_desc)
 {
     // 参数校验
     auto ret = ubse_mem_create_with_lender_req_is_valid(name, lender, lender_cnt);
@@ -401,7 +401,7 @@ int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t
     // 申请内存
     const size_t total_len = ubse_mem_numa_create_with_lender_req_calc_size(name, lender_cnt);
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -433,8 +433,8 @@ int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t
     return ret;
 }
 
-int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, const uint32_t *slot_ids, uint32_t slot_cnt,
-                                           ubs_mem_numa_desc_t *numa_desc)
+int32_t ubs_mem_numa_create_with_candidate(const char* name, uint64_t size, const uint32_t* slot_ids, uint32_t slot_cnt,
+                                           ubs_mem_numa_desc_t* numa_desc)
 {
     // 参数校验
     auto ret = ubse_mem_create_with_candidate_req_is_valid(name, size, slot_ids, slot_cnt);
@@ -448,7 +448,7 @@ int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, cons
     // 申请内存
     const size_t total_len = ubse_mem_numa_create_with_candidate_req_calc_size(name, slot_cnt);
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(total_len));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -480,7 +480,7 @@ int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, cons
     return ret;
 }
 
-int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc)
+int32_t ubs_mem_numa_get(const char* name, ubs_mem_numa_desc_t* numa_desc)
 {
     // 参数校验
     auto ret = ubse_mem_name_is_valid(name);
@@ -494,7 +494,7 @@ int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc)
     // 申请内存
     uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(length));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -525,7 +525,7 @@ int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc)
     return ret;
 }
 
-int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t **numa_descs, uint32_t *numa_desc_cnt)
+int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t** numa_descs, uint32_t* numa_desc_cnt)
 {
     // 参数校验
     if (numa_descs == nullptr || numa_desc_cnt == nullptr) {
@@ -551,7 +551,7 @@ int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t **numa_descs, uint32_t *numa_desc_
     return static_cast<int32_t>(ret);
 }
 
-int32_t ubs_mem_numa_delete(const char *name)
+int32_t ubs_mem_numa_delete(const char* name)
 {
     // 参数校验
     auto ret = ubse_mem_name_is_valid(name);
@@ -561,7 +561,7 @@ int32_t ubs_mem_numa_delete(const char *name)
     // 申请内存
     uint32_t length = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
     ubse_api_buffer_t request_buffer;
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(length));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(length));
     if (!request_buffer.buffer) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_MEMORY;
@@ -585,8 +585,8 @@ int32_t ubs_mem_numa_delete(const char *name)
     return ubse_map_daemon_error(ret);
 }
 
-int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32], uint64_t flag,
-                           const ubs_mem_nodes_t *region, const ubs_mem_nodes_t *provider)
+int32_t ubs_mem_shm_create(const char* name, uint64_t size, uint8_t usr_info[32], uint64_t flag,
+                           const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_shm_create_req_valid(name, size, region, provider);
@@ -618,9 +618,9 @@ int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32]
     return ubse_map_daemon_error(ipc_ret);
 }
 
-int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32_t affinity_socket_id,
-                                         uint8_t usr_info[32], uint64_t flag, const ubs_mem_nodes_t *region,
-                                         const ubs_mem_nodes_t *provider)
+int32_t ubs_mem_shm_create_with_affinity(const char* name, uint64_t size, uint32_t affinity_socket_id,
+                                         uint8_t usr_info[32], uint64_t flag, const ubs_mem_nodes_t* region,
+                                         const ubs_mem_nodes_t* provider)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_shm_create_req_valid(name, size, region, provider);
@@ -653,8 +653,8 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
     return ubse_map_daemon_error(ipc_ret);
 }
 
-int32_t ubs_mem_shm_create_with_lender(const char *name, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
-                                       const ubs_mem_nodes_t *region, const ubs_mem_lender_t *lender)
+int32_t ubs_mem_shm_create_with_lender(const char* name, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
+                                       const ubs_mem_nodes_t* region, const ubs_mem_lender_t* lender)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_shm_create_with_lender_req_valid(name, region, lender);
@@ -682,8 +682,8 @@ int32_t ubs_mem_shm_create_with_lender(const char *name, uint8_t usr_info[UBS_ME
     return ubse_map_daemon_error(ipc_ret);
 }
 
-int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                           ubs_mem_shm_desc_t **shm_desc)
+int32_t ubs_mem_shm_attach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                           ubs_mem_shm_desc_t** shm_desc)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_name_is_valid(name);
@@ -726,7 +726,7 @@ int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mo
     ubse_api_buffer_free(&response_buffer);
     return static_cast<int32_t>(ret);
 }
-int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc)
+int32_t ubs_mem_shm_get(const char* name, ubs_mem_shm_desc_t** shm_desc)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_name_is_valid(name);
@@ -763,7 +763,7 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc)
     ubse_api_buffer_free(&response_buffer);
     return static_cast<int32_t>(ret);
 }
-int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt)
+int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t** shm_descs, uint32_t* shm_desc_cnt)
 {
     // 参数校验
     if (shm_descs == nullptr || shm_desc_cnt == nullptr) {
@@ -792,7 +792,7 @@ int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt)
     return static_cast<int32_t>(ret);
 }
 
-int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt)
+int32_t ubs_mem_shm_list_with_prefix(const char* name_prefix, ubs_mem_shm_desc_t** shm_descs, uint32_t* shm_desc_cnt)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_name_is_valid(name_prefix);
@@ -833,7 +833,7 @@ int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t
     return static_cast<int32_t>(ret);
 }
 
-int32_t ubs_mem_shm_detach(const char *name)
+int32_t ubs_mem_shm_detach(const char* name)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_name_is_valid(name);
@@ -863,7 +863,7 @@ int32_t ubs_mem_shm_detach(const char *name)
     ubse_api_buffer_free(&response_buffer);
     return ubse_map_daemon_error(ipc_ret);
 }
-int32_t ubs_mem_shm_delete(const char *name)
+int32_t ubs_mem_shm_delete(const char* name)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_name_is_valid(name);
@@ -894,7 +894,7 @@ int32_t ubs_mem_shm_delete(const char *name)
     return ubse_map_daemon_error(ipc_ret);
 }
 
-int32_t ubs_mem_shm_fault_get(const char *name, ubs_mem_memids_fault_t *fault)
+int32_t ubs_mem_shm_fault_get(const char* name, ubs_mem_memids_fault_t* fault)
 {
     // 参数校验
     ubs_error_t ret = ubse_mem_name_is_valid(name);
@@ -937,8 +937,8 @@ int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler)
     return static_cast<int32_t>(ubse_shm_fault_register(handler));
 }
 
-int32_t ubs_mem_get_memid_by_import(const char *name, const uint64_t import_memid,
-                                    ubs_mem_export_memid_t *mem_info, const uint16_t op_code)
+int32_t ubs_mem_get_memid_by_import(const char* name, const uint64_t import_memid, ubs_mem_export_memid_t* mem_info,
+                                    const uint16_t op_code)
 {
     // 参数校验
     auto ret = ubse_mem_name_is_valid(name);
@@ -974,18 +974,18 @@ int32_t ubs_mem_get_memid_by_import(const char *name, const uint64_t import_memi
     ubse_api_buffer_free(&response_buffer);
     return ret;
 }
- 
-int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info)
+
+int32_t ubs_mem_fd_get_memid_by_import(const char* name, uint64_t import_memid, ubs_mem_export_memid_t* mem_info)
 {
     return ubs_mem_get_memid_by_import(name, import_memid, mem_info, UBSE_MEM_FD_GET_MEM_ID_BY_IMPORT);
 }
- 
-int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info)
+
+int32_t ubs_mem_numa_get_memid_by_import(const char* name, uint64_t import_memid, ubs_mem_export_memid_t* mem_info)
 {
     return ubs_mem_get_memid_by_import(name, import_memid, mem_info, UBSE_MEM_NUMA_GET_MEM_ID_BY_IMPORT);
 }
- 
-int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info)
+
+int32_t ubs_mem_shm_get_memid_by_import(const char* name, uint64_t import_memid, ubs_mem_export_memid_t* mem_info)
 {
     return ubs_mem_get_memid_by_import(name, import_memid, mem_info, UBSE_MEM_SHM_GET_MEM_ID_BY_IMPORT);
 }

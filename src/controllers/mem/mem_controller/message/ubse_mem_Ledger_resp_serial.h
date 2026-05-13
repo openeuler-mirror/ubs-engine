@@ -22,7 +22,7 @@ using namespace ubse::message;
 class UbseMemLedgerRespSerial : public UbseBaseMessage {
 public:
     UbseMemLedgerRespSerial() = default;
-    explicit UbseMemLedgerRespSerial(uint8_t *data, uint32_t size)
+    explicit UbseMemLedgerRespSerial(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

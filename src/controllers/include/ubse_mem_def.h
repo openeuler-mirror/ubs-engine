@@ -38,7 +38,7 @@ extern "C" {
 #define UBSE_MEM_ATTACH_TYPE "ATTACH"
 #define UBSE_MEM_DETACH_TYPE "DETACH"
 
-#define MEM_MAX_ID_LENGTH 48            // 节点id，共享内存name，最大限制1024
+#define MEM_MAX_ID_LENGTH 48 // 节点id，共享内存name，最大限制1024
 #define MEM_INVALID_NODE_ID ("")
 #define MEM_TOPOLOGY_MAX_HOSTS 16
 #define MEM_MAX_NUMA_NUM_PER_ITEM 2     // 单次请求最多导出numa位置
@@ -101,7 +101,7 @@ void EnableUbseMemHtrace(void);
 /*
  * 非mem错误码，会调用strerror(code)
  */
-const char *ErrCodeToStr(int errNum);
+const char* ErrCodeToStr(int errNum);
 #ifdef __cplusplus
 }
 #endif

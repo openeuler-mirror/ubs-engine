@@ -25,7 +25,7 @@ public:
     * @param fileName [in] 文件名
     * @return 成功返回0，失败返回非0
     */
-    uint32_t DeleteFile(const std::string &fileName);
+    uint32_t DeleteFile(const std::string& fileName);
 
     /**
     * @brief 读取指定文件
@@ -34,7 +34,7 @@ public:
     * @param dataLen [out] 读取内容长度
     * @return 成功返回0，失败返回非0
     */
-    uint32_t ReadFile(const std::string &fileName, uint8_t *&data, uint32_t &dataLen);
+    uint32_t ReadFile(const std::string& fileName, uint8_t*& data, uint32_t& dataLen);
 
     /**
     * @brief 写入数据到指定文件
@@ -43,13 +43,13 @@ public:
     * @param dataLen [in] 写入文件内容长度
     * @return 成功返回0，失败返回非0
     */
-    uint32_t WriteFile(const std::string &fileName, const uint8_t *data, const uint32_t dataLen);
+    uint32_t WriteFile(const std::string& fileName, const uint8_t* data, const uint32_t dataLen);
 
 private:
     std::string rootPath_;
-    std::shared_ptr<std::mutex> GetLock(const std::string &fileName);
+    std::shared_ptr<std::mutex> GetLock(const std::string& fileName);
 
-    void RemoveLock(const std::string &fileName);
+    void RemoveLock(const std::string& fileName);
 
     std::mutex mapLock_;
     std::unordered_map<std::string, std::shared_ptr<std::mutex>> shareMutexMap_;

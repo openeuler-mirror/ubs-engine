@@ -24,7 +24,6 @@ public:
     void SetUp();
     void TearDown();
 };
-}
-
+} // namespace ubse::ut::http
 
 #endif // UBSE_MANAGER_TEST_UBSE_HTTP_START_H

@@ -42,7 +42,7 @@ void ThreadPool::stop(bool wait)
     }
     cv_.notify_all();
 
-    for (auto &t : workers_) {
+    for (auto& t : workers_) {
         if (t.joinable()) {
             t.join();
         }
@@ -69,4 +69,3 @@ void ThreadPool::worker_loop()
         task();
     }
 }
-

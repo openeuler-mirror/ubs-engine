@@ -3,16 +3,16 @@
  */
 #include "ubse_storage_module.h"
 #include <sys/stat.h>
+#include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "ubse_election.h"
+#include "ubse_election_module.h"
+#include "ubse_fs.h"
 #include "ubse_logger_module.h"
+#include "ubse_security_module.h"
 #include "ubse_storage_req_handler.h"
 #include "ubse_storage_req_simpo.h"
 #include "ubse_storage_resp_simpo.h"
-#include "ubse_com_module.h"
-#include "ubse_election_module.h"
-#include "ubse_election.h"
-#include "ubse_fs.h"
-#include "ubse_security_module.h"
 
 namespace ubse::storage {
 using namespace ubse::context;
@@ -33,30 +33,30 @@ public:
 
     static std::string GetMasterNode();
 
-    static UbseResult RpcSend(const SendParam &sendParam, UbseBaseMessagePtr &request, UbseBaseMessagePtr &response);
+    static UbseResult RpcSend(const SendParam& sendParam, UbseBaseMessagePtr& request, UbseBaseMessagePtr& response);
 
-    static UbseResult SendRemoteReq(const std::string &dbName, const std::string &key,
-                                    message::UbseStorageReqCmdType cmdType, const RemoteGetHandler &handler);
+    static UbseResult SendRemoteReq(const std::string& dbName, const std::string& key,
+                                    message::UbseStorageReqCmdType cmdType, const RemoteGetHandler& handler);
 
     static UbseResult RegRemoteReqHandler();
 
     const std::string UBSE_DATA_PATH_ = "/var/lib/ubse/data";
-    UbseFs ubseFs_{ UBSE_DATA_PATH_ };
+    UbseFs ubseFs_{UBSE_DATA_PATH_};
 };
 
 UbseStorageModule::UbseStorageModule() : pImpl_(std::make_unique<Impl>()) {}
 UbseStorageModule::~UbseStorageModule() = default;
 
-bool IsDirectoryExists(const std::string &path)
+bool IsDirectoryExists(const std::string& path)
 {
-    struct stat info{};
+    struct stat info {};
     if (stat(path.c_str(), &info) != 0) {
         return false;
     }
     return S_ISDIR(info.st_mode);
 }
 
-UbseResult CreateDirectory(const std::string &path)
+UbseResult CreateDirectory(const std::string& path)
 {
     size_t pos = 0;
     std::vector<__u32> caps{CAP_DAC_OVERRIDE};
@@ -78,7 +78,7 @@ UbseResult CreateDirectory(const std::string &path)
     return UBSE_OK;
 }
 
-bool CheckDirectoryPermission(const std::string &path, mode_t mode)
+bool CheckDirectoryPermission(const std::string& path, mode_t mode)
 {
     struct stat info;
     if (stat(path.c_str(), &info) != 0) {
@@ -105,9 +105,7 @@ UbseResult UbseStorageModule::Initialize()
     return UBSE_OK;
 }
 
-void UbseStorageModule::UnInitialize()
-{
-}
+void UbseStorageModule::UnInitialize() {}
 
 UbseResult UbseStorageModule::Start()
 {
@@ -118,13 +116,11 @@ UbseResult UbseStorageModule::Start()
     return UBSE_OK;
 }
 
-void UbseStorageModule::Stop()
-{
-}
+void UbseStorageModule::Stop() {}
 
 std::shared_ptr<UbseStorageModule> UbseStorageModule::GetStorageModule()
 {
-    UbseContext &ubseCtx = UbseContext::GetInstance();
+    UbseContext& ubseCtx = UbseContext::GetInstance();
     auto storageModule = ubseCtx.GetModule<UbseStorageModule>();
     if (storageModule == nullptr) {
         return nullptr;
@@ -134,7 +130,7 @@ std::shared_ptr<UbseStorageModule> UbseStorageModule::GetStorageModule()
 
 std::shared_ptr<UbseComModule> UbseStorageModule::Impl::GetUbseComModule()
 {
-    UbseContext &ubseCtx = UbseContext::GetInstance();
+    UbseContext& ubseCtx = UbseContext::GetInstance();
     auto comModule = ubseCtx.GetModule<UbseComModule>();
     if (comModule == nullptr) {
         return nullptr;
@@ -153,24 +149,24 @@ std::string UbseStorageModule::Impl::GetMasterNode()
     return masterNode.nodeId;
 }
 
-UbseResult UbseStorageModule::Put([[maybe_unused]] const std::string &dbName, const std::string &key, uint8_t *value,
+UbseResult UbseStorageModule::Put([[maybe_unused]] const std::string& dbName, const std::string& key, uint8_t* value,
                                   const uint32_t valueLen)
 {
     return pImpl_->ubseFs_.WriteFile(key, value, valueLen);
 }
 
-UbseResult UbseStorageModule::Get([[maybe_unused]] const std::string &dbName, const std::string &key, KV &kv)
+UbseResult UbseStorageModule::Get([[maybe_unused]] const std::string& dbName, const std::string& key, KV& kv)
 {
     return pImpl_->ubseFs_.ReadFile(key, kv.value, kv.valueLen);
 }
 
-UbseResult UbseStorageModule::RemoteGet(const std::string &dbName, const std::string &key,
-                                        const RemoteGetHandler &handler)
+UbseResult UbseStorageModule::RemoteGet(const std::string& dbName, const std::string& key,
+                                        const RemoteGetHandler& handler)
 {
     return Impl::SendRemoteReq(dbName, key, message::UbseStorageReqCmdType::GET, handler);
 }
 
-void UbseStorageModule::ResultFree(KV &data)
+void UbseStorageModule::ResultFree(KV& data)
 {
     if (data.value) {
         delete[] data.value;
@@ -178,7 +174,7 @@ void UbseStorageModule::ResultFree(KV &data)
     }
 }
 
-void UbseStorageModule::ResultFree(std::vector<KV> &data)
+void UbseStorageModule::ResultFree(std::vector<KV>& data)
 {
     for (auto& i : data) {
         i.key.clear();
@@ -188,7 +184,7 @@ void UbseStorageModule::ResultFree(std::vector<KV> &data)
     data.shrink_to_fit();
 }
 
-UbseResult UbseStorageModule::Delete([[maybe_unused]] const std::string &dbName, const std::string &key)
+UbseResult UbseStorageModule::Delete([[maybe_unused]] const std::string& dbName, const std::string& key)
 {
     return pImpl_->ubseFs_.DeleteFile(key);
 }
@@ -198,8 +194,8 @@ std::string UbseStorageModule::Impl::GetDbStorageDir()
     return DB_STORE_DIR;
 }
 
-UbseResult UbseStorageModule::Impl::RpcSend(const SendParam &sendParam, UbseBaseMessagePtr &request,
-                                            UbseBaseMessagePtr &response)
+UbseResult UbseStorageModule::Impl::RpcSend(const SendParam& sendParam, UbseBaseMessagePtr& request,
+                                            UbseBaseMessagePtr& response)
 {
     auto comModule = GetUbseComModule();
     if (comModule == nullptr) {
@@ -213,9 +209,9 @@ UbseResult UbseStorageModule::Impl::RpcSend(const SendParam &sendParam, UbseBase
     return UBSE_OK;
 }
 
-UbseResult UbseStorageModule::Impl::SendRemoteReq(const std::string &dbName, const std::string &key,
+UbseResult UbseStorageModule::Impl::SendRemoteReq(const std::string& dbName, const std::string& key,
                                                   message::UbseStorageReqCmdType cmdType,
-                                                  const RemoteGetHandler &handler)
+                                                  const RemoteGetHandler& handler)
 {
     auto masterNode = GetMasterNode();
     if (masterNode.empty()) {

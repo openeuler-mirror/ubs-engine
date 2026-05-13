@@ -15,9 +15,9 @@
 #include <memory> // for operator==, shared_ptr, __shared_ptr_...
 
 #include "ubse_common_def.h"   // for UbseResult
-#include "ubse_event_module.h" // for UbseEventModule
 #include "ubse_context.h"      // for UbseContext
 #include "ubse_error.h"        // for UBSE_ERROR_NULLPTR, UBSE_OK, UBSE_EVE...
+#include "ubse_event_module.h" // for UbseEventModule
 #include "ubse_logger.h"       // for FormatRetCode, UbseLoggerEntry, UBSE_...
 
 namespace ubse::event {
@@ -27,9 +27,9 @@ using namespace ubse::context;
 using namespace ubse::event;
 using namespace ubse::log;
 
-UbseResult UbsePubEvent(const std::string &eventId, std::string &eventMessage)
+UbseResult UbsePubEvent(const std::string& eventId, std::string& eventMessage)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto eventModule = ctxRef.GetModule<UbseEventModule>();
     if (eventModule == nullptr) {
         UBSE_LOG_ERROR << "get eventModule failed, UbseSubEvent failed";
@@ -42,9 +42,9 @@ UbseResult UbsePubEvent(const std::string &eventId, std::string &eventMessage)
     return res;
 }
 
-UbseResult UbseSubEvent(std::string &eventId, UbseEventHandler registerFunc, UbseEventPriority priority)
+UbseResult UbseSubEvent(std::string& eventId, UbseEventHandler registerFunc, UbseEventPriority priority)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto eventModule = ctxRef.GetModule<UbseEventModule>();
     if (eventModule == nullptr) {
         UBSE_LOG_ERROR << "get eventModule failed, UbseSubEvent failed";
@@ -57,9 +57,9 @@ UbseResult UbseSubEvent(std::string &eventId, UbseEventHandler registerFunc, Ubs
     return res;
 }
 
-UbseResult UbseUnSubEvent(std::string &eventId, UbseEventHandler registerFunc)
+UbseResult UbseUnSubEvent(std::string& eventId, UbseEventHandler registerFunc)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto eventModule = ctxRef.GetModule<UbseEventModule>();
     if (eventModule == nullptr) {
         UBSE_LOG_ERROR << "get eventModule failed, CancelSubEvent failed";

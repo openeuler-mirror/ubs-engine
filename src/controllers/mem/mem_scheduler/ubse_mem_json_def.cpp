@@ -12,9 +12,9 @@
 #include "ubse_mem_json_def.h"
 
 #include <regex>
-#include "src/framework/misc/ubse_str_util.h"
 #include "ubse_json_util.h"
 #include "ubse_logger.h"
+#include "src/framework/misc/ubse_str_util.h"
 
 namespace ubse::mem::strategy {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
@@ -23,7 +23,7 @@ using namespace ubse::utils;
 std::string UbseMemEventNotifyBorrowItem::ToJson()
 {
     std::vector<std::string> strVec;
-    for (const auto &item : this->exportLocInfo) {
+    for (const auto& item : this->exportLocInfo) {
         strVec.emplace_back(item.nodeId + "/" + std::to_string(item.socketId) + "/" + std::to_string(item.numaId));
     }
     std::string jLocVec2Str;

@@ -25,17 +25,17 @@ static const std::string MIGRATE_STATE_KEY_PREFIX = "ubse_";
 static const std::string MIGRATE_STATE_KEY = "vm_migrate_";
 ReadWriteLock MigrateStateStorage::migrateStateLock{};
 
-VmResult MigrateStateStorage::SaveMigrateState(NumaVMInfoMap &numaVmInfoMap, const VMBasicInfo &vmBasicInfo)
+VmResult MigrateStateStorage::SaveMigrateState(NumaVMInfoMap& numaVmInfoMap, const VMBasicInfo& vmBasicInfo)
 {
     return OpMigrateState(numaVmInfoMap, vmBasicInfo, false);
 }
 
-VmResult MigrateStateStorage::DelMigrateState(NumaVMInfoMap &numaVmInfoMap, const VMBasicInfo &vmBasicInfo)
+VmResult MigrateStateStorage::DelMigrateState(NumaVMInfoMap& numaVmInfoMap, const VMBasicInfo& vmBasicInfo)
 {
     return OpMigrateState(numaVmInfoMap, vmBasicInfo, true);
 }
 
-VmResult MigrateStateStorage::OpMigrateState(NumaVMInfoMap &numaVmInfoMap, const VMBasicInfo &vmBasicInfo,
+VmResult MigrateStateStorage::OpMigrateState(NumaVMInfoMap& numaVmInfoMap, const VMBasicInfo& vmBasicInfo,
                                              const bool isDelete)
 {
     UBSE_LOG_INFO << "[SaveMigrateStates] start.";
@@ -43,7 +43,7 @@ VmResult MigrateStateStorage::OpMigrateState(NumaVMInfoMap &numaVmInfoMap, const
 
     MigrateStateMapMessage dataMessage;
     WriteLocker<ReadWriteLock> lock(&migrateStateLock);
-    for (const auto &[numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
+    for (const auto& [numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
         VMNodeLocInfo numaLoc{};
         numaLoc.socketId = vmDomainNumaInfo.socketId;
         numaLoc.numaId = vmDomainNumaInfo.numaId;
@@ -74,7 +74,7 @@ VmResult MigrateStateStorage::OpMigrateState(NumaVMInfoMap &numaVmInfoMap, const
     return VM_OK;
 }
 
-VmResult MigrateStateStorage::GetMigrateStates(NumaVMInfoMap &numaVmInfoMap)
+VmResult MigrateStateStorage::GetMigrateStates(NumaVMInfoMap& numaVmInfoMap)
 {
     ReadLocker<ReadWriteLock> lock(&migrateStateLock);
     std::vector<NumaVMInfoMap> datas;
@@ -92,10 +92,10 @@ VmResult MigrateStateStorage::GetMigrateStates(NumaVMInfoMap &numaVmInfoMap)
     return VM_OK;
 }
 
-void MigrateStateStorage::QueryHandler(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                                       void *ctx)
+void MigrateStateStorage::QueryHandler(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                       void* ctx)
 {
-    auto *migrateStates = static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    auto* migrateStates = static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     if (migrateStates == nullptr || buff.data == nullptr) {
         UBSE_LOG_WARN << "[GetMigrateStates] ctx or buff is nullptr.";
         return;
@@ -114,15 +114,15 @@ void MigrateStateStorage::QueryHandler(const std::string &keyPrefix, const std::
     migrateStates->emplace_back(dataMessage.GetData());
 }
 
-std::string MigrateStateStorage::ToString(const NumaVMInfoMap &numaVmInfoMap)
+std::string MigrateStateStorage::ToString(const NumaVMInfoMap& numaVmInfoMap)
 {
     std::ostringstream oss;
-    for (auto &[numaLoc, vmBasicInfoMap] : numaVmInfoMap) {
-        for (auto &[uuid, vmBasicInfo] : vmBasicInfoMap) {
+    for (auto& [numaLoc, vmBasicInfoMap] : numaVmInfoMap) {
+        for (auto& [uuid, vmBasicInfo] : vmBasicInfoMap) {
             oss << "{";
             oss << R"("uuid":")" << vmBasicInfo.uuid << R"(",)";
             oss << R"("pid":)" << vmBasicInfo.pid << R"(,)";
-            for (auto &[numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
+            for (auto& [numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
                 oss << "{";
                 oss << R"("socketId":)" << vmDomainNumaInfo.socketId << R"(,)";
                 oss << R"("numaId":)" << vmDomainNumaInfo.numaId << R"(,)";

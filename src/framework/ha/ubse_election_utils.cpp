@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "ubse_election_utils.h"
 #include <sstream>
 #include <string>
 #include <vector>
-#include "ubse_election_utils.h"
 
 namespace ubse::election::utils {
 
-std::vector<std::string> Split(const std::string &s, char delimiter)
+std::vector<std::string> Split(const std::string& s, char delimiter)
 {
     std::vector<std::string> tokens;
     std::string token;
@@ -30,17 +30,17 @@ std::vector<std::string> Split(const std::string &s, char delimiter)
 
 const size_t FIELDS_COUNT = 4;
 const size_t PAIR_SIZE = 2;
-std::vector<NodeLinkInfo> ParseEventMessage(const std::string &eventMessage)
+std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage)
 {
     std::vector<NodeLinkInfo> linkList;
     auto linkBlocks = Split(eventMessage, ';');
-    for (const auto &block : linkBlocks) {
+    for (const auto& block : linkBlocks) {
         if (block.empty()) {
             continue;
         }
         auto fields = Split(block, ',');
         if (fields.size() != FIELDS_COUNT) {
-            continue;  // 字段数量不匹配，跳过
+            continue; // 字段数量不匹配，跳过
         }
         std::string nodeId, changeChType;
         uint32_t state, timestamp;
@@ -81,7 +81,7 @@ std::vector<NodeLinkInfo> ParseEventMessage(const std::string &eventMessage)
     return linkList;
 }
 
-bool parseFaultEventMsg(const std::string &msg, std::string &faultNodeId, std::string &faultType)
+bool parseFaultEventMsg(const std::string& msg, std::string& faultNodeId, std::string& faultType)
 {
     size_t pos = msg.find('_');
     if (pos == std::string::npos) {
@@ -92,4 +92,4 @@ bool parseFaultEventMsg(const std::string &msg, std::string &faultNodeId, std::s
     faultType = msg.substr(pos + 1);
     return true;
 }
-}
+} // namespace ubse::election::utils

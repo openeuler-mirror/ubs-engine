@@ -83,4 +83,4 @@ TEST_F(TestUbseTopoInterface, UbseGetAllNodeInfos_IpsList)
     EXPECT_EQ(UbseGetAllNodeInfos(infos), UBSE_OK);
 }
 
-}  // namespace ubse::mti
+} // namespace ubse::mti

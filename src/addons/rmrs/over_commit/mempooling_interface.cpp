@@ -51,7 +51,7 @@ constexpr int MAX_BORROW_SIZES = 256;
 struct ReturnNeedMaps {
     std::unordered_map<std::string, uint64_t> borrowId2Size{};
     std::unordered_map<uint16_t, uint64_t> borrowIdNuma2Size{};
-    std::unordered_map<std::uint16_t, std::vector<pid_t>> &borrowNumaId2Pids;
+    std::unordered_map<std::uint16_t, std::vector<pid_t>>& borrowNumaId2Pids;
     std::unordered_map<std::string, std::uint16_t> borrowId2NumaId;
 };
 
@@ -61,8 +61,8 @@ struct ReturnNeedMaps {
  * @param borrowIds 内存借用资源名
  * @return map<remoteNumaId,totalBorrowSize>
 */
-std::vector<MemBorrowInfoWithSrc> GenNumaTotalBorrowSizes(const std::vector<BorrowRecord> &borrowRecords,
-                                                          const std::vector<std::string> &borrowIds);
+std::vector<MemBorrowInfoWithSrc> GenNumaTotalBorrowSizes(const std::vector<BorrowRecord>& borrowRecords,
+                                                          const std::vector<std::string>& borrowIds);
 
 /**
  * 从账本信息中, 获取指定本次借用的大小
@@ -70,8 +70,8 @@ std::vector<MemBorrowInfoWithSrc> GenNumaTotalBorrowSizes(const std::vector<Borr
  * @param borrowIds 内存借用资源名
  * @return map<remoteNumaId,CurBorrowSize>
  */
-std::vector<MemBorrowInfo> GenNumaCurBorrowSizes(const std::vector<BorrowRecord> &borrowRecords,
-                                                 const std::vector<std::string> &borrowIds);
+std::vector<MemBorrowInfo> GenNumaCurBorrowSizes(const std::vector<BorrowRecord>& borrowRecords,
+                                                 const std::vector<std::string>& borrowIds);
 
 /**
  * 从账本中获取 borrowId借用大小map
@@ -79,8 +79,8 @@ std::vector<MemBorrowInfo> GenNumaCurBorrowSizes(const std::vector<BorrowRecord>
  * @param borrowIds 内存借用资源名
  * @return map<borrowId,CurBorrowSize>
  */
-std::unordered_map<std::string, std::uint64_t> GenBorrowId2Size(const std::vector<BorrowRecord> &borrowRecords,
-                                                                const std::vector<std::string> &borrowIds);
+std::unordered_map<std::string, std::uint64_t> GenBorrowId2Size(const std::vector<BorrowRecord>& borrowRecords,
+                                                                const std::vector<std::string>& borrowIds);
 
 /**
  * 从账本中获取 borrowId对应numa借用大小map
@@ -89,9 +89,9 @@ std::unordered_map<std::string, std::uint64_t> GenBorrowId2Size(const std::vecto
  * @param borrowIds 内存借用资源名
  * @return map<borrowId,totalBorrowSize>
  */
-std::unordered_map<std::uint16_t, std::uint64_t> GenBorrowIdNuma2Size(const int16_t &srcNumaId,
-                                                                      const std::vector<BorrowRecord> &borrowRecords,
-                                                                      const std::vector<std::string> &borrowIds);
+std::unordered_map<std::uint16_t, std::uint64_t> GenBorrowIdNuma2Size(const int16_t& srcNumaId,
+                                                                      const std::vector<BorrowRecord>& borrowRecords,
+                                                                      const std::vector<std::string>& borrowIds);
 
 /**
  * 获取borrowId中使用的远端numaId map
@@ -99,8 +99,8 @@ std::unordered_map<std::uint16_t, std::uint64_t> GenBorrowIdNuma2Size(const int1
  * @param borrowIds 内存借用资源名
  * @return map<borrowId,presentNumaId>
  */
-std::unordered_map<std::string, std::uint16_t> GenBorrowId2NumaId(const std::vector<BorrowRecord> &borrowRecords,
-                                                                  const std::vector<std::string> &borrowIds);
+std::unordered_map<std::string, std::uint16_t> GenBorrowId2NumaId(const std::vector<BorrowRecord>& borrowRecords,
+                                                                  const std::vector<std::string>& borrowIds);
 
 /**
  * 执行单个borrowId归还动作
@@ -111,10 +111,10 @@ std::unordered_map<std::string, std::uint16_t> GenBorrowId2NumaId(const std::vec
  * @param returnNeedMaps 全局缓存信息, 包含告警numa在远端numa上借用内存大小的map+borrowId与远端NumaId映射关系
  * @return
  */
-uint32_t ReturnBorrowId(const SrcMemoryBorrowParam &srcParam, const std::vector<pid_t> &pids,
-                        const std::string &borrowId, const uint16_t &presentNumaId, ReturnNeedMaps &returnNeedMaps);
+uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<pid_t>& pids,
+                        const std::string& borrowId, const uint16_t& presentNumaId, ReturnNeedMaps& returnNeedMaps);
 
-uint32_t PrepareSocketId(std::map<int, mempooling::NumaMetaData> &numaMemInfos, const std::string &srcNid)
+uint32_t PrepareSocketId(std::map<int, mempooling::NumaMetaData>& numaMemInfos, const std::string& srcNid)
 {
     auto ret = CollectUtil::GetNumaMemInfos(srcNid, {0}, numaMemInfos);
     if (ret != MEM_POOLING_OK) {
@@ -131,7 +131,7 @@ uint32_t PrepareSocketId(std::map<int, mempooling::NumaMetaData> &numaMemInfos, 
     return MEM_POOLING_OK;
 }
 
-uint32_t checkBorrowParam(const std::vector<uint64_t> &borrowSizes, const WaterMark &waterMark)
+uint32_t checkBorrowParam(const std::vector<uint64_t>& borrowSizes, const WaterMark& waterMark)
 {
     if (borrowSizes.empty() || borrowSizes.size() > MAX_BORROW_SIZES) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate] Parma borrowSizes Invalid.";
@@ -146,8 +146,8 @@ uint32_t checkBorrowParam(const std::vector<uint64_t> &borrowSizes, const WaterM
     return MEM_POOLING_OK;
 }
 
-uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam &srcParam, const std::vector<uint64_t> &borrowSizes,
-                          const WaterMark &waterMark, MemBorrowExecuteResult &result)
+uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam& srcParam, const std::vector<uint64_t>& borrowSizes,
+                          const WaterMark& waterMark, MemBorrowExecuteResult& result)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] Start Borrow.";
     if (checkBorrowParam(borrowSizes, waterMark) != MEM_POOLING_OK) {
@@ -161,16 +161,18 @@ uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam &srcParam, const std::vecto
             << "[MemBorrow] Update bind type failed. srcParam=" << srcParam.ToString()
             << ", bindType=" << BindTypeToStr(bindType) << ".";
     }
-    const auto mpSrcParam = mempooling::SrcMemoryBorrowParam{
-        .srcNid = srcParam.srcNid, .srcSocketId = srcParam.srcSocketId, .srcNumaId = srcParam.srcNumaId,
-        .uid = srcParam.uid, .username = srcParam.username};
+    const auto mpSrcParam = mempooling::SrcMemoryBorrowParam{.srcNid = srcParam.srcNid,
+                                                             .srcSocketId = srcParam.srcSocketId,
+                                                             .srcNumaId = srcParam.srcNumaId,
+                                                             .uid = srcParam.uid,
+                                                             .username = srcParam.username};
     std::vector<uint64_t> borrowKbSizes;
-    for (auto &borrowSize : borrowSizes) {
+    for (auto& borrowSize : borrowSizes) {
         (void)borrowKbSizes.emplace_back(borrowSize >> BYTE2KB);
     }
 
     // 借用执行
-    auto &mgr = ApiConcurrencyManager::getInstance();
+    auto& mgr = ApiConcurrencyManager::getInstance();
     if (!mgr.TryEnterOtherFunc()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] Concurrency is not supported.";
         return MEM_POOLING_ERROR;
@@ -195,7 +197,7 @@ uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam &srcParam, const std::vecto
     return ret;
 }
 
-uint32_t checkVMParam(const std::vector<VMPresetParam> &vmPresetParams)
+uint32_t checkVMParam(const std::vector<VMPresetParam>& vmPresetParams)
 {
     if (vmPresetParams.empty() || vmPresetParams.size() > MAX_VM_NUM) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate] VM number Invalid.";
@@ -211,8 +213,8 @@ uint32_t checkVMParam(const std::vector<VMPresetParam> &vmPresetParams)
 }
 
 // 执行UCache迁移
-MpResult UcacheMigrate(const std::vector<VMPresetParam> &vmPresetParams, const MemBorrowExecuteResult &result,
-                       const SrcMemoryBorrowParam &srcParam)
+MpResult UcacheMigrate(const std::vector<VMPresetParam>& vmPresetParams, const MemBorrowExecuteResult& result,
+                       const SrcMemoryBorrowParam& srcParam)
 {
     if (!mempooling::MpConfiguration::GetInstance().GetUcacheEnable()) {
         return MEM_POOLING_OK;
@@ -221,7 +223,7 @@ MpResult UcacheMigrate(const std::vector<VMPresetParam> &vmPresetParams, const M
     auto ret = MEM_POOLING_OK;
     UCacheMigrationStrategyParam ucacheStrategy = {};
     std::vector<pid_t> pids{};
-    for (auto &param : vmPresetParams) {
+    for (auto& param : vmPresetParams) {
         pids.push_back(param.pid);
     }
     std::vector<uint16_t> remoteNumaIds{};
@@ -246,13 +248,14 @@ MpResult UcacheMigrate(const std::vector<VMPresetParam> &vmPresetParams, const M
     return ret;
 }
 
-uint32_t HandleMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vector<BorrowRecord> &borrowRecord,
-                          const std::vector<VMPresetParam> &vmPresetParams, const std::vector<std::string> &borrowIds,
-                          std::vector<MemMigrateResult> &memMigrateResults)
+uint32_t HandleMemMigrate(const SrcMemoryBorrowParam& srcParam, const std::vector<BorrowRecord>& borrowRecord,
+                          const std::vector<VMPresetParam>& vmPresetParams, const std::vector<std::string>& borrowIds,
+                          std::vector<MemMigrateResult>& memMigrateResults)
 {
     std::vector<MemBorrowInfoWithSrc> memTotalBorrowInfos;
 
-    if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE && MpConfiguration::GetInstance().GetMultiNumaScene() == true) {
+    if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE &&
+        MpConfiguration::GetInstance().GetMultiNumaScene() == true) {
         // 多numa场景+虚机场景 迁移执行
         if (memMigrateResults.empty()) {
             // 多numa虚机场景下，若生成迁移策略为空，则直接失败返回
@@ -280,8 +283,7 @@ uint32_t HandleMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vecto
     // 迁移执行
     auto ret = OverCommitMsgHandler::MigrateLocalHandler(srcParam, memTotalBorrowInfos, memMigrateResults);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemMigrate] Migrate failed, retcode=" << ret << ".";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate] Migrate failed, retcode=" << ret << ".";
         return ret;
     }
 
@@ -289,14 +291,14 @@ uint32_t HandleMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vecto
 }
 
 // 更新UCache迁移比例
-void CallUpdateUcacheUsageRatio(const std::vector<VMPresetParam> &vmPresetParams,
-                                const std::vector<BorrowRecord> borrowRecord, const SrcMemoryBorrowParam &srcParam)
+void CallUpdateUcacheUsageRatio(const std::vector<VMPresetParam>& vmPresetParams,
+                                const std::vector<BorrowRecord> borrowRecord, const SrcMemoryBorrowParam& srcParam)
 {
     if (!MpConfiguration::GetInstance().GetUcacheEnable()) {
         return;
     }
     std::vector<pid_t> pids{};
-    for (auto &param : vmPresetParams) {
+    for (auto& param : vmPresetParams) {
         pids.push_back(param.pid);
     }
     uint64_t borrowMemKB{};
@@ -306,8 +308,8 @@ void CallUpdateUcacheUsageRatio(const std::vector<VMPresetParam> &vmPresetParams
     UpdateUcacheUsageRatio(pids, borrowMemKB, srcParam.srcNid);
 }
 
-uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vector<VMPresetParam> &vmPresetParams,
-                           const MemBorrowExecuteResult &result)
+uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam& srcParam, const std::vector<VMPresetParam>& vmPresetParams,
+                           const MemBorrowExecuteResult& result)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate] Start mem migrate.";
     auto guard = InterfaceGuard::InvokeOutMemMigrate();
@@ -342,7 +344,7 @@ uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vect
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate] Process memMigrateResults is empty.";
     }
     // 迁移执行
-    auto &mgr = ApiConcurrencyManager::getInstance();
+    auto& mgr = ApiConcurrencyManager::getInstance();
     if (!mgr.TryEnterOtherFunc()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemMigrate] Concurrency is not supported, the current function cannot be entered.";
@@ -360,9 +362,9 @@ uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vect
     return MEM_POOLING_OK;
 }
 
-bool HasPidInMigratePids(const std::vector<pid_t> &pids, const std::vector<pid_t> &migratePids)
+bool HasPidInMigratePids(const std::vector<pid_t>& pids, const std::vector<pid_t>& migratePids)
 {
-    for (const auto &pid : pids) {
+    for (const auto& pid : pids) {
         if (std::find(migratePids.begin(), migratePids.end(), pid) != migratePids.end()) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemReturn] HasPidInMigratePids hits, pid=" << pid << " is in migratePids.";
@@ -372,13 +374,13 @@ bool HasPidInMigratePids(const std::vector<pid_t> &pids, const std::vector<pid_t
     return false;
 }
 
-uint32_t FilterRemoteNumaPidsByLocalNuma(const std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
-                                         const std::vector<pid_t> &remoteNumaPids, const uint16_t localNumaId,
-                                         std::vector<pid_t> &pidsOnNuma)
+uint32_t FilterRemoteNumaPidsByLocalNuma(const std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
+                                         const std::vector<pid_t>& remoteNumaPids, const uint16_t localNumaId,
+                                         std::vector<pid_t>& pidsOnNuma)
 {
-    for (const auto &pid : remoteNumaPids) {
+    for (const auto& pid : remoteNumaPids) {
         // 过滤告警节点上的虚拟机
-        for (auto &vminfo : vmNumaInfoWithSocketList) {
+        for (auto& vminfo : vmNumaInfoWithSocketList) {
             if (vminfo.pid == pid && vminfo.localNumaId == localNumaId) {
                 pidsOnNuma.push_back(vminfo.pid);
             }
@@ -390,7 +392,8 @@ uint32_t FilterRemoteNumaPidsByLocalNuma(const std::vector<VmNumaInfoWithSocket>
     return MEM_POOLING_OK;
 }
 
-MpResult GenpidsOnNuma(int16_t srcNumaId, std::vector<pid_t> &pidsOnNuma, std::vector<mempooling::RmrsPidInfo> &pidInfos)
+MpResult GenpidsOnNuma(int16_t srcNumaId, std::vector<pid_t>& pidsOnNuma,
+                       std::vector<mempooling::RmrsPidInfo>& pidInfos)
 {
     for (auto pInfo : pidInfos) {
         if (pInfo.localNumaIds.empty()) {
@@ -408,8 +411,8 @@ MpResult GenpidsOnNuma(int16_t srcNumaId, std::vector<pid_t> &pidsOnNuma, std::v
     return MEM_POOLING_OK;
 }
 
-MpResult ProcessBorrowIds(const SrcMemoryBorrowParam &srcParam, const std::vector<std::string> &borrowIds,
-                          const std::vector<pid_t> &migratePids, ReturnNeedMaps &returnNeedMaps)
+MpResult ProcessBorrowIds(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& borrowIds,
+                          const std::vector<pid_t>& migratePids, ReturnNeedMaps& returnNeedMaps)
 {
     MpResult ret = MEM_POOLING_OK;
     bool hasPidInMigratePids = false;
@@ -421,7 +424,7 @@ MpResult ProcessBorrowIds(const SrcMemoryBorrowParam &srcParam, const std::vecto
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &borrowId : borrowIds) {
+    for (const auto& borrowId : borrowIds) {
         bool exists = std::find(faultProcessBorrowIds.begin(), faultProcessBorrowIds.end(), borrowId) !=
                       faultProcessBorrowIds.end();
         if (exists) {
@@ -474,8 +477,8 @@ MpResult ProcessBorrowIds(const SrcMemoryBorrowParam &srcParam, const std::vecto
     return ret;
 }
 
-uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vector<std::string> &borrowIds,
-                          const std::vector<pid_t> &migratePids)
+uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& borrowIds,
+                          const std::vector<pid_t>& migratePids)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] Start Return.";
     auto guard = InterfaceGuard::InvokeOutMemReturn();
@@ -492,7 +495,7 @@ uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vecto
     const auto borrowIdNuma2Size = GenBorrowIdNuma2Size(borrowNuma, borrowRecord, borrowIds);
     auto borrowId2NumaId = GenBorrowId2NumaId(borrowRecord, borrowIds);
     std::vector<std::uint32_t> remoteIds;
-    for (const auto &[key, value] : borrowId2NumaId) {
+    for (const auto& [key, value] : borrowId2NumaId) {
         // 检查值是否已存在
         if (std::find(remoteIds.begin(), remoteIds.end(), value) == remoteIds.end()) {
             remoteIds.push_back(value);
@@ -514,7 +517,7 @@ uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vecto
                                           .borrowNumaId2Pids = borrowNumaId2Pids,
                                           .borrowId2NumaId = borrowId2NumaId});
 
-    auto &mgr = ApiConcurrencyManager::getInstance();
+    auto& mgr = ApiConcurrencyManager::getInstance();
     if (!mgr.TryEnterOtherFunc()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] Concurrency is not supported.";
         return MEM_POOLING_ERROR;
@@ -530,7 +533,7 @@ uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vecto
     return MEM_POOLING_OK;
 }
 
-void PrintReturnInfo(const SrcMemoryBorrowParam &srcParam, const std::string &borrowId, const uint16_t &presentNumaId,
+void PrintReturnInfo(const SrcMemoryBorrowParam& srcParam, const std::string& borrowId, const uint16_t& presentNumaId,
                      int pidSize)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] srcParam.srcNid=" << srcParam.srcNid << ".";
@@ -542,7 +545,7 @@ void PrintReturnInfo(const SrcMemoryBorrowParam &srcParam, const std::string &bo
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] presentNumaId=" << presentNumaId << ".";
 }
 
-void PersistenceRemovePid(const int16_t presentRemoteNumaId, const std::vector<pid_t> &pids)
+void PersistenceRemovePid(const int16_t presentRemoteNumaId, const std::vector<pid_t>& pids)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemReturn] borrowIdNuma2Size = 0, need to PersistenceRemovePid.";
@@ -554,8 +557,8 @@ void PersistenceRemovePid(const int16_t presentRemoteNumaId, const std::vector<p
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] Update RemovePidCompleted pids success.";
     }
 }
- 
-void DeletePersistenceRemovePid(const int16_t presentRemoteNumaId, const std::vector<pid_t> &pids)
+
+void DeletePersistenceRemovePid(const int16_t presentRemoteNumaId, const std::vector<pid_t>& pids)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemReturn] Delete PersistenceRemovePid of presentRemoteNumaId=" << presentRemoteNumaId << ".";
@@ -568,11 +571,11 @@ void DeletePersistenceRemovePid(const int16_t presentRemoteNumaId, const std::ve
     }
 }
 
-uint32_t ReturnBorrowId(const SrcMemoryBorrowParam &srcParam, const std::vector<pid_t> &pids,
-                        const std::string &borrowId, const uint16_t &presentNumaId, ReturnNeedMaps &returnNeedMaps)
+uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<pid_t>& pids,
+                        const std::string& borrowId, const uint16_t& presentNumaId, ReturnNeedMaps& returnNeedMaps)
 {
     PrintReturnInfo(srcParam, borrowId, presentNumaId, pids.size());
-    auto &[borrowId2Size, borrowIdNuma2Size, borrowNumaId2Pids, _] = returnNeedMaps;
+    auto& [borrowId2Size, borrowIdNuma2Size, borrowNumaId2Pids, _] = returnNeedMaps;
     if (borrowId.empty()) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] borrowId is empty, skip.";
         return MEM_POOLING_OK;
@@ -622,12 +625,12 @@ uint32_t ReturnBorrowId(const SrcMemoryBorrowParam &srcParam, const std::vector<
     return MEM_POOLING_OK;
 }
 
-std::unordered_set<std::uint16_t> GenBorroIdRemoteNumaSet(const std::vector<BorrowRecord> &borrowRecords,
-                                                          const std::vector<std::string> &borrowIds)
+std::unordered_set<std::uint16_t> GenBorroIdRemoteNumaSet(const std::vector<BorrowRecord>& borrowRecords,
+                                                          const std::vector<std::string>& borrowIds)
 {
     std::unordered_set<std::uint16_t> remoteNumaIds;
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode,
-                      borrowLocalNuma, borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) == borrowIds.end()) {
             continue;
         }
@@ -636,13 +639,13 @@ std::unordered_set<std::uint16_t> GenBorroIdRemoteNumaSet(const std::vector<Borr
     return remoteNumaIds;
 }
 
-std::vector<MemBorrowInfoWithSrc> GenNumaTotalBorrowSizes(const std::vector<BorrowRecord> &borrowRecords,
-                                                          const std::vector<std::string> &borrowIds)
+std::vector<MemBorrowInfoWithSrc> GenNumaTotalBorrowSizes(const std::vector<BorrowRecord>& borrowRecords,
+                                                          const std::vector<std::string>& borrowIds)
 {
     const auto remoteNumaIds = GenBorroIdRemoteNumaSet(borrowRecords, borrowIds);
     std::unordered_map<std::uint16_t, uint64_t> remoteNumaId2BorrowSizeMap;
     std::vector<MemBorrowInfoWithSrc> result;
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         if (remoteNumaIds.find(borrowRemoteNuma) == remoteNumaIds.end()) {
             continue;
@@ -655,12 +658,12 @@ std::vector<MemBorrowInfoWithSrc> GenNumaTotalBorrowSizes(const std::vector<Borr
     return result;
 }
 
-std::vector<MemBorrowInfo> GenNumaCurBorrowSizes(const std::vector<BorrowRecord> &borrowRecords,
-                                                 const std::vector<std::string> &borrowIds)
+std::vector<MemBorrowInfo> GenNumaCurBorrowSizes(const std::vector<BorrowRecord>& borrowRecords,
+                                                 const std::vector<std::string>& borrowIds)
 {
     std::unordered_map<std::uint16_t, uint64_t> remoteNumaId2BorrowSizeMap;
     std::vector<MemBorrowInfo> result;
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) == borrowIds.end()) {
             continue;
@@ -672,17 +675,17 @@ std::vector<MemBorrowInfo> GenNumaCurBorrowSizes(const std::vector<BorrowRecord>
         }
     }
 
-    for (const auto &[fst, snd] : remoteNumaId2BorrowSizeMap) {
+    for (const auto& [fst, snd] : remoteNumaId2BorrowSizeMap) {
         (void)result.emplace_back(MemBorrowInfo({.presentNumaId = fst, .borrowSize = snd}));
     }
     return result;
 }
 
-std::unordered_map<std::string, std::uint64_t> GenBorrowId2Size(const std::vector<BorrowRecord> &borrowRecords,
-                                                                const std::vector<std::string> &borrowIds)
+std::unordered_map<std::string, std::uint64_t> GenBorrowId2Size(const std::vector<BorrowRecord>& borrowRecords,
+                                                                const std::vector<std::string>& borrowIds)
 {
     std::unordered_map<std::string, std::uint64_t> result;
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) != borrowIds.end()) {
             result[name] = size;
@@ -691,13 +694,13 @@ std::unordered_map<std::string, std::uint64_t> GenBorrowId2Size(const std::vecto
     return result;
 }
 
-std::unordered_map<std::uint16_t, std::uint64_t> GenBorrowIdNuma2Size(const int16_t &srcNumaId,
-                                                                      const std::vector<BorrowRecord> &borrowRecords,
-                                                                      const std::vector<std::string> &borrowIds)
+std::unordered_map<std::uint16_t, std::uint64_t> GenBorrowIdNuma2Size(const int16_t& srcNumaId,
+                                                                      const std::vector<BorrowRecord>& borrowRecords,
+                                                                      const std::vector<std::string>& borrowIds)
 {
     const auto remoteNumaIds = GenBorroIdRemoteNumaSet(borrowRecords, borrowIds);
     std::unordered_map<std::uint16_t, std::uint64_t> result;
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         if (remoteNumaIds.find(borrowRemoteNuma) == remoteNumaIds.end() ||
             (srcNumaId != -1 && borrowLocalNuma != srcNumaId)) {
@@ -712,12 +715,12 @@ std::unordered_map<std::uint16_t, std::uint64_t> GenBorrowIdNuma2Size(const int1
     return result;
 }
 
-std::unordered_map<std::string, std::uint16_t> GenBorrowId2NumaId(const std::vector<BorrowRecord> &borrowRecords,
-                                                                  const std::vector<std::string> &borrowIds)
+std::unordered_map<std::string, std::uint16_t> GenBorrowId2NumaId(const std::vector<BorrowRecord>& borrowRecords,
+                                                                  const std::vector<std::string>& borrowIds)
 {
     const auto remoteNumaIds = GenBorroIdRemoteNumaSet(borrowRecords, borrowIds);
     std::unordered_map<std::string, std::uint16_t> result;
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) != borrowIds.end()) {
             result[name] = borrowRemoteNuma;
@@ -726,7 +729,7 @@ std::unordered_map<std::string, std::uint16_t> GenBorrowId2NumaId(const std::vec
     return result;
 }
 
-uint32_t UBSRMRSSetWaterMark(const WaterMark &waterMark)
+uint32_t UBSRMRSSetWaterMark(const WaterMark& waterMark)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[SetWaterMark] High water line is " << waterMark.highWaterMark
                                                       << "Low water line is" << waterMark.lowWaterMark << ".";
@@ -734,7 +737,7 @@ uint32_t UBSRMRSSetWaterMark(const WaterMark &waterMark)
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[SetWaterMark] Set value is invalid.";
         return MEM_POOLING_ERROR;
     }
-    auto &mgr = ApiConcurrencyManager::getInstance();
+    auto& mgr = ApiConcurrencyManager::getInstance();
     if (!mgr.TryEnterOtherFunc()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[SetWaterMark] Concurrency is not supported, the current function cannot be entered.";

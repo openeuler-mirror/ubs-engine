@@ -20,7 +20,7 @@ using namespace ubse::adapter_plugins::mmi;
 class UbseMemShareAttachReqSimpo : public UbseBaseMessage {
 public:
     UbseMemShareAttachReqSimpo() = default;
-    explicit UbseMemShareAttachReqSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemShareAttachReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

@@ -25,4 +25,4 @@ ubse::common::def::UbseResult ubse::mock::MockDependencyModule::Start()
     return 0;
 }
 void ubse::mock::MockDependencyModule::Stop() {}
-}
+} // namespace ubse::mock

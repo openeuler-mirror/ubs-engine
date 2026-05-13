@@ -5,8 +5,6 @@
 #include "ubse_node_controller_util.h"
 #include <optional>
 #include <unordered_map>
-#include "adapter_plugins/mti/ubse_mti_interface.h"
-#include "securec.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -18,6 +16,8 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_str_util.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "securec.h"
 namespace ubse::nodeController {
 using namespace ubse::common::def;
 using namespace ubse::context;
@@ -34,7 +34,7 @@ std::unordered_map<std::string, std::shared_ptr<std::shared_mutex>> UbseNodeCont
 
 bool ubEnable = false;
 
-std::shared_ptr<std::shared_mutex> UbseNodeControllerLockMgr::GetLock(const std::string &nodeId)
+std::shared_ptr<std::shared_mutex> UbseNodeControllerLockMgr::GetLock(const std::string& nodeId)
 {
     std::lock_guard<std::mutex> mapLock(nodeControllerMutex_);
     auto it = nodeControllerLocks_.find(nodeId);
@@ -46,32 +46,32 @@ std::shared_ptr<std::shared_mutex> UbseNodeControllerLockMgr::GetLock(const std:
     return lock;
 }
 
-void UbseNodeControllerLockMgr::WriteLock(const std::string &nodeId)
+void UbseNodeControllerLockMgr::WriteLock(const std::string& nodeId)
 {
     GetLock(nodeId)->lock();
 }
 
-void UbseNodeControllerLockMgr::WriteUnLock(const std::string &nodeId)
+void UbseNodeControllerLockMgr::WriteUnLock(const std::string& nodeId)
 {
     GetLock(nodeId)->unlock();
 }
 
-void UbseNodeControllerLockMgr::TryWriteLock(const std::string &nodeId)
+void UbseNodeControllerLockMgr::TryWriteLock(const std::string& nodeId)
 {
     GetLock(nodeId)->try_lock();
 }
 
-void UbseNodeControllerLockMgr::ReadLock(const std::string &nodeId)
+void UbseNodeControllerLockMgr::ReadLock(const std::string& nodeId)
 {
     GetLock(nodeId)->lock_shared();
 }
 
-void UbseNodeControllerLockMgr::ReadUnLock(const std::string &nodeId)
+void UbseNodeControllerLockMgr::ReadUnLock(const std::string& nodeId)
 {
     GetLock(nodeId)->unlock_shared();
 }
 
-bool UbseNodeControllerLockMgr::TryReadLock(const std::string &nodeId)
+bool UbseNodeControllerLockMgr::TryReadLock(const std::string& nodeId)
 {
     return GetLock(nodeId)->try_lock_shared();
 }
@@ -142,7 +142,7 @@ uint32_t GetBlockSize(UbseAllocator allocator)
     }
     if (osPageSize == PAGE_SIZE_64K) {
         blockSize = BLOCK_512M;
-    } else if (osPageSize == PAGE_SIZE_4K)  {
+    } else if (osPageSize == PAGE_SIZE_4K) {
         blockSize = BLOCK_128M;
     } else {
         UBSE_LOG_WARN << "Get os page_size type is invalid, Use default value 4096";
@@ -152,7 +152,7 @@ uint32_t GetBlockSize(UbseAllocator allocator)
     return blockSize;
 }
 
-void GetCurNodeInfo(UbseNodeInfo &info)
+void GetCurNodeInfo(UbseNodeInfo& info)
 {
     adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{};
     auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);

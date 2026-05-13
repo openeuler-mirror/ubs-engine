@@ -19,10 +19,10 @@ class UbseCliBufferGuard {
 public:
     UbseCliBufferGuard() = delete;
     ~UbseCliBufferGuard();
-    explicit UbseCliBufferGuard(ubse_api_buffer_t &buffer) : ubseApiBuffer_(buffer){};
+    explicit UbseCliBufferGuard(ubse_api_buffer_t& buffer) : ubseApiBuffer_(buffer){};
 
 private:
-    ubse_api_buffer_t &ubseApiBuffer_;
+    ubse_api_buffer_t& ubseApiBuffer_;
 };
 } // namespace ubse::cli::reg
 

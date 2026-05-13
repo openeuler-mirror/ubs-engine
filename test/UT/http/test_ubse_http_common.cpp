@@ -60,4 +60,4 @@ TEST_F(TestUbseHttpCommon, StringToUbseHttpMethod)
     EXPECT_EQ(StringToUbseHttpMethod("HEAD"), UbseHttpMethod::UBSE_HTTP_METHOD_HEAD);
     EXPECT_EQ(StringToUbseHttpMethod("INVALID"), UbseHttpMethod::UBSE_HTTP_METHOD_INVALID);
 }
-}
+} // namespace ubse::ut::http

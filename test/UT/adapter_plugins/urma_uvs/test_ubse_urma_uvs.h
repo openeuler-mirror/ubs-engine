@@ -20,10 +20,11 @@
 #include "ubse_urma_uvs_module.h"
 
 namespace ubse::urma {
-extern UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
-                           const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
-extern UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
-}
+extern UbseResult FillNodeComInfo(const std::vector<PhysicalLink>& allLinkInfo,
+                                  const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo,
+                                  std::vector<UbcoreTopoNode>& nodes);
+extern UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
+} // namespace ubse::urma
 
 namespace ubse::urma::ut {
 class TestUrmaUvs : public testing::Test {
@@ -34,5 +35,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::urma::ut
 #endif //TEST_UBSE_URMA_UVS_H

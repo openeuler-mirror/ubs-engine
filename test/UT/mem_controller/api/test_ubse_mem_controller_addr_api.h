@@ -17,13 +17,13 @@
 #include <mockcpp/mockcpp.hpp>
 #include "ubse_mem_controller_api.h"
 namespace ubse::mem_controller::addr::ut {
-    class TestUbseMemControllerAddrApi : public testing::Test {
-    public:
-        TestUbseMemControllerAddrApi() = default;
+class TestUbseMemControllerAddrApi : public testing::Test {
+public:
+    TestUbseMemControllerAddrApi() = default;
 
-        void SetUp() override;
+    void SetUp() override;
 
-        void TearDown() override;
-    };
-}  // namespace ubse::mem_controller::ut
+    void TearDown() override;
+};
+} // namespace ubse::mem_controller::addr::ut
 #endif // TEST_UBSE_MEM_CONTROLLER_ADDR_API_H

@@ -32,7 +32,7 @@ TEST_F(TestMempoolingModule, InitSuccess)
 {
     MempoolingModule module;
     auto MockLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&MockLibrary)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&MockLibrary)));
     const auto ret = module.Init();
     EXPECT_EQ(ret, VM_OK);
     MOCKER(dlopen).reset();
@@ -41,7 +41,7 @@ TEST_F(TestMempoolingModule, InitSuccess)
 TEST_F(TestMempoolingModule, InitFailure)
 {
     MempoolingModule module;
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(nullptr)));
     const auto ret = module.Init();
     EXPECT_EQ(ret, VM_ERROR);
     MOCKER(dlopen).reset();
@@ -49,136 +49,136 @@ TEST_F(TestMempoolingModule, InitFailure)
 
 TEST_F(TestMempoolingModule, UBSRMRSUpdateAntiNode)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSUpdateAntiNode(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSUpdateAntiNode(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMemBorrowStrategy)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMemBorrowStrategy(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMemBorrowStrategy(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMemBorrowExecute)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMemBorrowExecute(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMemBorrowExecute(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMigrateStrategy)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMigrateStrategy(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMigrateStrategy(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMigrateExecute)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMigrateExecute(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMigrateExecute(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMemFree)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMemFree(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMemFree(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMemBorrowRollback)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMemBorrowRollback(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMemBorrowRollback(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSGetVmInfoListOnNode)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSGetVmInfoListOnNode(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSGetVmInfoListOnNode(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSGetNumaInfoListOnNode)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSGetNumaInfoListOnNode(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSGetNumaInfoListOnNode(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMemBorrow)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMemBorrow(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMemBorrow(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMemMigrate)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMemMigrate(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMemMigrate(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSMemReturn)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSMemReturn(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSMemReturn(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSSetRunMode)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSSetRunMode(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSSetRunMode(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSPidNumaInfoCollect)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSPidNumaInfoCollect(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSPidNumaInfoCollect(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSSetWaterMark)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSSetWaterMark(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSSetWaterMark(), nullptr);
 }
 } // namespace ubse::ut::vm

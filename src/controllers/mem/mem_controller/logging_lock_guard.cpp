@@ -26,7 +26,7 @@ const uint32_t USE_COUNT_WHEN_ONLY_ONE_USER = 2;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-std::shared_ptr<std::mutex> LoggingLockGuard::GetObjMutex(const std::string &objId)
+std::shared_ptr<std::mutex> LoggingLockGuard::GetObjMutex(const std::string& objId)
 {
     std::unique_lock<std::mutex> lock(mapMutex);
     if (mutexMap.find(objId) == mutexMap.end()) {
@@ -35,7 +35,7 @@ std::shared_ptr<std::mutex> LoggingLockGuard::GetObjMutex(const std::string &obj
     return mutexMap[objId];
 }
 
-void LoggingLockGuard::RemoveObjMutex(const std::string &objId)
+void LoggingLockGuard::RemoveObjMutex(const std::string& objId)
 {
     std::unique_lock<std::mutex> lock(mapMutex);
     if (mutexMap.find(objId) != mutexMap.end()) {
@@ -45,7 +45,7 @@ void LoggingLockGuard::RemoveObjMutex(const std::string &objId)
     }
 }
 
-LoggingLockGuard::LoggingLockGuard(const std::string &name) : mutex_(GetObjMutex(name)), name_(name)
+LoggingLockGuard::LoggingLockGuard(const std::string& name) : mutex_(GetObjMutex(name)), name_(name)
 {
     (*mutex_).lock();
     UBSE_LOG_INFO << "Locked name=" << name;

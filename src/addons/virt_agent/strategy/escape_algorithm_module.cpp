@@ -17,7 +17,7 @@ namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
-void *EscapeAlgorithmModule::algorithmHandle = nullptr;
+void* EscapeAlgorithmModule::algorithmHandle = nullptr;
 EscapeAlgorithmInitFunc EscapeAlgorithmModule::escapeAlgorithmInitFunc = nullptr;
 EscapeAlgorithmFunc EscapeAlgorithmModule::escapeAlgorithmFunc = nullptr;
 
@@ -72,7 +72,7 @@ void EscapeAlgorithmModule::CloseStrategyHandle()
     algorithmHandle = nullptr;
 }
 
-void EscapeAlgorithmModule::VmEscapeLog(int level, const char *str)
+void EscapeAlgorithmModule::VmEscapeLog(int level, const char* str)
 {
     if (str == nullptr) {
         str = "";

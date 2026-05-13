@@ -50,7 +50,7 @@ public:
      * 获取已加载插件
      * @param loadedPlugins 已加载插件集合
      */
-    void GetLoadedPlugins(std::vector<std::string> &loadedPlugins);
+    void GetLoadedPlugins(std::vector<std::string>& loadedPlugins);
 
     /**
      * @brief 获取已加载插件句柄
@@ -58,7 +58,7 @@ public:
      * @param pluginName 插件名称
      * @return void* 插件句柄
      */
-    void *GetLoadedPlugin(const std::string &pluginName);
+    void* GetLoadedPlugin(const std::string& pluginName);
 
 private:
     /**
@@ -73,14 +73,14 @@ private:
      * @param fileName so文件路径
      * @return UbseResult
      */
-    UbseResult LoadAndInitPlugin(const std::string &pluginName, const std::string &fileName);
+    UbseResult LoadAndInitPlugin(const std::string& pluginName, const std::string& fileName);
 
     /**
      * 卸载单个插件，调用趋势化函数，并关闭so文件
      * @param pluginName 插件名称
      * @return UbseResult
      */
-    UbseResult DeInitializePlugin(const std::string &pluginName);
+    UbseResult DeInitializePlugin(const std::string& pluginName);
 
     /**
      * 加载指定插件的模块（so文件）。
@@ -88,7 +88,7 @@ private:
      * @param fileName so文件路径
      * @return UbseResult
      */
-    UbseResult LoadPluginModule(const std::string &pluginName, const std::string &fileName);
+    UbseResult LoadPluginModule(const std::string& pluginName, const std::string& fileName);
 
     /**
      * 获取指定插件的初始化函数。
@@ -96,9 +96,9 @@ private:
      * @param funcName 函数名称
      * @return UbsePluginInitFunc 初始化函数指针
      */
-    UbsePluginInitFunc GetInitFunction(const std::string &pluginName, const std::string &funcName);
+    UbsePluginInitFunc GetInitFunction(const std::string& pluginName, const std::string& funcName);
 
-    UbseResult InitProcessPlugin(const std::string &pluginName, const uint16_t &moduleCode);
+    UbseResult InitProcessPlugin(const std::string& pluginName, const uint16_t& moduleCode);
 
 private:
     // 插件准入配置管理器，用于加载和管理插件准入信息
@@ -109,7 +109,7 @@ private:
 
     mutable std::shared_mutex loadedPluginModulesMutex_;
     // 存储所有已加载插件的模块句柄
-    std::map<std::string, void *> loadedPluginModules_;
+    std::map<std::string, void*> loadedPluginModules_;
 };
 } // namespace ubse::plugin
 #endif // UBSE_PLUGIN_MANAGER_H

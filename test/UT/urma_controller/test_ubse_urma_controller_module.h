@@ -13,11 +13,11 @@
 #ifndef TEST_UBSE_URMA_CONTROLLER_MODULE_H
 #define TEST_UBSE_URMA_CONTROLLER_MODULE_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mokc.h>
-#include "ubse_urma_controller_module.h"
 #include "ubse_context.h"
+#include "ubse_urma_controller_module.h"
 
 namespace ubse::urmaControllerModule::ut {
 

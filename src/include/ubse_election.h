@@ -38,14 +38,14 @@ struct UbseRoleInfo {
 
     UbseRoleInfo() : nodeId("unknown"), nodeRole("unknown"), status(0) {} // 设置默认值
 
-    UbseRoleInfo(const std::string &id, const std::string &role, int stat = 0)
+    UbseRoleInfo(const std::string& id, const std::string& role, int stat = 0)
         : nodeId(id),
           nodeRole(role),
           status(stat)
     {
     }
 
-    bool operator==(const UbseRoleInfo &other) const
+    bool operator==(const UbseRoleInfo& other) const
     {
         return nodeId == other.nodeId; // 比较字符串内容
     }
@@ -70,7 +70,7 @@ enum class UbseElectionEventType {
 // 获取所有枚举值的数组
 constexpr std::array<UbseElectionEventType, static_cast<std::size_t>(UbseElectionEventType::COUNT)> GetEleEventTypes()
 {
-    return { {
+    return {{
         UbseElectionEventType::CHANGE_TO_MASTER,
         UbseElectionEventType::CHANGE_TO_STANDBY,
         UbseElectionEventType::CHANGE_TO_AGENT,
@@ -80,7 +80,7 @@ constexpr std::array<UbseElectionEventType, static_cast<std::size_t>(UbseElectio
         UbseElectionEventType::MASTER_ONLINE_NOTIFICATION,
         UbseElectionEventType::NODE_UP,
         UbseElectionEventType::NODE_DOWN,
-    } };
+    }};
 }
 
 // 检查 UbseElectionEventType 是否存在于枚举中
@@ -92,7 +92,7 @@ enum class UbseElectionHandlerPriority {
     LOW
 };
 
-using ElectinHandler = std::function<uint32_t(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)>;
+using ElectinHandler = std::function<uint32_t(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)>;
 
 struct UbseElectionHandler {
     UbseElectionEventType type;           // 事件类型
@@ -100,21 +100,20 @@ struct UbseElectionHandler {
     UbseElectionHandlerPriority priority; // 优先级
     int sequenceId{};                     // 执行顺序
     ElectinHandler handler;               // 注册函数
-    bool operator < (const UbseElectionHandler &other) const
+    bool operator<(const UbseElectionHandler& other) const
     {
         if (priority != other.priority) {
             return priority < other.priority;
         }
         return sequenceId < other.sequenceId;
     }
-    bool operator == (const UbseElectionHandler &other) const
+    bool operator==(const UbseElectionHandler& other) const
     {
-        return type == other.type && name == other.name && priority == other.priority &&
-            sequenceId == other.sequenceId;
+        return type == other.type && name == other.name && priority == other.priority && sequenceId == other.sequenceId;
     }
     ~UbseElectionHandler()
     {
-        handler= nullptr;
+        handler = nullptr;
     }
 };
 
@@ -131,35 +130,35 @@ public:
     }
 
     // 设置事件类型
-    inline UbseElectionHandlerBuilder &SetType(UbseElectionEventType type)
+    inline UbseElectionHandlerBuilder& SetType(UbseElectionEventType type)
     {
         ubseElectionHandler.type = type;
         return *this;
     }
 
     // 设置优先级
-    inline UbseElectionHandlerBuilder &SetPriority(UbseElectionHandlerPriority priority)
+    inline UbseElectionHandlerBuilder& SetPriority(UbseElectionHandlerPriority priority)
     {
         ubseElectionHandler.priority = priority;
         return *this;
     }
 
     // 设置执行顺序
-    inline UbseElectionHandlerBuilder &SetSequenceId(int sequenceId)
+    inline UbseElectionHandlerBuilder& SetSequenceId(int sequenceId)
     {
         ubseElectionHandler.sequenceId = sequenceId;
         return *this;
     }
 
     // 设置函数名
-    inline UbseElectionHandlerBuilder &SetName(const std::string &name)
+    inline UbseElectionHandlerBuilder& SetName(const std::string& name)
     {
         ubseElectionHandler.name = name;
         return *this;
     }
 
     // 设置回调函数
-    inline UbseElectionHandlerBuilder &SetHandler(ElectinHandler handler = nullptr)
+    inline UbseElectionHandlerBuilder& SetHandler(ElectinHandler handler = nullptr)
     {
         ubseElectionHandler.handler = std::move(handler);
         return *this;
@@ -180,7 +179,7 @@ private:
  * @param [in/out] count: 节点数量
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetNodeCount(uint32_t &count);
+uint32_t UbseGetNodeCount(uint32_t& count);
 
 /**
  * @brief 获取count个节点的角色信息
@@ -188,7 +187,7 @@ uint32_t UbseGetNodeCount(uint32_t &count);
  * @param [in/out] count: 节点个数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo> &roleInfos, uint32_t &count);
+uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo>& roleInfos, uint32_t& count);
 
 /**
  * @brief 获取单个节点的角色信息
@@ -196,21 +195,21 @@ uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo> &roleInfos, uint32_t &count)
  * @param [in] nodeId: 节点ID
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetRoleInfo(UbseRoleInfo &roleInfo, const std::string &nodeId);
+uint32_t UbseGetRoleInfo(UbseRoleInfo& roleInfo, const std::string& nodeId);
 
 /**
  * @brief 获取主节点信息
  * @param [out] roleInfo: 主节点信息
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetMasterInfo(UbseRoleInfo &roleInfo);
+uint32_t UbseGetMasterInfo(UbseRoleInfo& roleInfo);
 
 /**
  * @brief 获取备节点信息
  * @param [out] roleInfo: 备节点信息
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetStandbyInfo(UbseRoleInfo &roleInfo);
+uint32_t UbseGetStandbyInfo(UbseRoleInfo& roleInfo);
 
 /**
  * @brief 获取所有节点信息(分布式选举集群中的节点)
@@ -222,21 +221,21 @@ uint32_t UbseGetStandbyInfo(UbseRoleInfo &roleInfo);
  *  三个节点，主未选出备：{"Node0", "master"; "Node1", "agent"; "Node2", "agent"}
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo> &roleInfos);
+uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo>& roleInfos);
 
 /**
  * @brief 新增选举角色改变的回调函数
  * @param [in] handler 回调函数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler &handler);
+uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler& handler);
 
 /**
  * @brief 移除选举角色改变的回调函数
  * @param [in] handler 回调函数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler);
+uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler& handler);
 
 /**
  * @brief 查询 master/standby/agent 节点工作状态（agent 表示当前节点工作状态）
@@ -244,49 +243,49 @@ uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler);
  * @param [in/out] status 节点工作状态 0：没有准备好，1：准备好
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetNodeStatus(const std::string &role, uint8_t &status);
+uint32_t UbseGetNodeStatus(const std::string& role, uint8_t& status);
 
 /**
  * @brief 查询当前节点信息
  * @param [out] currentNode: 当前节点信息，当前节点角色有 master/standby/agent/initiator
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo &currentNode);
+uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo& currentNode);
 
 /**
  * @brief 查询所有物理节点 nodeIds
  * @param [out] nodeIds: 所有物理节点id
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE> &nodeIds);
+uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE>& nodeIds);
 
 /**
  * @brief 查询当前所有节点状态
  * @param roleInfos [out]: 当前所有节点状态信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos);
+uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo>& roleInfos);
 
 /**
  * 获取当前角色
  * @param role [OUT] 待获取角色
  * @return UbseResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetRole(std::string &role);
+uint32_t UbseGetRole(std::string& role);
 
 /**
  * 获得Master角色节点ID
  * @param masterNodeId [out] Master角色节点ID
  * @return UbseResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetMasterNodeId(std::string &masterNodeId);
+uint32_t UbseGetMasterNodeId(std::string& masterNodeId);
 
 /**
  * 获得当前节点的NodeID
  * @param currentNodeId [out] 获得当前节点的NodeID
  * @return UbseResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetCurrentNodeId(std::string &currentNodeId);
-}
+uint32_t UbseGetCurrentNodeId(std::string& currentNodeId);
+} // namespace ubse::election
 
 #endif // UBSE_MANAGER_UBSE_ELECTION_H

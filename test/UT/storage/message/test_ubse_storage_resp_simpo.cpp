@@ -11,9 +11,9 @@
  */
 
 #include "test_ubse_storage_resp_simpo.h"
-#include "mockcpp/mockcpp.hpp"
-#include "ubse_storage_resp_simpo.h"
 #include "ubse_error.h"
+#include "ubse_storage_resp_simpo.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::storage {
 using namespace ubse::storage::message;
@@ -42,7 +42,7 @@ void TestUbseStorageRespSimpo::TearDown()
 TEST_F(TestUbseStorageRespSimpo, ConstructAndGetStorageResp)
 {
     std::vector<KV> kvs;
-    UbseStorageResp resp{ kvs };
+    UbseStorageResp resp{kvs};
     UbseStorageRespSimpo respSimpo(resp);
 
     auto respData = respSimpo.GetStorageResp();
@@ -61,7 +61,7 @@ TEST_F(TestUbseStorageRespSimpo, ConstructAndGetStorageResp)
 TEST_F(TestUbseStorageRespSimpo, SetAndGetStorageResp)
 {
     std::vector<KV> kvs;
-    UbseStorageResp resp{ kvs };
+    UbseStorageResp resp{kvs};
     UbseStorageRespSimpo respSimpo;
 
     respSimpo.SetStorageResp(resp);
@@ -82,7 +82,7 @@ TEST_F(TestUbseStorageRespSimpo, SetAndGetStorageResp)
 TEST_F(TestUbseStorageRespSimpo, SerializeAndDeserializeEmptyData)
 {
     std::vector<KV> kvs;
-    UbseStorageResp resp{ kvs };
+    UbseStorageResp resp{kvs};
     UbseStorageRespSimpo respSimpo(resp);
     EXPECT_EQ(UBSE_OK, respSimpo.Serialize());
 
@@ -117,10 +117,10 @@ TEST_F(TestUbseStorageRespSimpo, SerializeAndDeserializeNotEmptyData)
     data2[1] = NO_4;
 
     std::vector<KV> kvs;
-    kvs.emplace_back(KV{ "key1", data1, 2 });
-    kvs.emplace_back(KV{ "key2", data2, 2 });
+    kvs.emplace_back(KV{"key1", data1, 2});
+    kvs.emplace_back(KV{"key2", data2, 2});
 
-    UbseStorageResp resp{ kvs };
+    UbseStorageResp resp{kvs};
     UbseStorageRespSimpo respSimpo(resp);
     EXPECT_EQ(UBSE_OK, respSimpo.Serialize());
 
@@ -170,7 +170,7 @@ TEST_F(TestUbseStorageRespSimpo, DeserializeFailWithVerifyStorageRespBufferFail)
  */
 TEST_F(TestUbseStorageRespSimpo, DeserializeFailWithInvalidBuffer)
 {
-    uint8_t invalidData[1] = { 0 };
+    uint8_t invalidData[1] = {0};
     UbseStorageRespSimpo newRespSimpo;
     newRespSimpo.SetInputRawData(invalidData, sizeof(invalidData));
 
@@ -189,7 +189,7 @@ TEST_F(TestUbseStorageRespSimpo, DeserializeFailWithInvalidBuffer)
 TEST_F(TestUbseStorageRespSimpo, DeserializeTwiceReturnError)
 {
     std::vector<KV> kvs;
-    UbseStorageResp resp{ kvs };
+    UbseStorageResp resp{kvs};
     UbseStorageRespSimpo respSimpo(resp);
     EXPECT_EQ(UBSE_OK, respSimpo.Serialize());
 

@@ -2,15 +2,15 @@
 * Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
 */
 
-#include <string>
-#include <regex>
 #include <cstdio>
-#include <memory>
 #include <fstream>
+#include <memory>
+#include <regex>
 #include <sstream>
+#include <string>
 #include "ubse_conf_module.h"
-#include "ubse_mem_constants.h"
 #include "ubse_logger_module.h"
+#include "ubse_mem_constants.h"
 
 namespace ubse::nodeController {
 constexpr size_t BUFFER_SIZE = 1024;
@@ -38,7 +38,6 @@ std::string GetCmdLineResult(std::string_view cmd)
     }
     return cmdlineOutput;
 }
-
 
 static bool in_strings(std::string_view s, std::initializer_list<std::string_view> list)
 {
@@ -68,8 +67,7 @@ std::optional<ConfigItem> RegisterPmdMappingConfig()
     if (!cmdlineFile.is_open()) {
         return result;
     }
-    std::string cmdlineOutput((std::istreambuf_iterator<char>(cmdlineFile)),
-                               std::istreambuf_iterator<char>());
+    std::string cmdlineOutput((std::istreambuf_iterator<char>(cmdlineFile)), std::istreambuf_iterator<char>());
     cmdlineFile.close();
 
     for (char& c : cmdlineOutput) {
@@ -137,4 +135,4 @@ std::optional<ConfigItem> RegisterOsPageSize()
 RegisterConfigHelper pmdMappingRegister(RegisterPmdMappingConfig);
 RegisterConfigHelper allocatorRegister(RegisterAllocatorConfig);
 RegisterConfigHelper osPageSizeRegister(RegisterOsPageSize);
-}
+} // namespace ubse::nodeController

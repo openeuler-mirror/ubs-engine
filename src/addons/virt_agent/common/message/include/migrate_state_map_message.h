@@ -24,12 +24,12 @@ public:
 
     explicit MigrateStateMapMessage(NumaVMInfoMap numaVmInfoMap) : migrateStateMap(std::move(numaVmInfoMap)) {}
 
-    explicit MigrateStateMapMessage(uint8_t *rawData, uint32_t size)
+    explicit MigrateStateMapMessage(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetData(const NumaVMInfoMap &numaVmInfoMap)
+    void SetData(const NumaVMInfoMap& numaVmInfoMap)
     {
         migrateStateMap = numaVmInfoMap;
     }

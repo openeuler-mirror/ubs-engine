@@ -33,11 +33,11 @@ const std::string POOL_MEMORY_RATIO = "system.pool.memory.ratio";
 /* 而后再用中间结构体构建接口出参                 */
 /* **************************************** */
 
-using UbseBorrowLendPair = std::pair<uint64_t, uint64_t>;                   // borrow, lend
+using UbseBorrowLendPair = std::pair<uint64_t, uint64_t>;                    // borrow, lend
 using UbseNumaLedgerInfo = std::unordered_map<uint32_t, UbseBorrowLendPair>; // numaId:<borrow, lend>
-using UbseNumaSharedMem = std::unordered_map<uint32_t, uint64_t>;           // numaId: mMemSharedSize
+using UbseNumaSharedMem = std::unordered_map<uint32_t, uint64_t>;            // numaId: mMemSharedSize
 
-static std::string GetPrefixBeforeLastUnderscore(const std::string &str)
+static std::string GetPrefixBeforeLastUnderscore(const std::string& str)
 {
     size_t pos = str.rfind('_');
     if (pos != std::string::npos) {
@@ -51,11 +51,11 @@ static std::string GetPrefixBeforeLastUnderscore(const std::string &str)
 * @param nodeInfos [in] 内部模块的节点信息
 * @param numaInfo [out] 中间numa信息
 */
-static void AssignNumaInfo(const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeInfos,
-                           std::vector<NumaStaticInfo> &numaInfo)
+static void AssignNumaInfo(const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeInfos,
+                           std::vector<NumaStaticInfo>& numaInfo)
 {
-    for (const auto &[_, nodeInfo] : nodeInfos) {
-        for (const auto &[_, singleNumaInfo] : nodeInfo.numaInfos) {
+    for (const auto& [_, nodeInfo] : nodeInfos) {
+        for (const auto& [_, singleNumaInfo] : nodeInfo.numaInfos) {
             NumaStaticInfo tmpNumaInfo;
             tmpNumaInfo.nodeId = singleNumaInfo.location.nodeId;
             tmpNumaInfo.soketId = singleNumaInfo.socketId;
@@ -78,15 +78,15 @@ static void AssignNumaInfo(const std::unordered_map<std::string, ubse::nodeContr
 * @param numaInfos [in] 内部numa账本信息
 * @param ledgerInfo [out] 中间账本信息
 */
-static void FormNumaInfoUsingImportObj(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo> &numaInfos,
-                                       LedgerDymaticInfo &ledgerInfo)
+static void FormNumaInfoUsingImportObj(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo>& numaInfos,
+                                       LedgerDymaticInfo& ledgerInfo)
 {
     if (numaInfos.empty()) {
         return;
     }
     std::string nodeId = numaInfos.front().nodeId;
     ledgerInfo.borrowNodeId.emplace_back(nodeId);
-    for (const auto &numaDebt : numaInfos) {
+    for (const auto& numaDebt : numaInfos) {
         ledgerInfo.borrowSocketIdList[nodeId].emplace_back(numaDebt.socketId);
         ledgerInfo.borrowNumaIdList[nodeId].emplace_back(numaDebt.numaId);
         ledgerInfo.borrowNumaSizeList[nodeId].emplace_back(numaDebt.size);
@@ -98,15 +98,15 @@ static void FormNumaInfoUsingImportObj(const std::vector<ubse::adapter_plugins::
 * @param numaInfos [in] 内部numa账本信息
 * @param ledgerInfo [out] 中间账本信息
 */
-static void FormNumaInfoUsingExportObj(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo> &numaInfos,
-                                       LedgerDymaticInfo &ledgerInfo)
+static void FormNumaInfoUsingExportObj(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo>& numaInfos,
+                                       LedgerDymaticInfo& ledgerInfo)
 {
     if (numaInfos.empty()) {
         return;
     }
     std::string nodeId = numaInfos.front().nodeId;
     ledgerInfo.lentNodeId = nodeId;
-    for (const auto &numaDebt : numaInfos) {
+    for (const auto& numaDebt : numaInfos) {
         ledgerInfo.lentSocketIdList.emplace_back(numaDebt.socketId);
         ledgerInfo.lentNumaIdList.emplace_back(numaDebt.numaId);
         ledgerInfo.lentNumaSizeList.emplace_back(numaDebt.size);
@@ -121,9 +121,8 @@ static void FormNumaInfoUsingExportObj(const std::vector<ubse::adapter_plugins::
 * @param midLedgerInfo [out] 中间账本信息
 */
 
-static void FormImportLedger(const UbseMemBorrowImportBaseObj &importBaseObj,
-                             const std::string &resourceIdNew, const LedgerType type,
-                             std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormImportLedger(const UbseMemBorrowImportBaseObj& importBaseObj, const std::string& resourceIdNew,
+                             const LedgerType type, std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
     if (importBaseObj.algoResult.importNumaInfos.empty()) {
         return;
@@ -139,7 +138,7 @@ static void FormImportLedger(const UbseMemBorrowImportBaseObj &importBaseObj,
     }
     FormNumaInfoUsingImportObj(importBaseObj.algoResult.importNumaInfos, midLedgerInfo[resourceIdNew]);
     std::string borrowNodeId = importBaseObj.algoResult.importNumaInfos.front().nodeId;
-    for (const auto &obmmInfo : importBaseObj.status.importResults) {
+    for (const auto& obmmInfo : importBaseObj.status.importResults) {
         midLedgerInfo[resourceIdNew].borrowMemId[borrowNodeId].emplace_back(obmmInfo.memId);
     }
 }
@@ -149,10 +148,10 @@ static void FormImportLedger(const UbseMemBorrowImportBaseObj &importBaseObj,
 * @param fdImportObjMap [in] fd的import账本
 * @param midLedgerInfo [out] 中间账本
 */
-static void FormImportFdLedger(const UbseMemFdImportObjMap &fdImportObjMap,
-                               std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormImportFdLedger(const UbseMemFdImportObjMap& fdImportObjMap,
+                               std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
-    for (const auto &[resourceId, fdImportObj] : fdImportObjMap) {
+    for (const auto& [resourceId, fdImportObj] : fdImportObjMap) {
         FormImportLedger(fdImportObj, resourceId, LedgerType::FD, midLedgerInfo);
     }
 }
@@ -162,7 +161,7 @@ static void FormImportFdLedger(const UbseMemFdImportObjMap &fdImportObjMap,
 * @param input [in] 内部obmm描述
 * @param output [out] 中间结构
 */
-static void AssignObmmDes(const ubse_mem_obmm_mem_desc &input, ObmmDesc &output)
+static void AssignObmmDes(const ubse_mem_obmm_mem_desc& input, ObmmDesc& output)
 {
 #ifdef UB_ENVIRONMENT
     output.addr = input.addr;
@@ -182,9 +181,8 @@ static void AssignObmmDes(const ubse_mem_obmm_mem_desc &input, ObmmDesc &output)
 * @param resourceIdNew [in] 资源id，name_borrowNodeId
 * @param midLedgerInfo [out] 中间账本信息
 */
-static void FormExportLedger(const UbseMemBorrowExportBaseObj &exportBaseObj,
-                             const std::string &resourceIdNew, LedgerType type,
-                             std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormExportLedger(const UbseMemBorrowExportBaseObj& exportBaseObj, const std::string& resourceIdNew,
+                             LedgerType type, std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
     if (exportBaseObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_EXPORT_SUCCESS) {
         return;
@@ -201,10 +199,10 @@ static void FormExportLedger(const UbseMemBorrowExportBaseObj &exportBaseObj,
     std::string nodeId = exportBaseObj.algoResult.exportNumaInfos.front().nodeId;
     midLedgerInfo[resourceIdNew].lentNodeId = nodeId;
     FormNumaInfoUsingExportObj(exportBaseObj.algoResult.exportNumaInfos, midLedgerInfo[resourceIdNew]);
-    for (const auto &obmmInfo : exportBaseObj.status.exportObmmInfo) {
+    for (const auto& obmmInfo : exportBaseObj.status.exportObmmInfo) {
         midLedgerInfo[resourceIdNew].lentMemId.emplace_back(obmmInfo.memId);
     }
-    for (const auto &obmmInfo : exportBaseObj.status.exportObmmInfo) {
+    for (const auto& obmmInfo : exportBaseObj.status.exportObmmInfo) {
         ObmmDesc tmpObmmInfo{};
         AssignObmmDes(obmmInfo.desc, tmpObmmInfo);
         midLedgerInfo[resourceIdNew].obmmDesc.emplace_back(tmpObmmInfo);
@@ -216,10 +214,10 @@ static void FormExportLedger(const UbseMemBorrowExportBaseObj &exportBaseObj,
 * @param fdExportObjMap [in] fd的export账本
 * @param midLedgerInfo [out] 中间账本
 */
-static void FormExportFdLedger(const UbseMemFdExportObjMap &fdExportObjMap,
-                               std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormExportFdLedger(const UbseMemFdExportObjMap& fdExportObjMap,
+                               std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
-    for (const auto &[resourceId, fdExportObj] : fdExportObjMap) {
+    for (const auto& [resourceId, fdExportObj] : fdExportObjMap) {
         FormExportLedger(fdExportObj, resourceId, LedgerType::FD, midLedgerInfo);
     }
 }
@@ -230,19 +228,18 @@ static void FormExportFdLedger(const UbseMemFdExportObjMap &fdExportObjMap,
 * @param fdExportObjMap [in] 内部fd导出信息
 * @param ledgerInfo [out] 中间账本结构体
 */
-static void AssignFdLedger(const NodeMemDebtInfoMap &debtInfoMap,
-                           std::vector<LedgerDymaticInfo> &ledgerInfo)
+static void AssignFdLedger(const NodeMemDebtInfoMap& debtInfoMap, std::vector<LedgerDymaticInfo>& ledgerInfo)
 {
     UbseMemFdImportObjMap fdImportObjMap;
     UbseMemFdExportObjMap fdExportObjMap;
-    for (const auto &[nodeId, nodeDebtInfo] : debtInfoMap) {
-        for (const auto &[resourceId, fdImportObj] : nodeDebtInfo.fdImportObjMap) {
+    for (const auto& [nodeId, nodeDebtInfo] : debtInfoMap) {
+        for (const auto& [resourceId, fdImportObj] : nodeDebtInfo.fdImportObjMap) {
             std::string resourceIdNew = resourceId;
             resourceIdNew += "_";
             resourceIdNew += nodeId;
             fdImportObjMap[resourceIdNew] = fdImportObj;
         }
-        for (const auto &[resourceId, fdExportObj] : nodeDebtInfo.fdExportObjMap) {
+        for (const auto& [resourceId, fdExportObj] : nodeDebtInfo.fdExportObjMap) {
             fdExportObjMap[resourceId] = fdExportObj;
         }
     }
@@ -253,15 +250,15 @@ static void AssignFdLedger(const NodeMemDebtInfoMap &debtInfoMap,
     // 通过export构建中间账本的借出部分
     FormExportFdLedger(fdExportObjMap, midLedgerInfo);
     // 将map转换为vector
-    for (const auto &[_, value] : midLedgerInfo) {
+    for (const auto& [_, value] : midLedgerInfo) {
         ledgerInfo.emplace_back(value);
     }
 }
 
-static void FormImportNumaLedger(const UbseMemNumaImportObjMap &numaImportObjMap,
-                                 std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormImportNumaLedger(const UbseMemNumaImportObjMap& numaImportObjMap,
+                                 std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
-    for (const auto &[resourceId, numaImportObj] : numaImportObjMap) {
+    for (const auto& [resourceId, numaImportObj] : numaImportObjMap) {
         LedgerType type = numaImportObj.req.udsInfo.pid > 0 ? LedgerType::APP : LedgerType::WATER;
         FormImportLedger(numaImportObj, resourceId, type, midLedgerInfo);
         if (midLedgerInfo.find(resourceId) != midLedgerInfo.end()) {
@@ -278,10 +275,10 @@ static void FormImportNumaLedger(const UbseMemNumaImportObjMap &numaImportObjMap
     }
 }
 
-static void FormExportNumaLedger(const UbseMemNumaExportObjMap &numaExportObjMap,
-                                 std::unordered_map<std::string, LedgerDymaticInfo> &midledgerInfo)
+static void FormExportNumaLedger(const UbseMemNumaExportObjMap& numaExportObjMap,
+                                 std::unordered_map<std::string, LedgerDymaticInfo>& midledgerInfo)
 {
-    for (const auto &[resourceId, numaExportObj] : numaExportObjMap) {
+    for (const auto& [resourceId, numaExportObj] : numaExportObjMap) {
         LedgerType type = numaExportObj.req.udsInfo.pid > 0 ? LedgerType::APP : LedgerType::WATER;
         FormExportLedger(numaExportObj, resourceId, type, midledgerInfo);
         if (midledgerInfo.find(resourceId) != midledgerInfo.end()) {
@@ -294,19 +291,18 @@ static void FormExportNumaLedger(const UbseMemNumaExportObjMap &numaExportObjMap
     }
 }
 
-static void AssignNumaLedger(const NodeMemDebtInfoMap &debtInfoMap,
-                             std::vector<LedgerDymaticInfo> &ledgerInfos)
+static void AssignNumaLedger(const NodeMemDebtInfoMap& debtInfoMap, std::vector<LedgerDymaticInfo>& ledgerInfos)
 {
     UbseMemNumaImportObjMap numaImportObjMap;
     UbseMemNumaExportObjMap numaExportObjMap;
-    for (const auto &[nodeId, nodeDebtInfo] : debtInfoMap) {
-        for (const auto &[resourceId, numaImportObj] : nodeDebtInfo.numaImportObjMap) {
+    for (const auto& [nodeId, nodeDebtInfo] : debtInfoMap) {
+        for (const auto& [resourceId, numaImportObj] : nodeDebtInfo.numaImportObjMap) {
             std::string resourceIdNew = resourceId;
             resourceIdNew += "_";
             resourceIdNew += nodeId;
             numaImportObjMap[resourceIdNew] = numaImportObj;
         }
-        for (const auto &[resourceId, numaExportObj] : nodeDebtInfo.numaExportObjMap) {
+        for (const auto& [resourceId, numaExportObj] : nodeDebtInfo.numaExportObjMap) {
             numaExportObjMap[resourceId] = numaExportObj;
         }
     }
@@ -317,15 +313,15 @@ static void AssignNumaLedger(const NodeMemDebtInfoMap &debtInfoMap,
     // 通过export构建中间账本的借出部分
     FormExportNumaLedger(numaExportObjMap, midLedgerInfos);
     // 将map转换为vector
-    for (const auto &[_, value] : midLedgerInfos) {
+    for (const auto& [_, value] : midLedgerInfos) {
         ledgerInfos.emplace_back(value);
     }
 }
 
-static void FormImportAddrLedger(const UbseMemAddrImportObjMap &addrImportObjMap,
-                                 std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormImportAddrLedger(const UbseMemAddrImportObjMap& addrImportObjMap,
+                                 std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
-    for (const auto &[resourceId, addrImportObj] : addrImportObjMap) {
+    for (const auto& [resourceId, addrImportObj] : addrImportObjMap) {
         FormImportLedger(addrImportObj, resourceId, LedgerType::ADDR, midLedgerInfo);
         if (midLedgerInfo.find(resourceId) != midLedgerInfo.end()) {
             if (addrImportObj.status.importResults.empty()) {
@@ -336,27 +332,26 @@ static void FormImportAddrLedger(const UbseMemAddrImportObjMap &addrImportObjMap
     }
 }
 
-static void FormExportAddrLedger(const UbseMemAddrExportObjMap &addrExportObjMap,
-                                 std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormExportAddrLedger(const UbseMemAddrExportObjMap& addrExportObjMap,
+                                 std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
-    for (const auto &[resourceId, addrExportObj] : addrExportObjMap) {
+    for (const auto& [resourceId, addrExportObj] : addrExportObjMap) {
         FormExportLedger(addrExportObj, resourceId, LedgerType::ADDR, midLedgerInfo);
     }
 }
 
-static void AssignAddrLedger(const NodeMemDebtInfoMap &debtInfoMap,
-                             std::vector<LedgerDymaticInfo> &ledgerInfos)
+static void AssignAddrLedger(const NodeMemDebtInfoMap& debtInfoMap, std::vector<LedgerDymaticInfo>& ledgerInfos)
 {
     UbseMemAddrImportObjMap addrImportObjMap;
     UbseMemAddrExportObjMap addrExportObjMap;
-    for (const auto &[nodeId, nodeDebtInfo] : debtInfoMap) {
-        for (const auto &[resourceId, addrImportObj] : nodeDebtInfo.addrImportObjMap) {
+    for (const auto& [nodeId, nodeDebtInfo] : debtInfoMap) {
+        for (const auto& [resourceId, addrImportObj] : nodeDebtInfo.addrImportObjMap) {
             std::string resourceIdNew = resourceId;
             resourceIdNew += "_";
             resourceIdNew += nodeId;
             addrImportObjMap[resourceIdNew] = addrImportObj;
         }
-        for (const auto &[resourceId, addrExportObj] : nodeDebtInfo.addrExportObjMap) {
+        for (const auto& [resourceId, addrExportObj] : nodeDebtInfo.addrExportObjMap) {
             addrExportObjMap[resourceId] = addrExportObj;
         }
     }
@@ -367,14 +362,14 @@ static void AssignAddrLedger(const NodeMemDebtInfoMap &debtInfoMap,
     // 通过export构建中间账本的借出部分
     FormExportAddrLedger(addrExportObjMap, midLedgerInfos);
     // 将map转换为vector
-    for (const auto &[_, value] : midLedgerInfos) {
+    for (const auto& [_, value] : midLedgerInfos) {
         ledgerInfos.emplace_back(value);
     }
 }
 
-static void FormShmImportLedger(const UbseMemBorrowImportBaseObj &importBaseObj,
-                                const std::string &resourceId, const std::string &nodeId,
-                                std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfo)
+static void FormShmImportLedger(const UbseMemBorrowImportBaseObj& importBaseObj, const std::string& resourceId,
+                                const std::string& nodeId,
+                                std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfo)
 {
     if (importBaseObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_SUCCESS) {
         return;
@@ -386,26 +381,26 @@ static void FormShmImportLedger(const UbseMemBorrowImportBaseObj &importBaseObj,
         midLedgerInfo[resourceId] = singleLedgerInfo;
     }
     FormNumaInfoUsingImportObj(importBaseObj.algoResult.importNumaInfos, midLedgerInfo[resourceId]);
-    for (const auto &obmmInfo : importBaseObj.status.importResults) {
+    for (const auto& obmmInfo : importBaseObj.status.importResults) {
         midLedgerInfo[resourceId].borrowMemId[nodeId].emplace_back(obmmInfo.memId);
     }
 }
 
 static void FormImportShareLedger(
-    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowImportObj>> &shareImportObjMap,
-    std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfos)
+    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowImportObj>>& shareImportObjMap,
+    std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfos)
 {
-    for (const auto &[resourceId, shareImportObjs] : shareImportObjMap) {
-        for (const auto &shareImportObj : shareImportObjs) {
+    for (const auto& [resourceId, shareImportObjs] : shareImportObjMap) {
+        for (const auto& shareImportObj : shareImportObjs) {
             FormShmImportLedger(shareImportObj, resourceId, shareImportObj.importNodeId, midLedgerInfos);
         }
     }
 }
 
-static void FormExportShareLedger(const UbseMemShareExportObjMap &shareExportObjMap,
-                                  std::unordered_map<std::string, LedgerDymaticInfo> &midLedgerInfos)
+static void FormExportShareLedger(const UbseMemShareExportObjMap& shareExportObjMap,
+                                  std::unordered_map<std::string, LedgerDymaticInfo>& midLedgerInfos)
 {
-    for (const auto &[resourceId, shareExportObj] : shareExportObjMap) {
+    for (const auto& [resourceId, shareExportObj] : shareExportObjMap) {
         if (shareExportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_EXPORT_SUCCESS) {
             continue;
         }
@@ -420,10 +415,10 @@ static void FormExportShareLedger(const UbseMemShareExportObjMap &shareExportObj
                                  shareExportObj.algoResult.exportNumaInfos.front().nodeId;
         midLedgerInfos[resourceId].lentNodeId = nodeId;
         FormNumaInfoUsingExportObj(shareExportObj.algoResult.exportNumaInfos, midLedgerInfos[resourceId]);
-        for (const auto &obmmInfo : shareExportObj.status.exportObmmInfo) {
+        for (const auto& obmmInfo : shareExportObj.status.exportObmmInfo) {
             midLedgerInfos[resourceId].lentMemId.emplace_back(obmmInfo.memId);
         }
-        for (const auto &obmmInfo : shareExportObj.status.exportObmmInfo) {
+        for (const auto& obmmInfo : shareExportObj.status.exportObmmInfo) {
             ObmmDesc tmpObmmInfo{};
             AssignObmmDes(obmmInfo.desc, tmpObmmInfo);
             midLedgerInfos[resourceId].obmmDesc.emplace_back(tmpObmmInfo);
@@ -431,16 +426,15 @@ static void FormExportShareLedger(const UbseMemShareExportObjMap &shareExportObj
     }
 }
 
-static void AssignShareLedger(const NodeMemDebtInfoMap &debtInfoMap,
-                              std::vector<LedgerDymaticInfo> &ledgerInfos)
+static void AssignShareLedger(const NodeMemDebtInfoMap& debtInfoMap, std::vector<LedgerDymaticInfo>& ledgerInfos)
 {
     std::unordered_map<std::string, std::vector<UbseMemShareBorrowImportObj>> shareImportObjMap;
     UbseMemShareExportObjMap shareExportObjMap;
-    for (const auto &[_, nodeDebtInfo] : debtInfoMap) {
-        for (const auto &[resourceId, shareImportObj] : nodeDebtInfo.shareImportObjMap) {
+    for (const auto& [_, nodeDebtInfo] : debtInfoMap) {
+        for (const auto& [resourceId, shareImportObj] : nodeDebtInfo.shareImportObjMap) {
             shareImportObjMap[resourceId].emplace_back(shareImportObj);
         }
-        for (const auto &[resourceId, shareExportObj] : nodeDebtInfo.shareExportObjMap) {
+        for (const auto& [resourceId, shareExportObj] : nodeDebtInfo.shareExportObjMap) {
             shareExportObjMap[resourceId] = shareExportObj;
         }
     }
@@ -451,23 +445,22 @@ static void AssignShareLedger(const NodeMemDebtInfoMap &debtInfoMap,
     // 通过import账本构建中间账本的借入部分
     FormImportShareLedger(shareImportObjMap, midLedgerInfo);
     // 将map转换为vector
-    for (const auto &[_, value] : midLedgerInfo) {
+    for (const auto& [_, value] : midLedgerInfo) {
         ledgerInfos.emplace_back(value);
     }
 }
 
-static void FormExportMemId(const std::vector<ubse::adapter_plugins::mmi::UbseMemObmmInfo> &obmms,
-                            LedgerDymaticInfo &ledger)
+static void FormExportMemId(const std::vector<ubse::adapter_plugins::mmi::UbseMemObmmInfo>& obmms,
+                            LedgerDymaticInfo& ledger)
 {
-    for (const auto &obmm : obmms) {
+    for (const auto& obmm : obmms) {
         ledger.lentMemId.emplace_back(obmm.memId);
     }
 }
 
-static void RefillLedger(const NodeMemDebtInfoMap &debtInfoMap,
-                         std::vector<LedgerDymaticInfo> &ledgerInfos)
+static void RefillLedger(const NodeMemDebtInfoMap& debtInfoMap, std::vector<LedgerDymaticInfo>& ledgerInfos)
 {
-    for (auto &ledgerInfo : ledgerInfos) {
+    for (auto& ledgerInfo : ledgerInfos) {
         if (!ledgerInfo.lentNodeId.empty() || ledgerInfo.borrowNodeId.empty()) {
             continue;
         }
@@ -516,8 +509,7 @@ static void RefillLedger(const NodeMemDebtInfoMap &debtInfoMap,
 * @param ledgerInfo [out] 中间账本信息
 * @return
 */
-static void GetledgerInfoFromInner(const NodeMemDebtInfoMap &debtInfoMap,
-                                   std::vector<LedgerDymaticInfo> &ledgerInfo)
+static void GetledgerInfoFromInner(const NodeMemDebtInfoMap& debtInfoMap, std::vector<LedgerDymaticInfo>& ledgerInfo)
 {
     AssignNumaLedger(debtInfoMap, ledgerInfo);
     AssignFdLedger(debtInfoMap, ledgerInfo);
@@ -531,7 +523,7 @@ static void GetledgerInfoFromInner(const NodeMemDebtInfoMap &debtInfoMap,
 * @param numaInfo [out] numa静态信息
 * @param ledgerInfo [out] 账本动态信息
 */
-uint32_t GetMemInfoFromInner(std::vector<NumaStaticInfo> &numaInfo, std::vector<LedgerDymaticInfo> &ledgerInfo)
+uint32_t GetMemInfoFromInner(std::vector<NumaStaticInfo>& numaInfo, std::vector<LedgerDymaticInfo>& ledgerInfo)
 {
     // 从内部模块获取numa静态信息和账本动态信息
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos =
@@ -549,13 +541,13 @@ uint32_t GetMemInfoFromInner(std::vector<NumaStaticInfo> &numaInfo, std::vector<
     return 0;
 }
 
-static void FillBorrowedLentInfoList(const std::string &nodeId, const std::vector<LedgerDymaticInfo> &ledgerInfo,
-                                     UbseBorrowedLentInfoList &outList);
+static void FillBorrowedLentInfoList(const std::string& nodeId, const std::vector<LedgerDymaticInfo>& ledgerInfo,
+                                     UbseBorrowedLentInfoList& outList);
 
-static void FillSingleLedgerInfo(const UbseNodeBorrowLentInfo &singleLedgerInfo,
-                                 std::unordered_map<std::string, UbseNumaLedgerInfo> &numaLedger)
+static void FillSingleLedgerInfo(const UbseNodeBorrowLentInfo& singleLedgerInfo,
+                                 std::unordered_map<std::string, UbseNumaLedgerInfo>& numaLedger)
 {
-    for (const auto &borrowItem : singleLedgerInfo.borrowedItem) {
+    for (const auto& borrowItem : singleLedgerInfo.borrowedItem) {
         // 没有对应节点的情况下创建空信息
         if (numaLedger.find(singleLedgerInfo.nodeId) == numaLedger.end()) {
             UbseNumaLedgerInfo numaLedgerInfo{};
@@ -564,7 +556,7 @@ static void FillSingleLedgerInfo(const UbseNodeBorrowLentInfo &singleLedgerInfo,
         // 填写借入信息
         numaLedger[singleLedgerInfo.nodeId][borrowItem.numaId].first += borrowItem.size;
     }
-    for (const auto &lentItem : singleLedgerInfo.lentItem) {
+    for (const auto& lentItem : singleLedgerInfo.lentItem) {
         // 没有对应节点的情况下创建空信息
         if (numaLedger.find(singleLedgerInfo.nodeId) == numaLedger.end()) {
             UbseNumaLedgerInfo numaLedgerInfo{};
@@ -580,14 +572,14 @@ static void FillSingleLedgerInfo(const UbseNodeBorrowLentInfo &singleLedgerInfo,
 * @param ledgerInfo [in]借入借出信息
 * @param numaLedger [out] nodeId : { numaId : {borrowSize, lendSize}}
 */
-static void GetLedgerFromBorrowLendInfo(const std::vector<LedgerDymaticInfo> &ledgerInfo,
-                                        std::unordered_map<std::string, UbseNumaLedgerInfo> &numaLedger)
+static void GetLedgerFromBorrowLendInfo(const std::vector<LedgerDymaticInfo>& ledgerInfo,
+                                        std::unordered_map<std::string, UbseNumaLedgerInfo>& numaLedger)
 {
     // 获取账本信息
     UbseBorrowedLentInfoList numaLedgerList;
     FillBorrowedLentInfoList("", ledgerInfo, numaLedgerList);
     // 填写numa的账本信息
-    for (const auto &singleLedgerInfo : numaLedgerList) {
+    for (const auto& singleLedgerInfo : numaLedgerList) {
         FillSingleLedgerInfo(singleLedgerInfo, numaLedger);
     }
 }
@@ -597,10 +589,10 @@ static void GetLedgerFromBorrowLendInfo(const std::vector<LedgerDymaticInfo> &le
 * @param ledgerInfo [in] 全量账本信息
 * @param sharedMem [out] 共享内存信息 {nodeId: {numaId: size}}
 */
-static void GetNumaShareSize(const std::vector<LedgerDymaticInfo> &ledgerInfo,
-                             std::unordered_map<std::string, UbseNumaSharedMem> &sharedMem)
+static void GetNumaShareSize(const std::vector<LedgerDymaticInfo>& ledgerInfo,
+                             std::unordered_map<std::string, UbseNumaSharedMem>& sharedMem)
 {
-    for (const auto &ledger : ledgerInfo) {
+    for (const auto& ledger : ledgerInfo) {
         if (ledger.type != LedgerType::SHARE) {
             continue;
         }
@@ -610,7 +602,7 @@ static void GetNumaShareSize(const std::vector<LedgerDymaticInfo> &ledgerInfo,
     }
 }
 
-uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo> &numaNodeInfoList)
+uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo>& numaNodeInfoList)
 {
     // 获得静态numa信息和动态账本信息
     std::vector<NumaStaticInfo> numaInfo;
@@ -627,7 +619,7 @@ uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo> &numaNodeInfoList)
     std::unordered_map<std::string, UbseNumaSharedMem> sharedMem{};
     GetNumaShareSize(ledgerInfo, sharedMem);
     // 填写numa信息
-    for (const auto &numa : numaInfo) {
+    for (const auto& numa : numaInfo) {
         UbseNumaLedgerInfo numaLedgerInfo{};
         UbseNumaNodeInfo numaRes{};
         numaRes.nodeId = numa.nodeId;
@@ -663,7 +655,7 @@ uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo> &numaNodeInfoList)
 * @param obmmDescs [in] obmm描述信息
 * @param res [out] 描述信息字符串
 */
-static void GetObmmDescVecStr(const std::vector<ObmmDesc> &obmmDescs, std::string &res)
+static void GetObmmDescVecStr(const std::vector<ObmmDesc>& obmmDescs, std::string& res)
 {
     std::vector<std::string> jsonVec;
     if (!UbseJsonUtil::ConvertVector2JsonStr(jsonVec, res)) {
@@ -678,12 +670,12 @@ static void GetObmmDescVecStr(const std::vector<ObmmDesc> &obmmDescs, std::strin
 * @param targetNode [out] 目标nodeId
 * @return bool
 */
-static bool IsNodeTarget(const std::string &nodeId, const std::string &targetNode)
+static bool IsNodeTarget(const std::string& nodeId, const std::string& targetNode)
 {
     return nodeId.empty() || nodeId == targetNode;
 }
 
-static void FillBorrowAccount(const LedgerDymaticInfo &ledger, const std::string &nodeId, UbseBorrowAccountMap &outList)
+static void FillBorrowAccount(const LedgerDymaticInfo& ledger, const std::string& nodeId, UbseBorrowAccountMap& outList)
 {
     std::string borrowNodeId = ledger.borrowNodeId.empty() ? "" : ledger.borrowNodeId.front();
     if (IsNodeTarget(nodeId, borrowNodeId)) {
@@ -719,7 +711,7 @@ static void FillBorrowAccount(const LedgerDymaticInfo &ledger, const std::string
     }
 }
 
-static void FillLentAccount(const LedgerDymaticInfo &ledger, const std::string nodeId, UbseBorrowAccountMap &outList)
+static void FillLentAccount(const LedgerDymaticInfo& ledger, const std::string nodeId, UbseBorrowAccountMap& outList)
 {
     std::string borrowNodeId = ledger.borrowNodeId.empty() ? "" : ledger.borrowNodeId.front();
     if (IsNodeTarget(nodeId, ledger.lentNodeId)) {
@@ -740,7 +732,7 @@ static void FillLentAccount(const LedgerDymaticInfo &ledger, const std::string n
         outList[resourceIdNew].lentNumaSizeList = ledger.lentNumaSizeList;
         outList[resourceIdNew].lentMemId = ledger.lentMemId;
         outList[resourceIdNew].size = 0;
-        for (const auto &numaSize : ledger.lentNumaSizeList) {
+        for (const auto& numaSize : ledger.lentNumaSizeList) {
             outList[resourceIdNew].size += numaSize;
         }
         std::string obmmDesString;
@@ -755,10 +747,10 @@ static void FillLentAccount(const LedgerDymaticInfo &ledger, const std::string n
 * @param ledgerInfo [in] 中间账本信息
 * @param outList [out] 目标账本信息
 */
-static void FillBorrowedAccountMap(const std::string &nodeId, const std::vector<LedgerDymaticInfo> &ledgerInfo,
-                                   UbseBorrowAccountMap &outList)
+static void FillBorrowedAccountMap(const std::string& nodeId, const std::vector<LedgerDymaticInfo>& ledgerInfo,
+                                   UbseBorrowAccountMap& outList)
 {
-    for (const auto &ledger : ledgerInfo) {
+    for (const auto& ledger : ledgerInfo) {
         // 普通借用不包括共享借用
         if (ledger.type == LedgerType::SHARE) {
             continue;
@@ -770,7 +762,7 @@ static void FillBorrowedAccountMap(const std::string &nodeId, const std::vector<
     }
 }
 
-uint32_t UbseAllBorrowAccountInfo(const std::string &nodeId, UbseBorrowAccountMap &accountMap)
+uint32_t UbseAllBorrowAccountInfo(const std::string& nodeId, UbseBorrowAccountMap& accountMap)
 {
     // 获取numa静态信息和账本动态信息
     std::vector<NumaStaticInfo> numaInfo;
@@ -785,7 +777,7 @@ uint32_t UbseAllBorrowAccountInfo(const std::string &nodeId, UbseBorrowAccountMa
     return UBSE_OK;
 }
 
-uint32_t UbseAllShmAccountInfo(UbseShmAccountMap &outMap)
+uint32_t UbseAllShmAccountInfo(UbseShmAccountMap& outMap)
 {
     // 获取numa静态信息和账本动态信息
     std::vector<NumaStaticInfo> numaInfo;
@@ -796,7 +788,7 @@ uint32_t UbseAllShmAccountInfo(UbseShmAccountMap &outMap)
         return ret;
     }
     // 填写共享账本信息
-    for (const auto &singleLedger : ledgerInfo) {
+    for (const auto& singleLedger : ledgerInfo) {
         if (singleLedger.type != LedgerType::SHARE) {
             continue;
         }
@@ -805,7 +797,7 @@ uint32_t UbseAllShmAccountInfo(UbseShmAccountMap &outMap)
         shmAccountInfo.exportNode = singleLedger.lentNodeId;
         shmAccountInfo.importMap = std::unordered_map<std::string, std::vector<uint64_t>>(singleLedger.borrowMemId);
         shmAccountInfo.size = 0;
-        for (const auto &lentNumaSize : singleLedger.lentNumaSizeList) {
+        for (const auto& lentNumaSize : singleLedger.lentNumaSizeList) {
             shmAccountInfo.size += lentNumaSize;
         }
         outMap[singleLedger.resourceId] = shmAccountInfo;
@@ -826,7 +818,7 @@ struct AccumulatedItem {
 
 // 自定义哈希函数
 struct BorrowedLentKeyHash {
-    std::size_t operator()(const BorrowedLentKey &k) const
+    std::size_t operator()(const BorrowedLentKey& k) const
     {
         return std::hash<std::string>()(std::get<EXPORT_ID_KEY>(k)) ^
                std::hash<std::string>()(std::get<IMPORT_ID_KEY>(k)) ^
@@ -836,7 +828,7 @@ struct BorrowedLentKeyHash {
 
 // 自定义相等比较函数
 struct BorrowedLentKeyEqual {
-    bool operator()(const BorrowedLentKey &lhs, const BorrowedLentKey &rhs) const
+    bool operator()(const BorrowedLentKey& lhs, const BorrowedLentKey& rhs) const
     {
         return lhs == rhs;
     }
@@ -846,9 +838,9 @@ struct BorrowedLentKeyEqual {
 using AccumulatedMap = std::unordered_map<BorrowedLentKey, AccumulatedItem, BorrowedLentKeyHash, BorrowedLentKeyEqual>;
 using BorrowedLentInfoMap = std::unordered_map<std::string, UbseNodeBorrowLentInfo>;
 
-void AccumulateLentInfo(const UbseBorrowAccountMap &accountMap, AccumulatedMap &lentMap)
+void AccumulateLentInfo(const UbseBorrowAccountMap& accountMap, AccumulatedMap& lentMap)
 {
-    for (const auto &[_, memoryBorrowInfo] : accountMap) {
+    for (const auto& [_, memoryBorrowInfo] : accountMap) {
         for (size_t i = 0; i < memoryBorrowInfo.lentNumaIdList.size(); ++i) {
             BorrowedLentKey key = std::make_tuple(memoryBorrowInfo.lentNodeId, memoryBorrowInfo.borrowNodeId,
                                                   memoryBorrowInfo.lentNumaIdList[i]);
@@ -860,9 +852,9 @@ void AccumulateLentInfo(const UbseBorrowAccountMap &accountMap, AccumulatedMap &
     }
 }
 
-void AccumulateBorrowedInfo(const UbseBorrowAccountMap &accountMap, AccumulatedMap &borrowedMap)
+void AccumulateBorrowedInfo(const UbseBorrowAccountMap& accountMap, AccumulatedMap& borrowedMap)
 {
-    for (const auto &[_, memoryBorrowInfo] : accountMap) {
+    for (const auto& [_, memoryBorrowInfo] : accountMap) {
         for (size_t i = 0; i < memoryBorrowInfo.borrowNumaIdList.size(); ++i) {
             BorrowedLentKey key = std::make_tuple(memoryBorrowInfo.lentNodeId, memoryBorrowInfo.borrowNodeId,
                                                   memoryBorrowInfo.borrowNumaIdList[i]);
@@ -871,13 +863,13 @@ void AccumulateBorrowedInfo(const UbseBorrowAccountMap &accountMap, AccumulatedM
     }
 }
 
-void BuildInfoMap(AccumulatedMap &dataMap, BorrowedLentInfoMap &infoMap, bool isLending)
+void BuildInfoMap(AccumulatedMap& dataMap, BorrowedLentInfoMap& infoMap, bool isLending)
 {
-    for (const auto &[key, item] : dataMap) {
-        const auto &importNodeId = std::get<IMPORT_ID_KEY>(key);
-        const auto &exportNodeId = std::get<EXPORT_ID_KEY>(key);
+    for (const auto& [key, item] : dataMap) {
+        const auto& importNodeId = std::get<IMPORT_ID_KEY>(key);
+        const auto& exportNodeId = std::get<EXPORT_ID_KEY>(key);
         uint32_t numaId = std::get<NUMA_ID_KEY>(key);
-        auto &info = infoMap[isLending ? exportNodeId : importNodeId];
+        auto& info = infoMap[isLending ? exportNodeId : importNodeId];
 
         UbseBorrowLentItem entry;
         entry.nodeId = isLending ? importNodeId : exportNodeId;
@@ -889,8 +881,8 @@ void BuildInfoMap(AccumulatedMap &dataMap, BorrowedLentInfoMap &infoMap, bool is
     }
 }
 
-void FillBorrowedLentInfoList(const std::string &nodeId, const std::vector<LedgerDymaticInfo> &ledgerInfo,
-                              UbseBorrowedLentInfoList &outList)
+void FillBorrowedLentInfoList(const std::string& nodeId, const std::vector<LedgerDymaticInfo>& ledgerInfo,
+                              UbseBorrowedLentInfoList& outList)
 {
     UbseBorrowAccountMap accountMap;
     FillBorrowedAccountMap("", ledgerInfo, accountMap);
@@ -904,14 +896,14 @@ void FillBorrowedLentInfoList(const std::string &nodeId, const std::vector<Ledge
     BuildInfoMap(borrowedMap, infoMap, false); // false for borrowed
     BuildInfoMap(lentMap, infoMap, true);      // true for lent
 
-    for (auto &[_nodeId, info] : infoMap) {
+    for (auto& [_nodeId, info] : infoMap) {
         if (nodeId.empty() || nodeId == _nodeId) {
             outList.push_back(std::move(info));
         }
     }
 }
 
-uint32_t UbseGetBorrowedLentInfo(const std::string &nodeId, UbseBorrowedLentInfoList &outList)
+uint32_t UbseGetBorrowedLentInfo(const std::string& nodeId, UbseBorrowedLentInfoList& outList)
 {
     // 获得numa静态信息和账本动态信息
     std::vector<NumaStaticInfo> numaInfo;

@@ -55,6 +55,6 @@ private:
     MpResult sendResult_{};
 };
 
-}  // namespace mempooling::over_commit
+} // namespace mempooling::over_commit
 
-#endif  // SMAP_REMOVE_SEND_H
+#endif // SMAP_REMOVE_SEND_H

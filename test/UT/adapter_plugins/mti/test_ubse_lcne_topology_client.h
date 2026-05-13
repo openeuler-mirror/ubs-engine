@@ -25,6 +25,6 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::ut::lcne
+} // namespace ubse::ut::lcne
 
-#endif  // TEST_UBSE_LCNE_TOPOLOGY_CLIENT_H
+#endif // TEST_UBSE_LCNE_TOPOLOGY_CLIENT_H

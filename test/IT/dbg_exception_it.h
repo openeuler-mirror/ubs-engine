@@ -14,12 +14,12 @@
 #define DBG_EXCEPTION_IT_H
 
 #include "ubse_context.h"
-#include "main_test_it.h"
 #include "ubse_exception_module.h"
 #include "exceptionTest.h"
+#include "main_test_it.h"
 
 namespace ubse::it::exception {
-int32_t ITestCmdExceptionTest(ProcessMmap *pMmap);
+int32_t ITestCmdExceptionTest(ProcessMmap* pMmap);
 }
 
 #endif // DBG_EXCEPTION_IT_H

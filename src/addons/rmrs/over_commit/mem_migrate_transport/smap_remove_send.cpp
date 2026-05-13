@@ -50,7 +50,7 @@ MpResult SmapRemoveSend::SendMsg()
     return MEM_POOLING_OK;
 }
 
-MpResult SmapRemoveSend::CreateRequestData(UbseByteBuffer &reqData) const
+MpResult SmapRemoveSend::CreateRequestData(UbseByteBuffer& reqData) const
 {
     auto smapRemoveTransMsg = SmapRemoveTransMsg(SmapRemoveTrans({.pids = pids_}));
     RmrsOutStream builder;
@@ -67,14 +67,14 @@ MpResult SmapRemoveSend::CreateRequestData(UbseByteBuffer &reqData) const
     return MEM_POOLING_OK;
 }
 
-void SmapRemoveSend::RespHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void SmapRemoveSend::RespHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SmapRemove] Process response data.";
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SmapRemove] Ctx or respData is null.";
         return;
     }
-    const auto smapRemoveSend = static_cast<SmapRemoveSend *>(ctx);
+    const auto smapRemoveSend = static_cast<SmapRemoveSend*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         smapRemoveSend->sendResult_ = resCode;
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)

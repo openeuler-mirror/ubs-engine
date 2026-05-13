@@ -38,25 +38,25 @@ public:
      * @return true 插件已加载
      * @return false 插件未加载
      */
-    bool GetPluginLoaded(const std::string &pluginName);
+    bool GetPluginLoaded(const std::string& pluginName);
 
     /* *
      * 获取插件是否就绪，就绪代表插件已经能够向外部提供功能，标志位由插件自己向插件模块设置
      * @param pluginName[in]: 插件名
      * @return 就绪状态 true: 就绪, false: 未就绪;
      */
-    bool GetPluginReadyStatus(const std::string &pluginName);
+    bool GetPluginReadyStatus(const std::string& pluginName);
     /* *
      * 插件方向插件模块通知自己是否已就绪
      * @param pluginName[in]: 插件名
      * @param status[in] ture: 就绪， false: 未就绪
      */
-    void NotifyPluginReadyStatus(const std::string &pluginName, bool flag);
+    void NotifyPluginReadyStatus(const std::string& pluginName, bool flag);
 
 private:
     UbsePluginManager ubsePluginManager_;
     mutable std::shared_mutex pluginReadyMapMutex_;
     std::map<std::string, bool> pluginReadyMap_;
 };
-}
+} // namespace ubse::plugin
 #endif // UBSE_PLUGIN_MODULE_H

@@ -25,7 +25,6 @@ public:
 
     void TearDown() override;
 };
-}
-
+} // namespace ubse::ut::election
 
 #endif // UBSE_MANAGER_TEST_UBSE_ELECTION_MODULE_H

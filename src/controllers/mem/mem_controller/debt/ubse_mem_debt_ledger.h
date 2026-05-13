@@ -123,7 +123,7 @@ public:
      * @param[in] obj 资源对象的共享指针
      * @note 线程安全，使用写锁保护
      */
-    void Put(const std::string &resId, std::shared_ptr<T> obj)
+    void Put(const std::string& resId, std::shared_ptr<T> obj)
     {
         if (!obj) {
             return;
@@ -138,7 +138,7 @@ public:
      * @return 指向常量资源对象的共享指针，如果资源不存在则返回nullptr
      * @note 线程安全，使用读锁保护
      */
-    std::shared_ptr<const T> Get(const std::string &resId) const
+    std::shared_ptr<const T> Get(const std::string& resId) const
     {
         std::shared_lock<std::shared_mutex> lock(mutex_);
         auto it = map_.find(resId);
@@ -151,7 +151,7 @@ public:
      * @return 成功删除返回true，资源不存在返回false
      * @note 线程安全，使用写锁保护
      */
-    bool Remove(const std::string &resId)
+    bool Remove(const std::string& resId)
     {
         std::unique_lock<std::shared_mutex> lock(mutex_);
         return map_.erase(resId) > 0;
@@ -168,7 +168,7 @@ public:
      *       4. 通过写锁替换旧对象
      *       如果资源不存在，则不执行任何操作
      */
-    void Modify(const std::string &resId, std::function<void(T &)> modify)
+    void Modify(const std::string& resId, std::function<void(T&)> modify)
     {
         std::shared_ptr<const T> oldObj;
         {
@@ -238,7 +238,7 @@ public:
      * @return 节点账本的共享指针，如果不存在则创建新的节点账本
      * @note 线程安全，采用双重检查锁定模式优化性能
      */
-    std::shared_ptr<UbseMemNodeDebtMap<T>> GetOrCreateNodeMap(const std::string &nodeId)
+    std::shared_ptr<UbseMemNodeDebtMap<T>> GetOrCreateNodeMap(const std::string& nodeId)
     {
         {
             // 先检查是否存在节点账本
@@ -250,7 +250,7 @@ public:
         }
         // 未找到节点账本，创建新的
         std::unique_lock<std::shared_mutex> lock(mutex_);
-        auto &nodePtr = nodeMap_[nodeId];
+        auto& nodePtr = nodeMap_[nodeId];
         if (!nodePtr) {
             nodePtr = std::make_shared<UbseMemNodeDebtMap<T>>();
         }
@@ -263,7 +263,7 @@ public:
      * @return 节点账本的共享指针，如果不存在则返回nullptr
      * @note 线程安全，使用读锁保护
      */
-    std::shared_ptr<UbseMemNodeDebtMap<T>> FindNodeMap(const std::string &nodeId)
+    std::shared_ptr<UbseMemNodeDebtMap<T>> FindNodeMap(const std::string& nodeId)
     {
         std::shared_lock<std::shared_mutex> lock(mutex_);
         auto it = nodeMap_.find(nodeId);
@@ -276,7 +276,7 @@ public:
      * @return 指向常量节点账本的共享指针，如果不存在则返回nullptr
      * @note 线程安全，使用读锁保护
      */
-    std::shared_ptr<const UbseMemNodeDebtMap<T>> FindNodeMap(const std::string &nodeId) const
+    std::shared_ptr<const UbseMemNodeDebtMap<T>> FindNodeMap(const std::string& nodeId) const
     {
         std::shared_lock<std::shared_mutex> lock(mutex_);
         auto it = nodeMap_.find(nodeId);
@@ -290,14 +290,14 @@ public:
      * @note 线程安全，使用写锁保护
      *       对于ExportObj类型，会同步清理资源ID索引中的相关条目
      */
-    bool RemoveNodeMap(const std::string &nodeId)
+    bool RemoveNodeMap(const std::string& nodeId)
     {
         std::unique_lock<std::shared_mutex> lock(mutex_);
         if constexpr (IsExportObjTypeV<T>) {
             auto it = nodeMap_.find(nodeId);
             if (it != nodeMap_.end()) {
                 auto allResources = it->second->GetAll();
-                for (const auto &[resId, _] : allResources) {
+                for (const auto& [resId, _] : allResources) {
                     exportResIdToNodeId_.erase(resId);
                 }
             }
@@ -311,14 +311,14 @@ public:
      * @note 线程安全，使用写锁保护
      *       对于ExportObj类型，会同步清理资源ID索引中的相关条目
      */
-    void RemoveOtherNodeMaps(const std::string &excludeNodeId)
+    void RemoveOtherNodeMaps(const std::string& excludeNodeId)
     {
         std::unique_lock<std::shared_mutex> lock(mutex_);
         for (auto it = nodeMap_.begin(); it != nodeMap_.end();) {
             if (it->first != excludeNodeId) {
                 if constexpr (IsExportObjTypeV<T>) {
                     auto allResources = it->second->GetAll();
-                    for (const auto &[resId, _] : allResources) {
+                    for (const auto& [resId, _] : allResources) {
                         exportResIdToNodeId_.erase(resId);
                     }
                 }
@@ -336,7 +336,7 @@ public:
      * @return 指向常量资源对象的共享指针，如果资源不存在则返回nullptr
      * @note 线程安全，内部调用FindNodeMap和Get方法
      */
-    std::shared_ptr<const T> GetResource(const std::string &nodeId, const std::string &resId)
+    std::shared_ptr<const T> GetResource(const std::string& nodeId, const std::string& resId)
     {
         if (auto nodePtr = FindNodeMap(nodeId)) {
             return nodePtr->Get(resId);
@@ -352,7 +352,7 @@ public:
      *       仅对ExportObj类型有效，ImportObj类型始终返回nullptr
      *       利用资源ID到节点ID的索引实现跨节点资源快速查询
      */
-    std::shared_ptr<const T> GetExportResourceByResId(const std::string &resId)
+    std::shared_ptr<const T> GetExportResourceByResId(const std::string& resId)
     {
         if constexpr (IsExportObjTypeV<T>) {
             std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -378,14 +378,14 @@ public:
      * @note 线程安全，如果节点账本不存在会自动创建
      *       对于ExportObj类型，会同步更新资源ID到节点ID的索引
      */
-    void PutResource(const std::string &nodeId, const std::string &resId, std::shared_ptr<T> obj)
+    void PutResource(const std::string& nodeId, const std::string& resId, std::shared_ptr<T> obj)
     {
         if (!obj) {
             return;
         }
         if constexpr (IsExportObjTypeV<T>) {
             std::unique_lock<std::shared_mutex> lock(mutex_);
-            auto &nodePtr = nodeMap_[nodeId];
+            auto& nodePtr = nodeMap_[nodeId];
             if (!nodePtr) {
                 nodePtr = std::make_shared<UbseMemNodeDebtMap<T>>();
             }
@@ -405,11 +405,11 @@ public:
      * @note 线程安全，内部会创建资源对象的副本
      *       对于ExportObj类型，会同步更新资源ID到节点ID的索引
      */
-    void PutResource(const std::string &nodeId, const std::string &resId, const T &obj)
+    void PutResource(const std::string& nodeId, const std::string& resId, const T& obj)
     {
         if constexpr (IsExportObjTypeV<T>) {
             std::unique_lock<std::shared_mutex> lock(mutex_);
-            auto &nodePtr = nodeMap_[nodeId];
+            auto& nodePtr = nodeMap_[nodeId];
             if (!nodePtr) {
                 nodePtr = std::make_shared<UbseMemNodeDebtMap<T>>();
             }
@@ -428,7 +428,7 @@ public:
      * @return 成功删除返回true，资源或节点不存在返回false
      * @note 线程安全，对于ExportObj类型，会同步清理资源ID索引
      */
-    bool RemoveResource(const std::string &nodeId, const std::string &resId)
+    bool RemoveResource(const std::string& nodeId, const std::string& resId)
     {
         if constexpr (IsExportObjTypeV<T>) {
             std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -475,15 +475,15 @@ private:
  */
 class UbseMemDebtLedger {
 public:
-    UbseMemDebtLedger(const UbseMemDebtLedger &) = delete;
-    UbseMemDebtLedger &operator=(const UbseMemDebtLedger &) = delete;
+    UbseMemDebtLedger(const UbseMemDebtLedger&) = delete;
+    UbseMemDebtLedger& operator=(const UbseMemDebtLedger&) = delete;
 
     /**
      * @brief 获取单例实例
      * @return 账本单例的引用
      * @note 使用静态局部变量实现线程安全的单例模式（C++11 magic statics）
      */
-    static UbseMemDebtLedger &GetInstance()
+    static UbseMemDebtLedger& GetInstance()
     {
         static UbseMemDebtLedger instance;
         return instance;
@@ -496,7 +496,7 @@ public:
      * @note 通过std::get从tuple中获取对应类型的账本
      */
     template <typename T>
-    auto &GetDebtMap()
+    auto& GetDebtMap()
     {
         return std::get<UbseMemTypeDebtMap<T>>(debtMaps_);
     }
@@ -508,7 +508,7 @@ public:
      * @note 通过std::get从tuple中获取对应类型的账本
      */
     template <typename T>
-    const auto &GetDebtMap() const
+    const auto& GetDebtMap() const
     {
         return std::get<UbseMemTypeDebtMap<T>>(debtMaps_);
     }
@@ -525,9 +525,9 @@ public:
         UbseNodeMemDebtInfoMap result;
 
         // targetField 是 UbseNodeMemDebtInfo 结构体中对应字段的成员指针
-        auto mergeToResult = [&](const auto &sourceMap, auto targetField) {
+        auto mergeToResult = [&](const auto& sourceMap, auto targetField) {
             // 直接遍历所有节点映射
-            for (const auto &[nodeId, nodeMap] : sourceMap.GetAllNodeMaps()) {
+            for (const auto& [nodeId, nodeMap] : sourceMap.GetAllNodeMaps()) {
                 if (!nodeMap) {
                     continue;
                 }
@@ -562,7 +562,7 @@ public:
     void ClearAllNodeMaps()
     {
         // 使用std::apply 和折叠表达式遍历 tuple 中的所有成员
-        std::apply([](auto &...maps) { (maps.ClearAllNodeMaps(), ...); }, debtMaps_);
+        std::apply([](auto&... maps) { (maps.ClearAllNodeMaps(), ...); }, debtMaps_);
     }
 
     /**
@@ -571,9 +571,9 @@ public:
      * @note 使用std::apply和折叠表达式遍历tuple中的所有账本
      *       通常用于节点下线场景，保留本节点账本，清理其他节点账本
      */
-    void ClearOtherNodeMaps(const std::string &excludeNodeId)
+    void ClearOtherNodeMaps(const std::string& excludeNodeId)
     {
-        std::apply([&excludeNodeId](auto &...maps) { (maps.RemoveOtherNodeMaps(excludeNodeId), ...); }, debtMaps_);
+        std::apply([&excludeNodeId](auto&... maps) { (maps.RemoveOtherNodeMaps(excludeNodeId), ...); }, debtMaps_);
     }
 
     /**
@@ -584,11 +584,11 @@ public:
      * @note 遍历所有8种资源类型，收集指定节点的资源信息
      *       当filterDestroyed为true时，会过滤掉状态为DESTROYED的资源
      */
-    UbseNodeMemDebtInfo GetNodeMemDebtInfo(const std::string &nodeId, bool filterDestroyed = false) const
+    UbseNodeMemDebtInfo GetNodeMemDebtInfo(const std::string& nodeId, bool filterDestroyed = false) const
     {
         UbseNodeMemDebtInfo info;
         // 使用通用 Lambda 简化 8 种资源的处理逻辑
-        auto fillMap = [&](auto &sourceMap, auto &targetField) {
+        auto fillMap = [&](auto& sourceMap, auto& targetField) {
             if (auto nodeMap = sourceMap.FindNodeMap(nodeId)) {
                 if (filterDestroyed) {
                     // 执行过滤逻辑，产生一个新的 Map
@@ -620,30 +620,30 @@ public:
      * @note 将旧版NodeMemDebtInfo结构体中的数据迁移到新账本系统
      *       遍历所有8种资源类型，将数据逐一存入对应类型的账本
      */
-    void LoadFromNodeMemDebtInfo(const std::string &nodeId, const NodeMemDebtInfo &nodeMemDebtInfo)
+    void LoadFromNodeMemDebtInfo(const std::string& nodeId, const NodeMemDebtInfo& nodeMemDebtInfo)
     {
-        for (const auto &[name, obj] : nodeMemDebtInfo.fdImportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.fdImportObjMap) {
             GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(nodeId, name, obj);
         }
-        for (const auto &[name, obj] : nodeMemDebtInfo.fdExportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.fdExportObjMap) {
             GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(nodeId, name, obj);
         }
-        for (const auto &[name, obj] : nodeMemDebtInfo.numaImportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.numaImportObjMap) {
             GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(nodeId, name, obj);
         }
-        for (const auto &[name, obj] : nodeMemDebtInfo.numaExportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.numaExportObjMap) {
             GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(nodeId, name, obj);
         }
-        for (const auto &[name, obj] : nodeMemDebtInfo.shareImportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.shareImportObjMap) {
             GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(nodeId, name, obj);
         }
-        for (const auto &[name, obj] : nodeMemDebtInfo.shareExportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.shareExportObjMap) {
             GetDebtMap<UbseMemShareBorrowExportObj>().PutResource(nodeId, name, obj);
         }
-        for (const auto &[name, obj] : nodeMemDebtInfo.addrImportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.addrImportObjMap) {
             GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(nodeId, name, obj);
         }
-        for (const auto &[name, obj] : nodeMemDebtInfo.addrExportObjMap) {
+        for (const auto& [name, obj] : nodeMemDebtInfo.addrExportObjMap) {
             GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(nodeId, name, obj);
         }
     }
@@ -662,10 +662,10 @@ private:
      */
     template <typename T>
     std::unordered_map<std::string, std::shared_ptr<const T>>
-    FilterDestroyedResources(const std::unordered_map<std::string, std::shared_ptr<const T>> &resources) const
+    FilterDestroyedResources(const std::unordered_map<std::string, std::shared_ptr<const T>>& resources) const
     {
         std::unordered_map<std::string, std::shared_ptr<const T>> filtered;
-        for (const auto &[key, obj] : resources) {
+        for (const auto& [key, obj] : resources) {
             if (!obj) {
                 continue;
             }

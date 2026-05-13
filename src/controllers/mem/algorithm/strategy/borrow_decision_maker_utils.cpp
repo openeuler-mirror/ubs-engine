@@ -13,15 +13,15 @@
 #include <algorithm>
 #include <cstring>
 #include <iomanip>
+#include "ubse_logger.h"
 #include "borrow_decision_maker.h"
 #include "chrono"
 #include "mem_pool_config.h"
-#include "ubse_logger.h"
 
 namespace tc::rs::mem {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
-BResult BorrowDecisionMaker::SelectOptimalNumaGreedy(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
-                                                     int &idxMaxFree, uint64_t &maxNumaFreeSizeBytes) const
+BResult BorrowDecisionMaker::SelectOptimalNumaGreedy(const BorrowRequest& borrowRequest, const SysStatus& sysStatus,
+                                                     int& idxMaxFree, uint64_t& maxNumaFreeSizeBytes) const
 {
     for (int i = 0; i < memConfig_->memStaticParam.numAvailNumas; i++) {
         int hostId = sysStatus.numaStatus[i].loc.hostId;
@@ -51,7 +51,7 @@ BResult BorrowDecisionMaker::SelectOptimalNumaGreedy(const BorrowRequest &borrow
     return UBSE_OK;
 }
 
-bool BorrowDecisionMaker::CheckDirectConnect(const BorrowRequest &borrowRequest, int socketIdx) const
+bool BorrowDecisionMaker::CheckDirectConnect(const BorrowRequest& borrowRequest, int socketIdx) const
 {
     if (memConfig_->memLatencyInfo.socketToHostLatency[socketIdx][borrowRequest.requestLoc.hostId] == -1) {
         return false;
@@ -64,9 +64,9 @@ bool BorrowDecisionMaker::CheckSameHost(int lendHost, int borrowHost) const
     return (lendHost == borrowHost);
 }
 
-void BorrowDecisionMaker::GetBorrowerNuma(const BorrowRequest &borrowRequest, BorrowResult &borrowResult) const
+void BorrowDecisionMaker::GetBorrowerNuma(const BorrowRequest& borrowRequest, BorrowResult& borrowResult) const
 {
-    int *idx = GetNumaList(borrowRequest);
+    int* idx = GetNumaList(borrowRequest);
     int numNuma = (borrowRequest.requestLoc.socketId == -1) ? NUM_NUMA_PER_HOST : NUM_NUMA_PER_SOCKET;
     int minLatency = memConfig_->memLatencyInfo.maxSysLatency + 1;
     for (int i = 0; i < numNuma; i++) {
@@ -84,15 +84,15 @@ void BorrowDecisionMaker::GetBorrowerNuma(const BorrowRequest &borrowRequest, Bo
     }
 }
 
-int *BorrowDecisionMaker::GetNumaList(const BorrowRequest &borrowRequest) const
+int* BorrowDecisionMaker::GetNumaList(const BorrowRequest& borrowRequest) const
 {
-    int *idx = (borrowRequest.requestLoc.socketId == -1) ?
+    int* idx = (borrowRequest.requestLoc.socketId == -1) ?
                    memConfig_->GetNumaListInHost(borrowRequest.requestLoc.hostId) :
                    memConfig_->GetNumaListInSocket(borrowRequest.requestLoc.hostId, borrowRequest.requestLoc.socketId);
     return idx;
 }
 
-bool BorrowDecisionMaker::LenderFilter(MemLoc requestLoc, MemLoc targetLoc, const SysStatus &sysStatus) const
+bool BorrowDecisionMaker::LenderFilter(MemLoc requestLoc, MemLoc targetLoc, const SysStatus& sysStatus) const
 {
     // 非法检测: targetLoc是一个socket
     if (targetLoc.socketId == -1) {

@@ -12,8 +12,8 @@
 
 #include "test_ubse_conf.h"
 #include <mockcpp/mokc.h>
-#include "test_ubse_conf_module.h"
 #include "ubse_context.h"
+#include "test_ubse_conf_module.h"
 
 using namespace ubse::config;
 

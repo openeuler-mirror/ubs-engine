@@ -17,7 +17,7 @@
 #include <vector>
 #include "ubs_virt_agent_mem_fragmentation.h"
 
-virt_agent_ret_t ubse_node_info_unpack(uint8_t *buffer, uint32_t len, numa_info_t **numa_infos, uint32_t *node_cnt)
+virt_agent_ret_t ubse_node_info_unpack(uint8_t* buffer, uint32_t len, numa_info_t** numa_infos, uint32_t* node_cnt)
 {
     vm::MemFragmentationMsg msg{buffer, len};
     auto ret = msg.Deserialize();
@@ -36,7 +36,7 @@ virt_agent_ret_t ubse_node_info_unpack(uint8_t *buffer, uint32_t len, numa_info_
     if (*node_cnt == 0) {
         return VA_SUCCESS;
     }
-    *numa_infos = (numa_info_t *)calloc(*node_cnt, sizeof(numa_info_t));
+    *numa_infos = (numa_info_t*)calloc(*node_cnt, sizeof(numa_info_t));
     if (*numa_infos == nullptr) {
         IPC_LOG_ERROR << "Memory allocation failed for numa_infos.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;
@@ -47,7 +47,7 @@ virt_agent_ret_t ubse_node_info_unpack(uint8_t *buffer, uint32_t len, numa_info_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubse_vm_info_unpack(uint8_t *buffer, uint32_t len, vm_domain_info_t **vm_infos, uint32_t *node_cnt)
+virt_agent_ret_t ubse_vm_info_unpack(uint8_t* buffer, uint32_t len, vm_domain_info_t** vm_infos, uint32_t* node_cnt)
 {
     vm::MemFragmentationVmInfoMsg msg{buffer, len};
     auto ret = msg.Deserialize();
@@ -61,20 +61,20 @@ virt_agent_ret_t ubse_vm_info_unpack(uint8_t *buffer, uint32_t len, vm_domain_in
     if (*node_cnt == 0) {
         return VA_SUCCESS;
     }
-    *vm_infos = (vm_domain_info_t *)calloc(*node_cnt, sizeof(vm_domain_info_t));
+    *vm_infos = (vm_domain_info_t*)calloc(*node_cnt, sizeof(vm_domain_info_t));
     if (*vm_infos == nullptr) {
         IPC_LOG_ERROR << "Memory allocation failed for numa_infos.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
     for (uint32_t i = 0; i < *node_cnt; ++i) {
-        (*vm_infos)[i] = *reinterpret_cast<vm_domain_info_t *>(&vmInfoList[i]);
+        (*vm_infos)[i] = *reinterpret_cast<vm_domain_info_t*>(&vmInfoList[i]);
     }
     return VA_SUCCESS;
 }
 
-uint8_t *allocate_memory(size_t buffer_size)
+uint8_t* allocate_memory(size_t buffer_size)
 {
-    uint8_t *buffer = new (std::nothrow) uint8_t[buffer_size];
+    uint8_t* buffer = new (std::nothrow) uint8_t[buffer_size];
     if (buffer == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory.";
         return nullptr;
@@ -82,7 +82,7 @@ uint8_t *allocate_memory(size_t buffer_size)
     return buffer;
 }
 
-virt_agent_ret_t serialize_data(const NodeAntiDictionary &node_dict, uint8_t *buffer)
+virt_agent_ret_t serialize_data(const NodeAntiDictionary& node_dict, uint8_t* buffer)
 {
     uint32_t entries_count = node_dict.entry_count;
     if (memcpy_s(buffer, sizeof(uint32_t), &entries_count, sizeof(uint32_t)) != 0) {
@@ -91,7 +91,7 @@ virt_agent_ret_t serialize_data(const NodeAntiDictionary &node_dict, uint8_t *bu
     }
     buffer += sizeof(uint32_t);
     for (size_t i = 0; i < node_dict.entry_count; ++i) {
-        const struct KeyValuePair &entry = node_dict.entries[i];
+        const struct KeyValuePair& entry = node_dict.entries[i];
 
         uint32_t key_length = strlen(entry.key) + 1;
         if (memcpy_s(buffer, sizeof(uint32_t), &key_length, sizeof(uint32_t)) != 0) {
@@ -131,7 +131,7 @@ virt_agent_ret_t serialize_data(const NodeAntiDictionary &node_dict, uint8_t *bu
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubse_mem_borrow_strategy_msg_unpack(uint8_t *buffer, uint32_t len, borrow_strategy_c *borrow_strategy)
+virt_agent_ret_t ubse_mem_borrow_strategy_msg_unpack(uint8_t* buffer, uint32_t len, borrow_strategy_c* borrow_strategy)
 {
     MemFragmentationMemBorrowStrategyOutputMsg msg{buffer, len};
     auto ret = msg.Deserialize();
@@ -144,13 +144,13 @@ virt_agent_ret_t ubse_mem_borrow_strategy_msg_unpack(uint8_t *buffer, uint32_t l
     return VA_SUCCESS;
 }
 
-void free_borrow_ids_ptr(char ***borrow_ids_ptr, size_t length)
+void free_borrow_ids_ptr(char*** borrow_ids_ptr, size_t length)
 {
     if (borrow_ids_ptr == nullptr || *borrow_ids_ptr == nullptr) {
         return;
     }
 
-    char **array = *borrow_ids_ptr;
+    char** array = *borrow_ids_ptr;
 
     for (size_t i = 0; i < length; ++i) {
         if (array[i] != nullptr) {
@@ -163,7 +163,7 @@ void free_borrow_ids_ptr(char ***borrow_ids_ptr, size_t length)
     *borrow_ids_ptr = nullptr;
 }
 
-virt_agent_ret_t ubse_mem_borrow_execute_msg_unpack(uint8_t *buffer, uint32_t len, mem_borrow_result_c *result)
+virt_agent_ret_t ubse_mem_borrow_execute_msg_unpack(uint8_t* buffer, uint32_t len, mem_borrow_result_c* result)
 {
     IPC_LOG_INFO << "ubse_mem_borrow_execute_msg_unpack start.";
     MemBorrowExecuteResultMsg msg(buffer, len);
@@ -180,7 +180,7 @@ virt_agent_ret_t ubse_mem_borrow_execute_msg_unpack(uint8_t *buffer, uint32_t le
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubse_mem_task_info_query_msg_unpack(uint8_t *buffer, uint32_t len, async_task_info_c *result)
+virt_agent_ret_t ubse_mem_task_info_query_msg_unpack(uint8_t* buffer, uint32_t len, async_task_info_c* result)
 {
     IPC_LOG_INFO << "UnpackTaskInfoFromResponse start.";
     MemTaskResultQueryMsg msg(buffer, len);
@@ -193,7 +193,7 @@ virt_agent_ret_t ubse_mem_task_info_query_msg_unpack(uint8_t *buffer, uint32_t l
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t *buffer, uint32_t len, MemMigrateStrategy *strategy)
+virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t* buffer, uint32_t len, MemMigrateStrategy* strategy)
 {
     MemFragmentationMemMigrateStrategyOutputMsg msg{buffer, len};
     auto ret = msg.Deserialize();

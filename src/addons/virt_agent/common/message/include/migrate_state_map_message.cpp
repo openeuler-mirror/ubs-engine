@@ -20,15 +20,15 @@ namespace vm {
 VmResult MigrateStateMapMessage::Serialize()
 {
     size_t mapSize = 0;
-    for (auto &[numaLoc, vmBasicInfoMap] : migrateStateMap) {
-        for (auto &[uuid, vmBasicInfo] : vmBasicInfoMap) {
+    for (auto& [numaLoc, vmBasicInfoMap] : migrateStateMap) {
+        for (auto& [uuid, vmBasicInfo] : vmBasicInfoMap) {
             mapSize++;
         }
     }
     VmSerialization out;
     out << mapSize;
-    for (auto &[numaLoc, vmBasicInfoMap] : migrateStateMap) {
-        for (auto &[uuid, vmBasicInfo] : vmBasicInfoMap) {
+    for (auto& [numaLoc, vmBasicInfoMap] : migrateStateMap) {
+        for (auto& [uuid, vmBasicInfo] : vmBasicInfoMap) {
             out << vmBasicInfo.uuid;
             out << vmBasicInfo.pid;
             out << vmBasicInfo.nodeId;
@@ -37,7 +37,7 @@ VmResult MigrateStateMapMessage::Serialize()
             out << vmBasicInfo.vmMigrateInTime;
             size_t numaMemInfoSize = vmBasicInfo.numaMemInfo.size();
             out << numaMemInfoSize;
-            for (auto &[numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
+            for (auto& [numaId, vmDomainNumaInfo] : vmBasicInfo.numaMemInfo) {
                 out << vmDomainNumaInfo.socketId;
                 out << vmDomainNumaInfo.numaId;
             }

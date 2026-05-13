@@ -10,17 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "sentry_observer.h"
-#include "src/adapter_plugins/mti/ubse_lcne_module.h"
 #include "sys_sentry_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_os_util.h"
 #include "ubse_str_util.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "sentry_observer.h"
+#include "src/adapter_plugins/mti/ubse_lcne_module.h"
 
 namespace syssentry {
 using namespace ubse::log;
@@ -65,9 +65,9 @@ void SysSentryModule::Stop()
     UbseRasObserver::GetInstance().Stop();
 }
 
-void LinkStrings(std::string &result, const std::string linkSymbol, const std::vector<std::string> strings)
+void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings)
 {
-    for (const auto &item : strings) {
+    for (const auto& item : strings) {
         if (!result.empty()) {
             result += linkSymbol;
         }
@@ -75,7 +75,7 @@ void LinkStrings(std::string &result, const std::string linkSymbol, const std::v
     }
 }
 
-std::vector<std::string> SplitString(const std::string &str, char delimiter)
+std::vector<std::string> SplitString(const std::string& str, char delimiter)
 {
     std::vector<std::string> result;
     std::istringstream iss(str);
@@ -88,8 +88,8 @@ std::vector<std::string> SplitString(const std::string &str, char delimiter)
     return result;
 }
 
-UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketComEid,
-                       const std::string& nodeId, std::unordered_map<std::string, std::vector<std::string>>& eids,
+UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo>& allSocketComEid, const std::string& nodeId,
+                       std::unordered_map<std::string, std::vector<std::string>>& eids,
                        std::vector<std::string>& eidGroup)
 {
     for (const auto& info : allSocketComEid) {
@@ -102,16 +102,15 @@ UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketCo
         }
         eids[devVec[0]].emplace_back(info.second.primaryEid);
     }
-    for (auto &e : eids[nodeId]) {
+    for (auto& e : eids[nodeId]) {
         eidGroup.emplace_back(e);
     }
-    for (const auto &eidPair : eids) {
+    for (const auto& eidPair : eids) {
         for (size_t i = 0; i < eidPair.second.size(); i++) {
             if (eidPair.second[i].empty()) {
                 continue;
             }
-            if (std::find(eids[nodeId].begin(), eids[nodeId].end(), eidPair.second[i]) !=
-                eids[nodeId].end()) {
+            if (std::find(eids[nodeId].begin(), eids[nodeId].end(), eidPair.second[i]) != eids[nodeId].end()) {
                 continue;
             }
             if (i >= eidGroup.size()) {
@@ -128,7 +127,7 @@ UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketCo
     return UBSE_OK;
 }
 
-UbseResult GetEids(std::string &clientEid, std::string &serverEids)
+UbseResult GetEids(std::string& clientEid, std::string& serverEids)
 {
     std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
     auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
@@ -161,7 +160,7 @@ UbseResult GetEids(std::string &clientEid, std::string &serverEids)
 }
 
 // 对动态参数转义, 用引号把数据“包裹”起来，shell 不会解析内部的 ;、`
-std::string ShellEscape(const std::string &str)
+std::string ShellEscape(const std::string& str)
 {
     if (str.empty()) {
         return "''";
@@ -179,7 +178,7 @@ std::string ShellEscape(const std::string &str)
     return result;
 }
 
-UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
+UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas)
 {
     UbseMtiCpuTopoInfoMap topo;
     auto ret = UbseMtiInterface::GetInstance().GetClusterCpuTopo(topo);
@@ -193,7 +192,7 @@ UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
         UBSE_LOG_ERROR << "Failed to get local node info";
         return ret;
     }
-    for (auto &devCputopo : topo) {
+    for (auto& devCputopo : topo) {
         auto devName = devCputopo.first;
         std::string devNodeId{};
         std::string devSocketId{};
@@ -202,10 +201,9 @@ UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
             continue;
         }
 
-        auto &cpuTopo = devCputopo.second;
+        auto& cpuTopo = devCputopo.second;
         if (std::to_string(cpuTopo.slotId) == localNodeInfo.nodeId) {
-            UBSE_LOG_INFO << "Get local node cna=" << cpuTopo.busNodeCna
-                          << ", slotId=" << cpuTopo.slotId;
+            UBSE_LOG_INFO << "Get local node cna=" << cpuTopo.busNodeCna << ", slotId=" << cpuTopo.slotId;
             busNodeCnas.push_back(std::to_string(cpuTopo.busNodeCna));
         }
     }
@@ -230,7 +228,7 @@ UbseResult SetSysSentryFaultEventOn()
                              {commandSetMemFaultReporter, "commandSetMemFaultReporter"},
                              {commandSetOomFaultReporter, "commandSetOomFaultReporter"}};
     std::string commandResult;
-    for (const auto &[command, desc] : tasks) {
+    for (const auto& [command, desc] : tasks) {
         commandResult = "";
         auto result = ubse::utils::UbseOsUtil::Exec(command, commandResult);
         if (result != UBSE_OK) {
@@ -269,7 +267,7 @@ UbseResult SetSysSentryFaultReporter()
         {commandMonitorSetCna, "commandMonitorSetCna"},
         {commandSetServerEid, "commandSetServerEid"},
     };
-    for (const auto &[command, desc] : tasks) {
+    for (const auto& [command, desc] : tasks) {
         commandResult = "";
         auto result = ubse::utils::UbseOsUtil::Exec(command, commandResult);
         if (result != UBSE_OK) {

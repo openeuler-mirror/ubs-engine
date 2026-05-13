@@ -16,8 +16,8 @@
 #include <filesystem>
 #include <mockcpp/mockcpp.hpp>
 
-#include "page_file_helper.h"
 #include "ubse_file_util.h"
+#include "page_file_helper.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -28,7 +28,7 @@ using namespace ubse::utils;
 void TestPageFileHelper::SetUp()
 {
     Test::SetUp();
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
     if (realPath == nullptr) {
         std::cout << "[SetUp] current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -50,7 +50,7 @@ constexpr uint64_t originalHugePagesResult = 512;
 constexpr uint64_t borrowSize = 2097152;
 constexpr uint64_t reWriteHugePagesResult = 1024;
 
-bool CanonicalPathSuccess(std::string &path)
+bool CanonicalPathSuccess(std::string& path)
 {
     path = filePathResult;
     return true;
@@ -77,7 +77,7 @@ TEST_F(TestPageFileHelper, GetHugePageCanonicalPathFail)
 
 TEST_F(TestPageFileHelper, GetOriginalHugePagesSuccess)
 {
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
     if (realPath == nullptr) {
         std::cout << "current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -92,7 +92,7 @@ TEST_F(TestPageFileHelper, GetOriginalHugePagesSuccess)
 
 TEST_F(TestPageFileHelper, GetOriginalHugePagesFail1)
 {
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages_none", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages_none", nullptr);
     if (realPath == nullptr) {
         std::cout << "current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -115,7 +115,7 @@ TEST_F(TestPageFileHelper, GetOriginalHugePagesFail2)
 
 TEST_F(TestPageFileHelper, RewriteHugePagesSuccess)
 {
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
     if (realPath == nullptr) {
         std::cout << "current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -149,7 +149,7 @@ TEST_F(TestPageFileHelper, AllocateHugePagesSuccess)
 TEST_F(TestPageFileHelper, AllocateHugePagesFail1)
 {
     const std::vector<MemBorrowInfoWithSrc> memBorrowInfoWithSrcs{
-            {.srcNumaId = 0, .presentNumaId = 4, .borrowSize = 2097152}};
+        {.srcNumaId = 0, .presentNumaId = 4, .borrowSize = 2097152}};
     MOCKER(PageFileHelper::GetHugePageCanonicalPath).stubs().will(returnValue(MEM_POOLING_ERROR));
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(PageFileHelper::RewriteHugePagesWithRetry).stubs().will(returnValue(MEM_POOLING_OK));
@@ -160,7 +160,7 @@ TEST_F(TestPageFileHelper, AllocateHugePagesFail1)
 TEST_F(TestPageFileHelper, AllocateHugePagesFail2)
 {
     const std::vector<MemBorrowInfoWithSrc> memBorrowInfoWithSrcs{
-                {.srcNumaId = 0, .presentNumaId = 4, .borrowSize = 2097152}};
+        {.srcNumaId = 0, .presentNumaId = 4, .borrowSize = 2097152}};
     MOCKER(PageFileHelper::GetHugePageCanonicalPath).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_ERROR));
     MOCKER(PageFileHelper::RewriteHugePagesWithRetry).stubs().will(returnValue(MEM_POOLING_OK));
@@ -171,7 +171,7 @@ TEST_F(TestPageFileHelper, AllocateHugePagesFail2)
 TEST_F(TestPageFileHelper, AllocateHugePagesFail3)
 {
     const std::vector<MemBorrowInfoWithSrc> memBorrowInfoWithSrcs{
-                    {.srcNumaId = 0, .presentNumaId = 4, .borrowSize = 2097152}};
+        {.srcNumaId = 0, .presentNumaId = 4, .borrowSize = 2097152}};
     MOCKER(PageFileHelper::GetHugePageCanonicalPath).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(PageFileHelper::RewriteHugePagesWithRetry).stubs().will(returnValue(MEM_POOLING_ERROR));
@@ -181,7 +181,7 @@ TEST_F(TestPageFileHelper, AllocateHugePagesFail3)
 
 TEST_F(TestPageFileHelper, RewriteHugePagesWithRetrySuccess)
 {
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
     if (realPath == nullptr) {
         std::cout << "current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -190,14 +190,14 @@ TEST_F(TestPageFileHelper, RewriteHugePagesWithRetrySuccess)
     const uint16_t remoteNumaId = 4;
     uint64_t hugePages = 0;
     const int retryCount = 3;
-    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages,
-                                                         remoteNumaId, borrowSize, retryCount);
+    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages, remoteNumaId, borrowSize,
+                                                         retryCount);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail1)
 {
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
     if (realPath == nullptr) {
         std::cout << "current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -207,14 +207,14 @@ TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail1)
     uint64_t hugePages = 0;
     const int retryCount = 5;
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_ERROR));
-    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages,
-                                                         remoteNumaId, borrowSize, retryCount);
+    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages, remoteNumaId, borrowSize,
+                                                         retryCount);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail2)
 {
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
     if (realPath == nullptr) {
         std::cout << "current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -224,12 +224,12 @@ TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail2)
     uint64_t hugePages = 0;
     const int retryCount = 5;
     MOCKER(PageFileHelper::RewriteHugePages).stubs().will(returnValue(MEM_POOLING_ERROR));
-    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages,
-                                                         remoteNumaId, borrowSize, retryCount);
+    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages, remoteNumaId, borrowSize,
+                                                         retryCount);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-MpResult mockGetOriginalHugePages(const std::string &filePath, uint64_t &originalHugePages)
+MpResult mockGetOriginalHugePages(const std::string& filePath, uint64_t& originalHugePages)
 {
     originalHugePages = 0;
     return MEM_POOLING_OK;
@@ -237,7 +237,7 @@ MpResult mockGetOriginalHugePages(const std::string &filePath, uint64_t &origina
 
 TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail3)
 {
-    const char *realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
+    const char* realPath = realpath("../testcase/over_commit/page_file/data/nr_hugepages", nullptr);
     if (realPath == nullptr) {
         std::cout << "current path: " << std::filesystem::current_path() << std::endl;
         return;
@@ -247,8 +247,8 @@ TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail3)
     uint64_t hugePages = 0;
     const int retryCount = 1;
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(invoke(mockGetOriginalHugePages));
-    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages,
-                                                         remoteNumaId, borrowSize, retryCount);
+    auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages, remoteNumaId, borrowSize,
+                                                         retryCount);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 } // namespace mempooling::ut::over_commit

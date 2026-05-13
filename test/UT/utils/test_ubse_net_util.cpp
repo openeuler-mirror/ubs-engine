@@ -242,7 +242,7 @@ TEST(UbseNetUtilTest, Ipv4StringToArr_EmptyIp)
 TEST(UbseNetUtilTest, Ipv4StringToArr_MemoryCopyFail)
 {
     std::string ip = "192.168.1.1";
-    uint8_t *arr = nullptr;
+    uint8_t* arr = nullptr;
     EXPECT_FALSE(UbseNetUtil::Ipv4StringToArr(ip, arr));
 }
 
@@ -257,7 +257,7 @@ TEST(UbseNetUtilTest, Ipv4ArrToString_ValidArr)
     uint8_t arrMinValue[4] = {0, 0, 0, 0};
     EXPECT_EQ(UbseNetUtil::Ipv4ArrToString(arrMinValue), "0.0.0.0");
 
-    uint8_t *arrNullptr = nullptr;
+    uint8_t* arrNullptr = nullptr;
     EXPECT_EQ(UbseNetUtil::Ipv4ArrToString(arrNullptr), "");
 }
 

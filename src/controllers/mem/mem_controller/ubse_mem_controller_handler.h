@@ -22,7 +22,7 @@ class UbseMemOperationRespHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemOperationRespHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override

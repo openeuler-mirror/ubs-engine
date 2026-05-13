@@ -15,8 +15,8 @@
 
 namespace ubse::it::utils {
 
-void SetArgv(char **argv);
+void SetArgv(char** argv);
 
-char **GetArgv();
-}
+char** GetArgv();
+} // namespace ubse::it::utils
 #endif // UBSE_MANAGER_TEST_IT_UTILS_H

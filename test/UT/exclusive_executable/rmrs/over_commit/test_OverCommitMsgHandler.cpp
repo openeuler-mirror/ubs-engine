@@ -56,7 +56,7 @@ public:
     }
 };
 
-void MakeMigrateHandlerRequest(UbseByteBuffer &req)
+void MakeMigrateHandlerRequest(UbseByteBuffer& req)
 {
     outinterface::SrcMemoryBorrowParam srcMemoryBorrowParam = {.srcNid = "test", .srcSocketId = 0, .srcNumaId = 0};
     MemBorrowInfoWithSrc memBorrowInfoWithSrc = {.srcNumaId = 0, .presentNumaId = 0, .borrowSize = 1};
@@ -74,7 +74,7 @@ void MakeMigrateHandlerRequest(UbseByteBuffer &req)
     req = {.data = builder.GetBufferPointer(), .len = builder.GetSize()};
 }
 
-MpResult CollectBorrowRecordsMock(MemManager *This, const std::string nodeId, std::vector<BorrowRecord> &borrowRecords)
+MpResult CollectBorrowRecordsMock(MemManager* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords)
 {
     BorrowRecord record;
     record.size = 1024;
@@ -89,7 +89,7 @@ SetSmapRemoteNumaInfoFunc MockGetSetSmapRemoteNumaInfo()
     return nullptr;
 }
 
-int MockSetSmapRemoteNumaInfoFuncReturnError(RemoteNumaInfo *remoteNumaInfo)
+int MockSetSmapRemoteNumaInfoFuncReturnError(RemoteNumaInfo* remoteNumaInfo)
 {
     return MEM_POOLING_ERROR;
 }
@@ -99,7 +99,7 @@ SetSmapRemoteNumaInfoFunc MockGetSetSmapRemoteNumaInfoFail()
     return MockSetSmapRemoteNumaInfoFuncReturnError;
 }
 
-int MockSetSmapRemoteNumaInfoFuncReturnOK(RemoteNumaInfo *remoteNumaInfo)
+int MockSetSmapRemoteNumaInfoFuncReturnOK(RemoteNumaInfo* remoteNumaInfo)
 {
     return MEM_POOLING_OK;
 }
@@ -109,7 +109,7 @@ SetSmapRemoteNumaInfoFunc MockGetSetSmapRemoteNumaInfoOk()
     return MockSetSmapRemoteNumaInfoFuncReturnOK;
 }
 
-void MakeSetSmapRemoteNumaHandlerRequest(UbseByteBuffer &req)
+void MakeSetSmapRemoteNumaHandlerRequest(UbseByteBuffer& req)
 {
     outinterface::SrcMemoryBorrowParam srcMemoryBorrowParam = {.srcNid = "test", .srcSocketId = 0, .srcNumaId = 0};
     MemBorrowInfo memBorrowInfo = {.presentNumaId = 0, .borrowSize = 1};
@@ -165,7 +165,7 @@ SmapRemoveFunc MockGetSmapRemoveFunc()
     return nullptr;
 }
 
-int MockSmapRemoveFuncReturnError(RemoveMsg *removeMsg, int param)
+int MockSmapRemoveFuncReturnError(RemoveMsg* removeMsg, int param)
 {
     return MEM_POOLING_ERROR;
 }
@@ -175,7 +175,7 @@ SmapRemoveFunc MockGetSmapRemoveFuncFail()
     return MockSmapRemoveFuncReturnError;
 }
 
-int MockSmapRemoveFuncReturnOk(RemoveMsg *removeMsg, int param)
+int MockSmapRemoveFuncReturnOk(RemoveMsg* removeMsg, int param)
 {
     return MEM_POOLING_OK;
 }
@@ -185,7 +185,7 @@ SmapRemoveFunc MockGetSmapRemoveFuncOk()
     return MockSmapRemoveFuncReturnOk;
 }
 
-void MakeRemoveHandlerRequest(UbseByteBuffer &req)
+void MakeRemoveHandlerRequest(UbseByteBuffer& req)
 {
     std::vector<pid_t> pids = {0, 1};
     SmapRemoveTrans smapRemoveTrans = {.pids = pids};
@@ -225,7 +225,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveHandlerSuccess)
     ASSERT_EQ(overCommitMsgHandler.RemoveHandler(req, resp), MEM_POOLING_OK);
 }
 
-void ProcessQueryHandlerRequest(UbseByteBuffer &req)
+void ProcessQueryHandlerRequest(UbseByteBuffer& req)
 {
     std::vector<uint32_t> numaIds = {0, 1};
     SmapRemoteProcessQueryTrans smapRemoteProcessQueryTrans = {.numaIds = numaIds};
@@ -236,14 +236,14 @@ void ProcessQueryHandlerRequest(UbseByteBuffer &req)
     req = {.data = builder.GetBufferPointer(), .len = builder.GetSize()};
 }
 
-int MockSmapQueryFuncReturnOk(int numaId, struct ProcessPayload *processPayloads, int num, int *len)
+int MockSmapQueryFuncReturnOk(int numaId, struct ProcessPayload* processPayloads, int num, int* len)
 {
     processPayloads[0] = {.pid = 123};
     *len = 1;
     return MEM_POOLING_OK;
 }
 
-int MockSmapQueryFuncReturnERROR(int numaId, struct ProcessPayload *processPayloads, int num, int *len)
+int MockSmapQueryFuncReturnERROR(int numaId, struct ProcessPayload* processPayloads, int num, int* len)
 {
     processPayloads[0] = {.pid = 123};
     *len = 1;
@@ -281,7 +281,7 @@ TEST_F(TestOverCommitMsgHandler, ProcessQueryHandlerFailed)
     UbseByteBuffer resp;
     MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
-        .will(returnValue((SmapGetRemotePidsFunc)nullptr));
+        .will(returnValue((SmapGetRemotePidsFunc) nullptr));
     auto ret = overCommitMsgHandler.ProcessQueryHandler(req, resp);
     ASSERT_EQ(ret, MEM_POOLING_ERROR);
 }
@@ -302,7 +302,7 @@ TEST_F(TestOverCommitMsgHandler, ProcessQueryHandlerSuccess1)
 TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult res = InitUCacheOverCommitReg();
@@ -310,7 +310,7 @@ TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
     GlobalMockObject::verify();
 
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
@@ -321,7 +321,7 @@ TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -332,7 +332,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest1)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
@@ -344,7 +344,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest1)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest2)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
@@ -356,7 +356,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest2)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest3)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_OK));
@@ -365,38 +365,38 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest3)
     ASSERT_EQ(res, 0);
 }
 
-static uint32_t MockOsturboFunctionCallerReturn0(const std::string &function, const TurboByteBuffer &params,
-                                                 TurboByteBuffer &result)
+static uint32_t MockOsturboFunctionCallerReturn0(const std::string& function, const TurboByteBuffer& params,
+                                                 TurboByteBuffer& result)
 {
     return 0;
 }
 
-static uint32_t MockOsturboFunctionCallerReturn1(const std::string &function, const TurboByteBuffer &params,
-                                                 TurboByteBuffer &result)
+static uint32_t MockOsturboFunctionCallerReturn1(const std::string& function, const TurboByteBuffer& params,
+                                                 TurboByteBuffer& result)
 {
     return 1;
 }
 
-static uint32_t MockOsturboFunctionCallerReturn3(const std::string &function, const TurboByteBuffer &params,
-                                                 TurboByteBuffer &result)
+static uint32_t MockOsturboFunctionCallerReturn3(const std::string& function, const TurboByteBuffer& params,
+                                                 TurboByteBuffer& result)
 {
     return 3;
 }
 
-static uint32_t MockRmrsPidNumaInfoCollectReturn0(const turbo::rmrs::PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                                                  turbo::rmrs::PidNumaInfoCollectResult &pidNumaInfoCollectResult)
+static uint32_t MockRmrsPidNumaInfoCollectReturn0(const turbo::rmrs::PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                                                  turbo::rmrs::PidNumaInfoCollectResult& pidNumaInfoCollectResult)
 {
     return 0;
 }
 
-static uint32_t MockRmrsPidNumaInfoCollectReturn1(const turbo::rmrs::PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                                                  turbo::rmrs::PidNumaInfoCollectResult &pidNumaInfoCollectResult)
+static uint32_t MockRmrsPidNumaInfoCollectReturn1(const turbo::rmrs::PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                                                  turbo::rmrs::PidNumaInfoCollectResult& pidNumaInfoCollectResult)
 {
     return 1;
 }
 
-static uint32_t MockRmrsPidNumaInfoCollectReturn2(const turbo::rmrs::PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                                                  turbo::rmrs::PidNumaInfoCollectResult &pidNumaInfoCollectResult)
+static uint32_t MockRmrsPidNumaInfoCollectReturn2(const turbo::rmrs::PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                                                  turbo::rmrs::PidNumaInfoCollectResult& pidNumaInfoCollectResult)
 {
     return 3;
 }
@@ -404,7 +404,7 @@ static uint32_t MockRmrsPidNumaInfoCollectReturn2(const turbo::rmrs::PidNumaInfo
 TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectRecvHandlerSucceed)
 {
     UbseByteBuffer req;
-    req.len  = 1;
+    req.len = 1;
     req.data = new uint8_t[req.len];
     UbseByteBuffer resp;
 
@@ -426,7 +426,7 @@ TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectRecvHandlerFailed)
 TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectRecvHandlerConnectFailed)
 {
     UbseByteBuffer req;
-    req.len  = 1;
+    req.len = 1;
     req.data = new uint8_t[req.len];
     UbseByteBuffer resp;
 
@@ -441,7 +441,7 @@ TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectRpcResHandlerTestFailed)
     respData.len = 1;
     respData.data = new uint8_t[respData.len];
     mempooling::over_commit::PidNumaInfoCollectResult result;
-    void *ctx = &result;
+    void* ctx = &result;
     uint32_t resCode = 1;
 
     PidNumaInfoCollectRpcResHandler(ctx, respData, resCode);
@@ -456,7 +456,7 @@ TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectRpcResHandlerTestSucceed)
     respData.len = 1;
     respData.data = new uint8_t[respData.len];
     mempooling::over_commit::PidNumaInfoCollectResult result;
-    void *ctx = &result;
+    void* ctx = &result;
     uint32_t resCode = 0;
 
     PidNumaInfoCollectRpcResHandler(ctx, respData, resCode);

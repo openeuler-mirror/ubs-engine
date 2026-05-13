@@ -11,11 +11,11 @@
  */
 
 #include "test_vm_migrate.h"
+#include "ubse_api_server.h"
 #include "mem_migrate_msg.h"
 #include "mockcpp/mockcpp.hpp"
 #include "resource_collect.h"
 #include "resource_query.h"
-#include "ubse_api_server.h"
 #include "vm_http_util.h"
 #include "vm_json_util.h"
 #include "vm_migrate.h"
@@ -52,7 +52,7 @@ TEST_F(TestVmMigrate, ToUpdateVmStatusTest)
     GlobalMockObject::verify();
 }
 
-VmResult MockGetHostVmDomainInfos(std::vector<HostVmDomainInfo> &hostVmDomainInfos)
+VmResult MockGetHostVmDomainInfos(std::vector<HostVmDomainInfo>& hostVmDomainInfos)
 {
     HostVmDomainInfo hostVmDomainInfo;
     VmDomainInfo vmDomainInfo = {.uuid = "uuid", .nodeId = "Node0", .pid = 1};

@@ -25,7 +25,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseStorageRespSimpo::~UbseStorageRespSimpo()
 {
-    for (auto &kv : storageResp_.kvs) {
+    for (auto& kv : storageResp_.kvs) {
         kv.key.clear();
         SafeDeleteArray(kv.value);
     }
@@ -33,12 +33,12 @@ UbseStorageRespSimpo::~UbseStorageRespSimpo()
     storageResp_.kvs.shrink_to_fit();
 }
 
-UbseStorageRespSimpo::UbseStorageRespSimpo(const UbseStorageResp &resp)
+UbseStorageRespSimpo::UbseStorageRespSimpo(const UbseStorageResp& resp)
 {
     storageResp_ = resp;
 }
 
-void UbseStorageRespSimpo::SetStorageResp(const UbseStorageResp &resp)
+void UbseStorageRespSimpo::SetStorageResp(const UbseStorageResp& resp)
 {
     storageResp_ = resp;
 }
@@ -61,8 +61,7 @@ UbseResult UbseStorageRespSimpo::Serialize()
     return UBSE_OK;
 }
 
-bool UbseStorageRespDeserialize(UbseDeSerialization &in,
-    ubse::storage::message::UbseStorageResp &ubseStorageResp)
+bool UbseStorageRespDeserialize(UbseDeSerialization& in, ubse::storage::message::UbseStorageResp& ubseStorageResp)
 {
     size_t ubseStorageRespSize;
     in >> ubseStorageRespSize;
@@ -73,7 +72,7 @@ bool UbseStorageRespDeserialize(UbseDeSerialization &in,
     for (size_t i = 0; i < ubseStorageRespSize; ++i) {
         ubse::storage::KV kv;
         if (!KVDeserialize(in, kv)) {
-            for (auto &item : ubseStorageResp.kvs) {
+            for (auto& item : ubseStorageResp.kvs) {
                 UbseSerialFreeFunc(item.value);
             }
             ubseStorageResp.kvs.clear();
@@ -106,4 +105,4 @@ std::string UbseStorageRespSimpo::ToString() const
 {
     return UbseBaseMessage::ToString();
 }
-}
+} // namespace ubse::storage::message

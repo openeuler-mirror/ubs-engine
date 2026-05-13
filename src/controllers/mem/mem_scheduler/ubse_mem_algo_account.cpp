@@ -25,7 +25,7 @@ using namespace ubse::nodeController;
 const std::map<BorrowedType, std::string> borrowTypeToString = {
     {BorrowedType::FD, "FD"}, {BorrowedType::NUMA, "NUMA"}, {BorrowedType::ADDR, "ADDR"}, {BorrowedType::SHM, "SHM"}};
 
-void AlgoAccountManger::AddAlgoAccount(const std::shared_ptr<BaseAlgoAccount> &algoAccountPtr)
+void AlgoAccountManger::AddAlgoAccount(const std::shared_ptr<BaseAlgoAccount>& algoAccountPtr)
 {
     if (algoAccountPtr == nullptr) {
         UBSE_LOG_WARN << "add algoaccount is nullptr";
@@ -36,7 +36,7 @@ void AlgoAccountManger::AddAlgoAccount(const std::shared_ptr<BaseAlgoAccount> &a
     algoAccountMap_[{algoAccountPtr->name, algoAccountPtr->importNodeId, algoAccountPtr->type}] = algoAccountPtr;
 }
 
-std::shared_ptr<BaseAlgoAccount> AlgoAccountManger::GetAlgoAccount(const AlgoAccountID &algoAccountID)
+std::shared_ptr<BaseAlgoAccount> AlgoAccountManger::GetAlgoAccount(const AlgoAccountID& algoAccountID)
 {
     if (algoAccountMap_.find(algoAccountID) != algoAccountMap_.end()) {
         auto algoAccountPtr = algoAccountMap_[algoAccountID];
@@ -51,16 +51,16 @@ std::vector<std::shared_ptr<BaseAlgoAccount>> AlgoAccountManger::GetAllAlgoAccou
 {
     std::vector<std::shared_ptr<BaseAlgoAccount>> algoAccountPtrs{};
     algoAccountPtrs.reserve(algoAccountMap_.size());
-    for (const auto &[key, value] : algoAccountMap_) {
+    for (const auto& [key, value] : algoAccountMap_) {
         algoAccountPtrs.push_back(value);
     }
     return algoAccountPtrs;
 }
 
-std::vector<std::shared_ptr<BaseAlgoAccount>> AlgoAccountManger::GetAllAlgoAccountByNode(const std::string &nodeId)
+std::vector<std::shared_ptr<BaseAlgoAccount>> AlgoAccountManger::GetAllAlgoAccountByNode(const std::string& nodeId)
 {
     std::vector<std::shared_ptr<BaseAlgoAccount>> algoAccountPtrs{};
-    for (const auto &[key, value] : algoAccountMap_) {
+    for (const auto& [key, value] : algoAccountMap_) {
         if (value->exportNodeId == nodeId || value->importNodeId == nodeId) {
             algoAccountPtrs.push_back(value);
         }
@@ -69,7 +69,7 @@ std::vector<std::shared_ptr<BaseAlgoAccount>> AlgoAccountManger::GetAllAlgoAccou
 }
 
 std::shared_ptr<BaseAlgoAccount> AlgoAccountManger::CreateAccountByAlgoResult(
-    const std::string &name, const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, BorrowedType type)
+    const std::string& name, const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, BorrowedType type)
 {
     const auto nodeId = type == BorrowedType::SHM ? "" : algoResult.importNumaInfos[0].nodeId;
     if (auto ptr = GetAlgoAccount({name, nodeId, type});
@@ -82,7 +82,7 @@ std::shared_ptr<BaseAlgoAccount> AlgoAccountManger::CreateAccountByAlgoResult(
     if (algoResult.exportNumaInfos.empty() || algoResult.blockSize == 0) {
         return nullptr;
     }
-    for (const auto &lenderSize : algoResult.exportNumaInfos) {
+    for (const auto& lenderSize : algoResult.exportNumaInfos) {
         totalBorrowSize += lenderSize.size;
     }
 
@@ -108,9 +108,9 @@ std::shared_ptr<BaseAlgoAccount> AlgoAccountManger::CreateAccountByAlgoResult(
     return algoAccountPtr;
 }
 
-bool AlgoAccountManger::CheckProviderNodeHasBorrowed(const std::string &providerNodeId)
+bool AlgoAccountManger::CheckProviderNodeHasBorrowed(const std::string& providerNodeId)
 {
-    for (const auto &[name, accountPtr] : algoAccountMap_) {
+    for (const auto& [name, accountPtr] : algoAccountMap_) {
         if (accountPtr->type == BorrowedType::SHM) {
             continue;
         }
@@ -125,9 +125,9 @@ bool AlgoAccountManger::CheckProviderNodeHasBorrowed(const std::string &provider
     return false;
 }
 
-bool AlgoAccountManger::CheckBorrowNodeHasLent(const std::string &borrowNodeId)
+bool AlgoAccountManger::CheckBorrowNodeHasLent(const std::string& borrowNodeId)
 {
-    for (const auto &[name, accountPtr] : algoAccountMap_) {
+    for (const auto& [name, accountPtr] : algoAccountMap_) {
         if (accountPtr->type == BorrowedType::SHM) {
             continue;
         }
@@ -143,8 +143,8 @@ bool AlgoAccountManger::CheckBorrowNodeHasLent(const std::string &borrowNodeId)
     return false;
 }
 
-void AlgoAccountManger::UpdateAlgoAccountState(const std::string &name, ubse::adapter_plugins::mmi::UbseMemState state,
-                                               const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
+void AlgoAccountManger::UpdateAlgoAccountState(const std::string& name, ubse::adapter_plugins::mmi::UbseMemState state,
+                                               const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
                                                BorrowedType type)
 {
     const auto nodeId = type == BorrowedType::SHM ? "" : algoResult.importNumaInfos[0].nodeId;
@@ -166,4 +166,4 @@ void AlgoAccountManger::Clear()
 {
     algoAccountMap_.clear();
 }
-}  // namespace ubse::mem::strategy
+} // namespace ubse::mem::strategy

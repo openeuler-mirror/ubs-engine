@@ -15,10 +15,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "mem_pool_strategy.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_mmi_interface.h"
+#include "mem_pool_strategy.h"
 
 namespace ubse::mem::strategy {
 using namespace ubse::adapter_plugins::mmi;
@@ -128,8 +128,7 @@ private:
         {FILTER_NUMA_BY_LEND_SOCKET, &UbseMemValidator::FilterNumaByLendSocket},
         {FILTER_LEND_TIME_OUT, &UbseMemValidator::FilterInvalidSocketLendTimes},
         {FILTER_SHARE_BY_LENDER, &UbseMemValidator::FilterByLenderInfo},
-        {FILTER_LINK_PORT_DOWN, &UbseMemValidator::FilterByLinkPortDown}
-    };
+        {FILTER_LINK_PORT_DOWN, &UbseMemValidator::FilterByLinkPortDown}};
 };
 } // namespace ubse::mem::strategy
 #endif

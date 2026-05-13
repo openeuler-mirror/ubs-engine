@@ -15,8 +15,8 @@
 #include <algorithm>
 #include <sstream>
 #include "ubse_base_message.h"
-#include "ubse_serial_util.h"
 #include "ubse_mem_debt_info_partial_fetch_res.h"
+#include "ubse_serial_util.h"
 namespace ubse::mem::controller::message {
 enum class DebtFetchType {
     INIT = 1,
@@ -32,12 +32,12 @@ constexpr int MAX_PAGE_NUM = (MAX_PAGES + EACH_PAGE_SIZE - 1) / EACH_PAGE_SIZE;
 struct DebtFetchInfo {
     std::string nodeId{};
     std::string name{};
-    AccountType borrowType{ AccountType::INIT };
+    AccountType borrowType{AccountType::INIT};
     int pageNum{};
     int pageSize{};
-    DebtFetchType type{ DebtFetchType::INIT };
+    DebtFetchType type{DebtFetchType::INIT};
 
-    bool CheckFilter(std::string &error)
+    bool CheckFilter(std::string& error)
     {
         if (name.length() > 47) { // max length is 47
             error = std::string("The length of the name," + std::to_string(name.length()) + ", has exceeded 47.");
@@ -53,13 +53,13 @@ struct DebtFetchInfo {
         return true;
     }
 
-    static bool Serialize(ubse::serial::UbseSerialization &in, DebtFetchInfo &data)
+    static bool Serialize(ubse::serial::UbseSerialization& in, DebtFetchInfo& data)
     {
-        in << data.nodeId << data.name << ubse::serial::enum_v<AccountType>(data.borrowType) << data.pageNum <<
-            data.pageSize << ubse::serial::enum_v<DebtFetchType>(data.type);
+        in << data.nodeId << data.name << ubse::serial::enum_v<AccountType>(data.borrowType) << data.pageNum
+           << data.pageSize << ubse::serial::enum_v<DebtFetchType>(data.type);
         return in.Check();
     }
-    static bool Deserialize(ubse::serial::UbseDeSerialization &out, DebtFetchInfo &data)
+    static bool Deserialize(ubse::serial::UbseDeSerialization& out, DebtFetchInfo& data)
     {
         out >> data.nodeId >> data.name >> ubse::serial::enum_v<AccountType>(data.borrowType) >> data.pageNum >>
             data.pageSize >> ubse::serial::enum_v<DebtFetchType>(data.type);
@@ -87,9 +87,9 @@ struct DebtFetchInfo {
     [[nodiscard]] std::string toString() const
     {
         std::ostringstream oss;
-        oss << "nodeId: " << nodeId << ", name: " << name << ", borrowType: " <<
-            AccountTypeUtil::AccountTypeToString(borrowType) << ", pageNum: " << pageNum << ", pageSize: " <<
-            pageSize << ", type: " << DebtFetchTypeToString(type);
+        oss << "nodeId: " << nodeId << ", name: " << name
+            << ", borrowType: " << AccountTypeUtil::AccountTypeToString(borrowType) << ", pageNum: " << pageNum
+            << ", pageSize: " << pageSize << ", type: " << DebtFetchTypeToString(type);
         return oss.str();
     }
 };
@@ -97,16 +97,16 @@ struct DebtFetchInfo {
 class UbseMemDebtInfoPartialFetchReq : public ubse::message::UbseBaseMessage {
 public:
     UbseMemDebtInfoPartialFetchReq() = default;
-    explicit UbseMemDebtInfoPartialFetchReq(uint8_t *data, uint32_t size)
+    explicit UbseMemDebtInfoPartialFetchReq(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
-    inline void SetUbseMemDebtFetchInfo(DebtFetchInfo &info)
+    inline void SetUbseMemDebtFetchInfo(DebtFetchInfo& info)
     {
         this->debtFetchInfo_ = std::move(info);
     }
 
-    [[nodiscard]] inline const DebtFetchInfo &GetUbseMemDebtFetchInfo() const
+    [[nodiscard]] inline const DebtFetchInfo& GetUbseMemDebtFetchInfo() const
     {
         return this->debtFetchInfo_;
     }

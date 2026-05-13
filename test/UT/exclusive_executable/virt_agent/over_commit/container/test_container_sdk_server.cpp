@@ -15,12 +15,12 @@
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
 #include <securec.h>
+#include "ubse_api_server.h"
+#include "ubse_error.h"
 #include "container_sdk_server.h"
 #include "container_service.h"
 #include "mem_container_msg.h"
 #include "os_helper.h"
-#include "ubse_api_server.h"
-#include "ubse_error.h"
 #include "vm_error.h"
 
 using namespace vm;
@@ -49,8 +49,8 @@ VmResult MockExecuteCommandError()
     return VM_ERROR;
 }
 
-VmResult testGetPidsByContainerIds(const std::unordered_set<std::string> &containerIds,
-                                   std::unordered_map<std::string, std::vector<pid_t>> &containerInfos)
+VmResult testGetPidsByContainerIds(const std::unordered_set<std::string>& containerIds,
+                                   std::unordered_map<std::string, std::vector<pid_t>>& containerInfos)
 {
     containerInfos["container1"] = {1234, 5678, 91011};
     return VM_OK;
@@ -58,7 +58,7 @@ VmResult testGetPidsByContainerIds(const std::unordered_set<std::string> &contai
 
 UBSRMRSPidNumaInfoCollectFunc testGetContainerMemInfoWithStructure()
 {
-    return [](const SrcMemoryBorrowParam &borrowParam, const std::vector<pid_t> &pids, std::vector<PidInfo> &pidInfos) {
+    return [](const SrcMemoryBorrowParam& borrowParam, const std::vector<pid_t>& pids, std::vector<PidInfo>& pidInfos) {
         PidInfo pidInfo;
         pidInfo.pid = 71685;
         pidInfo.localUsedMem = 1024 * 1024 * 50;
@@ -72,7 +72,7 @@ UBSRMRSPidNumaInfoCollectFunc testGetContainerMemInfoWithStructure()
 
 UBSRMRSSetWaterMarkFunc testSetWaterMarkFunc()
 {
-    return [](const WaterMark &) {
+    return [](const WaterMark&) {
         return VM_OK;
     };
 }

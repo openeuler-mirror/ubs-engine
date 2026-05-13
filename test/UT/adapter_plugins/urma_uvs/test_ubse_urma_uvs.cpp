@@ -11,12 +11,12 @@
  */
 
 #include "test_ubse_urma_uvs.h"
-#include "securec.h"
 #include <mockcpp/mokc.h>
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_urma_uvs_module.h"
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
+#include "securec.h"
 
 namespace ubse::urma::ut {
 using namespace ubse::context;
@@ -33,26 +33,28 @@ void TestUrmaUvs::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_Success) {
+TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_Success)
+{
     std::string current_slot_id = "1";
     std::vector<PhysicalLink> allLinkInfo;
     std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
     std::vector<UbcoreTopoNode> nodes;
-    auto module= std::make_shared<UbseUrmaUvsModule>();
-    module->uvsSetTopoInfo = [](void *topo, uint32_t topo_size, uint32_t topNum) {
+    auto module = std::make_shared<UbseUrmaUvsModule>();
+    module->uvsSetTopoInfo = [](void* topo, uint32_t topo_size, uint32_t topNum) {
         return UBSE_OK;
     };
     nodes.push_back(UbcoreTopoNode{.type = 0, .super_node_id = 0, .id = 1, .is_current = 1});
     nodes.push_back(UbcoreTopoNode{.type = 0, .super_node_id = 0, .id = 2, .is_current = 0});
-    
+
     MOCKER_CPP(&FillNodeComInfo).stubs().with(any(), any(), outBound(nodes)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbsePushTopoAndBondingToUvs(current_slot_id, allLinkInfo, bondingInfo);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_FillNodeComInfoFailed) {
+TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_FillNodeComInfoFailed)
+{
     std::string current_slot_id = "1";
     std::vector<PhysicalLink> allLinkInfo;
     std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
@@ -61,7 +63,8 @@ TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_FillNodeComInfoFailed) {
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_GetModuleFailed) {
+TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_GetModuleFailed)
+{
     std::string current_slot_id = "1";
     std::vector<PhysicalLink> allLinkInfo;
     std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
@@ -70,180 +73,195 @@ TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_GetModuleFailed) {
     EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
-TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_UvsSetTopoInfoNull) {
+TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_UvsSetTopoInfoNull)
+{
     std::string current_slot_id = "1";
     std::vector<PhysicalLink> allLinkInfo;
     std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
-    auto module= std::make_shared<UbseUrmaUvsModule>();
+    auto module = std::make_shared<UbseUrmaUvsModule>();
     MOCKER_CPP(&FillNodeComInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbsePushTopoAndBondingToUvs(current_slot_id, allLinkInfo, bondingInfo);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
-    
-TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_UvsSetTopoInfoFailed) {
+
+TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_UvsSetTopoInfoFailed)
+{
     std::string current_slot_id = "1";
     std::vector<PhysicalLink> allLinkInfo;
     std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
-    auto module= std::make_shared<UbseUrmaUvsModule>();
-    module->uvsSetTopoInfo = [](void *topo, uint32_t topo_size, uint32_t topNum) {
+    auto module = std::make_shared<UbseUrmaUvsModule>();
+    module->uvsSetTopoInfo = [](void* topo, uint32_t topo_size, uint32_t topNum) {
         return UBSE_ERROR;
     };
     MOCKER_CPP(&FillNodeComInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbsePushTopoAndBondingToUvs(current_slot_id, allLinkInfo, bondingInfo);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_Success) {
+TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_Success)
+{
     std::string eid;
     std::string subpath;
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsGetDeviceNameByUrmaEid = [](char *eid, char *subpath, size_t subpath_size) -> UbseResult {
+    module->uvsGetDeviceNameByUrmaEid = [](char* eid, char* subpath, size_t subpath_size) -> UbseResult {
         strcpy_s(subpath, subpath_size, "/udma/subpath/123456");
         return UBSE_OK;
     };
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseGetUrmaSubpathByEid(eid, subpath);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(subpath, "/udma/subpath/123456");
 }
 
-TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_ConvertEidFailed) {
+TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_ConvertEidFailed)
+{
     std::string eid;
     std::string subpath;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_ERROR));
-    
+
     auto ret = UbseGetUrmaSubpathByEid(eid, subpath);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_GetModuleFailed) {
+TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_GetModuleFailed)
+{
     std::string eid;
     std::string subpath;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
-    
+
     auto ret = UbseGetUrmaSubpathByEid(eid, subpath);
     EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
-TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_Nullptr) {
+TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_Nullptr)
+{
     std::string eid;
     std::string subpath;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     auto module = std::make_shared<UbseUrmaUvsModule>();
     module->uvsGetDeviceNameByUrmaEid = nullptr;
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseGetUrmaSubpathByEid(eid, subpath);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
-TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_UvsGetDeviceNameByUrmaEidFailed) {
+TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_UvsGetDeviceNameByUrmaEidFailed)
+{
     std::string eid;
     std::string subpath;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsGetDeviceNameByUrmaEid = [](char *eid, char *subpath, size_t subpath_size) -> UbseResult {
+    module->uvsGetDeviceNameByUrmaEid = [](char* eid, char* subpath, size_t subpath_size) -> UbseResult {
         return UBSE_ERROR;
     };
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseGetUrmaSubpathByEid(eid, subpath);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_Active) {
+TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_Active)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     bool activeState;
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsGetDeviceNameByUrmaEid = [](char *eid, char *subpath, size_t subpath_size) -> UbseResult {
+    module->uvsGetDeviceNameByUrmaEid = [](char* eid, char* subpath, size_t subpath_size) -> UbseResult {
         return UBSE_OK;
     };
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseGetBondingActiveStateByEid(eid, activeState);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_TRUE(activeState);
 }
 
-TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_NotActive) {
+TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_NotActive)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     bool activeState;
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsGetDeviceNameByUrmaEid = [](char *eid, char *subpath, size_t subpath_size) -> UbseResult {
+    module->uvsGetDeviceNameByUrmaEid = [](char* eid, char* subpath, size_t subpath_size) -> UbseResult {
         return UBSE_ERROR;
     };
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseGetBondingActiveStateByEid(eid, activeState);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_FALSE(activeState);
 }
 
-TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_ConvertEidFailed) {
+TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_ConvertEidFailed)
+{
     std::string eid = "";
     bool activeState;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_ERROR));
-    
+
     auto ret = UbseGetBondingActiveStateByEid(eid, activeState);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_Nullptr) {
+TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_Nullptr)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     bool activeState;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     auto module = std::make_shared<UbseUrmaUvsModule>();
     module->uvsGetDeviceNameByUrmaEid = nullptr;
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseGetBondingActiveStateByEid(eid, activeState);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
-TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_GetModuleFailed) {
+TEST_F(TestUrmaUvs, UbseGetBondingActiveStateByEid_GetModuleFailed)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     bool activeState;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
-    
+
     auto ret = UbseGetBondingActiveStateByEid(eid, activeState);
     EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
-TEST_F(TestUrmaUvs, UbseActiveBonding_Success) {
+TEST_F(TestUrmaUvs, UbseActiveBonding_Success)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     std::string aggrDevName = "aggrDev1";
     bool activeState = false;
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsCreateAggrDev = [](char *aggrDevEid, const char *aggrDevName) -> UbseResult {
+    module->uvsCreateAggrDev = [](char* aggrDevEid, const char* aggrDevName) -> UbseResult {
         return UBSE_OK;
     };
     MOCKER_CPP(&UbseGetBondingActiveStateByEid).stubs().with(eid, outBound(activeState)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseActiveBonding(eid, aggrDevName);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUrmaUvs, UbseActiveBonding_AlreadyActive) {
+TEST_F(TestUrmaUvs, UbseActiveBonding_AlreadyActive)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     std::string aggrDevName = "aggrDev1";
-    bool activeState = true;    
+    bool activeState = true;
     MOCKER_CPP(&UbseGetBondingActiveStateByEid).stubs().with(eid, outBound(activeState)).will(returnValue(UBSE_OK));
-    
+
     auto ret = UbseActiveBonding(eid, aggrDevName);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUrmaUvs, UbseActiveBonding_NameInvalid) {
+TEST_F(TestUrmaUvs, UbseActiveBonding_NameInvalid)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     std::string aggrDevName = "";
     auto ret = UbseActiveBonding(eid, aggrDevName);
@@ -254,45 +272,49 @@ TEST_F(TestUrmaUvs, UbseActiveBonding_NameInvalid) {
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
-TEST_F(TestUrmaUvs, UbseActiveBonding_CreateAggrDevFailed) {
+TEST_F(TestUrmaUvs, UbseActiveBonding_CreateAggrDevFailed)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     std::string aggrDevName = "aggrDev1";
     bool activeState = false;
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsCreateAggrDev = [](char *aggrDevEid, const char *aggrDevName) -> UbseResult {
+    module->uvsCreateAggrDev = [](char* aggrDevEid, const char* aggrDevName) -> UbseResult {
         return UBSE_ERROR;
     };
     MOCKER_CPP(&UbseGetBondingActiveStateByEid).stubs().with(eid, outBound(activeState)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseActiveBonding(eid, aggrDevName);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbseActiveBonding_GetModuleFailed) {
+TEST_F(TestUrmaUvs, UbseActiveBonding_GetModuleFailed)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     std::string aggrDevName = "aggrDev1";
     bool activeState = false;
     MOCKER_CPP(&UbseGetBondingActiveStateByEid).stubs().with(eid, outBound(activeState)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
-    
+
     auto ret = UbseActiveBonding(eid, aggrDevName);
     EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
-TEST_F(TestUrmaUvs, UbseActiveBonding_ConvertEidFailed) {
+TEST_F(TestUrmaUvs, UbseActiveBonding_ConvertEidFailed)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     std::string aggrDevName = "aggrDev1";
     bool activeState = false;
     MOCKER_CPP(&UbseGetBondingActiveStateByEid).stubs().with(eid, outBound(activeState)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_ERROR));
-    
+
     auto ret = UbseActiveBonding(eid, aggrDevName);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbseActiveBonding_Nullptr) {
+TEST_F(TestUrmaUvs, UbseActiveBonding_Nullptr)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     std::string aggrDevName = "aggrDev1";
     bool activeState = false;
@@ -301,67 +323,74 @@ TEST_F(TestUrmaUvs, UbseActiveBonding_Nullptr) {
     MOCKER_CPP(&UbseGetBondingActiveStateByEid).stubs().with(eid, outBound(activeState)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseActiveBonding(eid, aggrDevName);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
-TEST_F(TestUrmaUvs, UbseDeactiveBonding_Success) {
+TEST_F(TestUrmaUvs, UbseDeactiveBonding_Success)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsDeleteAggrDev = [](char *aggrDevEid) -> UbseResult {
+    module->uvsDeleteAggrDev = [](char* aggrDevEid) -> UbseResult {
         return UBSE_OK;
     };
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseDeactiveBonding(eid);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUrmaUvs, UbseDeactiveBonding_ConvertEidFailed) {
+TEST_F(TestUrmaUvs, UbseDeactiveBonding_ConvertEidFailed)
+{
     std::string eid = "invalid_eid";
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_ERROR));
-    
+
     auto ret = UbseDeactiveBonding(eid);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, UbseDeactiveBonding_GetModuleFailed) {
+TEST_F(TestUrmaUvs, UbseDeactiveBonding_GetModuleFailed)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
-    
+
     auto ret = UbseDeactiveBonding(eid);
     EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
-TEST_F(TestUrmaUvs, UbseDeactiveBonding_Nullptr) {
+TEST_F(TestUrmaUvs, UbseDeactiveBonding_Nullptr)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     auto module = std::make_shared<UbseUrmaUvsModule>();
     module->uvsDeleteAggrDev = nullptr;
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseDeactiveBonding(eid);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
-TEST_F(TestUrmaUvs, UbseDeactiveBonding_DestroyAggrDevFailed) {
+TEST_F(TestUrmaUvs, UbseDeactiveBonding_DestroyAggrDevFailed)
+{
     std::string eid = "0000:0000:0000:0000:0000:0000:0000:0001";
     auto module = std::make_shared<UbseUrmaUvsModule>();
-    module->uvsDeleteAggrDev = [](char *aggrDevEid) -> UbseResult {
+    module->uvsDeleteAggrDev = [](char* aggrDevEid) -> UbseResult {
         return UBSE_ERROR;
     };
     MOCKER_CPP(&ConvertEidStrToHexCharList).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
-    
+
     auto ret = UbseDeactiveBonding(eid);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUrmaUvs, FillNodeComInfo) {
+TEST_F(TestUrmaUvs, FillNodeComInfo)
+{
     std::vector<PhysicalLink> allLinkInfo;
-    allLinkInfo.push_back(PhysicalLink{.slotId = 1, .chipId = 1, .portId = 1, .peerSlotId = 2, .peerChipId = 1, .peerPortId = 1});
+    allLinkInfo.push_back(
+        PhysicalLink{.slotId = 1, .chipId = 1, .portId = 1, .peerSlotId = 2, .peerChipId = 1, .peerPortId = 1});
 
     std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
     std::vector<UbcoreTopoNode> nodes;
@@ -371,15 +400,15 @@ TEST_F(TestUrmaUvs, FillNodeComInfo) {
 
     portEid["1"] = "0000:0000:0000:0000:0000:0000:0000:0002";
     portEid["2"] = "0000:0000:0000:0000:0000:0000:0000:0003";
-    feList.push_back(UbseUrmaUvsFe{.ubpuId = "1", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0001",
-                                   .portEid = portEid});
+    feList.push_back(UbseUrmaUvsFe{
+        .ubpuId = "1", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0001", .portEid = portEid});
 
     std::map<std::string, std::string> portEid2;
 
     portEid2["1"] = "0000:0000:0000:0000:0000:0000:0000:0004";
     portEid2["2"] = "0000:0000:0000:0000:0000:0000:0000:0005";
-    feList.push_back(UbseUrmaUvsFe{.ubpuId = "2", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0006",
-                                   .portEid = portEid2});
+    feList.push_back(UbseUrmaUvsFe{
+        .ubpuId = "2", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0006", .portEid = portEid2});
     devList.push_back(UbseUrmaUvsAggrDev{.urmaDevEid = "4225:0000:0000:0000:0000:0000:0000:0001", .feList = feList});
     bondingInfo.push_back(UbseUrmaUvsNodeInfo{.nodeId = "1", .devList = devList});
 
@@ -387,7 +416,8 @@ TEST_F(TestUrmaUvs, FillNodeComInfo) {
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUrmaUvs, FillNodeComInfo_NoLink) {
+TEST_F(TestUrmaUvs, FillNodeComInfo_NoLink)
+{
     std::vector<PhysicalLink> allLinkInfo;
     std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
     std::vector<UbcoreTopoNode> nodes;
@@ -397,19 +427,19 @@ TEST_F(TestUrmaUvs, FillNodeComInfo_NoLink) {
 
     portEid["1"] = "0000:0000:0000:0000:0000:0000:0000:0002";
     portEid["2"] = "0000:0000:0000:0000:0000:0000:0000:0003";
-    feList.push_back(UbseUrmaUvsFe{.ubpuId = "1", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0001",
-                                   .portEid = portEid});
+    feList.push_back(UbseUrmaUvsFe{
+        .ubpuId = "1", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0001", .portEid = portEid});
 
     std::map<std::string, std::string> portEid2;
 
     portEid2["1"] = "0000:0000:0000:0000:0000:0000:0000:0004";
     portEid2["2"] = "0000:0000:0000:0000:0000:0000:0000:0005";
-    feList.push_back(UbseUrmaUvsFe{.ubpuId = "2", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0006",
-                                   .portEid = portEid2});
+    feList.push_back(UbseUrmaUvsFe{
+        .ubpuId = "2", .entityId = "1", .primaryEid = "0000:0000:0000:0000:0000:0000:0000:0006", .portEid = portEid2});
     devList.push_back(UbseUrmaUvsAggrDev{.urmaDevEid = "4225:0000:0000:0000:0000:0000:0000:0001", .feList = feList});
     bondingInfo.push_back(UbseUrmaUvsNodeInfo{.nodeId = "1", .devList = devList});
 
     auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
     EXPECT_EQ(ret, UBSE_OK);
 }
-} // 
+} // namespace ubse::urma::ut

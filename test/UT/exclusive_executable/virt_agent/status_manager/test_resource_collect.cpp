@@ -31,7 +31,7 @@ TEST_F(TestResourceCollect, VmResourceCollectInfoHandleEmpty)
 {
     std::vector<HostVmDomainInfo> vmDomainInfoCollectList{};
     std::vector<HostNumaCpuInfo> numaInfoCollectList{};
-    auto &resource = ResourceCollect::GetInstance();
+    auto& resource = ResourceCollect::GetInstance();
     EXPECT_EQ(resource.VmResourceCollectInfoHandle(vmDomainInfoCollectList, numaInfoCollectList),
               VM_MASTER_EMPTY_VECTOR_ERROR);
 }
@@ -47,7 +47,7 @@ TEST_F(TestResourceCollect, VmResourceCollectInfoHandle)
     hostNumaCpuInfo.numaCpuInfos.push_back(NumaCpuInfo{});
     vmDomainInfoCollectList.push_back(hostVmDomainInfo);
     numaInfoCollectList.push_back(hostNumaCpuInfo);
-    auto &resource = ResourceCollect::GetInstance();
+    auto& resource = ResourceCollect::GetInstance();
     EXPECT_EQ(resource.VmResourceCollectInfoHandle(vmDomainInfoCollectList, numaInfoCollectList), VM_OK);
 }
 
@@ -58,7 +58,7 @@ TEST_F(TestResourceCollect, InitGlobalBorrowMap_Failed)
     MOCKER(UbseStorageQueryData).reset();
 }
 
-uint32_t MockUbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t MockUbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
                                   UbseStorageDealDataFunc func)
 {
     BorrowIdStatus borrowIdStatus{.borrowId = "123", .presentNumaId = 0};
@@ -87,7 +87,7 @@ TEST_F(TestResourceCollect, GetVMInfo)
     GTEST_SKIP();
     VMNodeLocInfo vmNodeLocInfo{.hostName = "adc"};
     std::unordered_map<std::string, VMBasicInfo> result;
-    auto &resource = ResourceCollect::GetInstance();
+    auto& resource = ResourceCollect::GetInstance();
     resource.ClearGlobalNumaInfo();
     result = resource.GetVMInfo(vmNodeLocInfo);
     EXPECT_TRUE(result.empty());

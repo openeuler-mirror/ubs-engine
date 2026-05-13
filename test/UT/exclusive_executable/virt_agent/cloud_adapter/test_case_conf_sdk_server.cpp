@@ -12,8 +12,8 @@
 
 #include "test_case_conf_sdk_server.h"
 
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_api_server.h"
+#include "mockcpp/mockcpp.hpp"
 
 #include "case_conf_sdk_server.h"
 

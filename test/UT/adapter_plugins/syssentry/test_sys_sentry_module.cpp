@@ -11,10 +11,10 @@
  */
 
 #include "test_sys_sentry_module.h"
+#include "ubse_timer.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "src/adapter_plugins/mti/ubse_mti_interface_default.h"
-#include "ubse_timer.h"
 
 namespace syssentry::ut {
 using namespace ubse::adapter_plugins::mti;
@@ -90,7 +90,7 @@ TEST_F(TestSysSentryModule, GetEidsFailWhenGetLocalNodeInfoFail)
     std::string clientEid;
     std::string serverEids;
     auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
-    UbseMtiInterface &mtiInterface = UbseMtiInterface::GetInstance();
+    UbseMtiInterface& mtiInterface = UbseMtiInterface::GetInstance();
     MOCKER_CPP(&ubse::context::UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
     MOCKER_CPP_VIRTUAL(mtiInterface, &ubse::adapter_plugins::mti::UbseMtiInterface::GetLocalNodeInfo)
         .stubs()
@@ -105,7 +105,7 @@ TEST_F(TestSysSentryModule, GetEidsFailWhenDevVecSizeError)
     std::string clientEid;
     std::string serverEids;
     auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
-    UbseMtiInterface &mtiInterface = UbseMtiInterface::GetInstance();
+    UbseMtiInterface& mtiInterface = UbseMtiInterface::GetInstance();
     MOCKER_CPP(&ubse::context::UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
     UbseMtiNodeInfo localNodeInfo{.nodeId = "1", .eid = "192.168.1.1"};
     MOCKER_CPP_VIRTUAL(mtiInterface, &ubse::adapter_plugins::mti::UbseMtiInterface::GetLocalNodeInfo)
@@ -227,7 +227,7 @@ TEST_F(TestSysSentryModule, GetCurNodeCna)
 
 TEST_F(TestSysSentryModule, GetCurNodeCna_SplitDevNameFail)
 {
-    auto &mtiInterface = UbseMtiInterface::GetInstance();
+    auto& mtiInterface = UbseMtiInterface::GetInstance();
     UbseMtiCpuTopoInfoMap topo;
     UbseDevName badDev;
     badDev.devName = "node1";
@@ -418,14 +418,14 @@ TEST_F(TestSysSentryModule, SetSysSentryFaultEventOn_Success)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-static UbseResult StubGetEidsOk(std::string &clientEid, std::string &serverEids)
+static UbseResult StubGetEidsOk(std::string& clientEid, std::string& serverEids)
 {
     clientEid = "client_eid";
     serverEids = "server_eid";
     return UBSE_OK;
 }
 
-static UbseResult StubGetEidsQuote(std::string &clientEid, std::string &serverEids)
+static UbseResult StubGetEidsQuote(std::string& clientEid, std::string& serverEids)
 {
     clientEid = "client\"eid";
     serverEids = "server_eid";

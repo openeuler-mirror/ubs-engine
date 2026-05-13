@@ -12,13 +12,13 @@
 
 #include "ubse_conf.h"
 
-#include <memory>              // for operator==, shared_ptr, __shared_ptr_...
+#include <memory> // for operator==, shared_ptr, __shared_ptr_...
 
-#include "ubse_common_def.h"   // for UbseResult
+#include "ubse_common_def.h"  // for UbseResult
+#include "ubse_conf_module.h" // for UbseConfModule
+#include "ubse_context.h"     // for UbseContext
 #include "ubse_error.h"
-#include "ubse_conf_module.h"  // for UbseConfModule
-#include "ubse_context.h"      // for UbseContext
-#include "ubse_logger.h"       // for UBSE_DEFINE_THIS_MODULE
+#include "ubse_logger.h" // for UBSE_DEFINE_THIS_MODULE
 
 namespace ubse::config {
 using namespace ubse::log;
@@ -31,7 +31,7 @@ UbseResult GetConf(const std::string& section, const std::string& configKey, T& 
     auto cfgPtr = ctxRef.GetModule<UbseConfModule>();
     if (cfgPtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to get configuration module instance, "
-                     << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL);
+                       << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL);
         return UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL;
     }
     return cfgPtr->GetConf(section, configKey, configVal);
@@ -61,4 +61,4 @@ uint32_t UbseGetULong(const std::string& section, const std::string& configKey, 
 {
     return GetConf(section, configKey, configVal);
 }
-}  // namespace ubse::config
+} // namespace ubse::config

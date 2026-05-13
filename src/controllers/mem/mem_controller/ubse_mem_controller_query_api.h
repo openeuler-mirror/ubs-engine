@@ -19,10 +19,10 @@
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 namespace ubse::mem::controller {
-uint32_t UbseGetMemDebtInfoFromMaster(const std::string &nodeId,
-                                      ubse::adapter_plugins::mmi::NodeMemDebtInfoMap &memDebtInfoMap);
-uint32_t GetDebtInfoMapByNodeId(const std::string &nodeId,
-                                ubse::adapter_plugins::mmi::NodeMemDebtInfoMap &memDebtInfoMap);
+uint32_t UbseGetMemDebtInfoFromMaster(const std::string& nodeId,
+                                      ubse::adapter_plugins::mmi::NodeMemDebtInfoMap& memDebtInfoMap);
+uint32_t GetDebtInfoMapByNodeId(const std::string& nodeId,
+                                ubse::adapter_plugins::mmi::NodeMemDebtInfoMap& memDebtInfoMap);
 
 /**
 * @brief 查询本节点numa形态远端内存信息
@@ -89,9 +89,9 @@ uint32_t UbseMemShmGetByNodeId(const std::string& name, def::UbseMemShmDesc& shm
  * @param request [IN] 请求体
  * @param shmDescs [OUT] shm内存描述信息数组
  */
-uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::UbseMemShmDesc> &shmDescs);
+uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest& request, std::vector<def::UbseMemShmDesc>& shmDescs);
 
-uint32_t UbseNodeInfoGet(const std::string &nodeId, ubse::adapter_plugins::mmi::UbseNodeInfo &ubseNodeInfo);
+uint32_t UbseNodeInfoGet(const std::string& nodeId, ubse::adapter_plugins::mmi::UbseNodeInfo& ubseNodeInfo);
 
 /**
 * @brief 查询addr信息
@@ -100,7 +100,7 @@ uint32_t UbseNodeInfoGet(const std::string &nodeId, ubse::adapter_plugins::mmi::
 * @param importNodeId [IN] 导入节点ID
 * @param desc [OUT] 借用形成的远端numa信息
 */
-int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId, UbseMemAddrDesc &desc);
+int32_t UbseMemAddrGet(const std::string& name, const std::string& importNodeId, UbseMemAddrDesc& desc);
 
 /**
 * @brief 查询指定节点numa形态远端内存信息
@@ -109,11 +109,11 @@ int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId,
 * @param importNodeId [IN] 导入节点ID
 * @param numaDesc [OUT] 借用形成的远端numa信息
 */
-int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string &importNodeId,
-                                     UbseMemNumaDesc &numaDesc);
+int32_t UbseMemNumaGetWithImportNode(const std::string& name, const std::string& importNodeId,
+                                     UbseMemNumaDesc& numaDesc);
 
-uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo> &nodeBorrowInfo);
+uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo>& nodeBorrowInfo);
 
-uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &exportMemDesc);
+uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest& request, def::UbseExportMemDesc& exportMemDesc);
 } // namespace ubse::mem::controller
 #endif

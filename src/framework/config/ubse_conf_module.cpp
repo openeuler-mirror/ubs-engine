@@ -12,15 +12,15 @@
 
 #include "ubse_conf_module.h"
 
-#include <cstddef>                // for size_t
+#include <cstddef> // for size_t
 #include <regex>
 #include <vector>
 
-#include "ubse_common_def.h"      // for UbseResult
+#include "ubse_common_def.h"   // for UbseResult
+#include "ubse_conf_manager.h" // for UbseConfigManager
+#include "ubse_context.h"      // for UbseContext, ProcessMode
+#include "ubse_logger.h"       // for UbseLoggerEntry, UBSE_D...
 #include "ubse_security_module.h"
-#include "ubse_conf_manager.h"    // for UbseConfigManager
-#include "ubse_context.h"         // for UbseContext, ProcessMode
-#include "ubse_logger.h"          // for UbseLoggerEntry, UBSE_D...
 #include "ubse_str_util.h"
 
 namespace ubse::config {
@@ -44,8 +44,9 @@ public:
         static RegisterFunc _ins;
         return _ins;
     }
+
 public:
-    void push(register_config_func &f)
+    void push(register_config_func& f)
     {
         funcs_.push_back(std::move(f));
     }
@@ -54,6 +55,7 @@ public:
     {
         return funcs_;
     }
+
 private:
     RegisterFunc() = default;
     std::vector<register_config_func> funcs_;
@@ -74,11 +76,11 @@ UbseResult UbseConfModule::Initialize()
     }
 
     ctxRef.GetArgStr("f", confCliDir_);
-    ret = confMgrRef.Init(confCliDir_);  // 允许命令行不传配置目录文件
+    ret = confMgrRef.Init(confCliDir_); // 允许命令行不传配置目录文件
     if (ret != UBSE_OK && ret != UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR) {
         return ret;
     }
-    for (auto &f : RegisterFunc::GetInstance().GetFuncs()) {
+    for (auto& f : RegisterFunc::GetInstance().GetFuncs()) {
         auto result = f();
         if (result.has_value()) {
             confMgrRef.AddConfig(result->section, result->key, result->value);
@@ -87,9 +89,7 @@ UbseResult UbseConfModule::Initialize()
     return UBSE_OK;
 }
 
-void UbseConfModule::UnInitialize()
-{
-}
+void UbseConfModule::UnInitialize() {}
 
 UbseResult UbseConfModule::Start()
 {
@@ -227,7 +227,7 @@ void PrintConfLog(ErrorType type, const std::string& section, const std::string&
             break;
         case ErrorType::CONFIG_CONVERSION_FAILED:
             UBSE_LOG_WARN << errorMessage << "the query result can't be converted to specified type, "
-                        << FormatRetCode(result);
+                          << FormatRetCode(result);
             break;
         case ErrorType::CONFIG_OUT_RANGE:
             UBSE_LOG_WARN << errorMessage << "the query result exceeds the range, " << FormatRetCode(result);
@@ -244,5 +244,4 @@ std::tuple<std::string, std::string, std::string> TrimConf(const std::string& se
     return {Trim(section), Trim(configKey), Trim(configVal)};
 }
 
-
-}  // namespace ubse::config
+} // namespace ubse::config

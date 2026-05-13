@@ -28,15 +28,15 @@ TEST_F(TestVmConfiguration, CheckRangeUint)
     std::string confName = "testConf";
     uint32_t val;
 
-    VmConfiguration::GetConfigFunc<uint32_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-                                                             uint32_t &_) -> uint32_t {
+    VmConfiguration::GetConfigFunc<uint32_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                             uint32_t& _) -> uint32_t {
         return VM_ERROR;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
     val = 0; // 0 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, uint32_t &_) -> uint32_t {
+    getFuncPtr = [](const std::string& file, const std::string& conf, uint32_t& _) -> uint32_t {
         return VM_OK;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
@@ -59,15 +59,15 @@ TEST_F(TestVmConfiguration, CheckRangeULong)
     std::string confName = "testConf";
     uint64_t val;
 
-    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-                                                             uint64_t &_) -> uint32_t {
+    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                             uint64_t& _) -> uint32_t {
         return VM_ERROR;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
     val = 10; // 10 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, uint64_t &_) -> uint32_t {
+    getFuncPtr = [](const std::string& file, const std::string& conf, uint64_t& _) -> uint32_t {
         return VM_OK;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
@@ -90,15 +90,15 @@ TEST_F(TestVmConfiguration, CheckRangeFloat)
     std::string confName = "testConf";
     float_t val;
 
-    VmConfiguration::GetConfigFunc<float_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-                                                            float_t &_) -> uint32_t {
+    VmConfiguration::GetConfigFunc<float_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                            float_t& _) -> uint32_t {
         return VM_ERROR;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
     val = 1.5; // 1.5 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, float_t &_) -> uint32_t {
+    getFuncPtr = [](const std::string& file, const std::string& conf, float_t& _) -> uint32_t {
         return VM_OK;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
@@ -121,15 +121,15 @@ TEST_F(TestVmConfiguration, CheckEnumULong)
     std::string confName = "testConf";
     uint64_t val;
 
-    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-                                                             uint64_t &_) -> uint32_t {
+    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                             uint64_t& _) -> uint32_t {
         return VM_ERROR;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckEnum(getFuncPtr, vmConfigEnum, fileName, confName, val);
     EXPECT_EQ(vmConfigEnum.defaultValue, val);
 
     val = 1; // 1 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, uint64_t &_) -> uint32_t {
+    getFuncPtr = [](const std::string& file, const std::string& conf, uint64_t& _) -> uint32_t {
         return VM_OK;
     };
     VmConfiguration::GetInstance().GetConfigWithCheckEnum(getFuncPtr, vmConfigEnum, fileName, confName, val);
@@ -151,7 +151,7 @@ TEST_F(TestVmConfiguration, LoadConfig)
     MOCKER(&UbseGetFloat).stubs().will(returnValue(VM_ERROR));
     MOCKER(&UbseGetULong).stubs().will(returnValue(VM_ERROR));
 
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     auto ret = vmConfig.LoadConfig();
     EXPECT_EQ(ret, VM_OK);
     EXPECT_EQ(EXPORT_INTERVAL.defaultValue, vmConfig.GetExportInterval());
@@ -169,7 +169,7 @@ TEST_F(TestVmConfiguration, CheckWaterConfRange)
     float_t borrowWater = 92;  // 92 符合取值范围
     float_t migrateWater = 85; // 85 符合取值范围
     float_t returnWater = 80;  // 80 符合取值范围
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     EXPECT_EQ(vmConfig.CheckWaterConfRange(borrowWater, migrateWater, returnWater), VM_OK);
     // borrowWater exceeds range
     borrowWater = 69.99; // 69.99 小于取值范围
@@ -202,7 +202,7 @@ uint64_t default_MaxPerTotalMemBorrowBytes = 16384;
 TEST_F(TestVmConfiguration, InitMaxBorrow_Test)
 {
     GTEST_SKIP();
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     vmConfig.InitMaxBorrow();
     EXPECT_EQ(vmConfig.GetMaxMemBorrow(), default_MaxMemBorrow);
     EXPECT_EQ(vmConfig.GetMaxPerTotalMemBorrowBytes(), default_MaxPerTotalMemBorrowBytes * MB_TO_BYTES);
@@ -211,7 +211,7 @@ TEST_F(TestVmConfiguration, InitMaxBorrow_Test)
 uint64_t g_twoKb = 2048;
 TEST_F(TestVmConfiguration, CheckConfigValidity_Test)
 {
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     // 正常情况
     vmConfig.minMemPerBorrowSize = g_oneKb;
     vmConfig.maxMemPerBorrowSize = g_twoKb;
@@ -228,13 +228,13 @@ TEST_F(TestVmConfiguration, CheckConfigValidity_Test)
 
 TEST_F(TestVmConfiguration, LoadWatermarkConf_Test)
 {
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     EXPECT_EQ(vmConfig.LoadWatermarkConf(), VM_OK);
 }
 
 TEST_F(TestVmConfiguration, GetFunction_Test)
 {
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     // GetEscapeAlgorithmDir
     EXPECT_EQ(vmConfig.GetEscapeAlgorithmDir(), DEFAULT_ESCAPE_ALGORITHM_DIR);
     // GetBorrowWatermark

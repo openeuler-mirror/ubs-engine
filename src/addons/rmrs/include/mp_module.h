@@ -28,5 +28,5 @@ public:
     virtual const std::string Name() = 0;
 };
 
-}
+} // namespace mempooling
 #endif

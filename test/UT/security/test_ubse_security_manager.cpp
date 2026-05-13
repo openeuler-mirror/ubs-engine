@@ -12,8 +12,8 @@
 
 #include "test_ubse_security_manager.h"
 
-#include "ubse_security_manager.h"
 #include "ubse_error.h"
+#include "ubse_security_manager.h"
 
 namespace ubse::ut::security {
 
@@ -47,4 +47,4 @@ TEST_F(TestUbseSecurityManager, testModifyEffectiveCapabilities)
     EXPECT_EQ(ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities(caps, false), UBSE_OK);
     EXPECT_EQ(ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities(caps, true), UBSE_OK);
 }
-}
+} // namespace ubse::ut::security

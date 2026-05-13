@@ -11,11 +11,11 @@
 */
 
 #include "test_ubse_urma_controller_manager.h"
+#include "ubse_election.h"
+#include "ubse_node_com_urma_collector.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_def.h"
-#include "ubse_election.h"
-#include "ubse_node_com_urma_collector.h"
 #include "ubse_urma_uvs_module.h"
 
 namespace ubse::urmaControllerManager::ut {
@@ -33,22 +33,16 @@ std::vector<std::vector<UbseMtiFeInfo>> g_feInfos{
     {{.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "0", .eidGroups = std::vector<UbseMtiEidGroup>(2)}},
     {{.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "1", .eidGroups = std::vector<UbseMtiEidGroup>(2)}},
     {{.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "2", .eidGroups = std::vector<UbseMtiEidGroup>(1)}},
-    {{.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "3", .eidGroups = std::vector<UbseMtiEidGroup>(1)}}
-};
+    {{.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "3", .eidGroups = std::vector<UbseMtiEidGroup>(1)}}};
 
 std::vector<std::vector<UbseMtiFeInfo>> g_feInfosWithMultiPerIou{
-    {
-        {.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "0", .eidGroups = std::vector<UbseMtiEidGroup>(2)},
-        {.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "1", .eidGroups = std::vector<UbseMtiEidGroup>(1)}
-    },
-    {
-        {.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "2", .eidGroups = std::vector<UbseMtiEidGroup>(2)},
-        {.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "3", .eidGroups = std::vector<UbseMtiEidGroup>(1)}
-    }
-};
+    {{.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "0", .eidGroups = std::vector<UbseMtiEidGroup>(2)},
+     {.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "1", .eidGroups = std::vector<UbseMtiEidGroup>(1)}},
+    {{.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "2", .eidGroups = std::vector<UbseMtiEidGroup>(2)},
+     {.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "3", .eidGroups = std::vector<UbseMtiEidGroup>(1)}}};
 TEST_F(TestUbseUrmaControllerManager, ConstructNewUrmaInfoWhenFeInfosInvalid)
 {
-    UbseMtiFeInfo fe0{.slotId="0", .ubpuId="0", .iouId="0", .entityId="0"};
+    UbseMtiFeInfo fe0{.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "0"};
     std::vector<std::vector<UbseMtiFeInfo>> feInfosInvalid{};
     auto ret = UbseUrmaControllerManager::GetInstance().ConstructNewUrmaInfo("0", feInfosInvalid);
     EXPECT_EQ(UBSE_ERROR_INVAL, ret);
@@ -95,7 +89,7 @@ TEST_F(TestUbseUrmaControllerManager, GetLocalUrmaDevInfo)
 
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
     UbseRoleInfo role;
-    role.nodeId="0";
+    role.nodeId = "0";
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
     ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
     EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
@@ -107,7 +101,7 @@ TEST_F(TestUbseUrmaControllerManager, GetLocalUrmaDevInfo)
 
     GlobalMockObject::verify();
     UbseRoleInfo role1;
-    role1.nodeId="1";
+    role1.nodeId = "1";
     UbseUrmaControllerManager::GetInstance().nodeInfos["1"].urmaList[urmaName] = {};
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role1)).will(returnValue(UBSE_OK));
     ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfo(urmaName, urmaInfo);
@@ -129,30 +123,28 @@ TEST_F(TestUbseUrmaControllerManager, AllocByUrmaName)
     // nodeInfos不存在当前节点信息
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
     UbseRoleInfo role;
-    role.nodeId="0";
+    role.nodeId = "0";
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
     ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaInfoName, feNames, eid);
     EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
 
     // 存在当前节点信息，不存在对应的urma name
     UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList = {};
-    role.nodeId="0";
+    role.nodeId = "0";
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
     ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaInfoName, feNames, eid);
     EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
 
     // 信息存在
     std::vector<std::vector<UbseMtiFeInfo>> lcneFeInfos = g_feInfos;
-    auto urmaFe0 = std::make_shared<UbseFeInfo>(UbseFeInfo{.slotId = "0", .ubpuId = "0", .iouId = "0",
-                                                           .entityId = "0", .fetype = FeType::PHYSICAL_TYPE});
-    auto urmaFe1 = std::make_shared<UbseFeInfo>(UbseFeInfo{.slotId = "1", .ubpuId = "1", .iouId = "1",
-                                                           .entityId = "1", .fetype = FeType::PHYSICAL_TYPE});
+    auto urmaFe0 = std::make_shared<UbseFeInfo>(
+        UbseFeInfo{.slotId = "0", .ubpuId = "0", .iouId = "0", .entityId = "0", .fetype = FeType::PHYSICAL_TYPE});
+    auto urmaFe1 = std::make_shared<UbseFeInfo>(
+        UbseFeInfo{.slotId = "1", .ubpuId = "1", .iouId = "1", .entityId = "1", .fetype = FeType::PHYSICAL_TYPE});
     UbseUrmaInfo urmaInfo{.urmaDevEid = "123", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::ACTIVED};
-    EidGroup group0{.primaryEid = "123",
-                    .feInfo = urmaFe0};
+    EidGroup group0{.primaryEid = "123", .feInfo = urmaFe0};
     urmaInfo.eidGroups.push_back(group0);
-    EidGroup group1{.primaryEid = "234",
-                    .feInfo = urmaFe1};
+    EidGroup group1{.primaryEid = "234", .feInfo = urmaFe1};
     urmaInfo.eidGroups.push_back(group1);
     UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList[urmaInfoName] = urmaInfo;
     ret = UbseUrmaControllerManager::GetInstance().AllocByUrmaName(urmaInfoName, feNames, eid);
@@ -252,15 +244,15 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaUpdateTimeStamp)
 }
 
 TEST_F(TestUbseUrmaControllerManager, GetHostUrmaDev)
-{    
+{
     UbseUrmaUvsNodeInfo nodeInfo1{.nodeId = "0"};
     UbseUrmaUvsNodeInfo nodeInfo2{.nodeId = "1"};
-    UbseUrmaUvsAggrDev aggrDev1{.urmaDevEid="12345"};
-    UbseUrmaUvsAggrDev aggrDev2{.urmaDevEid="1234"};
+    UbseUrmaUvsAggrDev aggrDev1{.urmaDevEid = "12345"};
+    UbseUrmaUvsAggrDev aggrDev2{.urmaDevEid = "1234"};
     nodeInfo1.devList.push_back(aggrDev1);
     nodeInfo2.devList.push_back(aggrDev2);
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos{nodeInfo1, nodeInfo2};
-    UbseUrmaUvsNodeInfo uvsInfo{.nodeId="1"};
+    UbseUrmaUvsNodeInfo uvsInfo{.nodeId = "1"};
     GetHostUrmaDev(hostUrmaInfos, uvsInfo);
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
     EXPECT_EQ(uvsInfo.devList[0].urmaDevEid, "1234");
@@ -290,12 +282,15 @@ TEST_F(TestUbseUrmaControllerManager, GetAllUvsInfo)
     UbseUrmaControllerManager::GetInstance().nodeInfos["1"].urmaList["urmaId_4"] = urmaInfo2;
     UbseUrmaUvsNodeInfo nodeInfo1{.nodeId = "0"};
     UbseUrmaUvsNodeInfo nodeInfo2{.nodeId = "1"};
-    UbseUrmaUvsAggrDev aggrDev1{.urmaDevEid="1234"};
-    UbseUrmaUvsAggrDev aggrDev2{.urmaDevEid="1234"};
+    UbseUrmaUvsAggrDev aggrDev1{.urmaDevEid = "1234"};
+    UbseUrmaUvsAggrDev aggrDev2{.urmaDevEid = "1234"};
     nodeInfo1.devList.push_back(aggrDev1);
     nodeInfo2.devList.push_back(aggrDev2);
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos{nodeInfo1, nodeInfo2};
-    MOCKER_CPP(&UbseNodeComUrmaCollector::GetAllComUrma).stubs().with(outBound(hostUrmaInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetAllComUrma)
+        .stubs()
+        .with(outBound(hostUrmaInfos))
+        .will(returnValue(UBSE_OK));
     ret = UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
     EXPECT_EQ(ret, UBSE_OK);
@@ -325,7 +320,8 @@ TEST_F(TestUbseUrmaControllerManager, SetFeName)
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
     UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urmaId_1"] = urmaInfo1;
     UbseUrmaControllerManager::GetInstance().SetFeName("1::", "SetFeName");
-    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urmaId_1"].eidGroups[0].feInfo->name, "SetFeName");
+    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urmaId_1"].eidGroups[0].feInfo->name,
+              "SetFeName");
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
 }
 
@@ -339,7 +335,8 @@ TEST_F(TestUbseUrmaControllerManager, SetAllUrmaInfoToInactiveForNode)
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
     UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urmaId_1"] = urmaInfo1;
     UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode("0");
-    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urmaId_1"].state, UrmaDevState::INACTIVED);
+    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urmaId_1"].state,
+              UrmaDevState::INACTIVED);
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
 }
 
@@ -375,7 +372,7 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaQos)
     // 查询的urma不存在
     UrmaQosProfile qosProfile;
     UbseRoleInfo role;
-    role.nodeId="0";
+    role.nodeId = "0";
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
     auto ret = UbseUrmaControllerManager::GetInstance().GetUrmaQos("no_exist", qosProfile);
     EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
@@ -384,7 +381,10 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaQos)
     // 查询的urma存在
     UbseUrmaInfo urmaInfo{.urmaDevEid = "0123", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::UNKNOWN};
     urmaInfo.urmaQosProfile.profileName = "qos";
-    MOCKER_CPP(&UbseUrmaControllerManager::GetLocalUrmaDevInfoInner).stubs().with(_, outBound(urmaInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::GetLocalUrmaDevInfoInner)
+        .stubs()
+        .with(_, outBound(urmaInfo))
+        .will(returnValue(UBSE_OK));
     ret = UbseUrmaControllerManager::GetInstance().GetUrmaQos("no_exist", qosProfile);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(qosProfile.profileName, "qos");
@@ -393,7 +393,7 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaQos)
 TEST_F(TestUbseUrmaControllerManager, SetUrmaQos)
 {
     UbseRoleInfo role;
-    role.nodeId="0";
+    role.nodeId = "0";
     UrmaQosProfile urmaQosProfile;
     urmaQosProfile.profileName = "SetUrmaQos";
     // 查询节点失败
@@ -419,7 +419,8 @@ TEST_F(TestUbseUrmaControllerManager, SetUrmaQos)
     UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["SetUrmaQos"] = {};
     ret = UbseUrmaControllerManager::GetInstance().SetUrmaQos("SetUrmaQos", urmaQosProfile);
     EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["SetUrmaQos"].urmaQosProfile.profileName, "SetUrmaQos");
+    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["SetUrmaQos"].urmaQosProfile.profileName,
+              "SetUrmaQos");
 }
 
 TEST_F(TestUbseUrmaControllerManager, GetAllUrmaInfo_GetCurrentNodeInfoFails)
@@ -547,13 +548,14 @@ TEST_F(TestUbseUrmaControllerManager, GetAllUrmaInfo_MultipleDevicesMixedHealth)
     UbseUrmaInfo healthyInfo{.urmaDevEid = "eid_h", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::UNKNOWN};
     healthyInfo.hwResId = 1;
     healthyInfo.eidGroups.push_back({.primaryEid = "peid_h", .feInfo = feInfo});
-    UbseUrmaInfo unhealthyInfo{.urmaDevEid = "eid_u", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::UNKNOWN};
+    UbseUrmaInfo unhealthyInfo{
+        .urmaDevEid = "eid_u", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::UNKNOWN};
     unhealthyInfo.hwResId = 2;
     unhealthyInfo.eidGroups.push_back({.primaryEid = "peid_u", .feInfo = feInfo});
     MOCKER_CPP(IsUdmaDevHealthy).stubs().with(std::string("peid_h")).will(returnValue(true));
     MOCKER_CPP(IsUdmaDevHealthy).stubs().with(std::string("peid_u")).will(returnValue(false));
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
-    auto &urmaList = UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList;
+    auto& urmaList = UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList;
     urmaList["urma_h"] = healthyInfo;
     urmaList["urma_u"] = unhealthyInfo;
     std::vector<std::string> names;
@@ -615,7 +617,8 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaInfoForQuery_WrongEidGroupCount)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
     MOCKER_CPP(QueryAllPortsDown).stubs().will(returnValue(UBSE_ERROR));
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
-    UbseUrmaInfo urmaInfo{.urmaDevEid = "dev_eid_1", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::ACTIVED};
+    UbseUrmaInfo urmaInfo{
+        .urmaDevEid = "dev_eid_1", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::ACTIVED};
     urmaInfo.eidGroups.push_back({.primaryEid = "peid_1"});
     UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urma_1"] = urmaInfo;
     std::vector<UbseUrmaInfoForQuery> devInfos;
@@ -633,7 +636,8 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaInfoForQuery_ValidEntry)
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
     auto feInfo = std::make_shared<UbseFeInfo>();
     feInfo->name = "fe_name";
-    UbseUrmaInfo urmaInfo{.urmaDevEid = "dev_eid_1", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::ACTIVED};
+    UbseUrmaInfo urmaInfo{
+        .urmaDevEid = "dev_eid_1", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::ACTIVED};
     urmaInfo.urmaQosProfile.profileName = "qos_test";
     urmaInfo.eidGroups.push_back({.primaryEid = "peid_1", .feInfo = feInfo});
     urmaInfo.eidGroups.push_back({.primaryEid = "peid_2", .feInfo = feInfo});
@@ -662,7 +666,8 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaInfoForQuery_NullFeInfo)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
     MOCKER_CPP(QueryAllPortsDown).stubs().will(returnValue(UBSE_ERROR));
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
-    UbseUrmaInfo urmaInfo{.urmaDevEid = "dev_eid_1", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::ACTIVED};
+    UbseUrmaInfo urmaInfo{
+        .urmaDevEid = "dev_eid_1", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::ACTIVED};
     urmaInfo.eidGroups.push_back({.primaryEid = "peid_1", .feInfo = nullptr});
     urmaInfo.eidGroups.push_back({.primaryEid = "peid_2", .feInfo = nullptr});
     UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["urma_1"] = urmaInfo;
@@ -755,4 +760,4 @@ TEST_F(TestUbseUrmaControllerManager, IsUdmaDevHealthy_EmptySubpath)
     bool result = IsUdmaDevHealthy(feEid);
     EXPECT_FALSE(result);
 }
-} // namespace ubse::urmaController::ut
+} // namespace ubse::urmaControllerManager::ut

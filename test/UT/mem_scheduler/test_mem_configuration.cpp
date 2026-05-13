@@ -20,7 +20,7 @@ void TestMemConfiguration::TearDown()
 }
 
 namespace {
-uint32_t MockGetConf(const std::string &section, const std::string &configKey, std::string &configVal)
+uint32_t MockGetConf(const std::string& section, const std::string& configKey, std::string& configVal)
 {
     if (configKey == OCK_MEM_SYSTEM_POOL_MEMORY_RATIO) {
         configVal = "75";

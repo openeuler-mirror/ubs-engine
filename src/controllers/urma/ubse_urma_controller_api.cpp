@@ -38,7 +38,7 @@ const uint32_t UBSE_URMA_NAME_MAX = 32;        // 包含结束符长度
 const uint32_t UBSE_MAX_URMA_PATH_LENGTH = 64; // 包含结束符长度
 const size_t MAX_BUFFER_SIZE = 10 * 1024;      // 10 KB
 
-size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
+size_t UbseStringCalcSize(const std::string& str, size_t maxLen)
 {
     size_t len = 0;
     len += sizeof(uint32_t); // 字符串长度指示
@@ -46,8 +46,8 @@ size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
     return len;
 }
 
-UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_t> status,
-                        std::vector<uint64_t> &hwResIds, UbseIpcMessage &response)
+UbseResult LocalDevPack(std::vector<std::string>& nameInfos, std::vector<uint32_t> status,
+                        std::vector<uint64_t>& hwResIds, UbseIpcMessage& response)
 {
     if (nameInfos.size() != status.size() || status.size() != hwResIds.size()) {
         UBSE_LOG_ERROR << "nameInfos, status and hwResIds size mismatch";
@@ -55,7 +55,7 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
     }
     size_t infoSize = nameInfos.size();
     size_t rspSize = sizeof(uint32_t);
-    for (auto &s : nameInfos) {
+    for (auto& s : nameInfos) {
         // 每个名字后面需要增加一个status占用4个字节
         rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t) + sizeof(uint64_t);
     }
@@ -107,14 +107,14 @@ UbseResult UbseUrmaControllerApi::Register()
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaBandWidthSet request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    uint8_t *buffer = req.buffer;
-    const char *str = reinterpret_cast<const char *>(buffer);
+    uint8_t* buffer = req.buffer;
+    const char* str = reinterpret_cast<const char*>(buffer);
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -153,14 +153,14 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage &req, 
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
-    uint8_t *buffer = req.buffer;
+    uint8_t* buffer = req.buffer;
     if (buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaBandWidthGet request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char *str = reinterpret_cast<const char *>(buffer);
+    const char* str = reinterpret_cast<const char*>(buffer);
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -176,7 +176,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage &req, 
     return UbseUrmaSendQosRsp(context.requestId, minBandWidth, maxBandWidth);
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     uint32_t nodeId;
     UbseDeSerialization reqSerial(req.buffer, req.length);
@@ -219,13 +219,13 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage &re
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaBandWidthReset request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char *str = reinterpret_cast<const char *>(req.buffer);
+    const char* str = reinterpret_cast<const char*>(req.buffer);
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -261,7 +261,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, con
     }
     UbseIpcMessage response = {nullptr, 0};
     response.length = sizeof(minBandWidth) + sizeof(maxBandWidth);
-    uint8_t *buffer = (uint8_t *)malloc(response.length);
+    uint8_t* buffer = (uint8_t*)malloc(response.length);
     if (buffer == nullptr) {
         return UBSE_ERROR;
     }
@@ -285,7 +285,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, con
     return UBSE_OK;
 }
 
-uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, std::vector<std::string> &deviceNameList)
+uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage& req, uint32_t& nodeId, std::vector<std::string>& deviceNameList)
 {
     uint32_t deviceListSize;
     if (req.buffer == nullptr) {
@@ -320,7 +320,7 @@ uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, std
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     uint32_t nodeId{};
     std::vector<std::string> deviceNameList;
@@ -340,7 +340,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
         std::unordered_set<std::string> allowedDevices(deviceNameList.begin(), deviceNameList.end());
         std::vector<UbseUrmaInfoForQuery> filtered;
         filtered.reserve(urmaInfo.size());
-        for (const auto &info : urmaInfo) {
+        for (const auto& info : urmaInfo) {
             if (allowedDevices.find(info.urmaName) != allowedDevices.end()) {
                 filtered.push_back(info);
             }
@@ -350,7 +350,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     UbseSerialization ubse_req_serial;
     const auto urmaSize = static_cast<uint32_t>(urmaInfo.size());
     ubse_req_serial << urmaSize;
-    for (auto &i : urmaInfo) {
+    for (auto& i : urmaInfo) {
         const auto urmaState = static_cast<uint32_t>(i.state);
         const auto urmaType = static_cast<uint32_t>(i.bondingType);
         ubse_req_serial << i.urmaName << urmaType << i.devEid << i.feNames << i.feEids << urmaState;
@@ -369,7 +369,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
@@ -405,14 +405,14 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage &req
     return UBSE_OK;
 }
 
-UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
+UbseResult AllocRspPack(UbseUrmaDevPath& pathInfos, UbseIpcMessage& response)
 {
     if (pathInfos.vfePaths.size() != NO_2) {
         UBSE_LOG_ERROR << "vfe path is not equal to 2";
         return UBSE_ERROR;
     }
     auto bufferSize = UbseStringCalcSize(pathInfos.bondingPath, UBSE_MAX_URMA_PATH_LENGTH - 1);
-    for (const auto &path : pathInfos.vfePaths) {
+    for (const auto& path : pathInfos.vfePaths) {
         bufferSize += UbseStringCalcSize(path, UBSE_MAX_URMA_PATH_LENGTH - 1);
     }
     bufferSize += UbseStringCalcSize(pathInfos.bondingEid, UBSE_MAX_URMA_PATH_LENGTH - 1);
@@ -442,13 +442,13 @@ UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Alloc IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char *str = reinterpret_cast<const char *>(req.buffer);
+    const char* str = reinterpret_cast<const char*>(req.buffer);
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -484,13 +484,13 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Free IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char *str = reinterpret_cast<const char *>(req.buffer);
+    const char* str = reinterpret_cast<const char*>(req.buffer);
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -516,7 +516,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma LocalDevGet IPC request info is null.";

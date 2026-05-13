@@ -17,23 +17,24 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "debt/ubse_mem_debt_ledger.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_mem_agent_task_manager.h"
-#include "ubse_mem_controller_ledger.cpp"
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_util.h"
+#include "debt/ubse_mem_debt_ledger.h"
+#include "ubse_mem_controller_ledger.cpp"
 
 // 用于mock的全局变量
 std::map<std::string, ubse::nodeController::PhysicalLink> g_mockLinkInfos;
 
 // mock UbseGetDirConnectInfo函数 - 正常情况
-std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectInfo_Normal() {
+std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectInfo_Normal()
+{
     std::map<std::string, ubse::nodeController::PhysicalLink> linkInfos;
     ubse::nodeController::PhysicalLink link1;
     link1.slotId = 1;
@@ -41,17 +42,16 @@ std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectI
     link1.portId = 1;
     link1.interfaceName = "eth0";
     linkInfos["link1"] = link1;
-    
+
     ubse::nodeController::PhysicalLink link2;
     link2.slotId = 2;
     link2.chipId = 1;
     link2.portId = 2;
     link2.interfaceName = "eth1";
     linkInfos["link2"] = link2;
-    
+
     return linkInfos;
 }
-
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
@@ -63,13 +63,13 @@ using namespace ubse::config;
 using namespace ubse::election;
 
 template <typename T>
-void PutDebtObj(const std::string &nodeId, const std::string &key, const T &obj)
+void PutDebtObj(const std::string& nodeId, const std::string& key, const T& obj)
 {
     UbseMemDebtLedger::GetInstance().GetDebtMap<T>().PutResource(nodeId, key, std::make_shared<T>(obj));
 }
 
 template <typename T>
-std::shared_ptr<const T> GetDebtObj(const std::string &nodeId, const std::string &key)
+std::shared_ptr<const T> GetDebtObj(const std::string& nodeId, const std::string& key)
 {
     return UbseMemDebtLedger::GetInstance().GetDebtMap<T>().GetResource(nodeId, key);
 }
@@ -522,11 +522,13 @@ TEST_F(TestUbseMemControllerLedger, IsFdImportRunningObjExcess)
     fdBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     fdBorrowExportObj.req.name = "test1";
     std::string key = obj.req.name + "_" + nodeId;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key, fdBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key,
+                                                                                        fdBorrowExportObj);
     EXPECT_TRUE(IsFdImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     fdBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key, fdBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key,
+                                                                                        fdBorrowExportObj);
     EXPECT_FALSE(IsFdImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
@@ -546,11 +548,13 @@ TEST_F(TestUbseMemControllerLedger, IsNumaImportRunningObjExcess)
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     numaBorrowExportObj.req.name = "test1";
     std::string key = obj.req.name + "_" + nodeId;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_TRUE(IsNumaImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_FALSE(IsNumaImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
@@ -570,11 +574,13 @@ TEST_F(TestUbseMemControllerLedger, IsAddrImportRunningObjExcess)
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     numaBorrowExportObj.req.name = "test1";
     std::string key = obj.req.name + "_" + nodeId;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_TRUE(IsAddrImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_FALSE(IsAddrImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
@@ -1175,9 +1181,10 @@ TEST_F(TestUbseMemControllerLedger, AgentDiffNumaImportHandler)
     EXPECT_EQ(AgentDiffNumaImportHandler(nodeId, objs), UBSE_OK);
 }
 
-TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus) {
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus)
+{
     std::string nodeId = "1";
-    
+
     // 准备mock数据
     g_mockLinkInfos.clear();
     nodeController::PhysicalLink link1;
@@ -1186,7 +1193,7 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus) {
     link1.portId = 1;
     link1.interfaceName = "eth0";
     g_mockLinkInfos["link1"] = link1;
-    
+
     nodeController::PhysicalLink link2;
     link2.slotId = 2;
     link2.chipId = 1;
@@ -1199,27 +1206,25 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus) {
         .will(returnValue(std::make_shared<UbseElectionModule>()));
     MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
     auto connectInfoBak = UbseNodeController::GetInstance().devDirConnectInfo;
-    
+
     UbseNodeController::GetInstance().devDirConnectInfo["test"] = link1;
-    
+
     // 直接设置devDirConnectInfo成员变量，避免mockcpp的比较问题
     auto& nodeController = UbseNodeController::GetInstance();
     nodeController.devDirConnectInfo.clear();
     nodeController.devDirConnectInfo["link1"] = link1;
     nodeController.devDirConnectInfo["link2"] = link2;
-    
-    MOCKER_CPP(NotifyRemoteNumaStatus)
-        .stubs()
-        .with(eq(nodeId), any())
-        .will(returnValue(UBSE_OK));
-    
+
+    MOCKER_CPP(NotifyRemoteNumaStatus).stubs().with(eq(nodeId), any()).will(returnValue(UBSE_OK));
+
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
     MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
-    
+
     SUCCEED();
 }
 
-TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_EmptyNumaStatus) {
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_EmptyNumaStatus)
+{
     std::string nodeId = "1";
 
     auto& nodeController = UbseNodeController::GetInstance();
@@ -1231,7 +1236,8 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_EmptyNumaStatus) 
     SUCCEED();
 }
 
-TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_InvalidRemoteNuma) {
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_InvalidRemoteNuma)
+{
     std::string nodeId = "1";
 
     nodeController::PhysicalLink link1;
@@ -1263,7 +1269,8 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_InvalidRemoteNuma
     SUCCEED();
 }
 
-TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_MultipleNuma) {
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_MultipleNuma)
+{
     std::string nodeId = "1";
 
     nodeController::PhysicalLink link1;
@@ -1321,17 +1328,15 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_MultipleNuma) {
     exportNodeDebt2.numaExportObjMap["res2"] = exportObj2;
     allDebtInfoMap["3"] = exportNodeDebt2;
 
-    MOCKER_CPP(NotifyRemoteNumaStatus)
-        .stubs()
-        .with(eq(nodeId), any())
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(NotifyRemoteNumaStatus).stubs().with(eq(nodeId), any()).will(returnValue(UBSE_OK));
 
     MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
 
     SUCCEED();
 }
 
-TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_PartialLinkDown) {
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_PartialLinkDown)
+{
     std::string nodeId = "1";
 
     nodeController::PhysicalLink link1;
@@ -1389,10 +1394,7 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_PartialLinkDown) 
     exportNodeDebt2.numaExportObjMap["res2"] = exportObj2;
     allDebtInfoMap["3"] = exportNodeDebt2;
 
-    MOCKER_CPP(NotifyRemoteNumaStatus)
-        .stubs()
-        .with(eq(nodeId), any())
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(NotifyRemoteNumaStatus).stubs().with(eq(nodeId), any()).will(returnValue(UBSE_OK));
 
     MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
 

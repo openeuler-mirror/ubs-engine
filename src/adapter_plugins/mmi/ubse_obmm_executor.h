@@ -27,8 +27,8 @@
 #include "ubse_mem_types.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_mmi_obmm_def.h"
-#include "ubse_security_module.h"
 #include "ubse_mmi_timeout_manager.h"
+#include "ubse_security_module.h"
 
 namespace ubse::mmi {
 #define MODULE_LOG_NAME "ubse"
@@ -39,23 +39,23 @@ using namespace ubse::security;
 
 constexpr int INVALID_MEM_ID = 0;
 using ObmmExportPtr = mem_id (*)(const size_t length[OBMM_MAX_LOCAL_NUMA_NODES], unsigned long flags,
-                                 struct obmm_mem_desc *desc);
+                                 struct obmm_mem_desc* desc);
 using ObmmUnexportPtr = int (*)(mem_id id, unsigned long flags);
-using ObmmImportPtr = mem_id (*)(const struct obmm_mem_desc *desc, unsigned long flags, int base_dist, int *numa);
+using ObmmImportPtr = mem_id (*)(const struct obmm_mem_desc* desc, unsigned long flags, int base_dist, int* numa);
 using ObmmUnimportPtr = int (*)(mem_id id, unsigned long flags);
-using ObmmExportByPidPtr = mem_id (*)(int pid, void *va, size_t size, unsigned long flags, struct obmm_mem_desc *desc);
-using ObmmQueryPaByMemIdPtr = int (*)(mem_id id, unsigned long offset, unsigned long *pa);
-using ObmmPreImportPtr = int (*)(struct obmm_preimport_info *preimport_info, unsigned long flags);
-using ObmmUnPreImportPtr = int (*)(const struct obmm_preimport_info *preimport_info, unsigned long flags);
+using ObmmExportByPidPtr = mem_id (*)(int pid, void* va, size_t size, unsigned long flags, struct obmm_mem_desc* desc);
+using ObmmQueryPaByMemIdPtr = int (*)(mem_id id, unsigned long offset, unsigned long* pa);
+using ObmmPreImportPtr = int (*)(struct obmm_preimport_info* preimport_info, unsigned long flags);
+using ObmmUnPreImportPtr = int (*)(const struct obmm_preimport_info* preimport_info, unsigned long flags);
 
 struct ObmmPidExportParam {
     int pid;
-    void *va;
+    void* va;
     size_t size;
     unsigned long flags;
     uint64_t exportNuma;
     uint64_t memid;
-    ObmmPidExportParam(const int pid, void *const va, const size_t size, const unsigned long flags,
+    ObmmPidExportParam(const int pid, void* const va, const size_t size, const unsigned long flags,
                        const uint64_t exportNuma, const uint64_t memid)
         : pid(pid),
           va(va),
@@ -73,37 +73,37 @@ public:
     UbseResult Exit();
 
     // 封装的obmm的基本单操作接口
-    mem_id ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, const ObmmOpParam &opParam,
-                      ubse_mem_obmm_mem_desc &desc);
+    mem_id ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, const ObmmOpParam& opParam,
+                      ubse_mem_obmm_mem_desc& desc);
     UbseResult ObmmUnExport(mem_id id);
-    mem_id ObmmImport(const ubse_mem_obmm_mem_desc &desc, const ObmmOpParam &opParam, int *numa);
+    mem_id ObmmImport(const ubse_mem_obmm_mem_desc& desc, const ObmmOpParam& opParam, int* numa);
     UbseResult ObmmUnImport(mem_id id);
     UbseResult ObmmUnImport(mem_id id, uint64_t timeoutMs);
 
     // 批量导出导入
-    std::vector<mem_id> ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam &opParam,
-                                   std::vector<ubse_mem_obmm_mem_desc> &desc, uint64_t blockSize);
-    UbseResult ObmmUnExport(const std::vector<mem_id> &id);
-    std::vector<mem_id> ObmmImport(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                   UbseMemImportStatus &status, int *numa);
-    UbseResult ObmmUnImport(const std::vector<mem_id> &id);
-    UbseResult ObmmUnImport(const std::vector<mem_id> &id, uint64_t timeoutMs);
-    UbseResult ObmmExportPid(ObmmPidExportParam &param, struct ubse_mem_obmm_mem_desc &desc,
-                             const UbseMemLocalObmmCustomMeta &customMeta, const UbMemPrivData &ubMemPrivData);
-    UbseResult ObmmQueryUBPaByMemId(uint64_t handle, unsigned long offset, unsigned long *pa);
+    std::vector<mem_id> ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam& opParam,
+                                   std::vector<ubse_mem_obmm_mem_desc>& desc, uint64_t blockSize);
+    UbseResult ObmmUnExport(const std::vector<mem_id>& id);
+    std::vector<mem_id> ObmmImport(const std::vector<UbseMemObmmInfo>& desc, ObmmOpParam& opParam,
+                                   UbseMemImportStatus& status, int* numa);
+    UbseResult ObmmUnImport(const std::vector<mem_id>& id);
+    UbseResult ObmmUnImport(const std::vector<mem_id>& id, uint64_t timeoutMs);
+    UbseResult ObmmExportPid(ObmmPidExportParam& param, struct ubse_mem_obmm_mem_desc& desc,
+                             const UbseMemLocalObmmCustomMeta& customMeta, const UbMemPrivData& ubMemPrivData);
+    UbseResult ObmmQueryUBPaByMemId(uint64_t handle, unsigned long offset, unsigned long* pa);
 
-    UbseResult ObmmPreImport(struct obmm_preimport_info *preimport_info, unsigned long flags);
-    UbseResult ObmmUnPreImport(struct obmm_preimport_info *preimport_info, unsigned long flags);
+    UbseResult ObmmPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags);
+    UbseResult ObmmUnPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags);
 
-    UbseResult DlOpenLib(const std::string &obmmPath);
-    mem_id ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam &opParam);
+    UbseResult DlOpenLib(const std::string& obmmPath);
+    mem_id ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam& opParam);
 
     uint64_t GetObmmBlockSize();
 
     static uint64_t CalculateUnImportTimeout(uint64_t blockSizeMb);
 
     template <typename T>
-    UbseResult DlOpenFunName(T &funPtr, const std::string &funName)
+    UbseResult DlOpenFunName(T& funPtr, const std::string& funName)
     {
         funPtr = reinterpret_cast<T>(dlsym(handle, funName.c_str()));
         if (funPtr == nullptr) {
@@ -162,21 +162,21 @@ public:
         return true;
     }
 
-    static RmObmmExecutor &GetInstance()
+    static RmObmmExecutor& GetInstance()
     {
         static RmObmmExecutor instance;
         return instance;
     }
-    RmObmmExecutor(const RmObmmExecutor &other) = delete;
-    RmObmmExecutor(RmObmmExecutor &&other) = delete;
-    RmObmmExecutor &operator=(const RmObmmExecutor &other) = delete;
-    RmObmmExecutor &operator=(RmObmmExecutor &&other) noexcept = delete;
+    RmObmmExecutor(const RmObmmExecutor& other) = delete;
+    RmObmmExecutor(RmObmmExecutor&& other) = delete;
+    RmObmmExecutor& operator=(const RmObmmExecutor& other) = delete;
+    RmObmmExecutor& operator=(RmObmmExecutor&& other) noexcept = delete;
 
 private:
     RmObmmExecutor() = default;
     static constexpr auto OBMM_PATH = "libobmm.so.1";
     bool preOnlineSwitch{false};
-    void *handle{nullptr};
+    void* handle{nullptr};
 
     void RegisterSigusr1Handler();
 

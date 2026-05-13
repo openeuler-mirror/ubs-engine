@@ -17,16 +17,16 @@
 #include <sstream>
 #include <string>
 
+#include "ubse_logger.h"
 #include "mp_configuration.h"
 #include "mp_json_util.h"
 #include "mp_string_util.h"
-#include "ubse_logger.h"
 
 namespace mempooling {
 using namespace ubse::log;
 using namespace mempooling::migrate;
 
-bool MpFaultMemIdParam::FromJson(const std::string &jsonString)
+bool MpFaultMemIdParam::FromJson(const std::string& jsonString)
 {
     JSON_MAP MpFaultMemIdParamMap;
     (void)MpFaultMemIdParamMap.emplace("importNodeId", "");

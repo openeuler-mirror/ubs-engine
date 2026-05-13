@@ -67,7 +67,7 @@ TEST_F(TestUbseMemShareBorrowExportobjSimpo, Deserialize)
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
 
     uint32_t size = 4;
-    auto buffer = new(std::nothrow) uint8_t[size];
+    auto buffer = new (std::nothrow) uint8_t[size];
     EXPECT_NE(nullptr, buffer);
     obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
     MOCKER_CPP(&UbseMemShareBorrowExportObjDeserialization)

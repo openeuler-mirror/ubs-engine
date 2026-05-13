@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <future>
 #include <shared_mutex>
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election_node_mgr.h"
@@ -22,6 +21,7 @@
 #include "ubse_election_reply_pkt_simpo.h"
 #include "ubse_election_utils.h"
 #include "ubse_event_module.h"
+#include "role/ubse_election_role_mgr.h"
 namespace ubse::election {
 using namespace ubse::context;
 using namespace ubse::com;
@@ -32,19 +32,19 @@ using namespace ubse::election::utils;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE &dstIp)
+uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE& dstIp)
 {
     {
         std::shared_lock<std::shared_mutex> lock(mtx_);
         std::string dstIdTemp;
-        for (auto &connectedNodeId : connectSuccessNodes_) {
+        for (auto& connectedNodeId : connectSuccessNodes_) {
             if (UbseElectionNodeMgr::GetInstance().GetNodeIdByIp(dstIp, dstIdTemp) == UBSE_OK &&
                 connectedNodeId == dstIdTemp) {
                 return UBSE_OK;
             }
         }
     }
-    UbseContext &ctx = UbseContext::GetInstance();
+    UbseContext& ctx = UbseContext::GetInstance();
     auto ubseComModule = ctx.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] get UbseComModule failed";
@@ -75,7 +75,7 @@ uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE &dstIp)
     return UBSE_OK;
 }
 
-uint32_t UbseElectionCommMgr::DisConnect(const UBSE_ID_TYPE &dstId)
+uint32_t UbseElectionCommMgr::DisConnect(const UBSE_ID_TYPE& dstId)
 {
     {
         std::shared_lock<std::shared_mutex> lock(mtx_);
@@ -85,7 +85,7 @@ uint32_t UbseElectionCommMgr::DisConnect(const UBSE_ID_TYPE &dstId)
         }
     }
 
-    UbseContext &ctx = UbseContext::GetInstance();
+    UbseContext& ctx = UbseContext::GetInstance();
     auto ubseComModule = ctx.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] get UbseComModule failed";
@@ -105,9 +105,9 @@ uint32_t UbseElectionCommMgr::DisConnect(const UBSE_ID_TYPE &dstId)
     return UBSE_OK;
 }
 
-uint32_t UbseElectionCommMgr::SendElectionPkt(UBSE_ID_TYPE destID, const ElectionPkt &pkt, ElectionReplyPkt &reply)
+uint32_t UbseElectionCommMgr::SendElectionPkt(UBSE_ID_TYPE destID, const ElectionPkt& pkt, ElectionReplyPkt& reply)
 {
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
     auto ubseComModule = ubseContext.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] get ubseComModule failed";
@@ -151,11 +151,11 @@ std::vector<UBSE_ID_TYPE> UbseElectionCommMgr::GetConnectedNodes() const
     return connectSuccessNodes_;
 }
 
-void UbseElectionCommMgr::ElectionNodeDownNotify(const std::string &nodeId)
+void UbseElectionCommMgr::ElectionNodeDownNotify(const std::string& nodeId)
 {
     Node currentNode;
     UBSE_ID_TYPE masterId;
-    UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
     UbseResult ret = ubseElectionNodeMgr.GetMyselfNode(currentNode);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Get myself nodeId failed";
@@ -167,7 +167,7 @@ void UbseElectionCommMgr::ElectionNodeDownNotify(const std::string &nodeId)
     }
 }
 
-UbseResult UbseElectionCommMgr::ElectionResponseHandler(std::string &eventId, std::string &eventMessage)
+UbseResult UbseElectionCommMgr::ElectionResponseHandler(std::string& eventId, std::string& eventMessage)
 {
     std::vector<Node> lcneNodes;
     auto ret = UbseElectionNodeMgr::GetInstance().GetAllNode(lcneNodes);
@@ -180,7 +180,7 @@ UbseResult UbseElectionCommMgr::ElectionResponseHandler(std::string &eventId, st
     for (auto it : nodeLinkList) {
         // 判断 it.nodeId 是否存在于 lcneNodes 中
         auto itFound =
-            std::find_if(lcneNodes.begin(), lcneNodes.end(), [&it](const Node &node) { return node.id == it.nodeId; });
+            std::find_if(lcneNodes.begin(), lcneNodes.end(), [&it](const Node& node) { return node.id == it.nodeId; });
         if (itFound != lcneNodes.end()) {
             if (it.ubseLinkState == 1 && it.changeChType == "Normal") {
                 ElectionNodeDownNotify(it.nodeId);
@@ -195,7 +195,7 @@ UbseResult UbseElectionCommMgr::ElectionResponseHandler(std::string &eventId, st
     return UBSE_OK;
 }
 
-UbseResult UbseElectionCommMgr::ElectionFaultHandler(std::string &eventId, std::string &eventMessage)
+UbseResult UbseElectionCommMgr::ElectionFaultHandler(std::string& eventId, std::string& eventMessage)
 {
     std::string faultNodeId;
     std::string faultType;
@@ -215,14 +215,14 @@ UbseResult UbseElectionCommMgr::ElectionFaultHandler(std::string &eventId, std::
     return UBSE_OK;
 }
 
-UbseResult UbseElectionCommMgr::ElectionTopoChangeHandler(std::string &eventId, std::string &eventMessage)
+UbseResult UbseElectionCommMgr::ElectionTopoChangeHandler(std::string& eventId, std::string& eventMessage)
 {
     UBSE_LOG_INFO << "[ELECTION] start to exec TopoChangeHandler, eventId = " << eventId;
     UbseElectionNodeMgr::GetInstance().ParseAllNodesVector();
     return UBSE_OK;
 }
 
-UbseResult UbseElectionCommMgr::NewChannelCB(const std::string &remoteIp, const std::string &remoteNodeId)
+UbseResult UbseElectionCommMgr::NewChannelCB(const std::string& remoteIp, const std::string& remoteNodeId)
 {
     // remoteInfo为对端IP
     UBSE_LOG_DEBUG << "[ELECTION] start to NCCB.";
@@ -249,7 +249,7 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
     }
     auto ret = eventModule->UbseSubEvent(
         UBSE_EVENT_NODE_STATE,
-        [this](std::string &eventId, std::string &eventMessage) -> u_int32_t {
+        [this](std::string& eventId, std::string& eventMessage) -> u_int32_t {
             return ElectionResponseHandler(eventId, eventMessage);
         },
         HIGH);
@@ -260,7 +260,7 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
     std::string panicAndRebootFaultEventId = "UbsePanicAndRebootFaultEvent";
     ret = eventModule->UbseSubEvent(
         panicAndRebootFaultEventId,
-        [this](std::string &eventId, std::string &eventMessage) -> u_int32_t {
+        [this](std::string& eventId, std::string& eventMessage) -> u_int32_t {
             return ElectionFaultHandler(eventId, eventMessage);
         },
         HIGH);
@@ -270,7 +270,7 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
     }
     ret = eventModule->UbseSubEvent(
         UBSE_EVENT_NODE_TOPO_LINK_CHANGE,
-        [this](std::string &eventId, std::string &eventMessage) -> u_int32_t {
+        [this](std::string& eventId, std::string& eventMessage) -> u_int32_t {
             return ElectionTopoChangeHandler(eventId, eventMessage);
         },
         HIGH);
@@ -298,7 +298,7 @@ UbseResult UbseElectionCommMgr::Start()
     }
     auto retStartComService = ubseComModule->StartComService(
         currentNode.id, currentNode.ip,
-        [this](const std::string &remoteIp, const std::string &remoteNodeId) {
+        [this](const std::string& remoteIp, const std::string& remoteNodeId) {
             return NewChannelCB(remoteIp, remoteNodeId);
         },
         nullptr);

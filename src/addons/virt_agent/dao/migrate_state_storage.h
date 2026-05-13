@@ -28,15 +28,15 @@ using namespace ubse::storage;
 class MigrateStateStorage {
 public:
     MigrateStateStorage() = default;
-    static VmResult SaveMigrateState(NumaVMInfoMap &numaVmInfoMap, const VMBasicInfo &vmBasicInfo);
-    static VmResult DelMigrateState(NumaVMInfoMap &numaVmInfoMap, const VMBasicInfo &vmBasicInfo);
-    static VmResult GetMigrateStates(NumaVMInfoMap &numaVmInfoMap);
-    static void QueryHandler(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                             void *ctx);
-    static std::string ToString(const NumaVMInfoMap &numaVmInfoMap);
+    static VmResult SaveMigrateState(NumaVMInfoMap& numaVmInfoMap, const VMBasicInfo& vmBasicInfo);
+    static VmResult DelMigrateState(NumaVMInfoMap& numaVmInfoMap, const VMBasicInfo& vmBasicInfo);
+    static VmResult GetMigrateStates(NumaVMInfoMap& numaVmInfoMap);
+    static void QueryHandler(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                             void* ctx);
+    static std::string ToString(const NumaVMInfoMap& numaVmInfoMap);
 
 private:
-    static VmResult OpMigrateState(NumaVMInfoMap &numaVmInfoMap, const VMBasicInfo &vmBasicInfo, bool isDelete);
+    static VmResult OpMigrateState(NumaVMInfoMap& numaVmInfoMap, const VMBasicInfo& vmBasicInfo, bool isDelete);
     static ReadWriteLock migrateStateLock;
 };
 } // namespace vm

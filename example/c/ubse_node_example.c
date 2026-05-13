@@ -20,7 +20,7 @@
 
 #define UNIT_MB (1024 * 1024)
 
-void print_node_info(const ubs_topo_node_t *node)
+void print_node_info(const ubs_topo_node_t* node)
 {
     printf("Node ID: %d\n", node->slot_id);
     printf("Socket Id: %d, %d\n", node->socket_id[0], node->socket_id[1]);
@@ -61,7 +61,7 @@ void print_node_info(const ubs_topo_node_t *node)
 
 void ubse_node_list_example(void)
 {
-    ubs_topo_node_t *node_list = NULL;
+    ubs_topo_node_t* node_list = NULL;
     uint32_t node_cnt = 0;
 
     printf("Retrieving local node info...\n");
@@ -104,7 +104,7 @@ void ubse_node_get_example(void)
 
 void ubse_cpu_link_list_example(void)
 {
-    ubs_topo_link_t *links = NULL;
+    ubs_topo_link_t* links = NULL;
     uint32_t link_count = 0;
 
     printf("Retrieving cpu link list...\n");
@@ -124,7 +124,7 @@ void ubse_cpu_link_list_example(void)
 
 void ubse_node_numa_mem_list_example(void)
 {
-    ubs_mem_numastat_t *numa_mem = NULL;
+    ubs_mem_numastat_t* numa_mem = NULL;
     uint32_t numa_count = 0;
 
     printf("Retrieving numa list...\n");

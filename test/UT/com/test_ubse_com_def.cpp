@@ -11,13 +11,13 @@
  */
 
 #include "test_ubse_com_def.h"
-#include "test_ubse_com_mock.h"
 #include "ubse_com_module.h"
 #include "ubse_conf_manager.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_lcne_module.h"
+#include "test_ubse_com_mock.h"
 
 namespace ubse::ut::com {
 using namespace ubse::com;
@@ -167,7 +167,7 @@ TEST_F(TestUbseComDef, TestSetGetTimeOut)
 TEST_F(TestUbseComDef, TestSetGetLogFunc)
 {
     UbseComEngineInfo ubseComEngineInfo;
-    UbseComLogFunc cb = [](int level, const char *msg) {
+    UbseComLogFunc cb = [](int level, const char* msg) {
     };
     EXPECT_NO_THROW(ubseComEngineInfo.SetLogFunc(cb));
     EXPECT_NO_THROW(ubseComEngineInfo.GetLogFunc());
@@ -269,7 +269,7 @@ TEST_F(TestUbseComDef, TestIsServerSide)
 TEST_F(TestUbseComDef, TestSetGetQueryEidByNodeIdCb)
 {
     UbseComEngineInfo ubseComEngineInfo;
-    QueryEidByNodeIdCb cb1 = [](std::string nodeId, std::string &eid) {
+    QueryEidByNodeIdCb cb1 = [](std::string nodeId, std::string& eid) {
         if (nodeId == "TestSetGetQueryEidByNodeIdCb") {
             return true;
         } else {
@@ -443,7 +443,7 @@ TEST_F(TestUbseComDef, TestConvertUbseComChannelInfoToString)
 
     std::string channelInfoString = channelInfo.ConvertUbseComChannelInfoToString();
     EXPECT_EQ("engine_name=RpcServer; channel_type=0; channel_id=1; cur_node_id=0; remote_node_id=1; ",
-        channelInfoString);
+              channelInfoString);
 }
 
 /*
@@ -526,7 +526,7 @@ TEST_F(TestUbseComDef, TestSetGetMessage)
     UbseComMessageCtx ctx;
     uint8_t msg[] = "hello world!";
     EXPECT_NO_THROW(ctx.SetMessage(msg));
-    EXPECT_EQ(0, memcmp(msg, ctx.GetMessage(), strlen(reinterpret_cast<const char *>(msg))));
+    EXPECT_EQ(0, memcmp(msg, ctx.GetMessage(), strlen(reinterpret_cast<const char*>(msg))));
 }
 
 /*
@@ -666,13 +666,13 @@ TEST_F(TestUbseComDef, TestGetUdsInfoFromNetServiceContext)
 TEST_F(TestUbseComDef, TransRequestMsg)
 {
     EXPECT_EQ(nullptr, TransRequestMsg(nullptr, 0, 0));
-    TestRpcMessage *msg = new TestRpcMessage(UBSE_ERROR_SERIALIZE_FAILED, UBSE_OK);
+    TestRpcMessage* msg = new TestRpcMessage(UBSE_ERROR_SERIALIZE_FAILED, UBSE_OK);
     EXPECT_EQ(nullptr, TransRequestMsg(msg, 0, 0));
-    TestRpcMessage *successMsg = new TestRpcMessage(UBSE_OK, UBSE_OK);
+    TestRpcMessage* successMsg = new TestRpcMessage(UBSE_OK, UBSE_OK);
     UbseComMessagePtr result = TransRequestMsg(successMsg, 0, 0);
-    auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(result));
+    auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(result));
     std::string str;
-    str.append(reinterpret_cast<VOS_CHAR *>(ucMsg->GetMessageBody()), 4); // 4是data空间大小
+    str.append(reinterpret_cast<VOS_CHAR*>(ucMsg->GetMessageBody()), 4); // 4是data空间大小
     EXPECT_EQ("test", str);
 }
 
@@ -693,10 +693,10 @@ TEST_F(TestUbseComDef, TransResponseWithCopy)
 {
     UbseComDataDesc data{};
     data = {nullptr, 0};
-    TestRpcMessage *msg = new TestRpcMessage(UBSE_OK, UBSE_OK);
+    TestRpcMessage* msg = new TestRpcMessage(UBSE_OK, UBSE_OK);
     EXPECT_EQ(UBSE_ERROR, TransResponse(msg, data, true));
     std::string str = "data";
-    data.data = reinterpret_cast<uint8_t *>(str.data());
+    data.data = reinterpret_cast<uint8_t*>(str.data());
     data.len = str.length();
     msg = new TestRpcMessage(UBSE_OK, UBSE_ERROR_DESERIALIZE_FAILED);
     EXPECT_EQ(UBSE_ERROR_DESERIALIZE_FAILED, TransResponse(msg, data, true));
@@ -704,7 +704,7 @@ TEST_F(TestUbseComDef, TransResponseWithCopy)
     Ref<TestRpcMessage> msgPtr = new TestRpcMessage(UBSE_OK, UBSE_OK);
     EXPECT_EQ(UBSE_OK, TransResponse(UbseBaseMessage::Convert<TestRpcMessage>(msgPtr), data, true));
     std::string respData;
-    respData.append(reinterpret_cast<VOS_CHAR *>(msgPtr->InputRawData()), 4); // 4是data空间大小
+    respData.append(reinterpret_cast<VOS_CHAR*>(msgPtr->InputRawData()), 4); // 4是data空间大小
     EXPECT_EQ("data", respData);
 }
 

@@ -26,7 +26,7 @@ namespace ubse::misc::fs {
 UBSE_DEFINE_THIS_MODULE("ubse");
 constexpr size_t UBSE_DATA_MAX_SIZE = 500 * 1024; // 500k
 
-static bool VerifyFileName(const std::string &fileName)
+static bool VerifyFileName(const std::string& fileName)
 {
     std::regex pattern("[a-zA-Z0-9-_.]+");
     if (!std::regex_match(fileName, pattern)) {
@@ -36,7 +36,7 @@ static bool VerifyFileName(const std::string &fileName)
     return true;
 }
 
-static bool RemoveFile(const std::string &path, const std::string &fileName)
+static bool RemoveFile(const std::string& path, const std::string& fileName)
 {
     std::error_code ec;
     bool exists = std::filesystem::exists(path, ec);
@@ -53,7 +53,7 @@ static bool RemoveFile(const std::string &path, const std::string &fileName)
     return true;
 }
 
-uint32_t UbseFs::DeleteFile(const std::string &fileName)
+uint32_t UbseFs::DeleteFile(const std::string& fileName)
 {
     if (!VerifyFileName(fileName)) {
         return UBSE_ERROR;
@@ -71,7 +71,7 @@ uint32_t UbseFs::DeleteFile(const std::string &fileName)
     return UBSE_ERROR;
 }
 
-uint32_t UbseFs::ReadFile(const std::string &fileName, uint8_t *&data, uint32_t &dataLen)
+uint32_t UbseFs::ReadFile(const std::string& fileName, uint8_t*& data, uint32_t& dataLen)
 {
     if (!VerifyFileName(fileName)) {
         return UBSE_ERROR;
@@ -111,7 +111,7 @@ uint32_t UbseFs::ReadFile(const std::string &fileName, uint8_t *&data, uint32_t 
         UBSE_LOG_ERROR << "Read file=" << fileName << " fail, error=can't alloc mem";
         return UBSE_ERROR;
     }
-    if (!file.read(reinterpret_cast<char *>(valueArr), size)) {
+    if (!file.read(reinterpret_cast<char*>(valueArr), size)) {
         SafeDeleteArray(valueArr);
         UBSE_LOG_ERROR << "Read file=" << fileName << " fail, error=" << std::strerror(errno);
         return UBSE_ERROR;
@@ -121,7 +121,7 @@ uint32_t UbseFs::ReadFile(const std::string &fileName, uint8_t *&data, uint32_t 
     return UBSE_OK;
 }
 
-uint32_t WriteTmpFile(const std::string &fileName, const uint8_t *data, const uint32_t dataLen)
+uint32_t WriteTmpFile(const std::string& fileName, const uint8_t* data, const uint32_t dataLen)
 {
     int fd = open(fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (fd == -1) {
@@ -144,7 +144,7 @@ uint32_t WriteTmpFile(const std::string &fileName, const uint8_t *data, const ui
     return UBSE_OK;
 }
 
-uint32_t UbseFs::WriteFile(const std::string &fileName, const uint8_t *data, const uint32_t dataLen)
+uint32_t UbseFs::WriteFile(const std::string& fileName, const uint8_t* data, const uint32_t dataLen)
 {
     if (!VerifyFileName(fileName)) {
         return UBSE_ERROR;
@@ -181,7 +181,7 @@ uint32_t UbseFs::WriteFile(const std::string &fileName, const uint8_t *data, con
     return UBSE_OK;
 }
 
-std::shared_ptr<std::mutex> UbseFs::GetLock(const std::string &fileName)
+std::shared_ptr<std::mutex> UbseFs::GetLock(const std::string& fileName)
 {
     std::lock_guard<std::mutex> lock(mapLock_);
     if (shareMutexMap_.find(fileName) == shareMutexMap_.end()) {
@@ -190,7 +190,7 @@ std::shared_ptr<std::mutex> UbseFs::GetLock(const std::string &fileName)
     return shareMutexMap_[fileName];
 }
 
-void UbseFs::RemoveLock(const std::string &fileName)
+void UbseFs::RemoveLock(const std::string& fileName)
 {
     std::lock_guard<std::mutex> lock(mapLock_);
     shareMutexMap_.erase(fileName);

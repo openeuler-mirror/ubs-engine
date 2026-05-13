@@ -45,43 +45,43 @@ public:
     static VmResult Register();
 
 private:
-    static uint32_t GetNodeInfo(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t GetVmInfo(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t NodeAntiAffinity(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MemBorrowStrategy(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MemBorrowExecute(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MemTaskQuery(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MemMigrateStrategy(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MemMigrateExecute(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MemReturn(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t StartMemReturnSync(const std::string &taskId, const std::string &nodeId,
-                                       const UbseRequestContext &context);
-    static uint32_t StartMemReturnAsync(const std::string &taskId, const std::string &nodeId,
-                                        const UbseRequestContext &context);
-    static void ExecuteAsyncMemReturn(const std::string &taskId, const std::string &nodeId,
-                                      const UbseRequestContext &context);
-    static uint32_t MemRollback(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t GetNodeInfo(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t GetVmInfo(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t NodeAntiAffinity(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MemBorrowStrategy(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MemBorrowExecute(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MemTaskQuery(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MemMigrateStrategy(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MemMigrateExecute(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MemReturn(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t StartMemReturnSync(const std::string& taskId, const std::string& nodeId,
+                                       const UbseRequestContext& context);
+    static uint32_t StartMemReturnAsync(const std::string& taskId, const std::string& nodeId,
+                                        const UbseRequestContext& context);
+    static void ExecuteAsyncMemReturn(const std::string& taskId, const std::string& nodeId,
+                                      const UbseRequestContext& context);
+    static uint32_t MemRollback(const UbseIpcMessage& req, const UbseRequestContext& context);
 
-    static bool ValidateRequest(const UbseIpcMessage &req);
+    static bool ValidateRequest(const UbseIpcMessage& req);
     static uint32_t UpdateAntiAffinityConfig(
-        const std::map<std::string, std::vector<std::string>> &nodeAntiAffinityMap);
-    static std::pair<std::string, const uint8_t *> ParseKey(const uint8_t *buffer, size_t buffer_size,
-                                                            const uint8_t *&ptr);
-    static std::vector<std::string> ParseValues(const uint8_t *buffer, size_t buffer_size, const uint8_t *&ptr);
-    static std::pair<std::string, std::vector<std::string>> ParseEntry(const uint8_t *buffer, size_t buffer_size,
-                                                                       const uint8_t *&ptr);
-    static uint32_t DeserializeNodeAntiDictionary(const uint8_t *buffer, size_t buffer_size,
-                                                  std::map<std::string, std::vector<std::string>> &node_dict_map);
-    static uint32_t PackBorrowStrategyRsp(const MemBorrowStrategyResult &borrowStrategyResult, UbseIpcMessage &buffer);
-    static uint32_t PackBorrowExecuteRsp(const MemBorrowExecuteResult &memBorrowExecuteResult, UbseIpcMessage &buffer);
-    static uint32_t StartMemBorrowSync(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                       const UbseRequestContext &context);
-    static uint32_t StartMemBorrowAsync(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                        const UbseRequestContext &context);
-    static void ExecuteAsyncMemBorrow(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                      const UbseRequestContext &context);
-    static uint32_t PackMigrateStrategyRsp(const MigrateStrategyResult &migrateStrategyResult, UbseIpcMessage &buffer);
-    static VmResult SetSrcNodeHugePage(const MemBorrowExecuteResult &borrowExecuteResult);
+        const std::map<std::string, std::vector<std::string>>& nodeAntiAffinityMap);
+    static std::pair<std::string, const uint8_t*> ParseKey(const uint8_t* buffer, size_t buffer_size,
+                                                           const uint8_t*& ptr);
+    static std::vector<std::string> ParseValues(const uint8_t* buffer, size_t buffer_size, const uint8_t*& ptr);
+    static std::pair<std::string, std::vector<std::string>> ParseEntry(const uint8_t* buffer, size_t buffer_size,
+                                                                       const uint8_t*& ptr);
+    static uint32_t DeserializeNodeAntiDictionary(const uint8_t* buffer, size_t buffer_size,
+                                                  std::map<std::string, std::vector<std::string>>& node_dict_map);
+    static uint32_t PackBorrowStrategyRsp(const MemBorrowStrategyResult& borrowStrategyResult, UbseIpcMessage& buffer);
+    static uint32_t PackBorrowExecuteRsp(const MemBorrowExecuteResult& memBorrowExecuteResult, UbseIpcMessage& buffer);
+    static uint32_t StartMemBorrowSync(const std::string& taskId, const VMMemoryBorrowParam& vmParam,
+                                       const UbseRequestContext& context);
+    static uint32_t StartMemBorrowAsync(const std::string& taskId, const VMMemoryBorrowParam& vmParam,
+                                        const UbseRequestContext& context);
+    static void ExecuteAsyncMemBorrow(const std::string& taskId, const VMMemoryBorrowParam& vmParam,
+                                      const UbseRequestContext& context);
+    static uint32_t PackMigrateStrategyRsp(const MigrateStrategyResult& migrateStrategyResult, UbseIpcMessage& buffer);
+    static VmResult SetSrcNodeHugePage(const MemBorrowExecuteResult& borrowExecuteResult);
 };
 } // namespace vm
 

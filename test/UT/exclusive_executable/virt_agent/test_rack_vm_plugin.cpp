@@ -15,7 +15,6 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
-#include "rack_vm_plugin.h"
 #include "alarm_handler.h"
 #include "case_conf.h"
 #include "container_sdk_server.h"
@@ -23,6 +22,7 @@
 #include "fragmentation_vm_collection.h"
 #include "ham_migrate.h"
 #include "mem_handler.h"
+#include "rack_vm_plugin.h"
 #include "resource_collect.h"
 #include "router.h"
 #include "status_manager.h"
@@ -35,7 +35,7 @@ namespace ubse::vm::ut {
 
 using UbsePluginInitHandle = uint32_t (*)(uint16_t);
 using UbsePluginDeInitHandle = void (*)();
-void *g_libvmHandle = nullptr;
+void* g_libvmHandle = nullptr;
 UbsePluginInitHandle g_initHandle = nullptr;
 UbsePluginDeInitHandle g_deinitHandle = nullptr;
 
