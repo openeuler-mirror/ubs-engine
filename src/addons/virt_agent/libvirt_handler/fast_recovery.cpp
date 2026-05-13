@@ -29,7 +29,7 @@
 #include "ham_migrate_dst_info_message.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::mem::controller;
 using namespace ubse::nodeController;
 
@@ -69,6 +69,7 @@ VmResult FastRecovery::HandleFastRecoveryClear(const Document& msgJson, RespInfo
         }
         UBSE_LOG_INFO << "HandleFastRecoveryClear retry, times=" << (i + 1) << ", ret=" << ret;
     }
+    UBSE_LOG_INFO << "HandleFastRecoveryClear success.";
     return ret;
 }
 

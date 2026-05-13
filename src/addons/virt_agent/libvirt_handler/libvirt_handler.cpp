@@ -33,7 +33,7 @@
 #include "vm_sdk_def.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::com;
 static const std::string HAM_MIGRATE = "ham_migrate";
 static const std::string FAST_RECOVERY_SCENE = "fastRecovery";
