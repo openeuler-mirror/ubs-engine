@@ -35,6 +35,10 @@ constexpr uint32_t GET_RET_TIME = 1;
 constexpr uint32_t RETRY_MAX_COUNT = 20;
 constexpr uint16_t FAIL_RETRY_COUNT = 10;
 const int MAX_NR_MIGOUT = 40;
+constexpr int MAX_NR_GROUPED_MIGOUT = MAX_NR_MIGOUT;
+constexpr int MAX_MIGRATION_GROUP_NUM = 8;
+constexpr int MAX_GROUP_LOCAL_NUMA = 4;
+constexpr int MAX_GROUP_REMOTE_NUMA = REMOTE_NUMA_NUM;
 
 // 迁出接口超时返回码
 const int MIGRATEOUT_TIMEOUT_RES = -16;
@@ -227,6 +231,26 @@ struct MigrateEscapeMsg {
     struct MigrateEscapePayload payload[MAX_NR_MIGOUT];
 };
 
+struct MigrationNode {
+    int nid; 
+    uint64_t size; // local: reserve size in KB; target: quota size in KB
+};
+struct MigrationGroup {
+    int localCount;    
+    struct MigrationNode locals[MAX_GROUP_LOCAL_NUMA];
+    int targetCount;
+    struct MigrationNode targets[MAX_GROUP_REMOTE_NUMA];
+};
+struct GroupedMigrateOutPayload {  
+    pid_t pid;
+    int groupCount;
+    struct MigrationGroup groups[MAX_MIGRATION_GROUP_NUM];
+};
+struct GroupedMigrateOutMsg { 
+    int count;
+    struct GroupedMigrateOutPayload payload[MAX_NR_GROUPED_MIGOUT];
+};
+
 using SmapInitFunc = int (*)(const uint32_t, void(int, const char *, const char *));
 using SmapMigrateOutFunc = int (*)(MigrateOutMsg *, int);
 using SmapMigrateOutSyncFunc = int (*)(MigrateOutMsg *, int, uint64_t);
@@ -243,6 +267,7 @@ using SmapGetRemotePidsFunc = int (*)(int, struct ProcessPayload *, int, int *);
 using SmapAddProcessTrackingFunc = int (*)(pid_t *, uint32_t *, uint32_t *, int, int);
 using SmapRemoveProcessTrackingFunc = int (*)(pid_t *, int, int);
 using SmapQueryProcessConfigFunc = int (*)(int, ProcessPayload *, int, int *);
+using SmapMigrateOutGroupedFunc = int (*)(GroupedMigrateOutMsg *, int);
 class SmapModule {
 public:
     static MpResult Init();
@@ -283,6 +308,8 @@ public:
 
     static SmapQueryProcessConfigFunc GetSmapQueryProcessConfigFunc();
 
+    static SmapMigrateOutGroupedFunc GetSmapMigrateOutGroupedFunc();
+
 private:
     static void *smapHandle;
     static SmapInitFunc smapInitFunc;
@@ -301,6 +328,7 @@ private:
     static SmapAddProcessTrackingFunc smapAddProcessTrackingFunc;
     static SmapRemoveProcessTrackingFunc smapRemoveProcessTrackingFunc;
     static SmapQueryProcessConfigFunc smapQueryProcessConfigFunc;
+    static SmapMigrateOutGroupedFunc smapMigrateOutGroupedFunc;
 };
 }  // namespace mempooling::smap
 #endif  // RACK_MANAGER_SMAP_MODULE_H

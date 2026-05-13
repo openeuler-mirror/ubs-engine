@@ -40,6 +40,7 @@ using VirConnectDomainEventRegisterFunc = int (*)(void *, VirConnectDomainEventC
 using VirConnectDomainEventDeRegisterFunc = int (*)(void *, VirConnectDomainEventCallbackFunc);
 using VirConnectSetKeepAliveFunc = int (*)(void *, int, unsigned int);
 using VirDomainLookupByNameFunc = void *(*)(void *, const char *);
+using VirDomainGetXMLDescFunc = char *(*)(void *, unsigned int);
 
 class LibvirtModule {
 public:
@@ -80,6 +81,8 @@ public:
     static VirConnectSetKeepAliveFunc VirConnectSetKeepAlive();
 
     static VirDomainLookupByNameFunc VirDomainLookupByName();
+
+    static VirDomainGetXMLDescFunc VirDomainGetXMLDesc();
 private:
     static void *libvirtHandle;
     static VirConnectOpenFunc virConnectOpenFunc;
@@ -99,6 +102,7 @@ private:
     static VirConnectDomainEventDeRegisterFunc virConnectDomainEventDeRegisterFunc;
     static VirConnectSetKeepAliveFunc virConnectSetKeepAliveFunc;
     static VirDomainLookupByNameFunc virDomainLookupByNameFunc;
+    static VirDomainGetXMLDescFunc virDomainGetXMLDescFunc;
 };
 } // mempooling::libvirt
 

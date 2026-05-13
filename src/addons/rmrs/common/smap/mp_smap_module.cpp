@@ -34,6 +34,7 @@ SmapGetRemotePidsFunc SmapModule::smapGetRemotePidsFunc = nullptr;
 SmapAddProcessTrackingFunc SmapModule::smapAddProcessTrackingFunc = nullptr;
 SmapRemoveProcessTrackingFunc SmapModule::smapRemoveProcessTrackingFunc = nullptr;
 SmapQueryProcessConfigFunc SmapModule::smapQueryProcessConfigFunc = nullptr;
+SmapMigrateOutGroupedFunc SmapModule::smapMigrateOutGroupedFunc = nullptr;
 MpResult SmapModule::Init()
 {
     smapHandle = dlopen(SMAP_LIBSMAPSO_PATH, RTLD_LAZY);
@@ -133,6 +134,7 @@ void SmapModule::CloseSmapHandle()
     smapEnableProcessMigrateFunc = nullptr;
     smapAddProcessTrackingFunc = nullptr;
     smapRemoveProcessTrackingFunc = nullptr;
+    smapMigrateOutGroupedFunc = nullptr;
 }
 
 void SmapModule::RackVmLog(int level, const char *str, const char *moduleName)
@@ -321,6 +323,27 @@ SmapQueryProcessConfigFunc SmapModule::GetSmapQueryProcessConfigFunc()
         return nullptr;
     }
     return smapQueryProcessConfigFunc;
+}
+
+SmapMigrateOutGroupedFunc SmapModule::GetSmapMigrateOutGroupedFunc()
+{
+    if (smapMigrateOutGroupedFunc != nullptr) {
+        return smapMigrateOutGroupedFunc;
+    }
+
+    if (smapHandle == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapModule] Smap handle is nullptr.";
+        return nullptr;
+    }
+
+    smapMigrateOutGroupedFunc =
+        (SmapMigrateOutGroupedFunc)dlsym(smapHandle, "ubturbo_smap_migrate_out_grouped");
+    if (smapMigrateOutGroupedFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[RmrsSmapModule] Get ubturbo_smap_migrate_out_grouped ptr failed.";
+        return nullptr;
+    }
+    return smapMigrateOutGroupedFunc;
 }
 
 }  // namespace mempooling::smap

@@ -295,11 +295,11 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestSuccess)
 
 TEST_F(TestMemPoolBorrowModule, UpdateNodeMemInfoWithNuma_Test)
 {
-    NumaInfo numaInfo1;
+    mempooling::exportV2::NumaInfo numaInfo1;
     numaInfo1.metaData.numaId = 1;
     numaInfo1.metaData.memFree = 5000;
 
-    NumaInfo numaInfo2;
+    mempooling::exportV2::NumaInfo numaInfo2;
     numaInfo2.metaData.numaId = 2;
     numaInfo2.metaData.memFree = 3000;
 
@@ -2785,7 +2785,7 @@ TEST_F(TestMemPoolBorrowModule, GetNumaDataTestFailed)
     std::map<uint16_t, NumaHugePageInfo> numaInfoMap;
     std::vector<NumaHugePageInfo> numaHugePageInfoSumList;
 
-    MOCKER_CPP(&Exporter::GetNumaInfoImmediately, uint32_t(*)(std::vector<NumaInfo> & numaInfos))
+    MOCKER_CPP(&Exporter::GetNumaInfoImmediately, uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
         .stubs()
         .will(returnValue(1));
 
@@ -2824,7 +2824,7 @@ TEST_F(TestMemPoolBorrowModule, DistributeNumaMemInfoTestSucceed)
     std::vector<NumaHugePageInfo> numaHugePageInfoSumList;
 
     // 本地 NUMA 节点
-    NumaInfo numa0;
+    mempooling::exportV2::NumaInfo numa0;
     numa0.timestamp = std::time(nullptr);
     numa0.metaData.nodeId = "node-1";
     numa0.metaData.hostName = "hostA";

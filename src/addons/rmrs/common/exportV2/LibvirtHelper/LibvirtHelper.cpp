@@ -12,6 +12,10 @@
 
 #include "LibvirtHelper.h"
 #include <map>
+#include <regex>
+#include <sstream>
+#include <cstring>
+#include <cstdlib>
 #include "mp_configuration.h"
 #include "ubse_logger.h"
 #include "ubse_security.h"
@@ -241,6 +245,31 @@ MpResult LibvirtHelper::GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomai
     }
     vmInfo.metaData.state = VirStateStringMap[info.state];
     vmInfo.metaData.maxMem = info.maxMem;
+    return MEM_POOLING_OK;
+}
+
+MpResult LibvirtHelper::GetDomainXML(VirDomainPtr domain, std::string &xmlStr)
+{
+    if (domain == nullptr) {
+        LOG_ERROR << "Domain is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
+    libvirt::VirDomainGetXMLDescFunc virDomainGetXMLDesc = LibvirtModule::VirDomainGetXMLDesc();
+    if (virDomainGetXMLDesc == nullptr) {
+        LOG_ERROR << "VirDomainGetXMLDesc is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
+    char *xmlRaw = virDomainGetXMLDesc(domain, 0);
+    if (xmlRaw == nullptr) {
+        LOG_ERROR << "Get domain XML failed, virDomainGetXMLDesc returned nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
+    xmlStr = std::string(xmlRaw);
+    free(xmlRaw);
+    LOG_DEBUG << "Get domain XML succeed, length=" << xmlStr.length();
     return MEM_POOLING_OK;
 }
 

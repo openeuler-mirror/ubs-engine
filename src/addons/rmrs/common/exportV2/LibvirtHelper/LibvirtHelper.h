@@ -51,6 +51,7 @@ public:
     MpResult GetDomainByName(const std::string &name, VirDomainPtr &domain);
     MpResult GetVmUuidByDomain(VirDomainPtr domain, std::string &uuid);
     MpResult GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomainInfo &info);
+    MpResult GetDomainXML(VirDomainPtr domain, std::string &xmlStr);
 
 private:
     static inline constexpr size_t VM_UUID_LEN = 37; // 36(UUID位数) + 1(\0)

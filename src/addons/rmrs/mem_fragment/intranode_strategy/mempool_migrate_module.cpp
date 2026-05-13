@@ -22,6 +22,7 @@
 #include "exporter.h"
 #include "mem_borrow_executor.h"
 #include "mem_manager.h"
+#include "mempooling_interface.h"
 #include "mempooling_message.h"
 #include "mp_error.h"
 #include "mp_smap_helper.h"
@@ -29,6 +30,8 @@
 #include "turbo_def.h"
 #include "ubse_com.h"
 #include "ubse_logger.h"
+#include "ubse_mem_controller.h"
+#include "ubse_node_controller.h"
 #include "ubse_topology_interface.h"
 #include "export_type.h"
 
@@ -37,6 +40,7 @@ namespace migrate {
 #define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_ERROR UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+#define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
 
 using namespace ubse::log;
 using namespace mempooling::smap;
@@ -53,6 +57,86 @@ const uint64_t MempoolMigrateModule::smapMigrateOutWaitingTimeMin = 10001; // �
 const uint64_t MempoolMigrateModule::smapMigrateOutWaitingTimeMax = 59999; // 内存迁出最大等待时间 60s - 1ms
 const double MempoolMigrateModule::ratioDiff = 0.01;                       // 迁移比例允许取整差值 0.01
 const int MempoolMigrateModule::hugepagetype = 2048;                       // 2M大页类型
+
+constexpr uint64_t MAX_BORROW_PER_NODE_KB = 1073741824ULL;    // 1TB in KB
+constexpr uint64_t MAX_BORROW_PER_SOCKET_KB = 536870912ULL;  // 512GB in KB
+constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+constexpr uint64_t MB_TO_KBYTES = 1024ULL;
+constexpr uint64_t NUM_TO_RATIO = 100ULL;
+
+struct ReservedInfo1G {
+    uint64_t reservedRatio;
+    uint64_t memLent;
+    uint64_t memShared;
+};
+
+struct RemoteNumaCandidate {
+    std::string nodeId;
+    uint16_t socketId;
+    uint16_t numaId;
+    uint64_t availableMem;
+    int borrowCount;
+    int plane;
+    
+    std::string GetKey() const
+    {
+        return nodeId + "-" + std::to_string(socketId) + "-" + std::to_string(numaId);
+    }
+};
+
+struct CompareByPriority {
+    std::map<std::string, uint64_t> *nodeTotalMemMap;
+    
+    explicit CompareByPriority(std::map<std::string, uint64_t> *map = nullptr) : nodeTotalMemMap(map) {}
+    
+    bool operator()(const RemoteNumaCandidate &a, const RemoteNumaCandidate &b) const
+    {
+        if (a.borrowCount != b.borrowCount) {
+            return a.borrowCount > b.borrowCount;
+        }
+        
+        uint64_t totalA = (nodeTotalMemMap && nodeTotalMemMap->count(a.nodeId)) ? nodeTotalMemMap->at(a.nodeId) : 0;
+        uint64_t totalB = (nodeTotalMemMap && nodeTotalMemMap->count(b.nodeId)) ? nodeTotalMemMap->at(b.nodeId) : 0;
+        if (totalA != totalB) {
+            return totalA > totalB;
+        }
+        
+        if (a.nodeId != b.nodeId) {
+            return a.nodeId < b.nodeId;
+        }
+        if (a.availableMem != b.availableMem) {
+            return a.availableMem > b.availableMem;
+        }
+        if (a.socketId != b.socketId) {
+            return a.socketId < b.socketId;
+        }
+        return a.numaId < b.numaId;
+    }
+};
+
+struct BatchBorrowContext {
+    std::string srcNid;
+    std::vector<int16_t> srcNumaIds;
+    uint64_t borrowSize;
+    mempooling::outinterface::BorrowStrategy borrowStrategy;
+    
+    std::unordered_map<std::string, UbseNodeInfo> allNodeInfo;
+    std::unordered_map<std::string, ReservedInfo1G> reservedInfo1GMap;
+    std::map<std::string, int> nodeBorrowCount;
+    std::vector<mempooling::exportV2::NumaInfo> localNumaInfos;
+    std::unordered_map<std::string, int> nodeToPlaneMap;
+    
+    uint64_t blockSizeKB;
+    std::vector<uint64_t> perNumaSizes;
+    std::map<std::string, uint64_t> nodeTotalMemMap;
+    std::map<int, std::multiset<RemoteNumaCandidate, CompareByPriority>> candidatesByPlane;
+    int planeIndex;
+    
+    std::map<std::string, uint64_t> nodeBorrowedMap;
+    std::map<std::pair<std::string, uint16_t>, uint64_t> socketBorrowedMap;
+    std::vector<DestMemoryBorrowParam> *destParams;
+    std::vector<MemBorrowStrategyResult> results;
+};
 
 void ConvertNodeTopology(const std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
                          std::unordered_map<std::string, std::vector<turbo::rmrs::MemNodeDataNew>> &nodeTopologyNew)
@@ -733,6 +817,609 @@ MpResult MempoolMigrateExecute::ValidMigrateExecuteParam(const std::string &borr
             return MEM_POOLING_ERROR;
         }
     }
+    return MEM_POOLING_OK;
+}
+
+static void BuildPlaneGroups(
+    const std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
+    std::vector<std::set<std::pair<std::string, uint16_t>>> &planeGroups,
+    std::unordered_map<std::string, int> &nodeToPlaneMap)
+{
+    std::set<std::set<std::pair<std::string, uint16_t>>> uniquePlanes;
+
+    for (const auto &pair : nodeTopology) {
+        std::set<std::pair<std::string, uint16_t>> plane;
+        for (const auto &node : pair.second) {
+            uint16_t socketId = static_cast<uint16_t>(std::stoi(node.socket.socketId));
+            plane.insert({node.nodeId, socketId});
+        }
+
+        if (uniquePlanes.find(plane) == uniquePlanes.end()) {
+            uniquePlanes.insert(plane);
+        }
+    }
+
+    planeGroups.clear();
+    planeGroups.reserve(uniquePlanes.size());
+
+    std::map<std::set<std::pair<std::string, uint16_t>>, int> planeToIndexMap;
+
+    int planeIndex = 0;
+    for (const auto &plane : uniquePlanes) {
+        planeGroups.push_back(plane);
+        planeToIndexMap[plane] = planeIndex;
+        planeIndex++;
+    }
+
+    nodeToPlaneMap.clear();
+    for (const auto &pair : nodeTopology) {
+        std::set<std::pair<std::string, uint16_t>> currentPlane;
+        for (const auto &node : pair.second) {
+            uint16_t socketId = static_cast<uint16_t>(std::stoi(node.socket.socketId));
+            currentPlane.insert({node.nodeId, socketId});
+        }
+
+        auto indexIt = planeToIndexMap.find(currentPlane);
+        if (indexIt != planeToIndexMap.end()) {
+            nodeToPlaneMap[pair.first] = indexIt->second;
+
+            for (const auto &nodeSocketPair : currentPlane) {
+                std::string key = nodeSocketPair.first + "-" + std::to_string(nodeSocketPair.second);
+                nodeToPlaneMap[key] = indexIt->second;
+            }
+        }
+    }
+
+    LOG_DEBUG << "[BatchBorrow] BuildPlaneGroups: " << planeGroups.size() << " unique planes created.";
+}
+
+static MpResult GetSocketIdByNumaId(
+    const std::vector<mempooling::exportV2::NumaInfo> &numaInfos,
+    int16_t numaId, int16_t &socketId)
+{
+    for (const auto &numaInfo : numaInfos) {
+        if (numaInfo.metaData.numaId == numaId) {
+            socketId = numaInfo.metaData.socketId;
+            return MEM_POOLING_OK;
+        }
+    }
+    LOG_ERROR << "[BatchBorrow] Cannot find socketId for numaId=" << numaId << ".";
+    return MEM_POOLING_ERROR;
+}
+
+static void CalculatePerNumaBorrowSize(
+    const std::vector<int16_t> &srcNumaIds,
+    uint64_t borrowSize,
+    uint64_t blockSizeKB,
+    mempooling::outinterface::BorrowStrategy borrowStrategy,
+    std::vector<uint64_t> &perNumaSizes)
+{
+    perNumaSizes.clear();
+    perNumaSizes.resize(srcNumaIds.size(), 0);
+
+    if (blockSizeKB == 0) {
+        LOG_ERROR << "[BatchBorrow] blockSizeKB is 0, invalid.";
+        return;
+    }
+
+    switch (borrowStrategy) {
+        case mempooling::outinterface::BorrowStrategy::AVERAGE: {
+            uint64_t borrowBlocks = borrowSize / blockSizeKB;
+            uint64_t baseBlocksPerNuma = borrowBlocks / srcNumaIds.size();
+            uint64_t remainderBlocks = borrowBlocks % srcNumaIds.size();
+            
+            for (size_t i = 0; i < srcNumaIds.size(); ++i) {
+                perNumaSizes[i] = baseBlocksPerNuma * blockSizeKB;
+            }
+            for (size_t i = 0; i < remainderBlocks; ++i) {
+                perNumaSizes[i] += blockSizeKB;
+            }
+            LOG_DEBUG << "[BatchBorrow] Strategy AVERAGE: borrowBlocks=" << borrowBlocks
+                      << ", baseBlocks=" << baseBlocksPerNuma
+                      << ", remainderBlocks=" << remainderBlocks
+                      << ", blockSizeKB=" << blockSizeKB;
+            break;
+        }
+        default: {
+            LOG_WARN << "[BatchBorrow] Unknown strategy, using AVERAGE as default.";
+            uint64_t borrowBlocks = borrowSize / blockSizeKB;
+            uint64_t baseBlocksPerNuma = borrowBlocks / srcNumaIds.size();
+            uint64_t remainderBlocks = borrowBlocks % srcNumaIds.size();
+            
+            for (size_t i = 0; i < srcNumaIds.size(); ++i) {
+                perNumaSizes[i] = baseBlocksPerNuma * blockSizeKB;
+            }
+            for (size_t i = 0; i < remainderBlocks; ++i) {
+                perNumaSizes[i] += blockSizeKB;
+            }
+            break;
+        }
+    }
+}
+
+static uint64_t CalculateBorrowableMem(
+    const UbseNumaInfo &numaInfo,
+    const std::unordered_map<std::string, ReservedInfo1G> &reservedInfo1GMap,
+    const std::string &reservedKey)
+{
+    uint64_t borrowableMem = 0;
+
+    auto riIt = reservedInfo1GMap.find(reservedKey);
+    if (riIt != reservedInfo1GMap.end()) {
+        const ReservedInfo1G &ri = riIt->second;
+        uint64_t reservedMem = numaInfo.nr_hugepages_1G * HUGEPAGE_1G_KB * ri.reservedRatio / NUM_TO_RATIO;
+        uint64_t theoreticalBorrowable = reservedMem - ri.memLent - ri.memShared;
+        uint64_t physicalFree = numaInfo.free_hugepages_1G * HUGEPAGE_1G_KB;
+        borrowableMem = std::min(theoreticalBorrowable, physicalFree);
+    } else {
+        borrowableMem = numaInfo.free_hugepages_1G * HUGEPAGE_1G_KB;
+    }
+
+    return borrowableMem;
+}
+
+static MpResult ValidateAndGetTopology(BatchBorrowContext &ctx)
+{
+    if (ctx.srcNumaIds.empty()) {
+        LOG_ERROR << "[BatchBorrow] srcNumaIds is empty.";
+        return MEM_POOLING_ERROR;
+    }
+
+    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
+    if (UbseMemGetTopologyInfo(nodeTopology) != 0) {
+        LOG_ERROR << "[BatchBorrow] Get topology from rack failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_DEBUG << "[BatchBorrow] nodeTopology loaded, size=" << nodeTopology.size() << ".";
+
+    std::vector<std::set<std::pair<std::string, uint16_t>>> planeGroups;
+    BuildPlaneGroups(nodeTopology, planeGroups, ctx.nodeToPlaneMap);
+
+    return MEM_POOLING_OK;
+}
+
+static MpResult InitializeReservedInfo(BatchBorrowContext &ctx)
+{
+    ctx.allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
+    LOG_DEBUG << "[BatchBorrow] GetAllNodes success, node count=" << ctx.allNodeInfo.size() << ".";
+
+    std::vector<UbseNodeNumaInfo> numaNodeInfoList;
+    UbseResult retUbse = UbseGetAllNodeNumaInfo(numaNodeInfoList);
+    if (retUbse != UBSE_OK) {
+        LOG_ERROR << "[BatchBorrow] UbseGetAllNodeNumaInfo failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_DEBUG << "[BatchBorrow] UbseGetAllNodeNumaInfo success, numa count=" << numaNodeInfoList.size() << ".";
+
+    ctx.reservedInfo1GMap.reserve(numaNodeInfoList.size());
+    for (const auto &node : numaNodeInfoList) {
+        std::string key = node.nodeId + "_" + std::to_string(node.numaId);
+        ctx.reservedInfo1GMap[key] = {
+            node.mReservedMemRatio,
+            node.memLent / MB_TO_KBYTES,
+            node.memShared / MB_TO_KBYTES
+        };
+    }
+
+    if (mempooling::exportV2::Exporter::GetNumaInfoImmediately(ctx.localNumaInfos) != MEM_POOLING_OK) {
+        LOG_ERROR << "[BatchBorrow] Get local numa info failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    std::vector<BorrowRecord> borrowRecords;
+    if (BorrowRecordHelper::Instance().CollectBorrowRecords(ctx.srcNid, borrowRecords) != MEM_POOLING_OK) {
+        LOG_WARN << "[BatchBorrow] Collect borrow records failed, continuing without history.";
+    }
+
+    for (const auto &record : borrowRecords) {
+        if (record.borrowNode == ctx.srcNid) {
+            ctx.nodeBorrowCount[record.lentNode]++;
+        }
+    }
+
+    return MEM_POOLING_OK;
+}
+
+static MpResult GetBlockSizeAndCalculateSizes(BatchBorrowContext &ctx)
+{
+    auto srcNodeIt = ctx.allNodeInfo.find(ctx.srcNid);
+    if (srcNodeIt == ctx.allNodeInfo.end()) {
+        LOG_ERROR << "[BatchBorrow] Cannot find srcNid=" << ctx.srcNid << " in allNodeInfo for blockSize.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint32_t blockSizeMB = srcNodeIt->second.blockSize;
+    ctx.blockSizeKB = static_cast<uint64_t>(blockSizeMB) * MB_TO_KBYTES;
+
+    if (ctx.blockSizeKB == 0) {
+        LOG_ERROR << "[BatchBorrow] blockSizeKB=0 is invalid for srcNid=" << ctx.srcNid;
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_DEBUG << "[BatchBorrow] srcNid=" << ctx.srcNid << " blockSize=" << blockSizeMB << "MB ("
+        << ctx.blockSizeKB << "KB).";
+
+    CalculatePerNumaBorrowSize(ctx.srcNumaIds, ctx.borrowSize, ctx.blockSizeKB, ctx.borrowStrategy, ctx.perNumaSizes);
+
+    for (size_t i = 0; i < ctx.srcNumaIds.size(); ++i) {
+        LOG_DEBUG << "[BatchBorrow] perNumaSizes[" << i << "]=" << ctx.perNumaSizes[i] << "KB.";
+    }
+
+    return MEM_POOLING_OK;
+}
+
+static void CalculateNodeTotalMemMap(BatchBorrowContext &ctx)
+{
+    for (const auto &[nodeId, nodeInfo] : ctx.allNodeInfo) {
+        if (nodeId == ctx.srcNid) {
+            continue;
+        }
+
+        uint64_t totalBorrowable = 0;
+        for (const auto &[numaLocation, numaInfo] : nodeInfo.numaInfos) {
+            if (numaInfo.nr_hugepages_1G == 0 || numaInfo.free_hugepages_1G == 0) {
+                continue;
+            }
+
+            std::string reservedKey = nodeId + "_" + std::to_string(numaLocation.numaId);
+            uint64_t borrowableMem = CalculateBorrowableMem(numaInfo, ctx.reservedInfo1GMap, reservedKey);
+            if (borrowableMem > 0) {
+                totalBorrowable += borrowableMem;
+            }
+        }
+
+        if (totalBorrowable > 0) {
+            ctx.nodeTotalMemMap[nodeId] = totalBorrowable;
+            LOG_DEBUG << "[BatchBorrow] Node " << nodeId << " total borrowable memory: " << totalBorrowable << "KB.";
+        }
+    }
+}
+
+static void ConstructCandidateNumas(BatchBorrowContext &ctx)
+{
+    CompareByPriority comparator(&ctx.nodeTotalMemMap);
+
+    for (const auto &[nodeId, nodeInfo] : ctx.allNodeInfo) {
+        if (nodeId == ctx.srcNid) {
+            continue;
+        }
+
+        for (const auto &[numaLocation, numaInfo] : nodeInfo.numaInfos) {
+            if (numaInfo.nr_hugepages_1G == 0) {
+                LOG_WARN << "[BatchBorrow] Node " << nodeId << " numa " << numaLocation.numaId
+                         << " has no 1G hugepage config, skipping.";
+                continue;
+            }
+
+            if (numaInfo.free_hugepages_1G == 0) {
+                LOG_DEBUG << "[BatchBorrow] Node " << nodeId << " numa " << numaLocation.numaId
+                          << " has 0 free 1G hugepages, skipping.";
+                continue;
+            }
+
+            std::string reservedKey = nodeId + "_" + std::to_string(numaLocation.numaId);
+            uint64_t borrowableMem = CalculateBorrowableMem(numaInfo, ctx.reservedInfo1GMap, reservedKey);
+            if (borrowableMem == 0) {
+                LOG_DEBUG << "[BatchBorrow] Node " << nodeId << " numa " << numaLocation.numaId
+                          << " borrowableMem=0, skipping.";
+                continue;
+            }
+
+            std::string planeKey = nodeId + "-" + std::to_string(numaInfo.socketId);
+            auto planeIt = ctx.nodeToPlaneMap.find(planeKey);
+            if (planeIt == ctx.nodeToPlaneMap.end()) {
+                LOG_WARN << "[BatchBorrow] Cannot find plane for " << planeKey << ", skipping.";
+                continue;
+            }
+
+            RemoteNumaCandidate candidate;
+            candidate.nodeId = nodeId;
+            candidate.socketId = static_cast<uint16_t>(numaInfo.socketId);
+            candidate.numaId = static_cast<uint16_t>(numaLocation.numaId);
+            candidate.availableMem = borrowableMem;
+            candidate.borrowCount = ctx.nodeBorrowCount.count(nodeId) ? ctx.nodeBorrowCount[nodeId] : 0;
+
+            int planeIndex = planeIt->second;
+            candidate.plane = planeIndex;
+
+            if (ctx.candidatesByPlane.find(planeIndex) == ctx.candidatesByPlane.end()) {
+                ctx.candidatesByPlane.try_emplace(planeIndex, comparator);
+            }
+            ctx.candidatesByPlane[planeIndex].insert(candidate);
+
+            LOG_INFO << "[BatchBorrow] Add 1G hugepage candidate: nodeId=" << nodeId
+                     << ", socket=" << numaInfo.socketId << ", numa=" << numaLocation.numaId
+                     << ", available=" << borrowableMem << "KB"
+                     << ", free1GPages=" << numaInfo.free_hugepages_1G
+                     << ", borrowCount=" << candidate.borrowCount
+                     << ", plane=" << planeIndex;
+        }
+    }
+}
+
+static uint64_t TryAllocateFromCandidate(
+    const RemoteNumaCandidate &candidate,
+    uint64_t remaining,
+    uint64_t blockSizeKB,
+    uint64_t nodeBorrowed,
+    uint64_t socketBorrowed)
+{
+    if (nodeBorrowed >= MAX_BORROW_PER_NODE_KB) {
+        LOG_DEBUG << "[BatchBorrow] Node " << candidate.nodeId << " already borrowed "
+                  << nodeBorrowed << "KB >= 1TB limit, skipping.";
+        return 0;
+    }
+
+    if (socketBorrowed >= MAX_BORROW_PER_SOCKET_KB) {
+        LOG_DEBUG << "[BatchBorrow] Socket " << candidate.nodeId << "-" << candidate.socketId
+                  << " already borrowed " << socketBorrowed << "KB >= 512GB limit, skipping.";
+        return 0;
+    }
+
+    uint64_t nodeRemaining = MAX_BORROW_PER_NODE_KB - nodeBorrowed;
+    uint64_t socketRemaining = MAX_BORROW_PER_SOCKET_KB - socketBorrowed;
+    uint64_t limitByQuota = std::min(nodeRemaining, socketRemaining);
+
+    uint64_t rawAllocateSize = std::min(remaining, candidate.availableMem);
+    rawAllocateSize = std::min(rawAllocateSize, limitByQuota);
+    if (blockSizeKB == 0) {
+        LOG_ERROR << "[BatchBorrow] BlockSize is zero";
+        return 0;
+    }
+    uint64_t allocateSize = ((rawAllocateSize + blockSizeKB - 1) / blockSizeKB) * blockSizeKB;
+    allocateSize = std::min(allocateSize, candidate.availableMem);
+    allocateSize = std::min(allocateSize, limitByQuota);
+    if (allocateSize == 0) {
+        LOG_DEBUG << "[BatchBorrow] Cannot allocate from candidate " << candidate.nodeId
+                  << "-" << candidate.socketId << "-" << candidate.numaId 
+                  << ", rawAllocateSize=" << rawAllocateSize << "KB"
+                  << ", blockSizeKB=" << blockSizeKB << "KB, skipping.";
+        return 0;
+    }
+
+    return allocateSize;
+}
+
+static void ApplyAllocationResult(
+    RemoteNumaCandidate &candidate,
+    uint64_t allocateSize,
+    uint64_t &remaining,
+    BatchBorrowContext &ctx,
+    bool isCrossPlane)
+{
+    if (allocateSize >= remaining) {
+        remaining = 0;
+    } else {
+        remaining -= allocateSize;
+    }
+    candidate.availableMem -= allocateSize;
+
+    DestMemoryBorrowParam destParam;
+    destParam.destNid = candidate.nodeId;
+    destParam.destSocketId = candidate.socketId;
+    destParam.destNumaNum = 1;
+    destParam.destNumaId.push_back(static_cast<int>(candidate.numaId));
+    destParam.memSize.push_back(allocateSize);
+    ctx.destParams->push_back(destParam);
+
+    ctx.nodeBorrowedMap[candidate.nodeId] += allocateSize;
+    ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] += allocateSize;
+
+    if (isCrossPlane) {
+        LOG_INFO << "[BatchBorrow] Cross-plane allocate " << allocateSize << "KB from "
+                 << candidate.nodeId << "-" << candidate.socketId << "-" << candidate.numaId
+                 << " (plane=" << candidate.plane << "), remaining=" << remaining << "KB."
+                 << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId] << "KB"
+                 << ", socketTotal=" << ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] << "KB.";
+    } else {
+        LOG_DEBUG << "[BatchBorrow] Allocate " << allocateSize << "KB (rounded to blockSize) from "
+                  << candidate.nodeId << "-" << candidate.socketId << "-" << candidate.numaId
+                  << ", remaining=" << remaining << "KB."
+                  << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId] << "KB"
+                  << ", socketTotal=" << ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] << "KB.";
+    }
+}
+
+static void CollectCrossPlaneCandidates(BatchBorrowContext &ctx, std::vector<RemoteNumaCandidate> &crossPlaneCandidates)
+{
+    for (auto &pair : ctx.candidatesByPlane) {
+        if (pair.first != ctx.planeIndex) {
+            for (const auto &candidate : pair.second) {
+                crossPlaneCandidates.push_back(candidate);
+            }
+        }
+    }
+
+    std::sort(crossPlaneCandidates.begin(), crossPlaneCandidates.end(),
+        [&ctx](const RemoteNumaCandidate &a, const RemoteNumaCandidate &b) {
+            if (a.borrowCount != b.borrowCount) {
+                return a.borrowCount > b.borrowCount;
+            }
+            
+            uint64_t totalA = ctx.nodeTotalMemMap.count(a.nodeId) ? ctx.nodeTotalMemMap.at(a.nodeId) : 0;
+            uint64_t totalB = ctx.nodeTotalMemMap.count(b.nodeId) ? ctx.nodeTotalMemMap.at(b.nodeId) : 0;
+            if (totalA != totalB) {
+                return totalA > totalB;
+            }
+            
+            if (a.nodeId != b.nodeId) {
+                return a.nodeId < b.nodeId;
+            }
+            return a.availableMem > b.availableMem;
+        });
+
+    LOG_DEBUG << "[BatchBorrow] Collected " << crossPlaneCandidates.size() << " cross-plane candidates.";
+}
+
+static uint64_t AllocateFromSamePlane(
+    uint64_t needSize,
+    BatchBorrowContext &ctx)
+{
+    uint64_t remaining = needSize;
+    auto &candidateSet = ctx.candidatesByPlane[ctx.planeIndex];
+
+    while (remaining > 0 && !candidateSet.empty()) {
+        auto bestIt = candidateSet.begin();
+        RemoteNumaCandidate best = *bestIt;
+        candidateSet.erase(bestIt);
+
+        uint64_t nodeBorrowed = ctx.nodeBorrowedMap[best.nodeId];
+        uint64_t socketBorrowed = ctx.socketBorrowedMap[{best.nodeId, best.socketId}];
+
+        uint64_t allocateSize =
+            TryAllocateFromCandidate(best, remaining, ctx.blockSizeKB, nodeBorrowed, socketBorrowed);
+        if (allocateSize == 0) {
+            continue;
+        }
+
+        ApplyAllocationResult(best, allocateSize, remaining, ctx, false);
+
+        if (best.availableMem > 0) {
+            candidateSet.insert(best);
+        }
+    }
+
+    return remaining;
+}
+
+static uint64_t AllocateFromCrossPlane(uint64_t needSize, BatchBorrowContext &ctx)
+{
+    uint64_t remaining = needSize;
+
+    std::vector<RemoteNumaCandidate> crossPlaneCandidates;
+    CollectCrossPlaneCandidates(ctx, crossPlaneCandidates);
+
+    for (auto &candidate : crossPlaneCandidates) {
+        if (remaining == 0) break;
+
+        uint64_t nodeBorrowed = ctx.nodeBorrowedMap[candidate.nodeId];
+        uint64_t socketBorrowed = ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}];
+
+        uint64_t allocateSize =
+            TryAllocateFromCandidate(candidate, remaining, ctx.blockSizeKB, nodeBorrowed, socketBorrowed);
+        if (allocateSize == 0) {
+            continue;
+        }
+
+        ApplyAllocationResult(candidate, allocateSize, remaining, ctx, true);
+
+        auto &originalSet = ctx.candidatesByPlane[candidate.plane];
+        auto it = originalSet.find(candidate);
+        if (it != originalSet.end()) {
+            originalSet.erase(it);
+            if (candidate.availableMem > 0) {
+                originalSet.insert(candidate);
+            }
+        }
+    }
+
+return remaining;
+}
+
+static MpResult ProcessBorrowForNuma(int16_t localNumaId, uint64_t needSize, BatchBorrowContext &ctx)
+{
+    if (needSize == 0) {
+        LOG_WARN << "[BatchBorrow] perNumaSize=0 for localNumaId=" << localNumaId << ", skipping.";
+        return MEM_POOLING_OK;
+    }
+
+    int16_t socketId = 0;
+    if (GetSocketIdByNumaId(ctx.localNumaInfos, localNumaId, socketId) != MEM_POOLING_OK) {
+        LOG_ERROR << "[BatchBorrow] GetSocketIdByNumaId failed for numaId=" << localNumaId << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    std::string key = ctx.srcNid + "-" + std::to_string(socketId);
+    auto planeIt = ctx.nodeToPlaneMap.find(key);
+    if (planeIt == ctx.nodeToPlaneMap.end()) {
+        LOG_ERROR << "[BatchBorrow] Cannot find plane for " << key << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    int planeIndex = planeIt->second;
+    ctx.planeIndex = planeIndex;
+
+    LOG_DEBUG << "[BatchBorrow] candidatesByPlane total=" << ctx.candidatesByPlane.size() << " planes, source plane="
+        << planeIndex << " has " << ctx.candidatesByPlane[planeIndex].size() << " candidates.";
+
+    if (ctx.candidatesByPlane[planeIndex].empty()) {
+        LOG_WARN << "[BatchBorrow] No remote NUMAs in same plane for localNumaId = " << localNumaId 
+                 << ", will try cross-plane borrowing.";
+    }
+
+    MemBorrowStrategyResult result;
+    result.srcParam.srcNid = ctx.srcNid;
+    result.srcParam.srcNumaId = localNumaId;
+    result.srcParam.srcSocketId = socketId;
+    result.borrowSize = needSize;
+    ctx.destParams = &result.destParam;
+    uint64_t remaining = AllocateFromSamePlane(needSize, ctx);
+    if (remaining > 0) {
+        LOG_WARN << "[BatchBorrow] Same plane exhausted for localNumaId=" << localNumaId
+                 << ", trying cross-plane borrowing, remaining=" << remaining << "KB.";
+        remaining = AllocateFromCrossPlane(remaining, ctx);
+    }
+
+    if (remaining > 0) {
+        LOG_ERROR << "[BatchBorrow] Not enough remote memory for localNumaId=" << localNumaId
+                  << ", need=" << needSize << "KB, remaining=" << remaining << "KB.";
+        return MEM_POOLING_ERROR;
+    }
+
+    ctx.results.push_back(result);
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateModule::BatchBorrowStrategyImpl(
+    const std::string &srcNid,
+    const std::vector<int16_t> &srcNumaIds,
+    uint64_t borrowSize,
+    mempooling::outinterface::BorrowStrategy borrowStrategy,
+    std::vector<MemBorrowStrategyResult> &results)
+{
+    LOG_DEBUG << "[BatchBorrow] Start BatchBorrowStrategyImpl, srcNid=" << srcNid
+              << ", srcNumaIds.size()=" << srcNumaIds.size()
+              << ", borrowSize=" << borrowSize << "KB."
+              << ", strategy=" << static_cast<uint8_t>(borrowStrategy);
+
+    BatchBorrowContext ctx;
+    ctx.srcNid = srcNid;
+    ctx.srcNumaIds = srcNumaIds;
+    ctx.borrowSize = borrowSize;
+    ctx.borrowStrategy = borrowStrategy;
+
+    MpResult ret = ValidateAndGetTopology(ctx);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    ret = InitializeReservedInfo(ctx);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    ret = GetBlockSizeAndCalculateSizes(ctx);
+    if (ret != MEM_POOLING_OK) {
+        return ret;
+    }
+
+    CalculateNodeTotalMemMap(ctx);
+    ConstructCandidateNumas(ctx);
+
+    ctx.results.clear();
+    ctx.results.reserve(srcNumaIds.size());
+
+    for (size_t i = 0; i < srcNumaIds.size(); ++i) {
+        ret = ProcessBorrowForNuma(srcNumaIds[i], ctx.perNumaSizes[i], ctx);
+        if (ret != MEM_POOLING_OK) {
+            return ret;
+        }
+    }
+
+    results = std::move(ctx.results);
+    LOG_INFO << "[BatchBorrow] BatchBorrowStrategyImpl success, results.size()=" << results.size() << ".";
     return MEM_POOLING_OK;
 }
 

@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 #include "mempool_borrow_module.h"
+#include "mempooling_interface.h"
 #include "mp_error.h"
 #include "turbo_rmrs_interface.h"
 #include "exporter.h"
@@ -109,6 +110,11 @@ public:
                                     const std::vector<turbo::rmrs::VMPresetParam> &vmInfoList, std::uint64_t borrowSize,
                                     MigrateStrategyResult &migrateStrategyResult);
     static MpResult GetReturningNuma(const std::string &borrowInNode, std::vector<uint16_t> &returningNumas);
+    static MpResult BatchBorrowStrategyImpl(const std::string &srcNid,
+                                            const std::vector<int16_t> &srcNumaIds,
+                                            uint64_t borrowSize,
+                                            mempooling::outinterface::BorrowStrategy borrowStrategy,
+                                            std::vector<MemBorrowStrategyResult> &results);
 
     static MpResult GetExpectRemoteNumaMem(int nid, int &ExpectMigratedPages);
 
