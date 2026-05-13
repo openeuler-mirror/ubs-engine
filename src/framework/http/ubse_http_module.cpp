@@ -195,6 +195,8 @@ UbseResult UbseHttpModule::HttpSend(UbseHttpRequest &req, UbseHttpResponse &rsp)
     for (auto &header : req.headers) {
         headerMap.emplace(header.first, header.second);
     }
+    // 禁用Expect头
+    headerMap.emplace("Expect", "");
     httplib::Request httpReq{};
     httpReq.method = req.method;
     httpReq.path = req.path;
@@ -242,6 +244,8 @@ UbseResult UbseHttpModule::UbseHttpPostJsonRequest(const std::string &path, cons
     req.body = body;
     req.headers.emplace("Accept", "application/json");
     req.headers.emplace("Content-Type", "application/json");
+    // 禁用Expect头
+    req.headers.emplace("Expect", "");
 
     Error error;
     Response rsp{};
