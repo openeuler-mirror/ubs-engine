@@ -289,7 +289,7 @@ MpResult FaultNodeModule::GetBorrowAbleNodeIdList(std::string curDealNodeId,
         ubse::nodeController::UbseNodeInfo info = UbseNodeController::GetInstance().GetNodeById(nodeId);
         if (info.clusterState == ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING &&
             nodeId != curDealNodeId && (nodeType == NodeType::BORROW_OUT || nodeType == NodeType::NO_RECORD)) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultManager] [FaultLentNode] Borrow able nodeId " << nodeId << ".";
             borrowAbleNodeIdList.push_back(nodeId);
         }
@@ -684,8 +684,8 @@ MpResult FaultNodeModule::ExecuteNumaReplaceAndReturn(std::vector<BorrowExecuteP
         MpResult res = MEM_POOLING_ERROR;
         UbseRpcSend(endpoint, reqData, &res, NodeNumaReplaceReturnResHandler);
         delete[] reqData.data;
-        if (res == MEM_POOLING_OK) {
-            failFlag = false;
+        if (res == MEM_POOLING_ERROR) {
+            failFlag = true;
         }
     }
     return MEM_POOLING_OK;
@@ -786,9 +786,9 @@ MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bo
     std::vector<BorrowExecuteParam> successExecuteParamCollectList;
     ExecuteBorrow(borrowExecuteParamCollectList, successExecuteParamCollectList, forwardMemIdParamList);
     // 借入节点的待销毁远端numa处理 替换&归还 发rpc
-    bool failFlag = true;
+    bool isNodeProcessFailed = false;
     ExecuteNumaReplaceAndReturn(successExecuteParamCollectList, failFlag, forceDeleteMem);
-    if (ForwardMemIdFaultDeal(forwardMemIdParamList, forceDeleteMem) == MEM_POOLING_OK && !failFlag) {
+    if (ForwardMemIdFaultDeal(forwardMemIdParamList, forceDeleteMem) == MEM_POOLING_OK && !isNodeProcessFailed) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] [FaultLentNode] Node fault deal success.";
         return MEM_POOLING_OK;
     }
