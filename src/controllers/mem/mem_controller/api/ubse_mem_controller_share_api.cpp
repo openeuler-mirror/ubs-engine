@@ -567,12 +567,13 @@ std::string GetChipInfoBySocketId(const ubse::nodeController::UbseNodeInfo& node
     return "";
 }
 
-void GetPortCnaByPortId(const nodeController::UbseNodeInfo& remoteInfo, const std::string& importChipId,
-                        const uint32_t portId, uint32_t& portCna)
+void GetPortCnaByPortId(const nodeController::UbseNodeInfo& remoteInfo, const std::string& importSlotId,
+                        const std::string& importChipId, const uint32_t portId, uint32_t& portCna)
 {
     for (const auto& cpuInfo : remoteInfo.cpuInfos) {
         for (const auto& [key, portInfo] : cpuInfo.second.portInfos) {
-            if (portInfo.remoteChipId != importChipId || portInfo.portId != std::to_string(portId)) {
+            if (portInfo.remoteSlotId != importSlotId || portInfo.remoteChipId != importChipId ||
+                portInfo.portId != std::to_string(portId)) {
                 continue;
             }
             portCna = portInfo.portCna;
@@ -582,12 +583,12 @@ void GetPortCnaByPortId(const nodeController::UbseNodeInfo& remoteInfo, const st
     portCna = UINT32_MAX;
 }
 
-void GetMinPortInfoByCpuInfo(const nodeController::UbseNodeInfo& remoteInfo, const std::string& importChipId,
-                             uint32_t& minPortId, uint32_t& minPortCna)
+void GetMinPortInfoByCpuInfo(const nodeController::UbseNodeInfo& remoteInfo, const std::string& importSlotId,
+                             const std::string& importChipId, uint32_t& minPortId, uint32_t& minPortCna)
 {
     for (const auto& cpuInfo : remoteInfo.cpuInfos) {
         for (const auto& [key, portInfo] : cpuInfo.second.portInfos) {
-            if (portInfo.remoteChipId != importChipId) {
+            if (portInfo.remoteSlotId != importSlotId || portInfo.remoteChipId != importChipId) {
                 continue;
             }
             uint32_t selfPortId{};
@@ -631,11 +632,11 @@ uint32_t GetPortInfo(const std::string& importNodeId, const UbseMemShareBorrowIm
         return UBSE_ERROR;
     }
     if (importObj.req.lenderInfo.portId != UINT32_MAX) {
-        GetPortCnaByPortId(remoteInfo, importChipId, portId, portCna);
+        GetPortCnaByPortId(remoteInfo, cnaInput.borrowNodeId, importChipId, portId, portCna);
     } else {
-        GetMinPortInfoByCpuInfo(remoteInfo, importChipId, portId, portCna);
+        GetMinPortInfoByCpuInfo(remoteInfo, cnaInput.borrowNodeId, importChipId, portId, portCna);
     }
-    UBSE_LOG_INFO << "minPortCna=" << portCna << ", min portId=" << portId;
+    UBSE_LOG_INFO << "portCna=" << portCna << ", portId=" << portId;
     if (portCna == UINT32_MAX) {
         UBSE_LOG_ERROR << "Failed Get minPortCna from topoInfo";
         return UBSE_ERROR;
