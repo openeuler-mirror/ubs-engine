@@ -103,7 +103,7 @@ std::optional<ConfigItem> RegisterAllocatorConfig()
 {
     std::optional<ConfigItem> result;
 
-    std::string cmdlineOutput = GetCmdLineResult("cat /sys/module/obmm/parameters/mempool_allocator");
+    std::string cmdlineOutput = GetCmdLineResult("cat /sys/module/obmm/parameters/mempool_allocator 2>/dev/null");
     if (cmdlineOutput.empty()) {
         return result;
     }
