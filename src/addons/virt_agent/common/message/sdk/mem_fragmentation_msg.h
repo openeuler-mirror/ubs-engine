@@ -54,7 +54,7 @@ typedef struct {
     int16_t is_local;   // Whether this is a local NUMA (0: non-local, 1: local)
     uint64_t mem_total; // Total memory of this NUMA node (inclusive), collected from system files, in kB
     uint64_t mem_free;  // Free memory on this NUMA node, collected from system files, in kB
-    numa_page_data *huge_page_data;
+    numa_page_data* huge_page_data;
     uint64_t numaPageInfoCount;
 } numa_info_t;
 
@@ -80,7 +80,7 @@ typedef struct {
 typedef struct {
     time_t timestamp;
     vm_meta_data_for_c metadata;
-    vm_numa_info_for_c *numaInfo;
+    vm_numa_info_for_c* numaInfo;
     uint64_t numaInfoCount;
 } vm_domain_info_for_c;
 
@@ -112,7 +112,7 @@ public:
 
     explicit MemTaskResultQueryMsg(async_task_info_c asyncTaskInfoC) : asyncTaskInfoC_(std::move(asyncTaskInfoC)){};
 
-    explicit MemTaskResultQueryMsg(uint8_t *rawData, uint32_t size)
+    explicit MemTaskResultQueryMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -139,7 +139,7 @@ public:
     explicit MemBorrowExecuteResultMsg(mem_borrow_result_c memBorrowResultC)
         : memBorrowResultC_(std::move(memBorrowResultC)){};
 
-    explicit MemBorrowExecuteResultMsg(uint8_t *rawData, uint32_t size)
+    explicit MemBorrowExecuteResultMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -165,17 +165,17 @@ public:
 
     explicit MemFragmentationMsg(std::vector<NumaInfo> numaInfos) : numaInfos_(std::move(numaInfos)){};
 
-    explicit MemFragmentationMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetNumaInfos(const std::vector<NumaInfo> &numaInfos)
+    void SetNumaInfos(const std::vector<NumaInfo>& numaInfos)
     {
         numaInfos_ = numaInfos;
     }
 
-    VmResult GetNumaInfo(std::vector<numa_info_t> &numaInfo);
+    VmResult GetNumaInfo(std::vector<numa_info_t>& numaInfo);
 
     VmResult Serialize() override;
 
@@ -192,7 +192,7 @@ public:
     explicit MemFragmentationVmInfoMsg(std::vector<mempooling::VmDomainInfo> vmInfoList)
         : vmInfoList_(std::move(vmInfoList)){};
 
-    explicit MemFragmentationVmInfoMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationVmInfoMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -223,7 +223,7 @@ public:
     {
     }
 
-    explicit MemFragmentationMemBorrowStrategyInputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationMemBorrowStrategyInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -266,7 +266,7 @@ public:
 
     explicit MemBorrowSettingMsg(const borrow_setting_c borrowSettingC) : borrowSettingC_(borrowSettingC) {}
 
-    explicit MemBorrowSettingMsg(uint8_t *rawData, uint32_t size)
+    explicit MemBorrowSettingMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -287,12 +287,12 @@ public:
 
     explicit MemFragmentationMemBorrowStrategyOutputMsg(const borrow_strategy_c outputMsg) : outputMsg_(outputMsg) {}
 
-    explicit MemFragmentationMemBorrowStrategyOutputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationMemBorrowStrategyOutputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    VmResult SetOutputMsg(const MemBorrowStrategyResult &borrowStrategyResult);
+    VmResult SetOutputMsg(const MemBorrowStrategyResult& borrowStrategyResult);
 
     borrow_strategy_c GetMemBorrowStrategyOutputMsg();
 
@@ -310,7 +310,7 @@ public:
 
     explicit MemFragmentationMemBorrowExecuteOutputMsg(MemBorrowExecuteResult outputMsg) : outputMsg_(outputMsg) {}
 
-    explicit MemFragmentationMemBorrowExecuteOutputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationMemBorrowExecuteOutputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -342,7 +342,7 @@ public:
     MemFragmentationMemMigrateStrategyInputMsg() = default;
     ~MemFragmentationMemMigrateStrategyInputMsg() = default;
 
-    explicit MemFragmentationMemMigrateStrategyInputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationMemMigrateStrategyInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -371,7 +371,7 @@ struct RollbackParams {
 
     RollbackParams() = default;
 
-    explicit RollbackParams(const RollbackSrcParam *srcParam)
+    explicit RollbackParams(const RollbackSrcParam* srcParam)
     {
         if (srcParam == nullptr) {
             return;
@@ -388,9 +388,9 @@ class MemRollbackMsg : public BaseMessage {
 public:
     MemRollbackMsg() = default;
 
-    explicit MemRollbackMsg(RollbackParams &rollbackParams) : rollbackParams_(std::move(rollbackParams)) {}
+    explicit MemRollbackMsg(RollbackParams& rollbackParams) : rollbackParams_(std::move(rollbackParams)) {}
 
-    explicit MemRollbackMsg(uint8_t *rawData, uint32_t size)
+    explicit MemRollbackMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -415,7 +415,7 @@ typedef struct {
 
 typedef struct {
     uint32_t vmInfoListSize;
-    VmMigrateStrategy *vmInfoList;
+    VmMigrateStrategy* vmInfoList;
     uint64_t waitingTime;
 } MemMigrateStrategy;
 
@@ -427,7 +427,7 @@ public:
         : outputMsg(memMigrateStrategy)
     {
     }
-    explicit MemFragmentationMemMigrateStrategyOutputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationMemMigrateStrategyOutputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -456,7 +456,7 @@ class MemFragmentationMemMigrateExecuteInputMsg : public BaseMessage {
 public:
     MemFragmentationMemMigrateExecuteInputMsg() = default;
     ~MemFragmentationMemMigrateExecuteInputMsg() = default;
-    explicit MemFragmentationMemMigrateExecuteInputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationMemMigrateExecuteInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }

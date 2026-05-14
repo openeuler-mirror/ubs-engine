@@ -37,14 +37,14 @@ string MigrateInfoUtil::procPathPrefix = "/proc";
  * @param uuid const string &: Virtual machine UUID
  * @return PID uint16_t: Virtual machine process PID
  */
-pid_t MigrateInfoUtil::GetPidByVmUUID(const string &uuid)
+pid_t MigrateInfoUtil::GetPidByVmUUID(const string& uuid)
 {
     pid_t pid = -1;
-    DIR *dir = opendir(MigrateInfoUtil::procPathPrefix.c_str());
+    DIR* dir = opendir(MigrateInfoUtil::procPathPrefix.c_str());
     if (dir == nullptr) {
         return pid;
     }
-    struct dirent *ent;
+    struct dirent* ent;
     while ((ent = readdir(dir)) != nullptr) {
         if (ent->d_type != DT_DIR || !isdigit(ent->d_name[0])) {
             continue; // Skip non-digit starting entries, which are not PIDs
@@ -58,7 +58,7 @@ pid_t MigrateInfoUtil::GetPidByVmUUID(const string &uuid)
         }
         try {
             pid = VmStringUtil::SafeStoi32(ent->d_name);
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             // Conversion failed, return -1
         }
         closedir(dir);
@@ -69,7 +69,7 @@ pid_t MigrateInfoUtil::GetPidByVmUUID(const string &uuid)
     return pid;
 }
 
-VmResult MigrateInfoUtil::GetNumaIdAndPageSizeByPid(const pid_t pid, MigrateInfoBase &numaIdAndPageSize)
+VmResult MigrateInfoUtil::GetNumaIdAndPageSizeByPid(const pid_t pid, MigrateInfoBase& numaIdAndPageSize)
 {
     auto path = MigrateInfoUtil::procPathPrefix + "/" + std::to_string(pid) + "/numa_maps";
     std::ifstream file(path);
@@ -94,7 +94,7 @@ VmResult MigrateInfoUtil::GetNumaIdAndPageSizeByPid(const pid_t pid, MigrateInfo
             try {
                 numaIdAndPageSize.numaId = VmStringUtil::SafeStoi32(n1Match[1]);
                 numaIdAndPageSize.pageSize = VmStringUtil::SafeStoi32(n2Match[1]);
-            } catch (const std::exception &e) {
+            } catch (const std::exception& e) {
                 file.close();
                 return VM_ERROR;
             }
@@ -106,7 +106,7 @@ VmResult MigrateInfoUtil::GetNumaIdAndPageSizeByPid(const pid_t pid, MigrateInfo
     return VM_ERROR;
 }
 
-VmResult MigrateInfoUtil::GetSocketIdByNumaId(const uint32_t numaId, uint32_t *socketId)
+VmResult MigrateInfoUtil::GetSocketIdByNumaId(const uint32_t numaId, uint32_t* socketId)
 {
     if (socketId == nullptr) {
         return VM_ERROR;
@@ -133,7 +133,7 @@ VmResult MigrateInfoUtil::GetSocketIdByNumaId(const uint32_t numaId, uint32_t *s
     int16_t cpuNum = -1;
     try {
         cpuNum = VmStringUtil::SafeStoi16(nodeInfo[0].substr(0, dashPos));
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return VM_ERROR;
     }
     std::vector<std::string> cpuSocket{};
@@ -152,7 +152,7 @@ VmResult MigrateInfoUtil::GetSocketIdByNumaId(const uint32_t numaId, uint32_t *s
     }
     try {
         *socketId = VmStringUtil::SafeStoi32(cpuSocket[0]);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return VM_ERROR;
     }
     return VM_OK;

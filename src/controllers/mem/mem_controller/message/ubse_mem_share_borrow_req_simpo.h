@@ -20,7 +20,7 @@ using namespace ubse::adapter_plugins::mmi;
 class UbseMemShareBorrowReqSimpo : public UbseBaseMessage {
 public:
     UbseMemShareBorrowReqSimpo() = default;
-    explicit UbseMemShareBorrowReqSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemShareBorrowReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

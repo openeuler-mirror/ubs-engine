@@ -18,7 +18,7 @@
 #include "share_decision_maker.h"
 
 namespace tc::rs::mem {
-double MemPoolStrategyImpl::LatencyScore(MemLoc requestLocBR, int32_t requestSizeS, const TargetSocket &targetSocket,
+double MemPoolStrategyImpl::LatencyScore(MemLoc requestLocBR, int32_t requestSizeS, const TargetSocket& targetSocket,
                                          RequestMode requestMode) const
 {
     double score = 0;
@@ -54,7 +54,7 @@ int MemPoolStrategyImpl::GetLatency(MemLoc requestLocBR, int targetIndex) const
     return latency;
 }
 
-double MemPoolStrategyImpl::ComputeShareLatencyScore(int32_t requestSizeS, const TargetSocket &targetSocket) const
+double MemPoolStrategyImpl::ComputeShareLatencyScore(int32_t requestSizeS, const TargetSocket& targetSocket) const
 {
     double score = 0;
     int32_t maxLatency = mConfig_->memLatencyInfo.maxSysLatency;
@@ -72,14 +72,14 @@ double MemPoolStrategyImpl::ComputeShareLatencyScore(int32_t requestSizeS, const
     return score;
 }
 
-double MemPoolStrategyImpl::RegionBalanceScore(const TargetSocket &targetSocket, RequestMode requestMode,
-                                               const RegionStatus &regionStatus) const
+double MemPoolStrategyImpl::RegionBalanceScore(const TargetSocket& targetSocket, RequestMode requestMode,
+                                               const RegionStatus& regionStatus) const
 {
     if (mConfig_->memIsFullyConnected) {
         return 0;
     } // 若节点全连接, 则域均衡性为0
 
-    const MemLoc &targetLoc = targetSocket.resLocs[0];
+    const MemLoc& targetLoc = targetSocket.resLocs[0];
     int32_t requestSize = GetRequestSize(targetSocket);
 
     // 候选借出方节点所在行和列
@@ -107,7 +107,7 @@ double MemPoolStrategyImpl::RegionBalanceScore(const TargetSocket &targetSocket,
 
     // 计算域均衡性评分
     double cost = 0;
-    for (auto &i : freeRatio) {
+    for (auto& i : freeRatio) {
         for (double j : i) {
             if (std::fabs(j + 1) < 1e-9) {
                 continue;
@@ -120,7 +120,7 @@ double MemPoolStrategyImpl::RegionBalanceScore(const TargetSocket &targetSocket,
     return cost;
 }
 
-int32_t MemPoolStrategyImpl::GetRequestSize(const TargetSocket &targetSocket) const
+int32_t MemPoolStrategyImpl::GetRequestSize(const TargetSocket& targetSocket) const
 {
     int32_t requestSize = 0;
     for (int i = 0; i < targetSocket.resLen; i++) {
@@ -129,7 +129,7 @@ int32_t MemPoolStrategyImpl::GetRequestSize(const TargetSocket &targetSocket) co
     return requestSize;
 }
 
-uint64_t MemPoolStrategyImpl::GetRequestByteSize(const TargetSocket &targetSocket) const
+uint64_t MemPoolStrategyImpl::GetRequestByteSize(const TargetSocket& targetSocket) const
 {
     uint64_t requestSizeByte = 0;
     for (int i = 0; i < targetSocket.resLen; i++) {
@@ -138,14 +138,14 @@ uint64_t MemPoolStrategyImpl::GetRequestByteSize(const TargetSocket &targetSocke
     return requestSizeByte;
 }
 
-bool MemPoolStrategyImpl::CheckBoundary(const RegionStatus &regionStatus, int x, int y) const
+bool MemPoolStrategyImpl::CheckBoundary(const RegionStatus& regionStatus, int x, int y) const
 {
     return (regionStatus.memStatus[x][y].memTotal == -1 || regionStatus.memStatus[x][y].memTotal == 0 ||
             mConfig_->memStaticParam.numHosts == 0);
 }
 
-double MemPoolStrategyImpl::BalanceScore(const TargetSocket &targetSocket, RequestMode requestMode,
-                                         const SysStatus &sysStatus) const
+double MemPoolStrategyImpl::BalanceScore(const TargetSocket& targetSocket, RequestMode requestMode,
+                                         const SysStatus& sysStatus) const
 {
     // 节点触发水线: 综合考虑节点和socket的内存利用率; numa触发水线: 考虑numa的内存利用率
     // 借用, 共享请求: 输入目标socket的numa拆分结果, 考察提供内存后的内存利用率; 归还请求: 输入待归还的借用债务, 考察归还内存前的内存利用率
@@ -177,11 +177,11 @@ double MemPoolStrategyImpl::BalanceScore(const TargetSocket &targetSocket, Reque
     }
 }
 
-double GetScoreByReliability(MemLoc requestLocBR, const TargetSocket &targetSocket, const SysStatus &sysStatus)
+double GetScoreByReliability(MemLoc requestLocBR, const TargetSocket& targetSocket, const SysStatus& sysStatus)
 {
     double cost = 0;
     auto flag = false;
-    for (const auto &[lendLoc, hosts] : sysStatus.debtInfo.lenderNumaToBorrowNode) {
+    for (const auto& [lendLoc, hosts] : sysStatus.debtInfo.lenderNumaToBorrowNode) {
         if (lendLoc.hostId == targetSocket.socketLoc.hostId && lendLoc.socketId == targetSocket.socketLoc.socketId) {
             if (hosts.count(requestLocBR.hostId) != 0) {
                 flag = true;
@@ -214,8 +214,8 @@ double GetScoreByReliability(MemLoc requestLocBR, const TargetSocket &targetSock
     return cost;
 }
 
-double MemPoolStrategyImpl::ReliabilityScore(MemLoc requestLocBR, const TargetSocket &targetSocket,
-                                             RequestMode requestMode, const SysStatus &sysStatus) const
+double MemPoolStrategyImpl::ReliabilityScore(MemLoc requestLocBR, const TargetSocket& targetSocket,
+                                             RequestMode requestMode, const SysStatus& sysStatus) const
 {
     double score;
     int targetHost = targetSocket.resLocs[0].hostId;
@@ -225,7 +225,7 @@ double MemPoolStrategyImpl::ReliabilityScore(MemLoc requestLocBR, const TargetSo
                mConfig_->memStaticParam.lenderNumaMode == LenderNumaMode::BALANCE) {
         score = GetScoreByReliability(requestLocBR, targetSocket, sysStatus);
     } else {
-        int32_t *numaListInHost = mConfig_->GetNumaListInHost(targetHost);
+        int32_t* numaListInHost = mConfig_->GetNumaListInHost(targetHost);
         bool sharedAlready = false;
         for (int idx = 0; idx < NUM_NUMA_PER_HOST; idx++) {
             int32_t numaIndex = numaListInHost[idx];
@@ -240,13 +240,13 @@ double MemPoolStrategyImpl::ReliabilityScore(MemLoc requestLocBR, const TargetSo
     return score;
 }
 
-double MemPoolStrategyImpl::DivideNumaScore(int32_t requestSize, const TargetSocket &targetSocket)
+double MemPoolStrategyImpl::DivideNumaScore(int32_t requestSize, const TargetSocket& targetSocket)
 {
     return static_cast<double>(targetSocket.resLen * HALF_MIN_REQUEST_SIZE) / static_cast<double>(requestSize);
 }
 
 double MemPoolStrategyImpl::PenaltyScore(int32_t requestSize, TargetSocket targetSocket,
-                                         const SysStatus &sysStatus) const
+                                         const SysStatus& sysStatus) const
 {
     int hostIdx = targetSocket.resLocs[0].hostId;
     int waterLine = mConfig_->memStaticParam.memHighLineL0[hostIdx];

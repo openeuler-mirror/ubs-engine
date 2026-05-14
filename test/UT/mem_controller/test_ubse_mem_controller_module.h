@@ -18,12 +18,12 @@
 namespace ubse::mem_controller::ut {
 class TestUbseMemControllerModule : public testing::Test {
 public:
-  TestUbseMemControllerModule() = default;
+    TestUbseMemControllerModule() = default;
 
-  void SetUp() override;
+    void SetUp() override;
 
-  void TearDown() override;
+    void TearDown() override;
 };
-}  // namespace ubse::mem_controller::ut
+} // namespace ubse::mem_controller::ut
 
-#endif  // UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_LEDGER_H
+#endif // UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_LEDGER_H

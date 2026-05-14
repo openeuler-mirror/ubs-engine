@@ -104,7 +104,7 @@ uint32_t SendMigrateCommands(MigrationAction action)
     // 只检查RPC是否成功，不检查迁移执行是否成功
     uint32_t ret = DispatchTask(tReq, tResp, action.fromNode);
     if (ret != UCACHE_OK) {
-        UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "DispatchTask failed, ret=" << ret <<".";
+        UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "DispatchTask failed, ret=" << ret << ".";
     }
     return ret;
 }
@@ -115,16 +115,16 @@ uint32_t SetPageCacheAppNums()
         BottleneckStrategy::GetInstance().GetContainerState();
     std::vector<BorrowStrategyRawData> rawDatas;
     DataCollect::GetBorrowStrategyRawData(rawDatas);
-    for (const auto &[nodeId, nodeTag] : nodeTags) {
+    for (const auto& [nodeId, nodeTag] : nodeTags) {
         auto nodeRawData =
             std::find_if(rawDatas.begin(), rawDatas.end(),
-                         [&nodeId](const BorrowStrategyRawData &rawData) { return rawData.nodeId == nodeId; });
+                         [&nodeId](const BorrowStrategyRawData& rawData) { return rawData.nodeId == nodeId; });
         if (nodeRawData == rawDatas.end()) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node " << nodeId << " not found in rawData";
             return BORROW_DATA_ERROR;
         }
         int pagecacheAppNums = 0;
-        for (const auto &[dockerId, tag] : nodeTag) {
+        for (const auto& [dockerId, tag] : nodeTag) {
             if (tag == PageCacheSensitiveTag::SENSITIVE) {
                 pagecacheAppNums++;
             }
@@ -226,7 +226,7 @@ bool ExecuteMigrationStrategy()
     }
 
     // 发送迁移动作
-    for (const auto &action : migrationActions) {
+    for (const auto& action : migrationActions) {
         uint32_t ret = SendMigrateCommands(action);
         if (ret != UCACHE_OK) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "SendMigrateCommands failed, ret: " << ret;
@@ -270,7 +270,7 @@ void UcacheMasterMain()
                 continue; // 处理迁移策略
             }
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Ucache Master Main exception" << e.what();
     }
 }

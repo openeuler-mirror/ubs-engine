@@ -150,13 +150,12 @@ std::vector<std::string> MpConfiguration::GetNodeIds() const
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "GetNodeIds failed, UbseGetAllNodeInfos ret: " << ret;
         return ids;
     }
-    for (auto &role : roleInfos) {
+    for (auto& role : roleInfos) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "NodeIds: " << role.nodeId;
         ids.push_back(role.nodeId);
     }
     return ids;
 }
-
 
 bool MpConfiguration::GetUcacheEnable() const
 {

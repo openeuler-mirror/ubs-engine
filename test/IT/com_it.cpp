@@ -45,7 +45,7 @@ public:
 
     UbseResult Deserialize() override
     {
-        data.assign(reinterpret_cast<const char *>(mInputRawData.get()), mInputRawDataSize);
+        data.assign(reinterpret_cast<const char*>(mInputRawData.get()), mInputRawDataSize);
         return UBSE_OK;
     }
 
@@ -54,8 +54,8 @@ public:
 using TestMessagePtr = Ref<TestMessage>;
 
 class TestComBaseMessageHandler : public UbseComBaseMessageHandler {
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
-        UbseComBaseMessageHandlerCtxPtr ctx) override
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override
     {
         auto request = UbseBaseMessage::DeConvert<TestMessage>(req);
         auto rsponse = UbseBaseMessage::DeConvert<TestMessage>(rsp);
@@ -77,12 +77,12 @@ class TestComBaseMessageHandler : public UbseComBaseMessageHandler {
     }
 };
 
-void MockHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void MockHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
-    std::string recvStr(reinterpret_cast<const char *>(respData.data), respData.len);
+    std::string recvStr(reinterpret_cast<const char*>(respData.data), respData.len);
 };
 
-int32_t ITestCmdRpcSend(ProcessMmap *)
+int32_t ITestCmdRpcSend(ProcessMmap*)
 {
     auto comModule = context::UbseContext::GetInstance().GetModule<com::UbseComModule>();
     if (comModule == nullptr) {
@@ -99,29 +99,32 @@ int32_t ITestCmdRpcSend(ProcessMmap *)
     TestMessagePtr SynreqPtr = new TestMessage("syn test");
     TestMessagePtr ArsyreqPtr = new TestMessage("Asyn test");
     TestMessagePtr rspPtr = new TestMessage("");
-    SendParam param{ "NodeIT", 0, 0 };
+    SendParam param{"NodeIT", 0, 0};
     // 同步发送
     comModule->RpcSend(param, SynreqPtr, rspPtr);
 
     UbseComCallback cb;
-    cb.cb = [](void *ctx, void *recv, uint32_t len, int32_t result) {};
+    cb.cb = [](void* ctx, void* recv, uint32_t len, int32_t result) {
+    };
     comModule->RpcAsyncSend(param, ArsyreqPtr, cb);
     return UBSE_OK;
 }
 
-int32_t ITestCmdSendUseUbseCom(ProcessMmap *)
+int32_t ITestCmdSendUseUbseCom(ProcessMmap*)
 {
     UbseByteBuffer reqData;
     std::string messageSend = "test";
-    reqData.data = reinterpret_cast<uint8_t *>(messageSend.data());
+    reqData.data = reinterpret_cast<uint8_t*>(messageSend.data());
     reqData.len = messageSend.length();
-    UbseComEndpoint endpoint = { 1, 1, "NodeIT" };
+    UbseComEndpoint endpoint = {1, 1, "NodeIT"};
     UbseByteBuffer respData;
 
-    UbseComServiceHandler masterHandler = [&](const UbseByteBuffer &req, UbseByteBuffer &resp) { resp = req; };
+    UbseComServiceHandler masterHandler = [&](const UbseByteBuffer& req, UbseByteBuffer& resp) {
+        resp = req;
+    };
     auto ret = UbseRegRpcService(endpoint, masterHandler);
-    UbseByteBuffer *context = new UbseByteBuffer;
-    void *ctx = reinterpret_cast<void *>(context);
+    UbseByteBuffer* context = new UbseByteBuffer;
+    void* ctx = reinterpret_cast<void*>(context);
     ret = UbseRpcSend(endpoint, reqData, ctx, MockHandler);
     if (ret != UBSE_OK) {
         return ret;
@@ -133,8 +136,7 @@ int32_t ITestCmdSendUseUbseCom(ProcessMmap *)
     return UBSE_OK;
 }
 
-
-int32_t ITestCmdItCliSend(ProcessMmap *)
+int32_t ITestCmdItCliSend(ProcessMmap*)
 {
     auto comModule = context::UbseContext::GetInstance().GetModule<com::UbseComModule>();
     if (comModule == nullptr) {
@@ -149,7 +151,7 @@ int32_t ITestCmdItCliSend(ProcessMmap *)
     TestMessagePtr SynreqPtr = new TestMessage("syn test");
     TestMessagePtr ArsyreqPtr = new TestMessage("Asyn test");
     TestMessagePtr rspPtr = new TestMessage("");
-    SendParam param{ "NodeIT", 0, 0 };
+    SendParam param{"NodeIT", 0, 0};
 
     // 同步发送
     comModule->RpcSend(param, SynreqPtr, rspPtr);
@@ -159,11 +161,12 @@ int32_t ITestCmdItCliSend(ProcessMmap *)
     // 异步发送
     UbseComCallback cb;
     std::cout << "Async Send: " << ArsyreqPtr->data << std::endl;
-    cb.cb = [](void *ctx, void *recv, uint32_t len, int32_t result) {};
+    cb.cb = [](void* ctx, void* recv, uint32_t len, int32_t result) {
+    };
     comModule->RpcAsyncSend(param, ArsyreqPtr, cb);
     return UBSE_OK;
 }
-int32_t ITestCmdItManagerSend(ProcessMmap *)
+int32_t ITestCmdItManagerSend(ProcessMmap*)
 {
     auto comModule = context::UbseContext::GetInstance().GetModule<com::UbseComModule>();
     if (comModule == nullptr) {
@@ -184,4 +187,4 @@ int32_t ITestCmdItManagerSend(ProcessMmap *)
     }
     return UBSE_OK;
 }
-}
+} // namespace ubse::it::com

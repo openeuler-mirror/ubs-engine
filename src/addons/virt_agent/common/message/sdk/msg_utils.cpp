@@ -16,7 +16,7 @@
 
 namespace vm {
 
-VmResult StringToC(char *dest, const std::string &src, size_t maxSize)
+VmResult StringToC(char* dest, const std::string& src, size_t maxSize)
 {
     if (dest == nullptr || maxSize == 0) {
         return VM_INVALID_PARAM_ERROR;

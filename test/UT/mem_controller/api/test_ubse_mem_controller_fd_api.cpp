@@ -14,19 +14,19 @@
 
 #include <ubse_com_module.h>
 #include <ubse_error.h>
-#include "debt/ubse_mem_debt_ledger.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "test_ubse_mem_controller_fd_api.h"
+#include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_controller_api_common.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "ubse_context.h"
-#include "ubse_mmi_module.h"
 #include "ubse_mem_sign_verifier.h"
+#include "ubse_mmi_module.h"
+#include "debt/ubse_mem_debt_ledger.h"
+#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
+#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
+#include "message/ubse_mem_operation_resp_simpo.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "test_ubse_mem_controller_fd_api.h"
 
 namespace ubse::mem_controller::fd::ut {
 using namespace ubse::mem::controller;
@@ -40,7 +40,7 @@ using namespace ubse::context;
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
 
-void SendFdExportObjSuccess(std::shared_ptr<com::UbseComModule> &module)
+void SendFdExportObjSuccess(std::shared_ptr<com::UbseComModule>& module)
 {
     module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
@@ -61,7 +61,7 @@ void AgentSendFdExportObjError()
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
 }
 
-void SendFdImportObjSuccess(std::shared_ptr<com::UbseComModule> &module)
+void SendFdImportObjSuccess(std::shared_ptr<com::UbseComModule>& module)
 {
     module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
@@ -81,7 +81,7 @@ void MasterSendAddrImportObjError()
         &com::UbseComModule::RpcSend<mem::controller::message::UbseMemFdBorrowImportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
 }
-void BuildOperationSuccessMock(std::shared_ptr<com::UbseComModule> &module)
+void BuildOperationSuccessMock(std::shared_ptr<com::UbseComModule>& module)
 {
     module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
@@ -90,8 +90,8 @@ void BuildOperationSuccessMock(std::shared_ptr<com::UbseComModule> &module)
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
 }
 
-void ExportCallbackCommonSetup(election::UbseRoleInfo &currentInfo, election::UbseRoleInfo &masterInfo,
-                               std::shared_ptr<com::UbseComModule> &module)
+void ExportCallbackCommonSetup(election::UbseRoleInfo& currentInfo, election::UbseRoleInfo& masterInfo,
+                               std::shared_ptr<com::UbseComModule>& module)
 {
     // 当前节点为0号节点
     currentInfo.nodeId = NODE_TWO;
@@ -104,13 +104,13 @@ void ExportCallbackCommonSetup(election::UbseRoleInfo &currentInfo, election::Ub
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
 }
 
-void AddToExportObjMap(const std::string &name, const std::string &nodeId, UbseMemFdBorrowExportObj &fdBorrowExportObj)
+void AddToExportObjMap(const std::string& name, const std::string& nodeId, UbseMemFdBorrowExportObj& fdBorrowExportObj)
 {
     auto exportKey = mem::controller::GenerateExportObjKey(name, nodeId);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource(nodeId, exportKey,
                                                                                         fdBorrowExportObj);
 }
-void AddToImportObjMap(const std::string &name, const std::string &nodeId, UbseMemFdBorrowImportObj &fdBorrowImportObj)
+void AddToImportObjMap(const std::string& name, const std::string& nodeId, UbseMemFdBorrowImportObj& fdBorrowImportObj)
 {
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource(nodeId, name,
                                                                                         fdBorrowImportObj);
@@ -339,7 +339,6 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdPermissionTest)
     EXPECT_EQ(UBS_ENGINE_ERR_AUTH_FAILED, ret);
 }
 
-
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdBorrowImportObjForPermissionCallbackTest)
 {
     UbseMemDebtNumaInfo numaInfo;
@@ -355,11 +354,13 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdBorrowImportObjForPermissionCallback
     importObj.algoResult.exportNumaInfos = numaInfos;
     UbseRoleInfo master;
     MOCKER_CPP(&election::UbseGetMasterInfo).stubs().with(outBound(master)).will(returnValue(UBSE_OK));
-    MOCKER(&context::UbseContext::GetModule<UbseMmiModule>).stubs().will(returnValue(std::make_shared<UbseMmiModule>()));
+    MOCKER(&context::UbseContext::GetModule<UbseMmiModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseMmiModule>()));
     MOCKER(&UbseMmiModule::UbseMemFdImportExecutor).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemFdBorrowImportObjForPermissionCallback(importObj), UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerFdApi, FdImportRunningCallback)
 {
     UbseMemDebtNumaInfo numaInfo;
@@ -381,7 +382,7 @@ TEST_F(TestUbseMemControllerFdApi, FdImportRunningCallback)
     auto ret = UbseMemFdBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_ERROR_NULLPTR, ret);
 }
- 
+
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdBorrowExportObjCallbackAgentHighSafe)
 {
     UbseMemFdBorrowExportObj exportObj;
@@ -399,7 +400,9 @@ TEST_F(TestUbseMemControllerFdApi, UbseMemFdBorrowExportObjCallbackAgentHighSafe
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     const auto func1 = &UbseComModule::RpcSend<UbseMemFdBorrowExportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER(func1).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&context::UbseContext::GetModule<UbseMmiModule>).stubs().will(returnValue(std::make_shared<UbseMmiModule>()));
+    MOCKER(&context::UbseContext::GetModule<UbseMmiModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseMmiModule>()));
     MOCKER(&UbseMmiModule::UbseMemFdExportExecutor).stubs().will(returnValue(UBSE_OK));
     MOCKER(IsHighSafety).stubs().will(returnValue(true));
     auto ret = UbseMemFdBorrowExportObjCallback(exportObj);

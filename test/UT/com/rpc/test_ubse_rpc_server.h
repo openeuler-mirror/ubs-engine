@@ -28,6 +28,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::com
 
 #endif // TEST_UBSE_RPC_SERVER_H

@@ -192,7 +192,7 @@ enum class TaskType : uint32_t {
     MIGRATION_STRATEGY = 1,
 };
 
-inline const char *TaskTypeToString(TaskType t)
+inline const char* TaskTypeToString(TaskType t)
 {
     switch (t) {
         case TaskType::COLLECT_RESOURCE:
@@ -223,7 +223,7 @@ enum class ResourceQueryType : uint32_t {
     MEM_WATERMARK = 2,
 };
 
-inline const char *ResourceQueryTypeToString(ResourceQueryType t)
+inline const char* ResourceQueryTypeToString(ResourceQueryType t)
 {
     switch (t) {
         case ResourceQueryType::NUMA_INFO:
@@ -267,7 +267,7 @@ extern "C" {
  * @param tResp [OUT] ucache执行结果
  * @return 0为IPC执行成功，非0为IPC执行异常
  */
-uint32_t UBTurboUCacheExecuteTask(const TaskRequest &tReq, TaskResponse &tResp);
+uint32_t UBTurboUCacheExecuteTask(const TaskRequest& tReq, TaskResponse& tResp);
 }
 } // namespace turbo::ucache
 #endif // TURBO_UCACHE_INTERFACE_H

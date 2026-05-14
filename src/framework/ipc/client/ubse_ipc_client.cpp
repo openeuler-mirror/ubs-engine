@@ -27,10 +27,10 @@
 #include "ubse_uds_client.h"
 
 using namespace ubse::ipc;
-using UbseClientIpcHandler = std::function<uint32_t(const UbseRequestMessage &)>;
+using UbseClientIpcHandler = std::function<uint32_t(const UbseRequestMessage&)>;
 
 struct PairHash {
-    size_t operator()(const std::pair<uint16_t, uint16_t> &p) const
+    size_t operator()(const std::pair<uint16_t, uint16_t>& p) const
     {
         // 将两个 uint16_t 组合成一个 size_t 作为哈希值
         return (static_cast<size_t>(p.first) << 16) | p.second; // // 移动16位
@@ -42,14 +42,14 @@ std::mutex clientIpcHandlerMutex; // mutex锁
 static UbseClientIpcHandlerMap clientIpcHandlerMap{};
 static std::string ubseSocketPath = ubse::common::def::UBSE_UDS_SOCKET_PATH;
 
-static uint32_t CopyResponseBody(const UbseResponseMessage &src, ubse_api_buffer_t *dest)
+static uint32_t CopyResponseBody(const UbseResponseMessage& src, ubse_api_buffer_t* dest)
 {
     dest->buffer = nullptr;
     dest->length = 0;
     if (src.header.bodyLen == 0 || !src.body) {
         return UBSE_OK;
     }
-    dest->buffer = static_cast<uint8_t *>(malloc(src.header.bodyLen));
+    dest->buffer = static_cast<uint8_t*>(malloc(src.header.bodyLen));
     if (!dest->buffer) {
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
@@ -65,7 +65,7 @@ static uint32_t CopyResponseBody(const UbseResponseMessage &src, ubse_api_buffer
     return UBSE_OK;
 }
 
-void ubse_socket_path_set(const char *socket_path)
+void ubse_socket_path_set(const char* socket_path)
 {
     if (socket_path == nullptr || strlen(socket_path) == 0) {
         ubseSocketPath = ubse::common::def::UBSE_UDS_SOCKET_PATH;
@@ -75,8 +75,8 @@ void ubse_socket_path_set(const char *socket_path)
     ubseSocketPath = std::string(socket_path);
 }
 
-uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
-                          ubse_api_buffer_t *response_data)
+uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                          ubse_api_buffer_t* response_data)
 {
     if (request_data == nullptr || response_data == nullptr) {
         IPC_LOG_ERROR << "Request_data or response_data pointer is null";
@@ -117,7 +117,7 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
     return responseMessage.header.statusCode;
 }
 
-void ubse_api_buffer_free(ubse_api_buffer_t *apiBuffer)
+void ubse_api_buffer_free(ubse_api_buffer_t* apiBuffer)
 {
     if (apiBuffer == nullptr) {
         return;
@@ -129,7 +129,7 @@ void ubse_api_buffer_free(ubse_api_buffer_t *apiBuffer)
     }
 }
 
-void ubse_api_buffer_delete(ubse_api_buffer_t *apiBuffer)
+void ubse_api_buffer_delete(ubse_api_buffer_t* apiBuffer)
 {
     if (apiBuffer == nullptr) {
         return;
@@ -155,7 +155,7 @@ uint32_t ubse_long_link_connect(void)
     return ret;
 }
 
-void HandleRequest(const UbseRequestMessage &request, UbseResponseMessage &resp)
+void HandleRequest(const UbseRequestMessage& request, UbseResponseMessage& resp)
 {
     IPC_LOG_INFO << "Start handling API request, moduleCode = " << request.header.moduleCode
                  << ", opCode = " << request.header.opCode << " reqId=" << request.header.clientRequestId;
@@ -208,7 +208,7 @@ uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler)
         return ret;
     }
     std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
-    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage &msg) -> uint32_t {
+    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage& msg) -> uint32_t {
         UbseMemFault fault{};
         auto ret = DeSerializeMemFault(fault, msg.body, size_t(msg.header.bodyLen));
         if (ret != UBSE_OK) {

@@ -34,9 +34,9 @@ void TestUbseEventThreadPool::TearDown()
  */
 TEST_F(TestUbseEventThreadPool, pthread_barrier_initError)
 {
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
     MOCKER(pthread_barrier_init).stubs().will(returnValue((int)UBSE_ERROR));
     auto ret = pool.Init();
@@ -52,9 +52,9 @@ TEST_F(TestUbseEventThreadPool, pthread_barrier_initError)
  */
 TEST_F(TestUbseEventThreadPool, pthread_createError)
 {
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
     MOCKER(pthread_create).stubs().will(returnValue((int)UBSE_ERROR));
     auto ret = pool.Init();
@@ -71,9 +71,9 @@ TEST_F(TestUbseEventThreadPool, pthread_createError)
 TEST_F(TestUbseEventThreadPool, pthread_barrier_waitError)
 {
     GTEST_SKIP();
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
     MOCKER(pthread_barrier_init).stubs().will(returnValue((int)UBSE_OK));
     MOCKER(pthread_create).stubs().will(returnValue((int)UBSE_OK));
@@ -82,4 +82,4 @@ TEST_F(TestUbseEventThreadPool, pthread_barrier_waitError)
     auto ret = pool.Init();
     EXPECT_EQ(ret, UBSE_ERROR);
 }
-}
+} // namespace ubse::event::ut

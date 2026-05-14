@@ -13,8 +13,8 @@
 #ifndef UBS_ENGINE_UBSE_MEM_ADVICE_H
 #define UBS_ENGINE_UBSE_MEM_ADVICE_H
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 namespace ubse::mem::controller {
 enum class ProcessType {

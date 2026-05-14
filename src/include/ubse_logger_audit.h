@@ -63,7 +63,7 @@ class AuditLoggerEntry {
 public:
     AuditLoggerEntry() = default;
     virtual ~AuditLoggerEntry();
-    AuditLoggerEntry &operator << (const std::string &data)
+    AuditLoggerEntry& operator<<(const std::string& data)
     {
         os_ << data;
         return *this;
@@ -73,24 +73,24 @@ public:
         return os_.str();
     }
 
-    virtual void Sendlog(AuditLoggerEntry &auditLoggerEntry) = 0;
+    virtual void Sendlog(AuditLoggerEntry& auditLoggerEntry) = 0;
 
 protected:
-    void SendAuditMessage(RecordType type, const std::string &logMessage, int result);
-    std::string RecordToString(RecordType &recordType);
-    int RecordToAudit(RecordType &recordType);
+    void SendAuditMessage(RecordType type, const std::string& logMessage, int result);
+    std::string RecordToString(RecordType& recordType);
+    int RecordToAudit(RecordType& recordType);
     // 审计事件类型映射表(对应audit—records.h中的定义)
-    std::unordered_map<std::string, int> AuditType_ = {{"AUDIT_USER_CMD",                 1123 },
-                                                       {"AUDIT_DEV_ALLOC",                2307 },
-                                                       {"AUDIT_DEV_DEALLOC",              2308 },
-                                                       {"AUDIT_CRYPTO_PARAM_CHANGE_USER", 2401 } };
+    std::unordered_map<std::string, int> AuditType_ = {{"AUDIT_USER_CMD", 1123},
+                                                       {"AUDIT_DEV_ALLOC", 2307},
+                                                       {"AUDIT_DEV_DEALLOC", 2308},
+                                                       {"AUDIT_CRYPTO_PARAM_CHANGE_USER", 2401}};
     std::ostringstream os_;
 };
 class OperateLoggerEntry : public AuditLoggerEntry {
 public:
     explicit OperateLoggerEntry(std::string interface, RecordType type);
 
-    void Sendlog(AuditLoggerEntry &auditLoggerEntry) override;
+    void Sendlog(AuditLoggerEntry& auditLoggerEntry) override;
 
 private:
     std::string interface_;
@@ -100,7 +100,7 @@ class RuntimeLoggerEntry : public AuditLoggerEntry {
 public:
     explicit RuntimeLoggerEntry(RecordType type);
 
-    void Sendlog(AuditLoggerEntry &auditLoggerEntry) override;
+    void Sendlog(AuditLoggerEntry& auditLoggerEntry) override;
 
 private:
     RecordType type_;
@@ -109,7 +109,7 @@ class SecurityLoggerEntry : public AuditLoggerEntry {
 public:
     explicit SecurityLoggerEntry(std::string interface, RecordType type);
 
-    void Sendlog(AuditLoggerEntry &auditLoggerEntry) override;
+    void Sendlog(AuditLoggerEntry& auditLoggerEntry) override;
 
 private:
     std::string interface_;
@@ -117,8 +117,8 @@ private:
 };
 
 struct UbseAuditlog {
-    bool operator == (AuditLoggerEntry &auditloggerEntry);
+    bool operator==(AuditLoggerEntry& auditloggerEntry);
 };
-}
+} // namespace ubse::log
 #endif
 #endif // UBSE_MANAGER_UBSE_LOGGER_AUDIT_H

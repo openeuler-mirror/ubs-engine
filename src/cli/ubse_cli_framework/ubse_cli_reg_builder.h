@@ -20,15 +20,15 @@
 #include "ubse_cli_res_builder.h"
 
 namespace ubse::cli::framework {
-using UbseCliCommandFunc = std::shared_ptr<UbseCliResultEcho> (*)([
-    [maybe_unused]] const std::map<std::string, std::string> &);
+using UbseCliCommandFunc =
+    std::shared_ptr<UbseCliResultEcho> (*)([[maybe_unused]] const std::map<std::string, std::string>&);
 
 struct UbseCliOptionsInfo {
     std::string shortOpt;
     std::string longOpt;
     std::string desc;
 
-    bool operator == (const UbseCliOptionsInfo &other) const
+    bool operator==(const UbseCliOptionsInfo& other) const
     {
         return shortOpt == other.shortOpt && longOpt == other.longOpt && desc == other.desc;
     }
@@ -40,10 +40,10 @@ struct UbseCliCommandInfo {
     std::vector<UbseCliOptionsInfo> options;
     UbseCliCommandFunc commandFunc;
 
-    bool operator == (const UbseCliCommandInfo &other) const
+    bool operator==(const UbseCliCommandInfo& other) const
     {
         return command == other.command && type == other.type && options == other.options &&
-            commandFunc == other.commandFunc;
+               commandFunc == other.commandFunc;
     }
 };
 
@@ -51,14 +51,14 @@ class UbseCliRegBuilder {
 public:
     UbseCliRegBuilder();
 
-    UbseCliRegBuilder &UbseCliSetCommand(const std::string &command);
+    UbseCliRegBuilder& UbseCliSetCommand(const std::string& command);
 
-    UbseCliRegBuilder &UbseCliSetType(const std::string &type);
+    UbseCliRegBuilder& UbseCliSetType(const std::string& type);
 
-    UbseCliRegBuilder &UbseCliAddOption(const std::string &short_opt, const std::string &long_opt,
-        const std::string &desc);
+    UbseCliRegBuilder& UbseCliAddOption(const std::string& short_opt, const std::string& long_opt,
+                                        const std::string& desc);
 
-    UbseCliRegBuilder &UbseCliSetFunc(UbseCliCommandFunc func);
+    UbseCliRegBuilder& UbseCliSetFunc(UbseCliCommandFunc func);
 
     UbseCliCommandInfo UbseCliBuild();
 

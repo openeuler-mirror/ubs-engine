@@ -13,111 +13,105 @@
 #include "ubse_logger.h"
 namespace ubse::log {
 
-void UbseLogOutput(const char *moduleName, UbseLogLevel level, const char *msg);
+void UbseLogOutput(const char* moduleName, UbseLogLevel level, const char* msg);
 
 bool UbseIsLog(UbseLogLevel level)
 {
     return true;
 }
 
-bool UbseLog::operator==(UbseLoggerEntry &loggerEntry)
+bool UbseLog::operator==(UbseLoggerEntry& loggerEntry)
 {
     return false;
 }
 
-void UbseLoggerEntry::DecodeData(std::ostream &os, char *start, const char *end)
-{
-}
+void UbseLoggerEntry::DecodeData(std::ostream& os, char* start, const char* end) {}
 
-char *UbseLoggerEntry::DecodeString(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeString(std::ostream& os, char* buffer)
 {
     return nullptr;
 }
 
-char *UbseLoggerEntry::DecodeDouble(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeDouble(std::ostream& os, char* buffer)
 {
     return nullptr;
 }
 
-char *UbseLoggerEntry::DecodeLong(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeLong(std::ostream& os, char* buffer)
 {
     return nullptr;
 }
 
-char *UbseLoggerEntry::DecodeInt(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeInt(std::ostream& os, char* buffer)
 {
     return nullptr;
 }
 
-char *UbseLoggerEntry::DecodeUlong(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeUlong(std::ostream& os, char* buffer)
 {
     return nullptr;
 }
 
-char *UbseLoggerEntry::DecodeUint(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeUint(std::ostream& os, char* buffer)
 {
     return nullptr;
 }
 
-char *UbseLoggerEntry::DecodeChar(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeChar(std::ostream& os, char* buffer)
 {
     return nullptr;
 }
 
-void UbseLoggerEntry::EncodeData(const char *data)
-{
-}
+void UbseLoggerEntry::EncodeData(const char* data) {}
 
-void UbseLoggerEntry::EncodeString(const char *data, size_t length)
-{
-}
+void UbseLoggerEntry::EncodeString(const char* data, size_t length) {}
 
-char *UbseLoggerEntry::GetBuffer()
+char* UbseLoggerEntry::GetBuffer()
 {
     return nullptr;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(const std::string &data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(const std::string& data)
 {
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(uint64_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(uint64_t data)
 {
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(double data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(double data)
 {
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(int64_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(int64_t data)
 {
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(uint32_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(uint32_t data)
 {
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(int32_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(int32_t data)
 {
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(char data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(char data)
 {
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(const char *data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(const char* data)
 {
     return *this;
 }
 
-char *UbseLoggerEntry::GetMessage(size_t &length)
+char* UbseLoggerEntry::GetMessage(size_t& length)
 {
     return nullptr;
 }
@@ -127,22 +121,20 @@ uint32_t UbseLoggerEntry::GetLine()
     return 0;
 }
 
-const char *UbseLoggerEntry::GetFile()
+const char* UbseLoggerEntry::GetFile()
 {
     return nullptr;
 }
 
-const char *UbseLoggerEntry::GetModuleName()
+const char* UbseLoggerEntry::GetModuleName()
 {
     return nullptr;
 }
 
-void UbseLoggerEntry::OutPutLog(std::ostream &os)
-{
-}
+void UbseLoggerEntry::OutPutLog(std::ostream& os) {}
 
-UbseLoggerEntry::UbseLoggerEntry(const char *gModuleName, UbseLogLevel level, const char *file, const char *func,
+UbseLoggerEntry::UbseLoggerEntry(const char* gModuleName, UbseLogLevel level, const char* file, const char* func,
                                  uint32_t line)
 {
 }
-}  // namespace ubse::log
+} // namespace ubse::log

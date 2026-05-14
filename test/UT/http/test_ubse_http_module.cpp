@@ -12,14 +12,14 @@
 
 #include "test_ubse_http_module.h"
 
-#include "ubse_http_common.h"
-#include "ubse_http_server.h"
+#include "ubse_cert_validator.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_http_common.h"
+#include "ubse_http_server.h"
 #include "ubse_pointer_process.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "ubse_cert_validator.h"
 
 using namespace ubse::http;
 using namespace ubse::context;
@@ -31,7 +31,7 @@ TestUbseHttpModule::TestUbseHttpModule() = default;
 
 void TestUbseHttpModule::SetUp()
 {
-    tFunc = [](const UbseHttpRequest &req, UbseHttpResponse &resp) {
+    tFunc = [](const UbseHttpRequest& req, UbseHttpResponse& resp) {
         return UBSE_OK;
     };
     Test::SetUp();
@@ -80,13 +80,13 @@ TEST_F(TestUbseHttpModule, ShouldReturnUBSE_ERROR_When_Strat_Return_False)
     testRHM.Stop();
 }
 
-static uint32_t TestHandler(const UbseHttpRequest &req, UbseHttpResponse &resp)
+static uint32_t TestHandler(const UbseHttpRequest& req, UbseHttpResponse& resp)
 {
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
     return UBSE_OK;
 }
 
-static uint32_t TestJsonHandler(const UbseHttpRequest &req, UbseHttpResponse &resp)
+static uint32_t TestJsonHandler(const UbseHttpRequest& req, UbseHttpResponse& resp)
 {
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
     return UBSE_OK;
@@ -119,7 +119,10 @@ TEST_F(TestUbseHttpModule, Initialize_Conf)
     std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
     uint32_t port = 8082;
-    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(port)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), outBound(port))
+        .will(returnValue(UBSE_OK));
     MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
     MOCKER(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, testRHM.Initialize());
@@ -129,7 +132,7 @@ TEST_F(TestUbseHttpModule, Initialize_Conf)
     testRHM.UnInitialize();
 }
 
-bool TestSend(httplib::Request &req, httplib::Response &res, httplib::Error &error)
+bool TestSend(httplib::Request& req, httplib::Response& res, httplib::Error& error)
 {
     res.status = OK_200;
     res.body = "response";
@@ -182,4 +185,4 @@ TEST_F(TestUbseHttpModule, UbseHttpPostJsonRequest_Tcp)
     auto ret = testRHM.UbseHttpPostJsonRequest(req.path, req.body, rsp);
     EXPECT_NE(ret, UBSE_OK);
 }
-}
+} // namespace ubse::ut::http

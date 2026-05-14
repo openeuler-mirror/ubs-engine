@@ -10,9 +10,9 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include "ubse_json_util.h"
 #include "default_strategy.h"
 #include "default_struct.h"
-#include "ubse_json_util.h"
 
 #ifdef LOG_DEBUG_ON
 #include <unistd.h>
@@ -32,7 +32,7 @@ const float DEFAULT_FIRST_LINE = 0.85;
 const float DEFAULT_RETURN_LINE = 0.8;
 const int TIME_SECOND_180 = 180;
 const StrategyConfig STRATEGY_CONFIG = {"0", "0", "0", 0, 0, 0, 0, 0};
-Logfunc g_logFunc = [](uint32_t level, const char *msg) -> void {
+Logfunc g_logFunc = [](uint32_t level, const char* msg) -> void {
 };
 
 TestDefaultStrategy::TestDefaultStrategy() {}
@@ -44,7 +44,7 @@ void TestDefaultStrategy::SetUp()
 #ifdef LOG_DEBUG_ON
     LoggerOptions options{UbseLogLevel::DEBUG, 2, 5, 1024, UbseLogLevel::INFO, "/var/log/scbus"};
     auto log = UbseLoggerManager::Instance();
-    UbseLoggerWriter *writer = new (std::nothrow)
+    UbseLoggerWriter* writer = new (std::nothrow)
         UbseLoggerFilesink(options.logPath, options.maxFileSizeInMB * 1024 * 1024, options.rotationFileCount);
     log->Init(options, writer);
 #endif
@@ -56,7 +56,7 @@ void TestDefaultStrategy::TearDown()
     Test::TearDown();
 }
 
-DsResult JsonStringValueIsGet(const rapidjson::Value &pstJson, const std::string pcKey)
+DsResult JsonStringValueIsGet(const rapidjson::Value& pstJson, const std::string pcKey)
 {
     if (pstJson.HasMember(pcKey.c_str()) && pstJson[pcKey.c_str()].IsString()) {
         return DS_OK;
@@ -65,7 +65,7 @@ DsResult JsonStringValueIsGet(const rapidjson::Value &pstJson, const std::string
 }
 
 // 增加类型转换，由Json中的char*转成自定义类型
-DsResult StrToActionType(const std::string &name, EscapeActionType &escapeActionType)
+DsResult StrToActionType(const std::string& name, EscapeActionType& escapeActionType)
 {
     if (name == "BORROW") {
         escapeActionType = EscapeActionType::BORROW;
@@ -82,7 +82,7 @@ DsResult StrToActionType(const std::string &name, EscapeActionType &escapeAction
     }
 }
 
-DsResult StrToNumaMigStatus(const std::string &name, NumaMigrateStatus &numaMigrateStatus)
+DsResult StrToNumaMigStatus(const std::string& name, NumaMigrateStatus& numaMigrateStatus)
 {
     if (name == "NORMAL") {
         numaMigrateStatus = NumaMigrateStatus::NORMAL;
@@ -105,7 +105,7 @@ DsResult StrToNumaMigStatus(const std::string &name, NumaMigrateStatus &numaMigr
     }
 }
 
-DsResult StrToVmMigStatus(const std::string &name, VmMigrateStatus &vmMigrateStatus)
+DsResult StrToVmMigStatus(const std::string& name, VmMigrateStatus& vmMigrateStatus)
 {
     if (name == "MIGRATEABLE") {
         vmMigrateStatus = VmMigrateStatus::MIGRATEABLE;
@@ -122,7 +122,7 @@ DsResult StrToVmMigStatus(const std::string &name, VmMigrateStatus &vmMigrateSta
     }
 }
 
-DsResult StrToConState(const std::string &name, ConnectionState &state)
+DsResult StrToConState(const std::string& name, ConnectionState& state)
 {
     if (name == "UP") {
         state = ConnectionState::UP;
@@ -136,7 +136,7 @@ DsResult StrToConState(const std::string &name, ConnectionState &state)
     }
 }
 
-DsResult StrToNumaStatus(const std::string &name, NumaStatus &numaStatus)
+DsResult StrToNumaStatus(const std::string& name, NumaStatus& numaStatus)
 {
     if (name == "NORMAL") {
         numaStatus = NumaStatus::NORMAL;
@@ -154,7 +154,7 @@ DsResult StrToNumaStatus(const std::string &name, NumaStatus &numaStatus)
 }
 
 // 读Json文件
-DsResult ReadJsonFile(const std::string &filename, std::string &jsonString)
+DsResult ReadJsonFile(const std::string& filename, std::string& jsonString)
 {
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -169,7 +169,7 @@ DsResult ReadJsonFile(const std::string &filename, std::string &jsonString)
     return DS_OK;
 }
 
-DsResult ReadVmBasicInfos(const rapidjson::Value &VmBasicInfos, AlarmNumaInfo &alarmNumaInfo)
+DsResult ReadVmBasicInfos(const rapidjson::Value& VmBasicInfos, AlarmNumaInfo& alarmNumaInfo)
 {
     DsResult ret = DS_OK;
     if (!VmBasicInfos.IsArray()) {
@@ -177,7 +177,7 @@ DsResult ReadVmBasicInfos(const rapidjson::Value &VmBasicInfos, AlarmNumaInfo &a
     }
     size_t infoNum = VmBasicInfos.Size();
     for (size_t i = 0; i < infoNum; i++) {
-        const rapidjson::Value &VmBasicInfosPtr = VmBasicInfos[i];
+        const rapidjson::Value& VmBasicInfosPtr = VmBasicInfos[i];
         std::string uuid;
         ret |= UbseJsonUtil::GetStrFromJsonPtr(VmBasicInfosPtr, "uuid", uuid);
         alarmNumaInfo.vmBasicInfos[uuid].uuid = uuid;
@@ -206,8 +206,8 @@ DsResult ReadVmBasicInfos(const rapidjson::Value &VmBasicInfos, AlarmNumaInfo &a
     return DS_OK;
 }
 
-DsResult ReadBorrowItemInfo(const rapidjson::Value &InputAlarmNumaInfo, Allocator &allocator,
-                            AlarmNumaInfo &alarmNumaInfo)
+DsResult ReadBorrowItemInfo(const rapidjson::Value& InputAlarmNumaInfo, Allocator& allocator,
+                            AlarmNumaInfo& alarmNumaInfo)
 {
     if (!InputAlarmNumaInfo.IsObject()) {
         return DS_ERROR;
@@ -222,7 +222,7 @@ DsResult ReadBorrowItemInfo(const rapidjson::Value &InputAlarmNumaInfo, Allocato
     for (size_t indexBorrow = 0; indexBorrow < AlarmNumaInfoBorrowItem.Size(); indexBorrow++) {
         BorrowItem tmp;
         std::vector<BorrowItem> borrowItem;
-        const rapidjson::Value &BorrowItemInfoPtr = AlarmNumaInfoBorrowItem[indexBorrow];
+        const rapidjson::Value& BorrowItemInfoPtr = AlarmNumaInfoBorrowItem[indexBorrow];
         double exportLocNum = 0;
         ret |= UbseJsonUtil::GetDoubleFromJsonPtr(BorrowItemInfoPtr, "exportLocNum", exportLocNum);
         tmp.exportLocNum = static_cast<uint16_t>(exportLocNum);
@@ -233,7 +233,7 @@ DsResult ReadBorrowItemInfo(const rapidjson::Value &InputAlarmNumaInfo, Allocato
         NodeLocInfo nodeLocInfo;
         for (int indexExportLocInfo = 0; indexExportLocInfo < tmp.exportLocNum; indexExportLocInfo++) {
             BorrowItem temp;
-            const rapidjson::Value &ExportLocInfoPtr = ExportLocInfo[indexExportLocInfo];
+            const rapidjson::Value& ExportLocInfoPtr = ExportLocInfo[indexExportLocInfo];
             int index = 0;
             nodeLocInfo.hostId = ExportLocInfoPtr[index++].GetString();
             nodeLocInfo.socketId = static_cast<int16_t>(ExportLocInfoPtr[index++].GetInt());
@@ -254,7 +254,7 @@ DsResult ReadBorrowItemInfo(const rapidjson::Value &InputAlarmNumaInfo, Allocato
     return DS_OK;
 }
 
-DsResult ReadInputAlarmNumaInfo(const rapidjson::Value &pstJson, Allocator &allocator, AlarmNumaInfo &alarmNumaInfo)
+DsResult ReadInputAlarmNumaInfo(const rapidjson::Value& pstJson, Allocator& allocator, AlarmNumaInfo& alarmNumaInfo)
 {
     if (!pstJson.IsObject()) {
         return DS_ERROR;
@@ -288,8 +288,8 @@ DsResult ReadInputAlarmNumaInfo(const rapidjson::Value &pstJson, Allocator &allo
     return DS_OK;
 }
 
-void AssignGlobalNumaLoc(const rapidjson::Value &GlobalNumaInfoPtr, Allocator &allocator,
-                         GlobalNumaInfo &globalNumaInfo)
+void AssignGlobalNumaLoc(const rapidjson::Value& GlobalNumaInfoPtr, Allocator& allocator,
+                         GlobalNumaInfo& globalNumaInfo)
 {
     DsResult ret = DS_OK;
     rapidjson::Value GlobalNumaLoc(rapidjson::kArrayType);
@@ -303,8 +303,8 @@ void AssignGlobalNumaLoc(const rapidjson::Value &GlobalNumaInfoPtr, Allocator &a
     EXPECT_EQ(ret, DS_OK);
 }
 
-void AssignGlobalNumaInfo(const rapidjson::Value &GlobalNumaInfoPtr, Allocator &allocator,
-                          GlobalNumaInfo &globalNumaInfo)
+void AssignGlobalNumaInfo(const rapidjson::Value& GlobalNumaInfoPtr, Allocator& allocator,
+                          GlobalNumaInfo& globalNumaInfo)
 {
     DsResult ret = DS_OK;
     globalNumaInfo.numaCpuCounts = 0;
@@ -328,8 +328,8 @@ void AssignGlobalNumaInfo(const rapidjson::Value &GlobalNumaInfoPtr, Allocator &
     EXPECT_EQ(ret, DS_OK);
 }
 
-DsResult ReadInputGlobalNumaInfoMap(const rapidjson::Value &pstJson, Allocator &allocator,
-                                    GlobalNumaInfoMap &globalNumaInfoMap)
+DsResult ReadInputGlobalNumaInfoMap(const rapidjson::Value& pstJson, Allocator& allocator,
+                                    GlobalNumaInfoMap& globalNumaInfoMap)
 {
     DsResult ret = DS_OK;
     if (!pstJson.IsObject()) {
@@ -341,7 +341,7 @@ DsResult ReadInputGlobalNumaInfoMap(const rapidjson::Value &pstJson, Allocator &
     ret |= UbseJsonUtil::GetArrayFromJsonPtr(strategyInput, "globalNumaInfoMap", allocator, GlobalNumaInfoMap);
     for (int indexGlobal = 0; indexGlobal < GlobalNumaInfoMap.Size(); indexGlobal++) {
         GlobalNumaInfo globalNumaInfo;
-        const rapidjson::Value &GlobalNumaInfoPtr = GlobalNumaInfoMap[indexGlobal].GetObject();
+        const rapidjson::Value& GlobalNumaInfoPtr = GlobalNumaInfoMap[indexGlobal].GetObject();
         // InputGlobalNumaInfoMapNumaLoc
         AssignGlobalNumaLoc(GlobalNumaInfoPtr, allocator, globalNumaInfo);
         // InputGlobalNumaInfo
@@ -361,7 +361,7 @@ DsResult ReadInputGlobalNumaInfoMap(const rapidjson::Value &pstJson, Allocator &
     return DS_OK;
 }
 
-DsResult ReadOutput(const rapidjson::Value &pstJson, Allocator &allocator, EscapeAction &escapeAction)
+DsResult ReadOutput(const rapidjson::Value& pstJson, Allocator& allocator, EscapeAction& escapeAction)
 {
     DsResult ret = DS_OK;
     rapidjson::Value strategyOutput(rapidjson::kObjectType);
@@ -388,9 +388,9 @@ DsResult ReadOutput(const rapidjson::Value &pstJson, Allocator &allocator, Escap
     return DS_OK;
 }
 
-DsResult CheckConf(StrategyConfig &strategyConf)
+DsResult CheckConf(StrategyConfig& strategyConf)
 {
-    auto &defaultStrategy = DefaultStrategy::GetInstance();
+    auto& defaultStrategy = DefaultStrategy::GetInstance();
     EXPECT_EQ(defaultStrategy.InitLogFunc(g_logFunc), DS_OK);
 
     // escape
@@ -414,7 +414,7 @@ DsResult CheckConf(StrategyConfig &strategyConf)
     return DS_OK;
 }
 
-DsResult ReadConf(const rapidjson::Value &pstJson, Allocator &allocator, StrategyConfig &vmStrategyConf)
+DsResult ReadConf(const rapidjson::Value& pstJson, Allocator& allocator, StrategyConfig& vmStrategyConf)
 {
     DsResult ret = DS_OK;
     rapidjson::Value strategyConf(rapidjson::kObjectType);
@@ -437,15 +437,15 @@ DsResult ReadConf(const rapidjson::Value &pstJson, Allocator &allocator, Strateg
     return DS_OK;
 }
 
-DsResult ReadJsonAndConf(std::string fileName, AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                         EscapeAction &escapeAction, StrategyConfig &vmStrategyConf)
+DsResult ReadJsonAndConf(std::string fileName, AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                         EscapeAction& escapeAction, StrategyConfig& vmStrategyConf)
 {
     std::string fileContent;
     EXPECT_EQ(ReadJsonFile(fileName, fileContent), DS_OK);
 
     rapidjson::Document pstJson;
     pstJson.Parse(fileContent.c_str());
-    auto &allocator = pstJson.GetAllocator();
+    auto& allocator = pstJson.GetAllocator();
 
     EXPECT_EQ(ReadInputAlarmNumaInfo(pstJson, allocator, alarmNumaInfo), DS_OK);
     EXPECT_EQ(ReadInputGlobalNumaInfoMap(pstJson, allocator, globalNumaInfoMap), DS_OK);
@@ -482,7 +482,7 @@ void EscapeStrategyUT(const std::string fileName)
 TEST_F(TestDefaultStrategy, VMEscapeStrategySetPerBorrowBoundTest1)
 {
     // DTS2024112531454
-    auto &defaultStrategy = DefaultStrategy::GetInstance();
+    auto& defaultStrategy = DefaultStrategy::GetInstance();
     EXPECT_EQ(defaultStrategy.InitLogFunc(g_logFunc), DS_OK);
     uint64_t newMaxMemPerBorrowBytes = static_cast<uint64_t>(1) << 30;
     uint64_t newMinMemPerBorrowBytes = static_cast<uint64_t>(4) << 30;
@@ -586,7 +586,7 @@ TEST_F(TestDefaultStrategy, VMEscapeStrategySmallSizeReturnTest)
 TEST_F(TestDefaultStrategy, VMEscapeStrategyConfParameter1Test)
 {
     // 初始化测试对象
-    auto &defaultStrategy = DefaultStrategy::GetInstance();
+    auto& defaultStrategy = DefaultStrategy::GetInstance();
     EXPECT_EQ(defaultStrategy.InitLogFunc(g_logFunc), DS_OK);
 
     // escape
@@ -631,7 +631,7 @@ TEST_F(TestDefaultStrategy, VMEscapeStrategyConfParameter1Test)
 
 void CheckRestOfWaterLine()
 {
-    auto &defaultStrategy = DefaultStrategy::GetInstance();
+    auto& defaultStrategy = DefaultStrategy::GetInstance();
     EXPECT_EQ(defaultStrategy.InitLogFunc(g_logFunc), DS_OK);
 
     float secondLine5 = 0.7;
@@ -677,7 +677,7 @@ void CheckRestOfWaterLine()
 
 TEST_F(TestDefaultStrategy, VMEscapeStrategySetWaterLinrCornerCaseTest1)
 {
-    auto &defaultStrategy = DefaultStrategy::GetInstance();
+    auto& defaultStrategy = DefaultStrategy::GetInstance();
     EXPECT_EQ(defaultStrategy.InitLogFunc(g_logFunc), DS_OK);
     float secondLine1 = 1;
     float firstLine1 = 0.5;

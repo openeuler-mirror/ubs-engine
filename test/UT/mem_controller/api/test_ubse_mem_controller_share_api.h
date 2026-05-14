@@ -17,13 +17,13 @@
 #include <mockcpp/mockcpp.hpp>
 #include "ubse_mem_controller_api.h"
 namespace ubse::mem_controller::share::ut {
-    class TestUbseMemControllerShareApi : public testing::Test {
-    public:
-        TestUbseMemControllerShareApi() = default;
+class TestUbseMemControllerShareApi : public testing::Test {
+public:
+    TestUbseMemControllerShareApi() = default;
 
-        void SetUp() override;
+    void SetUp() override;
 
-        void TearDown() override;
-    };
-}  // namespace ubse::mem_controller::ut
+    void TearDown() override;
+};
+} // namespace ubse::mem_controller::share::ut
 #endif // TEST_UBSE_MEM_CONTROLLER_SHARE_API_H

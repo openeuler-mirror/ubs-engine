@@ -55,8 +55,8 @@ TEST_F(TestOverCommitSerializerModule, PidNumaInfoCollectParam_Serialize_Succeed
 
 TEST_F(TestOverCommitSerializerModule, PidNumaInfoCollectResult_Serialize_Succeed)
 {
-    using mempooling::RmrsPidInfo;
     using mempooling::MetaNumaInfo;
+    using mempooling::RmrsPidInfo;
 
     std::vector<mempooling::RmrsPidInfo> pidInfoList;
 
@@ -93,8 +93,7 @@ TEST_F(TestOverCommitSerializerModule, PidNumaInfoCollectResult_Serialize_Succee
     outBuilder << param1;
 
     // ---------- Deserialize ----------
-    RmrsInStream inBuilder(outBuilder.GetBufferPointer(),
-                           outBuilder.GetSize());
+    RmrsInStream inBuilder(outBuilder.GetBufferPointer(), outBuilder.GetSize());
 
     PidNumaInfoCollectResult param2;
     inBuilder >> param2;
@@ -103,8 +102,8 @@ TEST_F(TestOverCommitSerializerModule, PidNumaInfoCollectResult_Serialize_Succee
     ASSERT_EQ(param1.pidInfoList.size(), param2.pidInfoList.size());
 
     for (size_t i = 0; i < param1.pidInfoList.size(); ++i) {
-        const auto &a = param1.pidInfoList[i];
-        const auto &b = param2.pidInfoList[i];
+        const auto& a = param1.pidInfoList[i];
+        const auto& b = param2.pidInfoList[i];
 
         EXPECT_EQ(a.pid, b.pid);
         EXPECT_EQ(a.localNumaIds, b.localNumaIds);
@@ -116,8 +115,8 @@ TEST_F(TestOverCommitSerializerModule, PidNumaInfoCollectResult_Serialize_Succee
         ASSERT_EQ(a.metaNumaInfos.size(), b.metaNumaInfos.size());
 
         for (size_t j = 0; j < a.metaNumaInfos.size(); ++j) {
-            const auto &ma = a.metaNumaInfos[j];
-            const auto &mb = b.metaNumaInfos[j];
+            const auto& ma = a.metaNumaInfos[j];
+            const auto& mb = b.metaNumaInfos[j];
 
             EXPECT_EQ(ma.numaId, mb.numaId);
             EXPECT_EQ(ma.numaUsedMem, mb.numaUsedMem);

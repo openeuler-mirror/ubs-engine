@@ -16,7 +16,7 @@
 #include <algorithm>
 
 namespace vm {
-void VectorUtil::RemoveCommonElements(std::vector<uint16_t> &sourceVector, std::vector<uint16_t> &elementsToRemove)
+void VectorUtil::RemoveCommonElements(std::vector<uint16_t>& sourceVector, std::vector<uint16_t>& elementsToRemove)
 {
     sourceVector.erase(std::remove_if(sourceVector.begin(), sourceVector.end(),
                                       [&elementsToRemove](uint16_t elem) {

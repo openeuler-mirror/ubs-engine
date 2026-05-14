@@ -44,7 +44,7 @@ typedef struct {
 typedef struct {
     time_t timestamp;
     vm_meta_data_t metadata;
-    vm_numa_info_t *numaInfo;
+    vm_numa_info_t* numaInfo;
     uint64_t numaInfoCount;
 } vm_domain_info_t;
 
@@ -54,7 +54,7 @@ typedef struct {
  * @param node_cnt  [OUT] number of numa nodes returned
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_list, uint32_t *node_cnt);
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t** node_list, uint32_t* node_cnt);
 
 /**
  * @brief  query vm memory fragmentation information
@@ -62,14 +62,14 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_l
  * @param vm_info_cnt  [OUT] number of vm domain information entries returned
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_info_list, uint32_t *vm_info_cnt);
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t** vm_info_list, uint32_t* vm_info_cnt);
 
 /**
  * @brief  set numa node anti-affinity configuration for memory fragmentation optimization
  * @param dict [IN] node anti-affinity dictionary, including node keys and their anti-affinity node lists
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary *dict);
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict);
 
 /**
  * @brief  calculate memory borrow strategy based on source memory fragmentation information
@@ -77,8 +77,8 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeA
  * @param borrow_strategy [OUT] calculated memory borrow strategy result
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param *src_param,
-                                                    borrow_strategy_c *borrow_strategy);
+virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param* src_param,
+                                                    borrow_strategy_c* borrow_strategy);
 
 /**
  * @brief Executes a memory borrowing operation based on the provided borrowing strategy.
@@ -95,7 +95,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_para
  *
  * @return 0 if successful, a non-zero error code otherwise.
  */
-virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borrow_setting, mem_borrow_result_c *result);
+virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c* borrow_setting, mem_borrow_result_c* result);
 
 /**
  * @brief  calculate memory migrate strategy based on memory fragmentation information
@@ -103,15 +103,15 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
  * @param strategy [OUT] calculated memory migrate strategy result
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam *srcParam,
-                                                     MemMigrateStrategy *strategy);
+virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam* srcParam,
+                                                     MemMigrateStrategy* strategy);
 
 /**
  * @brief  execute memory migrate operation based on calculated migrate strategy
  * @param srcParam [IN] source parameters for memory migrate execution
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam *srcParam);
+virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam* srcParam);
 
 /**
  * @brief Returns borrowed memory for a specified node.
@@ -125,7 +125,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
  *
  * @return VA_SUCCESS on success, error code otherwise.
  */
-virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len);
+virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char** task_id, uint32_t* task_id_len);
 
 /**
  * @brief Synchronously query async task status and result.
@@ -134,13 +134,13 @@ virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_
  * @param result      Output: task status, result code, error msg, serialized data
  * @return VM_OK on success, error code on failure
  */
-virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);
+virt_agent_ret_t ubs_virt_agent_sync_task_query(char* task_id, uint32_t task_id_len, async_task_info_c* result);
 
 /**
  * @brief  rollback borrowed memory for the specified node and borrow id list
  * @param srcParam  [IN] source parameters for memory rollback execution
  */
-virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);
+virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam);
 
 #ifdef __cplusplus
 }

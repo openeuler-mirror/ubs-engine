@@ -25,6 +25,6 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::mem_scheduler::ut
+} // namespace ubse::mem_scheduler::ut
 
 #endif // UBS_ENGINE_TEST_UBSE_MEM_STRATEGY_HELPER_H

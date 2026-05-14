@@ -90,7 +90,7 @@ StrategyParam GetDefaultParamMissingNuma()
 TEST_F(TestShareDecisionMaker, TestShareDecisionMaker)
 {
     // 初始化
-    MemPoolStrategy &strategy = MemPoolStrategy::GetInstance();
+    MemPoolStrategy& strategy = MemPoolStrategy::GetInstance();
     // 初始化
     auto param = GetDefaultParamMissingNuma();
     param.algoMode = AlgoMode::SELF_DEVELOPED;

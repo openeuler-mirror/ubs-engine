@@ -13,10 +13,9 @@
 #ifndef MEMPOOLING_NUMA_MEMINFO_SEND_H
 #define MEMPOOLING_NUMA_MEMINFO_SEND_H
 
-#include "over_commit_serializer.h"
-#include "mempooling_interface.h"
 #include "ubse_def.h"
-
+#include "mempooling_interface.h"
+#include "over_commit_serializer.h"
 
 namespace mempooling::over_commit {
 class NumaMemInfoSend {
@@ -32,7 +31,7 @@ public:
      * @param reqData 消息body体
      * @return
      */
-    MpResult CreateRequestData(UbseByteBuffer &reqData) const;
+    MpResult CreateRequestData(UbseByteBuffer& reqData) const;
 
     /**
      * 处理返回消息
@@ -40,7 +39,7 @@ public:
      * @param respData 返回消息体
      * @param resCode 接口调用结果
      */
-    static void RespHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+    static void RespHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
     std::string resJson_;
 
@@ -51,5 +50,5 @@ private:
 
     MpResult sendResult_{};
 };
-}
-#endif  // MEMPOOLING_NUMA_MEMINFO_SEND_H
+} // namespace mempooling::over_commit
+#endif // MEMPOOLING_NUMA_MEMINFO_SEND_H

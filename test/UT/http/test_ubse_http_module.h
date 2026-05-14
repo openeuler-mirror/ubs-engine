@@ -13,15 +13,15 @@
 #ifndef TEST_UBSE_HTTP_MODULE_H
 #define TEST_UBSE_HTTP_MODULE_H
 
-#include "gtest/gtest.h"
-#include "gmock/gmock.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_http_module.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::http {
 
 using namespace ubse::http;
-using UbseHttpHandler =  uint32_t (*)(const UbseHttpRequest &req, UbseHttpResponse &resp);
+using UbseHttpHandler = uint32_t (*)(const UbseHttpRequest& req, UbseHttpResponse& resp);
 
 class TestUbseHttpModule : public testing::Test {
 public:
@@ -37,5 +37,5 @@ protected:
     UbseHttpResponse response;
     UbseHttpHandlerFunc t_func;
 };
-}
+} // namespace ubse::ut::http
 #endif // TEST_UBSE_HTTP_MODULE_H

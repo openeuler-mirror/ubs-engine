@@ -22,32 +22,32 @@ namespace mempooling::over_commit {
 class OverCommitMsg {
 public:
     static MpResult GetVmNumaInfoMapRpc(std::string importNodeId,
-                                        std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
+                                        std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
                                         uint16_t remoteNumaId);
 
-    static MpResult GetVmNumaInfoMapLocal(std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
+    static MpResult GetVmNumaInfoMapLocal(std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
                                           uint16_t localNumaId);
 
-    static MpResult GetVmNumaInfoMapRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static MpResult GetVmNumaInfoMapRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-    static MpResult GetLocalNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList);
+    static MpResult GetLocalNumaVms(uint16_t remoteNumaId, std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList);
 
-    static void GetVmNumaInfoMapResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+    static void GetVmNumaInfoMapResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
-    static MpResult NumaMemInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static MpResult NumaMemInfoCollectRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-    static MpResult SyncBindTypeDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static MpResult SyncBindTypeDataRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-    static void SetResponse(ResponseInfoSimpo &response, const MpResult &retCode, const std::string &msg,
-                            UbseByteBuffer &resBuffer);
+    static void SetResponse(ResponseInfoSimpo& response, const MpResult& retCode, const std::string& msg,
+                            UbseByteBuffer& resBuffer);
 
-    inline static void DefaultFreeFunc(const uint8_t *data)
+    inline static void DefaultFreeFunc(const uint8_t* data)
     {
         delete[] data;
     }
 
 private:
-    static MpResult SyncDataToStandByNode(ResponseInfoSimpo& response, const UbseByteBuffer &req, UbseByteBuffer &resp,
+    static MpResult SyncDataToStandByNode(ResponseInfoSimpo& response, const UbseByteBuffer& req, UbseByteBuffer& resp,
                                           const std::string& currentNodeId);
 };
 

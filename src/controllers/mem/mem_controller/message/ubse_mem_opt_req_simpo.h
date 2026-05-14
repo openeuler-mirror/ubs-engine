@@ -23,20 +23,20 @@ using namespace ubse::mem::controller;
 class UbseMemOptReqSimpo : public UbseBaseMessage {
 public:
     UbseMemOptReqSimpo() = default;
-    explicit UbseMemOptReqSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemOptReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
 
-    void SetOptRequest(const std::string &inputName, const std::string &nodeId,
-                       const UbseMemBorrowType &inputBorrowType)
+    void SetOptRequest(const std::string& inputName, const std::string& nodeId,
+                       const UbseMemBorrowType& inputBorrowType)
     {
         name_ = inputName;
         importNodeId_ = nodeId;
         borrowType_ = inputBorrowType;
     }
 
-    const std::string &GetName()
+    const std::string& GetName()
     {
         return name_;
     }
@@ -46,7 +46,7 @@ public:
         return borrowType_;
     }
 
-    const std::string &GetImportNodeId()
+    const std::string& GetImportNodeId()
     {
         return importNodeId_;
     }

@@ -29,7 +29,7 @@ struct UbseNumaInfo {
     uint32_t exportSlotId;
     uint64_t size;
     ubse::mem::controller::UbseMemStage state;
-    bool Deserialize(ubse::serial::UbseDeSerialization &stream);
+    bool Deserialize(ubse::serial::UbseDeSerialization& stream);
     [[nodiscard]] std::string GetStringResult() const;
 };
 
@@ -40,20 +40,20 @@ struct UbseFdInfo {
     uint32_t exportSlotId;
     uint64_t size;
     ubse::mem::controller::UbseMemStage state;
-    bool Deserialize(ubse::serial::UbseDeSerialization &stream);
+    bool Deserialize(ubse::serial::UbseDeSerialization& stream);
     [[nodiscard]] std::string GetStringResult() const;
 };
 
 struct UbseCliMemOperationResp {
     std::string name{};
     std::string requestNodeId{}; // 发起去借用的节点ID
-    uint32_t errorCode{ 0 };     // 操作错误码
+    uint32_t errorCode{0};       // 操作错误码
     std::string errMsg{};        // 错误描述信息
     std::string realSize{};      // request size向上取整
     std::vector<uint64_t> memIdList{};
-    int64_t remoteNumaId{ -1 }; // 远端Numa在本地呈现的NumaId
+    int64_t remoteNumaId{-1}; // 远端Numa在本地呈现的NumaId
     uint64_t requestId{};
-    bool Deserialize(ubse::serial::UbseDeSerialization &stream);
+    bool Deserialize(ubse::serial::UbseDeSerialization& stream);
 };
 
 // 操作类型枚举
@@ -74,7 +74,7 @@ struct UbseMemShmInfo {
     ubse::mem::controller::UbseMemStage importState;
     std::vector<uint32_t> region;
 
-    bool Deserialize(ubse::serial::UbseDeSerialization &deserialization);
+    bool Deserialize(ubse::serial::UbseDeSerialization& deserialization);
 
     std::string GetStringResult(bool isAttach = false) const;
 };
@@ -88,17 +88,17 @@ struct UbseBorrowDetailInfo {
     std::string status{};
     std::string handle{};
     [[nodiscard]] static framework::UbseCliVariableCellInfo GetVariableCellInfo(
-        std::unordered_map<std::string, UbseBorrowDetailInfo> &node_borrow_detail,
-        std::unordered_map<std::string, std::string> &node_id_with_hostname);
+        std::unordered_map<std::string, UbseBorrowDetailInfo>& node_borrow_detail,
+        std::unordered_map<std::string, std::string>& node_id_with_hostname);
     [[nodiscard]] std::string GetBorrowNodeDisplay(
-        const std::unordered_map<std::string, std::string> &node_id_with_hostname) const;
+        const std::unordered_map<std::string, std::string>& node_id_with_hostname) const;
     [[nodiscard]] std::string GetLendNodeDisplay(
-        const std::unordered_map<std::string, std::string> &node_id_with_hostname) const;
+        const std::unordered_map<std::string, std::string>& node_id_with_hostname) const;
     [[nodiscard]] std::string GetStatusDisplay() const;
 };
 
 struct UbseShmAttachRecord {
-    bool hasAttached{ false };
+    bool hasAttached{false};
     UbseBorrowDetailInfo ubseOneBorrowDetailInfo{};
 };
 

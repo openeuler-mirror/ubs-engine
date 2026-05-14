@@ -32,6 +32,6 @@ private:
     ubse::election::ElectionReplyPkt electionReplyPkt;
     UbseElectionReplyPktSimpoPtr ubseElectionReplyPktSimpoPtr;
 };
-}
+} // namespace ubse::ut::election::message
 
 #endif // TEST_UBSE_ELECTION_REPLY_PKT_SIMPO_H

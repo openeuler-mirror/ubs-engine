@@ -11,12 +11,12 @@
  */
 
 #include "ubse_mem_controller_handler.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "request_helper.h"
-#include "request_id.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_mmi_interface.h"
+#include "message/ubse_mem_operation_resp_simpo.h"
+#include "request_helper.h"
+#include "request_id.h"
 
 namespace ubse::mem::controller::agent {
 using namespace ubse::mem_controller;
@@ -24,7 +24,7 @@ using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::context;
 using namespace ubse::mem::controller::message;
 UBSE_DEFINE_THIS_MODULE("ubse");
-UbseResult UbseMemOperationRespHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemOperationRespHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -44,7 +44,7 @@ UbseResult UbseMemOperationRespHandler::RegUbseMemOperationRespHandlerToServer()
         UBSE_LOG_ERROR << "new register UbseNodeDataInfoHandler";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseContext &ctx = UbseContext::GetInstance();
+    UbseContext& ctx = UbseContext::GetInstance();
     auto ubseComModule = ctx.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "get ubseComModule failed";

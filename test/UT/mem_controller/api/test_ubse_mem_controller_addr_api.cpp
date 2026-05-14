@@ -14,16 +14,16 @@
 #include <ubse_com_module.h>
 #include <ubse_error.h>
 #include <ubse_mem_scheduler.h>
-#include "debt/ubse_mem_debt_ledger.h"
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_election.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_msg.h"
+#include "debt/ubse_mem_debt_ledger.h"
+#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
+#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
+#include "message/ubse_mem_operation_resp_simpo.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 namespace ubse::mem_controller::addr::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::mem::controller::debt;
@@ -79,16 +79,16 @@ void BuildOperationMockSet()
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
 }
 // 创建并初始化UbseMemAddrBorrowExportObj对象，并将其添加到addrExportObjMap中
-void AddToExportObjMap(const std::string &name, const std::string &nodeId,
-                       UbseMemAddrBorrowExportObj &addrBorrowExportObj)
+void AddToExportObjMap(const std::string& name, const std::string& nodeId,
+                       UbseMemAddrBorrowExportObj& addrBorrowExportObj)
 {
     auto exportKey = mem::controller::GenerateExportObjKey(name, nodeId);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(nodeId, exportKey,
                                                                                           addrBorrowExportObj);
 }
 // 创建并初始化UbseMemAddrBorrowImportObj对象，并将其添加到addrImportObjMap中
-void AddToImportObjMap(const std::string &name, const std::string &nodeId,
-                       UbseMemAddrBorrowImportObj &addrBorrowImportObj)
+void AddToImportObjMap(const std::string& name, const std::string& nodeId,
+                       UbseMemAddrBorrowImportObj& addrBorrowImportObj)
 {
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(nodeId, name,
                                                                                           addrBorrowImportObj);
@@ -218,8 +218,8 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
 }
 
 // 辅助函数，设置公共的mock配置
-void ExportCallbackCommonSetup(election::UbseRoleInfo &currentInfo, election::UbseRoleInfo &masterInfo,
-                               std::shared_ptr<com::UbseComModule> &module)
+void ExportCallbackCommonSetup(election::UbseRoleInfo& currentInfo, election::UbseRoleInfo& masterInfo,
+                               std::shared_ptr<com::UbseComModule>& module)
 {
     // 当前节点为0号节点
     currentInfo.nodeId = NODE_TWO;
@@ -233,7 +233,7 @@ void ExportCallbackCommonSetup(election::UbseRoleInfo &currentInfo, election::Ub
 }
 
 // 成功场景
-void AgentExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
+void AgentExportCallbackMockSet(UbseMemAddrBorrowExportObj& exportObj)
 {
     election::UbseRoleInfo currentInfo{};
     election::UbseRoleInfo masterInfo{};
@@ -253,7 +253,7 @@ void AgentExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
 }
 
 // 错误场景
-void AgentExportCallbackMockErrorSet(UbseMemAddrBorrowExportObj &exportObj)
+void AgentExportCallbackMockErrorSet(UbseMemAddrBorrowExportObj& exportObj)
 {
     election::UbseRoleInfo currentInfo{};
     election::UbseRoleInfo masterInfo{};
@@ -377,7 +377,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportDestroyingAgentCallbackFailed)
     EXPECT_EQ(UBSE_OK, ret);
 }
 
-void MasterExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
+void MasterExportCallbackMockSet(UbseMemAddrBorrowExportObj& exportObj)
 {
     // 当前节点为1号节点
     election::UbseRoleInfo currentInfo{};
@@ -409,7 +409,7 @@ void MasterExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     exportObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
 }
-void MasterExportCallbackImportObjSet(const UbseMemAddrBorrowExportObj &exportObj)
+void MasterExportCallbackImportObjSet(const UbseMemAddrBorrowExportObj& exportObj)
 {
     UbseMemAddrBorrowImportObj importObj{};
     importObj.status.state = UBSE_MEM_EXPORT_RUNNING;
@@ -641,7 +641,7 @@ void AgentImportCallbackMockSetError()
     SendAddrImportObjMockSetError();
     BuildOperationMockSet();
 }
-void AgentImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
+void AgentImportCallbackImportObjSet(UbseMemAddrBorrowImportObj& importObj)
 {
     UbseMemAddrBorrowReq req{};
     req.name = "test";
@@ -757,7 +757,7 @@ void MasterImportCallbackMockSet()
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
                                                                                           exportKey, exportObj);
 }
-void MasterImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
+void MasterImportCallbackImportObjSet(UbseMemAddrBorrowImportObj& importObj)
 {
     AgentImportCallbackImportObjSet(importObj);
 }

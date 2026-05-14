@@ -11,12 +11,12 @@
 */
 
 #include "test_ubse_storage_req_handler.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_error.h"
 #include "ubse_storage_module.h"
 #include "ubse_storage_req_handler.h"
 #include "ubse_storage_req_simpo.h"
 #include "ubse_storage_resp_simpo.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::storage {
 using namespace ubse::message;
@@ -82,7 +82,7 @@ TEST_F(TestUbseStorageReqHandler, HandleReqConvertFailed)
 TEST_F(TestUbseStorageReqHandler, HandleStorageModuleNull)
 {
     UbseStorageReqHandler handler;
-    UbseStorageReq storageReq{ UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key" };
+    UbseStorageReq storageReq{UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key"};
     UbseBaseMessagePtr req = new (std::nothrow) UbseStorageReqSimpo(storageReq);
     UbseBaseMessagePtr rsp = new (std::nothrow) UbseStorageRespSimpo();
     std::shared_ptr<UbseStorageModule> nullModule = nullptr;
@@ -105,7 +105,7 @@ TEST_F(TestUbseStorageReqHandler, HandleStorageModuleNull)
 TEST_F(TestUbseStorageReqHandler, HandleRespConvertFailed)
 {
     UbseStorageReqHandler handler;
-    UbseStorageReq storageReq{ UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key" };
+    UbseStorageReq storageReq{UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key"};
     UbseBaseMessagePtr req = new (std::nothrow) UbseStorageReqSimpo(storageReq);
     UbseBaseMessagePtr rsp = nullptr;
     std::shared_ptr<UbseStorageModule> module = std::make_shared<UbseStorageModule>();
@@ -127,7 +127,7 @@ TEST_F(TestUbseStorageReqHandler, HandleRespConvertFailed)
 TEST_F(TestUbseStorageReqHandler, HandleUnknownCmdType)
 {
     UbseStorageReqHandler handler;
-    UbseStorageReq storageReq{ static_cast<UbseStorageReqCmdType>(3), DEFAULT_DB_NAME, "key" };
+    UbseStorageReq storageReq{static_cast<UbseStorageReqCmdType>(3), DEFAULT_DB_NAME, "key"};
     UbseBaseMessagePtr req = new (std::nothrow) UbseStorageReqSimpo(storageReq);
     UbseBaseMessagePtr rsp = new (std::nothrow) UbseStorageRespSimpo();
     std::shared_ptr<UbseStorageModule> module = std::make_shared<UbseStorageModule>();
@@ -150,7 +150,7 @@ TEST_F(TestUbseStorageReqHandler, HandleUnknownCmdType)
 TEST_F(TestUbseStorageReqHandler, HandleGetFailed)
 {
     UbseStorageReqHandler handler;
-    UbseStorageReq storageReq{ UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key" };
+    UbseStorageReq storageReq{UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key"};
     UbseBaseMessagePtr req = new (std::nothrow) UbseStorageReqSimpo(storageReq);
     UbseBaseMessagePtr rsp = new (std::nothrow) UbseStorageRespSimpo();
     std::shared_ptr<UbseStorageModule> module = std::make_shared<UbseStorageModule>();
@@ -174,7 +174,7 @@ TEST_F(TestUbseStorageReqHandler, HandleGetFailed)
 TEST_F(TestUbseStorageReqHandler, HandleGetSuccess)
 {
     UbseStorageReqHandler handler;
-    UbseStorageReq storageReq{ UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key" };
+    UbseStorageReq storageReq{UbseStorageReqCmdType::GET, DEFAULT_DB_NAME, "key"};
     UbseBaseMessagePtr req = new (std::nothrow) UbseStorageReqSimpo(storageReq);
     UbseBaseMessagePtr rsp = new (std::nothrow) UbseStorageRespSimpo();
     std::shared_ptr<UbseStorageModule> module = std::make_shared<UbseStorageModule>();

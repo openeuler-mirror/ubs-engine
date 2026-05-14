@@ -15,16 +15,16 @@
 #include <chrono>
 #include <ctime>
 #include <vector>
+#include "ubse_election.h"
+#include "ubse_error.h"
+#include "ubse_mem_controller.h"
+#include "ubse_node_controller.h"
 #include "mem_borrow_executor.h"
 #include "mem_json_def.h"
 #include "mem_manager.h"
 #include "mempool_migrate_module.h"
 #include "mp_default_struct.h"
 #include "rmrs_serialize.h"
-#include "ubse_election.h"
-#include "ubse_error.h"
-#include "ubse_mem_controller.h"
-#include "ubse_node_controller.h"
 
 namespace mempooling {
 using namespace ubse::nodeController;
@@ -54,18 +54,18 @@ MpResult MempoolBorrowModule::Init()
     return MEM_POOLING_OK;
 }
 
-void sortNumaMemInfo(NodeMemInfo &nodeMemInfo)
+void sortNumaMemInfo(NodeMemInfo& nodeMemInfo)
 {
     std::sort(nodeMemInfo.localnumaMemInfo.begin(), nodeMemInfo.localnumaMemInfo.end(),
-              [](const NumaMemInfo &a, const NumaMemInfo &b) { return a.borrowableMem > b.borrowableMem; });
+              [](const NumaMemInfo& a, const NumaMemInfo& b) { return a.borrowableMem > b.borrowableMem; });
 }
 
-MpResult GetBorrowedItemVec(const std::string nodeId, std::vector<RackMemNumaPair> &borrowedItemVec)
+MpResult GetBorrowedItemVec(const std::string nodeId, std::vector<RackMemNumaPair>& borrowedItemVec)
 {
     MpResult ret = MEM_POOLING_OK;
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
     UbseResult errorCode = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
-    for (auto &debtInfo : debtInfos) {
+    for (auto& debtInfo : debtInfos) {
         if (debtInfo.borrowNodeId == nodeId) {
             RackMemNumaPair rackMemNumaPair{debtInfo.lentNodeId, debtInfo.lentNumaIdList[0],
                                             debtInfo.lentNumaSizeList[0]};
@@ -75,8 +75,8 @@ MpResult GetBorrowedItemVec(const std::string nodeId, std::vector<RackMemNumaPai
     return ret;
 }
 
-bool compareNodeMemInfo(const std::string nodeId, const std::pair<std::string, NodeMemInfo> &a,
-                        const std::pair<std::string, NodeMemInfo> &b)
+bool compareNodeMemInfo(const std::string nodeId, const std::pair<std::string, NodeMemInfo>& a,
+                        const std::pair<std::string, NodeMemInfo>& b)
 {
     // 获取已经借用过的节点列表
     std::vector<RackMemNumaPair> borrowedItemVec;
@@ -90,7 +90,7 @@ bool compareNodeMemInfo(const std::string nodeId, const std::pair<std::string, N
     }
     // 将borrowedItem中的nodeId提取到unordered_set中，提高查找效率
     std::unordered_set<std::string> nodeIdSet;
-    for (const auto &pair : borrowedItemVec) {
+    for (const auto& pair : borrowedItemVec) {
         (void)nodeIdSet.insert(pair.nodeId);
     }
     // 优先考虑a.first是否在nodeIdSet中
@@ -104,9 +104,9 @@ bool compareNodeMemInfo(const std::string nodeId, const std::pair<std::string, N
     return a.second.totalBorrowableMem > b.second.totalBorrowableMem;
 }
 
-bool compareSocketMemInfo(const std::unordered_map<std::string, std::unordered_set<uint16_t>> &nodeIdToNumaIdSetMap,
-                          const std::vector<RackMemNumaPair> &borrowedItemVec, const SrcMemoryBorrowParam &srcParam,
-                          const std::pair<std::string, NodeMemInfo> &a, const std::pair<std::string, NodeMemInfo> &b)
+bool compareSocketMemInfo(const std::unordered_map<std::string, std::unordered_set<uint16_t>>& nodeIdToNumaIdSetMap,
+                          const std::vector<RackMemNumaPair>& borrowedItemVec, const SrcMemoryBorrowParam& srcParam,
+                          const std::pair<std::string, NodeMemInfo>& a, const std::pair<std::string, NodeMemInfo>& b)
 {
     // 优先从同平面的平面借用内存
     bool aSamePlane = MemManager::Instance().JudgeSampPlane(srcParam.srcNid, srcParam.srcSocketId, a.first,
@@ -119,7 +119,7 @@ bool compareSocketMemInfo(const std::unordered_map<std::string, std::unordered_s
     }
     // 将borrowedItem中的nodeId提取到unordered_set中，提高查找效率
     std::unordered_set<std::string> nodeIdSet;
-    for (const auto &pair : borrowedItemVec) {
+    for (const auto& pair : borrowedItemVec) {
         if (!MpConfiguration::GetInstance().GetMustSamePlane()) {
             (void)nodeIdSet.insert(pair.nodeId);
             continue;
@@ -138,9 +138,9 @@ bool compareSocketMemInfo(const std::unordered_map<std::string, std::unordered_s
         return false;
     }
     // 比较 localnumaMemInfo 中所有 borrowableMem 的和
-    auto sumBorrowableMem = [](const NodeMemInfo &info) {
+    auto sumBorrowableMem = [](const NodeMemInfo& info) {
         uint64_t sum = 0;
-        for (const auto &entry : info.localnumaMemInfo) {
+        for (const auto& entry : info.localnumaMemInfo) {
             sum += entry.borrowableMem;
         }
         return sum;
@@ -166,7 +166,7 @@ MpResult MempoolBorrowModule::ValidateBorrowSize(const uint64_t borrowSize)
 }
 
 // 检查借用内存的大小是否合法
-MpResult MempoolBorrowModule::ValidateSrcparam(const SrcMemoryBorrowParam &srcParam)
+MpResult MempoolBorrowModule::ValidateSrcparam(const SrcMemoryBorrowParam& srcParam)
 {
     std::map<std::string, std::map<int, uint16_t>> numaSocketMap;
     MpResult ret = MemManager::Instance().GenerateNumaSocketMap(numaSocketMap);
@@ -180,7 +180,7 @@ MpResult MempoolBorrowModule::ValidateSrcparam(const SrcMemoryBorrowParam &srcPa
             << "[MemBorrow][MemBorrowStrategy] The input source nodeId = " << srcParam.srcNid << " does not exist.";
         return MEM_POOLING_ERROR;
     }
-    const auto &innerMap = outerIt->second;
+    const auto& innerMap = outerIt->second;
     auto innerIt = innerMap.find(srcParam.srcNumaId);
     if (innerIt == innerMap.end()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -197,11 +197,11 @@ MpResult MempoolBorrowModule::ValidateSrcparam(const SrcMemoryBorrowParam &srcPa
     return MEM_POOLING_OK;
 }
 
-void MempoolBorrowModule::UpdateNodeMemInfoWithNuma(std::unordered_map<std::string, NodeMemInfo> &nodeMemMap)
+void MempoolBorrowModule::UpdateNodeMemInfoWithNuma(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap)
 {
-    for (auto &pair : nodeMemMap) {
+    for (auto& pair : nodeMemMap) {
         pair.second.totalBorrowableMem = 0;
-        for (auto &numaInfo : pair.second.localnumaMemInfo) {
+        for (auto& numaInfo : pair.second.localnumaMemInfo) {
 #ifdef UB_ENVIRONMENT
             numaInfo.borrowableMem = std::min(numaInfo.borrowableMem, numaInfo.vmMemFree);
             pair.second.totalBorrowableMem += numaInfo.borrowableMem;
@@ -214,9 +214,9 @@ void MempoolBorrowModule::UpdateNodeMemInfoWithNuma(std::unordered_map<std::stri
 }
 
 // 获取内存管理信息
-MpResult MempoolBorrowModule::GetMemoryInfo(std::unordered_map<std::string, NodeMemInfo> &nodeMemMap,
-                                            const SrcMemoryBorrowParam &srcParam,
-                                            std::vector<std::string> &antiNodeMemVec)
+MpResult MempoolBorrowModule::GetMemoryInfo(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
+                                            const SrcMemoryBorrowParam& srcParam,
+                                            std::vector<std::string>& antiNodeMemVec)
 {
     MpResult ret = MemManager::Instance().GetNodeMemMap(nodeMemMap);
     if (ret != 0) {
@@ -225,8 +225,8 @@ MpResult MempoolBorrowModule::GetMemoryInfo(std::unordered_map<std::string, Node
         return ret;
     }
     UpdateNodeMemInfoWithNuma(nodeMemMap);
-    for (auto &it : nodeMemMap) {
-        for (auto &ix : it.second.localnumaMemInfo) {
+    for (auto& it : nodeMemMap) {
+        for (auto& ix : it.second.localnumaMemInfo) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowStrategy] Node = " << it.first << ", Numa = " << ix.numaId
                 << " , BorrowableMem = " << ix.borrowableMem << ".";
@@ -243,24 +243,24 @@ MpResult MempoolBorrowModule::GetMemoryInfo(std::unordered_map<std::string, Node
 }
 
 void MempoolBorrowModule::FilterNodesBySocketProximity(
-    std::unordered_map<std::string, NodeMemInfo> &nodeMemMap, const std::vector<MemNodeData> &foundNodeData,
-    std::unordered_map<std::string, std::unordered_set<uint16_t>> &nodeIdToNumaIdSetMap)
+    std::unordered_map<std::string, NodeMemInfo>& nodeMemMap, const std::vector<MemNodeData>& foundNodeData,
+    std::unordered_map<std::string, std::unordered_set<uint16_t>>& nodeIdToNumaIdSetMap)
 {
     std::unordered_map<std::string, std::unordered_set<std::string>> nodeToSocketSet;
-    for (const auto &foundNode : foundNodeData) {
+    for (const auto& foundNode : foundNodeData) {
         (void)nodeToSocketSet[foundNode.nodeId].insert(foundNode.socket.socketId);
     }
     for (auto it = nodeMemMap.begin(); it != nodeMemMap.end();) {
-        const std::string &nodeId = it->first;
-        NodeMemInfo &nodeInfo = it->second;
+        const std::string& nodeId = it->first;
+        NodeMemInfo& nodeInfo = it->second;
         auto foundSocketIt = nodeToSocketSet.find(nodeId);
         if (foundSocketIt == nodeToSocketSet.end()) {
             it = nodeMemMap.erase(it);
             continue;
         }
-        std::unordered_set<std::string> &validSocketIds = foundSocketIt->second;
+        std::unordered_set<std::string>& validSocketIds = foundSocketIt->second;
         std::vector<NumaMemInfo> filteredNumaInfos;
-        for (const auto &numaInfo : nodeInfo.localnumaMemInfo) {
+        for (const auto& numaInfo : nodeInfo.localnumaMemInfo) {
             std::string socketIdStr = std::to_string(numaInfo.socketId);
             if (validSocketIds.count(socketIdStr) > 0) {
                 filteredNumaInfos.push_back(numaInfo);
@@ -273,23 +273,23 @@ void MempoolBorrowModule::FilterNodesBySocketProximity(
             ++it;
         }
     }
-    for (const auto &[nodeId, info] : nodeMemMap) {
+    for (const auto& [nodeId, info] : nodeMemMap) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowStrategy] NodeId=" << nodeId << ", filtered info: " << info.ToString();
-        for (const auto &numa : info.localnumaMemInfo) {
+        for (const auto& numa : info.localnumaMemInfo) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowStrategy] numaInfo:    " << numa.ToString();
         }
     }
-    for (const auto &foundNode : foundNodeData) {
-        auto &numaSet = nodeIdToNumaIdSetMap[foundNode.nodeId];
-        for (const auto &numa : foundNode.socket.numas) {
+    for (const auto& foundNode : foundNodeData) {
+        auto& numaSet = nodeIdToNumaIdSetMap[foundNode.nodeId];
+        for (const auto& numa : foundNode.socket.numas) {
             try {
                 uint16_t parsedNumaId = static_cast<uint16_t>(std::stoi(numa.numaId));
                 (void)numaSet.insert(parsedNumaId);
-            } catch (const std::invalid_argument &e) {
+            } catch (const std::invalid_argument& e) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "invalid argument=" << numa.numaId << ".";
-            } catch (const std::out_of_range &e) {
+            } catch (const std::out_of_range& e) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "numaId out of range, numaId=" << numa.numaId << ".";
             }
@@ -298,9 +298,9 @@ void MempoolBorrowModule::FilterNodesBySocketProximity(
 }
 
 // 过滤并排序节点
-void MempoolBorrowModule::FilterAndSortNodes(std::unordered_map<std::string, NodeMemInfo> &nodeMemMap,
-                                             std::string srcNid, const std::vector<std::string> &antiNodeMemVec,
-                                             std::vector<std::pair<std::string, NodeMemInfo>> &nodeVec)
+void MempoolBorrowModule::FilterAndSortNodes(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
+                                             std::string srcNid, const std::vector<std::string>& antiNodeMemVec,
+                                             std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec)
 {
     SrcMemoryBorrowParam param;
     param.srcNid = srcNid;
@@ -316,25 +316,25 @@ void MempoolBorrowModule::FilterAndSortNodes(std::unordered_map<std::string, Nod
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowStrategy] CollectBorrowRecords failed.";
     }
-    for (auto &record : borrowRecords) {
+    for (auto& record : borrowRecords) {
         nodeMemMap.erase(record.borrowNode);
     }
 
     nodeVec = std::vector<std::pair<std::string, NodeMemInfo>>(nodeMemMap.begin(), nodeMemMap.end());
-    for (auto &node : nodeVec) {
+    for (auto& node : nodeVec) {
         sortNumaMemInfo(node.second);
     }
     std::sort(nodeVec.begin(), nodeVec.end(),
-              [&srcNid](const std::pair<std::string, NodeMemInfo> &a, const std::pair<std::string, NodeMemInfo> &b) {
+              [&srcNid](const std::pair<std::string, NodeMemInfo>& a, const std::pair<std::string, NodeMemInfo>& b) {
                   return compareNodeMemInfo(srcNid, a, b);
               });
 }
 
-MpResult MempoolBorrowModule::FilterBorrowableNodes(const SrcMemoryBorrowParam &srcParam,
-                                                    const std::vector<std::string> &antiNodeMemVec,
-                                                    std::unordered_map<std::string, NodeMemInfo> &nodeMemMap)
+MpResult MempoolBorrowModule::FilterBorrowableNodes(const SrcMemoryBorrowParam& srcParam,
+                                                    const std::vector<std::string>& antiNodeMemVec,
+                                                    std::unordered_map<std::string, NodeMemInfo>& nodeMemMap)
 {
-    for (auto &node : antiNodeMemVec) {
+    for (auto& node : antiNodeMemVec) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowStrategy] antiNode = " << node;
         nodeMemMap.erase(node);
     }
@@ -344,12 +344,12 @@ MpResult MempoolBorrowModule::FilterBorrowableNodes(const SrcMemoryBorrowParam &
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowStrategy] GetBorrowableList failed.";
         return MEM_POOLING_ERROR;
     }
-    for (auto &borrowNode : couldBorrowNodeSet) {
+    for (auto& borrowNode : couldBorrowNodeSet) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowStrategy] borrowNode = " << borrowNode;
     }
     for (auto ix = nodeMemMap.begin(); ix != nodeMemMap.end();) {
-        const auto &nodeId = ix->first;
+        const auto& nodeId = ix->first;
         if (!couldBorrowNodeSet.count(nodeId)) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowStrategy] Node=" << nodeId << " is not in couldBorrowNodeSet, erase it.";
@@ -360,7 +360,7 @@ MpResult MempoolBorrowModule::FilterBorrowableNodes(const SrcMemoryBorrowParam &
     }
     std::unordered_map<std::string, BorrowItem> borrowCacheAll;
     MemReturnManager::Instance().QueryAll(borrowCacheAll);
-    for (auto &kv : borrowCacheAll) {
+    for (auto& kv : borrowCacheAll) {
         if (kv.second.srcNid == srcParam.srcNid &&
             MemManager::Instance().JudgeSampPlane(srcParam.srcNid, srcParam.srcSocketId, kv.second.dstNid,
                                                   kv.second.dstSocketId)) {
@@ -375,10 +375,10 @@ MpResult MempoolBorrowModule::FilterBorrowableNodes(const SrcMemoryBorrowParam &
 
 // 过滤并排序节点
 MpResult MempoolBorrowModule::FilterAndSortSockets(
-    std::unordered_map<std::string, NodeMemInfo> &nodeMemMap, const SrcMemoryBorrowParam &srcParam,
-    const std::vector<std::string> &antiNodeMemVec,
-    std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
-    std::vector<std::pair<std::string, NodeMemInfo>> &nodeVec)
+    std::unordered_map<std::string, NodeMemInfo>& nodeMemMap, const SrcMemoryBorrowParam& srcParam,
+    const std::vector<std::string>& antiNodeMemVec,
+    std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+    std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec)
 {
     auto ret = FilterBorrowableNodes(srcParam, antiNodeMemVec, nodeMemMap);
     if (ret != MEM_POOLING_OK) {
@@ -391,7 +391,7 @@ MpResult MempoolBorrowModule::FilterAndSortSockets(
             << "[MemBorrow][MemBorrowStrategy] CollectBorrowRecords failed.";
         return MEM_POOLING_ERROR;
     }
-    for (auto &record : borrowRecords) {
+    for (auto& record : borrowRecords) {
         nodeMemMap.erase(record.borrowNode);
     }
     std::string srcNidAndSocketId = srcParam.srcNid + "-" + std::to_string(srcParam.srcSocketId);
@@ -409,19 +409,19 @@ MpResult MempoolBorrowModule::FilterAndSortSockets(
     nodeVec = std::vector<std::pair<std::string, NodeMemInfo>>(nodeMemMap.begin(), nodeMemMap.end());
     if (!MpConfiguration::GetInstance().GetMustSamePlane()) {
         std::vector<std::pair<std::string, NodeMemInfo>> nodeVecSplit;
-        for (const auto &[nodeId, nodeInfo] : nodeVec) {
+        for (const auto& [nodeId, nodeInfo] : nodeVec) {
             // 临时按 socketId 分组
             std::unordered_map<uint16_t, NodeMemInfo> socketGroup;
-            for (const auto &numaInfo : nodeInfo.localnumaMemInfo) {
+            for (const auto& numaInfo : nodeInfo.localnumaMemInfo) {
                 socketGroup[numaInfo.socketId].localnumaMemInfo.push_back(numaInfo);
             }
-            for (auto &[socketId, newInfo] : socketGroup) {
+            for (auto& [socketId, newInfo] : socketGroup) {
                 (void)nodeVecSplit.emplace_back(nodeId, std::move(newInfo));
             }
         }
         nodeVec = std::move(nodeVecSplit);
     }
-    for (auto &node : nodeVec) {
+    for (auto& node : nodeVec) {
         sortNumaMemInfo(node.second);
     }
     NodeMemoryInfoWithReservedMem nodeMemoryInfoWithReservedMem{};
@@ -439,15 +439,15 @@ MpResult MempoolBorrowModule::FilterAndSortSockets(
         return MEM_POOLING_ERROR;
     }
     std::sort(nodeVec.begin(), nodeVec.end(),
-              [&nodeIdToNumaIdSetMap, &borrowedItemVec, &srcParam](const std::pair<std::string, NodeMemInfo> &a,
-                                                                   const std::pair<std::string, NodeMemInfo> &b) {
-        return compareSocketMemInfo(nodeIdToNumaIdSetMap, borrowedItemVec, srcParam, a, b);
-    });
+              [&nodeIdToNumaIdSetMap, &borrowedItemVec, &srcParam](const std::pair<std::string, NodeMemInfo>& a,
+                                                                   const std::pair<std::string, NodeMemInfo>& b) {
+                  return compareSocketMemInfo(nodeIdToNumaIdSetMap, borrowedItemVec, srcParam, a, b);
+              });
     // 打印nodeVec
-    for (const auto &[nodeId, info] : nodeVec) {
+    for (const auto& [nodeId, info] : nodeVec) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowStrategy] NodeId=" << nodeId << ", filtered info: " << info.ToString();
-        for (const auto &numa : info.localnumaMemInfo) {
+        for (const auto& numa : info.localnumaMemInfo) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowStrategy] numaInfo:    " << numa.ToString();
         }
@@ -456,16 +456,16 @@ MpResult MempoolBorrowModule::FilterAndSortSockets(
 }
 
 // 处理每个节点的借用内存
-MpResult MempoolBorrowModule::ProcessNodeMemBorrow(const std::pair<std::string, NodeMemInfo> &node,
-                                                   uint32_t &needBorrowNum,
-                                                   MemBorrowStrategyResult &borrowStrategyResult)
+MpResult MempoolBorrowModule::ProcessNodeMemBorrow(const std::pair<std::string, NodeMemInfo>& node,
+                                                   uint32_t& needBorrowNum,
+                                                   MemBorrowStrategyResult& borrowStrategyResult)
 {
     std::map<int, uint64_t> socket2CurLeftMemSizeMap;
     if (GetSocket2CurMemSizeMap(node.first, socket2CurLeftMemSizeMap) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
 
-    for (auto &numamemInfo : node.second.localnumaMemInfo) {
+    for (auto& numamemInfo : node.second.localnumaMemInfo) {
         DestMemoryBorrowParam tempParam;
         tempParam.destNid = node.first;
         MpResult ret = GetSocketInfo(tempParam, numamemInfo.numaId);
@@ -516,7 +516,7 @@ MpResult MempoolBorrowModule::ProcessNodeMemBorrow(const std::pair<std::string, 
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::GetNodeInfoByNodeId(const std::string &nodeId, UbseNodeInfo &nodeInfo)
+MpResult MempoolBorrowModule::GetNodeInfoByNodeId(const std::string& nodeId, UbseNodeInfo& nodeInfo)
 {
     const auto allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
     auto it = allNodeInfo.find(nodeId);
@@ -530,8 +530,8 @@ MpResult MempoolBorrowModule::GetNodeInfoByNodeId(const std::string &nodeId, Ubs
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::GetSocket2CurMemSizeMap(const std::string &nodeId,
-                                                      std::map<int, uint64_t> &socket2CurLeftMemSizeMap)
+MpResult MempoolBorrowModule::GetSocket2CurMemSizeMap(const std::string& nodeId,
+                                                      std::map<int, uint64_t>& socket2CurLeftMemSizeMap)
 {
     // 获取socketId与对应当前剩余可借出内存大小的map（内存大小单位：MB）
     std::map<int, uint64_t> socket2CurUsedMemCountMap;
@@ -549,7 +549,7 @@ MpResult MempoolBorrowModule::GetSocket2CurMemSizeMap(const std::string &nodeId,
     }
     // 节点socket对应的最大可借出mem块数量
     uint32_t exportTotalTimes = nodeInfo.exportTotalTimes;
-    for (const auto &[numaLocation, numaInfo] : nodeInfo.numaInfos) {
+    for (const auto& [numaLocation, numaInfo] : nodeInfo.numaInfos) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowStrategy] SocketId=" << numaInfo.socketId << ", numaId=" << numaLocation.numaId
             << ", nodeId=" << nodeId << ", exportTotalTimes=" << exportTotalTimes << ".";
@@ -565,7 +565,7 @@ MpResult MempoolBorrowModule::GetSocket2CurMemSizeMap(const std::string &nodeId,
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &record : borrowRecords) {
+    for (const auto& record : borrowRecords) {
         // 只获取借出本节点的memId
         if (record.lentNode != nodeId) {
             continue;
@@ -574,7 +574,7 @@ MpResult MempoolBorrowModule::GetSocket2CurMemSizeMap(const std::string &nodeId,
         socket2CurUsedMemCountMap[record.lentSocketId] += record.lentMemId.size();
     }
 
-    for (const auto &[socketId, curUsedMemCount] : socket2CurUsedMemCountMap) {
+    for (const auto& [socketId, curUsedMemCount] : socket2CurUsedMemCountMap) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowStrategy] SocketId=" << socketId << ", curUsedMemCount=" << curUsedMemCount << ".";
         // 总的可借出块设备数量不能小于当前借出块设备数量
@@ -595,7 +595,7 @@ MpResult MempoolBorrowModule::GetSocket2CurMemSizeMap(const std::string &nodeId,
 }
 
 // 获取Socket信息
-MpResult MempoolBorrowModule::GetSocketInfo(DestMemoryBorrowParam &tempParam, uint32_t numaId)
+MpResult MempoolBorrowModule::GetSocketInfo(DestMemoryBorrowParam& tempParam, uint32_t numaId)
 {
     uint16_t socketId = 0;
     MpResult ret = MemManager::Instance().GetSocketId(tempParam.destNid, numaId, socketId);
@@ -611,8 +611,8 @@ MpResult MempoolBorrowModule::GetSocketInfo(DestMemoryBorrowParam &tempParam, ui
 
 // 将内存参数添加到结果中
 void MempoolBorrowModule::AddMemoryParamsToResult(uint32_t haveFourGbNum, uint32_t moreBorrowNum,
-                                                  DestMemoryBorrowParam &tempParam,
-                                                  MemBorrowStrategyResult &borrowStrategyResult)
+                                                  DestMemoryBorrowParam& tempParam,
+                                                  MemBorrowStrategyResult& borrowStrategyResult)
 {
     for (uint32_t i = 0; i < haveFourGbNum; i++) {
         DestMemoryBorrowParam tempParamPush = {
@@ -630,7 +630,7 @@ void MempoolBorrowModule::AddMemoryParamsToResult(uint32_t haveFourGbNum, uint32
     }
 }
 
-MpResult MempoolBorrowModule::SafeUint64To32(uint32_t &targetNum, uint64_t tmp)
+MpResult MempoolBorrowModule::SafeUint64To32(uint32_t& targetNum, uint64_t tmp)
 {
     if (tmp > std::numeric_limits<uint32_t>::max()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowStrategy] Param overflow.";
@@ -643,7 +643,7 @@ MpResult MempoolBorrowModule::SafeUint64To32(uint32_t &targetNum, uint64_t tmp)
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::GetAndSetBlockSize(const std::string &nodeId)
+MpResult MempoolBorrowModule::GetAndSetBlockSize(const std::string& nodeId)
 {
     const auto allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
     auto it = allNodeInfo.find(nodeId);
@@ -660,8 +660,8 @@ MpResult MempoolBorrowModule::GetAndSetBlockSize(const std::string &nodeId)
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::MemBorrowStrategy(const SrcMemoryBorrowParam &srcParam, const uint64_t borrowSize,
-                                                MemBorrowStrategyResult &borrowStrategyResult)
+MpResult MempoolBorrowModule::MemBorrowStrategy(const SrcMemoryBorrowParam& srcParam, const uint64_t borrowSize,
+                                                MemBorrowStrategyResult& borrowStrategyResult)
 {
     LOG_DEBUG << "[MemBorrow][MemBorrowStrategy] Start to invoke borrow strategy, input SrcMemoryBorrowParam = "
               << srcParam.ToString() << ".";
@@ -705,7 +705,7 @@ MpResult MempoolBorrowModule::MemBorrowStrategy(const SrcMemoryBorrowParam &srcP
         return MEM_POOLING_ERROR;
     }
 
-    for (auto &node : nodeVec) {
+    for (auto& node : nodeVec) {
         if (needBorrowNum <= 0)
             break;
         if (node.first == srcParam.srcNid)
@@ -753,19 +753,19 @@ struct MultiBorrowStrategyParam {
     };
     std::vector<Node> nodeList;
     std::vector<uint64_t> need;
-    std::vector<Numa *> recordList;
+    std::vector<Numa*> recordList;
     bool succeed{false};
     bool byNodeFault;
 };
 
-static void MultiBorrowDfs(MultiBorrowStrategyParam &param, unsigned int pos, MemBorrowStrategyMultiResult &result);
+static void MultiBorrowDfs(MultiBorrowStrategyParam& param, unsigned int pos, MemBorrowStrategyMultiResult& result);
 
-static void TryAssignWithPredicate(MultiBorrowStrategyParam &param, unsigned int pos,
-                                   MemBorrowStrategyMultiResult &result,
-                                   const std::function<bool(const MultiBorrowStrategyParam::Numa &)> &pred)
+static void TryAssignWithPredicate(MultiBorrowStrategyParam& param, unsigned int pos,
+                                   MemBorrowStrategyMultiResult& result,
+                                   const std::function<bool(const MultiBorrowStrategyParam::Numa&)>& pred)
 {
-    for (auto &node : param.nodeList) {
-        for (auto &numa : node.numaList) {
+    for (auto& node : param.nodeList) {
+        for (auto& numa : node.numaList) {
             if (!pred(numa)) {
                 continue;
             }
@@ -789,7 +789,7 @@ static void TryAssignWithPredicate(MultiBorrowStrategyParam &param, unsigned int
     }
 }
 
-static void MultiBorrowDfs(MultiBorrowStrategyParam &param, unsigned int pos, MemBorrowStrategyMultiResult &result)
+static void MultiBorrowDfs(MultiBorrowStrategyParam& param, unsigned int pos, MemBorrowStrategyMultiResult& result)
 {
     if (param.succeed) {
         return;
@@ -818,21 +818,21 @@ static void MultiBorrowDfs(MultiBorrowStrategyParam &param, unsigned int pos, Me
         return;
     }
 
-    TryAssignWithPredicate(param, pos, result, [](const MultiBorrowStrategyParam::Numa &n) { return n.isSamePlane; });
+    TryAssignWithPredicate(param, pos, result, [](const MultiBorrowStrategyParam::Numa& n) { return n.isSamePlane; });
 
     if (param.succeed) {
         return;
     }
 
-    TryAssignWithPredicate(param, pos, result, [](const MultiBorrowStrategyParam::Numa &n) { return !n.isSamePlane; });
+    TryAssignWithPredicate(param, pos, result, [](const MultiBorrowStrategyParam::Numa& n) { return !n.isSamePlane; });
     return;
 }
 
-static void GetMemBorrowStrategyMultipleParam(const SrcMemoryBorrowParam &srcParam, MultiBorrowStrategyParam &param,
-                                              std::string &destPreNid, uint16_t socketId,
-                                              std::unordered_map<std::string, NodeMemInfo> &nodeMemMap)
+static void GetMemBorrowStrategyMultipleParam(const SrcMemoryBorrowParam& srcParam, MultiBorrowStrategyParam& param,
+                                              std::string& destPreNid, uint16_t socketId,
+                                              std::unordered_map<std::string, NodeMemInfo>& nodeMemMap)
 {
-    for (auto &pair : nodeMemMap) {
+    for (auto& pair : nodeMemMap) {
         unsigned int pos = 0;
         if (pair.first == srcParam.srcNid || (pair.first == destPreNid && param.byNodeFault)) {
             continue;
@@ -844,7 +844,7 @@ static void GetMemBorrowStrategyMultipleParam(const SrcMemoryBorrowParam &srcPar
             (void)param.nodeList.emplace_back(pair.first, pair.second.totalBorrowableMem);
             pos = param.nodeList.size() - 1;
         }
-        for (auto &numa : pair.second.localnumaMemInfo) {
+        for (auto& numa : pair.second.localnumaMemInfo) {
             // 只有同一平面的才可以借
             std::vector<MultiBorrowStrategyParam::Numa> tmp;
             if (MemManager::Instance().JudgeSampPlane(pair.first, numa.socketId, srcParam.srcNid,
@@ -864,19 +864,19 @@ static void GetMemBorrowStrategyMultipleParam(const SrcMemoryBorrowParam &srcPar
             continue;
         }
         sort(param.nodeList[pos].numaList.begin(), param.nodeList[pos].numaList.end(),
-             [](const MultiBorrowStrategyParam::Numa &x, const MultiBorrowStrategyParam::Numa &y) -> bool {
+             [](const MultiBorrowStrategyParam::Numa& x, const MultiBorrowStrategyParam::Numa& y) -> bool {
                  return x.freeMem > y.freeMem;
              });
     }
     return;
 }
 
-MpResult MempoolBorrowModule::MemBorrowStrategyMultipleUB(const SrcMemoryBorrowParam &srcParam,
-                                                          const std::vector<uint64_t> &borrowSizes,
-                                                          std::string &destPreNid, uint16_t socketId,
-                                                          MemBorrowStrategyMultiResult &borrowStrategyResult)
+MpResult MempoolBorrowModule::MemBorrowStrategyMultipleUB(const SrcMemoryBorrowParam& srcParam,
+                                                          const std::vector<uint64_t>& borrowSizes,
+                                                          std::string& destPreNid, uint16_t socketId,
+                                                          MemBorrowStrategyMultiResult& borrowStrategyResult)
 {
-    for (const auto &item : borrowSizes) {
+    for (const auto& item : borrowSizes) {
         if (ValidateBorrowSize(item) != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowStrategy] Input size invalid " << item << ".";
@@ -892,12 +892,12 @@ MpResult MempoolBorrowModule::MemBorrowStrategyMultipleUB(const SrcMemoryBorrowP
     }
     std::vector<std::pair<std::string, NodeMemInfo>> nodeVec;
     FilterAndSortNodes(nodeMemMap, srcParam.srcNid, antiNodeMemVec, nodeVec);
-    for (auto &pair : nodeMemMap) {
+    for (auto& pair : nodeMemMap) {
         pair.second.totalReservedMem /= KB_TO_BYTES;
         pair.second.totalBorrowableMem /= KB_TO_BYTES;
         pair.second.totalLentMem /= KB_TO_BYTES;
         pair.second.totalBorrowedMem /= KB_TO_BYTES;
-        for (auto &numa : pair.second.localnumaMemInfo) {
+        for (auto& numa : pair.second.localnumaMemInfo) {
             numa.reservedMem /= KB_TO_BYTES;
             numa.lentMem /= KB_TO_BYTES;
             numa.borrowableMem /= KB_TO_BYTES;
@@ -915,13 +915,13 @@ MpResult MempoolBorrowModule::MemBorrowStrategyMultipleUB(const SrcMemoryBorrowP
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::MemBorrowStrategyMultiple(const SrcMemoryBorrowParam &srcParam,
-                                                        const std::vector<uint64_t> &borrowSizes,
-                                                        std::string &destPreNid,
-                                                        MemBorrowStrategyMultiResult &borrowStrategyResult)
+MpResult MempoolBorrowModule::MemBorrowStrategyMultiple(const SrcMemoryBorrowParam& srcParam,
+                                                        const std::vector<uint64_t>& borrowSizes,
+                                                        std::string& destPreNid,
+                                                        MemBorrowStrategyMultiResult& borrowStrategyResult)
 {
     MpResult ret = MEM_POOLING_OK;
-    for (const auto &item : borrowSizes) {
+    for (const auto& item : borrowSizes) {
         ret = ValidateBorrowSize(item);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -938,12 +938,12 @@ MpResult MempoolBorrowModule::MemBorrowStrategyMultiple(const SrcMemoryBorrowPar
     }
     std::vector<std::pair<std::string, NodeMemInfo>> nodeVec;
     FilterAndSortNodes(nodeMemMap, srcParam.srcNid, antiNodeMemVec, nodeVec);
-    for (auto &pair : nodeMemMap) {
+    for (auto& pair : nodeMemMap) {
         pair.second.totalReservedMem /= KB_TO_BYTES;
         pair.second.totalBorrowableMem /= KB_TO_BYTES;
         pair.second.totalLentMem /= KB_TO_BYTES;
         pair.second.totalBorrowedMem /= KB_TO_BYTES;
-        for (auto &numa : pair.second.localnumaMemInfo) {
+        for (auto& numa : pair.second.localnumaMemInfo) {
             numa.reservedMem /= KB_TO_BYTES;
             numa.lentMem /= KB_TO_BYTES;
             numa.borrowableMem /= KB_TO_BYTES;
@@ -998,7 +998,7 @@ MpResult MempoolBorrowModule::MemFree(std::string nodeId)
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::MemBorrowFailedRollback(const MemBorrowExecuteResult &borrowExecuteResult)
+MpResult MempoolBorrowModule::MemBorrowFailedRollback(const MemBorrowExecuteResult& borrowExecuteResult)
 {
     MpResult ret = MEM_POOLING_ERROR;
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1014,9 +1014,9 @@ MpResult MempoolBorrowModule::MemBorrowFailedRollback(const MemBorrowExecuteResu
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::ValidateBorrowExecuteParam(const DestMemoryBorrowParam &destParam, MemMallocAttr &memAttr,
-                                                         const MemBorrowExecuteResult &borrowExecuteResult,
-                                                         uint64_t &totalSize)
+MpResult MempoolBorrowModule::ValidateBorrowExecuteParam(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
+                                                         const MemBorrowExecuteResult& borrowExecuteResult,
+                                                         uint64_t& totalSize)
 {
     if (GetAndSetBlockSize(destParam.destNid) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
@@ -1066,8 +1066,8 @@ MpResult MempoolBorrowModule::ValidateBorrowExecuteParam(const DestMemoryBorrowP
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::ValidateBorrowParamSamePlane(const SrcMemoryBorrowParam &srcParam,
-                                                           const std::vector<DestMemoryBorrowParam> &destParams)
+MpResult MempoolBorrowModule::ValidateBorrowParamSamePlane(const SrcMemoryBorrowParam& srcParam,
+                                                           const std::vector<DestMemoryBorrowParam>& destParams)
 {
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     MpResult ret = UbseMemGetTopologyInfo(nodeTopology);
@@ -1083,10 +1083,10 @@ MpResult MempoolBorrowModule::ValidateBorrowParamSamePlane(const SrcMemoryBorrow
         return MEM_POOLING_ERROR;
     }
     std::vector<MemNodeData> foundNodeData = it->second;
-    for (const auto &destParam : destParams) {
+    for (const auto& destParam : destParams) {
         // 查看destParam.destSocketId是否在foundNodeData中
         std::string socketIdStr = std::to_string(destParam.destSocketId);
-        auto it = std::find_if(foundNodeData.begin(), foundNodeData.end(), [&socketIdStr](const MemNodeData &nodeData) {
+        auto it = std::find_if(foundNodeData.begin(), foundNodeData.end(), [&socketIdStr](const MemNodeData& nodeData) {
             return nodeData.socket.socketId == socketIdStr;
         });
         if (it == foundNodeData.end()) {
@@ -1099,8 +1099,8 @@ MpResult MempoolBorrowModule::ValidateBorrowParamSamePlane(const SrcMemoryBorrow
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::ValidateDestNids(const SrcMemoryBorrowParam &srcParam,
-                                               const std::vector<DestMemoryBorrowParam> &destParams)
+MpResult MempoolBorrowModule::ValidateDestNids(const SrcMemoryBorrowParam& srcParam,
+                                               const std::vector<DestMemoryBorrowParam>& destParams)
 {
     std::unordered_set<std::string> couldBorrowNodeSet;
     auto ret = MpParseGroupProviderConf::Instance().GetBorrowableList(srcParam.srcNid, couldBorrowNodeSet);
@@ -1108,7 +1108,7 @@ MpResult MempoolBorrowModule::ValidateDestNids(const SrcMemoryBorrowParam &srcPa
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] GetBorrowableList failed.";
         return MEM_POOLING_ERROR;
     }
-    for (auto &destParam : destParams) {
+    for (auto& destParam : destParams) {
         if (couldBorrowNodeSet.find(destParam.destNid) == couldBorrowNodeSet.end()) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] destNid=" << destParam.destNid
@@ -1132,9 +1132,9 @@ MpResult MempoolBorrowModule::ValidateDestNids(const SrcMemoryBorrowParam &srcPa
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam &srcParam,
-                                               const std::vector<DestMemoryBorrowParam> &destParams,
-                                               MemBorrowExecuteResult &borrowExecuteResult)
+MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam& srcParam,
+                                               const std::vector<DestMemoryBorrowParam>& destParams,
+                                               MemBorrowExecuteResult& borrowExecuteResult)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] MemBorrowExecute start.";
 
@@ -1154,7 +1154,7 @@ MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam &srcPa
     if (ret != MEM_POOLING_OK) {
         return ret;
     }
-    for (const auto &destParam : destParams) {
+    for (const auto& destParam : destParams) {
         ret = ExecuteSingleBorrow(destParam, srcParam, borrowExecuteResult);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1171,7 +1171,7 @@ MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam &srcPa
             << "[MemBorrow][MemBorrowExecute] GetBorrowIdsCompletedList failed.";
     }
 
-    for (const auto &borrowId : borrowIdsCompletedList) {
+    for (const auto& borrowId : borrowIdsCompletedList) {
         ret = BorrowIdsCompleted::Instance().Remove(borrowId);
         if (ret != MEM_POOLING_OK) {
             // 可靠性保障，如果失败，不影响主功能
@@ -1185,9 +1185,9 @@ MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam &srcPa
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::ExecuteSingleBorrow(const DestMemoryBorrowParam &destParam,
-                                                  const SrcMemoryBorrowParam &srcParam,
-                                                  MemBorrowExecuteResult &borrowExecuteResult)
+MpResult MempoolBorrowModule::ExecuteSingleBorrow(const DestMemoryBorrowParam& destParam,
+                                                  const SrcMemoryBorrowParam& srcParam,
+                                                  MemBorrowExecuteResult& borrowExecuteResult)
 {
     if (destParam.destNumaId.size() != destParam.memSize.size()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] The size of destNumaId "
@@ -1240,16 +1240,16 @@ MpResult MempoolBorrowModule::ExecuteSingleBorrow(const DestMemoryBorrowParam &d
     return MEM_POOLING_OK;
 }
 
-std::vector<std::string> GenerateBorrowCandidateList(const SrcMemoryBorrowParam &srcParam)
+std::vector<std::string> GenerateBorrowCandidateList(const SrcMemoryBorrowParam& srcParam)
 {
     std::unordered_map<std::string, BorrowItem> timeoutNodeInfo;
     std::unordered_set<std::string> candidateNodeSet;
     MemReturnManager::Instance().QueryAll(timeoutNodeInfo);
     auto allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &[nodeId, _] : allNodeInfo) {
+    for (const auto& [nodeId, _] : allNodeInfo) {
         (void)candidateNodeSet.insert(nodeId);
     }
-    for (const auto &[_, failItem] : timeoutNodeInfo) {
+    for (const auto& [_, failItem] : timeoutNodeInfo) {
         if (failItem.srcNid == srcParam.srcNid &&
             (srcParam.srcSocketId == -1 ||
              MemManager::Instance().JudgeSampPlane(srcParam.srcNid, srcParam.srcSocketId, failItem.dstNid,
@@ -1262,10 +1262,9 @@ std::vector<std::string> GenerateBorrowCandidateList(const SrcMemoryBorrowParam 
     return std::vector<std::string>(candidateNodeSet.begin(), candidateNodeSet.end());
 }
 
-MpResult MempoolBorrowModule::ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam &srcParam,
-                                                              const UbseMemNumaCandidateOpt &opt,
-                                                              const bool &isFault,
-                                                              UbseMemNumaDesc &desc)
+MpResult MempoolBorrowModule::ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                              const UbseMemNumaCandidateOpt& opt, const bool& isFault,
+                                                              UbseMemNumaDesc& desc)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "ProcessSingleBorrowInOverCommit start.";
     std::string name;
@@ -1298,10 +1297,10 @@ MpResult MempoolBorrowModule::ProcessSingleBorrowInOverCommit(const SrcMemoryBor
     return MEM_POOLING_OK;
 }
 
-MpResult MempoolBorrowModule::MemBorrowExecuteInOverCommit(const SrcMemoryBorrowParam &srcParam,
-                                                           const std::vector<uint64_t> &borrowSizes,
-                                                           const WaterMark &waterMark,
-                                                           MemBorrowExecuteResult &borrowExecuteResult,
+MpResult MempoolBorrowModule::MemBorrowExecuteInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                           const std::vector<uint64_t>& borrowSizes,
+                                                           const WaterMark& waterMark,
+                                                           MemBorrowExecuteResult& borrowExecuteResult,
                                                            const bool isFault)
 {
     if (borrowSizes.empty()) {
@@ -1312,7 +1311,7 @@ MpResult MempoolBorrowModule::MemBorrowExecuteInOverCommit(const SrcMemoryBorrow
     std::vector<uint64_t> sortedSizes(borrowSizes.begin(), borrowSizes.end());
     std::sort(sortedSizes.begin(), sortedSizes.end(), [](uint64_t a, uint64_t b) { return a > b; });
     std::vector<std::string> candidateNodeList = GenerateBorrowCandidateList(srcParam);
-    for (const auto &borrowSize : sortedSizes) {
+    for (const auto& borrowSize : sortedSizes) {
         UbseMemNumaDesc desc;
         UbseMemNumaCandidateOpt opt;
         opt.slotIds = candidateNodeList;
@@ -1360,7 +1359,7 @@ MpResult MempoolBorrowModule::MemBackExecute(std::string nodeId, uint16_t numaId
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] Get borrowId by numaId failed.";
         return MEM_POOLING_ERROR;
     }
-    for (auto &name : namesOfRemoteNuma) {
+    for (auto& name : namesOfRemoteNuma) {
         ret = MemBorrowExecutor::Instance().MemFree(name);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1372,8 +1371,8 @@ MpResult MempoolBorrowModule::MemBackExecute(std::string nodeId, uint16_t numaId
 }
 
 // 从节点调用函数
-uint32_t MigrateStrategyRecvHandler(const turbo::rmrs::MigrateStrategyParam &migrateStrategyParam,
-                                    turbo::rmrs::MigrateStrategyResult &migrateStrategyResult)
+uint32_t MigrateStrategyRecvHandler(const turbo::rmrs::MigrateStrategyParam& migrateStrategyParam,
+                                    turbo::rmrs::MigrateStrategyResult& migrateStrategyResult)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][Strategy] IPC message sent started.";
 
@@ -1407,9 +1406,9 @@ uint32_t MigrateStrategyRecvHandler(const turbo::rmrs::MigrateStrategyParam &mig
 }
 
 // 获取 numaInfoMap 所有numa节点的索引对应的NUMA信息(numaID 大页总数量 大页空闲数量 是否本地 是否远端)
-void DistributeNumaMemInfo(std::vector<mempooling::exportV2::NumaInfo> &numaInfos,
-                           std::map<uint16_t, NumaHugePageInfo> &numaInfoMap,
-                           std::vector<NumaHugePageInfo> &numaHugePageInfoSumList)
+void DistributeNumaMemInfo(std::vector<mempooling::exportV2::NumaInfo>& numaInfos,
+                           std::map<uint16_t, NumaHugePageInfo>& numaInfoMap,
+                           std::vector<NumaHugePageInfo>& numaHugePageInfoSumList)
 {
     for (mempooling::exportV2::NumaInfo numaInfo : numaInfos) {
         NumaHugePageInfo info;
@@ -1431,7 +1430,7 @@ void DistributeNumaMemInfo(std::vector<mempooling::exportV2::NumaInfo> &numaInfo
 }
 
 // 获取远端numaID数组remoteNumaIdList
-void GetRemoteNumaList(std::vector<NumaHugePageInfo> &numaHugePageInfoSumList, std::vector<uint16_t> &remoteNumaIdList)
+void GetRemoteNumaList(std::vector<NumaHugePageInfo>& numaHugePageInfoSumList, std::vector<uint16_t>& remoteNumaIdList)
 {
     for (NumaHugePageInfo info : numaHugePageInfoSumList) {
         if (info.isLocal == false) {
@@ -1443,8 +1442,8 @@ void GetRemoteNumaList(std::vector<NumaHugePageInfo> &numaHugePageInfoSumList, s
 }
 
 // 打印查询虚拟机信息
-void GetLocalVmInfo(std::vector<VmNumaInfoBrr> &allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr> &VmNumaInfoMap,
-                    std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos)
+void GetLocalVmInfo(std::vector<VmNumaInfoBrr>& allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr>& VmNumaInfoMap,
+                    std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
 {
     LOG_DEBUG << "[MemMigrate][Strategy] Enter GetLocalVmInfo.";
 
@@ -1456,7 +1455,7 @@ void GetLocalVmInfo(std::vector<VmNumaInfoBrr> &allVmNumaInfoInfoList, std::map<
     for (mempooling::exportV2::VmDomainInfo vmDomainInfo : vmDomainInfos) {
         VmNumaInfoBrr info;
         info.pid = vmDomainInfo.metaData.pid;
-        for (const auto &[_, numaInfo] : vmDomainInfo.numaInfo) {
+        for (const auto& [_, numaInfo] : vmDomainInfo.numaInfo) {
             if (numaInfo.isLocal) {
                 // 本地 NUMA
                 info.localNumaId = numaInfo.numaId;
@@ -1479,9 +1478,9 @@ void GetLocalVmInfo(std::vector<VmNumaInfoBrr> &allVmNumaInfoInfoList, std::map<
 }
 
 // 获取NUMA数据
-uint32_t GetNumaData(std::vector<mempooling::exportV2::NumaInfo> &numaInfos, std::vector<uint16_t> &remoteNumaIdList,
-                     std::map<uint16_t, NumaHugePageInfo> &numaInfoMap,
-                     std::vector<NumaHugePageInfo> &numaHugePageInfoSumList)
+uint32_t GetNumaData(std::vector<mempooling::exportV2::NumaInfo>& numaInfos, std::vector<uint16_t>& remoteNumaIdList,
+                     std::map<uint16_t, NumaHugePageInfo>& numaInfoMap,
+                     std::vector<NumaHugePageInfo>& numaHugePageInfoSumList)
 {
     // 采集当前从节点numa信息
     uint32_t queryNumaRes = mempooling::exportV2::Exporter::GetNumaInfoImmediately(numaInfos);
@@ -1502,8 +1501,8 @@ uint32_t GetNumaData(std::vector<mempooling::exportV2::NumaInfo> &numaInfos, std
 }
 
 // 获取虚拟机信息
-uint32_t GetVMData(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos,
-                   std::vector<VmNumaInfoBrr> &allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr> &vmNumaInfoMap)
+uint32_t GetVMData(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos,
+                   std::vector<VmNumaInfoBrr>& allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr>& vmNumaInfoMap)
 {
     // 采集当前从节点vm信息
     uint32_t retVmRes = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
@@ -1521,9 +1520,9 @@ uint32_t GetVMData(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfo
 }
 
 bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
-                       const std::vector<mempooling::exportV2::NumaInfo> &numaInfos,
-                       const std::vector<turbo::rmrs::RemoteNumaSocketInfo> &remoteNumaSocketInfo,
-                       const std::unordered_map<std::string, std::vector<turbo::rmrs::MemNodeDataNew>> &nodeTopology)
+                       const std::vector<mempooling::exportV2::NumaInfo>& numaInfos,
+                       const std::vector<turbo::rmrs::RemoteNumaSocketInfo>& remoteNumaSocketInfo,
+                       const std::unordered_map<std::string, std::vector<turbo::rmrs::MemNodeDataNew>>& nodeTopology)
 {
     pid_t pid = vmParam.pid;
     uint16_t localNumaId = vmParam.localNumaId;
@@ -1567,21 +1566,21 @@ bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
         return false;
     }
 
-    LOG_DEBUG << "[MemMigrate][Strategy][Plane] Compare same plane, remoteNumaId=" << remoteNumaId << ", dstNid=" 
-              << dstNid << ", dstSocketId=" << dstSocketId;
+    LOG_DEBUG << "[MemMigrate][Strategy][Plane] Compare same plane, remoteNumaId=" << remoteNumaId
+              << ", dstNid=" << dstNid << ", dstSocketId=" << dstSocketId;
 
     // 从拓扑信息中获取，是否属于直连节点
     std::string key = srcNid + "-" + std::to_string(srcSocketId);
 
-    for (const auto &pair : nodeTopology) {
-        const std::string &host = pair.first;
-        const auto &memNodeList = pair.second;
+    for (const auto& pair : nodeTopology) {
+        const std::string& host = pair.first;
+        const auto& memNodeList = pair.second;
         if (host != key) {
             continue;
         }
         LOG_DEBUG << "[MemMigrate][Strategy] Host= " << host << ", Total MemNodeData count= " << memNodeList.size();
         for (size_t i = 0; i < memNodeList.size(); ++i) {
-            const auto &memNode = memNodeList[i];
+            const auto& memNode = memNodeList[i];
             LOG_DEBUG << "[MemMigrate][Strategy] Index= " << i << ", NodeId= " << memNode.nodeId
                       << ", socketId= " << memNode.socket.socketId;
             if (memNode.nodeId == dstNid && memNode.socket.socketId == std::to_string(dstSocketId)) {
@@ -1596,8 +1595,8 @@ bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
     return false;
 }
 
-uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam &migrateStrategyParam,
-                                     turbo::rmrs::MigrateStrategyParamRMRS &migrateStrategyParamRMRS)
+uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam& migrateStrategyParam,
+                                     turbo::rmrs::MigrateStrategyParamRMRS& migrateStrategyParamRMRS)
 {
     migrateStrategyParamRMRS.vmInfoList = migrateStrategyParam.vmInfoList;
     migrateStrategyParamRMRS.borrowSize = migrateStrategyParam.borrowSize;
@@ -1631,7 +1630,7 @@ uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam &mi
         }
         uint16_t localNumaId = it->second.localNumaId;
 
-        auto &remoteList = migrateStrategyParamRMRS.pidRemoteNumaMap[pid];
+        auto& remoteList = migrateStrategyParamRMRS.pidRemoteNumaMap[pid];
         remoteList.clear();
         std::vector<uint16_t> nonSamePlaneList;
 

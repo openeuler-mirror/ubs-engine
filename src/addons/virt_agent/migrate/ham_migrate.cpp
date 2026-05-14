@@ -143,7 +143,7 @@ void HamMigrate::LoadData()
     HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos(hamMigrateVmInfos);
     bool isChange = false;
     time_point<system_clock> timeZero;
-    for (auto &info : hamMigrateVmInfos) {
+    for (auto& info : hamMigrateVmInfos) {
         // After a restart, if a task is not in migration, it needs to be cleaned immediately
         if (!IsMigrating(info) && info.timeout != timeZero) {
             info.timeout = timeZero;
@@ -190,10 +190,10 @@ void HamMigrate::ClearQueueOperation()
     }
 }
 
-VmResult HamMigrate::ProcessResponse(const RespInfo &respInfo, UbseIpcMessage &resp, uint64_t requestId)
+VmResult HamMigrate::ProcessResponse(const RespInfo& respInfo, UbseIpcMessage& resp, uint64_t requestId)
 {
     std::string respJson = respInfo.ToJson();
-    const char *res = respJson.c_str();
+    const char* res = respJson.c_str();
     size_t node_id_len = strlen(res);
     resp.length = static_cast<uint32_t>(node_id_len + 1);
     resp.buffer = new (std::nothrow) uint8_t[resp.length];
@@ -218,13 +218,13 @@ VmResult HamMigrate::ProcessResponse(const RespInfo &respInfo, UbseIpcMessage &r
  *   {"action":"clear","type":1,"srcHostname":"computer01","name":"xxx","srcPid":xxx,
  *      "dstHostname":"computer02","dstPid":xxx}
  */
-uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UbseIpcMessage resp{};
     if (req.buffer == nullptr) {
         return VM_ERROR;
     }
-    std::string body(reinterpret_cast<char *>(req.buffer), req.length);
+    std::string body(reinterpret_cast<char*>(req.buffer), req.length);
     UBSE_LOG_INFO << "HamMigrate request=" << body;
     Document msgJson;
     msgJson.Parse(body.c_str());
@@ -269,7 +269,7 @@ uint32_t HamMigrate::HamMigrateNorth(const UbseIpcMessage &req, const UbseReques
     return VM_ERROR;
 }
 
-void HamMigrate::HamMigrateCancel(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void HamMigrate::HamMigrateCancel(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "[HamMigrateCancel] req start.";
     if (req.data == nullptr || req.len == 0 || req.len > CANCEL_LEN_MAX) {
@@ -288,7 +288,7 @@ void HamMigrate::HamMigrateCancel(const UbseByteBuffer &req, UbseByteBuffer &res
         return;
     }
     VmResult res = VM_OK;
-    for (auto &hamMigrateVmInfo : hamMigrateVmInfos) {
+    for (auto& hamMigrateVmInfo : hamMigrateVmInfos) {
         hamMigrateVmInfo.dstNodeState = NodeState::PANIC;
         if (hamMigrateVmInfo.uuid.empty()) {
             UBSE_LOG_WARN << "req uuid is empty.";
@@ -310,14 +310,14 @@ void HamMigrate::HamMigrateCancel(const UbseByteBuffer &req, UbseByteBuffer &res
     UBSE_LOG_INFO << "[HamMigrateCancel] req end.";
 }
 
-void HamMigrate::SrcNodeInfoReplyHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void HamMigrate::SrcNodeInfoReplyHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     UBSE_LOG_INFO << "SrcNodeInfoReplyHandler start.";
     if (ctx == nullptr) {
         UBSE_LOG_ERROR << "ctx is nullptr.";
         return;
     }
-    auto result = static_cast<unsigned int *>(ctx);
+    auto result = static_cast<unsigned int*>(ctx);
     if (resCode != VM_OK) {
         *result = VM_ERROR;
         UBSE_LOG_ERROR << "error, " << FormatRetCode(resCode);
@@ -336,7 +336,7 @@ void HamMigrate::SrcNodeInfoReplyHandler(void *ctx, const UbseByteBuffer &respDa
     UBSE_LOG_INFO << "SrcNodeInfoReplyHandler end, result=" << code;
 }
 
-void HamMigrate::MasterDstInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void HamMigrate::MasterDstInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "[MasterDstInfoHandler] req start.";
     if (req.data == nullptr || req.len == 0) {
@@ -357,21 +357,21 @@ void HamMigrate::MasterDstInfoHandler(const UbseByteBuffer &req, UbseByteBuffer 
     const ubse::com::UbseComEndpoint endpoint = {
         .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_MESSAGE_TO_AGENT, .address = hamMigrateDstInfo.dstNodeId};
     const UbseByteBuffer reqData = {
-        .data = (uint8_t *)&hamMigrateDstInfo.dstPid, .len = sizeof(uint64_t), .freeFunc = nullptr};
+        .data = (uint8_t*)&hamMigrateDstInfo.dstPid, .len = sizeof(uint64_t), .freeFunc = nullptr};
     unsigned int result = VM_ERROR;
     UbseRpcSend(endpoint, reqData, &result, MasterDstInfoReplyHandler);
     HttpUtil::SetResp(resp, result, "");
     UBSE_LOG_INFO << "[MasterDstInfoHandler] req end.";
 }
 
-void HamMigrate::MasterDstInfoReplyHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void HamMigrate::MasterDstInfoReplyHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     UBSE_LOG_INFO << "MasterDstInfoReplyHandler start.";
     if (ctx == nullptr) {
         UBSE_LOG_ERROR << "ctx is nullptr.";
         return;
     }
-    auto result = static_cast<unsigned int *>(ctx);
+    auto result = static_cast<unsigned int*>(ctx);
     if (resCode != VM_OK) {
         *result = VM_ERROR;
         UBSE_LOG_ERROR << "error, " << FormatRetCode(resCode);
@@ -390,7 +390,7 @@ void HamMigrate::MasterDstInfoReplyHandler(void *ctx, const UbseByteBuffer &resp
     UBSE_LOG_INFO << "MasterDstInfoReplyHandler end, result=" << code;
 }
 
-void HamMigrate::AgentDstInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void HamMigrate::AgentDstInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "[AgentDstInfoHandler] req start.";
     if (req.data == nullptr || req.len != sizeof(uint64_t)) {
@@ -433,7 +433,7 @@ VmResult HamMigrate::PidIsVm(const uint64_t pid)
     return VM_ERROR;
 }
 
-void HamMigrate::HamMigrateCancelReply(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void HamMigrate::HamMigrateCancelReply(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     UBSE_LOG_INFO << "[HamMigrateCancel] reply start.";
     if (resCode != VM_OK) {
@@ -465,7 +465,7 @@ VmResult HamMigrate::PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::st
         UBSE_LOG_ERROR << "Get numaMemDebtInfo failed, res= " << static_cast<uint32_t>(rets);
         return VM_ERROR;
     }
-    for (const auto &debtInfo : debtInfos) {
+    for (const auto& debtInfo : debtInfos) {
         if (debtInfo.name.length() > HAM_BORROW_START_WITH.length() &&
             debtInfo.name.substr(0, HAM_BORROW_START_WITH.length()) == HAM_BORROW_START_WITH &&
             std::to_string(debtInfo.importNode.slotId) != dstNodeId) {
@@ -477,7 +477,7 @@ VmResult HamMigrate::PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::st
         return VM_OK;
     }
     bool isFail = false;
-    for (auto &srcNode : srcNodes) {
+    for (auto& srcNode : srcNodes) {
         const UbseComEndpoint endpoint = {
             .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_CANCEL, .address = srcNode};
         UbseByteBuffer reqData;
@@ -497,7 +497,7 @@ VmResult HamMigrate::PanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::st
     return isFail ? VM_ERROR : VM_OK;
 }
 
-VmResult HamMigrate::ConvertToBorrow(const Value &msgJson, BorrowInfo &borrowInfo)
+VmResult HamMigrate::ConvertToBorrow(const Value& msgJson, BorrowInfo& borrowInfo)
 {
     double srcPid;
     std::string srcHostname;
@@ -542,7 +542,7 @@ VmResult HamMigrate::ConvertToBorrow(const Value &msgJson, BorrowInfo &borrowInf
     return VM_OK;
 }
 
-VmResult HamMigrate::ConvertToVaList(const Value &msgJson, std::vector<VirtualAddress> &valist)
+VmResult HamMigrate::ConvertToVaList(const Value& msgJson, std::vector<VirtualAddress>& valist)
 {
     VirtualAddress tmpItem{};
     if (!msgJson.IsArray()) {
@@ -551,7 +551,7 @@ VmResult HamMigrate::ConvertToVaList(const Value &msgJson, std::vector<VirtualAd
     }
     auto i = 0;
     double numVal;
-    for (auto &item : msgJson.GetArray()) {
+    for (auto& item : msgJson.GetArray()) {
         if (item.IsNull()) {
             UBSE_LOG_ERROR << "Failed to get array item[" << i << "].";
             return VM_ERROR;
@@ -570,7 +570,7 @@ VmResult HamMigrate::ConvertToVaList(const Value &msgJson, std::vector<VirtualAd
     return VM_OK;
 }
 
-VmResult HamMigrate::ConvertToClear(const Value &msgJson, ClearInfo &clearInfo)
+VmResult HamMigrate::ConvertToClear(const Value& msgJson, ClearInfo& clearInfo)
 {
     double type;
     double srcPid = 0;
@@ -621,7 +621,7 @@ std::string HamMigrate::GetMasterNodeId()
     return masterNode.nodeId;
 }
 
-VmResult HamMigrate::CheckPid(BorrowInfo &borrowInfo)
+VmResult HamMigrate::CheckPid(BorrowInfo& borrowInfo)
 {
     const ubse::com::UbseComEndpoint endpoint = {
         .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_MESSAGE_TO_MASTER, .address = GetMasterNodeId()};
@@ -642,17 +642,17 @@ VmResult HamMigrate::CheckPid(BorrowInfo &borrowInfo)
     return result;
 }
 
-void HamMigrate::HandleBorrowFailure(HamMigrateVmInfo &hamMigrateVmInfo)
+void HamMigrate::HandleBorrowFailure(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     hamMigrateVmInfo.timeout = time_point<system_clock>();
     HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
     EnterClearQueue(hamMigrateVmInfo, true);
 }
 
-VmResult HamMigrate::MigrateAndTracking(const HostVmDomainInfo &hostVmDomainInfo, BorrowInfo &borrowInfo,
-                                        BorrowResponse &borrowResponse)
+VmResult HamMigrate::MigrateAndTracking(const HostVmDomainInfo& hostVmDomainInfo, BorrowInfo& borrowInfo,
+                                        BorrowResponse& borrowResponse)
 {
-    for (const auto &vmDomainInfo : hostVmDomainInfo.vmDomainInfos) {
+    for (const auto& vmDomainInfo : hostVmDomainInfo.vmDomainInfos) {
         if (vmDomainInfo.pid != borrowInfo.srcPid) {
             continue;
         }
@@ -670,7 +670,7 @@ VmResult HamMigrate::MigrateAndTracking(const HostVmDomainInfo &hostVmDomainInfo
             return VM_ERROR;
         }
         bool numaExistFlag = false;
-        for (auto &[_, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
+        for (auto& [_, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
             if (vmDomainNumaInfo.isLocal) {
                 borrowInfo.srcSocket = vmDomainNumaInfo.socketId;
                 borrowInfo.srcNuma = vmDomainNumaInfo.numaId;
@@ -692,7 +692,7 @@ VmResult HamMigrate::MigrateAndTracking(const HostVmDomainInfo &hostVmDomainInfo
     return VM_ERROR;
 }
 
-VmResult HamMigrate::Borrow(BorrowInfo &borrowInfo, BorrowResponse &borrowResponse)
+VmResult HamMigrate::Borrow(BorrowInfo& borrowInfo, BorrowResponse& borrowResponse)
 {
     if (HasTask(borrowInfo)) {
         return VM_ERROR;
@@ -718,7 +718,7 @@ VmResult HamMigrate::Borrow(BorrowInfo &borrowInfo, BorrowResponse &borrowRespon
     return VM_ERROR;
 }
 
-bool HamMigrate::HasTask(const BorrowInfo &borrowInfo)
+bool HamMigrate::HasTask(const BorrowInfo& borrowInfo)
 {
     HamMigrateVmInfo hamMigrateVmInfo;
     auto ret = HamMigrateVmInfoStorage::GetHamMigrateVmInfo(borrowInfo.srcNodeId, borrowInfo.srcPid, hamMigrateVmInfo);
@@ -734,7 +734,7 @@ bool HamMigrate::HasTask(const BorrowInfo &borrowInfo)
     return false;
 }
 
-bool HamMigrate::IsMigrating(const HamMigrateVmInfo &hamMigrateVmInfo)
+bool HamMigrate::IsMigrating(const HamMigrateVmInfo& hamMigrateVmInfo)
 {
     // Memory borrowing has completed, but migration has not yet succeeded
     return hamMigrateVmInfo.vmOpState == VmOpState::BORROWED_ADDRESS && hamMigrateVmInfo.opState == OpState::END &&
@@ -742,7 +742,7 @@ bool HamMigrate::IsMigrating(const HamMigrateVmInfo &hamMigrateVmInfo)
             hamMigrateVmInfo.vmState == VmState::NOBORROW_NOMIGRATE);
 }
 
-std::string HamMigrate::GetPrefixLog(const HamMigrateVmInfo &hamMigrateVmInfo)
+std::string HamMigrate::GetPrefixLog(const HamMigrateVmInfo& hamMigrateVmInfo)
 {
     std::ostringstream oss;
     oss << "nodeId = " << hamMigrateVmInfo.nodeId << ", ";
@@ -751,12 +751,12 @@ std::string HamMigrate::GetPrefixLog(const HamMigrateVmInfo &hamMigrateVmInfo)
     return oss.str();
 }
 
-VmResult HamMigrate::GetLocalNumaInfoFromNumaMemInfo(const MemNumaInfo &numaMemInfo, int &numaId, int &socketId)
+VmResult HamMigrate::GetLocalNumaInfoFromNumaMemInfo(const MemNumaInfo& numaMemInfo, int& numaId, int& socketId)
 {
     int tmpNumaId;
     int tmpSocketId;
     bool numaExistFlag = false;
-    for (auto &[_, vmDomainNumaInfo] : numaMemInfo) {
+    for (auto& [_, vmDomainNumaInfo] : numaMemInfo) {
         if (vmDomainNumaInfo.isLocal) {
             tmpNumaId = vmDomainNumaInfo.numaId;
             tmpSocketId = vmDomainNumaInfo.socketId;
@@ -773,12 +773,12 @@ VmResult HamMigrate::GetLocalNumaInfoFromNumaMemInfo(const MemNumaInfo &numaMemI
     return VM_OK;
 }
 
-void HamMigrate::UpdateHamMigrateVmInfo(const BorrowInfo &borrowInfo, const VmDomainInfo &vmDomainInfo,
-                                        HamMigrateVmInfo &hamMigrateVmInfo)
+void HamMigrate::UpdateHamMigrateVmInfo(const BorrowInfo& borrowInfo, const VmDomainInfo& vmDomainInfo,
+                                        HamMigrateVmInfo& hamMigrateVmInfo)
 {
     hamMigrateVmInfo.dstNodeId = borrowInfo.dstNodeId;
     size_t remoteNumaCount = 0;
-    for (const auto &[numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
+    for (const auto& [numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
         if (!vmDomainNumaInfo.isLocal) {
             remoteNumaCount++;
         }
@@ -803,7 +803,7 @@ void HamMigrate::UpdateHamMigrateVmInfo(const BorrowInfo &borrowInfo, const VmDo
     UBSE_LOG_INFO << "[ham migrate] " << GetPrefixLog(hamMigrateVmInfo) << "remoteNumaCount = " << remoteNumaCount;
 }
 
-void HamMigrate::UpdateDstNodeState(HamMigrateVmInfo &hamMigrateVmInfo)
+void HamMigrate::UpdateDstNodeState(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     HamMigrateVmInfo tempVmInfo;
     const auto ret =
@@ -813,7 +813,7 @@ void HamMigrate::UpdateDstNodeState(HamMigrateVmInfo &hamMigrateVmInfo)
     }
 }
 
-VmResult HamMigrate::DoProcessMigrate(HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrate::DoProcessMigrate(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     std::string vmInfoPrefixLog = GetPrefixLog(hamMigrateVmInfo);
     std::string numaLoc = hamMigrateVmInfo.GetNumaLoc();
@@ -834,7 +834,7 @@ VmResult HamMigrate::DoProcessMigrate(HamMigrateVmInfo &hamMigrateVmInfo)
     return HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
 }
 
-VmResult HamMigrate::DoProcessTracking(HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrate::DoProcessTracking(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     std::string vmInfoPrefixLog = GetPrefixLog(hamMigrateVmInfo);
     // Call memory subsystem interface to set 5ms deterministic scan
@@ -856,8 +856,8 @@ VmResult HamMigrate::DoProcessTracking(HamMigrateVmInfo &hamMigrateVmInfo)
     return HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
 }
 
-VmResult HamMigrate::DoBorrowAddress(BorrowInfo &borrowInfo, HamMigrateVmInfo &hamMigrateVmInfo,
-                                     BorrowResponse &borrowResponse)
+VmResult HamMigrate::DoBorrowAddress(BorrowInfo& borrowInfo, HamMigrateVmInfo& hamMigrateVmInfo,
+                                     BorrowResponse& borrowResponse)
 {
     const std::string borrowName = HAM_BORROW_START_WITH + VmStringUtil::GenerateUUID();
     hamMigrateVmInfo.vmOpState = VmOpState::BORROWED_ADDRESS;
@@ -889,20 +889,20 @@ VmResult HamMigrate::DoBorrowAddress(BorrowInfo &borrowInfo, HamMigrateVmInfo &h
     return HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
 }
 
-VmResult HamMigrate::DoUbseBorrowAddress(const BorrowInfo &borrowInfo, BorrowResponse &borrowResponse)
+VmResult HamMigrate::DoUbseBorrowAddress(const BorrowInfo& borrowInfo, BorrowResponse& borrowResponse)
 {
     UbseMemBorrower borrower{.nodeId = borrowInfo.srcNodeId};
     uint32_t slotId;
     try {
         slotId = VmStringUtil::SafeStoul(borrowInfo.dstNodeId);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "[ham migrate] [borrow] invalid soltId = " << borrowInfo.dstNodeId;
         return VM_ERROR;
     }
 
     UbseMemProcessLender lender{
         .slotId = slotId, .socketId = borrowInfo.srcSocket, .pid = static_cast<uint64_t>(borrowInfo.dstPid)};
-    for (const auto &[start, length] : borrowInfo.valist) {
+    for (const auto& [start, length] : borrowInfo.valist) {
         lender.vaLists.emplace_back(UbseMemAddrBorrowLocAndSizeByPid{.addr = start, .size = length});
     }
     UbseMemAddrDesc desc;
@@ -921,7 +921,7 @@ VmResult HamMigrate::DoUbseBorrowAddress(const BorrowInfo &borrowInfo, BorrowRes
     return VM_OK;
 }
 
-VmResult HamMigrate::Rollback(HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrate::Rollback(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     VmResult ret = RollbackBorrowAddress(hamMigrateVmInfo);
     ret |= RollbackProcessTracking(hamMigrateVmInfo);
@@ -949,7 +949,7 @@ VmResult HamMigrate::Rollback(HamMigrateVmInfo &hamMigrateVmInfo)
     return ret;
 }
 
-VmResult HamMigrate::RollbackBorrowAddress(HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrate::RollbackBorrowAddress(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     if (hamMigrateVmInfo.vmOpState != VmOpState::BORROWED_ADDRESS) {
         return VM_OK;
@@ -968,7 +968,7 @@ VmResult HamMigrate::RollbackBorrowAddress(HamMigrateVmInfo &hamMigrateVmInfo)
     return HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
 }
 
-VmResult HamMigrate::UbseRollbackBorrowAddress(const HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrate::UbseRollbackBorrowAddress(const HamMigrateVmInfo& hamMigrateVmInfo)
 {
     UbseMemBorrower borrower{.nodeId = hamMigrateVmInfo.nodeId};
     auto ubsRet = UbseMemAddrDelete(hamMigrateVmInfo.borrowName, borrower);
@@ -982,7 +982,7 @@ VmResult HamMigrate::UbseRollbackBorrowAddress(const HamMigrateVmInfo &hamMigrat
     return VM_OK;
 }
 
-VmResult HamMigrate::RollbackProcessTracking(HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrate::RollbackProcessTracking(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     if (hamMigrateVmInfo.vmOpState != VmOpState::PROCESS_TRACKING) {
         return VM_OK;
@@ -1017,7 +1017,7 @@ VmResult HamMigrate::RollbackProcessTracking(HamMigrateVmInfo &hamMigrateVmInfo)
     return HamMigrateVmInfoStorage::SetHamMigrateVmInfo(hamMigrateVmInfo);
 }
 
-VmResult HamMigrate::RollbackProcessMigrate(HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult HamMigrate::RollbackProcessMigrate(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     if (hamMigrateVmInfo.vmOpState != VmOpState::DISABLE_PROCESS_MIGRATE) {
         return VM_OK;
@@ -1033,14 +1033,14 @@ VmResult HamMigrate::RollbackProcessMigrate(HamMigrateVmInfo &hamMigrateVmInfo)
     return VM_OK;
 }
 
-void HamMigrate::ReSetReTry(HamMigrateVmInfo &hamMigrateVmInfo)
+void HamMigrate::ReSetReTry(HamMigrateVmInfo& hamMigrateVmInfo)
 {
     hamMigrateVmInfo.count = 1;
     time_point<system_clock> timeoutZero;
     hamMigrateVmInfo.timeout = timeoutZero;
 }
 
-VmResult HamMigrate::Clear(const ClearInfo &clearInfo)
+VmResult HamMigrate::Clear(const ClearInfo& clearInfo)
 {
     if (clearInfo.state == ClearType::NODE) {
         // Full cleanup of the current node
@@ -1050,7 +1050,7 @@ VmResult HamMigrate::Clear(const ClearInfo &clearInfo)
             UBSE_LOG_WARN << "[ham migrate] can not find vmInfo, nodeId = " << clearInfo.srcNodeId;
             return VM_OK;
         }
-        for (auto &hamMigrateVmInfo : hamMigrateVmInfos) {
+        for (auto& hamMigrateVmInfo : hamMigrateVmInfos) {
             time_point<system_clock> timeZero;
             hamMigrateVmInfo.timeout = timeZero;
         }
@@ -1081,13 +1081,13 @@ VmResult HamMigrate::Clear(const ClearInfo &clearInfo)
     return VM_OK;
 }
 
-void HamMigrate::EnterClearQueue(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos, const bool &isUpdate)
+void HamMigrate::EnterClearQueue(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos, const bool& isUpdate)
 {
     if (hamMigrateVmInfos.empty()) {
         return;
     }
     std::unique_lock<std::mutex> clearLock(clearMutex);
-    for (auto &hamMigrateVmInfo : hamMigrateVmInfos) {
+    for (auto& hamMigrateVmInfo : hamMigrateVmInfos) {
         if (isUpdate) {
             clearQueue.Update(hamMigrateVmInfo);
         } else {
@@ -1097,7 +1097,7 @@ void HamMigrate::EnterClearQueue(std::vector<HamMigrateVmInfo> &hamMigrateVmInfo
     clearCv.notify_all();
 }
 
-void HamMigrate::EnterClearQueue(HamMigrateVmInfo &hamMigrateVmInfo, const bool &isUpdate)
+void HamMigrate::EnterClearQueue(HamMigrateVmInfo& hamMigrateVmInfo, const bool& isUpdate)
 {
     std::unique_lock<std::mutex> clearLock(clearMutex);
     if (isUpdate) {

@@ -12,12 +12,12 @@
 
 #ifndef UBSE_CONF_MODULE_H
 #define UBSE_CONF_MODULE_H
-#include <cstdint>           // for uint32_t, uint64_t, UINT32_MAX, UINT64_MAX
-#include <map>               // for map
-#include <string>            // for string, basic_string, allocator, stof
-#include <type_traits>       // for is_same, remove_extent_t
-#include <optional>
+#include <cstdint> // for uint32_t, uint64_t, UINT32_MAX, UINT64_MAX
 #include <functional>
+#include <map> // for map
+#include <optional>
+#include <string>      // for string, basic_string, allocator, stof
+#include <type_traits> // for is_same, remove_extent_t
 
 #include "ubse_common_def.h" // for UbseResult
 #include "ubse_error.h"      // for UBSE_OK
@@ -28,10 +28,10 @@ using namespace ubse::module;
 
 // 校验错误枚举类
 enum class ErrorType : uint16_t {
-    CONFIG_RETURN_FAILURE = 1,     // 调用下层接口失败, 返回非0
-    CONFIG_UNSUPPORTED_TYPE = 2,   // 非法类型
-    CONFIG_CONVERSION_FAILED = 3,  // 读取结果无法转化为指定类型
-    CONFIG_OUT_RANGE = 4,          // 数值超过类型最大范围
+    CONFIG_RETURN_FAILURE = 1,    // 调用下层接口失败, 返回非0
+    CONFIG_UNSUPPORTED_TYPE = 2,  // 非法类型
+    CONFIG_CONVERSION_FAILED = 3, // 读取结果无法转化为指定类型
+    CONFIG_OUT_RANGE = 4,         // 数值超过类型最大范围
 };
 
 struct ConfigItem {
@@ -120,5 +120,5 @@ UbseResult UbseConfModule::GetConf(const std::string& section, const std::string
     PrintConfLog(ErrorType::CONFIG_UNSUPPORTED_TYPE, section, configKey, UBSE_CONF_ERROR_KEY_OFFSETUNSUPPORTED_TYPE);
     return UBSE_CONF_ERROR_KEY_OFFSETUNSUPPORTED_TYPE;
 }
-}  // namespace ubse::config
-#endif  // UBSE_CONF_MODULE_H
+} // namespace ubse::config
+#endif // UBSE_CONF_MODULE_H

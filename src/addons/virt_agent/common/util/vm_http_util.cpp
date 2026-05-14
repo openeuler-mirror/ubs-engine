@@ -23,7 +23,7 @@ namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
-VmResult HttpUtil::AddProcessTracking(const int &pid, const int &scanTime, const int &type)
+VmResult HttpUtil::AddProcessTracking(const int& pid, const int& scanTime, const int& type)
 {
     const auto UBSRMRSSmapAddProcessTracking = mempooling::MempoolingModule::UBSRMRSSmapAddProcessTracking();
     if (UBSRMRSSmapAddProcessTracking == nullptr) {
@@ -42,14 +42,14 @@ VmResult HttpUtil::AddProcessTracking(const int &pid, const int &scanTime, const
             UBSE_LOG_ERROR << "UBSRMRSSmapAddProcessTracking func failed, " << FormatRetCode(ret);
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "UBSRMRSSmapAddProcessTracking func failed, " << e.what();
         return VM_ERROR;
     }
     return VM_OK;
 }
 
-VmResult HttpUtil::RemoveProcessTracking(const int &pid)
+VmResult HttpUtil::RemoveProcessTracking(const int& pid)
 {
     const auto UBSRMRSSmapRemoveProcessTracking = mempooling::MempoolingModule::UBSRMRSSmapRemoveProcessTracking();
     if (UBSRMRSSmapRemoveProcessTracking == nullptr) {
@@ -65,7 +65,7 @@ VmResult HttpUtil::RemoveProcessTracking(const int &pid)
             UBSE_LOG_ERROR << "UBSRMRSSmapRemoveProcessTracking func failed, " << FormatRetCode(ret);
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "UBSRMRSSmapRemoveProcessTracking func failed, " << e.what();
         return VM_ERROR;
     }
@@ -73,7 +73,7 @@ VmResult HttpUtil::RemoveProcessTracking(const int &pid)
     return VM_OK;
 }
 
-VmResult HttpUtil::EnableProcessMigrate(const int &pid, bool enable)
+VmResult HttpUtil::EnableProcessMigrate(const int& pid, bool enable)
 {
     const auto UBSRMRSSmapEnableProcessMigrate = mempooling::MempoolingModule::UBSRMRSSmapEnableProcessMigrate();
     if (UBSRMRSSmapEnableProcessMigrate == nullptr) {
@@ -89,7 +89,7 @@ VmResult HttpUtil::EnableProcessMigrate(const int &pid, bool enable)
             UBSE_LOG_ERROR << "UBSRMRSSmapEnableProcessMigrate func failed, " << FormatRetCode(ret);
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "UBSRMRSSmapEnableProcessMigrate func failed, " << e.what();
         return VM_ERROR;
     }
@@ -97,10 +97,10 @@ VmResult HttpUtil::EnableProcessMigrate(const int &pid, bool enable)
     return VM_OK;
 }
 
-VmResult HttpUtil::ToUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
+VmResult HttpUtil::ToUbseByteBuffer(const std::string& bodyString, UbseByteBuffer& resp)
 {
     size_t len = bodyString.size();
-    auto *body = new (std::nothrow) uint8_t[len];
+    auto* body = new (std::nothrow) uint8_t[len];
     if (body == nullptr) {
         UBSE_LOG_ERROR << "new response body error.";
         return VM_ERROR;
@@ -113,13 +113,13 @@ VmResult HttpUtil::ToUbseByteBuffer(const std::string &bodyString, UbseByteBuffe
     }
     resp.data = body;
     resp.len = len;
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         SafeDeleteArray(data);
     };
     return VM_OK;
 }
 
-VmResult HttpUtil::SetResp(UbseByteBuffer &resp, const VmResult &code, const std::string &msg)
+VmResult HttpUtil::SetResp(UbseByteBuffer& resp, const VmResult& code, const std::string& msg)
 {
     const ResponseInfo responseInfo = {.code = code, .message = msg};
     ResponseInfoMessage responseInfoSimpo(responseInfo);
@@ -129,7 +129,7 @@ VmResult HttpUtil::SetResp(UbseByteBuffer &resp, const VmResult &code, const std
         return VM_ERROR;
     }
     resp.len = responseInfoSimpo.SerializedDataSize();
-    auto *body = new (std::nothrow) uint8_t[resp.len];
+    auto* body = new (std::nothrow) uint8_t[resp.len];
     if (body == nullptr) {
         UBSE_LOG_ERROR << "new response body error.";
         return VM_ERROR;
@@ -141,7 +141,7 @@ VmResult HttpUtil::SetResp(UbseByteBuffer &resp, const VmResult &code, const std
         return VM_ERROR;
     }
     resp.data = body;
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         SafeDeleteArray(data);
     };
     return VM_OK;

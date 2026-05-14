@@ -8,7 +8,7 @@
 
 namespace ubse::mem::strategy {
 // 水线处理函数，高低水线发生后，处理逻辑
-UbseResult WaterWarningProcess(WatermarkWarningType warningType, const UbseMemNumaLoc &warningNumaLoc, bool isOom);
+UbseResult WaterWarningProcess(WatermarkWarningType warningType, const UbseMemNumaLoc& warningNumaLoc, bool isOom);
 } // namespace ubse::mem::strategy
 
 #endif

@@ -11,9 +11,9 @@
  */
 
 #include "test_ubse_mem_debt_ledger.h"
+#include <atomic>
 #include <thread>
 #include <vector>
-#include <atomic>
 
 namespace ubse::mem::controller::debt::ut {
 
@@ -29,73 +29,78 @@ void TestUbseMemDebtLedger::TearDown()
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
 
-UbseMemFdBorrowImportObj TestUbseMemDebtLedger::CreateFdImportObj(const std::string &name, const std::string &nodeId)
+UbseMemFdBorrowImportObj TestUbseMemDebtLedger::CreateFdImportObj(const std::string& name, const std::string& nodeId)
 {
     UbseMemFdBorrowImportObj obj;
     obj.req.name = name;
     obj.req.importNodeId = nodeId;
     obj.req.requestNodeId = nodeId;
-    obj.req.size = 1024 * 1024;  // 1MB
+    obj.req.size = 1024 * 1024; // 1MB
     obj.status.state = UbseMemState::UBSE_MEM_IMPORT_SUCCESS;
     return obj;
 }
 
-UbseMemFdBorrowExportObj TestUbseMemDebtLedger::CreateFdExportObj(const std::string &name, const std::string &nodeId)
+UbseMemFdBorrowExportObj TestUbseMemDebtLedger::CreateFdExportObj(const std::string& name, const std::string& nodeId)
 {
     UbseMemFdBorrowExportObj obj;
     obj.req.name = name;
     obj.req.importNodeId = nodeId;
     obj.req.requestNodeId = nodeId;
-    obj.req.size = 1024 * 1024;  // 1MB
+    obj.req.size = 1024 * 1024; // 1MB
     obj.status.state = UbseMemState::UBSE_MEM_EXPORT_SUCCESS;
     return obj;
 }
 
-UbseMemNumaBorrowImportObj TestUbseMemDebtLedger::CreateNumaImportObj(const std::string &name, const std::string &nodeId)
+UbseMemNumaBorrowImportObj TestUbseMemDebtLedger::CreateNumaImportObj(const std::string& name,
+                                                                      const std::string& nodeId)
 {
     UbseMemNumaBorrowImportObj obj;
     obj.req.name = name;
     obj.req.importNodeId = nodeId;
     obj.req.requestNodeId = nodeId;
-    obj.req.size = 1024 * 1024;  // 1MB
+    obj.req.size = 1024 * 1024; // 1MB
     obj.status.state = UbseMemState::UBSE_MEM_IMPORT_SUCCESS;
     return obj;
 }
 
-UbseMemNumaBorrowExportObj TestUbseMemDebtLedger::CreateNumaExportObj(const std::string &name, const std::string &nodeId)
+UbseMemNumaBorrowExportObj TestUbseMemDebtLedger::CreateNumaExportObj(const std::string& name,
+                                                                      const std::string& nodeId)
 {
     UbseMemNumaBorrowExportObj obj;
     obj.req.name = name;
     obj.req.importNodeId = nodeId;
     obj.req.requestNodeId = nodeId;
-    obj.req.size = 1024 * 1024;  // 1MB
+    obj.req.size = 1024 * 1024; // 1MB
     obj.status.state = UbseMemState::UBSE_MEM_EXPORT_SUCCESS;
     return obj;
 }
 
-UbseMemShareBorrowImportObj TestUbseMemDebtLedger::CreateShareImportObj(const std::string &name, const std::string &nodeId)
+UbseMemShareBorrowImportObj TestUbseMemDebtLedger::CreateShareImportObj(const std::string& name,
+                                                                        const std::string& nodeId)
 {
     UbseMemShareBorrowImportObj obj;
     obj.req.name = name;
     obj.req.baseNodeId = nodeId;
     obj.req.requestNodeId = nodeId;
-    obj.req.size = 1024 * 1024;  // 1MB
+    obj.req.size = 1024 * 1024; // 1MB
     obj.status.state = UbseMemState::UBSE_MEM_IMPORT_SUCCESS;
     return obj;
 }
 
-UbseMemShareBorrowExportObj TestUbseMemDebtLedger::CreateShareExportObj(const std::string &name, const std::string &nodeId)
+UbseMemShareBorrowExportObj TestUbseMemDebtLedger::CreateShareExportObj(const std::string& name,
+                                                                        const std::string& nodeId)
 {
     UbseMemShareBorrowExportObj obj;
     obj.req.name = name;
     obj.req.baseNodeId = nodeId;
     obj.req.requestNodeId = nodeId;
-    obj.req.size = 1024 * 1024;  // 1MB
+    obj.req.size = 1024 * 1024; // 1MB
     obj.status.state = UbseMemState::UBSE_MEM_EXPORT_SUCCESS;
     return obj;
 }
 
-UbseMemAddrBorrowImportObj TestUbseMemDebtLedger::CreateAddrImportObj(const std::string &name, const std::string &nodeId)
+UbseMemAddrBorrowImportObj TestUbseMemDebtLedger::CreateAddrImportObj(const std::string& name,
+                                                                      const std::string& nodeId)
 {
     UbseMemAddrBorrowImportObj obj;
     obj.req.name = name;
@@ -105,7 +110,8 @@ UbseMemAddrBorrowImportObj TestUbseMemDebtLedger::CreateAddrImportObj(const std:
     return obj;
 }
 
-UbseMemAddrBorrowExportObj TestUbseMemDebtLedger::CreateAddrExportObj(const std::string &name, const std::string &nodeId)
+UbseMemAddrBorrowExportObj TestUbseMemDebtLedger::CreateAddrExportObj(const std::string& name,
+                                                                      const std::string& nodeId)
 {
     UbseMemAddrBorrowExportObj obj;
     obj.req.name = name;
@@ -125,7 +131,7 @@ void TestUbseMemNodeDebtMap::TearDown()
     Test::TearDown();
 }
 
-UbseMemFdBorrowImportObj TestUbseMemNodeDebtMap::CreateTestObj(const std::string &name, UbseMemState state)
+UbseMemFdBorrowImportObj TestUbseMemNodeDebtMap::CreateTestObj(const std::string& name, UbseMemState state)
 {
     UbseMemFdBorrowImportObj obj;
     obj.req.name = name;
@@ -145,7 +151,7 @@ void TestUbseMemTypeDebtMap::TearDown()
     Test::TearDown();
 }
 
-UbseMemFdBorrowImportObj TestUbseMemTypeDebtMap::CreateTestImportObj(const std::string &name)
+UbseMemFdBorrowImportObj TestUbseMemTypeDebtMap::CreateTestImportObj(const std::string& name)
 {
     UbseMemFdBorrowImportObj obj;
     obj.req.name = name;
@@ -155,7 +161,7 @@ UbseMemFdBorrowImportObj TestUbseMemTypeDebtMap::CreateTestImportObj(const std::
     return obj;
 }
 
-UbseMemFdBorrowExportObj TestUbseMemTypeDebtMap::CreateTestExportObj(const std::string &name)
+UbseMemFdBorrowExportObj TestUbseMemTypeDebtMap::CreateTestExportObj(const std::string& name)
 {
     UbseMemFdBorrowExportObj obj;
     obj.req.name = name;
@@ -379,7 +385,7 @@ TEST_F(TestUbseMemNodeDebtMap, Modify_ExistingResource_ShouldModifySuccessfully)
     obj->req.size = 1024; // 1K内存
     debtMap.Put("res1", obj);
 
-    debtMap.Modify("res1", [](UbseMemFdBorrowImportObj &o) {
+    debtMap.Modify("res1", [](UbseMemFdBorrowImportObj& o) {
         o.req.name = "modified";
         o.req.size = 1024 * 2; // 2K内存
     });
@@ -396,9 +402,7 @@ TEST_F(TestUbseMemNodeDebtMap, Modify_NonExistingResource_ShouldDoNothing)
     UbseMemNodeDebtMap<UbseMemFdBorrowImportObj> debtMap;
     bool called = false;
 
-    debtMap.Modify("non_existent", [&called](UbseMemFdBorrowImportObj &) {
-        called = true;
-    });
+    debtMap.Modify("non_existent", [&called](UbseMemFdBorrowImportObj&) { called = true; });
 
     EXPECT_FALSE(called);
 }
@@ -411,9 +415,7 @@ TEST_F(TestUbseMemNodeDebtMap, Modify_ShouldNotAffectOriginalObject)
     obj->req.name = "original";
     debtMap.Put("res1", obj);
 
-    debtMap.Modify("res1", [](UbseMemFdBorrowImportObj &o) {
-        o.req.name = "modified";
-    });
+    debtMap.Modify("res1", [](UbseMemFdBorrowImportObj& o) { o.req.name = "modified"; });
 
     EXPECT_EQ(obj->req.name, "original");
 }
@@ -470,8 +472,8 @@ TEST_F(TestUbseMemNodeDebtMap, ThreadSafety_ConcurrentPutAndGet)
 {
     UbseMemNodeDebtMap<UbseMemFdBorrowImportObj> debtMap;
     std::atomic<int> successCount{0};
-    const int threadCount = 10;  // 并发线程数10
-    const int operationsPerThread = 100;  // 每个线程的操作数100
+    const int threadCount = 10;          // 并发线程数10
+    const int operationsPerThread = 100; // 每个线程的操作数100
     std::vector<std::thread> threads;
 
     for (int i = 0; i < threadCount; ++i) {
@@ -488,7 +490,7 @@ TEST_F(TestUbseMemNodeDebtMap, ThreadSafety_ConcurrentPutAndGet)
         });
     }
 
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 
@@ -503,7 +505,7 @@ TEST_F(TestUbseMemNodeDebtMap, ThreadSafety_ConcurrentModify)
     obj->req.size = 0;
     debtMap.Put("res1", obj);
 
-    const int threadCount = 10;  // 并发线程数10
+    const int threadCount = 10; // 并发线程数10
     std::vector<std::thread> threads;
     std::atomic<int> modifyCount{0};
 
@@ -515,7 +517,7 @@ TEST_F(TestUbseMemNodeDebtMap, ThreadSafety_ConcurrentModify)
             debtMap.Put(resId, localObj);
 
             for (int j = 0; j < 100; ++j) { // 每个线程修改100次
-                debtMap.Modify(resId, [&modifyCount](UbseMemFdBorrowImportObj &o) {
+                debtMap.Modify(resId, [&modifyCount](UbseMemFdBorrowImportObj& o) {
                     o.req.size++;
                     modifyCount++;
                 });
@@ -523,7 +525,7 @@ TEST_F(TestUbseMemNodeDebtMap, ThreadSafety_ConcurrentModify)
         });
     }
 
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 
@@ -584,7 +586,7 @@ TEST_F(TestUbseMemTypeDebtMap, FindNodeMap_Const_ShouldReturnConstPointer)
     UbseMemTypeDebtMap<UbseMemFdBorrowImportObj> typeDebtMap;
     typeDebtMap.GetOrCreateNodeMap("node1");
 
-    const auto &constMap = typeDebtMap;
+    const auto& constMap = typeDebtMap;
     auto nodeMap = constMap.FindNodeMap("node1");
 
     EXPECT_NE(nodeMap, nullptr);
@@ -855,8 +857,8 @@ TEST_F(TestUbseMemTypeDebtMap, ClearAllNodeMaps_WithExportObj_ShouldClearExportR
 // Tests `GetInstance` and expects the same singleton instance.
 TEST_F(TestUbseMemDebtLedger, GetInstance_ShouldReturnSameInstance)
 {
-    auto &instance1 = UbseMemDebtLedger::GetInstance();
-    auto &instance2 = UbseMemDebtLedger::GetInstance();
+    auto& instance1 = UbseMemDebtLedger::GetInstance();
+    auto& instance2 = UbseMemDebtLedger::GetInstance();
 
     EXPECT_EQ(&instance1, &instance2);
 }
@@ -864,7 +866,7 @@ TEST_F(TestUbseMemDebtLedger, GetInstance_ShouldReturnSameInstance)
 // Tests `GetDebtMap` with fd import obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_FdImportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>();
 
     auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
     obj->req.name = "test";
@@ -877,7 +879,7 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_FdImportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with fd export obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_FdExportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>();
 
     auto obj = std::make_shared<UbseMemFdBorrowExportObj>();
     obj->req.name = "test";
@@ -890,7 +892,7 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_FdExportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with numa import obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_NumaImportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>();
 
     auto obj = std::make_shared<UbseMemNumaBorrowImportObj>();
     obj->req.name = "test";
@@ -903,7 +905,7 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_NumaImportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with numa export obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_NumaExportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>();
 
     auto obj = std::make_shared<UbseMemNumaBorrowExportObj>();
     obj->req.name = "test";
@@ -916,7 +918,7 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_NumaExportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with share import obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_ShareImportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>();
 
     auto obj = std::make_shared<UbseMemShareBorrowImportObj>();
     obj->req.name = "test";
@@ -929,7 +931,7 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_ShareImportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with share export obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_ShareExportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>();
 
     auto obj = std::make_shared<UbseMemShareBorrowExportObj>();
     obj->req.name = "test";
@@ -942,7 +944,7 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_ShareExportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with addr import obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_AddrImportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>();
 
     auto obj = std::make_shared<UbseMemAddrBorrowImportObj>();
     obj->req.name = "test";
@@ -955,7 +957,7 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_AddrImportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with addr export obj and expects the correct debt map type.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_AddrExportObj_ShouldReturnCorrectType)
 {
-    auto &debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>();
+    auto& debtMap = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>();
 
     auto obj = std::make_shared<UbseMemAddrBorrowExportObj>();
     obj->req.name = "test";
@@ -968,8 +970,8 @@ TEST_F(TestUbseMemDebtLedger, GetDebtMap_AddrExportObj_ShouldReturnCorrectType)
 // Tests `GetDebtMap` with const access and expects a const reference.
 TEST_F(TestUbseMemDebtLedger, GetDebtMap_Const_ShouldReturnConstReference)
 {
-    const auto &ledger = UbseMemDebtLedger::GetInstance();
-    const auto &debtMap = ledger.GetDebtMap<UbseMemFdBorrowImportObj>();
+    const auto& ledger = UbseMemDebtLedger::GetInstance();
+    const auto& debtMap = ledger.GetDebtMap<UbseMemFdBorrowImportObj>();
 
     auto allMaps = debtMap.GetAllNodeMaps();
     EXPECT_TRUE(allMaps.empty() || !allMaps.empty());
@@ -988,7 +990,7 @@ TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_EmptyLedger_ShouldReturnEmpty)
 // Tests `GetAllDebtInfo` with a single node and expects correct debt information.
 TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_SingleNode_ShouldReturnCorrectInfo)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("res1", "node1"));
@@ -1007,7 +1009,7 @@ TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_SingleNode_ShouldReturnCorrectInfo)
 // Tests `GetAllDebtInfo` with multiple nodes and verifies the expected result.
 TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_MultipleNodes_ShouldReturnAllNodes)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport1 = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("res1", "node1"));
@@ -1025,7 +1027,7 @@ TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_MultipleNodes_ShouldReturnAllNodes)
 // Tests `GetAllDebtInfo` with all resource types and verifies the expected result.
 TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_AllResourceTypes_ShouldReturnAllTypes)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("fd_import", "node1"));
@@ -1061,7 +1063,7 @@ TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_AllResourceTypes_ShouldReturnAllTyp
 // Tests `GetAllDebtInfo` with destroyed-resource filtering and expects destroyed resources to be filtered out.
 TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_FilterDestroyed_ShouldFilterDestroyedResources)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1096,7 +1098,7 @@ TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_FilterDestroyed_ShouldFilterDestroy
 // Tests `GetAllDebtInfo` with disabled filtering and expects destroyed resources to be included.
 TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_NoFilter_ShouldIncludeDestroyedResources)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImportDestroyed = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1114,7 +1116,7 @@ TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_NoFilter_ShouldIncludeDestroyedReso
 // Tests `ClearAllNodeMaps` and expects all data to be cleared.
 TEST_F(TestUbseMemDebtLedger, ClearAllNodeMaps_ShouldClearAllData)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("res1", "node1"));
     ledger.GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("node1", "res1", fdImport);
 
@@ -1127,7 +1129,7 @@ TEST_F(TestUbseMemDebtLedger, ClearAllNodeMaps_ShouldClearAllData)
 // Tests `ClearOtherNodeMaps` and expects only the excluded node to remain.
 TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_ShouldKeepExcludedNode)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport1 = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("res1", "node1"));
@@ -1150,7 +1152,7 @@ TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_ShouldKeepExcludedNode)
 // Tests `ClearOtherNodeMaps` with all resource types and verifies the expected result.
 TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_AllTypes_ShouldClearAllTypes)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("res1", "node1"));
@@ -1170,7 +1172,7 @@ TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_AllTypes_ShouldClearAllTypes)
 // Tests `GetNodeMemDebtInfo` with an existing node and verifies the expected result.
 TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_ExistingNode_ShouldReturnInfo)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("res1", "node1"));
@@ -1184,7 +1186,7 @@ TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_ExistingNode_ShouldReturnInfo)
 // Tests `GetNodeMemDebtInfo` with a missing node and verifies the expected result.
 TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_NonExistingNode_ShouldReturnEmptyInfo)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto result = ledger.GetNodeMemDebtInfo("non_existent");
@@ -1202,7 +1204,7 @@ TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_NonExistingNode_ShouldReturnEmp
 // Tests `GetNodeMemDebtInfo` with destroyed-resource filtering and expects destroyed resources to be filtered out.
 TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_FilterDestroyed_ShouldFilterDestroyedResources)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1226,7 +1228,7 @@ TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_FilterDestroyed_ShouldFilterDes
 // Tests `GetNodeMemDebtInfo` with all resource types and verifies the expected result.
 TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_AllResourceTypes_ShouldReturnAllTypes)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto fdImport = std::make_shared<UbseMemFdBorrowImportObj>(CreateFdImportObj("fd_import", "node1"));
@@ -1262,11 +1264,11 @@ TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_AllResourceTypes_ShouldReturnAl
 // Tests thread safety under concurrent ledger access.
 TEST_F(TestUbseMemDebtLedger, ThreadSafety_ConcurrentAccess)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
-    const int threadCount = 10;  // 并发线程数
-    const int operationsPerThread = 100;  // 每个线程的操作数
+    const int threadCount = 10;          // 并发线程数
+    const int operationsPerThread = 100; // 每个线程的操作数
     std::vector<std::thread> threads;
     std::atomic<int> successCount{0};
 
@@ -1289,7 +1291,7 @@ TEST_F(TestUbseMemDebtLedger, ThreadSafety_ConcurrentAccess)
         });
     }
 
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 
@@ -1299,22 +1301,22 @@ TEST_F(TestUbseMemDebtLedger, ThreadSafety_ConcurrentAccess)
 // Tests thread safety under concurrent GetAllDebtInfo calls.
 TEST_F(TestUbseMemDebtLedger, ThreadSafety_ConcurrentGetAllDebtInfo)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
-    for (int i = 0; i < 10; ++i) {  // 预置10个资源
+    for (int i = 0; i < 10; ++i) { // 预置10个资源
         auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
         obj->req.name = "res_" + std::to_string(i);
         ledger.GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("node1", "res_" + std::to_string(i), obj);
     }
 
-    const int threadCount = 10;  // 并发线程数10
+    const int threadCount = 10; // 并发线程数10
     std::vector<std::thread> threads;
     std::atomic<int> successCount{0};
 
     for (int i = 0; i < threadCount; ++i) {
         threads.emplace_back([&ledger, &successCount]() {
-            for (int j = 0; j < 100; ++j) {  // 每个线程执行100次查询
+            for (int j = 0; j < 100; ++j) { // 每个线程执行100次查询
                 auto result = ledger.GetAllDebtInfo();
                 if (result.size() == 1) {
                     successCount++;
@@ -1323,7 +1325,7 @@ TEST_F(TestUbseMemDebtLedger, ThreadSafety_ConcurrentGetAllDebtInfo)
         });
     }
 
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 
@@ -1333,7 +1335,7 @@ TEST_F(TestUbseMemDebtLedger, ThreadSafety_ConcurrentGetAllDebtInfo)
 // Tests edge-case handling for empty resource IDs.
 TEST_F(TestUbseMemDebtLedger, EdgeCase_EmptyResourceId)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1348,7 +1350,7 @@ TEST_F(TestUbseMemDebtLedger, EdgeCase_EmptyResourceId)
 // Tests edge-case handling for empty node IDs.
 TEST_F(TestUbseMemDebtLedger, EdgeCase_EmptyNodeId)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1363,10 +1365,10 @@ TEST_F(TestUbseMemDebtLedger, EdgeCase_EmptyNodeId)
 // Tests behavior with a large number of resources.
 TEST_F(TestUbseMemDebtLedger, EdgeCase_LargeNumberOfResources)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
-    const int resourceCount = 1000;  // 测试1000个资源
+    const int resourceCount = 1000; // 测试1000个资源
     for (int i = 0; i < resourceCount; ++i) {
         auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
         obj->req.name = "res_" + std::to_string(i);
@@ -1380,7 +1382,7 @@ TEST_F(TestUbseMemDebtLedger, EdgeCase_LargeNumberOfResources)
 // Tests behavior with special characters in identifiers.
 TEST_F(TestUbseMemDebtLedger, EdgeCase_SpecialCharactersInId)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     std::string specialId = "res-with-special_chars.123!@#$%";
@@ -1396,7 +1398,7 @@ TEST_F(TestUbseMemDebtLedger, EdgeCase_SpecialCharactersInId)
 // Tests behavior with Unicode identifiers.
 TEST_F(TestUbseMemDebtLedger, EdgeCase_UnicodeInId)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     std::string unicodeId = u8"资源_测试_123";
@@ -1412,7 +1414,7 @@ TEST_F(TestUbseMemDebtLedger, EdgeCase_UnicodeInId)
 // Tests shared-pointer cleanup to guard against leaks.
 TEST_F(TestUbseMemDebtLedger, MemoryLeak_SharedPtrCleanup)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1467,9 +1469,7 @@ TEST_F(TestUbseMemNodeDebtMap, Modify_EmptyKey_ShouldNotCrash)
     UbseMemNodeDebtMap<UbseMemFdBorrowImportObj> debtMap;
     bool called = false;
 
-    debtMap.Modify("", [&called](UbseMemFdBorrowImportObj &) {
-        called = true;
-    });
+    debtMap.Modify("", [&called](UbseMemFdBorrowImportObj&) { called = true; });
 
     EXPECT_FALSE(called);
 }
@@ -1554,7 +1554,7 @@ TEST_F(TestUbseMemTypeDebtMap, GetExportResourceByResId_WithImportObj_ShouldRetu
 // Tests `GetAllDebtInfo` with null shared_ptr in map.
 TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_WithNullSharedPtr_ShouldBeFiltered)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1570,7 +1570,7 @@ TEST_F(TestUbseMemDebtLedger, GetAllDebtInfo_WithNullSharedPtr_ShouldBeFiltered)
 // Tests `GetNodeMemDebtInfo` with null shared_ptr in map.
 TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_WithNullSharedPtr_ShouldBeFiltered)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1586,7 +1586,7 @@ TEST_F(TestUbseMemDebtLedger, GetNodeMemDebtInfo_WithNullSharedPtr_ShouldBeFilte
 // Tests `ClearOtherNodeMaps` with non-existent node.
 TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_NonExistentNode_ShouldClearAll)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     ledger.ClearAllNodeMaps();
 
     auto obj = std::make_shared<UbseMemFdBorrowImportObj>();
@@ -1599,4 +1599,4 @@ TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_NonExistentNode_ShouldClearAll)
     EXPECT_TRUE(result.empty());
 }
 
-}
+} // namespace ubse::mem::controller::debt::ut

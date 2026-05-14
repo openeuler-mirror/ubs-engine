@@ -105,7 +105,7 @@ public:
      *
      * @return true if successful, false if the ring buffer is full
      */
-    bool PushBack(const T &item)
+    bool PushBack(const T& item)
     {
         mLock_.Lock();
         if (mCapacity_ <= mCount_) {
@@ -131,7 +131,7 @@ public:
      *
      * @return true if successful, false if the ring buffer is full
      */
-    bool PushFront(const T &item)
+    bool PushFront(const T& item)
     {
         mLock_.Lock();
         if (mCapacity_ <= mCount_) {
@@ -160,7 +160,7 @@ public:
      *
      * @return true if successful, false if the ring buffer is empty
      */
-    bool PopFront(T &item)
+    bool PopFront(T& item)
     {
         mLock_.Lock();
         if (mCount_ == 0) {
@@ -202,13 +202,13 @@ public:
         return oss.str();
     }
 
-    RingBuffer(const RingBuffer &) = delete;
-    RingBuffer(RingBuffer &&) = delete;
-    RingBuffer &operator=(const RingBuffer &) = delete;
-    RingBuffer &operator=(RingBuffer &&) = delete;
+    RingBuffer(const RingBuffer&) = delete;
+    RingBuffer(RingBuffer&&) = delete;
+    RingBuffer& operator=(const RingBuffer&) = delete;
+    RingBuffer& operator=(RingBuffer&&) = delete;
 
 private:
-    T *mRingBuf_ = nullptr;
+    T* mRingBuf_ = nullptr;
     SpinLock mLock_;
     uint32_t mCapacity_ = 0;
     uint32_t mCount_ = 0;
@@ -259,7 +259,7 @@ public:
      *
      * @return true if successful, false if queue is full
      */
-    inline bool Enqueue(const T &item)
+    inline bool Enqueue(const T& item)
     {
         auto result = mRingBuffer_.PushBack(item);
         if (result) {
@@ -275,7 +275,7 @@ public:
      *
      * @return true if successful, false if queue is full
      */
-    inline bool Enqueue(T &item)
+    inline bool Enqueue(T& item)
     {
         auto result = mRingBuffer_.PushBack(item);
         if (result) {
@@ -291,7 +291,7 @@ public:
      *
      * @return true if successful, false if queue is full
      */
-    inline bool EnqueueFirst(T &item)
+    inline bool EnqueueFirst(T& item)
     {
         auto result = mRingBuffer_.PushFront(item);
         if (result) {
@@ -307,7 +307,7 @@ public:
      *
      * @return true if successful, false if queue is full
      */
-    inline bool EnqueueFirst(const T &item)
+    inline bool EnqueueFirst(const T& item)
     {
         auto result = mRingBuffer_.PushFront(item);
         if (result) {
@@ -323,7 +323,7 @@ public:
      *
      * @return true if successful, false if queue is empty
      */
-    inline bool Dequeue(T &item)
+    inline bool Dequeue(T& item)
     {
         while (true) {
             auto result = mRingBuffer_.PopFront(item);

@@ -23,7 +23,7 @@ using NodeLocInfo = struct TagUbseNodeLocInfo {
     int16_t socketId{};
     int16_t numaId{};
 
-    bool operator==(const TagUbseNodeLocInfo &a) const
+    bool operator==(const TagUbseNodeLocInfo& a) const
     {
         return (hostId == a.hostId && socketId == a.socketId && numaId == a.numaId);
     }

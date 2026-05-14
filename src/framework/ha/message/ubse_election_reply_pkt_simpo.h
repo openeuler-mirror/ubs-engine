@@ -22,9 +22,9 @@ class UbseElectionReplyPktSimpo : public UbseBaseMessage {
 public:
     UbseElectionReplyPktSimpo() = default;
 
-    explicit UbseElectionReplyPktSimpo(const ElectionReplyPkt &);
+    explicit UbseElectionReplyPktSimpo(const ElectionReplyPkt&);
 
-    explicit UbseElectionReplyPktSimpo(uint8_t *rawDev, uint32_t size)
+    explicit UbseElectionReplyPktSimpo(uint8_t* rawDev, uint32_t size)
     {
         SetInputRawData(rawDev, size);
     }
@@ -34,7 +34,7 @@ public:
         return electionReplyPkt_;
     }
 
-    inline void SetResponse(ElectionReplyPkt &replyPkt)
+    inline void SetResponse(ElectionReplyPkt& replyPkt)
     {
         electionReplyPkt_ = replyPkt;
     }
@@ -49,6 +49,6 @@ private:
     ElectionReplyPkt electionReplyPkt_{};
 };
 using UbseElectionReplyPktSimpoPtr = Ref<UbseElectionReplyPktSimpo>;
-}
+} // namespace ubse::election::message
 
 #endif // UBSE_HEART_BEAT_REPLY_SIMPO_H

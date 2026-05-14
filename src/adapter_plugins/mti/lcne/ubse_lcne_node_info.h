@@ -18,8 +18,8 @@
 #include "ubse_common_def.h"  // for UbseResult
 #include "ubse_http_common.h" // for UbseHttpMethod, UbseHttpResponse (ptr o...
 #include "ubse_lcne_def.h"    // for LcneServer
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 namespace ubse::lcne {
 using namespace common::def;
 using namespace ubse::http;
@@ -30,27 +30,26 @@ using UbseLcneIODieInfoMap = std::map<UbseDevName, UbseLcneIODieInfo>;
 
 class UbseLcneNodeInfo {
 public:
-    static UbseLcneNodeInfo &GetGetInstance()
+    static UbseLcneNodeInfo& GetGetInstance()
     {
         static UbseLcneNodeInfo instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8088;
         return instance;
     }
 
     // 查询全量节点（IO DIE）信息  查询范围：本板
-    UbseResult QueryAllLcneIODieInfo(UbseLcneIODieInfoMap &ubseLcneIODieInfoMap);
+    UbseResult QueryAllLcneIODieInfo(UbseLcneIODieInfoMap& ubseLcneIODieInfoMap);
 
 private:
     UbseLcneNodeInfo(std::string host, int port) : host(std::move(host)), port(port) {}
 
-    UbseResult ParseIODieInfoQueryAllResponse(const std::string &responseStr,
-        UbseLcneIODieInfoMap &ubseLcneIODieInfoMap);
+    UbseResult ParseIODieInfoQueryAllResponse(const std::string& responseStr,
+                                              UbseLcneIODieInfoMap& ubseLcneIODieInfoMap);
 
     std::string host;
     int port;
 
     const std::string QUERY_ALL_URI = "/restconf/data/huawei-vbussw-service:vbussw-service/iou-infos";
 };
-}
-
+} // namespace ubse::lcne
 
 #endif // UBSE_LCNE_NODE_INFO_H

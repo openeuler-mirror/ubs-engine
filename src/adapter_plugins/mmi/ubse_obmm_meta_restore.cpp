@@ -9,18 +9,17 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <unordered_map>
-#include <unordered_set>
-#include <filesystem>
-#include <string>
-#include <system_error>
-#include <vector>
-#include <cstdint>
+#include "ubse_obmm_meta_restore.h"
 #include <algorithm>
+#include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <regex>
-#include "fcntl.h"
-#include "securec.h"
+#include <string>
+#include <system_error>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -28,9 +27,10 @@
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_obmm_utils.h"
-#include "unistd.h"
-#include "ubse_obmm_meta_restore.h"
 #include "ubse_security_module.h"
+#include "fcntl.h"
+#include "securec.h"
+#include "unistd.h"
 
 namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -58,8 +58,7 @@ bool SafeReadSymlink(const std::filesystem::path& p, std::string& target)
 std::vector<std::filesystem::directory_entry> SafeDirectoryEntries(const std::filesystem::path& dirPath)
 {
     try {
-        return {std::filesystem::directory_iterator(dirPath),
-                std::filesystem::directory_iterator()};
+        return {std::filesystem::directory_iterator(dirPath), std::filesystem::directory_iterator()};
     } catch (...) {
         return {};
     }
@@ -76,21 +75,24 @@ bool IsSymlink(const std::filesystem::path& path)
 }
 
 // 一次性扫描 /proc，构建 {file_path -> [pids]} 映射
-FileToPidsMap BuildFileToPidsMap(const std::unordered_set<std::string> &targetPaths)
+FileToPidsMap BuildFileToPidsMap(const std::unordered_set<std::string>& targetPaths)
 {
     FileToPidsMap result;
     const std::filesystem::path procPath("/proc");
 
-    for (const auto &procEntry : SafeDirectoryEntries(procPath)) {
-        if (!procEntry.is_directory()) continue;
+    for (const auto& procEntry : SafeDirectoryEntries(procPath)) {
+        if (!procEntry.is_directory())
+            continue;
 
         const std::string pidStr = procEntry.path().filename().string();
         uint64_t pid = 0;
-        if (!RmCommonUtils::GetInstance().StrToULong(pidStr, pid)) continue;
+        if (!RmCommonUtils::GetInstance().StrToULong(pidStr, pid))
+            continue;
 
         std::filesystem::path fdDir = procEntry.path() / "fd";
-        for (const auto &fdEntry : SafeDirectoryEntries(fdDir)) {
-            if (!IsSymlink(fdEntry.path())) continue;
+        for (const auto& fdEntry : SafeDirectoryEntries(fdDir)) {
+            if (!IsSymlink(fdEntry.path()))
+                continue;
 
             std::string target;
             if (!SafeReadSymlink(fdEntry.path(), target)) {
@@ -106,9 +108,9 @@ FileToPidsMap BuildFileToPidsMap(const std::unordered_set<std::string> &targetPa
 }
 
 // 批量查询接口（替代原来的 GetUsedPidCount）
-void BatchGetUsedPidCount(const std::unordered_set<std::string > &targetPaths,
-    const std::vector<std::string> &originalOrder, std::vector<uint64_t> &usedPidCounts,
-    std::vector<std::vector<uint64_t>> &usedPidSets)
+void BatchGetUsedPidCount(const std::unordered_set<std::string>& targetPaths,
+                          const std::vector<std::string>& originalOrder, std::vector<uint64_t>& usedPidCounts,
+                          std::vector<std::vector<uint64_t>>& usedPidSets)
 {
     auto fileToPids = BuildFileToPidsMap(targetPaths);
 
@@ -117,7 +119,7 @@ void BatchGetUsedPidCount(const std::unordered_set<std::string > &targetPaths,
     usedPidSets.resize(vecLen);
 
     for (size_t i = 0; i < vecLen; ++i) {
-        const auto &path = originalOrder[i];
+        const auto& path = originalOrder[i];
         if (auto it = fileToPids.find(OBMM_DEV_PATH + path); it != fileToPids.end()) {
             UBSE_LOG_DEBUG << MMI_LOG_INFO << "Pid size is " << it->second.size() << ", path " << OBMM_DEV_PATH + path;
             usedPidCounts[i] = it->second.size();
@@ -129,7 +131,7 @@ void BatchGetUsedPidCount(const std::unordered_set<std::string > &targetPaths,
 }
 
 UbseResult RmObmmMetaRestore::ReadAgentLocalObmmMetaData(
-    uint64_t taskId, std::vector<UbseMemLocalObmmMetaData> &ubseMemLocalObmmMetaDatas, bool &lastPage)
+    uint64_t taskId, std::vector<UbseMemLocalObmmMetaData>& ubseMemLocalObmmMetaDatas, bool& lastPage)
 {
     lastPage = true; // 单页模式
     ubseMemLocalObmmMetaDatas.clear();
@@ -175,7 +177,7 @@ std::vector<std::string> RmObmmMetaRestore::ReadAllObmmShmDevPath()
 {
     std::string directory = "/sys/devices/obmm";
 
-    DIR *dir = opendir(directory.c_str());
+    DIR* dir = opendir(directory.c_str());
     if (dir == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << directory << " open failed.";
         return {};
@@ -183,7 +185,7 @@ std::vector<std::string> RmObmmMetaRestore::ReadAllObmmShmDevPath()
 
     std::vector<std::string> allDir;
 
-    dirent *entry;
+    dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_name[0] != '.' && entry->d_type == DT_DIR) {
             allDir.emplace_back(entry->d_name);
@@ -193,13 +195,13 @@ std::vector<std::string> RmObmmMetaRestore::ReadAllObmmShmDevPath()
     std::regex pattern(R"(obmm_shmdev(\d+))");
     std::smatch match;
     std::vector<std::string> result;
-    for (const auto &dirname : allDir) {
+    for (const auto& dirname : allDir) {
         try {
             if (!std::regex_search(dirname, match, pattern)) {
                 continue;
             }
             result.push_back(dirname);
-        } catch (const std::regex_error &e) {
+        } catch (const std::regex_error& e) {
             UBSE_LOG_ERROR << "ReadAllObmmShmDevPath regex error! dirname=" << dirname << ", error=" << e.what();
             closedir(dir);
             return result;
@@ -210,8 +212,9 @@ std::vector<std::string> RmObmmMetaRestore::ReadAllObmmShmDevPath()
     return result;
 }
 
-UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(const uint8_t *buffer, uint64_t length,
-    UbseMemLocalObmmCustomMeta &customMeta, UbMemPrivData &privData)
+UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(const uint8_t* buffer, uint64_t length,
+                                                                      UbseMemLocalObmmCustomMeta& customMeta,
+                                                                      UbMemPrivData& privData)
 {
     if (buffer == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Buffer is nullptr.";
@@ -234,8 +237,8 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(const uint
     return UBSE_OK;
 }
 
-UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string &path,
-                                                            UbseMemLocalObmmMetaData &localObmmMetaData)
+UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string& path,
+                                                            UbseMemLocalObmmMetaData& localObmmMetaData)
 {
     auto ret = RmObmmDevRead::GetMemIdType(OBMM_META_PATH + path, localObmmMetaData.memIdType);
     if (ret != UBSE_OK) {
@@ -243,8 +246,8 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string &p
         return ret;
     }
 
-    ret = RmObmmDevRead::GetRemoteNuma(OBMM_META_PATH + path,
-        localObmmMetaData.memIdType, localObmmMetaData.remoteNumaId);
+    ret = RmObmmDevRead::GetRemoteNuma(OBMM_META_PATH + path, localObmmMetaData.memIdType,
+                                       localObmmMetaData.remoteNumaId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get remote numaId fail! Path=" << path;
         return ret;
@@ -262,15 +265,14 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string &p
         return ret;
     }
 
-    ret = RmObmmDevRead::GetMemUbMemInfo(OBMM_META_PATH + path,
-        localObmmMetaData.memIdType, localObmmMetaData.obmmMemExportInfo);
+    ret = RmObmmDevRead::GetMemUbMemInfo(OBMM_META_PATH + path, localObmmMetaData.memIdType,
+                                         localObmmMetaData.obmmMemExportInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get ub memory info fail! Path=" << path;
         return ret;
     }
 
-    ret = RmObmmDevRead::GetCustomMeta(OBMM_META_PATH + path,
-        localObmmMetaData.customMeta, localObmmMetaData.privData);
+    ret = RmObmmDevRead::GetCustomMeta(OBMM_META_PATH + path, localObmmMetaData.customMeta, localObmmMetaData.privData);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get custom meta fail! Path=" << path;
         return ret;
@@ -279,7 +281,7 @@ UbseResult RmObmmMetaRestore::RestoreAgentLocalObmmMetaData(const std::string &p
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetMemIdType(const std::string &path, uint8_t &memIdType)
+UbseResult RmObmmDevRead::GetMemIdType(const std::string& path, uint8_t& memIdType)
 {
     std::string path2type = path + "/type";
     std::string type;
@@ -299,7 +301,7 @@ UbseResult RmObmmDevRead::GetMemIdType(const std::string &path, uint8_t &memIdTy
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetRemoteNuma(const std::string &path, uint8_t memIdType, int16_t &remoteNuma)
+UbseResult RmObmmDevRead::GetRemoteNuma(const std::string& path, uint8_t memIdType, int16_t& remoteNuma)
 {
     if (memIdType == 1) { // 1 means export
         remoteNuma = -1;  // invalid value
@@ -323,17 +325,17 @@ UbseResult RmObmmDevRead::GetRemoteNuma(const std::string &path, uint8_t memIdTy
     return UBSE_OK;
 }
 
-static bool IsFileOpenByProc(const std::filesystem::path &procFdPath, const std::string &targetFile)
+static bool IsFileOpenByProc(const std::filesystem::path& procFdPath, const std::string& targetFile)
 {
     std::filesystem::directory_iterator list;
     try {
         list = std::filesystem::directory_iterator(procFdPath);
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         // 捕获并处理directory_iterator可能抛出的异常，比如权限问题
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Directory iteration failed=" << e.what();
         return false;
     }
-    for (const auto &entry : list) {
+    for (const auto& entry : list) {
         if (!std::filesystem::is_symlink(entry.path())) {
             continue;
         }
@@ -349,7 +351,7 @@ static bool IsFileOpenByProc(const std::filesystem::path &procFdPath, const std:
     return false;
 }
 
-UbseResult RmObmmDevRead::GetTotalSize(const std::string &path, uint64_t &totalSize)
+UbseResult RmObmmDevRead::GetTotalSize(const std::string& path, uint64_t& totalSize)
 {
     std::string path2totalSize = path + "/size";
     std::string strSize;
@@ -365,7 +367,7 @@ UbseResult RmObmmDevRead::GetTotalSize(const std::string &path, uint64_t &totalS
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetLocalMemId(const std::string &path, uint64_t &localMemId)
+UbseResult RmObmmDevRead::GetLocalMemId(const std::string& path, uint64_t& localMemId)
 {
     std::regex pattern(R"((\d+))");
     std::smatch match;
@@ -375,7 +377,7 @@ UbseResult RmObmmDevRead::GetLocalMemId(const std::string &path, uint64_t &local
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memId from path fail! Path=" << path;
             return UBSE_ERROR_INVAL;
         }
-    } catch (const std::regex_error &e) {
+    } catch (const std::regex_error& e) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get memId from path regex error! Path=" << path << ", error=" << e.what();
         return UBSE_ERROR_INVAL;
     }
@@ -388,8 +390,8 @@ UbseResult RmObmmDevRead::GetLocalMemId(const std::string &path, uint64_t &local
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetUbMemInfoFromFile(const std::string &path, std::string &uba,
-    std::string &length, std::string &tokenid, std::string &deid)
+UbseResult RmObmmDevRead::GetUbMemInfoFromFile(const std::string& path, std::string& uba, std::string& length,
+                                               std::string& tokenid, std::string& deid)
 {
     std::string path2uba = path + "/export_info/uba";
     std::string path2length = path + "/size";
@@ -420,8 +422,7 @@ UbseResult RmObmmDevRead::GetUbMemInfoFromFile(const std::string &path, std::str
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetMemUbMemInfo(const std::string &path,
-    uint8_t memIdType, ubse_mem_obmm_mem_desc &ubMemInfo)
+UbseResult RmObmmDevRead::GetMemUbMemInfo(const std::string& path, uint8_t memIdType, ubse_mem_obmm_mem_desc& ubMemInfo)
 {
     if (memIdType == 0) { // 0 means import
         return UBSE_OK;
@@ -444,7 +445,7 @@ UbseResult RmObmmDevRead::GetMemUbMemInfo(const std::string &path,
         !RmCommonUtils::GetInstance().StrToULL(length, ubMemInfo.length, 16U) ||
         !RmCommonUtils::GetInstance().StrToULL(tokenid, tmpTokenId, 16U)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Convert string to number fail. uba=" << uba << ", length=" << length
-                     << ", tokenid=" << tokenid << ", deid=" << deid;
+                       << ", tokenid=" << tokenid << ", deid=" << deid;
         return UBSE_ERROR_INVAL;
     }
 
@@ -454,8 +455,8 @@ UbseResult RmObmmDevRead::GetMemUbMemInfo(const std::string &path,
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetCustomMeta(const std::string &path,
-    UbseMemLocalObmmCustomMeta &customMeta, UbMemPrivData &privData)
+UbseResult RmObmmDevRead::GetCustomMeta(const std::string& path, UbseMemLocalObmmCustomMeta& customMeta,
+                                        UbMemPrivData& privData)
 {
     std::string path2privLen = path + "/priv_len";
     std::string path2priv = path + "/priv";
@@ -490,7 +491,7 @@ UbseResult RmObmmDevRead::GetCustomMeta(const std::string &path,
     auto num_bytes = read(fd, buffer, length);
     if (num_bytes != length) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to read full data, num_bytes=" << num_bytes
-                     << ", request_bytes=" << length;
+                       << ", request_bytes=" << length;
         close(fd);
         RmCommonUtils::GetInstance().SafeDeleteArray(buffer);
         return UBSE_MMI_OPEN_FAILED;
@@ -507,7 +508,7 @@ UbseResult RmObmmDevRead::GetCustomMeta(const std::string &path,
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
+UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t& numa)
 {
     auto filePath = "/sys/devices/obmm/obmm_shmdev" + std::to_string(memid) + "/export_info/node_mem_size";
     std::string line;
@@ -516,7 +517,7 @@ UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Failed to get node_mem_size from obmm meta. Path=" << filePath;
         return ret;
     }
-    int index = 0; // 记录当前值的索引
+    int index = 0;                // 记录当前值的索引
     std::istringstream iss(line); // 将行内容放入字符串流中
     std::string token;
     bool isNonZero = false;
@@ -531,7 +532,7 @@ UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
             }
 
             ++index;
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Error parsing token." << e.what();
         }
     }
@@ -544,7 +545,7 @@ UbseResult RmObmmDevRead::GetNuma(mem_id memid, uint64_t &numa)
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetNameByMemId(mem_id memId, std::string &name)
+UbseResult RmObmmDevRead::GetNameByMemId(mem_id memId, std::string& name)
 {
     std::string path = "/sys/devices/obmm/obmm_shmdev" + std::to_string(memId);
     UbseMemLocalObmmCustomMeta customMeta{};
@@ -558,7 +559,7 @@ UbseResult RmObmmDevRead::GetNameByMemId(mem_id memId, std::string &name)
     return UBSE_OK;
 }
 
-UbseResult RmObmmDevRead::GetBorrowTypeByMemId(mem_id memId, uint8_t &borrowType)
+UbseResult RmObmmDevRead::GetBorrowTypeByMemId(mem_id memId, uint8_t& borrowType)
 {
     std::string path = "/sys/devices/obmm/obmm_shmdev" + std::to_string(memId);
     UbseMemLocalObmmCustomMeta customMeta{};

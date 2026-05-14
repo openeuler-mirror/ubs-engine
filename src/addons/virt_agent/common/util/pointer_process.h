@@ -18,7 +18,7 @@
 
 namespace vm {
 template <typename T>
-void SafeDeleteArray(T *&ptr)
+void SafeDeleteArray(T*& ptr)
 {
     if (ptr) {
         delete[] ptr;
@@ -26,7 +26,7 @@ void SafeDeleteArray(T *&ptr)
     }
 }
 template <typename T>
-void SafeDeleteArray(T *&ptr, size_t ptrLen)
+void SafeDeleteArray(T*& ptr, size_t ptrLen)
 {
     if (ptr && ptrLen != 0) {
         delete[] ptr;

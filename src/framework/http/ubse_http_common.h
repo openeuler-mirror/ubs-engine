@@ -13,9 +13,9 @@
 #ifndef UBSE_HTTP_MODULE_H_UBSE_HTTP_COMMON_H
 #define UBSE_HTTP_MODULE_H_UBSE_HTTP_COMMON_H
 
+#include <functional>
 #include <string>
 #include <unordered_map>
-#include <functional>
 #include "ubse_common_def.h"
 
 const unsigned int HTTP_ENUM_BOTTOM = 0xFFFFFFF;
@@ -117,12 +117,11 @@ struct UbseHttpRequest {
 /**
  * http回调函数类型
  */
-using UbseHttpHandlerFunc = std::function<uint32_t(const UbseHttpRequest &req, UbseHttpResponse &resp)>;
+using UbseHttpHandlerFunc = std::function<uint32_t(const UbseHttpRequest& req, UbseHttpResponse& resp)>;
 
 std::string UbseHttpMethodToString(UbseHttpMethod method);
 
 UbseHttpMethod StringToUbseHttpMethod(std::string method);
 } // namespace ubse::http
-
 
 #endif // UBSE_HTTP_MODULE_H_UBSE_HTTP_COMMON_H

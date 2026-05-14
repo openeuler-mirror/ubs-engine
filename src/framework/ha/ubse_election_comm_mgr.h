@@ -40,20 +40,20 @@ public:
      * @return 成功返回0，不成功返回非0
      */
     UbseElectionCommMgr() = default;
-    explicit UbseElectionCommMgr(const std::string &nodeId, const std::string &name) : UbseComBase(nodeId, name) {}
-    uint32_t Connect(const UBSE_ID_TYPE &dstIp);
+    explicit UbseElectionCommMgr(const std::string& nodeId, const std::string& name) : UbseComBase(nodeId, name) {}
+    uint32_t Connect(const UBSE_ID_TYPE& dstIp);
 
-    UbseResult DisConnect(const UBSE_ID_TYPE &dstId);
+    UbseResult DisConnect(const UBSE_ID_TYPE& dstId);
 
-    UbseResult SendElectionPkt(UBSE_ID_TYPE destID, const ElectionPkt &pkt, ElectionReplyPkt &reply);
+    UbseResult SendElectionPkt(UBSE_ID_TYPE destID, const ElectionPkt& pkt, ElectionReplyPkt& reply);
 
     std::vector<UBSE_ID_TYPE> GetConnectedNodes() const;
 
-    UbseResult ElectionResponseHandler(std::string &eventId, std::string &eventMessage);
+    UbseResult ElectionResponseHandler(std::string& eventId, std::string& eventMessage);
 
-    UbseResult ElectionFaultHandler(std::string &eventId, std::string &eventMessage);
+    UbseResult ElectionFaultHandler(std::string& eventId, std::string& eventMessage);
 
-    UbseResult ElectionTopoChangeHandler(std::string &eventId, std::string &eventMessage);
+    UbseResult ElectionTopoChangeHandler(std::string& eventId, std::string& eventMessage);
 
     UbseResult RegNewChannelCb([[maybe_unused]] UbseComCallBackForHA func) override
     {
@@ -65,7 +65,7 @@ public:
         return UBSE_OK;
     };
 
-    UbseResult NewChannelCB(const std::string &remoteIp, const std::string &remoteNodeId);
+    UbseResult NewChannelCB(const std::string& remoteIp, const std::string& remoteNodeId);
 
     UbseResult ElectionSubEvent();
 
@@ -74,7 +74,7 @@ public:
     void Stop() override {}
 
 private:
-    void ElectionNodeDownNotify(const std::string &nodeId);
+    void ElectionNodeDownNotify(const std::string& nodeId);
     std::vector<UBSE_ID_TYPE> connectSuccessNodes_;
     mutable std::shared_mutex mtx_{};
 };

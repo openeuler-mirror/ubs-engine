@@ -3,11 +3,11 @@
 #ifndef UBSE_MANAGER_TRACE_CONTEXT_H
 #define UBSE_MANAGER_TRACE_CONTEXT_H
 
-#include <string>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <random>
-#include <chrono>
+#include <string>
 #include <thread>
 #include "securec.h"
 
@@ -25,7 +25,7 @@ constexpr size_t TRACE_ID_SIZE = 37;
 
 using uuid_t = unsigned char[16];
 using UuidGenerateRandom = void (*)(uuid_t);
-using UuidUnparse = void (*)(const uuid_t uu, char *out);
+using UuidUnparse = void (*)(const uuid_t uu, char* out);
 
 class TraceContext {
 public:
@@ -55,7 +55,7 @@ public:
     }
 
     // 手动设置traceId（用于接收外部传递的ID）
-    static inline void SetTraceId(const std::string &traceId)
+    static inline void SetTraceId(const std::string& traceId)
     {
         if (!ensureInitialized()) {
             return;
@@ -87,9 +87,7 @@ private:
     static inline bool ensureInitialized()
     {
         static std::once_flag initFlag;
-        std::call_once(initFlag, []() {
-            InitUuid();
-        });
+        std::call_once(initFlag, []() { InitUuid(); });
         return IsEnabled_.load(std::memory_order_acquire);
     }
 
@@ -104,7 +102,7 @@ private:
             uuid_t uuid;
             generateFunc(uuid);
             unparseFunc(uuid, tls_traceId);
-            tls_traceId[TRACE_ID_SIZE - 1] = '\0';  // 确保终止符
+            tls_traceId[TRACE_ID_SIZE - 1] = '\0'; // 确保终止符
             return;
         }
 
@@ -125,11 +123,9 @@ private:
         uint64_t low = random;
         const size_t destSize = sizeof(tls_traceId);
         errno_t ret = snprintf_s(tls_traceId,
-                                 destSize,            // destMax: 使用实际数组大小
-                                 destSize - 1,        // count: 最多写入 destSize-1 个字符
-                                 "%016lx-%016lx",
-                                 static_cast<unsigned long>(high),
-                                 static_cast<unsigned long>(low));
+                                 destSize,     // destMax: 使用实际数组大小
+                                 destSize - 1, // count: 最多写入 destSize-1 个字符
+                                 "%016lx-%016lx", static_cast<unsigned long>(high), static_cast<unsigned long>(low));
         if (ret < 0) {
             tls_traceId[0] = '\0';
         } else {

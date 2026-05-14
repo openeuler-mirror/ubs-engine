@@ -28,7 +28,7 @@ using namespace ubse::com;
 
 class UbseNodeControllerMaster {
 public:
-    static UbseNodeControllerMaster &GetInstance()
+    static UbseNodeControllerMaster& GetInstance()
     {
         static UbseNodeControllerMaster instance;
         return instance;
@@ -55,33 +55,33 @@ public:
     UbseResult UbseLcneTopologyChangeHandler(const UbseNodeInfo& nodeInfo);
 
 private:
-    UbseResult UbseMasterOnlineHandler(const std::string &nodeId);
+    UbseResult UbseMasterOnlineHandler(const std::string& nodeId);
 
-    UbseResult UbseNodeDownHandler(const std::string &nodeId);
+    UbseResult UbseNodeDownHandler(const std::string& nodeId);
 
-    UbseResult UbseNodeUpHandler(const std::string &nodeId);
+    UbseResult UbseNodeUpHandler(const std::string& nodeId);
 
-    void UbseNodeUpHandlerExec(const std::string &nodeId);
+    void UbseNodeUpHandlerExec(const std::string& nodeId);
 
     void UbseNodeLedgerTimerHandler();
 
-    void UbseNodeCycleLedger(const std::string &nodeId);
+    void UbseNodeCycleLedger(const std::string& nodeId);
 
-    void UbseNodeUpLedger(const std::string &nodeId);
+    void UbseNodeUpLedger(const std::string& nodeId);
 
-    void UbseNodeLedger(const std::string &nodeId);
+    void UbseNodeLedger(const std::string& nodeId);
 
-    UbseResult UbseNodeRasPreFaultHandler(const std::string &nodeId);
+    UbseResult UbseNodeRasPreFaultHandler(const std::string& nodeId);
 
-    UbseResult UbseNodeRasPreFaultFailHandler(const std::string &nodeId);
+    UbseResult UbseNodeRasPreFaultFailHandler(const std::string& nodeId);
 
-    UbseResult UbseNodeRasFaultHandler(const std::string &nodeId);
+    UbseResult UbseNodeRasFaultHandler(const std::string& nodeId);
 
-    UbseResult UbseNodeRasAfterFaultClearHandler(const std::string &nodeId);
+    UbseResult UbseNodeRasAfterFaultClearHandler(const std::string& nodeId);
 
     void UbseNodeCleanAfterSwitchStandby();
 
-    void UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string action);
+    void UbseMasterNotifyAllAgentsAction(const std::string& nodeId, std::string action);
 
     void UbseNodeRetryLedger(const std::string& nodeId);
 
@@ -127,7 +127,7 @@ UbseResult RegMasterMsgHandler();
  * @param resp 响应数据，返回处理结果
  * @return UbseResult 处理结果
  */
-UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
  * 处理Agent周期上报的节点信息
@@ -135,7 +135,7 @@ UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &
  * @param resp 响应数据，返回处理结果
  * @return UbseResult 处理结果
  */
-UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
  * 处理Agent查询全量节点列表
@@ -143,7 +143,7 @@ UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuff
  * @param resp 响应数据，包含全量节点列表
  * @return UbseResult 处理结果
  */
-UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
  * 处理Agent查询全量链路信息
@@ -151,7 +151,7 @@ UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBu
  * @param resp 响应数据，包含全量链路信息
  * @return UbseResult 处理结果
  */
-UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
  * Master从Agent采集节点信息
@@ -159,7 +159,7 @@ UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer &req, Ubs
  * @param info 输出参数，采集到的节点信息
  * @return UbseResult 采集结果
  */
-UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
+UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info);
 } // namespace ubse::nodeController
 
 #endif // UBS_ENGINE_UBSE_NODE_CONTROLLER_MASTER_H

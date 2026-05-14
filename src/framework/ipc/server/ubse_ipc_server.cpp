@@ -18,9 +18,9 @@
 
 namespace ubse::ipc {
 UBSE_DEFINE_THIS_MODULE("ubse");
-UbseIpcServer::UbseIpcServer(const UbseUDSConfig &config) : udsServer_(config)
+UbseIpcServer::UbseIpcServer(const UbseUDSConfig& config) : udsServer_(config)
 {
-    udsServer_.RegisterHandler([this](const UbseRequestMessage &req, const UbseRequestContext &context) {
+    udsServer_.RegisterHandler([this](const UbseRequestMessage& req, const UbseRequestContext& context) {
         return this->HandleRequest(req, context);
     });
 }
@@ -42,11 +42,11 @@ uint32_t UbseIpcServer::RegisterHandler(uint16_t moduleCode, uint16_t opCode, Ub
         UBSE_LOG_ERROR << "The API interface already registered, moduleCode=" << moduleCode << ", opCode=" << opCode;
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
-    apiInterfaceMap_[{ moduleCode, opCode }] = std::move(handler);
+    apiInterfaceMap_[{moduleCode, opCode}] = std::move(handler);
     return UBSE_OK;
 }
 
-void UbseIpcServer::HandleRequest(const UbseRequestMessage &request, const UbseRequestContext &context)
+void UbseIpcServer::HandleRequest(const UbseRequestMessage& request, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Start handling API request, moduleCode = " << request.header.moduleCode
                   << ", opCode = " << request.header.opCode << ", request_id= " << context.requestId
@@ -59,13 +59,14 @@ void UbseIpcServer::HandleRequest(const UbseRequestMessage &request, const UbseR
         std::lock_guard<std::mutex> lock(handlersMutex_);
         auto it = apiInterfaceMap_.find(key);
         if (it == apiInterfaceMap_.end()) {
-            UBSE_LOG_ERROR << "The API interface does not exist, moduleCode= " << request.header.moduleCode <<
-                ", opCode:= " << request.header.opCode << ", request_id= " << context.requestId;
-            UbseResponseMessage responseMessage{ { UBSE_ERR_DAEMON_UNREACHABLE, 0 }, nullptr };
+            UBSE_LOG_ERROR << "The API interface does not exist, moduleCode= " << request.header.moduleCode
+                           << ", opCode:= " << request.header.opCode << ", request_id= " << context.requestId;
+            UbseResponseMessage responseMessage{{UBSE_ERR_DAEMON_UNREACHABLE, 0}, nullptr};
             auto ret = udsServer_.SendResponse(context.requestId, responseMessage);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "The API interface Send response failed= " << request.header.moduleCode
-                               << ", opCode= " << ", request_id= " << context.requestId;
+                               << ", opCode= "
+                               << ", request_id= " << context.requestId;
             }
             return;
         }
@@ -88,7 +89,7 @@ void UbseIpcServer::HandleRequest(const UbseRequestMessage &request, const UbseR
                   << ", request_id= " << context.requestId;
     // handler执行失败, 返回错误信息
     if (handlerRet != UBSE_OK) {
-        UbseResponseMessage responseMessage{ { handlerRet, 0 }, nullptr };
+        UbseResponseMessage responseMessage{{handlerRet, 0}, nullptr};
         auto ret = udsServer_.SendResponse(context.requestId, responseMessage);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "The API interface Send response failed= " << request.header.moduleCode
@@ -97,14 +98,14 @@ void UbseIpcServer::HandleRequest(const UbseRequestMessage &request, const UbseR
     }
 }
 
-uint32_t UbseIpcServer::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &response)
+uint32_t UbseIpcServer::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response)
 {
-    UbseResponseMessage responseMessage{ { statusCode, response.length }, response.buffer };
+    UbseResponseMessage responseMessage{{statusCode, response.length}, response.buffer};
     return udsServer_.SendResponse(requestId, responseMessage);
 }
 
-uint32_t UbseIpcServer::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo &clientInfo,
-                                          void *ctx, UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList)
+uint32_t UbseIpcServer::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo& clientInfo,
+                                          void* ctx, UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList)
 {
     return udsServer_.AsyncSendLongLink(requestMessage, clientInfo, ctx, handler, reqList);
 }

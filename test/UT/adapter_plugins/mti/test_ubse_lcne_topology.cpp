@@ -14,9 +14,6 @@
 
 #include <mockcpp/mokc.h>
 
-#include "lcne/ubse_lcne_sub_topo_change_info.h"
-#include "lcne/ubse_lcne_topology_client.h"
-#include "lcne/ubse_topo_cna.h"
 #include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -24,6 +21,9 @@
 #include "ubse_http_module.h"
 #include "ubse_lcne_topology.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
+#include "lcne/ubse_lcne_sub_topo_change_info.h"
+#include "lcne/ubse_lcne_topology_client.h"
+#include "lcne/ubse_topo_cna.h"
 
 namespace ubse::mti {
 using namespace ubse::context;
@@ -312,4 +312,4 @@ TEST_F(TestUbseLcneTopology, EraseEdge_NotCpu)
     topology.UbseEraseEdge(devName, UbseDevPortName("0"));
     EXPECT_EQ(topology.ubseTopologyInfo[devName].second.size(), 1);
 }
-}  // namespace ubse::mti
+} // namespace ubse::mti

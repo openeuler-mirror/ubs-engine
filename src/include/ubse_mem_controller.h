@@ -13,10 +13,10 @@
 #ifndef UBSE_MEM_CONTROLLER_H
 #define UBSE_MEM_CONTROLLER_H
 
+#include <netinet/in.h>
+#include <iostream>
 #include <string>
 #include <vector>
-#include <iostream>
-#include <netinet/in.h>
 #include "ubse_common_def.h"
 
 namespace ubse::mem::controller {
@@ -53,7 +53,7 @@ enum class UbseMemBorrowType {
 * @param memResult [out] 借用结果
 * @return 查询成功返回0，失败返回1
 */
-uint32_t UbseQueryResult(const std::string &name, UbseMemResult &result,
+uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result,
                          UbseMemBorrowType borrowType = UbseMemBorrowType::NUMA_BORROW);
 
 static constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
@@ -61,7 +61,7 @@ struct UbseNumaMemoryDebtInfo {
     std::string name; // 资源名称标识
     std::string borrowNodeId;
     std::vector<int> borrowSocketIdList;
-    uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN];   // 调用方私有数据，UBSE只负责保存，get时原样返回
+    uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN]; // 调用方私有数据，UBSE只负责保存，get时原样返回
     std::vector<uint64_t> borrowMemId;
     std::string lentNodeId;
     std::vector<int> lentSocketIdList;
@@ -70,8 +70,8 @@ struct UbseNumaMemoryDebtInfo {
     std::vector<uint64_t> lentMemId;
     uint64_t size; // 总借用内存大小（字节）
     int64_t remoteNumaId = -1;
-    uid_t uid{0};             // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
-    std::string username{};   // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
+    std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
 };
 
 /**
@@ -85,7 +85,7 @@ struct UbseNumaMemoryDebtInfo {
 * @return #UBSE_PAR_SUCCESS 部分成功
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
-UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
 
 /**
 * @brief 返回当前集群topo中的所有对账完成节点的账本信息。
@@ -97,14 +97,14 @@ UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector
 * @return #UBSE_PAR_SUCCESS 部分成功
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
-UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
 
 struct UbseNumaMemoryImportDebtInfo {
     std::string name; // 资源名称标识
     std::string borrowNodeId;
     std::vector<int> borrowSocketIdList;
-    uint64_t size; // 总借用内存大小（字节）
-    uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN];   // 调用方私有数据，UBSE只负责保存，get时原样返回
+    uint64_t size;                          // 总借用内存大小（字节）
+    uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN]; // 调用方私有数据，UBSE只负责保存，get时原样返回
     int64_t remoteNumaId = -1;
 };
 
@@ -118,7 +118,7 @@ struct UbseNumaMemoryImportDebtInfo {
 * @return #UBSE_PAR_SUCCESS 部分成功
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
-UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos);
+UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos);
 
 enum UbseMemDistance {
     MEM_DISTANCE_L0, // L0对应直接CPU连线节点
@@ -134,10 +134,10 @@ struct UbseMemBorrower {
 };
 
 struct UbseMemNumaLender {
-    uint32_t slotId;     // 节点唯一标识, 采用slotid, 与lcne保持一致
-    uint32_t socketId;   // socket id
-    uint64_t numaId;     // 节点中的numa id
-    uint64_t size; // 借出内存大小, 单位Byte, 取值范围大于等于4*1024*1024
+    uint32_t slotId;   // 节点唯一标识, 采用slotid, 与lcne保持一致
+    uint32_t socketId; // socket id
+    uint64_t numaId;   // 节点中的numa id
+    uint64_t size;     // 借出内存大小, 单位Byte, 取值范围大于等于4*1024*1024
 };
 
 struct UbseTopoIpAddress {
@@ -155,28 +155,28 @@ struct UbseTopoNode {
 };
 
 struct UbseMemNumaDesc {
-    std::string name;        // 借用标识
-    int64_t numaId;          // 形成远端numa对应的numaid
-    UbseTopoNode exportNode; // 借出节点
-    UbseTopoNode importNode; // 借入节点
-    uint64_t size;           // 借用大小
-    uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN];   // 调用方私有数据，UBSE只负责保存，get时原样返回
+    std::string name;                       // 借用标识
+    int64_t numaId;                         // 形成远端numa对应的numaid
+    UbseTopoNode exportNode;                // 借出节点
+    UbseTopoNode importNode;                // 借入节点
+    uint64_t size;                          // 借用大小
+    uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN]; // 调用方私有数据，UBSE只负责保存，get时原样返回
 };
 
 struct UbseNodeNumaInfo {
-    std::string nodeId;          // 该numa的nodeId
-    std::string hostName;        // 主机名
-    uint32_t numaId;             // numa id
-    uint32_t socketId;           // socket id
-    uint64_t mReservedMemRatio;  // 预留内存比例
-    uint64_t memTotal;           // 总内存量（字节）
-    uint64_t memFree;            // 空闲内存量（字节）
-    uint64_t nrHugepages;        // 2M大页数量
-    uint64_t freeHugepages;      // 2M大页空闲数量
-    uint64_t usedHugepages;      // nrHugepages -  freeHugepages
-    uint64_t timestamp;          // 数据采集的时间戳（秒级）
-    uint64_t memLent;            // 借出内存量（字节）
-    uint64_t memShared;          // 共享内存量（字节
+    std::string nodeId;         // 该numa的nodeId
+    std::string hostName;       // 主机名
+    uint32_t numaId;            // numa id
+    uint32_t socketId;          // socket id
+    uint64_t mReservedMemRatio; // 预留内存比例
+    uint64_t memTotal;          // 总内存量（字节）
+    uint64_t memFree;           // 空闲内存量（字节）
+    uint64_t nrHugepages;       // 2M大页数量
+    uint64_t freeHugepages;     // 2M大页空闲数量
+    uint64_t usedHugepages;     // nrHugepages -  freeHugepages
+    uint64_t timestamp;         // 数据采集的时间戳（秒级）
+    uint64_t memLent;           // 借出内存量（字节）
+    uint64_t memShared;         // 共享内存量（字节
 };
 
 /**
@@ -185,7 +185,7 @@ struct UbseNodeNumaInfo {
 * @return UBSE_OK 成功
 * @return UBSE_ERR_INTERNAL 获取节点信息失败
 */
-UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList);
+UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoList);
 
 /**
 * @brief 返回所有采集到的节点指定节点相关的numa信息。
@@ -194,7 +194,7 @@ UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoLis
 * @return UBSE_ERR_INVALID_ARG 传入值非法或指定节点不存在
 * @return UBSE_ERR_INTERNAL 获取节点信息失败
 */
-UbseResult UbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<UbseNodeNumaInfo> &numaNodeInfoList);
+UbseResult UbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList);
 
 /**
  * @brief 指定借出信息，提供给插件使用numa借用 碎片场景使用
@@ -206,9 +206,9 @@ UbseResult UbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<Ub
  * @param desc [OUT] 借用形成的远端numa信息
  * @return UbseResult
  */
-UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBorrower &borrower,
-                                       const std::vector<UbseMemNumaLender> &lenders,
-                                       uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc &desc);
+UbseResult UbseMemNumaCreateWithLender(const std::string& name, const UbseMemBorrower& borrower,
+                                       const std::vector<UbseMemNumaLender>& lenders,
+                                       uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc& desc);
 
 struct UbseMemNumaCreateOpt {
     uint64_t size{0};                          // 借出内存大小, 单位Byte, 取值范围大于等于4*1024*1024
@@ -226,8 +226,8 @@ struct UbseMemNumaCreateOpt {
  * @param desc [OUT] 借用形成的远端numa信息
  * @return UbseResult
  */
-UbseResult UbseMemNumaCreate(const std::string &name, const UbseMemBorrower &borrower,
-                             const UbseMemNumaCreateOpt &opt, UbseMemNumaDesc &desc);
+UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& borrower, const UbseMemNumaCreateOpt& opt,
+                             UbseMemNumaDesc& desc);
 
 struct UbseMemNumaCandidateOpt : UbseMemNumaCreateOpt {
     std::vector<std::string> slotIds; // 候选借出节点范围
@@ -240,8 +240,8 @@ struct UbseMemNumaCandidateOpt : UbseMemNumaCreateOpt {
  * @param desc [OUT] 借用形成的远端numa信息
  * @return UBSE_OK 成功，其他失败;
  */
-UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMemBorrower &borrower,
-                                          const UbseMemNumaCandidateOpt &opt, UbseMemNumaDesc &desc);
+UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMemBorrower& borrower,
+                                          const UbseMemNumaCandidateOpt& opt, UbseMemNumaDesc& desc);
 
 /**
  * @brief 删除指定numa远端内存;
@@ -250,7 +250,7 @@ UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMem
  * @param borrower  [IN] 必填，借用方信息
  * @return UbseResult
  */
-UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &borrower);
+UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& borrower);
 
 /* 进程借用，借出进程的地址以及大小 */
 struct UbseMemAddrBorrowLocAndSizeByPid {
@@ -260,20 +260,20 @@ struct UbseMemAddrBorrowLocAndSizeByPid {
 
 struct UbseMemProcessLender {
     uint32_t slotId;                                         // 节点唯一标识, 采用slotid, 与lcne保持一致
-    int socketId{-1};                                       /* *内存申请借出方节点socket信息 -1 无效 */
+    int socketId{-1};                                        /* *内存申请借出方节点socket信息 -1 无效 */
     uint64_t pid{0};                                         // 借出进程PID
     std::vector<UbseMemAddrBorrowLocAndSizeByPid> vaLists{}; // 借用地址段  最大段数=CPU核数
 };
 
 struct UbseMemAddrDesc {
-    std::string name;        // 借用标识
-    int64_t numaId;          // 形成远端numa对应的numaid
+    std::string name;            // 借用标识
+    int64_t numaId;              // 形成远端numa对应的numaid
     UbseMemProcessLender lender; // 借出节点
-    UbseTopoNode importNode; // 借入节点
-    uint64_t size;           // 借用大小
+    UbseTopoNode importNode;     // 借入节点
+    uint64_t size;               // 借用大小
 };
 
-#define UBSE_MEM_FLAG_NO_WR_DELAY 0x1   // 非写接力
+#define UBSE_MEM_FLAG_NO_WR_DELAY 0x1 // 非写接力
 
 /**
  * @brief 提供给插件使用addr借用
@@ -285,8 +285,8 @@ struct UbseMemAddrDesc {
  * @param desc [OUT] 借用形成的远端numa信息
  * @return UbseResult
  */
-UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &borrower,
-                             const UbseMemProcessLender &lender, uint32_t flag, UbseMemAddrDesc &desc);
+UbseResult UbseMemAddrCreate(const std::string& name, const UbseMemBorrower& borrower,
+                             const UbseMemProcessLender& lender, uint32_t flag, UbseMemAddrDesc& desc);
 
 /**
  * @brief 删除addr借用;
@@ -295,7 +295,7 @@ UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &bor
  * @param borrower  [IN] 必填，借用方信息
  * @return UbseResult;
  */
-UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &borrower);
+UbseResult UbseMemAddrDelete(const std::string& name, const UbseMemBorrower& borrower);
 
 /**
  * @brief 检查借用是否成环，srcNodeId是否出现在借出方、dstNodeId是否出现在借入方
@@ -304,7 +304,7 @@ UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &bor
  * @param isCircle [out] 是否成环
  * @return //返回码再补充
  */
-UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::string &dstNodeId, bool &isCircle);
+UbseResult UbseMemDebtCircleCheck(const std::string& srcNodeId, const std::string& dstNodeId, bool& isCircle);
 
 /**
 * @brief 返回和传入节点相关的账本信息。
@@ -317,7 +317,7 @@ UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::strin
 * @return #UBSE_PAR_SUCCESS 部分成功
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
-UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseMemAddrDesc> &debtInfos);
+UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseMemAddrDesc>& debtInfos);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MEM_CONTROLLER_H

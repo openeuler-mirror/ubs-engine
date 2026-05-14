@@ -15,10 +15,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "api/ubse_mem_controller_helper.h"
-#include "message/ubse_mem_opt_req_simpo.h"
-#include "message/ubse_mem_opt_result_simpo.h"
-#include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_info.h"
 #include "ubse_com_module.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -29,6 +25,10 @@
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
+#include "api/ubse_mem_controller_helper.h"
+#include "message/ubse_mem_opt_req_simpo.h"
+#include "message/ubse_mem_opt_result_simpo.h"
+#include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_info.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -40,7 +40,7 @@ using namespace ubse::election;
 using namespace com;
 using namespace ubse::mem::controller::message;
 
-uint32_t UbseQueryResult(const std::string &name, UbseMemResult &result, UbseMemBorrowType borrowType)
+uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType)
 {
     UbseRoleInfo currentInfo{};
     auto ret = UbseGetCurrentNodeInfo(currentInfo);
@@ -69,7 +69,7 @@ uint32_t UbseQueryResult(const std::string &name, UbseMemResult &result, UbseMem
         return UBSE_ERROR_NULLPTR;
     }
 
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
     auto ubseComModule = ubseContext.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "Communication module not init, " << FormatRetCode(UBSE_ERROR_MODULE_LOAD_FAILED);
@@ -87,7 +87,7 @@ uint32_t UbseQueryResult(const std::string &name, UbseMemResult &result, UbseMem
 }
 
 // 辅助函数：检查节点是否在静态列表中
-bool IsNodeInStaticList(const std::string &nodeId, const std::set<uint32_t> &staticNodeInfoList)
+bool IsNodeInStaticList(const std::string& nodeId, const std::set<uint32_t>& staticNodeInfoList)
 
 {
     try {
@@ -96,21 +96,21 @@ bool IsNodeInStaticList(const std::string &nodeId, const std::set<uint32_t> &sta
             return false;
         }
         return staticNodeInfoList.find(static_cast<uint32_t>(id)) != staticNodeInfoList.end();
-    } catch (const std::exception &) {
+    } catch (const std::exception&) {
         return false;
     }
 }
 
 // 辅助函数：检查节点是否工作状态
-bool IsNodeWorking(const std::string &nodeId,
-                   const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeMap)
+bool IsNodeWorking(const std::string& nodeId,
+                   const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeMap)
 {
     auto it = nodeMap.find(nodeId);
     return it != nodeMap.end() && it->second.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING;
 }
 
 // 辅助函数：获取借出节点ID
-std::string GetLentNodeId(const UbseMemAlgoResult &algoResult)
+std::string GetLentNodeId(const UbseMemAlgoResult& algoResult)
 {
     if (!algoResult.exportNumaInfos.empty()) {
         return algoResult.exportNumaInfos.front().nodeId;
@@ -119,7 +119,7 @@ std::string GetLentNodeId(const UbseMemAlgoResult &algoResult)
 }
 
 // 辅助函数：获取借入节点ID
-std::string GetBorrowNodeId(const UbseMemAlgoResult &algoResult)
+std::string GetBorrowNodeId(const UbseMemAlgoResult& algoResult)
 {
     if (!algoResult.importNumaInfos.empty()) {
         return algoResult.importNumaInfos.front().nodeId;
@@ -128,9 +128,9 @@ std::string GetBorrowNodeId(const UbseMemAlgoResult &algoResult)
 }
 
 // 辅助函数：处理NUMA导入对象
-void ProcessNumaImportObj(const std::string &resourceId, const UbseMemNumaBorrowImportObj &numaImportObj,
-                          const std::string &nodeId,
-                          std::unordered_map<std::string, UbseNumaMemoryDebtInfo> &numaMemoryDebtInfoMap)
+void ProcessNumaImportObj(const std::string& resourceId, const UbseMemNumaBorrowImportObj& numaImportObj,
+                          const std::string& nodeId,
+                          std::unordered_map<std::string, UbseNumaMemoryDebtInfo>& numaMemoryDebtInfoMap)
 {
     if (numaImportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_SUCCESS) {
         return;
@@ -146,12 +146,12 @@ void ProcessNumaImportObj(const std::string &resourceId, const UbseMemNumaBorrow
     if (inserted) {
         it->second.name = resourceId;
     }
-    UbseNumaMemoryDebtInfo &debtInfo = it->second;
+    UbseNumaMemoryDebtInfo& debtInfo = it->second;
     debtInfo.borrowNodeId = borrowNodeId;
     debtInfo.lentNodeId = lentNodeId;
     // 处理借入信息
     debtInfo.borrowSocketIdList.clear();
-    for (const auto &importNumaInfo : numaImportObj.algoResult.importNumaInfos) {
+    for (const auto& importNumaInfo : numaImportObj.algoResult.importNumaInfos) {
         debtInfo.borrowSocketIdList.emplace_back(importNumaInfo.socketId);
     }
     // 设置remoteNumaId
@@ -160,7 +160,7 @@ void ProcessNumaImportObj(const std::string &resourceId, const UbseMemNumaBorrow
     }
     // 处理借入内存ID
     debtInfo.borrowMemId.clear();
-    for (const auto &obmmInfo : numaImportObj.status.importResults) {
+    for (const auto& obmmInfo : numaImportObj.status.importResults) {
         debtInfo.borrowMemId.emplace_back(obmmInfo.memId);
     }
     // 处理借出信息
@@ -168,7 +168,7 @@ void ProcessNumaImportObj(const std::string &resourceId, const UbseMemNumaBorrow
     debtInfo.lentNumaIdList.clear();
     debtInfo.lentNumaSizeList.clear();
     debtInfo.size = 0;
-    for (const auto &exportNumaInfo : numaImportObj.algoResult.exportNumaInfos) {
+    for (const auto& exportNumaInfo : numaImportObj.algoResult.exportNumaInfos) {
         debtInfo.lentSocketIdList.emplace_back(exportNumaInfo.socketId);
         debtInfo.lentNumaIdList.emplace_back(exportNumaInfo.numaId);
         debtInfo.lentNumaSizeList.emplace_back(exportNumaInfo.size);
@@ -176,7 +176,7 @@ void ProcessNumaImportObj(const std::string &resourceId, const UbseMemNumaBorrow
     }
     // 处理借出内存ID
     debtInfo.lentMemId.clear();
-    for (const auto &obmmInfo : numaImportObj.exportObmmInfo) {
+    for (const auto& obmmInfo : numaImportObj.exportObmmInfo) {
         debtInfo.lentMemId.emplace_back(obmmInfo.memId);
     }
     // 处理用户私有数据
@@ -189,9 +189,9 @@ void ProcessNumaImportObj(const std::string &resourceId, const UbseMemNumaBorrow
 }
 
 // 辅助函数：处理NUMA导出对象
-void ProcessNumaExportObj(const std::string &resourceIdImportNodeId, const UbseMemNumaBorrowExportObj &numaExportObj,
-                          const std::string &nodeId,
-                          std::unordered_map<std::string, UbseNumaMemoryDebtInfo> &numaMemoryDebtInfoMap)
+void ProcessNumaExportObj(const std::string& resourceIdImportNodeId, const UbseMemNumaBorrowExportObj& numaExportObj,
+                          const std::string& nodeId,
+                          std::unordered_map<std::string, UbseNumaMemoryDebtInfo>& numaMemoryDebtInfoMap)
 {
     if (numaExportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_EXPORT_SUCCESS) {
         return;
@@ -207,7 +207,7 @@ void ProcessNumaExportObj(const std::string &resourceIdImportNodeId, const UbseM
         it->second.name = numaExportObj.req.name;
     }
 
-    UbseNumaMemoryDebtInfo &debtInfo = it->second;
+    UbseNumaMemoryDebtInfo& debtInfo = it->second;
 
     debtInfo.borrowNodeId = borrowNodeId;
     debtInfo.lentNodeId = lentNodeId;
@@ -215,7 +215,7 @@ void ProcessNumaExportObj(const std::string &resourceIdImportNodeId, const UbseM
     // 处理借入信息
     debtInfo.borrowSocketIdList.clear();
 
-    for (const auto &importNumaInfo : numaExportObj.algoResult.importNumaInfos) {
+    for (const auto& importNumaInfo : numaExportObj.algoResult.importNumaInfos) {
         debtInfo.borrowSocketIdList.emplace_back(importNumaInfo.socketId);
     }
 
@@ -225,7 +225,7 @@ void ProcessNumaExportObj(const std::string &resourceIdImportNodeId, const UbseM
     debtInfo.lentNumaSizeList.clear();
     debtInfo.size = 0;
 
-    for (const auto &exportNumaInfo : numaExportObj.algoResult.exportNumaInfos) {
+    for (const auto& exportNumaInfo : numaExportObj.algoResult.exportNumaInfos) {
         debtInfo.lentSocketIdList.emplace_back(exportNumaInfo.socketId);
         debtInfo.lentNumaIdList.emplace_back(exportNumaInfo.numaId);
         debtInfo.lentNumaSizeList.emplace_back(exportNumaInfo.size);
@@ -234,7 +234,7 @@ void ProcessNumaExportObj(const std::string &resourceIdImportNodeId, const UbseM
 
     // 处理借出内存ID
     debtInfo.lentMemId.clear();
-    for (const auto &obmmInfo : numaExportObj.status.exportObmmInfo) {
+    for (const auto& obmmInfo : numaExportObj.status.exportObmmInfo) {
         debtInfo.lentMemId.emplace_back(obmmInfo.memId);
     }
     // 处理用户私有数据
@@ -247,16 +247,16 @@ void ProcessNumaExportObj(const std::string &resourceIdImportNodeId, const UbseM
 }
 
 // 辅助函数：处理所有账本信息
-void ProcessDebtInfo(const NodeMemDebtInfoMap &memDebtInfoMap, const std::string &nodeId,
-                     const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeMap,
-                     std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+void ProcessDebtInfo(const NodeMemDebtInfoMap& memDebtInfoMap, const std::string& nodeId,
+                     const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeMap,
+                     std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     std::unordered_map<std::string, UbseNumaMemoryDebtInfo> numaMemoryDebtInfoMap; // key:resourceId_borrowNodeId
 
     // 遍历所有节点账本信息
-    for (const auto &nodeDebtInfoPair : memDebtInfoMap) {
-        const std::string &tmpNodeId = nodeDebtInfoPair.first;
-        const auto &nodeDebtInfo = nodeDebtInfoPair.second;
+    for (const auto& nodeDebtInfoPair : memDebtInfoMap) {
+        const std::string& tmpNodeId = nodeDebtInfoPair.first;
+        const auto& nodeDebtInfo = nodeDebtInfoPair.second;
 
         // 跳过非工作状态的节点
         if (!IsNodeWorking(tmpNodeId, nodeMap)) {
@@ -264,36 +264,36 @@ void ProcessDebtInfo(const NodeMemDebtInfoMap &memDebtInfoMap, const std::string
         }
 
         // 处理导入对象
-        for (const auto &numaImportObjPair : nodeDebtInfo.numaImportObjMap) {
-            const std::string &resourceId = numaImportObjPair.first;
-            const auto &numaImportObj = numaImportObjPair.second;
+        for (const auto& numaImportObjPair : nodeDebtInfo.numaImportObjMap) {
+            const std::string& resourceId = numaImportObjPair.first;
+            const auto& numaImportObj = numaImportObjPair.second;
             ProcessNumaImportObj(resourceId, numaImportObj, nodeId, numaMemoryDebtInfoMap);
         }
 
         // 处理导出对象
-        for (const auto &numaExportObjPair : nodeDebtInfo.numaExportObjMap) {
-            const std::string &resourceIdImportNodeId = numaExportObjPair.first;
-            const auto &numaExportObj = numaExportObjPair.second;
+        for (const auto& numaExportObjPair : nodeDebtInfo.numaExportObjMap) {
+            const std::string& resourceIdImportNodeId = numaExportObjPair.first;
+            const auto& numaExportObj = numaExportObjPair.second;
             ProcessNumaExportObj(resourceIdImportNodeId, numaExportObj, nodeId, numaMemoryDebtInfoMap);
         }
     }
 
     // 将结果转移到输出向量
     debtInfos.reserve(numaMemoryDebtInfoMap.size());
-    for (const auto &debtInfoPair : numaMemoryDebtInfoMap) {
+    for (const auto& debtInfoPair : numaMemoryDebtInfoMap) {
         debtInfos.emplace_back(debtInfoPair.second);
     }
 }
 
 // 辅助函数：检查对账状态
-UbseResult CheckReconciliationStatus(const std::set<uint32_t> &staticNodeInfoList,
-                                     const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeMap,
-                                     const std::string &targetNodeId)
+UbseResult CheckReconciliationStatus(const std::set<uint32_t>& staticNodeInfoList,
+                                     const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeMap,
+                                     const std::string& targetNodeId)
 {
     if (!targetNodeId.empty() && IsNodeWorking(targetNodeId, nodeMap)) {
         return UBSE_OK;
     }
-    for (const auto &nodeId : staticNodeInfoList) {
+    for (const auto& nodeId : staticNodeInfoList) {
         std::string tmpNodeId = std::to_string(nodeId);
         if (tmpNodeId == targetNodeId) {
             continue;
@@ -316,13 +316,13 @@ UbseResult CheckReconciliationStatus(const std::set<uint32_t> &staticNodeInfoLis
 
 // 辅助函数：检查对账状态,过滤
 UbseResult CheckReconciliationStatusWithFault(
-    const std::set<uint32_t> &staticNodeInfoList,
-    const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeMap, const std::string &targetNodeId)
+    const std::set<uint32_t>& staticNodeInfoList,
+    const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeMap, const std::string& targetNodeId)
 {
     if (!targetNodeId.empty() && IsNodeWorking(targetNodeId, nodeMap)) {
         return UBSE_OK;
     }
-    for (const auto &nodeId : staticNodeInfoList) {
+    for (const auto& nodeId : staticNodeInfoList) {
         std::string tmpNodeId = std::to_string(nodeId);
         if (tmpNodeId == targetNodeId) {
             continue;
@@ -345,7 +345,7 @@ UbseResult CheckReconciliationStatusWithFault(
 }
 
 // 主函数
-UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfoWithNode method begins execution, nodeId" << nodeId;
     // 参数校验
@@ -382,7 +382,7 @@ UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector
     return retCode;
 }
 
-UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     // 获取节点信息
     std::set<uint32_t> staticNodeInfoList = UbseNodeController::GetInstance().UbseGetAllDeployedNode();
@@ -407,11 +407,11 @@ UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos
     return retCode;
 }
 
-UbseResult ConvertImportDebtInfo(const std::pair<const std::string, UbseMemNumaBorrowImportObj> &numaImportObjPair,
-                                 UbseNumaMemoryImportDebtInfo &debtInfo)
+UbseResult ConvertImportDebtInfo(const std::pair<const std::string, UbseMemNumaBorrowImportObj>& numaImportObjPair,
+                                 UbseNumaMemoryImportDebtInfo& debtInfo)
 {
     // 处理导入对象
-    const auto &numaImportObj = numaImportObjPair.second;
+    const auto& numaImportObj = numaImportObjPair.second;
     if (numaImportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_SUCCESS) {
         return UBSE_ERROR;
     }
@@ -420,12 +420,12 @@ UbseResult ConvertImportDebtInfo(const std::pair<const std::string, UbseMemNumaB
     debtInfo.borrowNodeId = borrowNodeId;
     // 处理借入信息
     debtInfo.borrowSocketIdList.clear();
-    for (const auto &importNumaInfo : numaImportObj.algoResult.importNumaInfos) {
+    for (const auto& importNumaInfo : numaImportObj.algoResult.importNumaInfos) {
         debtInfo.borrowSocketIdList.emplace_back(importNumaInfo.socketId);
     }
     // 处理借用内存大小
     debtInfo.size = 0;
-    for (const auto &exportNumaInfo : numaImportObj.algoResult.exportNumaInfos) {
+    for (const auto& exportNumaInfo : numaImportObj.algoResult.exportNumaInfos) {
         debtInfo.size += exportNumaInfo.size;
     }
     // 处理用户私有数据
@@ -440,7 +440,7 @@ UbseResult ConvertImportDebtInfo(const std::pair<const std::string, UbseMemNumaB
     return UBSE_OK;
 }
 
-UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos)
+UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos)
 {
     UBSE_LOG_INFO << "The UbseGetNumaMemDebtInfoWithLocalNodeImport method begins execution";
     ubse::nodeController::UbseNodeInfo curNode = UbseNodeController::GetInstance().GetCurNode();
@@ -449,7 +449,7 @@ UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryI
         return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS;
     }
     NodeMemDebtInfo nodeDebtInfo = GetNodeMemDebtInfoById(curNode.nodeId);
-    for (const auto &numaImportObjPair : nodeDebtInfo.numaImportObjMap) {
+    for (const auto& numaImportObjPair : nodeDebtInfo.numaImportObjMap) {
         UbseNumaMemoryImportDebtInfo debtInfo;
         if (ConvertImportDebtInfo(numaImportObjPair, debtInfo) != UBSE_OK) {
             continue;
@@ -460,9 +460,9 @@ UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryI
     return UBSE_OK;
 }
 
-UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBorrower &borrower,
-                                       const std::vector<UbseMemNumaLender> &lenders,
-                                       uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreateWithLender(const std::string& name, const UbseMemBorrower& borrower,
+                                       const std::vector<UbseMemNumaLender>& lenders,
+                                       uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc& desc)
 {
     // 参数校验
     auto ret = UbseMemCreateWithLenderReqIsValid(name, borrower, lenders);
@@ -489,8 +489,8 @@ UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBor
     return resp.errorCode;
 }
 
-UbseResult UbseMemNumaCreate(const std::string &name, const UbseMemBorrower &borrower, const UbseMemNumaCreateOpt &opt,
-                             UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& borrower, const UbseMemNumaCreateOpt& opt,
+                             UbseMemNumaDesc& desc)
 {
     // 参数校验
     auto ret = UbseMemCreateReqIsValid(name, borrower, opt);
@@ -517,8 +517,8 @@ UbseResult UbseMemNumaCreate(const std::string &name, const UbseMemBorrower &bor
     return resp.errorCode;
 }
 
-UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMemBorrower &borrower,
-                                          const UbseMemNumaCandidateOpt &opt, UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMemBorrower& borrower,
+                                          const UbseMemNumaCandidateOpt& opt, UbseMemNumaDesc& desc)
 {
     // 参数校验
     auto ret = UbseMemCreateWithCandidateReqIsValid(name, borrower, opt);
@@ -545,7 +545,7 @@ UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMem
     return resp.errorCode;
 }
 
-UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &borrower)
+UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& borrower)
 {
     // 参数校验
     auto ret = UbseMemDeleteReqIsValid(name, borrower);
@@ -565,8 +565,8 @@ UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &bor
     return resp.errorCode;
 }
 
-UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &borrower,
-                             const UbseMemProcessLender &lender, uint32_t flag, UbseMemAddrDesc &desc)
+UbseResult UbseMemAddrCreate(const std::string& name, const UbseMemBorrower& borrower,
+                             const UbseMemProcessLender& lender, uint32_t flag, UbseMemAddrDesc& desc)
 {
     // 参数校验
     auto ret = UbseMemAddrCreateReqIsValid(name, borrower, lender);
@@ -590,7 +590,7 @@ UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &bor
     return resp.errorCode;
 }
 
-UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &borrower)
+UbseResult UbseMemAddrDelete(const std::string& name, const UbseMemBorrower& borrower)
 {
     // 参数校验
     auto ret = UbseMemDeleteReqIsValid(name, borrower);
@@ -610,15 +610,15 @@ UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &bor
     return UBSE_OK;
 }
 
-UbseResult GetNodeNumaInfoFromAccountAndSort(std::vector<ubse::mem::account::UbseNumaNodeInfo> &numaNodeInfos)
+UbseResult GetNodeNumaInfoFromAccountAndSort(std::vector<ubse::mem::account::UbseNumaNodeInfo>& numaNodeInfos)
 {
     auto ret = ubse::mem::account::UbseAllNumaInfo(numaNodeInfos);
     if (ret != 0) {
         UBSE_LOG_ERROR << "get numa node info failed, code=" << std::to_string(ret);
         return UBSE_ERR_INTERNAL;
     }
-    auto sortFunction = [](const ubse::mem::account::UbseNumaNodeInfo &numa1,
-                           const ubse::mem::account::UbseNumaNodeInfo &numa2) {
+    auto sortFunction = [](const ubse::mem::account::UbseNumaNodeInfo& numa1,
+                           const ubse::mem::account::UbseNumaNodeInfo& numa2) {
         if (numa1.nodeId == numa2.nodeId) {
             return numa1.numaId < numa2.numaId;
         }
@@ -628,11 +628,11 @@ UbseResult GetNodeNumaInfoFromAccountAndSort(std::vector<ubse::mem::account::Ubs
     return UBSE_OK;
 }
 
-void ConvertNumaNodeInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList,
-                         const std::vector<ubse::mem::account::UbseNumaNodeInfo> &numaNodeInfos,
-                         const std::string &nodeId)
+void ConvertNumaNodeInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoList,
+                         const std::vector<ubse::mem::account::UbseNumaNodeInfo>& numaNodeInfos,
+                         const std::string& nodeId)
 {
-    for (auto &numaInfo : numaNodeInfos) {
+    for (auto& numaInfo : numaNodeInfos) {
         if (nodeId != numaInfo.nodeId && !nodeId.empty()) {
             continue;
         }
@@ -654,7 +654,7 @@ void ConvertNumaNodeInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList,
     }
 }
 
-UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     if (!numaNodeInfoList.empty()) {
         UBSE_LOG_ERROR << "Get numaNodeInfoList size=" << numaNodeInfoList.size();
@@ -666,7 +666,7 @@ UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoLis
     return ret;
 }
 
-UbseResult UbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult UbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     if (nodeId.empty() || !numaNodeInfoList.empty()) {
         UBSE_LOG_ERROR << "Get nodeId=" << nodeId << ", numaNodeInfoList size=" << numaNodeInfoList.size();
@@ -685,7 +685,7 @@ UbseResult UbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<Ub
     return ret;
 }
 
-UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::string &dstNodeId, bool &isCircle)
+UbseResult UbseMemDebtCircleCheck(const std::string& srcNodeId, const std::string& dstNodeId, bool& isCircle)
 {
     if (srcNodeId == dstNodeId) {
         UBSE_LOG_WARN << "The source Node ID is same with destination node ID, ID=" << srcNodeId;
@@ -700,7 +700,7 @@ UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::strin
         return UBSE_MEMCONTROLLER_ERROR_GET_INFO_FAIL;
     }
     isCircle = false;
-    for (const auto &singleLedgerInfo : ledgerInfo) {
+    for (const auto& singleLedgerInfo : ledgerInfo) {
         if (singleLedgerInfo.type == LedgerType::SHARE) {
             continue;
         }
@@ -714,9 +714,9 @@ UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::strin
 }
 
 // 辅助函数：处理addr导入对象
-void ProcessAddrImportObj(const std::string &resourceId, const UbseMemAddrBorrowImportObj &addrBorrowImportObj,
-                          const std::string &nodeId,
-                          std::unordered_map<std::string, UbseMemAddrDesc> &addrMemoryDebtInfoMap)
+void ProcessAddrImportObj(const std::string& resourceId, const UbseMemAddrBorrowImportObj& addrBorrowImportObj,
+                          const std::string& nodeId,
+                          std::unordered_map<std::string, UbseMemAddrDesc>& addrMemoryDebtInfoMap)
 {
     if (addrBorrowImportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_SUCCESS) {
         return;
@@ -732,12 +732,12 @@ void ProcessAddrImportObj(const std::string &resourceId, const UbseMemAddrBorrow
     if (inserted) {
         it->second.name = resourceId;
     }
-    UbseMemAddrDesc &debtInfo = it->second;
+    UbseMemAddrDesc& debtInfo = it->second;
     debtInfo.numaId = addrBorrowImportObj.status.importResults[0].numaId;
     // 处理借入信息
     debtInfo.importNode.slotId = static_cast<uint32_t>(std::stoul(borrowNodeId));
     debtInfo.importNode.socketIdList.clear();
-    for (const auto &importNumaInfo : addrBorrowImportObj.algoResult.importNumaInfos) {
+    for (const auto& importNumaInfo : addrBorrowImportObj.algoResult.importNumaInfos) {
         debtInfo.importNode.socketIdList.emplace_back(static_cast<int16_t>(importNumaInfo.socketId));
     }
     // 处理借出信息
@@ -748,15 +748,15 @@ void ProcessAddrImportObj(const std::string &resourceId, const UbseMemAddrBorrow
         debtInfo.lender.vaLists.push_back({val.addr, val.size});
     }
     debtInfo.size = 0;
-    for (const auto &exportNumaInfo : addrBorrowImportObj.algoResult.exportNumaInfos) {
+    for (const auto& exportNumaInfo : addrBorrowImportObj.algoResult.exportNumaInfos) {
         debtInfo.size += exportNumaInfo.size;
     }
 }
 
 // 辅助函数：处理addr导出对象
-void ProcessAddrExportObj(const std::string &resourceIdImportNodeId,
-                          const UbseMemAddrBorrowExportObj &addrBorrowExportObj, const std::string &nodeId,
-                          std::unordered_map<std::string, UbseMemAddrDesc> &addrMemoryDebtInfoMap)
+void ProcessAddrExportObj(const std::string& resourceIdImportNodeId,
+                          const UbseMemAddrBorrowExportObj& addrBorrowExportObj, const std::string& nodeId,
+                          std::unordered_map<std::string, UbseMemAddrDesc>& addrMemoryDebtInfoMap)
 {
     if (addrBorrowExportObj.status.state != ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_EXPORT_SUCCESS) {
         return;
@@ -770,11 +770,11 @@ void ProcessAddrExportObj(const std::string &resourceIdImportNodeId,
     if (inserted) {
         it->second.name = addrBorrowExportObj.req.name;
     }
-    UbseMemAddrDesc &debtInfo = it->second;
+    UbseMemAddrDesc& debtInfo = it->second;
     // 处理借入信息
     debtInfo.importNode.slotId = static_cast<uint32_t>(std::stoul(borrowNodeId));
     debtInfo.importNode.socketIdList.clear();
-    for (const auto &importNumaInfo : addrBorrowExportObj.algoResult.importNumaInfos) {
+    for (const auto& importNumaInfo : addrBorrowExportObj.algoResult.importNumaInfos) {
         debtInfo.importNode.socketIdList.emplace_back(static_cast<int16_t>(importNumaInfo.socketId));
     }
     // 处理借出信息
@@ -785,48 +785,48 @@ void ProcessAddrExportObj(const std::string &resourceIdImportNodeId,
         debtInfo.lender.vaLists.push_back({val.addr, val.size});
     }
     debtInfo.size = 0;
-    for (const auto &exportNumaInfo : addrBorrowExportObj.algoResult.exportNumaInfos) {
+    for (const auto& exportNumaInfo : addrBorrowExportObj.algoResult.exportNumaInfos) {
         debtInfo.size += exportNumaInfo.size;
     }
 }
 
 // 辅助函数：处理所有账本信息
-void ProcessDebtInfoForAddr(const NodeMemDebtInfoMap &memDebtInfoMap, const std::string &nodeId,
-                            const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeMap,
-                            std::vector<UbseMemAddrDesc> &debtInfos)
+void ProcessDebtInfoForAddr(const NodeMemDebtInfoMap& memDebtInfoMap, const std::string& nodeId,
+                            const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeMap,
+                            std::vector<UbseMemAddrDesc>& debtInfos)
 {
     std::unordered_map<std::string, UbseMemAddrDesc> addrMemoryDebtInfoMap; // key:resourceId_borrowNodeId
 
     // 遍历所有节点账本信息
-    for (const auto &nodeDebtInfoPair : memDebtInfoMap) {
-        const std::string &tmpNodeId = nodeDebtInfoPair.first;
-        const auto &nodeDebtInfo = nodeDebtInfoPair.second;
+    for (const auto& nodeDebtInfoPair : memDebtInfoMap) {
+        const std::string& tmpNodeId = nodeDebtInfoPair.first;
+        const auto& nodeDebtInfo = nodeDebtInfoPair.second;
 
         // 跳过非工作状态的节点
         if (!IsNodeWorking(tmpNodeId, nodeMap)) {
             continue;
         }
         // 处理导入对象
-        for (const auto &addrImportObjMap : nodeDebtInfo.addrImportObjMap) {
-            const std::string &resourceId = addrImportObjMap.first;
-            const auto &addrBorrowImportObj = addrImportObjMap.second;
+        for (const auto& addrImportObjMap : nodeDebtInfo.addrImportObjMap) {
+            const std::string& resourceId = addrImportObjMap.first;
+            const auto& addrBorrowImportObj = addrImportObjMap.second;
             ProcessAddrImportObj(resourceId, addrBorrowImportObj, nodeId, addrMemoryDebtInfoMap);
         }
         // 处理导出对象
-        for (const auto &addrExportObjMap : nodeDebtInfo.addrExportObjMap) {
-            const std::string &resourceIdImportNodeId = addrExportObjMap.first;
-            const auto &addrBorrowExportObj = addrExportObjMap.second;
+        for (const auto& addrExportObjMap : nodeDebtInfo.addrExportObjMap) {
+            const std::string& resourceIdImportNodeId = addrExportObjMap.first;
+            const auto& addrBorrowExportObj = addrExportObjMap.second;
             ProcessAddrExportObj(resourceIdImportNodeId, addrBorrowExportObj, nodeId, addrMemoryDebtInfoMap);
         }
     }
     // 将结果转移到输出向量
     debtInfos.reserve(addrMemoryDebtInfoMap.size());
-    for (const auto &debtInfoPair : addrMemoryDebtInfoMap) {
+    for (const auto& debtInfoPair : addrMemoryDebtInfoMap) {
         debtInfos.emplace_back(debtInfoPair.second);
     }
 }
 
-UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseMemAddrDesc> &debtInfos)
+UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseMemAddrDesc>& debtInfos)
 {
     UBSE_LOG_INFO << "The UbseGetAddrMemDebtInfoWithNode method begins execution, nodeId" << nodeId;
     // 参数校验

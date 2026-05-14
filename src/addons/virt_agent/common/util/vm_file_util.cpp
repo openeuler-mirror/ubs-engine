@@ -25,7 +25,7 @@ UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using std::ifstream;
 using namespace ubse::log;
 
-VmResult VmFileUtil::GetFileInfo(const string &path, vector<string> &info)
+VmResult VmFileUtil::GetFileInfo(const string& path, vector<string>& info)
 {
     try {
         std::vector<char> realFileName(PATH_MAX + NO_1);
@@ -50,14 +50,14 @@ VmResult VmFileUtil::GetFileInfo(const string &path, vector<string> &info)
         while (getline(file, line)) {
             info.push_back(line);
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "read file failed: " << e.what();
         return VM_ERROR;
     }
     return VM_OK;
 }
 
-bool VmFileUtil::CanonicalPath(string &path)
+bool VmFileUtil::CanonicalPath(string& path)
 {
     if (path.empty() || path.size() > PATH_MAX) {
         return false;

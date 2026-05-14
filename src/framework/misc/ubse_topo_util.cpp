@@ -14,7 +14,7 @@
 
 namespace ubse::utils {
 
-bool IsMultiPortTopo(const UbseCpuInfo &cpuInfo)
+bool IsMultiPortTopo(const UbseCpuInfo& cpuInfo)
 {
     std::unordered_map<ChipLocation, std::string, ChipLocation::Hash, ChipLocation::Equal> map;
     for (const auto& portInfo : cpuInfo.portInfos) {
@@ -40,4 +40,4 @@ bool IsSameSocketMultiPortTopo()
     }
     return false;
 }
-}
+} // namespace ubse::utils

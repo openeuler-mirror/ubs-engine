@@ -22,37 +22,37 @@
 #include "vm_error.h"
 
 namespace vm::mempooling {
-using UBSRMRSUpdateAntiNodeFunc = uint32_t (*)(const std::map<std::string, std::vector<std::string>> &);
-using UBSRMRSMemBorrowStrategyFunc = uint32_t (*)(const SrcMemoryBorrowParam &, const uint64_t &,
-                                                  MemBorrowStrategyResult &);
-using UBSRMRSMemBorrowExecuteFunc = uint32_t (*)(const SrcMemoryBorrowParam &,
-                                                 const std::vector<DestMemoryBorrowParam> &, MemBorrowExecuteResult &);
-using UBSRMRSMigrateStrategyFunc = uint32_t (*)(const std::string &, const std::vector<VMPresetParam> &,
-                                                const uint64_t &, MigrateStrategyResult &);
-using UBSRMRSMigrateExecuteFunc = uint32_t (*)(const std::string &, const std::vector<VMMigrateOutParam> &,
-                                               const std::uint64_t &, const std::vector<std::string> &);
-using UBSRMRSMemFreeFunc = uint32_t (*)(const std::string &);
-using UBSRMRSMemBorrowRollbackFunc = uint32_t (*)(const std::string &, const std::vector<std::string> &);
-using UBSRMRSGetVmInfoListOnNodeFunc = uint32_t (*)(std::vector<VmDomainInfo> &);
-using UBSRMRSGetNumaInfoListOnNodeFunc = uint32_t (*)(std::vector<NumaInfo> &);
-using UBSRMRSMemBorrowFunc = uint32_t (*)(const SrcMemoryBorrowParam &, const std::vector<uint64_t> &,
-                                          const WaterMark &, MemBorrowExecuteResult &);
-using UBSRMRSMemMigrateFunc = uint32_t (*)(const SrcMemoryBorrowParam &, const std::vector<VMPresetParam> &,
-                                           const MemBorrowExecuteResult &);
-using UBSRMRSMemReturnFunc = uint32_t (*)(const SrcMemoryBorrowParam &, const std::vector<std::string> &,
-                                          const std::vector<pid_t> &);
-using UBSRMRSSetRunModeFunc = uint32_t (*)(const int &);
+using UBSRMRSUpdateAntiNodeFunc = uint32_t (*)(const std::map<std::string, std::vector<std::string>>&);
+using UBSRMRSMemBorrowStrategyFunc = uint32_t (*)(const SrcMemoryBorrowParam&, const uint64_t&,
+                                                  MemBorrowStrategyResult&);
+using UBSRMRSMemBorrowExecuteFunc = uint32_t (*)(const SrcMemoryBorrowParam&, const std::vector<DestMemoryBorrowParam>&,
+                                                 MemBorrowExecuteResult&);
+using UBSRMRSMigrateStrategyFunc = uint32_t (*)(const std::string&, const std::vector<VMPresetParam>&, const uint64_t&,
+                                                MigrateStrategyResult&);
+using UBSRMRSMigrateExecuteFunc = uint32_t (*)(const std::string&, const std::vector<VMMigrateOutParam>&,
+                                               const std::uint64_t&, const std::vector<std::string>&);
+using UBSRMRSMemFreeFunc = uint32_t (*)(const std::string&);
+using UBSRMRSMemBorrowRollbackFunc = uint32_t (*)(const std::string&, const std::vector<std::string>&);
+using UBSRMRSGetVmInfoListOnNodeFunc = uint32_t (*)(std::vector<VmDomainInfo>&);
+using UBSRMRSGetNumaInfoListOnNodeFunc = uint32_t (*)(std::vector<NumaInfo>&);
+using UBSRMRSMemBorrowFunc = uint32_t (*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
+                                          MemBorrowExecuteResult&);
+using UBSRMRSMemMigrateFunc = uint32_t (*)(const SrcMemoryBorrowParam&, const std::vector<VMPresetParam>&,
+                                           const MemBorrowExecuteResult&);
+using UBSRMRSMemReturnFunc = uint32_t (*)(const SrcMemoryBorrowParam&, const std::vector<std::string>&,
+                                          const std::vector<pid_t>&);
+using UBSRMRSSetRunModeFunc = uint32_t (*)(const int&);
 
-using UBSRMRSPidNumaInfoCollectFunc = uint32_t (*)(const SrcMemoryBorrowParam &, const std::vector<pid_t> &,
-                                                   std::vector<PidInfo> &);
-using UBSRMRSSetWaterMarkFunc = uint32_t (*)(const WaterMark &);
+using UBSRMRSPidNumaInfoCollectFunc = uint32_t (*)(const SrcMemoryBorrowParam&, const std::vector<pid_t>&,
+                                                   std::vector<PidInfo>&);
+using UBSRMRSSetWaterMarkFunc = uint32_t (*)(const WaterMark&);
 
-using UBSRMRSSmapAddProcessTrackingFunc = uint32_t (*)(const std::vector<pid_t> &, const std::vector<uint32_t> &, int,
-                                                       const std::optional<std::vector<uint32_t>> &);
+using UBSRMRSSmapAddProcessTrackingFunc = uint32_t (*)(const std::vector<pid_t>&, const std::vector<uint32_t>&, int,
+                                                       const std::optional<std::vector<uint32_t>>&);
 
-using UBSRMRSSmapRemoveProcessTrackingFunc = uint32_t (*)(const std::vector<pid_t> &, int);
+using UBSRMRSSmapRemoveProcessTrackingFunc = uint32_t (*)(const std::vector<pid_t>&, int);
 
-using UBSRMRSSmapEnableProcessMigrateFunc = uint32_t (*)(const std::vector<pid_t> &, int, int);
+using UBSRMRSSmapEnableProcessMigrateFunc = uint32_t (*)(const std::vector<pid_t>&, int, int);
 
 class MempoolingModule {
 public:
@@ -78,7 +78,7 @@ public:
     static UBSRMRSSmapEnableProcessMigrateFunc UBSRMRSSmapEnableProcessMigrate();
 
 private:
-    static void *libmempoolingHandler_;
+    static void* libmempoolingHandler_;
     static UBSRMRSUpdateAntiNodeFunc ubsRMRSUpdateAntiNodeFunc_;
     static UBSRMRSMemBorrowStrategyFunc ubsRMRSMemBorrowStrategyFunc_;
     static UBSRMRSMemBorrowExecuteFunc ubsRMRSMemBorrowExecuteFunc_;

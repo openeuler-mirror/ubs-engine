@@ -11,10 +11,10 @@
  */
 
 #include "test_ubse_logger_manager.h"
+#include "ubse_error.h"
+#include "ubse_logger.h"
 #include "gtest/gtest.h"
 #include "sys/syslog.h"
-#include "ubse_logger.h"
-#include "ubse_error.h"
 
 namespace ubse::ut::log {
 using namespace ubse::log;
@@ -33,8 +33,8 @@ void TestUbseLoggerManager::TearDown()
 
 TEST_F(TestUbseLoggerManager, TestPopWithFilter)
 {
-    LoggerOptions options{ UbseLogLevel::INFO, 2, 2, 64, UbseLogLevel::INFO, "/var/log/ubse" };
-    UbseLoggerWriter *writer = new (std::nothrow) UbseDefaultLoggerWriter();
+    LoggerOptions options{UbseLogLevel::INFO, 2, 2, 64, UbseLogLevel::INFO, "/var/log/ubse"};
+    UbseLoggerWriter* writer = new (std::nothrow) UbseDefaultLoggerWriter();
     EXPECT_NE(writer, nullptr);
     auto logManager = UbseLoggerManager::Instance();
     EXPECT_NE(logManager, nullptr);
@@ -52,8 +52,8 @@ TEST_F(TestUbseLoggerManager, TestPopWithFilter)
  */
 TEST_F(TestUbseLoggerManager, testInstance)
 {
-    LoggerOptions options{ UbseLoggerManager::StringToLogLevel("INFO"), 20, 20,
-        1024 }; // 设置20为filesize，20为fileNums，1024为maxItem
+    LoggerOptions options{UbseLoggerManager::StringToLogLevel("INFO"), 20, 20,
+                          1024}; // 设置20为filesize，20为fileNums，1024为maxItem
     UbseLoggerManager::gInstance = new (std::nothrow) UbseLoggerManager();
     EXPECT_EQ(UbseLoggerManager::Instance(), UbseLoggerManager::gInstance);
 }
@@ -87,7 +87,7 @@ TEST_F(TestUbseLoggerManager, testInit)
     LoggerOptions options;
     UbseLoggerManager ubseLoggerManager;
     UbseLoggerManager::gInited_ = true;
-    UbseLoggerWriter *writer = new (std::nothrow) UbseDefaultLoggerWriter();
+    UbseLoggerWriter* writer = new (std::nothrow) UbseDefaultLoggerWriter();
     EXPECT_EQ(ubseLoggerManager.Init(options, writer), UBSE_OK);
     delete writer;
 }

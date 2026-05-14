@@ -12,15 +12,15 @@
 
 #include "test_resource_analysis.h"
 
-#include <ubse_event.h>
 #include <gmock/gmock.h>
 #include <mem/mem_scheduler/ubse_mem_meta_data.h>
+#include <ubse_event.h>
 
+#include "ubse_mem_configuration.h"
+#include "ubse_mem_debt_info.h"
+#include "ubse_mem_topology_info_manager.h"
 #include "debt/ubse_mem_debt_ledger.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_mem_configuration.h"
-#include "ubse_mem_topology_info_manager.h"
-#include "ubse_mem_debt_info.h"
 #include "water_process/resource_analysis.h"
 
 namespace ubse::mem::strategy::ut {
@@ -53,7 +53,8 @@ TEST_F(TestResourceAnalysis, WaterWarningProcess)
     numaImportObj.algoResult.exportNumaInfos[0].nodeId = "1";
     numaImportObj.algoResult.exportNumaInfos[0].numaId = 1;
     numaImportObj.algoResult.exportNumaInfos[0].socketId = 1;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource("0", "test", std::make_shared<UbseMemNumaBorrowImportObj>(numaImportObj));
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().PutResource(
+        "0", "test", std::make_shared<UbseMemNumaBorrowImportObj>(numaImportObj));
     MOCKER_CPP(&UbseMemTopologyInfoManager::GetAllNumaInfo).stubs().will(returnValue(numaInfoList));
     MOCKER(event::UbsePubEvent).stubs().will(returnValue(UBSE_OK));
     UbseMemNumaLoc warningNumaLoc{.nodeId = "0", .socketId = 1, .numaId = 1};
@@ -62,4 +63,4 @@ TEST_F(TestResourceAnalysis, WaterWarningProcess)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-}  // namespace ubse::mem::strategy::ut
+} // namespace ubse::mem::strategy::ut

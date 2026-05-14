@@ -12,11 +12,11 @@
 #include "ubs_engine_urma.h"
 #include <netinet/in.h>
 #include <securec.h>
-#include "libubse_helper.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
+#include "libubse_helper.h"
 
-uint32_t ubs_urma_dev_get(ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
+uint32_t ubs_urma_dev_get(ubs_urma_dev_t** urma_devices, uint32_t* urma_cnt)
 {
     if ((urma_devices == nullptr) || (urma_cnt == nullptr)) {
         return UBS_ERR_NULL_POINTER;
@@ -24,7 +24,7 @@ uint32_t ubs_urma_dev_get(ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
     ubse_api_buffer_t response_buffer = {nullptr, 0};
     ubse_api_buffer_t request_buffer = {nullptr, 0};
     request_buffer.length = sizeof(uint32_t);
-    request_buffer.buffer = static_cast<uint8_t *>(malloc(request_buffer.length));
+    request_buffer.buffer = static_cast<uint8_t*>(malloc(request_buffer.length));
     if (request_buffer.buffer == nullptr) {
         return UBS_ENGINE_ERR_INTERNAL;
     }
@@ -45,7 +45,7 @@ uint32_t ubs_urma_dev_get(ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
     return UBS_SUCCESS;
 }
 
-uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info)
+uint32_t ubs_urma_dev_alloc(const char* name, ubs_urma_dev_info_t* dev_info)
 {
     if ((name == nullptr) || (dev_info == nullptr)) {
         return UBS_ERR_NULL_POINTER;
@@ -54,7 +54,7 @@ uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info)
     if (nameLen >= UBS_URMA_NAME_MAX) {
         return UBS_ENGINE_ERR_OUT_OF_RANGE;
     }
-    ubse_api_buffer_t request_buffer = {(uint8_t *)name, nameLen + 1};
+    ubse_api_buffer_t request_buffer = {(uint8_t*)name, nameLen + 1};
     ubse_api_buffer_t response_buffer = {nullptr, 0};
 
     // 调用接口
@@ -71,7 +71,7 @@ uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info)
     return UBS_SUCCESS;
 }
 
-uint32_t ubs_urma_dev_free(const char *name)
+uint32_t ubs_urma_dev_free(const char* name)
 {
     if (name == nullptr) {
         return UBS_ERR_NULL_POINTER;
@@ -80,7 +80,7 @@ uint32_t ubs_urma_dev_free(const char *name)
     if (nameLen >= UBS_URMA_NAME_MAX) {
         return UBS_ENGINE_ERR_OUT_OF_RANGE;
     }
-    ubse_api_buffer_t request_buffer = {(uint8_t *)name, nameLen + 1};
+    ubse_api_buffer_t request_buffer = {(uint8_t*)name, nameLen + 1};
     ubse_api_buffer_t response_buffer = {nullptr, 0};
 
     // 调用接口
@@ -133,7 +133,7 @@ uint32_t ubs_urma_bandwidth_set(const char* name, uint32_t minBandWidth, uint32_
     errno_t err = memcpy_s(ptr, sizeof(uint32_t), &minBandWidth, sizeof(uint32_t));
     if (err != 0) {
         ubse_api_buffer_free(&request_buffer);
-        return UBS_ENGINE_ERR_INTERNAL;  // 或其他合适的错误码
+        return UBS_ENGINE_ERR_INTERNAL; // 或其他合适的错误码
     }
     ptr += sizeof(uint32_t);
 
@@ -141,12 +141,11 @@ uint32_t ubs_urma_bandwidth_set(const char* name, uint32_t minBandWidth, uint32_
     err = memcpy_s(ptr, sizeof(uint32_t), &maxBandWidth, sizeof(uint32_t));
     if (err != 0) {
         ubse_api_buffer_free(&request_buffer);
-        return UBS_ENGINE_ERR_INTERNAL;  // 或其他合适的错误码
+        return UBS_ENGINE_ERR_INTERNAL; // 或其他合适的错误码
     }
 
     // 调用接口
-    uint32_t invoke_ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_QOS_SET,
-                                           &request_buffer, &response_buffer);
+    uint32_t invoke_ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_QOS_SET, &request_buffer, &response_buffer);
 
     // 释放请求缓冲区（无论成功与否都要释放）
     ubse_api_buffer_free(&request_buffer);
@@ -162,7 +161,7 @@ uint32_t ubs_urma_bandwidth_set(const char* name, uint32_t minBandWidth, uint32_
     return UBS_SUCCESS;
 }
 
-uint32_t ubs_urma_bandwidth_reset(const char *name)
+uint32_t ubs_urma_bandwidth_reset(const char* name)
 {
     // 参数校验
     if (name == nullptr) {
@@ -172,7 +171,7 @@ uint32_t ubs_urma_bandwidth_reset(const char *name)
     if (nameLen >= UBS_URMA_NAME_MAX) {
         return UBS_ENGINE_ERR_OUT_OF_RANGE;
     }
-    ubse_api_buffer_t request_buffer = {(uint8_t *)name, nameLen + 1};
+    ubse_api_buffer_t request_buffer = {(uint8_t*)name, nameLen + 1};
     ubse_api_buffer_t response_buffer = {nullptr, 0};
 
     // 调用接口
@@ -185,7 +184,7 @@ uint32_t ubs_urma_bandwidth_reset(const char *name)
     return UBS_SUCCESS;
 }
 
-uint32_t ubs_urma_bandwidth_get(const char *name, uint32_t *minBandWidth, uint32_t *maxBandWidth)
+uint32_t ubs_urma_bandwidth_get(const char* name, uint32_t* minBandWidth, uint32_t* maxBandWidth)
 {
     // 参数校验
     if ((name == nullptr) || (minBandWidth == nullptr) || (maxBandWidth == nullptr)) {
@@ -195,7 +194,7 @@ uint32_t ubs_urma_bandwidth_get(const char *name, uint32_t *minBandWidth, uint32
     if (nameLen >= UBS_URMA_NAME_MAX) {
         return UBS_ENGINE_ERR_OUT_OF_RANGE;
     }
-    ubse_api_buffer_t request_buffer = {(uint8_t *)name, nameLen + 1};
+    ubse_api_buffer_t request_buffer = {(uint8_t*)name, nameLen + 1};
     ubse_api_buffer_t response_buffer = {nullptr, 0};
 
     // 调用接口

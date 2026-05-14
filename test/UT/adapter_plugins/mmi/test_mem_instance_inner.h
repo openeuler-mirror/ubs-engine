@@ -12,8 +12,8 @@
 #ifndef TEST_MEM_INSTANCE_INNER_H
 #define TEST_MEM_INSTANCE_INNER_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
 namespace ubse::ut::mmi {
@@ -29,6 +29,6 @@ class TestMemInstanceInner : public testing::Test {
         GlobalMockObject::verify();
     }
 };
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi
 
-#endif  // TEST_MEM_INSTANCE_INNER_H
+#endif // TEST_MEM_INSTANCE_INNER_H

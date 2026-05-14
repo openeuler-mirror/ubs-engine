@@ -32,10 +32,13 @@ class TestUbseObmmUnimport : public testing::Test {
     {
         Test::SetUp();
         oldUnimportFunc_ = RmObmmExecutor::GetInstance().obmmUnimportFunc;
-        RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) { return 0; };
+        RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+            return 0;
+        };
 
-        struct sigaction sa{};
-        sa.sa_handler = [](int) {};
+        struct sigaction sa {};
+        sa.sa_handler = [](int) {
+        };
         sa.sa_flags = 0;
         sigemptyset(&sa.sa_mask);
         sigaction(SIGUSR1, &sa, &oldSa_);
@@ -51,7 +54,7 @@ class TestUbseObmmUnimport : public testing::Test {
 
 private:
     ObmmUnimportPtr oldUnimportFunc_{nullptr};
-    struct sigaction oldSa_{};
+    struct sigaction oldSa_ {};
 };
 
 TEST_F(TestUbseObmmUnimport, UnImportWithTimeout_Success)

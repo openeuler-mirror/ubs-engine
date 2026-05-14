@@ -11,8 +11,8 @@
  */
 
 #include "test_os_helper.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_ut_dir.h"
+#include "mockcpp/mockcpp.hpp"
 
 using namespace vm;
 namespace ubse::ut::vm {

@@ -21,7 +21,7 @@ class UbseRasComHandler : public UbseComBaseMessageHandler {
 public:
     UbseRasComHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -39,8 +39,8 @@ using UbseRasComHandlerPtr = Ref<UbseRasComHandler>;
 class UbseRasSwitchRoleHandler : public UbseComBaseMessageHandler {
 public:
     UbseRasSwitchRoleHandler() = default;
-    
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -58,8 +58,8 @@ using UbseRasSwitchRoleHandlerPtr = Ref<UbseRasSwitchRoleHandler>;
 class UbseOomHandler : public UbseComBaseMessageHandler {
 public:
     UbseOomHandler() = default;
-    
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override

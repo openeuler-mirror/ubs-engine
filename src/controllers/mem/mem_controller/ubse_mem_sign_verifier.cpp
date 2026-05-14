@@ -12,12 +12,12 @@
 
 #include "ubse_mem_sign_verifier.h"
 
-#include "src/framework/vscok/ubse_vsock_client.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_json_util.h"
 #include "ubse_logger.h"
 #include "ubse_str_util.h"
+#include "src/framework/vscok/ubse_vsock_client.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -67,8 +67,8 @@ public:
         if (buffer.size() + s.size() > bufferSize) {
             throw std::overflow_error("Buffer overflow");
         }
-        buffer.insert(buffer.end(), reinterpret_cast<const uint8_t *>(s.data()),
-                      reinterpret_cast<const uint8_t *>(s.data()) + s.size());
+        buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(s.data()),
+                      reinterpret_cast<const uint8_t*>(s.data()) + s.size());
     }
 
     [[nodiscard]] std::string Generate() const
@@ -113,7 +113,7 @@ UbseResult GetRequestId()
     return id;
 }
 
-UbseResult ParseResponse(const std::string &rspJson, std::string &signedData, std::string &trustRingId,
+UbseResult ParseResponse(const std::string& rspJson, std::string& signedData, std::string& trustRingId,
                          bool isShared = false)
 {
     Document doc;
@@ -157,12 +157,12 @@ std::string StrToBase64(const std::string_view s)
     return enc.Generate();
 }
 
-UbseResult UbseMemSignVerifier::Sign(const std::string &type, std::string &signedData, std::string &trustRingId)
+UbseResult UbseMemSignVerifier::Sign(const std::string& type, std::string& signedData, std::string& trustRingId)
 {
     // 构造请求
     Document doc;
     doc.SetObject();
-    Document::AllocatorType &allocator = doc.GetAllocator();
+    Document::AllocatorType& allocator = doc.GetAllocator();
     Value toSign(kObjectType);
     std::string base64Type = StrToBase64(type);
     toSign.AddMember("data", Value(base64Type.c_str(), allocator), allocator);
@@ -184,7 +184,7 @@ UbseResult UbseMemSignVerifier::Sign(const std::string &type, std::string &signe
     return ParseResponse(rsp.signedData, signedData, trustRingId);
 }
 
-std::string BuildRawData(const std::string_view type, const UbseMemObmmInfo &exportObmmInfo)
+std::string BuildRawData(const std::string_view type, const UbseMemObmmInfo& exportObmmInfo)
 {
     Base64 enc{};
     enc.Begin(type.size() + TO_SIGN_DATA_SIZE);
@@ -196,15 +196,15 @@ std::string BuildRawData(const std::string_view type, const UbseMemObmmInfo &exp
     return enc.Generate();
 }
 
-UbseResult UbseMemSignVerifier::SignAndVerify(const UbseExportSignReq &signReq,
-                                              std::vector<std::string> &lendSignedDatas)
+UbseResult UbseMemSignVerifier::SignAndVerify(const UbseExportSignReq& signReq,
+                                              std::vector<std::string>& lendSignedDatas)
 {
     for (const auto exportObmmInfo : signReq.exportObmmInfo) {
         std::string lendSignedData{};
         // 构造请求
         Document doc;
         doc.SetObject();
-        Document::AllocatorType &allocator = doc.GetAllocator();
+        Document::AllocatorType& allocator = doc.GetAllocator();
 
         Value toVerify(kObjectType);
         std::string base64Type = StrToBase64(signReq.type);

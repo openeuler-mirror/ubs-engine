@@ -15,15 +15,14 @@
 #include "mockcpp/mokc.h"
 #define private public
 #include <regex>
+#include "ubse_com.h"
+#include "ubse_error.h"
 #include "deserialize.h"
 #include "securec.h"
-#include "ubse_com.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
 #include "ucache_json_util.h"
 #include "ucache_serialize.h"
-#include "ubse_error.h"
-
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 using namespace std;
@@ -50,9 +49,9 @@ protected:
 };
 
 namespace ucache::deserialize {
-uint32_t GetCgroupInfoInNode(const std::string &nodeId, std::map<std::string, CgroupInfos> &dockerInfos,
-                             std::map<std::string, uint64_t> &timeStamps);
-uint32_t DispatchCollectTask(ResourceQueryType qType, const std::string &nodeId, TaskResponse &tResp);
+uint32_t GetCgroupInfoInNode(const std::string& nodeId, std::map<std::string, CgroupInfos>& dockerInfos,
+                             std::map<std::string, uint64_t>& timeStamps);
+uint32_t DispatchCollectTask(ResourceQueryType qType, const std::string& nodeId, TaskResponse& tResp);
 } // namespace ucache::deserialize
 
 TEST_F(DeserializeTest, GetCgroupInfoInNode_TEST)
@@ -123,7 +122,7 @@ TEST_F(DeserializeTest, GetNumaInfos_TEST)
     tResp.resCode = UCACHE_OK;
     NodeInfo numainfo{};
     std::map<std::string, NodeInfo> numaInfos{};
-    numaInfos["node0"]=numainfo;
+    numaInfos["node0"] = numainfo;
     UCacheOutStream out{};
     out << numaInfos;
     tResp.payload = out.Str();

@@ -23,12 +23,12 @@ namespace tc::rs::mem {
 struct SysLatencyInfo {
     SysLatencyInfo() = default;
 
-    int32_t maxSysLatency;                                             /* 所有链路时延的最大值 */
-    int32_t minSysLatency;                                             /* 所有链路时延的最小值 */
-    int32_t numaToNumaLatency[NUM_TOTAL_NUMA][NUM_TOTAL_NUMA];         /* [i][j]表示numa i到numa j的链路时延 */
-    int32_t socketToNumaLatency[NUM_TOTAL_SOCKET][NUM_TOTAL_NUMA];     /* [i][j]表示socket i到numa j的平均时延 */
+    int32_t maxSysLatency;                                         /* 所有链路时延的最大值 */
+    int32_t minSysLatency;                                         /* 所有链路时延的最小值 */
+    int32_t numaToNumaLatency[NUM_TOTAL_NUMA][NUM_TOTAL_NUMA];     /* [i][j]表示numa i到numa j的链路时延 */
+    int32_t socketToNumaLatency[NUM_TOTAL_SOCKET][NUM_TOTAL_NUMA]; /* [i][j]表示socket i到numa j的平均时延 */
     int32_t socketToSocketLatency[NUM_TOTAL_SOCKET][NUM_TOTAL_SOCKET]; /* [i][j]表示socket i到socket j的平均时延 */
-    int32_t socketToHostLatency[NUM_TOTAL_SOCKET][NUM_HOSTS];          /* [i][j]表示socket i到host j的平均时延 */
+    int32_t socketToHostLatency[NUM_TOTAL_SOCKET][NUM_HOSTS]; /* [i][j]表示socket i到host j的平均时延 */
 };
 
 class MemPoolConfig {
@@ -37,12 +37,12 @@ public:
     * @brief 初始化静态参数，预计算socket间的链路时延信
     * @return 更新mStaticParam、LatencyInfo等成员变量
     */
-    explicit MemPoolConfig(const StrategyParam &param);
+    explicit MemPoolConfig(const StrategyParam& param);
 
     ~MemPoolConfig() = default;
 
     /** 算法权重参数归一化 */
-    static BResult NormalizeStrategy(StrategyParam &param);
+    static BResult NormalizeStrategy(StrategyParam& param);
 
     /** 当enableCustomLatencies==false时, 检查hostMeshLoc参数的有效性 */
     bool IsHostMeshLocValid() const;
@@ -78,13 +78,13 @@ public:
     void UpdateMaxLatency(int32_t latency);
 
     /** 计算平均时延*/
-    void CalculateLatency(int32_t &latency, int num);
+    void CalculateLatency(int32_t& latency, int num);
 
     /** 获得socket上所有numa全局index数组, -1为无效值 */
-    int *GetNumaListInSocket(int32_t hostId, int32_t socketId);
+    int* GetNumaListInSocket(int32_t hostId, int32_t socketId);
 
     /** 获得host上所有numa全局index数组, -1为无效值 */
-    int *GetNumaListInHost(int32_t hostId);
+    int* GetNumaListInHost(int32_t hostId);
 
     /** 统计可用socket数量、可用socket列表 */
     BResult GetSockets();
@@ -96,7 +96,7 @@ public:
     BResult GetBorrowedMaxMem();
 
     /** 检查host和numa是否超上限 */
-    void CheckNodeParameters(const StrategyParam &param);
+    void CheckNodeParameters(const StrategyParam& param);
 
     StrategyParam memStaticParam = {};                               /* 内存池算法静态配置参数 */
     SysLatencyInfo memLatencyInfo = {};                              /* 系统链路时延信息 */

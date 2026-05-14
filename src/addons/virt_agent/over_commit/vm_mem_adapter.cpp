@@ -24,8 +24,8 @@ UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 using namespace ubse::mem::controller;
 
-VmResult VmMemAdapter::GetMemoryRemoteNumaIds(const std::unordered_set<std::string> &borrowIds,
-                                              std::unordered_map<std::string, uint16_t> &borrowIdMaps)
+VmResult VmMemAdapter::GetMemoryRemoteNumaIds(const std::unordered_set<std::string>& borrowIds,
+                                              std::unordered_map<std::string, uint16_t>& borrowIdMaps)
 {
     std::vector<UbseNumaMemoryImportDebtInfo> debtInfos{};
     auto ret = UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
@@ -35,7 +35,7 @@ VmResult VmMemAdapter::GetMemoryRemoteNumaIds(const std::unordered_set<std::stri
     }
     // find borrowId from debtInfos
     for (auto borrowId : borrowIds) {
-        for (auto &debtInfo : debtInfos) {
+        for (auto& debtInfo : debtInfos) {
             if (debtInfo.name == borrowId) {
                 borrowIdMaps[debtInfo.name] = static_cast<uint16_t>(debtInfo.remoteNumaId);
             }

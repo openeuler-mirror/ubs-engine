@@ -449,4 +449,4 @@ TEST_F(TestUbseCliUrmaCmdReg, UbseCliProcessUrmaQosTable)
     auto result = UbseCliRegUrmaModule::UbseCliProcessUrmaQosTable(deser, urmaSize);
     EXPECT_NE(result, nullptr);
 }
-}
+} // namespace ubse::ut::cli

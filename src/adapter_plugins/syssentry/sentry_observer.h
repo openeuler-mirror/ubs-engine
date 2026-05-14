@@ -21,9 +21,9 @@ namespace syssentry {
 using namespace ubse::common::def;
 using namespace ubse::task_executor;
 
-using XalarmRegisterFunc = int (*)(struct alarm_register **, struct alarm_subscription_info);
-using XalarmGetEventFunc = int (*)(struct alarm_msg *, struct alarm_register *);
-using XalarmUnRegisterFunc = void (*)(struct alarm_register **);
+using XalarmRegisterFunc = int (*)(struct alarm_register**, struct alarm_subscription_info);
+using XalarmGetEventFunc = int (*)(struct alarm_msg*, struct alarm_register*);
+using XalarmUnRegisterFunc = void (*)(struct alarm_register**);
 
 const std::string UBSE_RAS_TASK_NAME = "UbseRasTaskName";
 class UbseRasObserver {
@@ -32,18 +32,18 @@ public:
      * 获取UbseRasObserver单例
      * @return 返回UbseRasObserver单例
      */
-    static UbseRasObserver &GetInstance();
+    static UbseRasObserver& GetInstance();
 
     /**
      * 删除拷贝构造函数
      */
-    UbseRasObserver(const UbseRasObserver &) = delete;
+    UbseRasObserver(const UbseRasObserver&) = delete;
 
     /**
      * 删除赋值运算符
      * @return
      */
-    UbseRasObserver &operator=(const UbseRasObserver &) = delete;
+    UbseRasObserver& operator=(const UbseRasObserver&) = delete;
 
     /**
      * 启动UbseRas监听器
@@ -61,7 +61,7 @@ public:
     void UbseConfigSysSentryTimerRun(); // 定时重试配置sysSentry的回调
     bool IsConfigSuccess() const;
     bool IsSentryMsgMonitorRunning() const;
-    void RegQueryMsgMonitorTimer(); // 注册查询sentry_msg_helper运行状态的定时器
+    void RegQueryMsgMonitorTimer();     // 注册查询sentry_msg_helper运行状态的定时器
     void UbseQueryMsgMonitorTimerRun(); // 定时查询sentry_msg_helper运行状态的回调
 
 private:
@@ -80,11 +80,11 @@ private:
     /*
      * 注册sentry事件
      */
-    void RegisterSentryEvent(alarm_register **registerInfo);
+    void RegisterSentryEvent(alarm_register** registerInfo);
     /*
      * 解注册sentry事件
      */
-    void UnRegisterXalarm(alarm_register **registerInfo);
+    void UnRegisterXalarm(alarm_register** registerInfo);
 
     UbseResult Init();
 

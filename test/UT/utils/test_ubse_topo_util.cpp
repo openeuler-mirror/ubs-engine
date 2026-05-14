@@ -46,4 +46,4 @@ TEST_F(TestUbseTopoUtil, TestIsMultiPortTopo_WhenTwoPortsSameRemoteSlotAndChip_E
     EXPECT_TRUE(IsMultiPortTopo(ubseCpuInfo));
 }
 
-}
+} // namespace ubse::ut::utils

@@ -11,15 +11,15 @@
  */
 
 #include "test_ubse_mem_controller_rpc_register.h"
-#include "message/node_mem_debt_info_simpo.h"
+#include "ubse_com_module.h"
+#include "ubse_context.h"
+#include "ubse_error.h"
 #include "message/node_mem_debtInfo_query_req_simpo.h"
+#include "message/node_mem_debt_info_simpo.h"
 #include "message/ubse_mem_controller_def_simpo.h"
 #include "message/ubse_mem_debt_info_partial_fetch_req.h"
 #include "message/ubse_mem_debt_info_partial_fetch_res.h"
 #include "message/ubse_mem_update_obj_state.simpo.h"
-#include "ubse_com_module.h"
-#include "ubse_context.h"
-#include "ubse_error.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::context;
@@ -70,7 +70,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_Success)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -82,16 +83,19 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_Success)
     const auto funcShmList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>;
     MOCKER(funcShmList).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcShmStatus = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
+    const auto funcShmStatus =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
     MOCKER(funcShmStatus).stubs().will(returnValue(UBSE_OK));
 
     const auto funcAddrGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemAddrDescSimpo>;
     MOCKER(funcAddrGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcPartialFetch = &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
+    const auto funcPartialFetch =
+        &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
     MOCKER(funcPartialFetch).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNodeBorrow = &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
+    const auto funcNodeBorrow =
+        &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
     MOCKER(funcNodeBorrow).stubs().will(returnValue(UBSE_OK));
 
     const auto funcMemId = &UbseComModule::RegRpcService<UbseMemIdQueryRequestSimpo, UbseMemExportMemDescSimpo>;
@@ -182,7 +186,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_NumaGetWithImpo
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_ERROR));
 
     auto ret = RegMemControllerHandler();
@@ -205,7 +210,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_NumaListFail)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -231,7 +237,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_ShmGetFail)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -260,7 +267,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_ShmListFail)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -292,7 +300,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_ShmStatusFail)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -304,7 +313,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_ShmStatusFail)
     const auto funcShmList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>;
     MOCKER(funcShmList).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcShmStatus = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
+    const auto funcShmStatus =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
     MOCKER(funcShmStatus).stubs().will(returnValue(UBSE_ERROR));
 
     auto ret = RegMemControllerHandler();
@@ -327,7 +337,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_AddrGetFail)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -339,7 +350,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_AddrGetFail)
     const auto funcShmList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>;
     MOCKER(funcShmList).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcShmStatus = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
+    const auto funcShmStatus =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
     MOCKER(funcShmStatus).stubs().will(returnValue(UBSE_OK));
 
     const auto funcAddrGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemAddrDescSimpo>;
@@ -365,7 +377,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_PartialFetchFai
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -377,13 +390,15 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_PartialFetchFai
     const auto funcShmList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>;
     MOCKER(funcShmList).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcShmStatus = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
+    const auto funcShmStatus =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
     MOCKER(funcShmStatus).stubs().will(returnValue(UBSE_OK));
 
     const auto funcAddrGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemAddrDescSimpo>;
     MOCKER(funcAddrGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcPartialFetch = &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
+    const auto funcPartialFetch =
+        &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
     MOCKER(funcPartialFetch).stubs().will(returnValue(UBSE_ERROR));
 
     auto ret = RegMemControllerHandler();
@@ -406,7 +421,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_NodeBorrowFail)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -418,16 +434,19 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_NodeBorrowFail)
     const auto funcShmList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>;
     MOCKER(funcShmList).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcShmStatus = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
+    const auto funcShmStatus =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
     MOCKER(funcShmStatus).stubs().will(returnValue(UBSE_OK));
 
     const auto funcAddrGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemAddrDescSimpo>;
     MOCKER(funcAddrGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcPartialFetch = &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
+    const auto funcPartialFetch =
+        &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
     MOCKER(funcPartialFetch).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNodeBorrow = &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
+    const auto funcNodeBorrow =
+        &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
     MOCKER(funcNodeBorrow).stubs().will(returnValue(UBSE_ERROR));
 
     auto ret = RegMemControllerHandler();
@@ -450,7 +469,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_MemIdFail)
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -462,16 +482,19 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_MemIdFail)
     const auto funcShmList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>;
     MOCKER(funcShmList).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcShmStatus = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
+    const auto funcShmStatus =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
     MOCKER(funcShmStatus).stubs().will(returnValue(UBSE_OK));
 
     const auto funcAddrGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemAddrDescSimpo>;
     MOCKER(funcAddrGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcPartialFetch = &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
+    const auto funcPartialFetch =
+        &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
     MOCKER(funcPartialFetch).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNodeBorrow = &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
+    const auto funcNodeBorrow =
+        &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
     MOCKER(funcNodeBorrow).stubs().will(returnValue(UBSE_OK));
 
     const auto funcMemId = &UbseComModule::RegRpcService<UbseMemIdQueryRequestSimpo, UbseMemExportMemDescSimpo>;
@@ -497,7 +520,8 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_AgentUpdateFail
     const auto funcNumaGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescSimpo>;
     MOCKER(funcNumaGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNumaGetWithImport = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
+    const auto funcNumaGetWithImport =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemNumaDescSimpo>;
     MOCKER(funcNumaGetWithImport).stubs().will(returnValue(UBSE_OK));
 
     const auto funcNumaList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, DefUbseMemNumaDescListSimpo>;
@@ -509,16 +533,19 @@ TEST_F(TestUbseMemControllerRpcRegister, RegMemControllerHandler_AgentUpdateFail
     const auto funcShmList = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmDescListSimpo>;
     MOCKER(funcShmList).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcShmStatus = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
+    const auto funcShmStatus =
+        &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemShmMemStatusDescSimpo>;
     MOCKER(funcShmStatus).stubs().will(returnValue(UBSE_OK));
 
     const auto funcAddrGet = &UbseComModule::RegRpcService<UbseMemDebtQueryRequestSimpo, UbseMemAddrDescSimpo>;
     MOCKER(funcAddrGet).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcPartialFetch = &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
+    const auto funcPartialFetch =
+        &UbseComModule::RegRpcService<UbseMemDebtInfoPartialFetchReq, UbseMemDebtInfoPartialFetchRes>;
     MOCKER(funcPartialFetch).stubs().will(returnValue(UBSE_OK));
 
-    const auto funcNodeBorrow = &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
+    const auto funcNodeBorrow =
+        &UbseComModule::RegRpcService<UbseMemNodeBorrowInfoReqMessage, UbseMemNodeBorrowInfoMessage>;
     MOCKER(funcNodeBorrow).stubs().will(returnValue(UBSE_OK));
 
     const auto funcMemId = &UbseComModule::RegRpcService<UbseMemIdQueryRequestSimpo, UbseMemExportMemDescSimpo>;

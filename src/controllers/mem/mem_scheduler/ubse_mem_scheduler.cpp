@@ -7,7 +7,6 @@
 #include <shared_mutex>
 #include <string>
 
-#include "src/controllers/mem/mem_controller/ubse_mem_controller_pre_online.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_mem_account_helper.h"
@@ -19,6 +18,7 @@
 #include "ubse_mem_validator.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node.h"
+#include "src/controllers/mem/mem_controller/ubse_mem_controller_pre_online.h"
 
 namespace ubse::mem::scheduler {
 std::mutex schedulerMutex;
@@ -40,13 +40,13 @@ uint32_t Init()
 }
 
 namespace {
-void GetNodeDataFromNodeInfo(const ubse::nodeController::UbseNodeInfo &nodeInfo, strategy::NodeData &nodeData)
+void GetNodeDataFromNodeInfo(const ubse::nodeController::UbseNodeInfo& nodeInfo, strategy::NodeData& nodeData)
 {
     nodeData.nodeId = nodeInfo.nodeId;
-    std::vector<strategy::SocketData> &socketDatas = nodeData.sockets;
-    for (const auto &[numaLoc, numaInfo] : nodeInfo.numaInfos) {
+    std::vector<strategy::SocketData>& socketDatas = nodeData.sockets;
+    for (const auto& [numaLoc, numaInfo] : nodeInfo.numaInfos) {
         strategy::NumaData data{numaLoc.nodeId, static_cast<int>(numaInfo.socketId), numaLoc.numaId};
-        auto it = std::find_if(socketDatas.begin(), socketDatas.end(), [data](strategy::SocketData &socketData) {
+        auto it = std::find_if(socketDatas.begin(), socketDatas.end(), [data](strategy::SocketData& socketData) {
             return socketData.socketId == data.socketId;
         });
         if (it != socketDatas.end()) {
@@ -59,13 +59,13 @@ void GetNodeDataFromNodeInfo(const ubse::nodeController::UbseNodeInfo &nodeInfo,
     }
 }
 
-void UpdateNumaInfo(const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeMap)
+void UpdateNumaInfo(const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeMap)
 {
     std::vector<strategy::NodeDataWithNumaInfo> nodeDatas{};
-    for (const auto &[nodeId, mapNodeInfo] : nodeMap) {
+    for (const auto& [nodeId, mapNodeInfo] : nodeMap) {
         strategy::NodeDataWithNumaInfo nodeDataWithNumaInfo{};
         GetNodeDataFromNodeInfo(mapNodeInfo, nodeDataWithNumaInfo.nodeData);
-        for (const auto &[loc, numaInfo] : mapNodeInfo.numaInfos) {
+        for (const auto& [loc, numaInfo] : mapNodeInfo.numaInfos) {
             nodeDataWithNumaInfo.numaInfo.push_back(numaInfo);
         }
         nodeDatas.push_back(nodeDataWithNumaInfo);
@@ -73,10 +73,10 @@ void UpdateNumaInfo(const std::unordered_map<std::string, ubse::nodeController::
     UbseMemTopologyInfoManager::GetInstance().UpdateNodeMesgInfo(nodeDatas);
 }
 
-bool UpdateCacheNodeState(const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeMap)
+bool UpdateCacheNodeState(const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeMap)
 {
     auto flag = false;
-    for (const auto &[nodeId, nodeInfo] : nodeMap) {
+    for (const auto& [nodeId, nodeInfo] : nodeMap) {
         if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
             flag = true;
         }
@@ -91,7 +91,7 @@ bool UpdateCacheNodeState(const std::unordered_map<std::string, ubse::nodeContro
 void FillterNodeOnline()
 {
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &[nodeId, nodeInfo] : nodeInfos) {
+    for (const auto& [nodeId, nodeInfo] : nodeInfos) {
         if (!ubse::mem::controller::IsNodeOnLine(nodeId)) {
             UBSE_LOG_WARN << "enable pre Online, but nodeId=" << nodeId << " is not online";
             UbseMemTopologyInfoManager::GetInstance().ChangeNodeStatus(nodeId, false);
@@ -100,7 +100,7 @@ void FillterNodeOnline()
 }
 
 const size_t MAX_HIGH_WATERMARK = 100;
-uint32_t CheckNumaReqParam(const UbseMemNumaBorrowReq &numaReq)
+uint32_t CheckNumaReqParam(const UbseMemNumaBorrowReq& numaReq)
 {
     if (numaReq.highWatermark < 0 || numaReq.highWatermark > MAX_HIGH_WATERMARK) {
         return UBSE_ERROR;
@@ -109,7 +109,7 @@ uint32_t CheckNumaReqParam(const UbseMemNumaBorrowReq &numaReq)
 }
 
 bool CheckNodeLink(uint32_t node1, uint32_t node2,
-                   const std::unordered_map<std::uint32_t, std::unordered_set<std::uint32_t>> &nodeConnectInfo)
+                   const std::unordered_map<std::uint32_t, std::unordered_set<std::uint32_t>>& nodeConnectInfo)
 {
     if ((nodeConnectInfo.find(node1) != nodeConnectInfo.end()) && (nodeConnectInfo.at(node1).count(node2) != 0)) {
         return true;
@@ -123,8 +123,8 @@ bool CheckNodeLink(uint32_t node1, uint32_t node2,
 }
 
 uint32_t CheckRegionIsFullMesh(
-    const std::vector<ubse::adapter_plugins::mmi::UbseNodeInfo> &nodelist,
-    const std::unordered_map<std::uint32_t, std::unordered_set<std::uint32_t>> &nodeConnectInfo)
+    const std::vector<ubse::adapter_plugins::mmi::UbseNodeInfo>& nodelist,
+    const std::unordered_map<std::uint32_t, std::unordered_set<std::uint32_t>>& nodeConnectInfo)
 {
     for (size_t i = 0; i < nodelist.size(); ++i) {
         uint32_t preNode{};
@@ -153,19 +153,19 @@ uint32_t CheckRegionIsFullMesh(
     return UBSE_OK;
 }
 
-uint32_t CheckShareReq(const UbseMemShareBorrowReq &borrowReq)
+uint32_t CheckShareReq(const UbseMemShareBorrowReq& borrowReq)
 {
     // 判断共享域内的节点都是一跳直连的
     auto linkInfos = nodeController::UbseNodeController::GetInstance().UbseGetDirConnectInfo();
     std::unordered_map<std::uint32_t, std::unordered_set<std::uint32_t>> nodeConnectInfo{};
-    for (const auto &[key, linkInfo] : linkInfos) {
+    for (const auto& [key, linkInfo] : linkInfos) {
         nodeConnectInfo[linkInfo.slotId].insert(linkInfo.peerSlotId);
     }
 
     return CheckRegionIsFullMesh(borrowReq.shmRegion.nodelist, nodeConnectInfo);
 }
 
-uint64_t GetCheckMaskCodeByFdReq(const UbseMemFdBorrowReq &fdReq)
+uint64_t GetCheckMaskCodeByFdReq(const UbseMemFdBorrowReq& fdReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_BORROW_SIZE_MEET_LIMIT | FILTER_LEND_NODE_HAS_BORROWED |
                              CHECK_BORROW_NODE_HAS_LENT | FILTER_NODE_IS_LENDER | FILTER_NODE_BY_GROUP |
@@ -177,7 +177,7 @@ uint64_t GetCheckMaskCodeByFdReq(const UbseMemFdBorrowReq &fdReq)
     return checkMaskCode;
 }
 
-uint64_t GetCheckMaskCodeByNumaReq(const UbseMemNumaBorrowReq &numaReq)
+uint64_t GetCheckMaskCodeByNumaReq(const UbseMemNumaBorrowReq& numaReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_BORROW_SIZE_MEET_LIMIT | FILTER_LEND_NODE_HAS_BORROWED |
                              CHECK_BORROW_NODE_HAS_LENT | FILTER_NODE_IS_LENDER | FILTER_NODE_BY_GROUP |
@@ -199,7 +199,7 @@ uint64_t GetCheckMaskCodeByNumaReq(const UbseMemNumaBorrowReq &numaReq)
 }
 
 template <class ReqType>
-uint64_t GetCheckMaskCodeByUserReq(const ReqType &userReq)
+uint64_t GetCheckMaskCodeByUserReq(const ReqType& userReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_BORROW_SIZE_MEET_LIMIT | CHECK_BORROW_NODE_HAS_LENT |
                              CHECK_LEND_NODE_HAS_BORROWED | CHECK_LEND_NODE_IS_IN_GROUP | CHECK_LEND_NODE_IS_LENDER |
@@ -211,14 +211,14 @@ uint64_t GetCheckMaskCodeByUserReq(const ReqType &userReq)
     return checkMaskCode;
 }
 
-uint64_t GetCheckMaskCodeByAddrReq(const UbseMemAddrBorrowReq &addrReq)
+uint64_t GetCheckMaskCodeByAddrReq(const UbseMemAddrBorrowReq& addrReq)
 {
     uint64_t checkMaskCode = CHECK_BORROW_NODE_HAS_LENT | CHECK_LEND_NODE_HAS_BORROWED | CHECK_NODE_IS_DOWN;
 
     return checkMaskCode;
 }
 
-uint64_t GetCheckMaskCodeByShareReq(const UbseMemShareBorrowReq &shareReq)
+uint64_t GetCheckMaskCodeByShareReq(const UbseMemShareBorrowReq& shareReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | FILTER_NODE_IS_LENDER | FILTER_NODE_IS_DOWN |
                              FILTER_LEND_TIME_OUT | FILTER_LINK_PORT_DOWN;
@@ -234,7 +234,7 @@ uint64_t GetCheckMaskCodeByShareReq(const UbseMemShareBorrowReq &shareReq)
     return checkMaskCode;
 }
 
-uint64_t GetShareCheckMaskCodeByUserReq(const UbseMemShareBorrowReq &shareReq)
+uint64_t GetShareCheckMaskCodeByUserReq(const UbseMemShareBorrowReq& shareReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_LEND_NODE_IS_LENDER | CHECK_NODE_IS_DOWN |
                              CHECK_LEND_NUMA_IS_ENOUGH;
@@ -245,13 +245,13 @@ uint64_t GetShareCheckMaskCodeByUserReq(const UbseMemShareBorrowReq &shareReq)
 }
 } // namespace
 
-uint32_t UbseMemNodeObjChangeHandler(const ubse::nodeController::UbseNodeInfo &nodeInfo)
+uint32_t UbseMemNodeObjChangeHandler(const ubse::nodeController::UbseNodeInfo& nodeInfo)
 {
     UBSE_LOG_INFO << "Node state change, NodeId=" << nodeInfo.nodeId
                   << ", State=" << static_cast<int>(nodeInfo.clusterState);
     std::unique_lock<std::mutex> guard(schedulerMutex);
     auto nodeMap = UbseNodeController::GetInstance().GetAllNodes();
-    auto &config = UbseMemConfiguration::GetInstance();
+    auto& config = UbseMemConfiguration::GetInstance();
     config.SetConfig(nodeMap);
     if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_INIT &&
         nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
@@ -263,14 +263,14 @@ uint32_t UbseMemNodeObjChangeHandler(const ubse::nodeController::UbseNodeInfo &n
 
     UBSE_LOG_INFO << "Node working event detected, NodeId=" << nodeInfo.nodeId;
     std::vector<strategy::NodeDataWithNumaInfo> nodeDatas{};
-    for (const auto &[nodeId, mapNodeInfo] : nodeMap) {
+    for (const auto& [nodeId, mapNodeInfo] : nodeMap) {
         if (mapNodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
             UBSE_LOG_WARN << "nodeId=" << mapNodeInfo.nodeId << " state is fault";
             continue;
         }
         strategy::NodeDataWithNumaInfo nodeDataWithNumaInfo{};
         GetNodeDataFromNodeInfo(mapNodeInfo, nodeDataWithNumaInfo.nodeData);
-        for (const auto &[loc, numaInfo] : mapNodeInfo.numaInfos) {
+        for (const auto& [loc, numaInfo] : mapNodeInfo.numaInfos) {
             nodeDataWithNumaInfo.numaInfo.push_back(numaInfo);
         }
         nodeDatas.push_back(nodeDataWithNumaInfo);
@@ -279,7 +279,7 @@ uint32_t UbseMemNodeObjChangeHandler(const ubse::nodeController::UbseNodeInfo &n
     return strategy::UbseMemTopologyInfoManager::GetInstance().NodesInit(nodeDatas);
 }
 
-uint32_t UbseMemFdImportObjStateChangeHandler(UbseMemFdBorrowImportObj &importObj)
+uint32_t UbseMemFdImportObjStateChangeHandler(UbseMemFdBorrowImportObj& importObj)
 {
     if (importObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         importObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
@@ -317,7 +317,7 @@ uint32_t UbseMemFdImportObjStateChangeHandler(UbseMemFdBorrowImportObj &importOb
     return UBSE_OK;
 }
 
-uint32_t UbseMemFdExportObjStateChangeHandler(UbseMemFdBorrowExportObj &exportObj)
+uint32_t UbseMemFdExportObjStateChangeHandler(UbseMemFdBorrowExportObj& exportObj)
 {
     if (exportObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         exportObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
@@ -328,7 +328,7 @@ uint32_t UbseMemFdExportObjStateChangeHandler(UbseMemFdBorrowExportObj &exportOb
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaImportObjStateChangeHandler(UbseMemNumaBorrowImportObj &importObj)
+uint32_t UbseMemNumaImportObjStateChangeHandler(UbseMemNumaBorrowImportObj& importObj)
 {
     if (importObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         importObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
@@ -376,7 +376,7 @@ uint32_t UbseMemNumaImportObjStateChangeHandler(UbseMemNumaBorrowImportObj &impo
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaExportObjStateChangeHandler(UbseMemNumaBorrowExportObj &exportObj)
+uint32_t UbseMemNumaExportObjStateChangeHandler(UbseMemNumaBorrowExportObj& exportObj)
 {
     if (exportObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         exportObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
@@ -387,7 +387,7 @@ uint32_t UbseMemNumaExportObjStateChangeHandler(UbseMemNumaBorrowExportObj &expo
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmImportObjStateChangeHandler(UbseMemShareBorrowImportObj &importObj)
+uint32_t UbseMemShmImportObjStateChangeHandler(UbseMemShareBorrowImportObj& importObj)
 {
     if (importObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         importObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
@@ -398,7 +398,7 @@ uint32_t UbseMemShmImportObjStateChangeHandler(UbseMemShareBorrowImportObj &impo
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmExportObjStateChangeHandler(UbseMemShareBorrowExportObj &exportObj)
+uint32_t UbseMemShmExportObjStateChangeHandler(UbseMemShareBorrowExportObj& exportObj)
 {
     if (exportObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         exportObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
@@ -429,7 +429,7 @@ uint32_t UbseMemShmExportObjStateChangeHandler(UbseMemShareBorrowExportObj &expo
     return UBSE_OK;
 }
 
-uint32_t UbseMemAddrImportObjStateChangeHandler(UbseMemAddrBorrowImportObj &importObj)
+uint32_t UbseMemAddrImportObjStateChangeHandler(UbseMemAddrBorrowImportObj& importObj)
 {
     if (importObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         importObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
@@ -452,7 +452,7 @@ uint32_t UbseMemAddrImportObjStateChangeHandler(UbseMemAddrBorrowImportObj &impo
     return UBSE_OK;
 }
 
-uint32_t UbseMemAddrExportObjStateChangeHandler(UbseMemAddrBorrowExportObj &exportObj)
+uint32_t UbseMemAddrExportObjStateChangeHandler(UbseMemAddrBorrowExportObj& exportObj)
 {
     if (exportObj.status.state == ubse::adapter_plugins::mmi::UBSE_MEM_STATE_FAILED) {
         exportObj.status.state = ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;

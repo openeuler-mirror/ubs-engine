@@ -28,22 +28,22 @@ public:
     void Run() override;
 
 public:
-    VmResult MemBorrow(const NodeLocInfo &nodeLocInfo, const std::vector<uint64_t> &borrowSizes,
-                       const WaterMark &waterMark, const UserInfo &userInfo, MemBorrowExecuteResult &borrowResult);
+    VmResult MemBorrow(const NodeLocInfo& nodeLocInfo, const std::vector<uint64_t>& borrowSizes,
+                       const WaterMark& waterMark, const UserInfo& userInfo, MemBorrowExecuteResult& borrowResult);
 
-    VmResult MemMigrate(const NodeLocInfo &nodeLocInfo, const std::unordered_set<std::string> &borrowIdSet,
-                        const std::vector<VMPresetParam> &vmPresetParamList);
+    VmResult MemMigrate(const NodeLocInfo& nodeLocInfo, const std::unordered_set<std::string>& borrowIdSet,
+                        const std::vector<VMPresetParam>& vmPresetParamList);
 
-    VmResult MemReturn(const NodeLocInfo &nodeLocInfo, const std::vector<std::string> &borrowIds,
-                       const std::vector<pid_t> &pids);
+    VmResult MemReturn(const NodeLocInfo& nodeLocInfo, const std::vector<std::string>& borrowIds,
+                       const std::vector<pid_t>& pids);
 
 private:
-    void BuildBorrowTask(const NodeLocInfo &nodeLocInfo, const std::vector<uint64_t> &borrowSizes,
-                         const WaterMark &waterMark, const UserInfo &userInfo);
-    void BuildMigrateTask(const NodeLocInfo &nodeLocInfo, const std::vector<std::string> &borrowIds,
-                          const std::vector<uint16_t> &presentNumaIds, const std::vector<VMPresetParam> &vmPresetParam);
-    void BuildReturnTask(const NodeLocInfo &nodeLocInfo, const std::vector<std::string> &borrowIds,
-                         const std::vector<pid_t> &pids);
+    void BuildBorrowTask(const NodeLocInfo& nodeLocInfo, const std::vector<uint64_t>& borrowSizes,
+                         const WaterMark& waterMark, const UserInfo& userInfo);
+    void BuildMigrateTask(const NodeLocInfo& nodeLocInfo, const std::vector<std::string>& borrowIds,
+                          const std::vector<uint16_t>& presentNumaIds, const std::vector<VMPresetParam>& vmPresetParam);
+    void BuildReturnTask(const NodeLocInfo& nodeLocInfo, const std::vector<std::string>& borrowIds,
+                         const std::vector<pid_t>& pids);
 };
 } // namespace vm::overcommit
 

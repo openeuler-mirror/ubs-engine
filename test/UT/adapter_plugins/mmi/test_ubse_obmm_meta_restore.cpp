@@ -12,16 +12,14 @@
 
 #include "test_ubse_obmm_meta_restore.h"
 #include <dirent.h>
-#include <src/controllers/include/ubse_mem_def.h>
 #include <securec.h>
+#include <src/controllers/include/ubse_mem_def.h>
 
 #include "ubse_election.h"
 #include "ubse_mem_common_utils.h"
-#include "ubse_election.h"
+#include "ubse_mem_def.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
-#include "ubse_mem_def.h"
-#include "ubse_election.h"
 namespace ubse::ut::mmi {
 using namespace ubse::mmi;
 using namespace ubse::election;
@@ -70,22 +68,22 @@ public:
         if (g_getInvalidStr.load()) {
             line = "invalid";
         } else {
-            if (g_getUbMemInfoFlag == 0) {  // 0  means uba
+            if (g_getUbMemInfoFlag == 0) { // 0  means uba
                 line = MOCK_UBA;
                 g_getUbMemInfoFlag.fetch_add(1);
                 return UBSE_OK;
             }
-            if (g_getUbMemInfoFlag == 1) {  // 1 means length
+            if (g_getUbMemInfoFlag == 1) { // 1 means length
                 line = MOCK_LENGTH;
                 g_getUbMemInfoFlag.fetch_add(1);
                 return UBSE_OK;
             }
-            if (g_getUbMemInfoFlag == 2) {  // 2 means tokenId
+            if (g_getUbMemInfoFlag == 2) { // 2 means tokenId
                 line = MOCK_TOKEN_ID;
                 g_getUbMemInfoFlag.fetch_add(1);
                 return UBSE_OK;
             }
-            if (g_getUbMemInfoFlag == 3) {  // 3 means cacheable
+            if (g_getUbMemInfoFlag == 3) { // 3 means cacheable
                 line = std::to_string(MOCK_CACHEABLE);
                 g_getUbMemInfoFlag.fetch_add(1);
                 return UBSE_OK;
@@ -99,7 +97,7 @@ public:
         return UBSE_OK;
     }
     static constexpr auto MOCK_REMOTE_NUMA_ID = 4;
-    static constexpr auto MOCK_TOTAL_SIZE = "0x40000000";  // 1G
+    static constexpr auto MOCK_TOTAL_SIZE = "0x40000000"; // 1G
     static constexpr auto MOCK_UBA = "0xffff80000000";
     static constexpr auto MOCK_LENGTH = "0x40000000";
     static constexpr auto MOCK_TOKEN_ID = "0x0";
@@ -170,7 +168,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetRemoteNuma_ShouldReturnSuccessWhenGe
     int16_t remoteNuma{};
     g_getRemoteNuma.store(MOCK_REMOTE_NUMA_ID);
     MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(invoke(GetFileFirstLineMockerRemoteNuma));
-    auto ret = RmObmmDevRead::GetRemoteNuma(path, 0, remoteNuma);  // 0 means import
+    auto ret = RmObmmDevRead::GetRemoteNuma(path, 0, remoteNuma); // 0 means import
     g_getRemoteNuma.store(-1);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(remoteNuma, MOCK_REMOTE_NUMA_ID);
@@ -180,7 +178,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetRemoteNuma_ReturnInvalidRemoteNumaId
 {
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     int16_t remoteNuma{};
-    auto ret = RmObmmDevRead::GetRemoteNuma(path, 1, remoteNuma);  // 1 means export
+    auto ret = RmObmmDevRead::GetRemoteNuma(path, 1, remoteNuma); // 1 means export
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(remoteNuma, -1);
 }
@@ -190,7 +188,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetRemoteNuma_ShouldReturnFailWhenOpenF
     std::string path = "/sys/devices/obmm/obmm_shmdev12/";
     int16_t remoteNuma{};
     MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(returnValue(1U));
-    auto ret = RmObmmDevRead::GetRemoteNuma(path, 0, remoteNuma);  // 0 means import
+    auto ret = RmObmmDevRead::GetRemoteNuma(path, 0, remoteNuma); // 0 means import
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -200,7 +198,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetRemoteNuma_ShouldReturnFailWhenStr2L
     int16_t remoteNuma{};
     g_getInvalidStr.store(true);
     MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(returnValue(1U));
-    auto ret = RmObmmDevRead::GetRemoteNuma(path, 0, remoteNuma);  // 0 means import
+    auto ret = RmObmmDevRead::GetRemoteNuma(path, 0, remoteNuma); // 0 means import
     g_getInvalidStr.store(false);
 
     EXPECT_EQ(ret, UBSE_OK);
@@ -259,7 +257,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnSuccessWhen
     ubse_mem_obmm_mem_desc ubMemInfo{};
     MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(invoke(GetFileFirstLineMockerUbMemInfo));
     MOCKER(ParsePreOnlineEidStr).stubs().will(returnValue(true));
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);  // 1 means export
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     g_getUbMemInfoFlag.store(0);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(ubMemInfo.addr, 0xffff80000000);
@@ -272,7 +270,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnSuccessWhen
     std::string path = "/sys/devices/obmm/obmm_shm111/";
     ubse_mem_obmm_mem_desc ubMemInfo{};
 
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 0, ubMemInfo);  // 0 means import
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 0, ubMemInfo); // 0 means import
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -280,8 +278,8 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
 {
     std::string path = "/sys/devices/obmm/obmm_shm111/";
     ubse_mem_obmm_mem_desc ubMemInfo{};
-    MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(returnValue(1));  // get uba fail
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);  // 1 means export
+    MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(returnValue(1)); // get uba fail
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);         // 1 means export
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -291,9 +289,9 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
     ubse_mem_obmm_mem_desc ubMemInfo{};
     MOCKER(&RmCommonUtils::GetFileFirstLine)
         .stubs()
-        .will(repeat(0, 1))  // get uba success
-        .then(returnValue(1));  // get length fail
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);  // 1 means export
+        .will(repeat(0, 1))                                        // get uba success
+        .then(returnValue(1));                                     // get length fail
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -303,10 +301,10 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
     ubse_mem_obmm_mem_desc ubMemInfo{};
     MOCKER(&RmCommonUtils::GetFileFirstLine)
         .stubs()
-        .will(repeat(0, 2))  // get uba success
-        .then(returnValue(1));  // get tokenId fail
+        .will(repeat(0, 2))    // get uba success
+        .then(returnValue(1)); // get tokenId fail
 
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);  // 1 means export
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -316,9 +314,9 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
     ubse_mem_obmm_mem_desc ubMemInfo{};
     MOCKER(&RmCommonUtils::GetFileFirstLine)
         .stubs()
-        .will(repeat(0, 3))  // get uba success
-        .then(returnValue(1));  // get cacheable fail
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);  // 1 means export
+        .will(repeat(0, 3))                                        // get uba success
+        .then(returnValue(1));                                     // get cacheable fail
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -328,7 +326,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_GetMemUbMemInfo_ShouldReturnFailWhenGet
     ubse_mem_obmm_mem_desc ubMemInfo{};
     g_getInvalidStr.store(true);
     MOCKER(&RmCommonUtils::GetFileFirstLine).stubs().will(invoke(GetFileFirstLineMockerUbMemInfo));
-    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo);  // 1 means export
+    auto ret = RmObmmDevRead::GetMemUbMemInfo(path, 1, ubMemInfo); // 1 means export
     g_getInvalidStr.store(false);
     EXPECT_NE(ret, UBSE_OK);
 }
@@ -379,7 +377,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaDataGetUsedPid
 
 uint32_t UbseGetCurrentNodeInfoMock(UbseRoleInfo& currentNode)
 {
-    currentNode.nodeId = "1";  // mock 1
+    currentNode.nodeId = "1"; // mock 1
     return 0;
 }
 TEST_F(TestUbseObmmMetaRestore, testcase_RestoreAgentLocalObmmMetaDataGetTotalSizeFail)
@@ -471,7 +469,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_ReadAllObmmShmDevPathFail)
     DIR* dir = reinterpret_cast<DIR*>(0x1234);
 
     dirent entry1;
-    const char *source = "obmm_shmdev1";
+    const char* source = "obmm_shmdev1";
     size_t source_length = strlen(source) + 1;
     errno_t result = memcpy_s(entry1.d_name, sizeof(entry1.d_name), source, source_length);
     EXPECT_EQ(result, 0);
@@ -489,7 +487,7 @@ TEST_F(TestUbseObmmMetaRestore, testcase_ReadAllObmmShmDevPathFail)
     auto ret = RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(nullptr, 0, customMeta, privData);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 
-    int size = 1024;  // 1024
+    int size = 1024; // 1024
     uint8_t* buffer = new uint8_t[size];
     ret = RmObmmMetaRestore::RestoreAgentLocalObmmMetaDataFromBuffer(buffer, size, customMeta, privData);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
@@ -517,4 +515,4 @@ TEST_F(TestUbseObmmMetaRestore, testcase_ReadAgentLocalObmmMetaDataOk)
     ret = RmObmmMetaRestore::ReadAgentLocalObmmMetaData(task_id, metaDatas, lastPage);
     EXPECT_EQ(ret, UBSE_OK);
 }
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi

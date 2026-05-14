@@ -109,7 +109,7 @@ TEST_F(TestMemHandler, ToString)
     EXPECT_EQ(MemHandler::ToString((WatermarkWarningType)ERR_WATERMARK), errStr);
 }
 
-VmResult MockGetVmCollectData(HostVmDomainInfo &hostVmDomainInfo, HostNumaCpuInfo &hostNumaCpuInfo)
+VmResult MockGetVmCollectData(HostVmDomainInfo& hostVmDomainInfo, HostNumaCpuInfo& hostNumaCpuInfo)
 {
     NumaCpuInfo numaCpuInfo1 = {.socketId = 0, .nodeId = "Node0", .numaId = 0, .nrHugePage = 0};
     NumaCpuInfo numaCpuInfo2 = {.socketId = 0, .nodeId = "Node0", .numaId = 1, .nrHugePage = 1};
@@ -216,7 +216,7 @@ TEST_F(TestMemHandler, MemNotifyEventHandlerTest)
     EXPECT_EQ(MemHandler::CheckNumaWaterLine(), VM_OK);
 }
 
-UbseResult MockUbseGetNumaMemDebtInfoWithNode(std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos)
+UbseResult MockUbseGetNumaMemDebtInfoWithNode(std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos)
 {
     UbseNumaMemoryImportDebtInfo debtInfo{};
     return UBSE_OK;

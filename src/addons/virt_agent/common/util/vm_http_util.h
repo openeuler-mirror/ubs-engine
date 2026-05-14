@@ -108,11 +108,11 @@ struct BorrowResponse {
 
 class HttpUtil {
 public:
-    static VmResult AddProcessTracking(const int &pid, const int &scanTime, const int &type);
-    static VmResult RemoveProcessTracking(const int &pid);
-    static VmResult EnableProcessMigrate(const int &pid, bool enable);
-    static VmResult ToUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp);
-    static VmResult SetResp(UbseByteBuffer &resp, const VmResult &code, const std::string &msg);
+    static VmResult AddProcessTracking(const int& pid, const int& scanTime, const int& type);
+    static VmResult RemoveProcessTracking(const int& pid);
+    static VmResult EnableProcessMigrate(const int& pid, bool enable);
+    static VmResult ToUbseByteBuffer(const std::string& bodyString, UbseByteBuffer& resp);
+    static VmResult SetResp(UbseByteBuffer& resp, const VmResult& code, const std::string& msg);
 };
 } // namespace vm
 #endif // VM_HTTP_UTIL_H

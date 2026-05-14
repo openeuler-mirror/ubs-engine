@@ -16,15 +16,15 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_context.h"
+#include "ubse_error.h"
+#include "ubse_mem_controller_api.h"
+#include "ubse_node_controller.h"
 #include "lcne/ubse_lcne_decoder_entry.h"
 #include "lcne/ubse_lcne_decoder_handle.h"
 #include "message/node_mem_debt_info_simpo.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
-#include "ubse_context.h"
-#include "ubse_error.h"
-#include "ubse_mem_controller_api.h"
-#include "ubse_node_controller.h"
 
 namespace ubse::ut::mem::decoder::utils {
 using namespace ubse::mem::decoder::utils;

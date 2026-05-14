@@ -44,7 +44,7 @@ AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
     guardCnt.fetch_add(1, std::memory_order_relaxed);
 }
 
-AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
+AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t>& cnt) : guardCnt(cnt)
 {
     guardCnt.fetch_add(1, std::memory_order_relaxed);
 }
@@ -163,7 +163,7 @@ void DisconnectAllNormalLink()
         return;
     }
     auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &node : allNodes) {
+    for (const auto& node : allNodes) {
         comModule->RemoveChannel(node.second.nodeId, UbseChannelType::NORMAL);
     }
 }
@@ -194,7 +194,7 @@ void UbseUrmaControllerModule::Stop()
         sleep(1);
     }
     std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    for (const auto &timerName : g_RegTimerNames) {
+    for (const auto& timerName : g_RegTimerNames) {
         UBSE_LOG_INFO << "Unregister timer=" << timerName;
         ubse::timer::UbseTimerHandlerUnregister(timerName);
     }
@@ -207,7 +207,7 @@ void UbseUrmaControllerModule::Stop()
     return;
 }
 
-UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task)
+UbseResult DoTaskWithTimerCallback(const std::string& timerName, UbseUrmaRetryTaskHandler task)
 {
     AsyncHandlerGuard cntGuard;
     if (g_globalStop) {
@@ -229,7 +229,7 @@ UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTa
     return ret;
 }
 
-UbseResult HandleTaskWithRetry(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
+UbseResult HandleTaskWithRetry(const std::string& executorName, const std::string& taskName, uint32_t timerInterval,
                                UbseUrmaRetryTaskHandler task)
 {
     UBSE_LOG_INFO << "HandleTaskWithRetry start, taskName=" << taskName;

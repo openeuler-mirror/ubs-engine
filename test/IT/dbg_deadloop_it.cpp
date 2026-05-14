@@ -10,17 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <chrono>
+#include <cstdio>
+#include <ctime>
+#include <filesystem>
+#include <iomanip>
 #include <iostream>
+#include <memory>
+#include <regex>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
-#include <iomanip>
-#include <chrono>
-#include <ctime>
-#include <regex>
-#include <memory>
-#include <cstdio>
-#include <filesystem>
 
 #include "dbg_deadloop_it.h"
 
@@ -29,12 +29,12 @@ using namespace ubse::deadloop;
 using namespace ubse::context;
 using namespace ubse::log;
 
-int32_t ITestCmdDeadloopEnable(ProcessMmap *pMmap)
+int32_t ITestCmdDeadloopEnable(ProcessMmap* pMmap)
 {
     std::cout << "======================ITestCmdDeadloopEnable====================" << std::endl;
     // 获取当前时间戳，用于筛选日志
     auto currentTime = std::chrono::system_clock::now();
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
     // 判断依赖模块是否存在
     auto ubseLoggerModule = ubseContext.GetModule<UbseLoggerModule>();
     if (ubseLoggerModule == nullptr) {
@@ -59,11 +59,10 @@ int32_t ITestCmdDeadloopEnable(ProcessMmap *pMmap)
         return ret;
     }
     // 设置钩子函数
-    UBSEDEADLOOPHOOK pfnHandler =
-        [](pthread_t taskId, uint32_t elapsedSeconds) {
-            std::cout << "===========DeadLoopHook EXCUTE============" << std::endl;
-            return UBSE_OK;
-        };
+    UBSEDEADLOOPHOOK pfnHandler = [](pthread_t taskId, uint32_t elapsedSeconds) {
+        std::cout << "===========DeadLoopHook EXCUTE============" << std::endl;
+        return UBSE_OK;
+    };
     ret = ubseDeadloopModule->RegDeadLoopHandler(pfnHandler);
     if (ret != UBSE_OK) {
         std::cout << "RegDeadLoopHandler ERROR" << std::endl;
@@ -89,11 +88,11 @@ int32_t ITestCmdDeadloopEnable(ProcessMmap *pMmap)
     return UBSE_OK;
 }
 
-int32_t ITestCmdDeadloopDisable(ProcessMmap *pMmap)
+int32_t ITestCmdDeadloopDisable(ProcessMmap* pMmap)
 {
     std::cout << "======================ITestCmdDeadloopDisable===================" << std::endl;
     auto currentTime = std::chrono::system_clock::now();
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
     // 判断依赖模块是否存在
     auto ubseLoggerModule = ubseContext.GetModule<UbseLoggerModule>();
     if (ubseLoggerModule == nullptr) {
@@ -118,11 +117,10 @@ int32_t ITestCmdDeadloopDisable(ProcessMmap *pMmap)
         return ret;
     }
     // 设置钩子函数
-    UBSEDEADLOOPHOOK pfnHandler =
-        [](pthread_t taskId, uint32_t elapsedSeconds) {
-            std::cout << "===========DeadLoopHook EXCUTE============" << std::endl;
-            return UBSE_OK;
-        };
+    UBSEDEADLOOPHOOK pfnHandler = [](pthread_t taskId, uint32_t elapsedSeconds) {
+        std::cout << "===========DeadLoopHook EXCUTE============" << std::endl;
+        return UBSE_OK;
+    };
     ret = ubseDeadloopModule->RegDeadLoopHandler(pfnHandler);
     if (ret != UBSE_OK) {
         std::cout << "RegDeadLoopHandler ERROR" << std::endl;
@@ -150,12 +148,12 @@ int32_t ITestCmdDeadloopDisable(ProcessMmap *pMmap)
 
 // 过滤日志，确认日志中输出的信息无误
 void findLogsWithGrep(const std::string& filename, std::chrono::system_clock::time_point& currentTime,
-    const std::string& keyword, std::vector<std::string>& matchedLogs)
+                      const std::string& keyword, std::vector<std::string>& matchedLogs)
 {
     // 构造 grep 命令，查找包含关键字的行
     std::string command = "grep -a '" + keyword + "' " + filename;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
-    
+
     if (!pipe) {
         std::cerr << "Failed to run grep command." << std::endl;
         return;
@@ -163,7 +161,7 @@ void findLogsWithGrep(const std::string& filename, std::chrono::system_clock::ti
 
     char buffer[512];
     std::regex timestampRegex(R"(\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\.\d+)");
-    
+
     while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
         std::string line = buffer;
 
@@ -174,7 +172,7 @@ void findLogsWithGrep(const std::string& filename, std::chrono::system_clock::ti
             auto logTime = ParseTimestamp(timestampStr);
             // 检查时间戳是否在前1秒钟，后10秒钟内
             if (logTime >= currentTime - std::chrono::seconds(1) && logTime <= currentTime + std::chrono::seconds(10)) {
-                matchedLogs.push_back(line);  // 匹配的行存入结果
+                matchedLogs.push_back(line); // 匹配的行存入结果
             }
         }
     }
@@ -205,4 +203,4 @@ std::string GetLogPath()
     std::filesystem::path absolutePath = basePath / relativePath;
     return absolutePath.string();
 }
-}
+} // namespace ubse::it::deadloop

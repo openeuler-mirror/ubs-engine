@@ -14,7 +14,16 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_api_server_module.h"
+#include "ubse_com_module.h"
+#include "ubse_context.h"
+#include "ubse_mem_async_processor.h"
+#include "ubse_mem_controller_fd_api.h"
+#include "ubse_mem_controller_module.h"
 #include "ubse_mem_debt_info_query_handler.h"
+#include "ubse_mem_rpc_processor.h"
+#include "ubse_mem_util.h"
+#include "ubse_thread_pool.h"
 #include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_addr_borrow_importobj_simpo.h"
 #include "message/ubse_mem_addr_borrow_req_simpo.h"
@@ -31,15 +40,6 @@
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
 #include "message/ubse_mem_share_borrow_req_simpo.h"
 #include "message/ubse_mem_share_detach_req_simpo.h"
-#include "ubse_api_server_module.h"
-#include "ubse_com_module.h"
-#include "ubse_context.h"
-#include "ubse_mem_async_processor.h"
-#include "ubse_mem_controller_fd_api.h"
-#include "ubse_mem_controller_module.h"
-#include "ubse_mem_rpc_processor.h"
-#include "ubse_mem_util.h"
-#include "ubse_thread_pool.h"
 
 namespace ubse::mem_controller::ut {
 using namespace task_executor;
@@ -65,7 +65,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemFdBorrowReqSimpo();
@@ -97,7 +97,7 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemNumaBorrowReqSimpo();
@@ -121,8 +121,7 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowMessageHandler_GetOpCode)
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowMessageHandler_GetModuleCode)
 {
     UbseMemNumaBorrowMessageHandler ubseMemNumaBorrowMessageHandler{};
-    EXPECT_EQ(ubseMemNumaBorrowMessageHandler.GetModuleCode(),
-              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+    EXPECT_EQ(ubseMemNumaBorrowMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemAddrBorrowMessageHandler)
@@ -131,7 +130,7 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemAddrBorrowReqSimpo();
@@ -155,8 +154,7 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowMessageHandler_GetOpCode)
 TEST_F(TestUbseMemRpc, UbseMemAddrBorrowMessageHandler_GetModuleCode)
 {
     UbseMemAddrBorrowMessageHandler ubseMemAddrBorrowMessageHandler{};
-    EXPECT_EQ(ubseMemAddrBorrowMessageHandler.GetModuleCode(),
-              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+    EXPECT_EQ(ubseMemAddrBorrowMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemShareBorrowMessageHandler
@@ -166,7 +164,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemShareBorrowReqSimpo();
@@ -190,8 +188,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowMessageHandler_GetOpCode)
 TEST_F(TestUbseMemRpc, UbseMemShareBorrowMessageHandler_GetModuleCode)
 {
     UbseMemShareBorrowMessageHandler ubseMemShareBorrowMessageHandler{};
-    EXPECT_EQ(ubseMemShareBorrowMessageHandler.GetModuleCode(),
-              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+    EXPECT_EQ(ubseMemShareBorrowMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemShareAttachMessageHandler
@@ -201,7 +198,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareAttachMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemShareAttachReqSimpo();
@@ -225,8 +222,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareAttachMessageHandler_GetOpCode)
 TEST_F(TestUbseMemRpc, UbseMemShareAttachMessageHandler_GetModuleCode)
 {
     UbseMemShareAttachMessageHandler ubseMemShareAttachMessageHandler{};
-    EXPECT_EQ(ubseMemShareAttachMessageHandler.GetModuleCode(),
-              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+    EXPECT_EQ(ubseMemShareAttachMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemShareDetachMessageHandler
@@ -236,15 +232,14 @@ TEST_F(TestUbseMemRpc, UbseMemShareDetachMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemShareDetachReqSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    auto ctx = new (std::nothrow)
-        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
     EXPECT_NE(ctx, nullptr);
     UbseMemShareDetachMessageHandler ubseMemShareDetachMessageHandler{};
     EXPECT_EQ(ubseMemShareDetachMessageHandler.Handle(req, rsp, ctx), UBSE_ERROR);
@@ -262,8 +257,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareDetachMessageHandler_GetOpCode)
 TEST_F(TestUbseMemRpc, UbseMemShareDetachMessageHandler_GetModuleCode)
 {
     UbseMemShareDetachMessageHandler ubseMemShareDetachMessageHandler{};
-    EXPECT_EQ(ubseMemShareDetachMessageHandler.GetModuleCode(),
-              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+    EXPECT_EQ(ubseMemShareDetachMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemFdReturnHandler
@@ -273,15 +267,14 @@ TEST_F(TestUbseMemRpc, UbseMemFdReturnHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemReturnReqSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    auto ctx = new (std::nothrow)
-        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
     EXPECT_NE(ctx, nullptr);
 
     MOCKER_CPP(&DoReturnAsync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
@@ -310,15 +303,14 @@ TEST_F(TestUbseMemRpc, UbseMemNumaReturnHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemReturnReqSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    auto ctx = new (std::nothrow)
-        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
 
     MOCKER_CPP(&DoReturnAsync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     UbseMemNumaReturnHandler ubseMemNumaReturnHandler{};
@@ -346,15 +338,14 @@ TEST_F(TestUbseMemRpc, UbseMemShareReturnHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemReturnReqSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    auto ctx = new (std::nothrow)
-        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
 
     MOCKER_CPP(&DoReturnAsync).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     UbseMemShareReturnHandler ubseMemShareReturnHandler{};
@@ -400,8 +391,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandler)
 
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(rsp, nullptr);
-    auto ctx = new (std::nothrow)
-        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
     EXPECT_NE(ctx, nullptr);
 
     std::string name = "ubseMemController";
@@ -409,7 +399,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandler)
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
 
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(&MemoryBorrowRpcObjCheck<UbseMemFdBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
 
@@ -423,7 +413,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandlerGetOpCode)
 {
     UbseMemFdBorrowExportObjCallbackMessageHandler ubseMemFdBorrowExportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemFdBorrowExportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_EXPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_EXPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandlerGetModuleCode)
@@ -440,15 +430,14 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemFdBorrowImportobjSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(req, nullptr);
     EXPECT_NE(rsp, nullptr);
-    auto ctx = new (std::nothrow)
-        UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
+    auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx("test", 0, 0, "1");
     MOCKER(&MemoryBorrowRpcObjCheck<UbseMemFdBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(ubseMemFdBorrowImportObjCallbackMessageHandler.Handle(req, rsp, ctx), UBSE_ERROR);
@@ -460,14 +449,14 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandlerGetOpCode)
 {
     UbseMemFdBorrowImportObjCallbackMessageHandler ubseMemFdBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemFdBorrowImportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandlerGetModuleCode)
 {
     UbseMemFdBorrowImportObjCallbackMessageHandler ubseMemFdBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemFdBorrowImportObjCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler
@@ -489,7 +478,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjForPermissionCallbackMessageHandl
     UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler
         ubseMemFdBorrowImportObjForPermissionCallbackMessageHandler{};
     EXPECT_EQ(ubseMemFdBorrowImportObjForPermissionCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_FOR_PERMISSION_CALLBACK));
+              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_BORROW_IMPORT_OBJ_FOR_PERMISSION_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandler_GetModuleCode)
@@ -497,7 +486,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowImportObjCallbackMessageHandler_GetModuleC
     UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler
         ubseMemFdBorrowImportObjForPermissionCallbackMessageHandler{};
     EXPECT_EQ(ubseMemFdBorrowImportObjForPermissionCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowExportObjCallbackMessageHandler)
@@ -519,7 +508,7 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowExportObjCallbackMessageHandler)
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
 
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(&MemoryBorrowRpcObjCheck<UbseMemNumaBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
 
@@ -532,14 +521,14 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowExportObjCallbackMessageHandlerGetOpCode
 {
     UbseMemNumaBorrowExportObjCallbackMessageHandler ubseMemNumaBorrowExportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemNumaBorrowExportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_NUMA_BORROW_EXPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_NUMA_BORROW_EXPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowExportObjCallbackMessageHandlerGetModuleCode)
 {
     UbseMemNumaBorrowExportObjCallbackMessageHandler ubseMemNumaBorrowExportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemNumaBorrowExportObjCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowImportObjCallbackMessageHandler)
@@ -554,7 +543,7 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowImportObjCallbackMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(&MemoryBorrowRpcObjCheck<UbseMemNumaBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
@@ -567,14 +556,14 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowImportObjCallbackMessageHandlerGetOpCode
 {
     UbseMemNumaBorrowImportObjCallbackMessageHandler ubseMemNumaBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemNumaBorrowImportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_NUMA_BORROW_IMPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_NUMA_BORROW_IMPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowImportObjCallbackMessageHandlerGetModuleCode)
 {
     UbseMemNumaBorrowImportObjCallbackMessageHandler ubseMemNumaBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemNumaBorrowImportObjCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemShareBorrowExportObjCallbackMessageHandler
@@ -596,7 +585,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowExportObjCallbackMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(&ShareBorrowRpcObjCheck<UbseMemShareBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
 
@@ -609,14 +598,14 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowExportObjCallbackMessageHandler_GetOpCo
 {
     UbseMemShareBorrowExportObjCallbackMessageHandler ubseMemShareBorrowExportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemShareBorrowExportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW_EXPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW_EXPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemShareBorrowExportObjCallbackMessageHandler_GetModuleCode)
 {
     UbseMemShareBorrowExportObjCallbackMessageHandler ubseMemShareBorrowExportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemShareBorrowExportObjCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemShareBorrowImportObjCallbackMessageHandler
@@ -632,7 +621,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowImportObjCallbackMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(&ShareBorrowRpcObjCheck<UbseMemShareBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
@@ -645,14 +634,14 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowImportObjCallbackMessageHandler_GetOpCo
 {
     UbseMemShareBorrowImportObjCallbackMessageHandler ubseMemShareBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemShareBorrowImportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW_IMPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW_IMPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemShareBorrowImportObjCallbackMessageHandler_GetModuleCode)
 {
     UbseMemShareBorrowImportObjCallbackMessageHandler ubseMemShareBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemShareBorrowImportObjCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemAddrBorrowExportObjCallbackMessageHandler
@@ -674,7 +663,7 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowExportObjCallbackMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(&MemoryBorrowRpcObjCheck<UbseMemAddrBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
 
@@ -687,14 +676,14 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowExportObjCallbackMessageHandler_GetOpCod
 {
     UbseMemAddrBorrowExportObjCallbackMessageHandler ubseMemAddrBorrowExportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemAddrBorrowExportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_ADDR_BORROW_EXPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_ADDR_BORROW_EXPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemAddrBorrowExportObjCallbackMessageHandler_GetModuleCode)
 {
     UbseMemAddrBorrowExportObjCallbackMessageHandler ubseMemAddrBorrowExportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemAddrBorrowExportObjCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 // UbseMemAddrBorrowImportObjCallbackMessageHandler
@@ -716,7 +705,7 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowImportObjCallbackMessageHandler)
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(&MemoryBorrowRpcObjCheck<UbseMemAddrBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
@@ -729,14 +718,14 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowImportObjCallbackMessageHandler_GetOpCod
 {
     UbseMemAddrBorrowImportObjCallbackMessageHandler ubseMemAddrBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemAddrBorrowImportObjCallbackMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_ADDR_BORROW_IMPORT_OBJ_CALLBACK));
+              static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_ADDR_BORROW_IMPORT_OBJ_CALLBACK));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemAddrBorrowImportObjCallbackMessageHandler_GetModuleCode)
 {
     UbseMemAddrBorrowImportObjCallbackMessageHandler ubseMemAddrBorrowImportObjCallbackMessageHandler{};
     EXPECT_EQ(ubseMemAddrBorrowImportObjCallbackMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
+              static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowRespMessageHandler)
@@ -769,14 +758,13 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowRespMessageHandlerGetOpCode)
 {
     UbseMemFdBorrowRespMessageHandler ubseMemFdBorrowRespMessageHandler{};
     EXPECT_EQ(ubseMemFdBorrowRespMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_BORROW_RESP));
+              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_BORROW_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdBorrowRespMessageHandlerGetModuleCode)
 {
     UbseMemFdBorrowRespMessageHandler ubseMemFdBorrowRespMessageHandler{};
-    EXPECT_EQ(ubseMemFdBorrowRespMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+    EXPECT_EQ(ubseMemFdBorrowRespMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdReturnRespMessageHandler)
@@ -815,8 +803,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdReturnRespMessageHandlerGetOpCode)
 TEST_F(TestUbseMemRpc, UbseMemFdReturnRespMessageHandlerGetModuleCode)
 {
     UbseMemFdReturnRespMessageHandler ubseMemFdReturnRespMessageHandler{};
-    EXPECT_EQ(ubseMemFdReturnRespMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+    EXPECT_EQ(ubseMemFdReturnRespMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 TEST_F(TestUbseMemRpc, RegHandlerFailed)
@@ -898,19 +885,21 @@ TEST_F(TestUbseMemRpc, RegNumaHandlerFailed)
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     const auto getModuleFunc = &UbseContext::GetModule<UbseComModule>;
-    MOCKER(getModuleFunc).stubs().will(returnValue(module)).then(returnValue(module))
-        .then(returnValue(nullModule)).then(returnValue(module));
+    MOCKER(getModuleFunc)
+        .stubs()
+        .will(returnValue(module))
+        .then(returnValue(module))
+        .then(returnValue(nullModule))
+        .then(returnValue(module));
 
-    const auto returnReqSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemReturnReqSimpo, UbseMemCallbackMessage>;
+    const auto returnReqSimpoRegFunc = &UbseComModule::RegRpcService<UbseMemReturnReqSimpo, UbseMemCallbackMessage>;
     MOCKER(returnReqSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
 
     const auto operationRespSimpoRegFunc =
         &UbseComModule::RegRpcService<UbseMemOperationRespSimpo, UbseMemCallbackMessage>;
     MOCKER(operationRespSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
 
-    const auto fdBorrowReqSimpoRegFunc =
-        &UbseComModule::RegRpcService<UbseMemFdBorrowReqSimpo, UbseMemCallbackMessage>;
+    const auto fdBorrowReqSimpoRegFunc = &UbseComModule::RegRpcService<UbseMemFdBorrowReqSimpo, UbseMemCallbackMessage>;
     MOCKER(fdBorrowReqSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
 
     const auto fdBorrowExportobjSimpoRegFunc =
@@ -924,25 +913,35 @@ TEST_F(TestUbseMemRpc, RegNumaHandlerFailed)
 
     const auto numaBorrowReqSimpoRegFunc =
         &UbseComModule::RegRpcService<UbseMemNumaBorrowReqSimpo, UbseMemCallbackMessage>;
-    MOCKER(numaBorrowReqSimpoRegFunc).stubs().will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
+    MOCKER(numaBorrowReqSimpoRegFunc)
+        .stubs()
+        .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
         .then(returnValue(UBSE_OK));
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto numaBorrowExportobjSimpoRegFunc =
         &UbseComModule::RegRpcService<UbseMemNumaBorrowExportobjSimpo, UbseMemCallbackMessage>;
-    MOCKER(numaBorrowExportobjSimpoRegFunc).stubs().will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
+    MOCKER(numaBorrowExportobjSimpoRegFunc)
+        .stubs()
+        .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
         .then(returnValue(UBSE_OK));
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto numaBorrowImportobjSimpoRegFunc =
         &UbseComModule::RegRpcService<UbseMemNumaBorrowImportobjSimpo, UbseMemCallbackMessage>;
-    MOCKER(numaBorrowImportobjSimpoRegFunc).stubs().will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
+    MOCKER(numaBorrowImportobjSimpoRegFunc)
+        .stubs()
+        .will(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE))
         .then(returnValue(UBSE_OK));
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     MOCKER(operationRespSimpoRegFunc).reset();
-    MOCKER(operationRespSimpoRegFunc).stubs().will(returnValue(UBSE_OK)).then(returnValue(UBSE_OK))
-        .then(returnValue(UBSE_OK)).then(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE));
+    MOCKER(operationRespSimpoRegFunc)
+        .stubs()
+        .will(returnValue(UBSE_OK))
+        .then(returnValue(UBSE_OK))
+        .then(returnValue(UBSE_OK))
+        .then(returnValue(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE));
     EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 }
 
@@ -966,14 +965,13 @@ TEST_F(TestUbseMemRpc, UbseMemShmCreateRespMessageHandler_GetOpCode)
 {
     UbseMemShmCreateRespMessageHandler ubseMemShmCreateRespMessageHandler{};
     EXPECT_EQ(ubseMemShmCreateRespMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_BORROW_RESP));
+              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_BORROW_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemShmCreateRespMessageHandler_GetModuleCode)
 {
     UbseMemShmCreateRespMessageHandler ubseMemShmCreateRespMessageHandler{};
-    EXPECT_EQ(ubseMemShmCreateRespMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+    EXPECT_EQ(ubseMemShmCreateRespMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 // UbseMemShmAttachRespMessageHandler
@@ -996,14 +994,13 @@ TEST_F(TestUbseMemRpc, UbseMemShmAttachRespMessageHandler_GetOpCode)
 {
     UbseMemShmAttachRespMessageHandler ubseMemShmAttachRespMessageHandler{};
     EXPECT_EQ(ubseMemShmAttachRespMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_ATTACH_RESP));
+              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_ATTACH_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemShmAttachRespMessageHandler_GetModuleCode)
 {
     UbseMemShmAttachRespMessageHandler ubseMemShmAttachRespMessageHandler{};
-    EXPECT_EQ(ubseMemShmAttachRespMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+    EXPECT_EQ(ubseMemShmAttachRespMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 // UbseMemShmDetachRespMessageHandler
@@ -1026,14 +1023,13 @@ TEST_F(TestUbseMemRpc, UbseMemShmDetachRespMessageHandler_GetOpCode)
 {
     UbseMemShmDetachRespMessageHandler ubseMemShmDetachRespMessageHandler{};
     EXPECT_EQ(ubseMemShmDetachRespMessageHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_DETACH_RESP));
+              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_DETACH_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemShmDetachRespMessageHandler_GetModuleCode)
 {
     UbseMemShmDetachRespMessageHandler ubseMemShmDetachRespMessageHandler{};
-    EXPECT_EQ(ubseMemShmDetachRespMessageHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+    EXPECT_EQ(ubseMemShmDetachRespMessageHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 // UbseMemReturnRespHandler
@@ -1056,28 +1052,26 @@ TEST_F(TestUbseMemRpc, UbseMemReturnRespHandler_GetOpCode)
 {
     UbseMemReturnRespHandler ubseMemReturnRespHandler{};
     EXPECT_EQ(ubseMemReturnRespHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_COMMON_RETURN_RESP));
+              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_COMMON_RETURN_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemReturnRespHandler_GetModuleCode)
 {
     UbseMemReturnRespHandler ubseMemReturnRespHandler{};
-    EXPECT_EQ(ubseMemReturnRespHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+    EXPECT_EQ(ubseMemReturnRespHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdPermissionHandler_GetOpCode)
 {
     UbseMemFdPermissionHandler ubseMemFdPermissionHandler{};
     EXPECT_EQ(ubseMemFdPermissionHandler.GetOpCode(),
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_PERMISSION));
+              static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_PERMISSION));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemFdPermissionHandler_GetModuleCode)
 {
     UbseMemFdPermissionHandler ubseMemFdPermissionHandler{};
-    EXPECT_EQ(ubseMemFdPermissionHandler.GetModuleCode(),
-        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
+    EXPECT_EQ(ubseMemFdPermissionHandler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP));
 }
 
 TEST_F(TestUbseMemRpc, UbseMemNumaBorrowRespMessageHandler)
@@ -1256,7 +1250,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdPermissionReqMessage)
     UbseMemFdPermissionReq fdPermissionReq{};
     fdPermissionReq.name = "test";
     fdPermissionReq.requestNodeId = "1";
-    fdPermissionReq.requestId  = 1;
+    fdPermissionReq.requestId = 1;
     UbseMemFdPermissionReqMessage message(fdPermissionReq);
     EXPECT_EQ(message.Serialize(), UBSE_OK);
 
@@ -1275,4 +1269,4 @@ TEST_F(TestUbseMemRpc, UbseMemFdPermissionRespMessage)
     message.SetInputRawData(message.SerializedData(), message.SerializedDataSize());
     EXPECT_EQ(message.Deserialize(), UBSE_OK);
 }
-}
+} // namespace ubse::mem_controller::ut

@@ -21,23 +21,23 @@ struct ChipLocation {
     std::string slotId;
     std::string chipId;
     struct Hash {
-        std::size_t operator()(const ChipLocation &loc) const
+        std::size_t operator()(const ChipLocation& loc) const
         {
             return std::hash<std::string>{}(loc.slotId) ^ (std::hash<std::string>{}(loc.chipId) << 1);
         }
     };
 
     struct Equal {
-        bool operator()(const ChipLocation &lhs, const ChipLocation &rhs) const
+        bool operator()(const ChipLocation& lhs, const ChipLocation& rhs) const
         {
             return lhs.slotId == rhs.slotId && lhs.chipId == rhs.chipId;
         }
     };
 };
 
-bool IsMultiPortTopo(const UbseCpuInfo &cpuInfo);
+bool IsMultiPortTopo(const UbseCpuInfo& cpuInfo);
 
 bool IsSameSocketMultiPortTopo();
-}
+} // namespace ubse::utils
 
 #endif // UBSE_MANAGER_UBSE_TOPY_UTIL_H

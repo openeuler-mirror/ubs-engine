@@ -19,7 +19,7 @@
 #include "src/sdk/c/include/ubs_error.h"
 #include "vm_sdk_def.h"
 
-int32_t update_page_flow_and_status(const char *opt, const char *uuid)
+int32_t update_page_flow_and_status(const char* opt, const char* uuid)
 {
     if (opt == nullptr || uuid == nullptr) {
         IPC_LOG_ERROR << "param invalid";

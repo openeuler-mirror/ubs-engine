@@ -13,8 +13,8 @@
 #ifndef UBS_ENGINE_TEST_UBSE_TIMER_CONTROLLER_H
 #define UBS_ENGINE_TEST_UBSE_TIMER_CONTROLLER_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_timer_controller.h"

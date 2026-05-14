@@ -28,9 +28,9 @@ public:
     ~UbseBaseMessage() override = default;
 
     UbseResult SetInputRawDataFromShared(std::shared_ptr<uint8_t[]> data, uint32_t size);
-    UbseResult SetInputRawData(uint8_t *rawData, uint32_t size, bool copy = false);
+    UbseResult SetInputRawData(uint8_t* rawData, uint32_t size, bool copy = false);
 
-    inline uint8_t *SerializedData() const
+    inline uint8_t* SerializedData() const
     {
         return mOutputRawData ? mOutputRawData.get() : nullptr;
     }
@@ -40,7 +40,7 @@ public:
         return mOutputRawDataSize;
     }
 
-    inline uint8_t *InputRawData() const
+    inline uint8_t* InputRawData() const
     {
         return mInputRawData ? mInputRawData.get() : nullptr;
     }
@@ -66,28 +66,28 @@ public:
     }
 
     template <class Child>
-    static Ref<UbseBaseMessage> Convert(const Ref<Child> &child)
+    static Ref<UbseBaseMessage> Convert(const Ref<Child>& child)
     {
         if (child.Get() != nullptr) {
-            return Ref<UbseBaseMessage>(static_cast<UbseBaseMessage *>(child.Get()));
+            return Ref<UbseBaseMessage>(static_cast<UbseBaseMessage*>(child.Get()));
         }
         return gNullPtr;
     }
 
     template <class Child>
-    static Ref<UbseBaseMessage> Convert(const Child &child)
+    static Ref<UbseBaseMessage> Convert(const Child& child)
     {
         if (child.Get() != nullptr) {
-            return Ref<UbseBaseMessage>(static_cast<UbseBaseMessage *>(child.Get()));
+            return Ref<UbseBaseMessage>(static_cast<UbseBaseMessage*>(child.Get()));
         }
         return gNullPtr;
     }
 
     template <class Parent>
-    static Ref<Parent> DeConvert(const Ref<UbseBaseMessage> &child)
+    static Ref<Parent> DeConvert(const Ref<UbseBaseMessage>& child)
     {
         if (child.Get() != nullptr) {
-            return Ref<Parent>(static_cast<Parent *>(child.Get()));
+            return Ref<Parent>(static_cast<Parent*>(child.Get()));
         }
         return Ref<Parent>(nullptr);
     }

@@ -22,7 +22,7 @@ namespace mempooling {
 struct NumaMetaData {
     NumaMetaData() = default;
 
-    bool operator==(const NumaMetaData &numaMetaData) const
+    bool operator==(const NumaMetaData& numaMetaData) const
     {
         if (this->nodeId == numaMetaData.nodeId && this->numaId == numaMetaData.numaId &&
             this->socketId == numaMetaData.socketId) {
@@ -36,7 +36,7 @@ struct NumaMetaData {
     int16_t logicSocketId{};
     std::string hostName{};         // 节点HostName
     uint16_t numaId{};              // numaId
-    bool isLocal = true;                   // 是否是本地numa
+    bool isLocal = true;            // 是否是本地numa
     bool isRemoteAvailable = true;  // 远端numa是否可用于内存迁移
     uint64_t memTotal{};            // 该numa节点内存总量(包含)，系统文件采集，kb
     uint64_t memFree{};             // 该numa上空闲内存，系统文件采集，kb
@@ -64,7 +64,7 @@ struct NumaMetaData {
         oss << "cpuCounts=" << cpuCounts << ",";
         oss << "socketId=" << socketId << ",";
         oss << "cpuIds=[";
-        for (const auto &cpuId : cpuIds) {
+        for (const auto& cpuId : cpuIds) {
             oss << cpuId << ", ";
         }
         oss << "],";
@@ -91,17 +91,17 @@ struct NumaVmInfo {
         oss << "vmTotalUsedMem=" << vmTotalUsedMem << ",";
         oss << "vmTotalAllocatedCpuNum=" << vmTotalAllocatedCpuNum << ",";
         oss << "vmCpuList=[";
-        for (const auto &cpuId : vmCpuList) {
+        for (const auto& cpuId : vmCpuList) {
             oss << cpuId << ", ";
         }
         oss << "],";
         oss << "freeCpuList=[";
-        for (const auto &cpuId : freeCpuList) {
+        for (const auto& cpuId : freeCpuList) {
             oss << cpuId << ", ";
         }
         oss << "]";
         oss << "vmsOnNuma:[";
-        for (const auto &pid : vmsOnNuma) {
+        for (const auto& pid : vmsOnNuma) {
             oss << pid << ", ";
         }
         oss << "]";
@@ -116,7 +116,7 @@ struct NumaInfo {
     NumaMetaData numaMetaInfo{}; // numa元信息
     NumaVmInfo numaVmInfo{};     // numa上虚拟机相关信息
 
-    bool operator==(const NumaInfo &numaInfo) const
+    bool operator==(const NumaInfo& numaInfo) const
     {
         if (this->numaMetaInfo == numaInfo.numaMetaInfo) {
             return true;
@@ -151,12 +151,12 @@ struct NodeInfo {
         oss << "nodeId=" << nodeId << ",";
         oss << "hostName=" << hostName << ",";
         oss << "freeCpuList=[";
-        for (const auto &cpuId : freeCPUIds) {
+        for (const auto& cpuId : freeCPUIds) {
             oss << cpuId << ", ";
         }
         oss << "],";
         oss << "vmsOnNuma=[";
-        for (const auto &numaInfo : numaInfos) {
+        for (const auto& numaInfo : numaInfos) {
             oss << numaInfo.toString() << ", ";
         }
         oss << "]";

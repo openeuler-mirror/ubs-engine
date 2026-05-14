@@ -16,9 +16,9 @@
 #include <string>
 #include <vector>
 
+#include "ubse_str_util.h"
 #include "mp_error.h"
 #include "mp_json_util.h"
-#include "ubse_str_util.h"
 
 namespace mempooling {
 
@@ -28,12 +28,12 @@ struct RackMemNumaLoc {
     std::string nodeId; // 节点id
     int socketId;       // socket id
     int64_t numaId{};   // numa id
-    bool operator==(const RackMemNumaLoc &other) const
+    bool operator==(const RackMemNumaLoc& other) const
     {
         return nodeId == other.nodeId && socketId == other.socketId && numaId == other.numaId;
     }
     // 重载 < 运算符
-    bool operator<(const RackMemNumaLoc &other) const
+    bool operator<(const RackMemNumaLoc& other) const
     {
         if (nodeId != other.nodeId) {
             return nodeId < other.nodeId;
@@ -44,20 +44,20 @@ struct RackMemNumaLoc {
         return numaId < other.numaId;
         ;
     }
-    friend std::ostream &operator<<(std::ostream &os, const RackMemNumaLoc &obj)
+    friend std::ostream& operator<<(std::ostream& os, const RackMemNumaLoc& obj)
     {
         return os << "nodeId: " << obj.nodeId << " socketId: " << obj.socketId << " numaId: " << obj.numaId;
     }
 };
 
 struct MemMallocAttr {
-    std::string srcNid;    /* *内存申请需求方节点 */
-    int srcSocket{};       /* *内存申请需求方节点socket信息 -1 无效 */
-    int srcNuma{};         /* *内存申请需求方节点NUMA信息  -1 无效 */
-    uid_t uid{0};          /* *内存申请需求方用户uid */
+    std::string srcNid;     /* *内存申请需求方节点 */
+    int srcSocket{};        /* *内存申请需求方节点socket信息 -1 无效 */
+    int srcNuma{};          /* *内存申请需求方节点NUMA信息  -1 无效 */
+    uid_t uid{0};           /* *内存申请需求方用户uid */
     std::string username{}; /* *内存申请需求方用户名 */
-    int dstNodeNum{};      /* *借用是否从单节点还是多个节点 */
-    int lenderNumaSize{0}; // 最大值为2,小于等于0，不指定借出
+    int dstNodeNum{};       /* *借用是否从单节点还是多个节点 */
+    int lenderNumaSize{0};  // 最大值为2,小于等于0，不指定借出
     std::vector<RackMemNumaLoc> lenderLocs{};
     std::vector<uint64_t> lenderSizes{}; // 内部单位，字节
 };
@@ -71,11 +71,11 @@ enum PerfLevel {
 struct RackCreateResourceWaterBorrowAttr {
     std::string ToJson();
 
-    bool FromJson(const std::string &jsonString);
-    bool ParseJsonString(const std::string &jsonString, JSON_MAP &strMap);
-    bool ParseBasicAttributes(JSON_MAP &strMap);
-    bool ParseWaterMallocAttr(JSON_MAP &strMap, JSON_MAP &waterMallocAttrMap);
-    bool ParseVecOfWaterMallocAttr(JSON_MAP &waterMallocAttrMap);
+    bool FromJson(const std::string& jsonString);
+    bool ParseJsonString(const std::string& jsonString, JSON_MAP& strMap);
+    bool ParseBasicAttributes(JSON_MAP& strMap);
+    bool ParseWaterMallocAttr(JSON_MAP& strMap, JSON_MAP& waterMallocAttrMap);
+    bool ParseVecOfWaterMallocAttr(JSON_MAP& waterMallocAttrMap);
 
     int64_t numaPresentId{-1}; // 用户不需要设置，算法决策时会决策出
     std::string type{STRANDED_BORROW_REQUEST};

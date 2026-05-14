@@ -27,5 +27,5 @@ public:
 
     void Stop() override;
 };
-}
+} // namespace ubse::mock
 #endif // UBSE_MANAGER_MOCKMODULE_H

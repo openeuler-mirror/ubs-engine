@@ -13,15 +13,14 @@
 #include "deserialize.h"
 
 #include <regex>
+#include "ubse_com.h"
+#include "ubse_error.h"
 #include "master_task_controller.h"
 #include "securec.h"
 #include "turbo_ucache_interface.h"
-#include "ubse_com.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
 #include "ucache_serialize.h"
-#include "ubse_error.h"
-
 
 namespace ucache {
 namespace deserialize {
@@ -37,10 +36,10 @@ std::vector<BorrowMemInfo> Deserialize::borrowMemInfos;
 
 const int KB_TO_BYTE = 1024;
 
-uint32_t Deserialize::ParseBorrowLendMemInfo(const std::vector<UbseNumaMemoryDebtInfo> &extInfos)
+uint32_t Deserialize::ParseBorrowLendMemInfo(const std::vector<UbseNumaMemoryDebtInfo>& extInfos)
 {
     borrowMemInfos.reserve(extInfos.size());
-    for (const auto &ext : extInfos) {
+    for (const auto& ext : extInfos) {
         BorrowMemInfo info{};
         info.name = ext.name;
         info.size = ext.size;
@@ -65,7 +64,7 @@ uint32_t Deserialize::ParseBorrowLendMemInfo(const std::vector<UbseNumaMemoryDeb
     return UCACHE_OK;
 }
 
-uint32_t Deserialize::GetBorrowMemInfo(const std::string &nodeId, std::vector<BorrowMemInfo> &borrowMem)
+uint32_t Deserialize::GetBorrowMemInfo(const std::string& nodeId, std::vector<BorrowMemInfo>& borrowMem)
 {
     borrowMemInfos.clear();
     std::vector<UbseNumaMemoryDebtInfo> debtInfos{};
@@ -98,7 +97,7 @@ uint32_t Deserialize::GetBorrowMemInfo(const std::string &nodeId, std::vector<Bo
     return UCACHE_OK;
 }
 
-uint32_t Deserialize::GetNodeMemInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+uint32_t Deserialize::GetNodeMemInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     UbseResult result = UbseGetAllNodeNumaInfo(numaNodeInfoList);
     if (result != UBSE_OK) {
@@ -109,7 +108,7 @@ uint32_t Deserialize::GetNodeMemInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfo
     return UCACHE_OK;
 }
 
-uint32_t DispatchCollectTask(ResourceQueryType qType, const std::string &nodeId, TaskResponse &tResp)
+uint32_t DispatchCollectTask(ResourceQueryType qType, const std::string& nodeId, TaskResponse& tResp)
 {
     TaskRequest tReq{};
     {
@@ -136,7 +135,7 @@ uint32_t DispatchCollectTask(ResourceQueryType qType, const std::string &nodeId,
     return UCACHE_OK;
 }
 
-bool ValidateDockerId(const std::string &id)
+bool ValidateDockerId(const std::string& id)
 {
     const size_t fullDockerIdLen = 64;
     const size_t shortDockerIdLen = 12;
@@ -146,9 +145,9 @@ bool ValidateDockerId(const std::string &id)
     return std::all_of(id.begin(), id.end(), [](unsigned char c) { return std::isxdigit(c); });
 }
 
-bool ValidateDockerInfos(const std::map<std::string, CgroupInfos> &dockerInfos)
+bool ValidateDockerInfos(const std::map<std::string, CgroupInfos>& dockerInfos)
 {
-    for (const auto &[dockerId, info] : dockerInfos) {
+    for (const auto& [dockerId, info] : dockerInfos) {
         if (!ValidateDockerId(dockerId)) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Invalid numaId, dockerId=" << dockerId << ".";
             return false;
@@ -163,8 +162,8 @@ bool ValidateDockerInfos(const std::map<std::string, CgroupInfos> &dockerInfos)
     return true;
 }
 
-uint32_t GetCgroupInfoInNode(const std::string &nodeId, std::map<std::string, CgroupInfos> &dockerInfos,
-                             std::map<std::string, uint64_t> &timeStamps)
+uint32_t GetCgroupInfoInNode(const std::string& nodeId, std::map<std::string, CgroupInfos>& dockerInfos,
+                             std::map<std::string, uint64_t>& timeStamps)
 {
     TaskResponse tResp{};
     uint32_t ret = DispatchCollectTask(ResourceQueryType::CGROUP_INFO, nodeId, tResp);
@@ -186,13 +185,13 @@ uint32_t GetCgroupInfoInNode(const std::string &nodeId, std::map<std::string, Cg
 }
 
 uint32_t Deserialize::GetCgroupInfos(
-    std::queue<std::map<std::string, uint64_t>> &timeStampsCgroup,
-    std::queue<std::map<std::string, std::map<std::string, CgroupInfos>>> &cgroupInfosQueue)
+    std::queue<std::map<std::string, uint64_t>>& timeStampsCgroup,
+    std::queue<std::map<std::string, std::map<std::string, CgroupInfos>>>& cgroupInfosQueue)
 {
     std::vector<std::string> nodeIds = UcacheConfig::GetInstance().GetNodeIds();
     std::map<std::string, std::map<std::string, CgroupInfos>> cgroupInfos;
     std::map<std::string, uint64_t> timeStamps;
-    for (auto const &nodeId : nodeIds) {
+    for (auto const& nodeId : nodeIds) {
         std::map<std::string, CgroupInfos> dockerInfos;
         auto ret = GetCgroupInfoInNode(nodeId, dockerInfos, timeStamps);
         if (ret != UCACHE_OK) {
@@ -211,7 +210,7 @@ uint32_t Deserialize::GetCgroupInfos(
     return UCACHE_OK;
 }
 
-bool ValidateNodeStr(const std::string &name)
+bool ValidateNodeStr(const std::string& name)
 {
     const size_t nodeStrLen = 4;
     if (name.length() <= nodeStrLen || name.find("node") != 0) {
@@ -221,9 +220,9 @@ bool ValidateNodeStr(const std::string &name)
     return !numPart.empty() && std::all_of(numPart.begin(), numPart.end(), ::isdigit);
 }
 
-bool ValidateNodeInfos(const std::map<std::string, NodeInfo> &numaInfos)
+bool ValidateNodeInfos(const std::map<std::string, NodeInfo>& numaInfos)
 {
-    for (const auto &[numaId, numainfo] : numaInfos) {
+    for (const auto& [numaId, numainfo] : numaInfos) {
         if (!ValidateNodeStr(numaId)) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Invalid numaId, numaId=" << numaId << ".";
             return false;
@@ -237,11 +236,11 @@ bool ValidateNodeInfos(const std::map<std::string, NodeInfo> &numaInfos)
     return true;
 }
 
-uint32_t Deserialize::GetNumaInfos(std::map<std::string, std::map<std::string, NodeInfo>> &nodeInfos)
+uint32_t Deserialize::GetNumaInfos(std::map<std::string, std::map<std::string, NodeInfo>>& nodeInfos)
 {
     nodeInfos.clear();
     std::vector<std::string> nodeIds = UcacheConfig::GetInstance().GetNodeIds();
-    for (auto const &nodeId : nodeIds) {
+    for (auto const& nodeId : nodeIds) {
         std::map<std::string, NodeInfo> numaInfos{};
         TaskResponse tResp{};
         uint32_t ret = DispatchCollectTask(ResourceQueryType::NUMA_INFO, nodeId, tResp);
@@ -263,11 +262,11 @@ uint32_t Deserialize::GetNumaInfos(std::map<std::string, std::map<std::string, N
     return UCACHE_OK;
 }
 
-uint32_t Deserialize::GetMemWaterMark(std::map<std::string, uint64_t> &memWaterMarkInfos)
+uint32_t Deserialize::GetMemWaterMark(std::map<std::string, uint64_t>& memWaterMarkInfos)
 {
     memWaterMarkInfos.clear();
     std::vector<std::string> nodeIds = UcacheConfig::GetInstance().GetNodeIds();
-    for (auto const &nodeId : nodeIds) {
+    for (auto const& nodeId : nodeIds) {
         MemWatermarkInfo memWaterMark{};
         TaskResponse tResp{};
         uint32_t ret = DispatchCollectTask(ResourceQueryType::MEM_WATERMARK, nodeId, tResp);

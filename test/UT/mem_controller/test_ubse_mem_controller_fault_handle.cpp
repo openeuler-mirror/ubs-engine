@@ -19,11 +19,11 @@
 #include "ubse_error.h"
 #include "ubse_event.h"
 #include "ubse_mem_controller_api.h"
-#include "ubse_mem_controller_fault_handle.cpp"
 #include "ubse_mem_controller_fault_handle.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_ras.h"
 #include "ubse_serial_util.h"
+#include "ubse_mem_controller_fault_handle.cpp"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::ras;
@@ -131,9 +131,7 @@ TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_ValidMessa
 {
     std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
     std::string eventMessage = "2_1013";
-    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
 }
 
@@ -203,7 +201,8 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInShare
     shareImportObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
     UbseMemDebtNumaInfo exportNmaInfo{.nodeId = "2", .socketId = 0, .numaId = 0, .size = 128};
     shareImportObj.algoResult.exportNumaInfos.emplace_back(exportNmaInfo);
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", "shareTest", shareImportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", "shareTest",
+                                                                                           shareImportObj);
 
     uint64_t memId = 100;
     UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;

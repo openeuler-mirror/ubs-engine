@@ -22,7 +22,7 @@ using namespace ubse::message;
 class UbseMemRemoteNumaStatus : public UbseBaseMessage {
 public:
     UbseMemRemoteNumaStatus() = default;
-    explicit UbseMemRemoteNumaStatus(uint8_t *data, uint32_t size)
+    explicit UbseMemRemoteNumaStatus(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
@@ -42,6 +42,6 @@ private:
     std::vector<std::pair<int64_t, int>> numaStatus_;
 };
 using UbseMemRemoteNumaStatusPtr = Ref<UbseMemRemoteNumaStatus>;
-}
+} // namespace ubse::mem::controller::message
 
 #endif // UBS_ENGINE_UBSE_MEM_REMOTE_NUMA_STATUS_H

@@ -19,7 +19,7 @@ public:
     static void Uninitial();
 
 private:
-    static uint32_t MasterOnlineHandler(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
+    static uint32_t MasterOnlineHandler(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
 };
 
 } // namespace ubse::mem::controller

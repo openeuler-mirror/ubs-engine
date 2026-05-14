@@ -20,27 +20,27 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_error.h"
-#include "src/framework/ipc/include/ubse_ipc_common.h"
-#include "src/framework/ipc/ubse_ipc_socket.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_sync_req.h"
+#include "src/framework/ipc/include/ubse_ipc_common.h"
+#include "src/framework/ipc/ubse_ipc_socket.h"
 
 namespace ubse::ut::ipc {
 namespace {
-int MockPollErr(struct pollfd *fds, nfds_t, int)
+int MockPollErr(struct pollfd* fds, nfds_t, int)
 {
     fds[0].revents = POLLERR;
     return 1;
 }
 
-int MockPollHup(struct pollfd *fds, nfds_t, int)
+int MockPollHup(struct pollfd* fds, nfds_t, int)
 {
     fds[0].revents = POLLHUP;
     return 1;
 }
 
-int MockPollEintrThenReadable(struct pollfd *fds, nfds_t, int)
+int MockPollEintrThenReadable(struct pollfd* fds, nfds_t, int)
 {
     static bool firstCall = true;
     if (firstCall) {
@@ -53,15 +53,15 @@ int MockPollEintrThenReadable(struct pollfd *fds, nfds_t, int)
     return 1;
 }
 
-uint32_t MockRecvClientRespWithBody(int, void *buffer, uint32_t length, int)
+uint32_t MockRecvClientRespWithBody(int, void* buffer, uint32_t length, int)
 {
     if (length == sizeof(UbseResponseHeader)) {
-        auto *header = static_cast<UbseResponseHeader *>(buffer);
+        auto* header = static_cast<UbseResponseHeader*>(buffer);
         header->statusCode = UBSE_OK;
         header->bodyLen = 4;
         header->clientRequestId = 1234;
     } else if (length == 4) {
-        auto *body = static_cast<uint8_t *>(buffer);
+        auto* body = static_cast<uint8_t*>(buffer);
         body[0] = 9;
         body[1] = 8;
         body[2] = 7;
@@ -70,16 +70,16 @@ uint32_t MockRecvClientRespWithBody(int, void *buffer, uint32_t length, int)
     return UBSE_OK;
 }
 
-uint32_t MockRecvClientReqWithBody(int, void *buffer, uint32_t length, int)
+uint32_t MockRecvClientReqWithBody(int, void* buffer, uint32_t length, int)
 {
     if (length == sizeof(UbseRequestHeader)) {
-        auto *header = static_cast<UbseRequestHeader *>(buffer);
+        auto* header = static_cast<UbseRequestHeader*>(buffer);
         header->moduleCode = 1;
         header->opCode = 2;
         header->bodyLen = 4;
         header->clientRequestId = 99;
     } else if (length == 4) {
-        auto *body = static_cast<uint8_t *>(buffer);
+        auto* body = static_cast<uint8_t*>(buffer);
         body[0] = 5;
         body[1] = 4;
         body[2] = 3;
@@ -88,12 +88,12 @@ uint32_t MockRecvClientReqWithBody(int, void *buffer, uint32_t length, int)
     return UBSE_OK;
 }
 
-uint32_t MockRecvClientRespBodyFail(int, void *buffer, uint32_t length, int)
+uint32_t MockRecvClientRespBodyFail(int, void* buffer, uint32_t length, int)
 {
     static bool firstCall = true;
     if (firstCall) {
         firstCall = false;
-        auto *header = static_cast<UbseResponseHeader *>(buffer);
+        auto* header = static_cast<UbseResponseHeader*>(buffer);
         header->statusCode = UBSE_OK;
         header->bodyLen = 4;
         header->clientRequestId = 55;
@@ -103,35 +103,35 @@ uint32_t MockRecvClientRespBodyFail(int, void *buffer, uint32_t length, int)
     return UBSE_IPC_ERROR_RECV_FAILED;
 }
 
-uint32_t MockRecvClientRespOversizedHeader(int, void *buffer, uint32_t length, int)
+uint32_t MockRecvClientRespOversizedHeader(int, void* buffer, uint32_t length, int)
 {
-    auto *header = static_cast<UbseResponseHeader *>(buffer);
+    auto* header = static_cast<UbseResponseHeader*>(buffer);
     header->bodyLen = UBSE_MESSAGE_SIZE + 1;
     header->clientRequestId = 66;
     return UBSE_OK;
 }
 
-uint32_t MockRecvClientReqOversizedHeader(int, void *buffer, uint32_t length, int)
+uint32_t MockRecvClientReqOversizedHeader(int, void* buffer, uint32_t length, int)
 {
-    auto *header = static_cast<UbseRequestHeader *>(buffer);
+    auto* header = static_cast<UbseRequestHeader*>(buffer);
     header->bodyLen = UBSE_MESSAGE_SIZE + 1;
     return UBSE_OK;
 }
 
-uint32_t MockRecvClientReqAllocFailHeader(int, void *buffer, uint32_t length, int)
+uint32_t MockRecvClientReqAllocFailHeader(int, void* buffer, uint32_t length, int)
 {
-    auto *header = static_cast<UbseRequestHeader *>(buffer);
+    auto* header = static_cast<UbseRequestHeader*>(buffer);
     header->bodyLen = 8;
     header->clientRequestId = 77;
     return UBSE_OK;
 }
 
-uint32_t MockRecvClientReqBodyFail(int, void *buffer, uint32_t length, int)
+uint32_t MockRecvClientReqBodyFail(int, void* buffer, uint32_t length, int)
 {
     static bool firstCall = true;
     if (firstCall) {
         firstCall = false;
-        auto *header = static_cast<UbseRequestHeader *>(buffer);
+        auto* header = static_cast<UbseRequestHeader*>(buffer);
         header->bodyLen = 4;
         header->clientRequestId = 88;
         return UBSE_OK;
@@ -235,7 +235,7 @@ UbseRequestMessage CreateValidRequest(size_t bodyLen = 0)
 }
 
 // 释放请求消息
-void FreeRequest(UbseRequestMessage &req)
+void FreeRequest(UbseRequestMessage& req)
 {
     if (req.header.bodyLen > 0) {
         delete[] req.body;
@@ -278,7 +278,7 @@ TEST_F(TestUbseUdsClient, Send_EmptyBody)
 
 TEST_F(TestUbseUdsClient, Send_WithBody)
 {
-    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    client->sockFd_ = 7;         // 模拟已连接状态的文件描述符
     const size_t bodySize = 100; // 测试消息体大小为100字节
     auto request = CreateValidRequest(bodySize);
     UbseResponseMessage response{};
@@ -307,7 +307,7 @@ TEST_F(TestUbseUdsClient, Receive_TotalTimeout)
     UbseResponseMessage response{};
     // 模拟超时
     auto now = std::chrono::steady_clock::now();
-    now -= std::chrono::milliseconds(100); // 将时间向前推进100ms，模拟已超时
+    now -= std::chrono::milliseconds(100);                   // 将时间向前推进100ms，模拟已超时
     auto result = client->WaitAndReceive(response, now, 50); // timeout为50ms
     EXPECT_EQ(result, UBSE_ERR_TIMED_OUT);
     FreeRequest(request);
@@ -351,15 +351,15 @@ TEST_F(TestUbseUdsClient, Receive_HeaderRecvFailure)
     FreeRequest(request);
 }
 
-uint32_t MockRecvHeader(int fd, void *buffer, uint32_t length, int timeout)
+uint32_t MockRecvHeader(int fd, void* buffer, uint32_t length, int timeout)
 {
-    auto header = (UbseResponseHeader *)(buffer);
+    auto header = (UbseResponseHeader*)(buffer);
     header->statusCode = 0;
     header->bodyLen = 10; // 模拟响应消息体长度为10字节
     return UBSE_OK;
 }
 
-uint32_t MockPoll(struct pollfd *fds, nfds_t nfds, int timeout)
+uint32_t MockPoll(struct pollfd* fds, nfds_t nfds, int timeout)
 {
     fds[0].revents = POLLIN;
     return 1;
@@ -370,10 +370,7 @@ TEST_F(TestUbseUdsClient, Receive_BodyRecvFailure)
     client->sockFd_ = 7; // 模拟已连接状态的文件描述符
     UbseResponseMessage response{};
     MOCKER(select).stubs().will(returnValue(1));
-    MOCKER(RecvMsg)
-        .stubs()
-        .will(invoke(MockRecvHeader))
-        .then(returnValue(UBSE_IPC_ERROR_RECV_FAILED));
+    MOCKER(RecvMsg).stubs().will(invoke(MockRecvHeader)).then(returnValue(UBSE_IPC_ERROR_RECV_FAILED));
     auto now = std::chrono::steady_clock::now();
     auto result = client->WaitAndReceive(response, now, 500);
     EXPECT_EQ(result, UBSE_IPC_ERROR_RECV_FAILED);
@@ -425,9 +422,7 @@ TEST_F(TestUbseUdsClient, PerSistentConnectWhenSetSockAddrFailure)
 
 TEST_F(TestUbseUdsClient, PerSistentConnectWhenConnectFailure)
 {
-    MOCKER_CPP(&UbseUDSClient::ConnectToServer)
-        .stubs()
-        .will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     auto ret = client->PerSistentConnect();
     EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
 }
@@ -494,9 +489,7 @@ TEST_F(TestUbseUdsClient, SendWithWait_NotConnected)
 TEST_F(TestUbseUdsClient, SendWithWait_SerializeFailed)
 {
     MOCKER_CPP(&UbseUDSClient::IsConnected).stubs().will(returnValue(true));
-    MOCKER_CPP(SerializeRequestMessage)
-        .stubs()
-        .will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
+    MOCKER_CPP(SerializeRequestMessage).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
     UbseRequestMessage request{};
     request.header.bodyLen = 100; // request长度100
     request.body = new uint8_t[request.header.bodyLen];
@@ -627,7 +620,7 @@ TEST_F(TestUbseUdsClient, SendWithoutWait_SendFail)
 
 TEST_F(TestUbseUdsClient, HandlerServerResp_WithBody)
 {
-    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    client->sockFd_ = 7;                              // 模拟已连接状态的文件描述符
     UbseSyncReq::GetInstance().RegisterRequest(1234); // 注册requestId为1234的请求
     UbseResponseMessage response{};
 
@@ -668,7 +661,7 @@ TEST_F(TestUbseUdsClient, HandlerServerReq_OversizedBody)
 TEST_F(TestUbseUdsClient, HandlerServerReq_AllocFail)
 {
     MOCKER_CPP(RecvMsg).stubs().will(invoke(MockRecvClientReqAllocFailHeader));
-    MOCKER(operator new[]).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(operator new[]).stubs().will(returnValue(static_cast<void*>(nullptr)));
 
     client->HandlerServerReq();
 }
@@ -687,7 +680,7 @@ TEST_F(TestUbseUdsClient, HandlerServerReq_WithBodySchedulesHandler)
     client->taskExecutor_ = UbseTaskExecutor::Create("IpcExecutor", 1, 8); // 创建线程池，1个线程，队列大小8
     ASSERT_NE(client->taskExecutor_, nullptr);
     ASSERT_TRUE(client->taskExecutor_->Start());
-    client->requestHandler_ = [&executed](const UbseRequestMessage &req, UbseResponseMessage &) {
+    client->requestHandler_ = [&executed](const UbseRequestMessage& req, UbseResponseMessage&) {
         executed = (req.body != nullptr && req.body[0] == 5);
         if (req.freeFunc != nullptr && req.body != nullptr) {
             req.freeFunc(req.body);
@@ -733,7 +726,7 @@ TEST_F(TestUbseUdsClient, HandleRequest_NormalCase)
     request.header.opCode = 1;
 
     // 模拟requestHandler_存在且处理成功
-    auto requestHandler = [](const UbseRequestMessage &req, UbseResponseMessage &resp) {
+    auto requestHandler = [](const UbseRequestMessage& req, UbseResponseMessage& resp) {
         resp.header.statusCode = UBSE_OK;
         resp.header.bodyLen = 10;
     };
@@ -752,7 +745,7 @@ TEST_F(TestUbseUdsClient, HandleRequest_ExceptionCase)
     UbseRequestMessage request{};
 
     // 模拟requestHandler_抛出异常
-    auto requestHandler = [](const UbseRequestMessage &req, UbseResponseMessage &resp) {
+    auto requestHandler = [](const UbseRequestMessage& req, UbseResponseMessage& resp) {
         throw std::runtime_error("Test exception");
     };
     MOCKER_CPP(&UbseUDSClient::SendResponse)
@@ -769,7 +762,7 @@ TEST_F(TestUbseUdsClient, HandleRequest_HandleFailed)
     UbseRequestMessage request{};
 
     // 模拟requestHandler_返回错误状态码
-    auto requestHandler = [](const UbseRequestMessage &req, UbseResponseMessage &resp) {
+    auto requestHandler = [](const UbseRequestMessage& req, UbseResponseMessage& resp) {
         resp.header.statusCode = UBSE_ERR_DAEMON_UNREACHABLE;
     };
     MOCKER_CPP(&UbseUDSClient::SendResponse).stubs().will(returnValue(UBSE_OK));
@@ -885,9 +878,7 @@ TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenLongLinkConnectSuccess_Re
 TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenAlwaysFail_ReturnFalse)
 {
     client->isReConnect_.store(true);
-    MOCKER_CPP(&UbseUDSClient::LongLinkConnect)
-        .stubs()
-        .will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
 
     auto ret = client->PerformReconnectAttempts();
 
@@ -896,7 +887,7 @@ TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenAlwaysFail_ReturnFalse)
 
 // 用于控制 LongLinkConnect 的调用次数，模拟重连过程中外部停止重连
 static int g_longLinkConnectCallCount = 0;
-static UbseUDSClient *g_testClient = nullptr;
+static UbseUDSClient* g_testClient = nullptr;
 
 // 模拟：前几次重连失败；从第二次开始关闭重连开关，触发中途停止
 uint32_t MockLongLinkConnectStopOnSecondCall()
@@ -915,9 +906,7 @@ TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenStoppedMidway_ReturnFalse
     g_testClient = client.get();
     client->isReConnect_.store(true);
 
-    MOCKER_CPP(&UbseUDSClient::LongLinkConnect)
-        .stubs()
-        .will(invoke(MockLongLinkConnectStopOnSecondCall));
+    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(invoke(MockLongLinkConnectStopOnSecondCall));
 
     auto ret = client->PerformReconnectAttempts();
 
@@ -1000,7 +989,7 @@ TEST_F(TestUbseUdsClient, SetNonBlocking_InvalidFd)
 TEST_F(TestUbseUdsClient, CheckTimeout_True)
 {
     auto startTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(1000); // 时间向前推进1000ms
-    EXPECT_TRUE(client->CheckTimeout(startTime, 500)); // timeout为500ms
+    EXPECT_TRUE(client->CheckTimeout(startTime, 500));                                   // timeout为500ms
 }
 
 TEST_F(TestUbseUdsClient, CheckTimeout_False)
@@ -1041,7 +1030,7 @@ TEST_F(TestUbseUdsClient, IsConnected_False)
 
 TEST_F(TestUbseUdsClient, Send_SerializeFailed)
 {
-    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    client->sockFd_ = 7;                   // 模拟已连接状态的文件描述符
     auto request = CreateValidRequest(10); // 创建10字节的消息体
     UbseResponseMessage response{};
     MOCKER_CPP(SerializeRequestMessage).stubs().will(returnValue(UBSE_ERROR_SERIALIZE_FAILED));
@@ -1052,7 +1041,7 @@ TEST_F(TestUbseUdsClient, Send_SerializeFailed)
 
 TEST_F(TestUbseUdsClient, Send_CheckTimeoutAfterSend)
 {
-    client->sockFd_ = 7; // 模拟已连接状态的文件描述符
+    client->sockFd_ = 7;                   // 模拟已连接状态的文件描述符
     auto request = CreateValidRequest(10); // 创建10字节的消息体
     UbseResponseMessage response{};
     MOCKER_CPP(SendMsg).stubs().will(returnValue(UBSE_OK));
@@ -1136,7 +1125,7 @@ TEST_F(TestUbseUdsClient, CreateEpoll_EpollCreateFailed)
 
 TEST_F(TestUbseUdsClient, CreateEpoll_EpollCtlFailed)
 {
-    client->sockFd_ = 10; // 模拟socket fd为10
+    client->sockFd_ = 10;                                // 模拟socket fd为10
     MOCKER(epoll_create1).stubs().will(returnValue(20)); // 模拟epoll返回fd为20
     MOCKER(epoll_ctl).stubs().will(returnValue(-1));
     auto ret = client->CreateEpoll();
@@ -1148,17 +1137,17 @@ TEST_F(TestUbseUdsClient, EventLoopThread_BasicTest)
     client->sockFd_ = socket(AF_UNIX, SOCK_STREAM, 0);
     client->epollFd_ = epoll_create1(0);
     client->running_.store(true);
-    
+
     epoll_event ev{};
     ev.events = EPOLLIN;
     ev.data.fd = client->sockFd_;
     epoll_ctl(client->epollFd_, EPOLL_CTL_ADD, client->sockFd_, &ev);
-    
+
     std::thread t([&]() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 等待100ms后停止事件循环
         client->running_.store(false);
     });
-    
+
     t.join();
     close(client->sockFd_);
     close(client->epollFd_);
@@ -1183,7 +1172,7 @@ TEST_F(TestUbseUdsClient, Connect_StrncpyFailed)
     EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
 }
 
-int MockPollEintrThenTimeout(struct pollfd *fds, nfds_t nfds, int timeout)
+int MockPollEintrThenTimeout(struct pollfd* fds, nfds_t nfds, int timeout)
 {
     static int callCount = 0;
     callCount++;

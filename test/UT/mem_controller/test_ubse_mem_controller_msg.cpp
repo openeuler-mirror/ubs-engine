@@ -12,9 +12,6 @@
 
 #include "test_ubse_mem_controller_msg.h"
 #include <mockcpp/mockcpp.hpp>
-#include "message/ubse_mem_controller_serial.h"
-#include "message/ubse_mem_node_debt_info_conversion.h"
-#include "node_mem_debt_info_simpo.h"
 #include "ubse_com.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
@@ -22,12 +19,15 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_controller_def_simpo.h"
-#include "ubse_mem_controller_msg.cpp"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
 #include "ubse_os_util.h"
+#include "message/ubse_mem_controller_serial.h"
+#include "message/ubse_mem_node_debt_info_conversion.h"
+#include "node_mem_debt_info_simpo.h"
+#include "ubse_mem_controller_msg.cpp"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
@@ -88,12 +88,12 @@ TEST_F(TestUbseMemControllerMsg, CollectLedge)
     EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR);
 }
 
-UbseResult MockErrorSerial(UbseMemLedgerRespSerial *_this)
+UbseResult MockErrorSerial(UbseMemLedgerRespSerial* _this)
 {
     return UBSE_ERROR;
 }
 
-UbseResult MockSuccessSerial(UbseMemLedgerRespSerial *_this)
+UbseResult MockSuccessSerial(UbseMemLedgerRespSerial* _this)
 {
     return UBSE_OK;
 }
@@ -328,7 +328,7 @@ TEST_F(TestUbseMemControllerMsg, GetLocalNumaInfoByPid)
     EXPECT_EQ(socketId, 0);
 }
 
-UbseResult MockGetLocalNumaInfoByPid([[maybe_unused]] const uint64_t &pid, uint32_t &numaId, uint32_t &socketId)
+UbseResult MockGetLocalNumaInfoByPid([[maybe_unused]] const uint64_t& pid, uint32_t& numaId, uint32_t& socketId)
 {
     numaId = 1;
     socketId = 0;
@@ -347,9 +347,9 @@ TEST_F(TestUbseMemControllerMsg, GetNumaInfoByPidHandler)
     // 构造请求
     serial::UbseSerialization output;
     output << pid;
-    UbseByteBuffer req{output.GetBuffer(true), output.GetLength(), [](uint8_t *p) {
-                            SafeDeleteArray(p);
-                        }};
+    UbseByteBuffer req{output.GetBuffer(true), output.GetLength(), [](uint8_t* p) {
+                           SafeDeleteArray(p);
+                       }};
 
     // 处理请求
     UbseByteBuffer resp;
@@ -373,7 +373,7 @@ TEST_F(TestUbseMemControllerMsg, GetNumaInfoFromRemoteRespHandler)
     // 构造响应
     serial::UbseSerialization output;
     output << numaId << socketId;
-    UbseByteBuffer resp{output.GetBuffer(true), output.GetLength(), [](uint8_t *p) {
+    UbseByteBuffer resp{output.GetBuffer(true), output.GetLength(), [](uint8_t* p) {
                             SafeDeleteArray(p);
                         }};
 

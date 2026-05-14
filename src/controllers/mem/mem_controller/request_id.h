@@ -50,12 +50,12 @@ UbseMemImportObj处理：
 
 namespace ubse::mem_controller {
 
-inline std::string GetRequestIdNew(const std::string &name, const std::string &requestNodeId)
+inline std::string GetRequestIdNew(const std::string& name, const std::string& requestNodeId)
 {
     return name + "_" + requestNodeId;
 }
 
-inline std::string GetRequestId(const std::string name, const std::string &attachOrDetachNode)
+inline std::string GetRequestId(const std::string name, const std::string& attachOrDetachNode)
 {
     return name + "_" + attachOrDetachNode;
 }

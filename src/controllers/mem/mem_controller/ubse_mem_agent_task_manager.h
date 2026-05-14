@@ -40,31 +40,32 @@ public:
     static uint32_t GenerateTaskId();
 
     /* taskId必须通过函数生成 */
-    template <typename T> static UbseResult AddTaskObj(uint32_t taskId, const T &obj);
+    template <typename T>
+    static UbseResult AddTaskObj(uint32_t taskId, const T& obj);
 
     static UbseResult DeleteTaskObj(uint32_t taskId);
 
     template <typename T>
-    static UbseResult GetTaskObj(const std::string &name, const std::string &importNodeId, T &returnObj);
+    static UbseResult GetTaskObj(const std::string& name, const std::string& importNodeId, T& returnObj);
 
     static uint32_t GetTaskId();
 
 private:
-    static UbseResult AddFdExportTask(uint32_t taskId, const UbseMemFdBorrowExportObj &obj);
+    static UbseResult AddFdExportTask(uint32_t taskId, const UbseMemFdBorrowExportObj& obj);
 
-    static UbseResult AddNumaExportTask(uint32_t taskId, const UbseMemNumaBorrowExportObj &obj);
+    static UbseResult AddNumaExportTask(uint32_t taskId, const UbseMemNumaBorrowExportObj& obj);
 
-    static UbseResult AddShareExportTask(uint32_t taskId, const UbseMemShareBorrowExportObj &obj);
+    static UbseResult AddShareExportTask(uint32_t taskId, const UbseMemShareBorrowExportObj& obj);
 
-    static UbseResult AddAddrExportTask(uint32_t taskId, const UbseMemAddrBorrowExportObj &obj);
+    static UbseResult AddAddrExportTask(uint32_t taskId, const UbseMemAddrBorrowExportObj& obj);
 
-    static UbseResult AddFdImportTask(uint32_t taskId, const UbseMemFdBorrowImportObj &obj);
+    static UbseResult AddFdImportTask(uint32_t taskId, const UbseMemFdBorrowImportObj& obj);
 
-    static UbseResult AddNumaImportTask(uint32_t taskId, const UbseMemNumaBorrowImportObj &obj);
+    static UbseResult AddNumaImportTask(uint32_t taskId, const UbseMemNumaBorrowImportObj& obj);
 
-    static UbseResult AddShareImportTask(uint32_t taskId, const UbseMemShareBorrowImportObj &obj);
+    static UbseResult AddShareImportTask(uint32_t taskId, const UbseMemShareBorrowImportObj& obj);
 
-    static UbseResult AddAddrImportTask(uint32_t taskId, const UbseMemAddrBorrowImportObj &obj);
+    static UbseResult AddAddrImportTask(uint32_t taskId, const UbseMemAddrBorrowImportObj& obj);
 
     static bool DeleteFdExportTask(uint32_t delTaskId);
 
@@ -82,24 +83,24 @@ private:
 
     static bool DeleteAddrImportTask(uint32_t delTaskId);
 
-    static UbseResult GetFdExportTaskObj(const std::string &name, const std::string &importNodeId,
-        UbseMemFdBorrowExportObj &returnObj);
+    static UbseResult GetFdExportTaskObj(const std::string& name, const std::string& importNodeId,
+                                         UbseMemFdBorrowExportObj& returnObj);
 
-    static UbseResult GetNumaExportTaskObj(const std::string &name, const std::string &importNodeId,
-        UbseMemNumaBorrowExportObj &returnObj);
+    static UbseResult GetNumaExportTaskObj(const std::string& name, const std::string& importNodeId,
+                                           UbseMemNumaBorrowExportObj& returnObj);
 
-    static UbseResult GetShareExportTaskObj(const std::string &name, UbseMemShareBorrowExportObj &returnObj);
+    static UbseResult GetShareExportTaskObj(const std::string& name, UbseMemShareBorrowExportObj& returnObj);
 
-    static UbseResult GetAddrExportTaskObj(const std::string &name, const std::string &importNodeId,
-        UbseMemAddrBorrowExportObj &returnObj);
+    static UbseResult GetAddrExportTaskObj(const std::string& name, const std::string& importNodeId,
+                                           UbseMemAddrBorrowExportObj& returnObj);
 
-    static UbseResult GetFdImportTaskObj(const std::string &name, UbseMemFdBorrowImportObj &returnObj);
+    static UbseResult GetFdImportTaskObj(const std::string& name, UbseMemFdBorrowImportObj& returnObj);
 
-    static UbseResult GetNumaImportTaskObj(const std::string &name, UbseMemNumaBorrowImportObj &returnObj);
+    static UbseResult GetNumaImportTaskObj(const std::string& name, UbseMemNumaBorrowImportObj& returnObj);
 
-    static UbseResult GetShareImportTaskObj(const std::string &name, UbseMemShareBorrowImportObj &returnObj);
+    static UbseResult GetShareImportTaskObj(const std::string& name, UbseMemShareBorrowImportObj& returnObj);
 
-    static UbseResult GetAddrImportTaskObj(const std::string &name, UbseMemAddrBorrowImportObj &returnObj);
+    static UbseResult GetAddrImportTaskObj(const std::string& name, UbseMemAddrBorrowImportObj& returnObj);
 
     static std::map<std::string, std::map<uint32_t, UbseMemFdBorrowExportObj>> fdExportTaskObjMap;
     static std::map<std::string, std::map<uint32_t, UbseMemNumaBorrowExportObj>> numaExportTaskObjMap;
@@ -112,7 +113,8 @@ private:
     static uint32_t taskId;
 };
 
-template <typename T> UbseResult UbseMemAgentTaskManager::AddTaskObj(uint32_t taskId, const T &obj)
+template <typename T>
+UbseResult UbseMemAgentTaskManager::AddTaskObj(uint32_t taskId, const T& obj)
 {
     if constexpr (std::is_same_v<T, UbseMemFdBorrowExportObj>) {
         return AddFdExportTask(taskId, obj);
@@ -142,7 +144,7 @@ template <typename T> UbseResult UbseMemAgentTaskManager::AddTaskObj(uint32_t ta
 }
 
 template <typename T>
-UbseResult UbseMemAgentTaskManager::GetTaskObj(const std::string &name, const std::string &importNodeId, T &returnObj)
+UbseResult UbseMemAgentTaskManager::GetTaskObj(const std::string& name, const std::string& importNodeId, T& returnObj)
 {
     if constexpr (std::is_same_v<T, UbseMemFdBorrowExportObj>) {
         return GetFdExportTaskObj(name, importNodeId, returnObj);
@@ -170,6 +172,6 @@ UbseResult UbseMemAgentTaskManager::GetTaskObj(const std::string &name, const st
     }
     return UBSE_ERROR;
 }
-}
+} // namespace ubse::mem::controller
 
 #endif // UBSE_MEM_AGENT_TASK_MANAGER_H

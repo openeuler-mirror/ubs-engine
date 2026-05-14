@@ -44,7 +44,7 @@ protected:
 TEST_F(TestOverCommitNumaMemInfoSend, SendMsgSuccess)
 {
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t(*)(const UbseComEndpoint &, const UbseByteBuffer &, void *, const UbseComRespHandler &))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(returnValue(0));
     auto numaMemInfoSend = over_commit::NumaMemInfoSend("node1", 1);
@@ -58,7 +58,7 @@ TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenCreateFail)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t(*)(const UbseComEndpoint &, const UbseByteBuffer &, void *, const UbseComRespHandler &))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(returnValue(0));
     auto numaMemInfoSend = over_commit::NumaMemInfoSend("node1", 1);
@@ -72,7 +72,7 @@ TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenSendFail)
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t(*)(const UbseComEndpoint &, const UbseByteBuffer &, void *, const UbseComRespHandler &))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(returnValue(1));
     auto numaMemInfoSend = NumaMemInfoSend("node1", 1);
@@ -92,9 +92,9 @@ TEST_F(TestOverCommitNumaMemInfoSend, CreateRequestDataFail)
 {
     auto numaMemInfoSend = NumaMemInfoSend("node1", 1);
     UbseByteBuffer reqData{};
-    MOCKER_CPP(&RmrsOutStream::GetBufferPointer, uint8_t*(*)())
+    MOCKER_CPP(&RmrsOutStream::GetBufferPointer, uint8_t * (*)())
         .stubs()
-        .will(returnValue(static_cast<uint8_t *>(nullptr)));
+        .will(returnValue(static_cast<uint8_t*>(nullptr)));
     auto ret = numaMemInfoSend.CreateRequestData(reqData);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
@@ -103,8 +103,8 @@ TEST_F(TestOverCommitNumaMemInfoSend, RespHandlerFail)
 {
     auto numaMemInfoSend = NumaMemInfoSend("node1", 1);
     std::string str = "1";
-    UbseByteBuffer respData = {.data = reinterpret_cast<uint8_t *>(str.data()), .len = 1};
-    numaMemInfoSend.RespHandler(static_cast<void *>(&numaMemInfoSend), respData, MEM_POOLING_ERROR);
+    UbseByteBuffer respData = {.data = reinterpret_cast<uint8_t*>(str.data()), .len = 1};
+    numaMemInfoSend.RespHandler(static_cast<void*>(&numaMemInfoSend), respData, MEM_POOLING_ERROR);
     EXPECT_EQ(numaMemInfoSend.sendResult_, MEM_POOLING_ERROR);
 }
 
@@ -114,10 +114,9 @@ TEST_F(TestOverCommitNumaMemInfoSend, RespHandlerSuccess)
     ResponseInfoSimpo responseInfoSimpo = ResponseInfoSimpo(responseInfo);
     RmrsOutStream builder;
     builder << responseInfoSimpo;
-    UbseByteBuffer respData = {.data = builder.GetBufferPointer(),
-                               .len = builder.GetSize()};
+    UbseByteBuffer respData = {.data = builder.GetBufferPointer(), .len = builder.GetSize()};
     auto numaMemInfoSend = NumaMemInfoSend("node1", 1);
-    numaMemInfoSend.RespHandler(static_cast<void *>(&numaMemInfoSend), respData, MEM_POOLING_OK);
+    numaMemInfoSend.RespHandler(static_cast<void*>(&numaMemInfoSend), respData, MEM_POOLING_OK);
     EXPECT_EQ(numaMemInfoSend.sendResult_, MEM_POOLING_OK);
 }
 

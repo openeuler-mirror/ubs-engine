@@ -14,7 +14,6 @@
 #define MXE_MEM_STRATEGY_HELPER_H
 #include <array>
 #include <shared_mutex>
-#include "mem_pool_strategy.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_mem_configuration.h"
@@ -24,12 +23,13 @@
 #include "ubse_mem_types.h"
 #include "ubse_mem_validator.h"
 #include "ubse_mmi_interface.h"
+#include "mem_pool_strategy.h"
 
 namespace ubse::mem::strategy {
 #define MODULE_LOG_NAME "ubse_mem_strategy"
 using namespace ubse::common::def;
 
-inline uint32_t GetRandomNumaId(const std::string &nodeId, uint32_t socketId)
+inline uint32_t GetRandomNumaId(const std::string& nodeId, uint32_t socketId)
 {
     auto nodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetNodeById(nodeId);
     for (auto numaInfo : nodeInfo.numaInfos) {
@@ -41,7 +41,7 @@ inline uint32_t GetRandomNumaId(const std::string &nodeId, uint32_t socketId)
 }
 
 template <class UserReq>
-UbseResult GetAlgoResultFromUserRequest(ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, UserReq req,
+UbseResult GetAlgoResultFromUserRequest(ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, UserReq req,
                                         int srcSocket = -1, int srcNuma = -1)
 {
     if (req.lenderSizes.size() != req.lenderLocs.size()) {
@@ -92,36 +92,36 @@ UbseResult GetAlgoResultFromUserRequest(ubse::adapter_plugins::mmi::UbseMemAlgoR
 
 class UbseMemStrategyHelper {
 public:
-    static UbseMemStrategyHelper &GetInstance()
+    static UbseMemStrategyHelper& GetInstance()
     {
         static UbseMemStrategyHelper instance;
         return instance;
     }
-    UbseMemStrategyHelper(const UbseMemStrategyHelper &other) = delete;
-    UbseMemStrategyHelper(UbseMemStrategyHelper &&other) = delete;
-    UbseMemStrategyHelper &operator=(const UbseMemStrategyHelper &other) = delete;
-    UbseMemStrategyHelper &operator=(UbseMemStrategyHelper &&other) noexcept = delete;
+    UbseMemStrategyHelper(const UbseMemStrategyHelper& other) = delete;
+    UbseMemStrategyHelper(UbseMemStrategyHelper&& other) = delete;
+    UbseMemStrategyHelper& operator=(const UbseMemStrategyHelper& other) = delete;
+    UbseMemStrategyHelper& operator=(UbseMemStrategyHelper&& other) noexcept = delete;
     /* *
      * @brief 初始化算法，可以重复初始化
      * @return 成功返回0, 失败返回非0
      */
     UbseResult Init();
 
-    UbseResult NumaMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq &req,
-                                ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, uint64_t checkMaskCode);
+    UbseResult NumaMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq& req,
+                                ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, uint64_t checkMaskCode);
 
-    UbseResult FdMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemFdBorrowReq &req,
-                              ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, uint64_t checkMaskCode);
+    UbseResult FdMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemFdBorrowReq& req,
+                              ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, uint64_t checkMaskCode);
 
-    UbseResult ShareMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemShareBorrowReq &req,
-                                 ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, uint64_t checkMaskCode);
+    UbseResult ShareMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemShareBorrowReq& req,
+                                 ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, uint64_t checkMaskCode);
 
-    UbseResult AddrMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq &req,
-                                ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, uint64_t checkMaskCode);
+    UbseResult AddrMemoryBorrow(const ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq& req,
+                                ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, uint64_t checkMaskCode);
 
     template <class ReqType>
-    UbseResult MemoryBorrowAccordingToUserRequest(ReqType &req,
-                                                  ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
+    UbseResult MemoryBorrowAccordingToUserRequest(ReqType& req,
+                                                  ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
                                                   uint64_t checkMaskCode, int srcSocket = -1, int srcNuma = -1)
     {
         UbseMemValidator validator{};
@@ -140,22 +140,22 @@ public:
         return GetAlgoResultFromUserRequest(algoResult, req, srcSocket, srcNuma);
     }
 
-    UbseResult ShareMemoryBorrowAccordingToUserRequest(UbseMemShareBorrowReq &req,
-                                                  ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult,
-                                                  uint64_t checkMaskCode);
+    UbseResult ShareMemoryBorrowAccordingToUserRequest(UbseMemShareBorrowReq& req,
+                                                       ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult,
+                                                       uint64_t checkMaskCode);
 
-    void AddSocketCnaSize(const std::string &importNodeIdSocketId, const std::string &exportNodeIdSocketId,
+    void AddSocketCnaSize(const std::string& importNodeIdSocketId, const std::string& exportNodeIdSocketId,
                           uint64_t AddCnaSize);
 
-    void SubSocketCnaSize(const std::string &importNodeIdSocketId, const std::string &exportNodeIdSocketId,
+    void SubSocketCnaSize(const std::string& importNodeIdSocketId, const std::string& exportNodeIdSocketId,
                           uint64_t subCnaSize);
 
-    void GetSocketCnaSize(const std::string &importNodeIdSocketId,
-                          std::unordered_map<std::string, uint64_t> &socketCnaSize);
+    void GetSocketCnaSize(const std::string& importNodeIdSocketId,
+                          std::unordered_map<std::string, uint64_t>& socketCnaSize);
 
     // 更新debt
-    UbseResult GetNumaDebtInfoFromNumaPair(const GlobalNumaIndex &brwNumaGlobalIdx,
-                                           const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo &lend, bool add);
+    UbseResult GetNumaDebtInfoFromNumaPair(const GlobalNumaIndex& brwNumaGlobalIdx,
+                                           const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo& lend, bool add);
 
     inline tc::rs::mem::DebtDetail GetDebtDetail()
     {
@@ -165,7 +165,7 @@ public:
     void Clear();
 
 private:
-    static void Log(int level, const char *msg)
+    static void Log(int level, const char* msg)
     {
         switch (level) {
             case static_cast<int>(tc::rs::mem::LogLevel::DEBUG):

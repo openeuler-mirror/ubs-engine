@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::lcne
 
 #endif // TEST_UBSE_LCNE_DECODER_ENTRY_H

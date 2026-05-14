@@ -307,7 +307,7 @@ TEST_F(TestUbseMemControllerCleanShm, Test_NormalCase)
     // 调用 GetExportObjsByBaseNode 函数并验证结果
     auto result = GetExportObjsByBaseNode(debtMap, "res1");
 
-    EXPECT_EQ(result.size(), 1);  // 只有 node1 的对象被保留
+    EXPECT_EQ(result.size(), 1); // 只有 node1 的对象被保留
     EXPECT_EQ(result["node1"].size(), 1);
 }
 
@@ -354,7 +354,7 @@ TEST_F(TestUbseMemControllerCleanShm, CollectBaseRefCount_InvalidBaseNodeId)
     baseToObjs["node1"].emplace_back();
 
     std::unordered_map<std::string, std::unordered_map<std::string, size_t>> refCountMap;
-    refCountMap["res1"]["node2"] = 10;  // node2 不存在于 baseToObjs 中
+    refCountMap["res1"]["node2"] = 10; // node2 不存在于 baseToObjs 中
 
     auto result = CollectBaseRefCount(baseToObjs, refCountMap, "res1");
 
@@ -376,7 +376,7 @@ TEST_F(TestUbseMemControllerCleanShm, FindMaxRefCountBaseNode_SameRefCount)
 
     auto result = FindMaxRefCountBaseNode(baseRefCount);
 
-    EXPECT_EQ(result, "node2");  // 返回最后一个最大值
+    EXPECT_EQ(result, "node2"); // 返回最后一个最大值
 }
 
 TEST_F(TestUbseMemControllerCleanShm, GetExportObjByBaseNode_NormalCase)
@@ -482,7 +482,7 @@ TEST_F(TestUbseMemControllerCleanShm, Test_CollectExportObjsByBaseNode)
     auto result = CollectExportObjsByBaseNode(debtMap);
 
     // 验证结果
-    ASSERT_EQ(result.size(), 1);  // 只有 exportObj1 是有效的
+    ASSERT_EQ(result.size(), 1); // 只有 exportObj1 是有效的
     ASSERT_EQ(result["res1"].size(), 1);
     ASSERT_EQ(result["res1"]["node1"].size(), 1);
     EXPECT_EQ(result["res1"]["node1"][0].req.name, "res1");
@@ -572,7 +572,7 @@ TEST_F(TestUbseMemControllerCleanShm, Test_ProcessCurrentCleanList_MultiObj)
     addNodeToDebtMap_Export(debtMap, "node3", "res1", {"node3"}, UBSE_MEM_EXPORT_SUCCESS);
     addNodeToDebtMap_Export(debtMap, "node4", "res1", {"node4"}, UBSE_MEM_EXPORT_DESTROYING);
     ProcessCurrentCleanList(debtMap, toClean);
-    ASSERT_EQ(toClean.size(), 1);  // 预期清理一个对象
+    ASSERT_EQ(toClean.size(), 1); // 预期清理一个对象
     EXPECT_EQ(toClean[0].req.name, "res1");
 }
 
@@ -588,7 +588,7 @@ TEST_F(TestUbseMemControllerCleanShm, TestProcessCurrentCleanList_SingelObj)
     addNodeToDebtMap_Export(debtMap, "node2", "res2", {"node2"}, UBSE_MEM_EXPORT_SUCCESS);
     debtMap["node2"].shareExportObjMap["res2"].req.shmAnonymous = false;
     ProcessCurrentCleanList(debtMap, toClean);
-    ASSERT_EQ(toClean.size(), 1);  // 预期清理一个匿名对象
+    ASSERT_EQ(toClean.size(), 1); // 预期清理一个匿名对象
     EXPECT_EQ(toClean[0].req.name, "res1");
     EXPECT_TRUE(toClean[0].req.shmAnonymous);
 }
@@ -599,4 +599,4 @@ TEST_F(TestUbseMemControllerCleanShm, GetMaxRefCountExportObj_NoExportNoImport)
     EXPECT_TRUE(result.first == nullptr || result.first->req.name.empty());
     EXPECT_TRUE(result.second.empty());
 }
-}  // namespace ubse::mem_controller::ut
+} // namespace ubse::mem_controller::ut

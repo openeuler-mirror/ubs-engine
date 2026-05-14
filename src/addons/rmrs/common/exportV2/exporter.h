@@ -25,17 +25,17 @@
 #include <thread>
 #include <type_traits>
 #include <vector>
+#include "ubse_logger.h"
 #include "ThreadPool/ThreadPool.h"
 #include "export_type.h"
 #include "mp_configuration.h"
 #include "mp_error.h"
-#include "ubse_logger.h"
 
 namespace mempooling::exportV2 {
 using namespace ubse::log;
 
-void fillErrorVmDomainInfo(VmDomainInfo &info);
-bool isVmDomainInfoError(const VmDomainInfo &info);
+void fillErrorVmDomainInfo(VmDomainInfo& info);
+bool isVmDomainInfoError(const VmDomainInfo& info);
 
 class Exporter {
 public:
@@ -49,12 +49,12 @@ public:
     static MpResult Init();
     static MpResult Init(Options opt);
     static void Shutdown(bool wait = true);
-    static MpResult GetVmInfoImmediately(std::vector<VmDomainInfo> &vmDomainInfos);
-    static MpResult GetNumaInfoImmediately(std::vector<NumaInfo> &numaInfos);
+    static MpResult GetVmInfoImmediately(std::vector<VmDomainInfo>& vmDomainInfos);
+    static MpResult GetNumaInfoImmediately(std::vector<NumaInfo>& numaInfos);
 
 private:
-    static VmDomainInfo genVmDomainInfo(const std::string &vmName);
-    static NumaInfo genNumaInfo(const std::uint16_t &numaId);
+    static VmDomainInfo genVmDomainInfo(const std::string& vmName);
+    static NumaInfo genNumaInfo(const std::uint16_t& numaId);
     static time_t NowTimeT();
 
     class StartGate {
@@ -68,10 +68,10 @@ private:
         bool go_ = false;
     };
 
-    static ThreadPool &Pool();
+    static ThreadPool& Pool();
     template <typename IdT, typename OutT, typename WorkerFn>
-    static void parallel_collect(const std::vector<IdT> &ids, std::vector<OutT> &outs, WorkerFn &&worker,
-                                 const char *tag_prefix = nullptr)
+    static void parallel_collect(const std::vector<IdT>& ids, std::vector<OutT>& outs, WorkerFn&& worker,
+                                 const char* tag_prefix = nullptr)
     {
         outs.assign(ids.size(), OutT{});
         StartGate gate;
@@ -80,7 +80,7 @@ private:
         std::vector<std::exception_ptr> exceptions;
         futs.reserve(ids.size());
         for (size_t i = 0; i < ids.size(); ++i) {
-            const char *tag_cstr = [&]() -> const char* {
+            const char* tag_cstr = [&]() -> const char* {
                 static thread_local std::string tag;
                 if (tag_prefix) {
                     std::ostringstream oss;
@@ -102,7 +102,7 @@ private:
                         exceptions.push_back(std::current_exception());
                     }
                 }));
-            } catch (const std::exception &e) {
+            } catch (const std::exception& e) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "submit threw exception: " << e.what() << " (tag=" << (tag_cstr ? tag_cstr : "<unnamed>") << ")";
                 throw;
@@ -113,10 +113,10 @@ private:
             }
         }
         gate.release();
-        for (auto &f : futs) {
+        for (auto& f : futs) {
             try {
                 f.get();
-            } catch (const std::exception &e) {
+            } catch (const std::exception& e) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "future.get() threw std::exception: " << e.what();
                 throw;
             } catch (...) {
@@ -131,7 +131,7 @@ private:
     static std::atomic<bool> inited_;
     static std::mutex init_mu_;
     static Options cfg_;
-    static ThreadPool *pool_;
+    static ThreadPool* pool_;
 };
 
 } // namespace mempooling::exportV2

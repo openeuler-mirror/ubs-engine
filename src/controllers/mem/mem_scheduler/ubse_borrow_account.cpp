@@ -21,7 +21,7 @@ UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::strategy;
 
-UbseResult BorrowAccount::UpdateBorrowDebtDetail(const bool &isAdd)
+UbseResult BorrowAccount::UpdateBorrowDebtDetail(const bool& isAdd)
 {
     uint32_t ret = 0;
     auto brwNumaCnt = importNumaLocs_.size();
@@ -60,7 +60,7 @@ UbseResult BorrowAccount::UpdateBorrowDebtDetail(const bool &isAdd)
 
 void BorrowAccount::UpdateBorrowNumaInfo(bool isAdd)
 {
-    for (auto &debtNumaInfo : importNumaLocs_) {
+    for (auto& debtNumaInfo : importNumaLocs_) {
         auto numaInfo =
             strategy::UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
         if (numaInfo == nullptr) {
@@ -72,7 +72,7 @@ void BorrowAccount::UpdateBorrowNumaInfo(bool isAdd)
 
 void BorrowAccount::UpdateLendNumaInfo(bool isAdd)
 {
-    for (auto &debtNumaInfo : exportNumaLocs_) {
+    for (auto& debtNumaInfo : exportNumaLocs_) {
         auto numaInfo =
             strategy::UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
         if (numaInfo == nullptr) {
@@ -166,7 +166,7 @@ void BorrowAccount::UpdateStateByBothExist(ubse::adapter_plugins::mmi::UbseMemSt
 }
 
 void BorrowAccount::UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
-                                           const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+                                           const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     switch (accountState_) {
         case strategy::AccountState::BOTH_NOT_EXIST:

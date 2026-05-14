@@ -57,13 +57,13 @@ enum class PageType {
 
 class MpConfiguration {
 public:
-    static MpConfiguration &GetInstance();
+    static MpConfiguration& GetInstance();
 
     uint32_t Initialize(const uint16_t modCode);
 
     uint32_t LoadConfig();
 
-    inline const char *GetModuleName()
+    inline const char* GetModuleName()
     {
         return moduleName.c_str();
     }

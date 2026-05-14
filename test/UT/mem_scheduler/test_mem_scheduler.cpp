@@ -3,16 +3,16 @@
  */
 #include "test_mem_scheduler.h"
 
-#include "src/controllers/include/ubse_mem_configuration.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_algo_account.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_scheduler.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_strategy_helper.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_mmi_def.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
+#include "src/controllers/include/ubse_mem_configuration.h"
+#include "src/controllers/mem/mem_scheduler/ubse_mem_algo_account.h"
+#include "src/controllers/mem/mem_scheduler/ubse_mem_scheduler.h"
+#include "src/controllers/mem/mem_scheduler/ubse_mem_strategy_helper.h"
+#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
 
 namespace ubse::mem::mem_scheduler::ut {
 using namespace ubse::nodeController;
@@ -196,14 +196,14 @@ void MockGetValueFromConf()
     MOCKER(&UbseMemConfiguration::GetMaxSocketImportSize).stubs().will(returnValue(MOCK_MAX_SOCKET_IMPORT_SIZE));
 }
 
-bool CompareNumaInfo(const UbseNumaInfo &numaInfo, const MemNumaInfo &memNumaInfo)
+bool CompareNumaInfo(const UbseNumaInfo& numaInfo, const MemNumaInfo& memNumaInfo)
 {
     return memNumaInfo.mMemTotal == numaInfo.size * 1024 && memNumaInfo.mActualMemTotal == numaInfo.size * 1024 &&
            memNumaInfo.mMemFree == numaInfo.freeSize * 1024 && memNumaInfo.mTimestamp == numaInfo.timestamp;
 }
 
 // 从数据里面获取mock的配置
-void MockNumNodeInfo(std::vector<ubse::nodeController::UbseNodeInfo> &nodeInfos, uint32_t nodeNum = 2)
+void MockNumNodeInfo(std::vector<ubse::nodeController::UbseNodeInfo>& nodeInfos, uint32_t nodeNum = 2)
 {
     nodeInfos.clear();
     ubse::nodeController::UbseNumaLocation loc1{"1", 1};
@@ -278,15 +278,14 @@ void MockNumNodeInfo(std::vector<ubse::nodeController::UbseNodeInfo> &nodeInfos,
     }
 }
 
-void MockdevDirConnectInfo(std::vector<ubse::nodeController::UbseNodeInfo> &nodeInfos)
+void MockdevDirConnectInfo(std::vector<ubse::nodeController::UbseNodeInfo>& nodeInfos)
 {
     std::map<std::string, PhysicalLink> physicalLinkMap{};
     const size_t nodeNum = nodeInfos.size();
     for (uint32_t i = 1; i <= nodeNum; ++i) {
         for (uint32_t j = 1; j <= nodeNum; ++j) {
             const PhysicalLink pLink{
-                .slotId = i, .chipId = 0, .portId = 0, .peerSlotId = j, .peerChipId = 1, .peerPortId = 1
-            };
+                .slotId = i, .chipId = 0, .portId = 0, .peerSlotId = j, .peerChipId = 1, .peerPortId = 1};
             physicalLinkMap[std::to_string(i) + std::to_string(j)] = pLink;
         }
     }
@@ -297,14 +296,14 @@ void MockdevDirConnectInfo(std::vector<ubse::nodeController::UbseNodeInfo> &node
     UbseNodeController::GetInstance().devDirConnectInfo = physicalLinkMap;
 }
 
-void MockNumNodeAndCheckSuccess(std::vector<ubse::nodeController::UbseNodeInfo> &nodeInfos,
-                                std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeInfoMap,
+void MockNumNodeAndCheckSuccess(std::vector<ubse::nodeController::UbseNodeInfo>& nodeInfos,
+                                std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeInfoMap,
                                 uint32_t n)
 {
     nodeInfos.clear();
     nodeInfoMap.clear();
     MockNumNodeInfo(nodeInfos, n);
-    for (const auto &nodeInfo : nodeInfos) {
+    for (const auto& nodeInfo : nodeInfos) {
         nodeInfoMap[nodeInfo.nodeId] = nodeInfo;
     }
     MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfoMap));
@@ -316,8 +315,8 @@ void MockNumNodeAndCheckSuccess(std::vector<ubse::nodeController::UbseNodeInfo> 
     MockdevDirConnectInfo(nodeInfos);
 }
 
-void CreateNumNode(std::vector<ubse::nodeController::UbseNodeInfo> &nodeInfos,
-                   std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeInfoMap, uint32_t n)
+void CreateNumNode(std::vector<ubse::nodeController::UbseNodeInfo>& nodeInfos,
+                   std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeInfoMap, uint32_t n)
 {
     nodeInfos.clear();
     nodeInfoMap.clear();
@@ -328,18 +327,18 @@ void CreateNumNode(std::vector<ubse::nodeController::UbseNodeInfo> &nodeInfos,
     MockdevDirConnectInfo(nodeInfos);
 }
 
-void SetNodeInfo(std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> &nodeInfoMap, uint32_t blockSize,
+void SetNodeInfo(std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>& nodeInfoMap, uint32_t blockSize,
                  uint32_t pmdMapping, UbseAllocator allocator)
 {
-    for (auto &[_, node] : nodeInfoMap) {
+    for (auto& [_, node] : nodeInfoMap) {
         node.blockSize = blockSize;
         node.pmdMapping = pmdMapping;
         node.allocator = allocator;
     }
 }
 
-uint32_t MockGetCnaInfo(const ubse::nodeController::UbseNodeMemCnaInfoInput &ubseNodeMemCnaInfoInput,
-                        ubse::nodeController::UbseNodeMemCnaInfoOutput &ubseNodeMemCnaInfoOutput)
+uint32_t MockGetCnaInfo(const ubse::nodeController::UbseNodeMemCnaInfoInput& ubseNodeMemCnaInfoInput,
+                        ubse::nodeController::UbseNodeMemCnaInfoOutput& ubseNodeMemCnaInfoOutput)
 
 {
     if (ubseNodeMemCnaInfoInput.exportSocketId == "36") {
@@ -375,14 +374,14 @@ void ClearSchedulerCache()
     AlgoAccountManger::GetInstance().Clear();
 }
 
-bool CompareMemDebtNumaInfo(const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo &infoA,
-                            const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo &infoB)
+bool CompareMemDebtNumaInfo(const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo& infoA,
+                            const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo& infoB)
 {
     return infoA.numaId == infoB.numaId && infoA.nodeId == infoB.nodeId && infoA.size == infoB.size &&
            infoA.socketId == infoB.socketId;
 }
 
-bool CheckAccontByImportObj(const UbseMemFdBorrowImportObj &importObj, std::shared_ptr<BaseAlgoAccount> algoAccountPtr)
+bool CheckAccontByImportObj(const UbseMemFdBorrowImportObj& importObj, std::shared_ptr<BaseAlgoAccount> algoAccountPtr)
 {
     auto accountResult = algoAccountPtr->GetAlgoResult();
     if (algoAccountPtr->name != importObj.req.name ||
@@ -408,7 +407,7 @@ bool CheckAccontByImportObj(const UbseMemFdBorrowImportObj &importObj, std::shar
     return true;
 }
 
-void CheckAndSubExportNumaSize(MemNumaInfo &numaInfo, const UbseMemDebtNumaInfo &debtNumaInfo,
+void CheckAndSubExportNumaSize(MemNumaInfo& numaInfo, const UbseMemDebtNumaInfo& debtNumaInfo,
                                const std::shared_ptr<BaseAlgoAccount> algoAccount)
 {
     if (numaInfo.mUbseMemNumaLoc.nodeId == debtNumaInfo.nodeId &&
@@ -421,7 +420,7 @@ void CheckAndSubExportNumaSize(MemNumaInfo &numaInfo, const UbseMemDebtNumaInfo 
     }
 }
 
-void CheckAndSubImportNumaSize(MemNumaInfo &numaInfo, const UbseMemDebtNumaInfo &debtNumaInfo,
+void CheckAndSubImportNumaSize(MemNumaInfo& numaInfo, const UbseMemDebtNumaInfo& debtNumaInfo,
                                const std::shared_ptr<BaseAlgoAccount> algoAccount)
 {
     if (numaInfo.mUbseMemNumaLoc.nodeId == debtNumaInfo.nodeId &&
@@ -434,30 +433,30 @@ bool CheckNumaStatus(const std::vector<std::shared_ptr<BaseAlgoAccount>> algoAcc
 {
     auto allNumaInfo = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo("");
     std::vector<MemNumaInfo> copyNumaInfo{};
-    for (auto &numaInfo : allNumaInfo) {
+    for (auto& numaInfo : allNumaInfo) {
         MemNumaInfo copyNuma = *numaInfo;
         copyNumaInfo.push_back(copyNuma);
     }
 
-    for (const auto &algoAccount : algoAccounts) {
+    for (const auto& algoAccount : algoAccounts) {
         auto algoResult = algoAccount->GetAlgoResult();
-        for (const auto &debtNumaInfo : algoResult.exportNumaInfos) {
-            for (auto &numaInfo : copyNumaInfo) {
+        for (const auto& debtNumaInfo : algoResult.exportNumaInfos) {
+            for (auto& numaInfo : copyNumaInfo) {
                 CheckAndSubExportNumaSize(numaInfo, debtNumaInfo, algoAccount);
             }
         }
     }
 
-    for (const auto &algoAccount : algoAccounts) {
+    for (const auto& algoAccount : algoAccounts) {
         auto algoResult = algoAccount->GetAlgoResult();
-        for (const auto &debtNumaInfo : algoResult.importNumaInfos) {
-            for (auto &numaInfo : copyNumaInfo) {
+        for (const auto& debtNumaInfo : algoResult.importNumaInfos) {
+            for (auto& numaInfo : copyNumaInfo) {
                 CheckAndSubImportNumaSize(numaInfo, debtNumaInfo, algoAccount);
             }
         }
     }
 
-    for (const auto &numaInfo : copyNumaInfo) {
+    for (const auto& numaInfo : copyNumaInfo) {
         if (numaInfo.mMemLent != 0 || numaInfo.mMemBorrowed != 0 || numaInfo.mMemShared != 0) {
             return false;
         }
@@ -465,15 +464,15 @@ bool CheckNumaStatus(const std::vector<std::shared_ptr<BaseAlgoAccount>> algoAcc
     return true;
 }
 
-bool CheckBorrowDebtDetail(const std::vector<std::shared_ptr<BaseAlgoAccount>> &algoAccounts)
+bool CheckBorrowDebtDetail(const std::vector<std::shared_ptr<BaseAlgoAccount>>& algoAccounts)
 {
     auto ret = CheckNumaStatus(algoAccounts);
     return ret;
 }
 
 // 得到指定数量的fdBorrow mockObj
-void MakeMockObj(const uint32_t &mockNums, std::unordered_map<std::string, UbseMemFdBorrowImportObj> &mockFdImportObjs,
-                 std::unordered_map<std::string, UbseMemFdBorrowExportObj> &mockFdExportObjs)
+void MakeMockObj(const uint32_t& mockNums, std::unordered_map<std::string, UbseMemFdBorrowImportObj>& mockFdImportObjs,
+                 std::unordered_map<std::string, UbseMemFdBorrowExportObj>& mockFdExportObjs)
 {
     UbseMemFdBorrowExportObj exportObj{};
     UbseMemFdBorrowImportObj importObj{};
@@ -500,9 +499,9 @@ void MakeMockObj(const uint32_t &mockNums, std::unordered_map<std::string, UbseM
     }
 }
 
-void MakeMockShareObj(const uint32_t &mockNums, const uint32_t nodeNums,
-                      std::unordered_map<std::string, UbseMemShareBorrowImportObj> &mockShareImportObjs,
-                      std::unordered_map<std::string, UbseMemShareBorrowExportObj> &mockShareExportObjs)
+void MakeMockShareObj(const uint32_t& mockNums, const uint32_t nodeNums,
+                      std::unordered_map<std::string, UbseMemShareBorrowImportObj>& mockShareImportObjs,
+                      std::unordered_map<std::string, UbseMemShareBorrowExportObj>& mockShareExportObjs)
 {
     UbseMemShareBorrowExportObj exportObj{};
     UbseMemShareBorrowImportObj importObj{};
@@ -541,13 +540,13 @@ struct NumaParam {
     int srcNuma;
     size_t highWatermark; // 必填，算法百分比，vm自己决策场景，单位%
     std::vector<ubse::adapter_plugins::mmi::UbseNumaLocation>
-        lenderLocs{};                    // 借出方地址信息，与lenderSizes一一对应，为空则走基础算法进行决策
+        lenderLocs{}; // 借出方地址信息，与lenderSizes一一对应，为空则走基础算法进行决策
     std::vector<uint64_t> lenderSizes{}; // 借出大小，与lenderLocs一一对应
 };
 
-void MakeMockWaterNumaObj(const uint32_t &mockNums, NumaParam param,
-                          std::unordered_map<std::string, UbseMemNumaBorrowImportObj> &mockNumaImportObjs,
-                          std::unordered_map<std::string, UbseMemNumaBorrowExportObj> &mockNumaExportObjs)
+void MakeMockWaterNumaObj(const uint32_t& mockNums, NumaParam param,
+                          std::unordered_map<std::string, UbseMemNumaBorrowImportObj>& mockNumaImportObjs,
+                          std::unordered_map<std::string, UbseMemNumaBorrowExportObj>& mockNumaExportObjs)
 {
     UbseMemNumaBorrowExportObj exportObj;
     UbseMemNumaBorrowImportObj importObj;
@@ -1009,8 +1008,8 @@ TEST_F(TestMemScheduler, TestUserMemoryBorrowWillSuccess)
     std::unordered_map<std::string, UbseMemFdBorrowExportObj> mockExportObjs;
     MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 2);
     MakeMockObj(1, mockImportObjs, mockExportObjs);
-    auto &importObj = mockImportObjs["test1"];
-    auto &exportObj = mockExportObjs["test1"];
+    auto& importObj = mockImportObjs["test1"];
+    auto& exportObj = mockExportObjs["test1"];
     ubse::adapter_plugins::mmi::UbseNumaLocation loc{"2", 1};
     importObj.req.lenderLocs.push_back(loc);
     importObj.req.lenderSizes.push_back(MB_128);
@@ -1038,7 +1037,7 @@ TEST_F(TestMemScheduler, TestShareMemoryBorrowWillSuccess)
     std::unordered_map<std::string, UbseMemShareBorrowExportObj> mockExportObjs;
     MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 2);
     MakeMockShareObj(2, 2, mockImportObjs, mockExportObjs);
-    auto &exportObj = mockExportObjs["test"];
+    auto& exportObj = mockExportObjs["test"];
     ubse::adapter_plugins::mmi::UbseNumaLocation loc{"2", 1};
     auto ret = scheduler::UbseMemShmExportObjStateChangeHandler(exportObj);
     EXPECT_EQ(ret, UBSE_OK);
@@ -1615,12 +1614,12 @@ TEST_F(TestMemScheduler, TestNumaBorrowMaxTimes2)
 }
 
 struct NumaInfoHash {
-    size_t operator()(const UbseMemDebtNumaInfo &info) const
+    size_t operator()(const UbseMemDebtNumaInfo& info) const
     {
         return std::hash<std::string>{}(info.nodeId) + std::hash<int>{}(info.numaId) + std::hash<int>{}(info.socketId);
     }
 
-    bool operator()(const UbseMemDebtNumaInfo &info1, const UbseMemDebtNumaInfo &info2) const
+    bool operator()(const UbseMemDebtNumaInfo& info1, const UbseMemDebtNumaInfo& info2) const
     {
         return info1.socketId == info2.socketId && info1.numaId == info2.numaId && info1.nodeId == info2.nodeId;
     }

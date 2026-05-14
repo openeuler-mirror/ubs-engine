@@ -12,39 +12,38 @@
 
 #include "rack_mempooling_plugin.h"
 
+#include <dlfcn.h>
 #include <gmock/gmock.h>
 #include <securec.h>
-#include <dlfcn.h>
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
 
-#include "mp_configuration.h"
-#include "event_listener.h"
-#include "mempool_borrow_module.h"
-#include "mempool_migrate_module.h"
-#include "mempooling_message.h"
-#include "mp_error.h"
 #include "ubse_def.h"
-#include "mp_heartbeat_monitor.h"
-#include "mp_smap_helper.h"
-#include "over_commit_election_handler.h"
-#include "over_commit_serializer.h"
-#include "rmrs_serialize.h"
-#include "mp_module.h"
-#include "over_commit_msg_handler.h"
-#include "mp_smap_controller.h"
-#include "mempool_migrate_helper.h"
+#include "event_listener.h"
 #include "fault_memid_helper.h"
 #include "fault_node_module.h"
 #include "mem_borrow_executor.h"
+#include "mempool_borrow_module.h"
+#include "mempool_migrate_helper.h"
+#include "mempool_migrate_module.h"
 #include "mempooling_message.h"
+#include "mp_configuration.h"
+#include "mp_error.h"
+#include "mp_heartbeat_monitor.h"
+#include "mp_module.h"
+#include "mp_smap_controller.h"
+#include "mp_smap_helper.h"
+#include "over_commit_election_handler.h"
+#include "over_commit_msg_handler.h"
+#include "over_commit_serializer.h"
+#include "rmrs_serialize.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 // mock
-void *dlsym(void *__restrict __handle, const char *__restrict __name);
-void *dlopen(const char *__file, int __mode);
-int dlclose(void *__handle);
+void* dlsym(void* __restrict __handle, const char* __restrict __name);
+void* dlopen(const char* __file, int __mode);
+int dlclose(void* __handle);
 
 using namespace std;
 using namespace mempooling;
@@ -70,9 +69,9 @@ public:
     }
 
 public:
-    UbseByteBuffer *CreateMockUbseByteBuffer(uint32_t len)
+    UbseByteBuffer* CreateMockUbseByteBuffer(uint32_t len)
     {
-        UbseByteBuffer *buffer = new UbseByteBuffer();
+        UbseByteBuffer* buffer = new UbseByteBuffer();
         buffer->len = len;
         buffer->data = new uint8_t[len];
         return buffer;
@@ -98,7 +97,7 @@ TEST_F(TestRackMempoolingPlugin, UbsePluginInitFailed2)
 
 TEST_F(TestRackMempoolingPlugin, UbsePluginDeInit)
 {
-    MOCKER(static_cast<int (*)(void *)>(dlclose)).stubs().will(returnValue(0));
+    MOCKER(static_cast<int (*)(void*)>(dlclose)).stubs().will(returnValue(0));
     UbsePluginDeInit();
 }
 

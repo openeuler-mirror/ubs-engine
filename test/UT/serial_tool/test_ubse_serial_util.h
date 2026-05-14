@@ -5,9 +5,9 @@
 #ifndef UBSE_MANAGER_UBSE_UBSE_SERIAL_UTIL_H
 #define UBSE_MANAGER_UBSE_UBSE_SERIAL_UTIL_H
 
+#include "ubse_serial_util.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_serial_util.h"
 
 namespace ubse::ut::serial {
 using namespace ubse::serial;
@@ -19,5 +19,5 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::ut::utils
+} // namespace ubse::ut::serial
 #endif // UBSE_MANAGER_UBSE_UBSE_SERIAL_UTIL_H

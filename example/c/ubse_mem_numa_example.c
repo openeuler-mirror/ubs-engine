@@ -17,7 +17,7 @@
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
 
-void print_mem_numa_desc(const ubs_mem_numa_desc_t *numa_desc)
+void print_mem_numa_desc(const ubs_mem_numa_desc_t* numa_desc)
 {
     printf("Memory Resource Descriptor:\n");
     printf("Resource Name: %s\n", numa_desc->name);
@@ -57,7 +57,7 @@ void print_mem_numa_desc(const ubs_mem_numa_desc_t *numa_desc)
 void ubse_mem_numa_create_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     const uint64_t mem_size = 200 * 1024 * 1024;   // 200MB
     ubs_mem_distance_t distance = MEM_DISTANCE_L0; // 直连节点
     ubs_mem_numa_desc_t numa_desc = {0};           // 结果存储结构体
@@ -77,7 +77,7 @@ void ubse_mem_numa_create_example(void)
 void ubse_mem_numa_get_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     ubs_mem_numa_desc_t numa_desc = {0}; // 结果存储结构体
 
     // 2. 调用查询函数
@@ -94,7 +94,7 @@ void ubse_mem_numa_get_example(void)
 
 void ubse_mem_numa_list_example(void)
 {
-    ubs_mem_numa_desc_t *numa_desc_list = NULL;
+    ubs_mem_numa_desc_t* numa_desc_list = NULL;
     uint32_t numa_desc_cnt = 0;
 
     printf("Retrieving numa desc list...\n");
@@ -121,7 +121,7 @@ void ubse_mem_numa_list_example(void)
 void ubse_mem_numa_delete_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
 
     // 2. 调用删除函数
     ubs_error_t result = ubs_mem_numa_delete(mem_name);

@@ -11,9 +11,9 @@
  */
 
 #include "test_ubse_storage_req_simpo.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_error.h"
 #include "ubse_storage_req_simpo.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::storage {
 const int WRONG_CODE = 3;
@@ -41,7 +41,7 @@ void TestUbseStorageReqSimpo::TearDown()
  */
 TEST_F(TestUbseStorageReqSimpo, ConstructAndGetStorageReq)
 {
-    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
+    UbseStorageReq req{UbseStorageReqCmdType::GET, "default", "/key"};
     UbseStorageReqSimpo reqSimpo(req);
 
     auto reqData = reqSimpo.GetStorageReq();
@@ -62,7 +62,7 @@ TEST_F(TestUbseStorageReqSimpo, ConstructAndGetStorageReq)
  */
 TEST_F(TestUbseStorageReqSimpo, SerializeAndDeserialize)
 {
-    UbseStorageReq req{ UbseStorageReqCmdType::GET, "default", "/key" };
+    UbseStorageReq req{UbseStorageReqCmdType::GET, "default", "/key"};
     UbseStorageReqSimpo reqSimpo(req);
     EXPECT_EQ(UBSE_OK, reqSimpo.Serialize());
 
@@ -88,7 +88,7 @@ TEST_F(TestUbseStorageReqSimpo, SerializeAndDeserialize)
  */
 TEST_F(TestUbseStorageReqSimpo, ToStringGetWithPrefix)
 {
-    UbseStorageReq req{ UbseStorageReqCmdType::GET_WITH_PREFIX, "default", "/prefix" };
+    UbseStorageReq req{UbseStorageReqCmdType::GET_WITH_PREFIX, "default", "/prefix"};
     UbseStorageReqSimpo reqSimpo(req);
 
     EXPECT_EQ("UbseStorageReqSimpo(GetWithPrefix,default,/prefix)", reqSimpo.ToString());
@@ -105,7 +105,7 @@ TEST_F(TestUbseStorageReqSimpo, ToStringGetWithPrefix)
  */
 TEST_F(TestUbseStorageReqSimpo, ToStringUnknown)
 {
-    UbseStorageReq req{ static_cast<UbseStorageReqCmdType>(WRONG_CODE), "default", "/key" };
+    UbseStorageReq req{static_cast<UbseStorageReqCmdType>(WRONG_CODE), "default", "/key"};
     UbseStorageReqSimpo reqSimpo(req);
 
     EXPECT_EQ("UbseStorageReqSimpo(Unknown,default,/key)", reqSimpo.ToString());
@@ -119,7 +119,7 @@ TEST_F(TestUbseStorageReqSimpo, DeserializeFailWithVerifyStorageReqBufferFail)
 
 TEST_F(TestUbseStorageReqSimpo, DeserializeFailWithInvalidBuffer)
 {
-    uint8_t invalidData[1] = { 0 };
+    uint8_t invalidData[1] = {0};
     UbseStorageReqSimpo newReqSimpo;
     newReqSimpo.SetInputRawData(invalidData, sizeof(invalidData));
 

@@ -81,13 +81,13 @@ const uint32_t DEFAULT_VIRT_SCENE_TYPE = 1;
 class VmConfiguration {
 public:
     static std::atomic<bool> exitFlag;
-    static VmConfiguration &GetInstance();
+    static VmConfiguration& GetInstance();
 
     VmResult Initialize(uint16_t modCode);
 
     VmResult LoadConfig();
 
-    inline const char *GetModuleName() const
+    inline const char* GetModuleName() const
     {
         return moduleName.c_str();
     }
@@ -117,7 +117,7 @@ public:
     };
 
     template <typename T>
-    using GetConfigFunc = std::function<uint32_t(const std::string &, const std::string &, T &)>;
+    using GetConfigFunc = std::function<uint32_t(const std::string&, const std::string&, T&)>;
     GetConfigFunc<uint32_t> ubseGetUintFuncPtr = UbseGetUInt;
     GetConfigFunc<float> ubseGetFloatFuncPtr = UbseGetFloat;
     GetConfigFunc<uint64_t> ubseGetULongFuncPtr = UbseGetULong;
@@ -125,8 +125,8 @@ public:
     GetConfigFunc<bool> ubseGetBoolFuncPtr = UbseGetBool;
 
     template <typename T>
-    void GetConfigWithCheckRange(const GetConfigFunc<T> &getFunc, const VmConfigRange<T> &range,
-                                 const std::string &fileName, const std::string &config, T &param)
+    void GetConfigWithCheckRange(const GetConfigFunc<T>& getFunc, const VmConfigRange<T>& range,
+                                 const std::string& fileName, const std::string& config, T& param)
     {
         auto ret = getFunc(fileName, config, param);
         if (ret != VM_OK) {
@@ -143,8 +143,8 @@ public:
     }
 
     template <typename T>
-    void GetConfigWithCheckEnum(const GetConfigFunc<T> &getFunc, const VmConfigEnum<T> &enums,
-                                const std::string &fileName, const std::string &config, T &param)
+    void GetConfigWithCheckEnum(const GetConfigFunc<T>& getFunc, const VmConfigEnum<T>& enums,
+                                const std::string& fileName, const std::string& config, T& param)
     {
         auto ret = getFunc(fileName, config, param);
         if (ret != VM_OK) {
@@ -162,7 +162,7 @@ public:
 
     VmResult LoadWatermarkConf();
     VmResult SetDefaultWaterConf();
-    VmResult CheckWaterConfRange(const float_t &borrowWater, const float_t &migrateWater, const float_t &returnWater);
+    VmResult CheckWaterConfRange(const float_t& borrowWater, const float_t& migrateWater, const float_t& returnWater);
     VmResult VerifyWaterConfig();
     void CheckConfigValidity();
 

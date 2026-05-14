@@ -48,20 +48,20 @@ void LogOut(StrategyLogLevel level, std::string msg)
     }
 }
 
-void StrategyLogInfo(const std::string &msg)
+void StrategyLogInfo(const std::string& msg)
 {
     LogOut(StrategyLogLevel::INFO, msg);
 }
 
-void StrategyLogDebug(const std::string &msg)
+void StrategyLogDebug(const std::string& msg)
 {
     LogOut(StrategyLogLevel::DEBUG, msg);
 }
-void StrategyLogWarn(const std::string &msg)
+void StrategyLogWarn(const std::string& msg)
 {
     LogOut(StrategyLogLevel::WARN, msg);
 }
-void StrategyLogError(const std::string &msg)
+void StrategyLogError(const std::string& msg)
 {
     LogOut(StrategyLogLevel::ERROR, msg);
 }
@@ -69,16 +69,16 @@ void StrategyLogError(const std::string &msg)
 #ifdef __cplusplus
 extern "C" {
 #endif
-int EscapeAlgorithmInit(const StrategyConfig &strategyConf, Logfunc logfunc)
+int EscapeAlgorithmInit(const StrategyConfig& strategyConf, Logfunc logfunc)
 {
     auto ret = DefaultStrategy::GetInstance().Init(logfunc, strategyConf);
     return static_cast<int>(ret);
 }
 
-int EscapeAlgorithm(const StrategyConfig &strategyConf, AlarmNumaInfo &alarmNumaInfo,
-                    GlobalNumaInfoMap &globalNumaInfoMap, EscapeAction &escapeAction)
+int EscapeAlgorithm(const StrategyConfig& strategyConf, AlarmNumaInfo& alarmNumaInfo,
+                    GlobalNumaInfoMap& globalNumaInfoMap, EscapeAction& escapeAction)
 {
-    auto &defaultStrategy = DefaultStrategy::GetInstance();
+    auto& defaultStrategy = DefaultStrategy::GetInstance();
     defaultStrategy.LoadConfig(strategyConf);
     auto ret = defaultStrategy.EscapeHandleEvent(alarmNumaInfo, globalNumaInfoMap, escapeAction);
     return static_cast<int>(ret);
@@ -87,7 +87,7 @@ int EscapeAlgorithm(const StrategyConfig &strategyConf, AlarmNumaInfo &alarmNuma
 }
 #endif
 
-VMNodeLocInfo TransferNodeInfo(NodeLocInfo &nodeLocInfo)
+VMNodeLocInfo TransferNodeInfo(NodeLocInfo& nodeLocInfo)
 {
     VMNodeLocInfo tmp{};
     tmp.hostId = nodeLocInfo.hostId;
@@ -96,7 +96,7 @@ VMNodeLocInfo TransferNodeInfo(NodeLocInfo &nodeLocInfo)
     return tmp;
 }
 
-DsResult DefaultStrategy::InitLogFunc(const Logfunc &logFunc) const
+DsResult DefaultStrategy::InitLogFunc(const Logfunc& logFunc) const
 {
     if (logFunc == nullptr) {
         return DS_ERR_LOG_INIT;
@@ -105,7 +105,7 @@ DsResult DefaultStrategy::InitLogFunc(const Logfunc &logFunc) const
     return DS_OK;
 }
 
-DsResult DefaultStrategy::Init(Logfunc &logFunc, const StrategyConfig &strategyConf)
+DsResult DefaultStrategy::Init(Logfunc& logFunc, const StrategyConfig& strategyConf)
 {
     // Initialization Log Function Log
     DsResult ret = InitLogFunc(logFunc);
@@ -126,13 +126,13 @@ DsResult DefaultStrategy::Init(Logfunc &logFunc, const StrategyConfig &strategyC
     return DS_OK;
 }
 
-void DefaultStrategy::LoadConfig(const StrategyConfig &strategyConf)
+void DefaultStrategy::LoadConfig(const StrategyConfig& strategyConf)
 {
     // If the configuration is improper, use the default value.
     try {
         (void)SetWaterLine(std::stoi(strategyConf.borrowWatermark) * 0.01f,
                            std::stoi(strategyConf.highWatermark) * 0.01f, std::stoi(strategyConf.lowWatermark) * 0.01f);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         StrategyLogError("Failed to setWaterLine, error: " + std::string(e.what()));
         return;
     }
@@ -146,7 +146,7 @@ void DefaultStrategy::LoadConfig(const StrategyConfig &strategyConf)
     StrategyLogDebug(ToString());
 }
 
-static uint64_t GetMaxBorrowedBlockSize(const BorrowItemInfo *borrowItemInfo)
+static uint64_t GetMaxBorrowedBlockSize(const BorrowItemInfo* borrowItemInfo)
 {
     if (borrowItemInfo == nullptr) {
         StrategyLogInfo("borrowItemInfo is nullptr");
@@ -173,7 +173,7 @@ static uint64_t GetMaxBorrowedBlockSize(const BorrowItemInfo *borrowItemInfo)
     return maxBorrowedBlockSize;
 }
 
-static bool CmpNumaRisk(const std::pair<std::string, uint64_t> &a, const std::pair<std::string, uint64_t> &b)
+static bool CmpNumaRisk(const std::pair<std::string, uint64_t>& a, const std::pair<std::string, uint64_t>& b)
 {
     return a.second > b.second;
 }
@@ -223,15 +223,15 @@ static uint64_t Mul(const float a, uint64_t b)
     return static_cast<uint64_t>(std::floor(a * static_cast<float>(b)));
 }
 
-void ResetEscapeAction(EscapeAction &escapeAction)
+void ResetEscapeAction(EscapeAction& escapeAction)
 {
     escapeAction.actionType = EscapeActionType::NOPE;
     escapeAction.returnMemNames.clear();
     escapeAction.borrowSizes.clear();
 }
 
-DsResult DefaultStrategy::EscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                                            EscapeAction &escapeAction) const
+DsResult DefaultStrategy::EscapeHandleEvent(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                                            EscapeAction& escapeAction) const
 {
     // check params
     if (globalNumaInfoMap.find(alarmNumaInfo.numaLoc) == globalNumaInfoMap.end()) {
@@ -239,7 +239,7 @@ DsResult DefaultStrategy::EscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, Global
         return DS_ERROR_INVAL;
     }
     const DsResult ret = RealEscapeHandleEvent(alarmNumaInfo, globalNumaInfoMap, escapeAction);
-    const GlobalNumaInfo &numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
+    const GlobalNumaInfo& numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
     const uint64_t numaMemTotalSize = numaInfo.numaMemTotal;
     const uint64_t numaMemUsedSize = numaInfo.numaMemUsed;
     const uint64_t memReturnLineSize = Mul(GetMemReturnLine(), numaMemTotalSize);
@@ -259,8 +259,8 @@ DsResult DefaultStrategy::EscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, Global
     return ret;
 }
 
-DsResult DefaultStrategy::RealEscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                                                EscapeAction &escapeAction) const
+DsResult DefaultStrategy::RealEscapeHandleEvent(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                                                EscapeAction& escapeAction) const
 {
     if (globalNumaInfoMap.find(alarmNumaInfo.numaLoc) == globalNumaInfoMap.end()) {
         StrategyLogError("alarm numa not in global numa info map. ");
@@ -281,8 +281,8 @@ DsResult DefaultStrategy::RealEscapeHandleEvent(AlarmNumaInfo &alarmNumaInfo, Gl
     return GetActionType(alarmNumaInfo, globalNumaInfoMap, escapeAction, expectedRevenue);
 }
 
-DsResult DefaultStrategy::GetActionType(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                                        EscapeAction &escapeAction, ExpectedRevenue &expectedRevenue) const
+DsResult DefaultStrategy::GetActionType(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                                        EscapeAction& escapeAction, ExpectedRevenue& expectedRevenue) const
 {
     DsResult ret = DS_OK;
     if (escapeAction.actionType == EscapeActionType::RETURN) {
@@ -306,8 +306,8 @@ DsResult DefaultStrategy::GetActionType(AlarmNumaInfo &alarmNumaInfo, GlobalNuma
     return ret;
 }
 
-void DefaultStrategy::PreprocessBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo &numaInfo,
-                                          ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const
+void DefaultStrategy::PreprocessBorrowMem(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfo& numaInfo,
+                                          ExpectedRevenue& expectedRevenue, EscapeAction& escapeAction) const
 {
     const uint64_t numaMemTotalSize = numaInfo.numaMemTotal;
     const uint64_t numaMemUsedSize = numaInfo.numaMemUsed;
@@ -333,10 +333,10 @@ void DefaultStrategy::PreprocessBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNu
     escapeAction.actionType = EscapeActionType::NOPE;
 }
 
-DsResult DefaultStrategy::Preprocess(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                                     ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const
+DsResult DefaultStrategy::Preprocess(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                                     ExpectedRevenue& expectedRevenue, EscapeAction& escapeAction) const
 {
-    GlobalNumaInfo &numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
+    GlobalNumaInfo& numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
     uint64_t numaMemTotalSize = numaInfo.numaMemTotal;
     uint64_t numaMemUsedSize = numaInfo.numaMemUsed;
     uint64_t memReturnLineSize = Mul(GetMemReturnLine(), numaMemTotalSize);
@@ -382,10 +382,10 @@ DsResult DefaultStrategy::Preprocess(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInf
     return DS_OK;
 }
 
-void MonitorNumaMemoryBorrowing(const AlarmNumaInfo &alarmNumaInfo, const GlobalNumaInfo &numaInfo,
-                                std::vector<size_t> &borrowSizes, uint64_t &numaRemoteUsedMemSize)
+void MonitorNumaMemoryBorrowing(const AlarmNumaInfo& alarmNumaInfo, const GlobalNumaInfo& numaInfo,
+                                std::vector<size_t>& borrowSizes, uint64_t& numaRemoteUsedMemSize)
 {
-    for (auto &it : alarmNumaInfo.vmBasicInfos) {
+    for (auto& it : alarmNumaInfo.vmBasicInfos) {
         numaRemoteUsedMemSize += it.second.remoteUsedMem;
         StrategyLogDebug("vm_name = " + it.second.name +
                          ", remoteUsedMem = " + to_string(it.second.remoteUsedMem >> BYTE2MB) + "MB");
@@ -395,8 +395,8 @@ void MonitorNumaMemoryBorrowing(const AlarmNumaInfo &alarmNumaInfo, const Global
     borrowSizes.clear();
 }
 
-StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo &numaInfo,
-                                          uint64_t &expectedRevenue, std::vector<size_t> &borrowSizes) const
+StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfo& numaInfo,
+                                          uint64_t& expectedRevenue, std::vector<size_t>& borrowSizes) const
 {
     StrategyTip strategyTip = StrategyTip::NOPE;
     uint64_t remainMaxBorrowSize = Mul(GetMaxMemBorrow(), numaInfo.numaMemTotal) - numaInfo.numaMemBorrow;
@@ -454,10 +454,10 @@ StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo &alarmNumaInfo, GlobalNu
     return strategyTip;
 }
 
-DsResult GenBorrowTable(AlarmNumaInfo &alarmNumaInfo,
-                        std::vector<std::pair<std::string, uint64_t>> &borrowTable) // [<memId, memSize>...]
+DsResult GenBorrowTable(AlarmNumaInfo& alarmNumaInfo,
+                        std::vector<std::pair<std::string, uint64_t>>& borrowTable) // [<memId, memSize>...]
 {
-    BorrowItemInfo *borrowItemInfo = &alarmNumaInfo.borrowItemInfo;
+    BorrowItemInfo* borrowItemInfo = &alarmNumaInfo.borrowItemInfo;
     // Prevent overstepping boundaries
     for (int i = 0; i < borrowItemInfo->borrowItem.size(); i++) {
         uint64_t memBorrowedSize = borrowItemInfo->borrowItem[i].requestSize[0];
@@ -466,14 +466,14 @@ DsResult GenBorrowTable(AlarmNumaInfo &alarmNumaInfo,
     return DS_OK;
 }
 
-DsResult DefaultStrategy::ReturnMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfoMap &globalNumaInfoMap,
-                                    const ExpectedRevenue &expectedRevenue, EscapeAction &escapeAction) const
+DsResult DefaultStrategy::ReturnMem(AlarmNumaInfo& alarmNumaInfo, GlobalNumaInfoMap& globalNumaInfoMap,
+                                    const ExpectedRevenue& expectedRevenue, EscapeAction& escapeAction) const
 {
-    GlobalNumaInfo &numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
+    GlobalNumaInfo& numaInfo = globalNumaInfoMap[alarmNumaInfo.numaLoc];
     StrategyLogDebug("numaInfo.numaMemBorrow = " + to_string(numaInfo.numaMemBorrow >> BYTE2MB) + "MB");
     // Calculate the size of the used remote memory.
     uint64_t numaRemoteUsedMemSize = 0;
-    for (auto &it : alarmNumaInfo.vmBasicInfos) {
+    for (auto& it : alarmNumaInfo.vmBasicInfos) {
         numaRemoteUsedMemSize += it.second.remoteUsedMem;
     }
     StrategyLogDebug("numaRemoteUsedMemSize = " + to_string(numaRemoteUsedMemSize >> BYTE2MB) + "MB");
@@ -485,7 +485,7 @@ DsResult DefaultStrategy::ReturnMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo
     }
     uint64_t sumReturnSize = 0;
     sort(borrowTable.begin(), borrowTable.end(), CmpNumaRisk);
-    for (auto &m : borrowTable) {
+    for (auto& m : borrowTable) {
         if (sumReturnSize > std::numeric_limits<uint64_t>::max() - m.second) {
             return DS_ERROR_INVAL;
         }
@@ -511,12 +511,12 @@ DsResult DefaultStrategy::ReturnMem(AlarmNumaInfo &alarmNumaInfo, GlobalNumaInfo
     return DS_OK;
 }
 
-std::string DefaultStrategy::GlobalNumaInfoMapToString(const GlobalNumaInfoMap &globalNumaInfoMap)
+std::string DefaultStrategy::GlobalNumaInfoMapToString(const GlobalNumaInfoMap& globalNumaInfoMap)
 {
     std::ostringstream oss;
     oss << R"("globalNumaInfoMap": [)";
     size_t count = 0;
-    for (const auto &[fst, snd] : globalNumaInfoMap) {
+    for (const auto& [fst, snd] : globalNumaInfoMap) {
         count++;
         if (count == globalNumaInfoMap.size()) {
             oss << snd.ToString();

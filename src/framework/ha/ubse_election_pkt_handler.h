@@ -16,8 +16,8 @@
 
 namespace ubse::election {
 using namespace ubse::com;
-using ElECTION_HANDLER_FUNC = UbseResult (*)(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
-    UbseComBaseMessageHandlerCtxPtr ctx);
+using ElECTION_HANDLER_FUNC = UbseResult (*)(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                                             UbseComBaseMessageHandlerCtxPtr ctx);
 
 class UbseElectionPktHandler : public UbseComBaseMessageHandler {
 public:
@@ -25,8 +25,8 @@ public:
 
     static UbseResult RegElectionPktHandler();
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
-        UbseComBaseMessageHandlerCtxPtr ctx) override;
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     inline uint16_t GetOpCode() override
     {
@@ -38,5 +38,5 @@ public:
         return static_cast<uint16_t>(UbseModuleCode::ELECTION);
     }
 };
-}
+} // namespace ubse::election
 #endif // UBSE_ELECTION_PKT_HANDLER_H

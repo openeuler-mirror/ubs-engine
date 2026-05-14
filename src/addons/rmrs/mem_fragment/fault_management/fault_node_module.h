@@ -17,15 +17,14 @@
 #include <string>
 #include <vector>
 #include "ubse_logger.h"
-#include "mp_error.h"
-#include "mp_memory_info.h"
-#include "mempool_borrow_module.h"
-#include "mem_manager.h"
 #include "exporter.h"
 #include "mem_manager.h"
+#include "mempool_borrow_module.h"
+#include "mp_error.h"
+#include "mp_memory_info.h"
+#include "mp_module.h"
 #include "mp_smap_helper.h"
 #include "mp_smap_module.h"
-#include "mp_module.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -41,7 +40,7 @@ enum class NodeType {
 struct BorrowExecuteParam {
     // 借入节点
     std::string borrowNodeId{};
-	// 借入节点的那个numa
+    // 借入节点的那个numa
     uint16_t borrowNumaId{};
     // 接入节点socketId
     uint16_t borrowSocketId{};
@@ -137,63 +136,63 @@ struct NumaReplaceReturnMsg {
 
 class FaultNodeModule {
 public:
-    static FaultNodeModule &Instance()
+    static FaultNodeModule& Instance()
     {
         static FaultNodeModule instance;
         return instance;
     }
 
     MpResult Init();
-    MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType &nodeType);
-    MpResult DetermineNodeType(const std::string nodeId, NodeType &nodeType);
+    MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType& nodeType);
+    MpResult DetermineNodeType(const std::string nodeId, NodeType& nodeType);
     MpResult ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem);
 
-    MpResult GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord> &borrowRecords);
-    MpResult GetBorrowAbleNodeIdList(std::string curDealNodeId, std::vector<std::string> &borrowAbleNodeIdList);
+    MpResult GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
+    MpResult GetBorrowAbleNodeIdList(std::string curDealNodeId, std::vector<std::string>& borrowAbleNodeIdList);
     MpResult GetBorrowAbleNodeInfoSortByMemSize(std::vector<std::string> borrowAbleNodeIdList,
-        std::vector<NodeMemoryInfoWithReservedMem> &ableNodeMemInfoList);
+                                                std::vector<NodeMemoryInfoWithReservedMem>& ableNodeMemInfoList);
     void MergeBorrowRecords(std::vector<BorrowRecord> borrowRecordList,
-        std::vector<NodeBorrowRecord> &nodeBorrowRecordList);
+                            std::vector<NodeBorrowRecord>& nodeBorrowRecordList);
     MpResult NodeMayBorrowFromOtherNode(NodeBorrowRecord nodeBorrowRecord,
-        std::vector<NodeMemoryInfoWithReservedMem> &ableNodeMemInfoList,
-        std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList);
+                                        std::vector<NodeMemoryInfoWithReservedMem>& ableNodeMemInfoList,
+                                        std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList);
     MpResult MayBorrowFromOtherNode(std::string curDealNodeId, std::vector<BorrowRecord> borrowRecords,
-        std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList,
-        std::vector<ForwardMemIdParam> &forwardMemIdParamList);
-    MpResult FillBorrowExecuteParam(std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList);
-    bool DealBorrowResult(std::vector<BorrowExecuteParam> &borrowExecuteParamList,
-        std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
-        std::vector<MemBorrowExecuteResult> resultList);
-    void ExecuteBorrow(std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList,
-        std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
-        std::vector<ForwardMemIdParam> &forwardMemIdParamList);
-    MpResult ExecuteNumaReplaceAndReturn(std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList, bool failFlag,
+                                    std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList,
+                                    std::vector<ForwardMemIdParam>& forwardMemIdParamList);
+    MpResult FillBorrowExecuteParam(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList);
+    bool DealBorrowResult(std::vector<BorrowExecuteParam>& borrowExecuteParamList,
+                          std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
+                          std::vector<MemBorrowExecuteResult> resultList);
+    void ExecuteBorrow(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList,
+                       std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
+                       std::vector<ForwardMemIdParam>& forwardMemIdParamList);
+    MpResult ExecuteNumaReplaceAndReturn(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList, bool failFlag,
                                          bool forceDeleteMem);
-    bool MayBorrowFromNuma(NodeBorrowRecord nodeBorrowRecord, NodeMemoryInfoWithReservedMem &originNodeMemInfoItem,
-        NodeMemoryInfoWithReservedMem nodeMemInfoItem,
-        std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList);
+    bool MayBorrowFromNuma(NodeBorrowRecord nodeBorrowRecord, NodeMemoryInfoWithReservedMem& originNodeMemInfoItem,
+                           NodeMemoryInfoWithReservedMem nodeMemInfoItem,
+                           std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList);
     MpResult ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> forwardMemIdParamList, bool forceDeleteMem);
-    bool QueryNumaAllPid(uint16_t numaId, std::vector<pid_t> &pidList);
+    bool QueryNumaAllPid(uint16_t numaId, std::vector<pid_t>& pidList);
     bool AllocateHugePage(uint16_t numaId, uint64_t hugePageMemSize);
     bool SwitchMigrateForNumaVm(std::vector<pid_t> pidList, int enable);
-    bool GenerateMigrateNumaMsgList(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg> &msgList);
+    bool GenerateMigrateNumaMsgList(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg>& msgList);
     MpResult DealRes(NumaReplaceReturnMsg msg);
     bool ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg> msgList);
-    void DoExecuteBorrow(std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
-        std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
-        std::vector<ForwardMemIdParam> &forwardMemIdParamList);
+    void DoExecuteBorrow(std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
+                         std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
+                         std::vector<ForwardMemIdParam>& forwardMemIdParamList);
 
 private:
     FaultNodeModule() = default;
     ~FaultNodeModule() = default;
-    FaultNodeModule(const FaultNodeModule &) = delete;
-    FaultNodeModule &operator=(const FaultNodeModule &) = delete;
+    FaultNodeModule(const FaultNodeModule&) = delete;
+    FaultNodeModule& operator=(const FaultNodeModule&) = delete;
 };
 
-void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void NodeNumaReplaceReturnResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg &rpcMsg, std::vector<pid_t> &destPidList,
-                                  uint64_t &hugePageMemSize);
+void NodeNumaReplaceReturnHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void NodeNumaReplaceReturnResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
+                                  uint64_t& hugePageMemSize);
 
 class MpFaultNodeSubModule : public MpSubModule {
 public:
@@ -203,15 +202,15 @@ public:
         UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_FAULT_NODE_NUMA_REPLACE_RETURN};
         auto ret = UbseRegRpcService(endpoint, NodeNumaReplaceReturnHandler);
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) <<
-                "[MSG] NodeNumaReplaceReturn reg failed res: " << ret << ".";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MSG] NodeNumaReplaceReturn reg failed res: " << ret << ".";
             return ret;
         }
         return MEM_POOLING_OK;
     }
     void DeInit() override
     {
-        return ;
+        return;
     }
     const std::string Name() override
     {

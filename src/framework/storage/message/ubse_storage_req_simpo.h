@@ -33,9 +33,9 @@ class UbseStorageReqSimpo : public UbseBaseMessage {
 public:
     UbseStorageReqSimpo() = default;
 
-    explicit UbseStorageReqSimpo(const UbseStorageReq &req);
+    explicit UbseStorageReqSimpo(const UbseStorageReq& req);
 
-    explicit UbseStorageReqSimpo(uint8_t *data, uint32_t size)
+    explicit UbseStorageReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
@@ -52,5 +52,5 @@ private:
     UbseStorageReq storageReq_{};
 };
 using UbseStorageReqSimpoPtr = Ref<UbseStorageReqSimpo>;
-}
+} // namespace ubse::storage::message
 #endif // UBSE_STORAGE_REQ_H

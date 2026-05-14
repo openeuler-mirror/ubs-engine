@@ -11,8 +11,6 @@
  */
 
 #include "ubse_lcne_sub_topo_change_info.h"
-#include "securec.h" // for memcpy_s, EOK
-#include "src/adapter_plugins/mti/ubse_lcne_topology.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -20,6 +18,8 @@
 #include "ubse_net_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_xml.h"
+#include "securec.h" // for memcpy_s, EOK
+#include "src/adapter_plugins/mti/ubse_lcne_topology.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -29,7 +29,7 @@ using namespace ubse::mti;
 using namespace ubse::context;
 using namespace ubse::config;
 
-void GetTcpServerPort(uint32_t &port)
+void GetTcpServerPort(uint32_t& port)
 {
     port = DEFAULT_TCP_SERVER_PORT;
     auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
@@ -117,7 +117,7 @@ uint32_t UbseLcneLinkInfo::SubLcneLinkInfo()
     return UBSE_OK;
 }
 
-uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string &resBody)
+uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string& resBody)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
     if (ubseXml == nullptr) {

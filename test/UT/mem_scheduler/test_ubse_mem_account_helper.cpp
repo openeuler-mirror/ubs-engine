@@ -56,14 +56,14 @@ TEST_F(TestUbseAccountHelper, BorrowSuccess)
     AlgoAccountManger::GetInstance().AddAlgoAccount(algoAccountPtr);
     MOCKER_CPP(&UbseMemStrategyHelper::AddSocketCnaSize).stubs().will(returnValue(UBSE_OK));
 
-    for (auto &debtNumaInfo : algoAccountPtr->GetAlgoResult().exportNumaInfos) {
+    for (auto& debtNumaInfo : algoAccountPtr->GetAlgoResult().exportNumaInfos) {
         auto numaInfo = UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
         if (numaInfo == nullptr) {
             return;
         }
         EXPECT_EQ(numaInfo->mMemLent, 128);
     }
-    for (auto &debtNumaInfo : algoAccountPtr->GetAlgoResult().exportNumaInfos) {
+    for (auto& debtNumaInfo : algoAccountPtr->GetAlgoResult().exportNumaInfos) {
         auto numaInfo = UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
         if (numaInfo == nullptr) {
             return;
@@ -85,4 +85,4 @@ TEST_F(TestUbseAccountHelper, ShareSuccess)
 
     EXPECT_NE(AlgoAccountManger::GetInstance().GetAlgoAccount(accountId), nullptr);
 }
-}  // namespace ubse::mem_scheduler::ut
+} // namespace ubse::mem_scheduler::ut

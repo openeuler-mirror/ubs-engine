@@ -14,10 +14,10 @@
 #define UBSE_MANAGER_TEST_UBSE_ELECTION_COMM_MGR_H
 
 #include <cstdint>
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_election_def.h"
 #include "ubse_error.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
@@ -43,6 +43,6 @@ private:
     ElectionPkt pkt;
     ElectionReplyPkt replyPkt;
 };
-}
+} // namespace ubse::ut::election
 
 #endif // UBSE_MANAGER_TEST_UBSE_ELECTION_COMM_MGR_H

@@ -80,18 +80,18 @@ public:
     static VmResult Register();
 
 private:
-    static uint32_t GetMigrateStrategy(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string &uuid,
-                                                const std::string &destHostName, uint32_t destNumaId,
-                                                uint32_t *migrateStrategy);
+    static uint32_t GetMigrateStrategy(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string& uuid,
+                                                const std::string& destHostName, uint32_t destNumaId,
+                                                uint32_t* migrateStrategy);
     static uint32_t GetMigrateOneCopyMemoryBound();
-    static uint32_t MakeHamMigrateDecision(const std::string &uuid, const std::string &destHostName,
-                                           uint32_t destNumaId, uint32_t *migrateStrategy);
-    static uint32_t GetLocalMigrateInfo(MigrateInfoBase &migrateInfoLocal, const std::string &uuid);
-    static uint32_t GetRemoteMigrateInfo(MigrateInfoBase &migrateInfoRemote, const std::string &destHostName,
-                                         uint32_t destNumaId, const std::string &dstNid);
-    static uint32_t GetMigrateInfo(MigrateInfoBase &migrateInfoLocal, MigrateInfoBase &migrateInfoRemote,
-                                   const std::string &uuid, const std::string &destHostName, uint32_t destNumaId);
+    static uint32_t MakeHamMigrateDecision(const std::string& uuid, const std::string& destHostName,
+                                           uint32_t destNumaId, uint32_t* migrateStrategy);
+    static uint32_t GetLocalMigrateInfo(MigrateInfoBase& migrateInfoLocal, const std::string& uuid);
+    static uint32_t GetRemoteMigrateInfo(MigrateInfoBase& migrateInfoRemote, const std::string& destHostName,
+                                         uint32_t destNumaId, const std::string& dstNid);
+    static uint32_t GetMigrateInfo(MigrateInfoBase& migrateInfoLocal, MigrateInfoBase& migrateInfoRemote,
+                                   const std::string& uuid, const std::string& destHostName, uint32_t destNumaId);
 };
 } // namespace vm
 

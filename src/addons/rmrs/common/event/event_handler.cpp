@@ -13,6 +13,9 @@
 #include "event_handler.h"
 
 #include <rapidjson/document.h>
+#include "ubse_def.h"
+#include "ubse_logger.h"
+#include "ubse_storage.h"
 #include "fault_memid_helper.h"
 #include "fault_node_module.h"
 #include "mp_configuration.h"
@@ -21,9 +24,6 @@
 #include "mp_string_util.h"
 #include "over_commit_fault_memid_helper.h"
 #include "over_commit_fault_node_module.h"
-#include "ubse_def.h"
-#include "ubse_logger.h"
-#include "ubse_storage.h"
 
 static const std::string KEYPREFIX_SMAP = "mempooling";
 static const int OVERCOMMIT_MODE = 0;
@@ -35,19 +35,19 @@ namespace event {
 using namespace ubse::log;
 using namespace ubse::storage;
 
-static void GetRunMode(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)
+static void GetRunMode(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)
 {
     if (ctx == nullptr || buff.data == nullptr || buff.len != 1) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] GetRunMode invalid params.";
 
         return;
     }
-    int &runMode = *(static_cast<int *>(ctx));
+    int& runMode = *(static_cast<int*>(ctx));
     runMode = static_cast<int>(buff.data[0]);
     return;
 }
 
-static MpResult CheckIsOverCommitMode(bool &isOverCommit)
+static MpResult CheckIsOverCommitMode(bool& isOverCommit)
 {
     // 容器场景直接走超分
     auto sceneType = MpConfiguration::GetInstance().GetSceneType();

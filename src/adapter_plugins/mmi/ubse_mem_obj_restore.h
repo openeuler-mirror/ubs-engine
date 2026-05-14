@@ -15,9 +15,9 @@
 
 #include <iosfwd>
 #include "ubse_common_def.h"
+#include "ubse_mem_common_utils.h"
 #include "ubse_mem_types.h"
 #include "ubse_mmi_interface.h"
-#include "ubse_mem_common_utils.h"
 #include "ubse_obmm_executor.h"
 #include "ubse_obmm_meta_restore.h"
 namespace ubse::mmi::restore {
@@ -34,7 +34,7 @@ struct LocalObmmMetaData {
     std::vector<UbseMemLocalObmmMetaData> ShmExportMetaData{};
     std::vector<UbseMemLocalObmmMetaData> AddrImportMetaData{};
     std::vector<UbseMemLocalObmmMetaData> AddrExportMetaData{};
-    friend std::ostream &operator<<(std::ostream &os, const LocalObmmMetaData &obj)
+    friend std::ostream& operator<<(std::ostream& os, const LocalObmmMetaData& obj)
     {
         return os << "FdImportMetaData: " << obj.FdImportMetaData.size()
                   << " FdExportMetaData: " << obj.FdExportMetaData.size()
@@ -47,87 +47,85 @@ struct LocalObmmMetaData {
     }
 };
 
+UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                UbseMemFdExportObjMap& normalFdExportObjMap);
 
-UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                UbseMemFdExportObjMap &normalFdExportObjMap);
+void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                UbseMemFdBorrowExportObj& ubseMemFdBorrowExportObj, bool& isNormal);
+UbseResult ConstructFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdImportLocalObmmMetaDatas,
+                                UbseMemFdImportObjMap& normalFdImportObjMap);
+void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdImportLocalObmmMetaDatas,
+                                UbseMemFdBorrowImportObj& ubseMemFdBorrowImportObj, bool& isNormal);
 
-void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                UbseMemFdBorrowExportObj &ubseMemFdBorrowExportObj, bool &isNormal);
-UbseResult ConstructFdImportObj(const std::vector<UbseMemLocalObmmMetaData> &fdImportLocalObmmMetaDatas,
-                                UbseMemFdImportObjMap &normalFdImportObjMap);
-void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData> &fdImportLocalObmmMetaDatas,
-                                UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj, bool &isNormal);
+UbseResult ConstructNumaImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemNumaImportObjMap& normalImportObjMap);
 
-UbseResult ConstructNumaImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                  UbseMemNumaImportObjMap &normalImportObjMap);
+void ConstructSingleNumaImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemNumaBorrowImportObj& ubseMemNumaBorrowImportObj, bool& isNormal);
 
-void ConstructSingleNumaImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                  UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj, bool &isNormal);
+UbseResult ConstructNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemNumaExportObjMap& normalExportObjMap);
 
-UbseResult ConstructNumaExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                  UbseMemNumaExportObjMap &normalExportObjMap);
+void ConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemNumaBorrowExportObj& ubseMemNumaBorrowExportObj, bool& isNormal);
 
-void ConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                  UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj, bool &isNormal);
+UbseResult ConstructShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                   UbseMemShareImportObjMap& normalImportObjMap);
 
-UbseResult ConstructShareImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                   UbseMemShareImportObjMap &normalImportObjMap);
-
-void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                   UbseMemShareBorrowImportObj &mxeMemShareBorrowImportObj, bool &isNormal);
+void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                   UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, bool& isNormal);
 
 UbseResult ConstructShareImportObjFromExportMetaData(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas, UbseMemShareImportObjMap &importObjMap);
+    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas, UbseMemShareImportObjMap& importObjMap);
 
 void ConstructSingleShareImportObjFromExportMetaData(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemShareBorrowImportObj &mxeMemShareBorrowImportObj, bool &isNormal);
+    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+    UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, bool& isNormal);
 
-UbseResult ConstructShareExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                   UbseMemShareExportObjMap &normalExportObjMap);
+UbseResult ConstructShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                   UbseMemShareExportObjMap& normalExportObjMap);
 
-void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq &req, int &numaCount);
+void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq& req, int& numaCount);
 
-void ConstructSingleShareExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                   UbseMemShareBorrowExportObj &mxeMemShareBorrowExportObj, bool &isNormal);
+void ConstructSingleShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                   UbseMemShareBorrowExportObj& mxeMemShareBorrowExportObj, bool& isNormal);
 
-UbseResult ConstructAddrImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                  UbseMemAddrImportObjMap &normalImportObjMap);
+UbseResult ConstructAddrImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemAddrImportObjMap& normalImportObjMap);
 
-void ConstructSingleAddrImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                  UbseMemAddrBorrowImportObj &mxeMemAddrBorrowImportObj, bool &isNormal);
+void ConstructSingleAddrImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemAddrBorrowImportObj& mxeMemAddrBorrowImportObj, bool& isNormal);
 
-UbseResult ConstructAddrExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                  UbseMemAddrExportObjMap &normalExportObjMap);
+UbseResult ConstructAddrExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemAddrExportObjMap& normalExportObjMap);
 
-void ConstructSingleAddrExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                  UbseMemAddrBorrowExportObj &mxeMemAddrBorrowExportObj, bool &isNormal);
+void ConstructSingleAddrExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemAddrBorrowExportObj& mxeMemAddrBorrowExportObj, bool& isNormal);
 
-void GetBorrowObjMap(const std::vector<UbseMemLocalObmmMetaData> &localObmmMetaDatas,
-                     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> &borrowObjMap);
+void GetBorrowObjMap(const std::vector<UbseMemLocalObmmMetaData>& localObmmMetaDatas,
+                     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>>& borrowObjMap);
 
-UbseResult GetLocalObmmMeta(std::vector<UbseMemLocalObmmMetaData> &allObmmDatas,
-                            LocalObmmMetaData &localObmmMetaData);
+UbseResult GetLocalObmmMeta(std::vector<UbseMemLocalObmmMetaData>& allObmmDatas, LocalObmmMetaData& localObmmMetaData);
 
-UbseMemAddrImportObjMap ProcessAbnormalAddrImportObjMap(UbseMemAddrImportObjMap &importObjMap);
+UbseMemAddrImportObjMap ProcessAbnormalAddrImportObjMap(UbseMemAddrImportObjMap& importObjMap);
 
 template <typename TUbseMemBorrowImportObjMap>
-TUbseMemBorrowImportObjMap ProcessAbnormalImportObjMap(TUbseMemBorrowImportObjMap &importObjMap)
+TUbseMemBorrowImportObjMap ProcessAbnormalImportObjMap(TUbseMemBorrowImportObjMap& importObjMap)
 {
     TUbseMemBorrowImportObjMap faultObjMap{};
     if (importObjMap.empty()) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << "ImportObjMap is empty, not need process";
         return faultObjMap;
     }
-    for (auto &item : importObjMap) {
-        auto &importObj = item.second;
+    for (auto& item : importObjMap) {
+        auto& importObj = item.second;
         auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
         bool hasFault = false;
         for (size_t i = 0; i < importObj.status.importResults.size(); i++) {
             auto ret = RmObmmExecutor::GetInstance().ObmmUnImport(importObj.status.importResults[i].memId, timeoutMs);
             if (UBSE_RESULT_FAIL(ret)) {
                 UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unimport failed, mark as faulty, memid="
-                             << importObj.status.importResults[i].memId << ", errCode=" << ret;
+                               << importObj.status.importResults[i].memId << ", errCode=" << ret;
                 importObj.errorCode = ret;
                 importObj.status.errCode = ret;
                 hasFault = true;
@@ -143,22 +141,23 @@ TUbseMemBorrowImportObjMap ProcessAbnormalImportObjMap(TUbseMemBorrowImportObjMa
 }
 
 template <typename TUbseMemBorrowExportObjMap>
-TUbseMemBorrowExportObjMap ProcessAbnormalExportObjMap(TUbseMemBorrowExportObjMap &exportObjMap)
+TUbseMemBorrowExportObjMap ProcessAbnormalExportObjMap(TUbseMemBorrowExportObjMap& exportObjMap)
 {
     TUbseMemBorrowExportObjMap faultObjMap{};
     if (exportObjMap.empty()) {
         UBSE_LOG_DEBUG << MMI_LOG_INFO << "ExportObjMap is empty, not need process";
         return faultObjMap;
     }
-    for (auto &item : exportObjMap) {
-        auto &exportObj = item.second;
+    for (auto& item : exportObjMap) {
+        auto& exportObj = item.second;
         bool hasFault = false;
-        const auto &exportObmmInfo = exportObj.status.exportObmmInfo;
+        const auto& exportObmmInfo = exportObj.status.exportObmmInfo;
         for (size_t i = 0; i < exportObmmInfo.size(); i++) {
             auto ret = RmObmmExecutor::GetInstance().ObmmUnExport(exportObmmInfo[i].memId);
             if (UBSE_RESULT_FAIL(ret)) {
-                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unexport failed, mark as faulty, memid="
-                             << exportObmmInfo[i].memId << ", errCode=" << ret;
+                UBSE_LOG_ERROR << MMI_LOG_INFO
+                               << "Obmm unexport failed, mark as faulty, memid=" << exportObmmInfo[i].memId
+                               << ", errCode=" << ret;
                 exportObj.errorCode = ret;
                 exportObj.status.errCode = ret;
                 hasFault = true;
@@ -173,20 +172,20 @@ TUbseMemBorrowExportObjMap ProcessAbnormalExportObjMap(TUbseMemBorrowExportObjMa
     return faultObjMap;
 }
 
-inline std::string ConstructNameInfoFromNamesAndMemIds(const std::vector<std::string> &names,
-    const std::vector<std::vector<mem_id>> &allMemIds)
+inline std::string ConstructNameInfoFromNamesAndMemIds(const std::vector<std::string>& names,
+                                                       const std::vector<std::vector<mem_id>>& allMemIds)
 {
     std::ostringstream oss;
     for (size_t i = 0; i < names.size(); ++i) {
-        const auto &name = names[i];
-        const auto &memIds = allMemIds[i];
+        const auto& name = names[i];
+        const auto& memIds = allMemIds[i];
         oss << "name = " << name << ", memIds = " << RmCommonUtils::GetInstance().MemToStr(memIds) << "; ";
     }
     return oss.str();
 }
 
 template <typename TUbseMemBorrowImportObjMap>
-std::string GetNameAndMemIdFromImportObjMap(const TUbseMemBorrowImportObjMap &importObjMap)
+std::string GetNameAndMemIdFromImportObjMap(const TUbseMemBorrowImportObjMap& importObjMap)
 {
     if (importObjMap.empty()) {
         UBSE_LOG_WARN << MMI_LOG_INFO << "ExportObjMap is empty, not need process";
@@ -194,7 +193,7 @@ std::string GetNameAndMemIdFromImportObjMap(const TUbseMemBorrowImportObjMap &im
     }
     std::vector<std::string> names{};
     std::vector<std::vector<mem_id>> allMemIds{};
-    for (auto &item : importObjMap) {
+    for (auto& item : importObjMap) {
         std::vector<mem_id> memIds{};
         auto tmpName = item.first;
         auto importResults = item.second.status.importResults;
@@ -208,7 +207,7 @@ std::string GetNameAndMemIdFromImportObjMap(const TUbseMemBorrowImportObjMap &im
 }
 
 template <typename TUbseMemBorrowExportObjMap>
-std::string GetNameAndMemIdFromExportObjMap(const TUbseMemBorrowExportObjMap &exportObjMap)
+std::string GetNameAndMemIdFromExportObjMap(const TUbseMemBorrowExportObjMap& exportObjMap)
 {
     if (exportObjMap.empty()) {
         UBSE_LOG_WARN << MMI_LOG_INFO << "ExportObjMap is empty, not need process";
@@ -216,10 +215,10 @@ std::string GetNameAndMemIdFromExportObjMap(const TUbseMemBorrowExportObjMap &ex
     }
     std::vector<std::string> names{};
     std::vector<std::vector<mem_id>> allMemIds{};
-    for (auto &item : exportObjMap) {
+    for (auto& item : exportObjMap) {
         std::vector<mem_id> memIds{};
         auto tmpName = item.first;
-        const auto &exportObmmInfo = item.second.status.exportObmmInfo;
+        const auto& exportObmmInfo = item.second.status.exportObmmInfo;
         for (int i = 0; i < exportObmmInfo.size(); i++) {
             memIds.push_back(exportObmmInfo[i].memId);
         }
@@ -228,12 +227,10 @@ std::string GetNameAndMemIdFromExportObjMap(const TUbseMemBorrowExportObjMap &ex
     }
     return ConstructNameInfoFromNamesAndMemIds(names, allMemIds);
 }
-void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta &meta, UbseMemNumaBorrowReq &req,
-                              std::string &lendNode);
-void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData &obmmMetaData, std::string &lendNode,
-                              UbseMemNumaBorrowReq &req);
+void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta& meta, UbseMemNumaBorrowReq& req, std::string& lendNode);
+void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData& obmmMetaData, std::string& lendNode, UbseMemNumaBorrowReq& req);
 
 #undef MODULE_LOG_NAME
-} // namespace ubse::mmi
+} // namespace ubse::mmi::restore
 
 #endif // UBSE_MEM_OBJ_RESTORE_H

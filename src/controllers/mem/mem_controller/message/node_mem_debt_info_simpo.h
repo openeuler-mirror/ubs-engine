@@ -21,11 +21,11 @@ using namespace ubse::adapter_plugins::mmi;
 class NodeMemDebtInfoSimpo : public UbseBaseMessage {
 public:
     NodeMemDebtInfoSimpo() = default;
-    explicit NodeMemDebtInfoSimpo(uint8_t *data, uint32_t size)
+    explicit NodeMemDebtInfoSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
-    inline void SetNodeMemDebtInfoSimpo(NodeMemDebtInfoMap &sourceData)
+    inline void SetNodeMemDebtInfoSimpo(NodeMemDebtInfoMap& sourceData)
     {
         data_ = std::move(sourceData);
     }

@@ -30,11 +30,11 @@ struct UbseExportSignReq {
 
 class UbseMemSignVerifier {
 public:
-    static UbseResult Sign(const std::string &type, std::string &signedData, std::string &trustRingId);
+    static UbseResult Sign(const std::string& type, std::string& signedData, std::string& trustRingId);
 
-    static UbseResult SignAndVerify(const UbseExportSignReq &signReq, std::vector<std::string> &lendSignedDatas);
+    static UbseResult SignAndVerify(const UbseExportSignReq& signReq, std::vector<std::string>& lendSignedDatas);
 };
 
 bool IsHighSafety();
-}
+} // namespace ubse::mem::controller
 #endif // UBSE_MEM_SIGN_VERIFIER_H

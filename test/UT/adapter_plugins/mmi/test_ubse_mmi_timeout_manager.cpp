@@ -52,9 +52,10 @@ TEST_F(TestUbseMmiTimeoutGuard, DestructorCancelsTimer)
 
 TEST_F(TestUbseMmiTimeoutGuard, TimeoutWithSignal_CallbackInvoked)
 {
-    struct sigaction oldSa{};
-    struct sigaction newSa{};
-    newSa.sa_handler = [](int) {};
+    struct sigaction oldSa {};
+    struct sigaction newSa {};
+    newSa.sa_handler = [](int) {
+    };
     newSa.sa_flags = 0;
     sigemptyset(&newSa.sa_mask);
     sigaction(SIGUSR1, &newSa, &oldSa);
@@ -84,4 +85,4 @@ TEST_F(TestUbseMmiTimeoutGuard, MultipleTimeoutsInSequence)
     EXPECT_EQ(callbackCount, 3);
 }
 
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi

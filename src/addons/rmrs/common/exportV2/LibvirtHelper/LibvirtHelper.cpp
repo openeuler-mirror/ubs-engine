@@ -11,14 +11,14 @@
  */
 
 #include "LibvirtHelper.h"
+#include <cstdlib>
+#include <cstring>
 #include <map>
 #include <regex>
 #include <sstream>
-#include <cstring>
-#include <cstdlib>
-#include "mp_configuration.h"
 #include "ubse_logger.h"
 #include "ubse_security.h"
+#include "mp_configuration.h"
 
 namespace mempooling::exportV2 {
 using namespace libvirt;
@@ -100,7 +100,7 @@ MpResult LibvirtHelper::Connect()
         }
         LOG_INFO << "Libvirt connection succeed.";
         return MEM_POOLING_OK;
-    } catch (std::exception &e) {
+    } catch (std::exception& e) {
         LOG_ERROR << "Connect libvirt failed. err: " << e.what() << ".";
         (void)ubse::security::ChangeOverrideCapability(false);
         return MEM_POOLING_ERROR;
@@ -191,7 +191,7 @@ MpResult LibvirtHelper::ConnectSetKeepAlive()
     return MEM_POOLING_OK;
 }
 
-MpResult LibvirtHelper::GetDomainByName(const std::string &name, VirDomainPtr &domain)
+MpResult LibvirtHelper::GetDomainByName(const std::string& name, VirDomainPtr& domain)
 {
     libvirt::VirDomainLookupByNameFunc virDomainLookupByName = LibvirtModule::VirDomainLookupByName();
     if (virDomainLookupByName == nullptr) {
@@ -205,7 +205,7 @@ MpResult LibvirtHelper::GetDomainByName(const std::string &name, VirDomainPtr &d
     return MEM_POOLING_OK;
 }
 
-MpResult LibvirtHelper::GetVmUuidByDomain(VirDomainPtr domain, std::string &uuidStr)
+MpResult LibvirtHelper::GetVmUuidByDomain(VirDomainPtr domain, std::string& uuidStr)
 {
     if (domain == nullptr) {
         LOG_ERROR << "Get vm domain failed, domain is nullptr.";
@@ -226,7 +226,7 @@ MpResult LibvirtHelper::GetVmUuidByDomain(VirDomainPtr domain, std::string &uuid
     return MEM_POOLING_OK;
 }
 
-MpResult LibvirtHelper::GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomainInfo &vmInfo)
+MpResult LibvirtHelper::GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomainInfo& vmInfo)
 {
     if (domain == nullptr) {
         LOG_ERROR << "Get vm domain failed, domain is nullptr.";
@@ -248,7 +248,7 @@ MpResult LibvirtHelper::GetVmStateAndMaxMemByDomain(VirDomainPtr domain, VmDomai
     return MEM_POOLING_OK;
 }
 
-MpResult LibvirtHelper::GetDomainXML(VirDomainPtr domain, std::string &xmlStr)
+MpResult LibvirtHelper::GetDomainXML(VirDomainPtr domain, std::string& xmlStr)
 {
     if (domain == nullptr) {
         LOG_ERROR << "Domain is nullptr.";
@@ -261,7 +261,7 @@ MpResult LibvirtHelper::GetDomainXML(VirDomainPtr domain, std::string &xmlStr)
         return MEM_POOLING_ERROR;
     }
 
-    char *xmlRaw = virDomainGetXMLDesc(domain, 0);
+    char* xmlRaw = virDomainGetXMLDesc(domain, 0);
     if (xmlRaw == nullptr) {
         LOG_ERROR << "Get domain XML failed, virDomainGetXMLDesc returned nullptr.";
         return MEM_POOLING_ERROR;

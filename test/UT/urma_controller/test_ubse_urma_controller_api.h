@@ -13,8 +13,8 @@
 #ifndef TEST_UBSE_URMA_CONTROLLER_API_H
 #define TEST_UBSE_URMA_CONTROLLER_API_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mokc.h>
 
 namespace ubse::urmaControllerApi::ut {

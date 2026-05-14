@@ -68,7 +68,7 @@ TEST_F(TestResourceQuery, GetLocalHostVmCollectDataFail)
 
 UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNode()
 {
-    return [](std::vector<::vm::mempooling::VmDomainInfo> &vmInfoList) {
+    return [](std::vector<::vm::mempooling::VmDomainInfo>& vmInfoList) {
         ::vm::mempooling::VmDomainInfo vmInfo{{}, {}, 0};
         vmInfoList.push_back(vmInfo);
         return VM_OK;
@@ -77,7 +77,7 @@ UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNode()
 
 UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNodeErr()
 {
-    return [](std::vector<::vm::mempooling::VmDomainInfo> &vmInfoList) {
+    return [](std::vector<::vm::mempooling::VmDomainInfo>& vmInfoList) {
         return VM_ERROR;
     };
 }
@@ -107,7 +107,7 @@ TEST_F(TestResourceQuery, GetLocalHostVmDomainInfoFail)
 
 UBSRMRSGetNumaInfoListOnNodeFunc UBSRMRSGetNumaInfoListOnNode()
 {
-    return [](std::vector<::vm::mempooling::NumaInfo> &numaInfoList) {
+    return [](std::vector<::vm::mempooling::NumaInfo>& numaInfoList) {
         ::vm::mempooling::NumaInfo numaInfo{};
         numaInfoList.push_back(numaInfo);
         return VM_OK;
@@ -116,7 +116,7 @@ UBSRMRSGetNumaInfoListOnNodeFunc UBSRMRSGetNumaInfoListOnNode()
 
 UBSRMRSGetNumaInfoListOnNodeFunc UBSRMRSGetNumaInfoListOnNodeErr()
 {
-    return [](std::vector<::vm::mempooling::NumaInfo> &numaInfoList) {
+    return [](std::vector<::vm::mempooling::NumaInfo>& numaInfoList) {
         return VM_ERROR;
     };
 }

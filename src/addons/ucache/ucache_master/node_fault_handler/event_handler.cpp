@@ -14,17 +14,16 @@
 
 #include <chrono>
 #include <thread>
+#include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "data_collect.h"
 #include "deserialize.h"
-#include "ucache_json_util.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
+#include "ucache_json_util.h"
 #include "ucache_master.h"
 #include "ucache_string_util.h"
-#include "ubse_error.h"
-
 
 namespace ucache::fault_handler {
 
@@ -35,17 +34,17 @@ using namespace ubse::mem::controller;
 std::atomic<bool> EventHandler::gNodeFaultFlag{false};
 std::atomic<bool> EventHandler::gMasterStopFlag{false};
 
-void GetMemIdsFromNumaMemMap(std::map<int, std::map<std::string, uint64_t>> &numaMemMap,
-                                    std::vector<std::string> &memNameList)
+void GetMemIdsFromNumaMemMap(std::map<int, std::map<std::string, uint64_t>>& numaMemMap,
+                             std::vector<std::string>& memNameList)
 {
     std::string memName;
-    for (auto &memSizeMapIter : numaMemMap) {
+    for (auto& memSizeMapIter : numaMemMap) {
         int numaId = memSizeMapIter.first;
         auto memSizeMap = memSizeMapIter.second;
         if (memSizeMap.empty()) {
             UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "numa: " << numaId << "has no mem ";
         } else {
-            for (auto &sizeMapIter : memSizeMap) {
+            for (auto& sizeMapIter : memSizeMap) {
                 memName = sizeMapIter.first;
                 memNameList.emplace_back(memName);
             }
@@ -53,9 +52,8 @@ void GetMemIdsFromNumaMemMap(std::map<int, std::map<std::string, uint64_t>> &num
     }
 }
 
-void GetMemIdFromLendMap(const std::string &nodeId,
-                                std::map<std::string, std::vector<NodeMemBorrowInfo>> &lendMap,
-                                std::vector<std::string> &memNameList)
+void GetMemIdFromLendMap(const std::string& nodeId, std::map<std::string, std::vector<NodeMemBorrowInfo>>& lendMap,
+                         std::vector<std::string>& memNameList)
 {
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "GetMemIdFromLendMap start. node: " << nodeId;
     auto lendMapIter = lendMap.find(nodeId);
@@ -68,7 +66,7 @@ void GetMemIdFromLendMap(const std::string &nodeId,
     }
     // 查询所有借出内存的memName
 
-    for (auto &lendInfo : lendMapIter->second) {
+    for (auto& lendInfo : lendMapIter->second) {
         auto numaMemMap = lendInfo.numaNodeBorrowSize;
         if (numaMemMap.empty()) {
             UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
@@ -82,9 +80,8 @@ void GetMemIdFromLendMap(const std::string &nodeId,
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "GetMemIdFromLendMap end.";
 }
 
-void GetMemIdFromBorrowMap(const std::string &nodeId,
-                                  std::map<std::string, std::vector<NodeMemBorrowInfo>> &borrowMap,
-                                  std::vector<std::string> &memNameList)
+void GetMemIdFromBorrowMap(const std::string& nodeId, std::map<std::string, std::vector<NodeMemBorrowInfo>>& borrowMap,
+                           std::vector<std::string>& memNameList)
 {
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "GetMemIdFromBorrowMap start. node: " << nodeId;
     auto borrowMapIter = borrowMap.find(nodeId);
@@ -97,7 +94,7 @@ void GetMemIdFromBorrowMap(const std::string &nodeId,
     }
     // 查询所有借出内存的memName
     std::string memName;
-    for (auto &borrowInfo : borrowMapIter->second) {
+    for (auto& borrowInfo : borrowMapIter->second) {
         auto numaMemMap = borrowInfo.numaNodeBorrowSize;
         if (numaMemMap.empty()) {
             UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
@@ -112,18 +109,17 @@ void GetMemIdFromBorrowMap(const std::string &nodeId,
 }
 
 // 归还故障节点相关的内存
-uint32_t ReturnMemofFaultyNode(const std::string &nodeId)
+uint32_t ReturnMemofFaultyNode(const std::string& nodeId)
 {
     // 向内存子系统查询内存账本
     uint32_t ret = UCACHE_OK;
     std::vector<UbseNumaMemoryDebtInfo> debtInfos{};
     UbseResult result = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
     if (result != UBSE_OK && result != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
-        UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "UbseGetNumaMemDebtInfoWithNode failed.";
+        UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "UbseGetNumaMemDebtInfoWithNode failed.";
         return UBSE_API_ERROR;
     }
-    for (auto &debtInfo : debtInfos) {
+    for (auto& debtInfo : debtInfos) {
         std::string memName = debtInfo.name;
         UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Return memory start, memName=" << memName << ".";
         UbseMemBorrower borrower{.nodeId = debtInfo.borrowNodeId};
@@ -140,7 +136,7 @@ uint32_t ReturnMemofFaultyNode(const std::string &nodeId)
     return ret;
 }
 
-uint32_t ReturnMemofMemId(const std::string &nodeId, const uint64_t memId, const EventCondition eventCondition)
+uint32_t ReturnMemofMemId(const std::string& nodeId, const uint64_t memId, const EventCondition eventCondition)
 {
     uint32_t ret = UCACHE_OK;
     std::vector<BorrowMemInfo> borrowInfos{};
@@ -156,15 +152,15 @@ uint32_t ReturnMemofMemId(const std::string &nodeId, const uint64_t memId, const
 
     std::string memName{};
 
-    UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-        << "Node(" << nodeId << ")" << "'s borrowInfos.size is" << borrowInfos.size() << ".";
-    for (auto &info : borrowInfos) {
+    UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << nodeId << ")"
+                                                              << "'s borrowInfos.size is" << borrowInfos.size() << ".";
+    for (auto& info : borrowInfos) {
         UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << info.ToString() << ".";
         if (info.borrowNodeId == nodeId &&
             std::find(info.borrowMemId.begin(), info.borrowMemId.end(), memId) != info.borrowMemId.end()) {
             memName = info.name;
-            UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-                << "Found mem_id(" << memId << ") belong to" << " borrowId: " << memName << ".";
+            UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Found mem_id(" << memId << ") belong to"
+                                                                      << " borrowId: " << memName << ".";
             break;
         }
     }
@@ -192,8 +188,8 @@ uint32_t EventHandler::AlarmRebootEventHandler(ALARM_FAULT_TYPE alarmFaultEvent,
     // 暂停主流程
     gNodeFaultFlag.store(true);
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "AlarmRebootEventHandler start";
-    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "ALARM_FAULT_TYPE" << alarmFaultEvent
-        << " faultInfo: " << faultInfo;
+    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+        << "ALARM_FAULT_TYPE" << alarmFaultEvent << " faultInfo: " << faultInfo;
 
     // 等待主流程退出
     const int sleepMs = 100;
@@ -222,8 +218,8 @@ uint32_t EventHandler::AlarmPanicEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, 
     // 暂停主流程
     gNodeFaultFlag.store(true);
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "AlarmPanicEventHandler start";
-    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "ALARM_FAULT_TYPE: " << alarmFaultEvent
-        << " faultInfo: " << faultInfo;
+    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+        << "ALARM_FAULT_TYPE: " << alarmFaultEvent << " faultInfo: " << faultInfo;
 
     // 等待主流程退出
     const int sleepMs = 100;
@@ -253,8 +249,8 @@ uint32_t EventHandler::AlarmKernelRebootEventHandler(ALARM_FAULT_TYPE alarmFault
     // 暂停主流程
     gNodeFaultFlag.store(true);
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "AlarmKernelRebootEventHandler start";
-    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "ALARM_FAULT_TYPE: " << alarmFaultEvent
-        << " faultInfo: " << faultInfo;
+    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+        << "ALARM_FAULT_TYPE: " << alarmFaultEvent << " faultInfo: " << faultInfo;
     std::string nodeId = faultInfo;
 
     // 等待主流程退出
@@ -282,8 +278,8 @@ uint32_t EventHandler::AlarmKernelRebootEventHandler(ALARM_FAULT_TYPE alarmFault
 uint32_t EventHandler::AlarmUceEventHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)
 {
     gNodeFaultFlag.store(true);
-    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "AlarmUceEventHandler start, ALARM_FAULT_TYPE: "
-        << alarmFaultEvent << " faultInfo: " << faultInfo << ".";
+    UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
+        << "AlarmUceEventHandler start, ALARM_FAULT_TYPE: " << alarmFaultEvent << " faultInfo: " << faultInfo << ".";
 
     const int sleepMs = 100;
     while (!gMasterStopFlag.load()) {

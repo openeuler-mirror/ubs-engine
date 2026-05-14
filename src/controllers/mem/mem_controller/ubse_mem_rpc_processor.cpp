@@ -6,6 +6,17 @@
 #include <string>
 #include <vector>
 
+#include "ubse_api_server_module.h"
+#include "ubse_com_module.h"
+#include "ubse_election.h"
+#include "ubse_mem_agent_task_manager.h"
+#include "ubse_mem_async_processor.h"
+#include "ubse_mem_buffer_convert.h"
+#include "ubse_mem_controller_api.h"
+#include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_util.h"
+#include "ubse_mmi_interface.h"
+#include "ubse_str_util.h"
 #include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_addr_borrow_importobj_simpo.h"
 #include "message/ubse_mem_addr_borrow_req_simpo.h"
@@ -23,17 +34,6 @@
 #include "message/ubse_mem_share_borrow_req_simpo.h"
 #include "message/ubse_mem_share_detach_req_simpo.h"
 #include "trace_context.h"
-#include "ubse_api_server_module.h"
-#include "ubse_com_module.h"
-#include "ubse_election.h"
-#include "ubse_mem_agent_task_manager.h"
-#include "ubse_mem_async_processor.h"
-#include "ubse_mem_buffer_convert.h"
-#include "ubse_mem_controller_api.h"
-#include "ubse_mem_controller_query_api.h"
-#include "ubse_mem_util.h"
-#include "ubse_mmi_interface.h"
-#include "ubse_str_util.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -51,7 +51,7 @@ using namespace ubse::mem::serial;
 const std::string SYNC_SUCCESS = "sync_success";
 const std::string SYNC_FAILED = "sync_failed";
 
-UbseResult UbseMemFdBorrowMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                  UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemFdBorrowReqSimpo>(req);
@@ -88,7 +88,7 @@ uint16_t UbseMemFdBorrowMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemNumaBorrowMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemNumaBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                    UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemNumaBorrowReqSimpo>(req);
@@ -124,7 +124,7 @@ uint16_t UbseMemNumaBorrowMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemAddrBorrowMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemAddrBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                    UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemAddrBorrowReqSimpo>(req);
@@ -160,7 +160,7 @@ uint16_t UbseMemAddrBorrowMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemShareBorrowMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShareBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowReqSimpo>(req);
@@ -196,7 +196,7 @@ uint16_t UbseMemShareBorrowMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemShareAttachMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShareAttachMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemShareAttachReqSimpo>(req);
@@ -233,7 +233,7 @@ uint16_t UbseMemShareAttachMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemShareDetachMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShareDetachMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemShareDetachReqSimpo>(req);
@@ -269,7 +269,7 @@ uint16_t UbseMemShareDetachMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemFdReturnHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdReturnHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                           UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemReturnReqSimpo>(req);
@@ -306,7 +306,7 @@ uint16_t UbseMemFdReturnHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemNumaReturnHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemNumaReturnHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                             UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemReturnReqSimpo>(req);
@@ -343,7 +343,7 @@ uint16_t UbseMemNumaReturnHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemShareReturnHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShareReturnHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                              UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemReturnReqSimpo>(req);
@@ -380,7 +380,7 @@ uint16_t UbseMemShareReturnHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemAddrReturnHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemAddrReturnHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                             UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemReturnReqSimpo>(req);
@@ -437,15 +437,15 @@ UbseResult UbseMemCallbackMessage::Serialize()
 
 UbseResult UbseMemCallbackMessage::Deserialize()
 {
-    const uint8_t *inputBuffer = mInputRawData.get();
+    const uint8_t* inputBuffer = mInputRawData.get();
     for (int i = 0; i < mInputRawDataSize; i++) {
         data.push_back(static_cast<char>(inputBuffer[i]));
     }
     return UBSE_OK;
 }
 
-UbseResult UbseMemFdBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                  const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                  const UbseBaseMessagePtr& rsp,
                                                                   UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UBSE_LOG_INFO << "receive fd export";
@@ -460,8 +460,8 @@ UbseResult UbseMemFdBorrowExportObjCallbackMessageHandler::Handle(const UbseBase
         UBSE_LOG_ERROR << "Fd borrow exportObj is invalid, please check the exportObj";
         return ret;
     }
-    UBSE_LOG_INFO << "Received FdexportObj, name=" << exportObj.req.name << ", requestNodeId="
-                  << exportObj.req.requestNodeId;
+    UBSE_LOG_INFO << "Received FdexportObj, name=" << exportObj.req.name
+                  << ", requestNodeId=" << exportObj.req.requestNodeId;
 
     response->data = SYNC_SUCCESS;
     //   履行侧
@@ -503,8 +503,8 @@ uint16_t UbseMemFdBorrowExportObjCallbackMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemFdBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                  const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                  const UbseBaseMessagePtr& rsp,
                                                                   UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemFdBorrowImportobjSimpo>(req);
@@ -518,8 +518,8 @@ UbseResult UbseMemFdBorrowImportObjCallbackMessageHandler::Handle(const UbseBase
         UBSE_LOG_ERROR << "Fd borrow importObj is invalid, please check the importObj";
         return ret;
     }
-    UBSE_LOG_INFO << "Received FdImportObj, name=" << importObj.req.name << ", requestNodeId="
-                  << importObj.req.requestNodeId << ", request_id=" << importObj.req.requestId;
+    UBSE_LOG_INFO << "Received FdImportObj, name=" << importObj.req.name
+                  << ", requestNodeId=" << importObj.req.requestNodeId << ", request_id=" << importObj.req.requestId;
     response->data = SYNC_SUCCESS;
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -558,8 +558,8 @@ uint16_t UbseMemFdBorrowImportObjCallbackMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                               const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                               const UbseBaseMessagePtr& rsp,
                                                                                UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemFdBorrowImportobjSimpo>(req);
@@ -587,8 +587,8 @@ uint16_t UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler::GetModuleC
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemNumaBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                    const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemNumaBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                    const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemNumaBorrowExportobjSimpo>(req);
@@ -641,8 +641,8 @@ uint16_t UbseMemNumaBorrowExportObjCallbackMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemNumaBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                    const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemNumaBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                    const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemNumaBorrowImportobjSimpo>(req);
@@ -694,8 +694,8 @@ uint16_t UbseMemNumaBorrowImportObjCallbackMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemShareBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                     const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShareBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                     const UbseBaseMessagePtr& rsp,
                                                                      UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowExportobjSimpo>(req);
@@ -747,8 +747,8 @@ uint16_t UbseMemShareBorrowExportObjCallbackMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemShareBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                     const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShareBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                     const UbseBaseMessagePtr& rsp,
                                                                      UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowImportobjSimpo>(req);
@@ -800,8 +800,8 @@ uint16_t UbseMemShareBorrowImportObjCallbackMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemAddrBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                    const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemAddrBorrowExportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                    const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemAddrBorrowExportobjSimpo>(req);
@@ -853,8 +853,8 @@ uint16_t UbseMemAddrBorrowExportObjCallbackMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
 }
 
-UbseResult UbseMemAddrBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr &req,
-                                                                    const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemAddrBorrowImportObjCallbackMessageHandler::Handle(const UbseBaseMessagePtr& req,
+                                                                    const UbseBaseMessagePtr& rsp,
                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemAddrBorrowImportobjSimpo>(req);
@@ -952,7 +952,7 @@ UbseResult MemScheduleHandler::RegHandler()
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterFdBorrowHandlers(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterFdBorrowHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr hdl = new (std::nothrow) UbseMemFdBorrowMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemFdBorrowReqSimpo, UbseMemCallbackMessage>(hdl);
@@ -1006,7 +1006,7 @@ UbseResult MemScheduleHandler::RegisterFdBorrowHandlers(const std::shared_ptr<Ub
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterNumaBorrowHandlers(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterNumaBorrowHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr handler = new (std::nothrow) UbseMemNumaBorrowMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemNumaBorrowReqSimpo, UbseMemCallbackMessage>(handler);
@@ -1043,7 +1043,7 @@ UbseResult MemScheduleHandler::RegisterNumaBorrowHandlers(const std::shared_ptr<
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterAddrBorrowHandlers(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterAddrBorrowHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr handler = new (std::nothrow) UbseMemAddrBorrowMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemAddrBorrowReqSimpo, UbseMemCallbackMessage>(handler);
@@ -1069,7 +1069,7 @@ UbseResult MemScheduleHandler::RegisterAddrBorrowHandlers(const std::shared_ptr<
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterShareBorrowHandlers(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterShareBorrowHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr borrowHandler = new (std::nothrow) UbseMemShareBorrowMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemShareBorrowReqSimpo, UbseMemCallbackMessage>(borrowHandler);
@@ -1109,7 +1109,7 @@ UbseResult MemScheduleHandler::RegisterShareBorrowHandlers(const std::shared_ptr
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterReturnHandler(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterReturnHandler(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr fdHandler = new (std::nothrow) UbseMemFdReturnHandler();
     auto ret = comModule->RegRpcService<UbseMemReturnReqSimpo, UbseMemCallbackMessage>(fdHandler);
@@ -1144,7 +1144,7 @@ UbseResult MemScheduleHandler::RegisterReturnHandler(const std::shared_ptr<UbseC
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterShmCreateRespHandlers(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterShmCreateRespHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr handler = new (std::nothrow) UbseMemShmCreateRespMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemOperationRespSimpo, UbseMemCallbackMessage>(handler);
@@ -1155,7 +1155,7 @@ UbseResult MemScheduleHandler::RegisterShmCreateRespHandlers(const std::shared_p
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterShmAttachRespHandlers(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterShmAttachRespHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr handler = new (std::nothrow) UbseMemShmAttachRespMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemOperationRespSimpo, UbseMemCallbackMessage>(handler);
@@ -1166,7 +1166,7 @@ UbseResult MemScheduleHandler::RegisterShmAttachRespHandlers(const std::shared_p
     return UBSE_OK;
 }
 
-UbseResult MemScheduleHandler::RegisterShmDetachRespHandlers(const std::shared_ptr<UbseComModule> &comModule)
+UbseResult MemScheduleHandler::RegisterShmDetachRespHandlers(const std::shared_ptr<UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr handler = new (std::nothrow) UbseMemShmDetachRespMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemOperationRespSimpo, UbseMemCallbackMessage>(handler);
@@ -1177,7 +1177,7 @@ UbseResult MemScheduleHandler::RegisterShmDetachRespHandlers(const std::shared_p
     return UBSE_OK;
 }
 
-UbseResult UbseMemShmCreateRespMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShmCreateRespMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                       UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -1206,7 +1206,7 @@ uint16_t UbseMemShmCreateRespMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemShmAttachRespMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShmAttachRespMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                       UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -1235,7 +1235,7 @@ uint16_t UbseMemShmAttachRespMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemShmDetachRespMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemShmDetachRespMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                       UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -1264,7 +1264,7 @@ uint16_t UbseMemShmDetachRespMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemReturnRespHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemReturnRespHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                             UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -1292,7 +1292,7 @@ uint16_t UbseMemReturnRespHandler::GetModuleCode()
 {
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
-UbseResult UbseMemFdPermissionHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdPermissionHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                               UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemFdPermissionReqMessage>(req);
@@ -1383,7 +1383,7 @@ UbseResult UbseMemFdPermissionRespMessage::Deserialize()
     return UBSE_OK;
 }
 
-def::UbseMemFdDesc ConvertOperationRespToFdDesc(const UbseMemOperationResp &resp)
+def::UbseMemFdDesc ConvertOperationRespToFdDesc(const UbseMemOperationResp& resp)
 {
     def::UbseMemFdDesc fdDesc{};
     fdDesc.name = resp.name;
@@ -1401,7 +1401,7 @@ def::UbseMemFdDesc ConvertOperationRespToFdDesc(const UbseMemOperationResp &resp
     return fdDesc;
 };
 
-UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                      UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -1412,8 +1412,8 @@ UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     }
     response->data = SYNC_SUCCESS;
     auto operationResp = request->GetUbseMemOperationResp();
-    UBSE_LOG_INFO << "Receive fd borrow resp. name=" << operationResp.name << ", requestId="
-                  << operationResp.requestId << ", response errorcode=" << operationResp.errorCode;
+    UBSE_LOG_INFO << "Receive fd borrow resp. name=" << operationResp.name << ", requestId=" << operationResp.requestId
+                  << ", response errorcode=" << operationResp.errorCode;
 
     auto apiServer = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServer == nullptr) {
@@ -1441,8 +1441,8 @@ UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     }
     ret = apiServer->SendResponse(status, requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << operationResp.errorCode << ", requestId="
-                       << requestId;
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << operationResp.errorCode
+                       << ", requestId=" << requestId;
     }
     delete[] message.buffer;
     return ret;
@@ -1457,7 +1457,7 @@ uint16_t UbseMemFdBorrowRespMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemFdReturnRespMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemFdReturnRespMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                      UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -1468,8 +1468,8 @@ UbseResult UbseMemFdReturnRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     }
     response->data = SYNC_SUCCESS;
     auto operationResp = request->GetUbseMemOperationResp();
-    UBSE_LOG_INFO << "Receive fd return resp. name=" << operationResp.name << ", requestId="
-                  << operationResp.requestId << ", response errorcode=" << operationResp.errorCode;
+    UBSE_LOG_INFO << "Receive fd return resp. name=" << operationResp.name << ", requestId=" << operationResp.requestId
+                  << ", response errorcode=" << operationResp.errorCode;
     auto apiServer = UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         UBSE_LOG_ERROR << "Failed to get api server";
@@ -1481,8 +1481,8 @@ UbseResult UbseMemFdReturnRespMessageHandler::Handle(const UbseBaseMessagePtr &r
     message.length = 0;
     auto ret = apiServer->SendResponse(operationResp.errorCode, requestId, message);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to send response, response errorcode="
-                       << operationResp.errorCode << ", requestId=" << requestId;
+        UBSE_LOG_ERROR << "Failed to send response, response errorcode=" << operationResp.errorCode
+                       << ", requestId=" << requestId;
     }
     return ret;
 }
@@ -1496,7 +1496,7 @@ uint16_t UbseMemFdReturnRespMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemNumaBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemNumaBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                        UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
@@ -1525,7 +1525,7 @@ uint16_t UbseMemNumaBorrowRespMessageHandler::GetModuleCode()
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
 }
 
-UbseResult UbseMemNumaReturnRespMessageHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemNumaReturnRespMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                        UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);

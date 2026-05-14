@@ -63,13 +63,13 @@ struct SrcMemoryBorrowParam {
     }
 };
 
-bool compareNodeMemInfo(const std::string nodeId, const std::pair<std::string, NodeMemInfo> &a,
-                        const std::pair<std::string, NodeMemInfo> &b);
-bool compareSocketMemInfo(const std::unordered_map<std::string, std::unordered_set<uint16_t>> &nodeIdToNumaIdSetMap,
-                          const std::vector<RackMemNumaPair> &borrowedItemVec, const SrcMemoryBorrowParam &srcParam,
-                          const std::pair<std::string, NodeMemInfo> &a, const std::pair<std::string, NodeMemInfo> &b);
-uint32_t GeneratePerNodeNumaSocketMap(const std::vector<MemNodeData> &memNodeDataVec,
-                                      std::map<std::string, std::map<int, uint16_t>> &numaSocketMap);
+bool compareNodeMemInfo(const std::string nodeId, const std::pair<std::string, NodeMemInfo>& a,
+                        const std::pair<std::string, NodeMemInfo>& b);
+bool compareSocketMemInfo(const std::unordered_map<std::string, std::unordered_set<uint16_t>>& nodeIdToNumaIdSetMap,
+                          const std::vector<RackMemNumaPair>& borrowedItemVec, const SrcMemoryBorrowParam& srcParam,
+                          const std::pair<std::string, NodeMemInfo>& a, const std::pair<std::string, NodeMemInfo>& b);
+uint32_t GeneratePerNodeNumaSocketMap(const std::vector<MemNodeData>& memNodeDataVec,
+                                      std::map<std::string, std::map<int, uint16_t>>& numaSocketMap);
 
 struct WaterMark {
     WaterMark() = default;
@@ -98,12 +98,12 @@ struct DestMemoryBorrowParam {
         oss << R"("destSocketId"=)" << destSocketId << R"(,)";
         oss << R"("destNumaNum"=)" << destNumaNum << R"(,)";
         oss << R"("destNumaId"=)";
-        for (auto &destNumaIdItem : destNumaId) {
+        for (auto& destNumaIdItem : destNumaId) {
             oss << destNumaIdItem << ",";
         }
         oss << R"(,)";
         oss << R"("memSize"=)";
-        for (auto &memSizeItem : memSize) {
+        for (auto& memSizeItem : memSize) {
             oss << memSizeItem << ",";
         }
         oss << R"(,)";
@@ -231,7 +231,7 @@ struct VMQueryInfo {
 
 class MempoolBorrowModule {
 public:
-    static MempoolBorrowModule &Instance()
+    static MempoolBorrowModule& Instance()
     {
         static MempoolBorrowModule instance;
         return instance;
@@ -239,92 +239,92 @@ public:
 
     static MpResult Init();
 
-    MpResult MemBorrowStrategy(const SrcMemoryBorrowParam &srcParam, const uint64_t borrowSize,
-                               MemBorrowStrategyResult &borrowStrategyResult);
-    MpResult MemBorrowStrategyMultiple(const SrcMemoryBorrowParam &srcParam, const std::vector<uint64_t> &borrowSizes,
-                                       std::string &destPreNid, MemBorrowStrategyMultiResult &borrowStrategyResult);
-    MpResult MemBorrowStrategyMultipleUB(const SrcMemoryBorrowParam &srcParam, const std::vector<uint64_t> &borrowSizes,
-                                         std::string &destPreNid, uint16_t socketId,
-                                         MemBorrowStrategyMultiResult &borrowStrategyResult);
-    MpResult ValidateBorrowExecuteParam(const DestMemoryBorrowParam &destParam, MemMallocAttr &memAttr,
-                                        const MemBorrowExecuteResult &borrowExecuteResult, uint64_t &totalSize);
-    MpResult ValidateBorrowParamSamePlane(const SrcMemoryBorrowParam &srcParam,
-                                          const std::vector<DestMemoryBorrowParam> &destParams);
-    MpResult ValidateDestNids(const SrcMemoryBorrowParam &srcParam,
-                              const std::vector<DestMemoryBorrowParam> &destParams);
-    MpResult MemBorrowFailedRollback(const MemBorrowExecuteResult &borrowExecuteResult);
-    MpResult MemBorrowExecute(const SrcMemoryBorrowParam &srcParam, const std::vector<DestMemoryBorrowParam> &destParam,
-                              MemBorrowExecuteResult &borrowExecuteResult);
-    MpResult ExecuteSingleBorrow(const DestMemoryBorrowParam &destParam, const SrcMemoryBorrowParam &srcParam,
-                                 MemBorrowExecuteResult &borrowExecuteResult);
-    static MpResult MemBorrowExecuteInOverCommit(const SrcMemoryBorrowParam &srcParam,
-                                                 const std::vector<uint64_t> &borrowSizes, const WaterMark &waterMark,
-                                                 MemBorrowExecuteResult &borrowExecuteResult,
+    MpResult MemBorrowStrategy(const SrcMemoryBorrowParam& srcParam, const uint64_t borrowSize,
+                               MemBorrowStrategyResult& borrowStrategyResult);
+    MpResult MemBorrowStrategyMultiple(const SrcMemoryBorrowParam& srcParam, const std::vector<uint64_t>& borrowSizes,
+                                       std::string& destPreNid, MemBorrowStrategyMultiResult& borrowStrategyResult);
+    MpResult MemBorrowStrategyMultipleUB(const SrcMemoryBorrowParam& srcParam, const std::vector<uint64_t>& borrowSizes,
+                                         std::string& destPreNid, uint16_t socketId,
+                                         MemBorrowStrategyMultiResult& borrowStrategyResult);
+    MpResult ValidateBorrowExecuteParam(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
+                                        const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize);
+    MpResult ValidateBorrowParamSamePlane(const SrcMemoryBorrowParam& srcParam,
+                                          const std::vector<DestMemoryBorrowParam>& destParams);
+    MpResult ValidateDestNids(const SrcMemoryBorrowParam& srcParam,
+                              const std::vector<DestMemoryBorrowParam>& destParams);
+    MpResult MemBorrowFailedRollback(const MemBorrowExecuteResult& borrowExecuteResult);
+    MpResult MemBorrowExecute(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParam,
+                              MemBorrowExecuteResult& borrowExecuteResult);
+    MpResult ExecuteSingleBorrow(const DestMemoryBorrowParam& destParam, const SrcMemoryBorrowParam& srcParam,
+                                 MemBorrowExecuteResult& borrowExecuteResult);
+    static MpResult MemBorrowExecuteInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                 const std::vector<uint64_t>& borrowSizes, const WaterMark& waterMark,
+                                                 MemBorrowExecuteResult& borrowExecuteResult,
                                                  const bool isFault = false);
-    static MpResult ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam &srcParam,
-                                                    const UbseMemNumaCandidateOpt &opt, const bool &isFault,
-                                                    UbseMemNumaDesc &desc);
+    static MpResult ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                    const UbseMemNumaCandidateOpt& opt, const bool& isFault,
+                                                    UbseMemNumaDesc& desc);
     MpResult MemFree(std::string nodeId);
 
-    MpResult SafeUint64To32(uint32_t &targetNum, uint64_t tmp);
+    MpResult SafeUint64To32(uint32_t& targetNum, uint64_t tmp);
 
 private:
     MpResult ValidateBorrowSize(const uint64_t borrowSize);
-    MpResult ValidateSrcparam(const SrcMemoryBorrowParam &srcParam);
-    MpResult GetMemoryInfo(std::unordered_map<std::string, NodeMemInfo> &nodeMemMap,
-                           const SrcMemoryBorrowParam &srcParam, std::vector<std::string> &antiNodeMemVec);
-    void FilterAndSortNodes(std::unordered_map<std::string, NodeMemInfo> &nodeMemMap, std::string srcNid,
-                            const std::vector<std::string> &antiNodeMemVec,
-                            std::vector<std::pair<std::string, NodeMemInfo>> &nodeVec);
+    MpResult ValidateSrcparam(const SrcMemoryBorrowParam& srcParam);
+    MpResult GetMemoryInfo(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec);
+    void FilterAndSortNodes(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap, std::string srcNid,
+                            const std::vector<std::string>& antiNodeMemVec,
+                            std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec);
     void FilterNodesBySocketProximity(
-        std::unordered_map<std::string, NodeMemInfo> &nodeMemMap, const std::vector<MemNodeData> &foundNodeData,
-        std::unordered_map<std::string, std::unordered_set<uint16_t>> &nodeIdToNumaIdSetMap);
-    MpResult FilterBorrowableNodes(const SrcMemoryBorrowParam &srcParam, const std::vector<std::string> &antiNodeMemVec,
-                                   std::unordered_map<std::string, NodeMemInfo> &nodeMemMap);
-    MpResult FilterAndSortSockets(std::unordered_map<std::string, NodeMemInfo> &nodeMemMap,
-                                  const SrcMemoryBorrowParam &srcParam, const std::vector<std::string> &antiNodeMemVec,
-                                  std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
-                                  std::vector<std::pair<std::string, NodeMemInfo>> &nodeVec);
-    MpResult ProcessNodeMemBorrow(const std::pair<std::string, NodeMemInfo> &node, uint32_t &needBorrowNum,
-                                  MemBorrowStrategyResult &borrowStrategyResult);
-    MpResult GetSocket2CurMemSizeMap(const std::string &nodeId, std::map<int, uint64_t> &socket2CurLeftMemSizeMap);
-    MpResult GetSocketInfo(DestMemoryBorrowParam &tempParam, uint32_t numaId);
-    void AddMemoryParamsToResult(uint32_t haveFourGbNum, uint32_t moreBorrowNum, DestMemoryBorrowParam &tempParam,
-                                 MemBorrowStrategyResult &borrowStrategyResult);
-    void UpdateNodeMemInfoWithNuma(std::unordered_map<std::string, NodeMemInfo> &nodeMemMap);
-    MpResult GetNodeInfoByNodeId(const std::string &nodeId, UbseNodeInfo &nodeInfo);
-    MpResult GetAndSetBlockSize(const std::string &nodeId);
+        std::unordered_map<std::string, NodeMemInfo>& nodeMemMap, const std::vector<MemNodeData>& foundNodeData,
+        std::unordered_map<std::string, std::unordered_set<uint16_t>>& nodeIdToNumaIdSetMap);
+    MpResult FilterBorrowableNodes(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                                   std::unordered_map<std::string, NodeMemInfo>& nodeMemMap);
+    MpResult FilterAndSortSockets(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
+                                  const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                                  std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                                  std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec);
+    MpResult ProcessNodeMemBorrow(const std::pair<std::string, NodeMemInfo>& node, uint32_t& needBorrowNum,
+                                  MemBorrowStrategyResult& borrowStrategyResult);
+    MpResult GetSocket2CurMemSizeMap(const std::string& nodeId, std::map<int, uint64_t>& socket2CurLeftMemSizeMap);
+    MpResult GetSocketInfo(DestMemoryBorrowParam& tempParam, uint32_t numaId);
+    void AddMemoryParamsToResult(uint32_t haveFourGbNum, uint32_t moreBorrowNum, DestMemoryBorrowParam& tempParam,
+                                 MemBorrowStrategyResult& borrowStrategyResult);
+    void UpdateNodeMemInfoWithNuma(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap);
+    MpResult GetNodeInfoByNodeId(const std::string& nodeId, UbseNodeInfo& nodeInfo);
+    MpResult GetAndSetBlockSize(const std::string& nodeId);
 
     uint32_t gBlockSize{128}; // 芯片表项内存拆分粒度大小，单位M
 
 private:
     MempoolBorrowModule() = default;
     ~MempoolBorrowModule() = default;
-    MempoolBorrowModule(const MempoolBorrowModule &) = delete;
-    MempoolBorrowModule &operator=(const MempoolBorrowModule &) = delete;
+    MempoolBorrowModule(const MempoolBorrowModule&) = delete;
+    MempoolBorrowModule& operator=(const MempoolBorrowModule&) = delete;
 
     MpResult MemBackExecute(std::string nodeId, uint16_t numaId);
 };
 
-uint32_t MigrateStrategyRecvHandler(const turbo::rmrs::MigrateStrategyParam &migrateStrategyParam,
-                                    turbo::rmrs::MigrateStrategyResult &migrateStrategyResult);
-void DistributeNumaMemInfo(std::vector<mempooling::exportV2::NumaInfo> &numaInfos,
-                           std::map<uint16_t, NumaHugePageInfo> &numaInfoMap,
-                           std::vector<NumaHugePageInfo> &numaHugePageInfoSumList);
-void GetRemoteNumaList(std::vector<NumaHugePageInfo> &numaHugePageInfoSumList, std::vector<uint16_t> &remoteNumaIdList);
-void GetLocalVmInfo(std::vector<VmNumaInfoBrr> &allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr> &VmNumaInfoMap,
-                    std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos);
-uint32_t GetNumaData(std::vector<mempooling::exportV2::NumaInfo> &numaInfos, std::vector<uint16_t> &remoteNumaIdList,
-                     std::map<uint16_t, NumaHugePageInfo> &numaInfoMap,
-                     std::vector<NumaHugePageInfo> &numaHugePageInfoSumList);
-uint32_t GetVMData(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos,
-                   std::vector<VmNumaInfoBrr> &allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr> &vmNumaInfoMap);
+uint32_t MigrateStrategyRecvHandler(const turbo::rmrs::MigrateStrategyParam& migrateStrategyParam,
+                                    turbo::rmrs::MigrateStrategyResult& migrateStrategyResult);
+void DistributeNumaMemInfo(std::vector<mempooling::exportV2::NumaInfo>& numaInfos,
+                           std::map<uint16_t, NumaHugePageInfo>& numaInfoMap,
+                           std::vector<NumaHugePageInfo>& numaHugePageInfoSumList);
+void GetRemoteNumaList(std::vector<NumaHugePageInfo>& numaHugePageInfoSumList, std::vector<uint16_t>& remoteNumaIdList);
+void GetLocalVmInfo(std::vector<VmNumaInfoBrr>& allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr>& VmNumaInfoMap,
+                    std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos);
+uint32_t GetNumaData(std::vector<mempooling::exportV2::NumaInfo>& numaInfos, std::vector<uint16_t>& remoteNumaIdList,
+                     std::map<uint16_t, NumaHugePageInfo>& numaInfoMap,
+                     std::vector<NumaHugePageInfo>& numaHugePageInfoSumList);
+uint32_t GetVMData(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos,
+                   std::vector<VmNumaInfoBrr>& allVmNumaInfoInfoList, std::map<pid_t, VmNumaInfoBrr>& vmNumaInfoMap);
 bool IsSamePlaneBorrow(ConvertVmParam vmParam, uint16_t remoteNumaId,
-                       const std::vector<mempooling::exportV2::NumaInfo> &numaInfos,
-                       const std::vector<turbo::rmrs::RemoteNumaSocketInfo> &remoteNumaSocketInfo,
-                       const std::unordered_map<std::string, std::vector<turbo::rmrs::MemNodeDataNew>> &nodeTopology);
-uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam &migrateStrategyParam,
-                                     turbo::rmrs::MigrateStrategyParamRMRS &migrateStrategyParamRMRS);
+                       const std::vector<mempooling::exportV2::NumaInfo>& numaInfos,
+                       const std::vector<turbo::rmrs::RemoteNumaSocketInfo>& remoteNumaSocketInfo,
+                       const std::unordered_map<std::string, std::vector<turbo::rmrs::MemNodeDataNew>>& nodeTopology);
+uint32_t ConvertMigrateStrategyParam(const turbo::rmrs::MigrateStrategyParam& migrateStrategyParam,
+                                     turbo::rmrs::MigrateStrategyParamRMRS& migrateStrategyParamRMRS);
 } // namespace mempooling
 
 #endif // MEMPOOL_BORROW_MODULE_H

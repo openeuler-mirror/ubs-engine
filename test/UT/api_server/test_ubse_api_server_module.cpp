@@ -41,8 +41,7 @@ TEST_F(TestUbseApiServerModule, InitializeSuccessfully)
 TEST_F(TestUbseApiServerModule, StartSuccessfully)
 {
     // 预注册一个处理程序
-    apiServerModule.RegisterIpcHandler(1, 1,
-                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; });
+    apiServerModule.RegisterIpcHandler(1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_OK; });
     std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
         std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
@@ -50,7 +49,7 @@ TEST_F(TestUbseApiServerModule, StartSuccessfully)
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
     // 注册一个已存在处理程序
     apiServerModule.RegisterIpcHandler(
-        1, 1, [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_ERR_DAEMON_UNREACHABLE; });
+        1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_ERR_DAEMON_UNREACHABLE; });
     apiServerModule.Stop();
 }
 
@@ -58,8 +57,7 @@ TEST_F(TestUbseApiServerModule, StartSuccessfully)
 TEST_F(TestUbseApiServerModule, StartWithHandlerRegistrationFailed)
 {
     // 预注册一个处理程序
-    apiServerModule.RegisterIpcHandler(1, 1,
-                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; });
+    apiServerModule.RegisterIpcHandler(1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_OK; });
     // 启动服务器
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =

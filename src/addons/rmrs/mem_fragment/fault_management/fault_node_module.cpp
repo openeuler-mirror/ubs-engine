@@ -20,8 +20,12 @@
 #include <set>
 #include <unordered_map>
 
-#include "exporter.h"
+#include "ubse_com.h"
+#include "ubse_error.h"
+#include "ubse_mem_controller.h"
+#include "ubse_pointer_process.h"
 #include "export_type.h"
+#include "exporter.h"
 #include "fault_memid_helper.h"
 #include "mem_borrow_executor.h"
 #include "mem_manager.h"
@@ -29,10 +33,6 @@
 #include "mp_configuration.h"
 #include "mp_json_util.h"
 #include "rmrs_serialize.h"
-#include "ubse_com.h"
-#include "ubse_mem_controller.h"
-#include "ubse_error.h"
-#include "ubse_pointer_process.h"
 
 namespace mempooling {
 using namespace mempooling::smap;
@@ -52,7 +52,7 @@ constexpr uint64_t KB_1024 = 1024ULL;
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
 
-MpResult FaultNodeModule::DetermineNodeTypeOverCommit(const std::string nodeId, NodeType &nodeType)
+MpResult FaultNodeModule::DetermineNodeTypeOverCommit(const std::string nodeId, NodeType& nodeType)
 {
     MpResult ret = MEM_POOLING_OK;
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
@@ -82,7 +82,7 @@ MpResult FaultNodeModule::DetermineNodeTypeOverCommit(const std::string nodeId, 
     return ret;
 }
 
-MpResult FaultNodeModule::DetermineNodeType(const std::string nodeId, NodeType &nodeType)
+MpResult FaultNodeModule::DetermineNodeType(const std::string nodeId, NodeType& nodeType)
 {
     std::vector<BorrowRecord> borrowRecords;
     auto ret = BorrowRecordHelper::Instance().CollectBorrowRecords(nodeId, borrowRecords);
@@ -109,7 +109,7 @@ MpResult FaultNodeModule::DetermineNodeType(const std::string nodeId, NodeType &
     return ret;
 }
 
-bool FaultNodeModule::QueryNumaAllPid(uint16_t numaId, std::vector<pid_t> &pidList)
+bool FaultNodeModule::QueryNumaAllPid(uint16_t numaId, std::vector<pid_t>& pidList)
 {
     std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
     uint32_t queryVmRes = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
@@ -121,10 +121,10 @@ bool FaultNodeModule::QueryNumaAllPid(uint16_t numaId, std::vector<pid_t> &pidLi
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] [FaultLentNode] CurNode vm empty.";
         return false;
     }
-    for (const auto &vmDomainInfo : vmDomainInfos) {
+    for (const auto& vmDomainInfo : vmDomainInfos) {
         // 查找远端 NUMA
-        for (const auto &kv : vmDomainInfo.numaInfo) {
-            const mempooling::exportV2::VmDomainNumaInfo &numa = kv.second;
+        for (const auto& kv : vmDomainInfo.numaInfo) {
+            const mempooling::exportV2::VmDomainNumaInfo& numa = kv.second;
             if (!numa.isLocal && numa.numaId == numaId) {
                 pidList.push_back(vmDomainInfo.metaData.pid);
                 break; // 一个 VM 最多只有一个远端 NUMA
@@ -164,7 +164,7 @@ bool FaultNodeModule::SwitchMigrateForNumaVm(std::vector<pid_t> pidList, int ena
     return true;
 }
 
-bool FaultNodeModule::GenerateMigrateNumaMsgList(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg> &msgList)
+bool FaultNodeModule::GenerateMigrateNumaMsgList(NumaReplaceReturnMsg rpcMsg, std::vector<MigrateNumaMsg>& msgList)
 {
     for (MigrateBorrowRecord record : rpcMsg.migrateBorrowRecordList) {
         if (record.memIdList.size() > MAX_NR_MIGNUMA) {
@@ -231,7 +231,7 @@ bool FaultNodeModule::ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, s
     return true;
 }
 
-MpResult FaultNodeModule::GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord> &borrowRecords)
+MpResult FaultNodeModule::GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords)
 {
     MpResult res = BorrowRecordHelper::Instance().CollectBorrowRecordsWithFault(nodeId, borrowRecords);
     if (res != MEM_POOLING_OK) {
@@ -243,7 +243,7 @@ MpResult FaultNodeModule::GetBorrowNodeInfo(std::string nodeId, std::vector<Borr
 }
 
 MpResult FaultNodeModule::GetBorrowAbleNodeIdList(std::string curDealNodeId,
-                                                  std::vector<std::string> &borrowAbleNodeIdList)
+                                                  std::vector<std::string>& borrowAbleNodeIdList)
 {
     // 目前架构能查到的所有的节点都可以借用 查询所有节点
     std::vector<std::string> allNodeIdList = MpConfiguration::GetInstance().GetNodeIds();
@@ -271,7 +271,7 @@ MpResult FaultNodeModule::GetBorrowAbleNodeIdList(std::string curDealNodeId,
 }
 
 MpResult FaultNodeModule::GetBorrowAbleNodeInfoSortByMemSize(
-    std::vector<std::string> borrowAbleNodeIdList, std::vector<NodeMemoryInfoWithReservedMem> &ableNodeMemInfoList)
+    std::vector<std::string> borrowAbleNodeIdList, std::vector<NodeMemoryInfoWithReservedMem>& ableNodeMemInfoList)
 {
     // 获取可借用节点的 节点-numa 内存余量
     MpResult res = BorrowRecordHelper::Instance().CollectBorrowableInfoList(borrowAbleNodeIdList, ableNodeMemInfoList);
@@ -286,7 +286,7 @@ MpResult FaultNodeModule::GetBorrowAbleNodeInfoSortByMemSize(
                   return l1.canBorrowMem > l2.canBorrowMem;
               });
     // 节点内numa可借内存从大到小排序
-    for (NodeMemoryInfoWithReservedMem &record : ableNodeMemInfoList) {
+    for (NodeMemoryInfoWithReservedMem& record : ableNodeMemInfoList) {
         // 也按照借用大小从大到小排序
         std::sort(record.numaMemInfo.begin(), record.numaMemInfo.end(),
                   [](RackNumaMemInfo l1, RackNumaMemInfo l2) { return l1.canBorrowMem > l2.canBorrowMem; });
@@ -295,7 +295,7 @@ MpResult FaultNodeModule::GetBorrowAbleNodeInfoSortByMemSize(
 }
 
 void FaultNodeModule::MergeBorrowRecords(std::vector<BorrowRecord> borrowRecordList,
-                                         std::vector<NodeBorrowRecord> &nodeBorrowRecordList)
+                                         std::vector<NodeBorrowRecord>& nodeBorrowRecordList)
 {
 #ifdef UB_ENVIRONMENT
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] [FaultLentNode] UB MergeBorrowRecords";
@@ -304,9 +304,13 @@ void FaultNodeModule::MergeBorrowRecords(std::vector<BorrowRecord> borrowRecordL
         std::string key = record.borrowNode + "_" + record.lentNode + "_" + std::to_string(record.lentSocketId);
         uint16_t borrowSocketId{0};
         MemManager::Instance().GetSocketId(record.borrowNode, record.borrowLocalNuma, borrowSocketId);
-        OnceBorrowRecord onceBorrowRecord{record.name, record.size, record.borrowMemId,
+        OnceBorrowRecord onceBorrowRecord{record.name,
+                                          record.size,
+                                          record.borrowMemId,
                                           static_cast<uint16_t>(record.borrowRemoteNuma),
-                                          static_cast<uint16_t>(record.borrowLocalNuma), record.uid, record.username};
+                                          static_cast<uint16_t>(record.borrowLocalNuma),
+                                          record.uid,
+                                          record.username};
         if (borrowRecordGroupByNodeIdMap.find(key) != borrowRecordGroupByNodeIdMap.end()) {
             NodeBorrowRecord borrowRecord = borrowRecordGroupByNodeIdMap[key];
             borrowRecord.borrowMemSize += record.size;
@@ -343,7 +347,7 @@ void FaultNodeModule::MergeBorrowRecords(std::vector<BorrowRecord> borrowRecordL
     std::sort(nodeBorrowRecordList.begin(), nodeBorrowRecordList.end(),
               [](NodeBorrowRecord r1, NodeBorrowRecord r2) { return r1.borrowMemSize > r2.borrowMemSize; });
     // 每一个节点内部的借用记录
-    for (NodeBorrowRecord &record : nodeBorrowRecordList) {
+    for (NodeBorrowRecord& record : nodeBorrowRecordList) {
         // socket内也按照借用大小从大到小排序
         std::sort(record.onceBorrowRecordList.begin(), record.onceBorrowRecordList.end(),
                   [](OnceBorrowRecord l1, OnceBorrowRecord l2) { return l1.borrowSize > l2.borrowSize; });
@@ -351,9 +355,9 @@ void FaultNodeModule::MergeBorrowRecords(std::vector<BorrowRecord> borrowRecordL
 }
 
 bool FaultNodeModule::MayBorrowFromNuma(NodeBorrowRecord nodeBorrowRecord,
-                                        NodeMemoryInfoWithReservedMem &originNodeMemInfoItem,
+                                        NodeMemoryInfoWithReservedMem& originNodeMemInfoItem,
                                         NodeMemoryInfoWithReservedMem nodeMemInfoItem,
-                                        std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList)
+                                        std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList)
 {
     std::vector<BorrowExecuteParam> tmpList;
     std::map<uint16_t, uint64_t> sizeRecordMap;
@@ -394,8 +398,8 @@ bool FaultNodeModule::MayBorrowFromNuma(NodeBorrowRecord nodeBorrowRecord,
 }
 
 MpResult FaultNodeModule::NodeMayBorrowFromOtherNode(NodeBorrowRecord nodeBorrowRecord,
-                                                     std::vector<NodeMemoryInfoWithReservedMem> &ableNodeMemInfoList,
-                                                     std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList)
+                                                     std::vector<NodeMemoryInfoWithReservedMem>& ableNodeMemInfoList,
+                                                     std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList)
 {
     std::unordered_set<std::string> couldBorrowNodeSet;
     auto ret = MpParseGroupProviderConf::Instance().GetBorrowableList(nodeBorrowRecord.nodeId, couldBorrowNodeSet);
@@ -405,13 +409,13 @@ MpResult FaultNodeModule::NodeMayBorrowFromOtherNode(NodeBorrowRecord nodeBorrow
     }
     std::vector<std::string> antiNodeMemVec;
     AntiNode::Instance().Query(nodeBorrowRecord.nodeId, antiNodeMemVec);
-    for (const auto &node : antiNodeMemVec) {
+    for (const auto& node : antiNodeMemVec) {
         couldBorrowNodeSet.erase(node);
     }
     bool mustSamePlane = MpConfiguration::GetInstance().GetMustSamePlane();
     std::unordered_map<std::string, BorrowItem> borrowCacheAll;
     MemReturnManager::Instance().QueryAll(borrowCacheAll);
-    for (auto &kv : borrowCacheAll) {
+    for (auto& kv : borrowCacheAll) {
         if (kv.second.srcNid == nodeBorrowRecord.nodeId &&
             (!mustSamePlane ||
              MemManager::Instance().JudgeSampPlane(nodeBorrowRecord.nodeId, nodeBorrowRecord.borrowSocketId,
@@ -420,7 +424,7 @@ MpResult FaultNodeModule::NodeMayBorrowFromOtherNode(NodeBorrowRecord nodeBorrow
             couldBorrowNodeSet.erase(kv.second.dstNid);
         }
     }
-    for (NodeMemoryInfoWithReservedMem &nodeMemInfoItem : ableNodeMemInfoList) {
+    for (NodeMemoryInfoWithReservedMem& nodeMemInfoItem : ableNodeMemInfoList) {
         if (mustSamePlane &&
             !MemManager::Instance().JudgeSampPlane(nodeMemInfoItem.nodeId, nodeMemInfoItem.socketId,
                                                    nodeBorrowRecord.nodeId, nodeBorrowRecord.borrowSocketId)) {
@@ -446,8 +450,8 @@ MpResult FaultNodeModule::NodeMayBorrowFromOtherNode(NodeBorrowRecord nodeBorrow
 }
 
 MpResult FaultNodeModule::MayBorrowFromOtherNode(std::string curDealNodeId, std::vector<BorrowRecord> borrowRecords,
-                                                 std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList,
-                                                 std::vector<ForwardMemIdParam> &forwardMemIdParamList)
+                                                 std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList,
+                                                 std::vector<ForwardMemIdParam>& forwardMemIdParamList)
 {
     std::vector<std::string> borrowAbleNodeIdList;
     MpResult res = GetBorrowAbleNodeIdList(curDealNodeId, borrowAbleNodeIdList);
@@ -467,7 +471,7 @@ MpResult FaultNodeModule::MayBorrowFromOtherNode(std::string curDealNodeId, std:
         // 判断单个借入节点能否从所有可借用节点借用到足够的内存 可以借用到就直接更新可借用节点的可借用内存信息
         std::sort(
             ableNodeMemInfoList.begin(), ableNodeMemInfoList.end(),
-            [&nodeBorrowRecordItem](const NodeMemoryInfoWithReservedMem &l1, const NodeMemoryInfoWithReservedMem &l2) {
+            [&nodeBorrowRecordItem](const NodeMemoryInfoWithReservedMem& l1, const NodeMemoryInfoWithReservedMem& l2) {
                 bool l1enough = l1.canBorrowMem >= nodeBorrowRecordItem.borrowMemSize;
                 bool l2enough = l2.canBorrowMem >= nodeBorrowRecordItem.borrowMemSize;
                 if (l1enough != l2enough) {
@@ -483,10 +487,10 @@ MpResult FaultNodeModule::MayBorrowFromOtherNode(std::string curDealNodeId, std:
                 return l1.canBorrowMem > l2.canBorrowMem;
             });
 
-        for (auto &nodeMemInfo : ableNodeMemInfoList) {
+        for (auto& nodeMemInfo : ableNodeMemInfoList) {
             LOG_DEBUG << "NodeId = " << nodeMemInfo.nodeId << " , socketId = " << nodeMemInfo.socketId
                       << " , canBorrowMem = " << nodeMemInfo.canBorrowMem;
-            for (auto &numaInfo : nodeMemInfo.numaMemInfo) {
+            for (auto& numaInfo : nodeMemInfo.numaMemInfo) {
                 LOG_DEBUG << "numaInfo = " << numaInfo.ToString();
             }
         }
@@ -508,13 +512,13 @@ MpResult FaultNodeModule::MayBorrowFromOtherNode(std::string curDealNodeId, std:
     return MEM_POOLING_OK;
 }
 
-MpResult FaultNodeModule::FillBorrowExecuteParam(std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList)
+MpResult FaultNodeModule::FillBorrowExecuteParam(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList)
 {
     if (borrowExecuteParamCollectList.empty()) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] [FaultLentNode] Execute list empty.";
         return MEM_POOLING_OK;
     }
-    for (BorrowExecuteParam &param : borrowExecuteParamCollectList) {
+    for (BorrowExecuteParam& param : borrowExecuteParamCollectList) {
         uint16_t borrowSocketId;
         uint16_t lentSocketId;
         MpResult ret = MemManager::Instance().GetSocketId(param.borrowNodeId, param.borrowNumaId, borrowSocketId);
@@ -530,8 +534,8 @@ MpResult FaultNodeModule::FillBorrowExecuteParam(std::vector<BorrowExecuteParam>
     return MEM_POOLING_OK;
 }
 
-bool FaultNodeModule::DealBorrowResult(std::vector<BorrowExecuteParam> &borrowExecuteParamList,
-                                       std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
+bool FaultNodeModule::DealBorrowResult(std::vector<BorrowExecuteParam>& borrowExecuteParamList,
+                                       std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
                                        std::vector<MemBorrowExecuteResult> resultList)
 {
     for (size_t i = 0; i < borrowExecuteParamList.size(); i++) {
@@ -542,9 +546,9 @@ bool FaultNodeModule::DealBorrowResult(std::vector<BorrowExecuteParam> &borrowEx
     return true;
 }
 
-void FaultNodeModule::DoExecuteBorrow(std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
+void FaultNodeModule::DoExecuteBorrow(std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
                                       std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
-                                      std::vector<ForwardMemIdParam> &forwardMemIdParamList)
+                                      std::vector<ForwardMemIdParam>& forwardMemIdParamList)
 {
     std::vector<MemBorrowExecuteResult> resultList;
     for (BorrowExecuteParam borrowExecuteParam : nodeBorrowExecuteParam.second) {
@@ -580,9 +584,9 @@ void FaultNodeModule::DoExecuteBorrow(std::vector<BorrowExecuteParam> &successEx
     }
 }
 
-void FaultNodeModule::ExecuteBorrow(std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList,
-                                    std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
-                                    std::vector<ForwardMemIdParam> &forwardMemIdParamList)
+void FaultNodeModule::ExecuteBorrow(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList,
+                                    std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
+                                    std::vector<ForwardMemIdParam>& forwardMemIdParamList)
 {
     if (borrowExecuteParamCollectList.empty()) {
         return;
@@ -592,7 +596,7 @@ void FaultNodeModule::ExecuteBorrow(std::vector<BorrowExecuteParam> &borrowExecu
     for (BorrowExecuteParam param : borrowExecuteParamCollectList) {
         nodeBorrowExecuteParamMap[param.borrowNodeId].push_back(param);
     }
-    for (auto &nodeBorrowExecuteParam : nodeBorrowExecuteParamMap) {
+    for (auto& nodeBorrowExecuteParam : nodeBorrowExecuteParamMap) {
         DoExecuteBorrow(successExecuteParamCollectList, nodeBorrowExecuteParam, forwardMemIdParamList);
     }
 }
@@ -621,7 +625,7 @@ MpResult FaultNodeModule::DealRes(NumaReplaceReturnMsg msg)
     return failSet.empty() ? MEM_POOLING_OK : MEM_POOLING_ERROR;
 }
 
-MpResult FaultNodeModule::ExecuteNumaReplaceAndReturn(std::vector<BorrowExecuteParam> &borrowExecuteParamCollectList,
+MpResult FaultNodeModule::ExecuteNumaReplaceAndReturn(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList,
                                                       bool failFlag, bool forceDeleteMem)
 {
     if (borrowExecuteParamCollectList.empty()) {
@@ -724,8 +728,8 @@ MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bo
     return MEM_POOLING_ERROR;
 }
 
-void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg &rpcMsg, std::vector<pid_t> &destPidList,
-                                  uint64_t &hugePageMemSize)
+void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
+                                  uint64_t& hugePageMemSize)
 {
     if (!FaultNodeModule::Instance().QueryNumaAllPid(rpcMsg.destNid, destPidList)) {
         LOG_INFO << "[FaultManager] [FaultLentNode] DestPidList may empty.";
@@ -739,7 +743,7 @@ void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg &rpcMsg, std::vecto
               << "B, srcNid=" << rpcMsg.srcNid << ", destNid=" << rpcMsg.destNid << ".";
 }
 
-void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void NodeNumaReplaceReturnHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     NumaReplaceReturnMsg rpcMsg;
     RmrsInStream builder(req.data, req.len);
@@ -757,18 +761,18 @@ void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     // 远端numa迁远端numa 完成替换
     // 开启所有pid冷热流动
     if (((FaultNodeModule::Instance().QueryNumaAllPid(rpcMsg.srcNid, pidList) &&
-         FaultNodeModule::Instance().SwitchMigrateForNumaVm(pidList, 0) &&
-         (destPidList.empty() ? true : FaultNodeModule::Instance().SwitchMigrateForNumaVm(destPidList, 0)) &&
-         FaultNodeModule::Instance().GenerateMigrateNumaMsgList(rpcMsg, msgList) &&
-         FaultNodeModule::Instance().ExecMigrateRemoteNumaToNuma(rpcMsg, msgList) &&
-         FaultNodeModule::Instance().SwitchMigrateForNumaVm(pidList, 1)) &&
-         (destPidList.empty() ? true : FaultNodeModule::Instance().SwitchMigrateForNumaVm(destPidList, 1)) ||
+          FaultNodeModule::Instance().SwitchMigrateForNumaVm(pidList, 0) &&
+          (destPidList.empty() ? true : FaultNodeModule::Instance().SwitchMigrateForNumaVm(destPidList, 0)) &&
+          FaultNodeModule::Instance().GenerateMigrateNumaMsgList(rpcMsg, msgList) &&
+          FaultNodeModule::Instance().ExecMigrateRemoteNumaToNuma(rpcMsg, msgList) &&
+          FaultNodeModule::Instance().SwitchMigrateForNumaVm(pidList, 1)) &&
+             (destPidList.empty() ? true : FaultNodeModule::Instance().SwitchMigrateForNumaVm(destPidList, 1)) ||
          (pidList.empty() && FaultNodeModule::Instance().AllocateHugePage(rpcMsg.destNid, hugePageMemSize))) &&
         FaultNodeModule::Instance().DealRes(rpcMsg) == MEM_POOLING_OK) {
         resList.push_back(MEM_POOLING_OK);
         resp.len = resList.size();
         resp.data = new (std::nothrow) uint8_t[resp.len];
-        resp.freeFunc = [](uint8_t *data) {
+        resp.freeFunc = [](uint8_t* data) {
             delete[] data;
         };
         if (resp.data == nullptr) {
@@ -786,7 +790,7 @@ void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     resList.push_back(MEM_POOLING_ERROR);
     resp.len = resList.size();
     resp.data = new (std::nothrow) uint8_t[resp.len];
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (resp.data == nullptr) {
@@ -799,13 +803,13 @@ void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     }
 }
 
-void NodeNumaReplaceReturnResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void NodeNumaReplaceReturnResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][FaultLentNode] ResHandler ctx is null.";
         return;
     }
-    MpResult *res = static_cast<MpResult *>(ctx);
+    MpResult* res = static_cast<MpResult*>(ctx);
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultManager] [FaultLentNode] NodeNumaReplaceReturn res: " << respData.data[0] << ".";
     if (resCode != MEM_POOLING_OK || respData.data[0] != MEM_POOLING_OK) {

@@ -13,13 +13,13 @@
 #ifndef TEST_UBSE_COM_BASE_H
 #define TEST_UBSE_COM_BASE_H
 
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_com_base.h"
 #include "ubse_com_def.h"
-#include "ubse_error.h"
 #include "ubse_context.h"
+#include "ubse_error.h"
 #include "ubse_event_module.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
 
 using namespace ubse::com;
 
@@ -56,7 +56,7 @@ class TestUbseComBaseMessage : public UbseComBaseMessageHandler {
 public:
     explicit TestUbseComBaseMessage(uint32_t handRet) : handRet(handRet){};
 
-    UbseResult Handle(const UbseBaseMessage &req, const UbseBaseMessage &rsp);
+    UbseResult Handle(const UbseBaseMessage& req, const UbseBaseMessage& rsp);
 
     uint16_t GetOpCode();
 
@@ -68,7 +68,7 @@ private:
 
 class MockUbseComBase : public UbseComBase {
 public:
-    MockUbseComBase(const std::string &nodeId, const std::string &name) : UbseComBase(nodeId, name) {}
+    MockUbseComBase(const std::string& nodeId, const std::string& name) : UbseComBase(nodeId, name) {}
 
     UbseResult RegNewChannelCb(UbseComCallBackForHA func) override
     {

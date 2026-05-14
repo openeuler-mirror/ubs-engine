@@ -25,12 +25,12 @@ private:
     UbseCliCommandInfo UbseCliChangeCaCrl();
     UbseCliCommandInfo UbseCliCreateCert();
     UbseCliCommandInfo UbseCliRemoveCert();
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCertImportFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCaCrlImportFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCertDeleteFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCertImportFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCaCrlImportFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCertDeleteFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 };
 } // namespace ubse::cli::reg
 #endif

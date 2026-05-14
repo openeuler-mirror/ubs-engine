@@ -25,19 +25,19 @@
 #include <utility>
 #include <vector>
 
-#include "ubse_mem_constants.h"
-#include "ubse_mem_types.h"
-#include "ubse_node_controller.h"
-#include "ubse_logger.h"
-#include "ubse_mem_def.h"
-#include "ubse_mmi_interface.h"
 #include "ubse_error.h"
+#include "ubse_logger.h"
+#include "ubse_mem_constants.h"
+#include "ubse_mem_def.h"
+#include "ubse_mem_types.h"
+#include "ubse_mmi_interface.h"
+#include "ubse_node_controller.h"
 
 namespace std {
 #define MODULE_LOG_NAME "ubse_mem_strategy"
 template <>
 struct hash<ubse::adapter_plugins::mmi::UbseMemNumaLoc> {
-    std::size_t operator()(const ubse::adapter_plugins::mmi::UbseMemNumaLoc &key) const noexcept
+    std::size_t operator()(const ubse::adapter_plugins::mmi::UbseMemNumaLoc& key) const noexcept
     {
         static std::hash<int> intHash;
         static std::hash<int64_t> int64Hash;
@@ -95,15 +95,15 @@ public:
         return change;
     }
 
-    static MemWaterMarkHolder &GetInstance()
+    static MemWaterMarkHolder& GetInstance()
     {
         static MemWaterMarkHolder instance;
         return instance;
     }
-    MemWaterMarkHolder(const MemWaterMarkHolder &other) = delete;
-    MemWaterMarkHolder(MemWaterMarkHolder &&other) = delete;
-    MemWaterMarkHolder &operator=(const MemWaterMarkHolder &other) = delete;
-    MemWaterMarkHolder &operator=(MemWaterMarkHolder &&other) noexcept = delete;
+    MemWaterMarkHolder(const MemWaterMarkHolder& other) = delete;
+    MemWaterMarkHolder(MemWaterMarkHolder&& other) = delete;
+    MemWaterMarkHolder& operator=(const MemWaterMarkHolder& other) = delete;
+    MemWaterMarkHolder& operator=(MemWaterMarkHolder&& other) noexcept = delete;
 
 private:
     std::atomic_int16_t usedHigh_{0}; /* 标识使用量高 配置的百分比 单位%，numa配置按node一样 */
@@ -121,12 +121,12 @@ struct UbseMemNumaIndexLoc {
     NodeIndex nodeIndex{INVALID_META_ID};
     SocketIndex socketIndex{INVALID_META_ID}; /* Node内从0索引，非所有Socket的索引 */
     NumaIndex numaIndex{INVALID_META_ID};     /* Node内从0索引，非所有numa的索引 */
-    bool operator==(const UbseMemNumaIndexLoc &other) const
+    bool operator==(const UbseMemNumaIndexLoc& other) const
     {
         return nodeIndex == other.nodeIndex && socketIndex == other.socketIndex && numaIndex == other.numaIndex;
     }
     // 重载 < 运算符
-    bool operator<(const UbseMemNumaIndexLoc &other) const
+    bool operator<(const UbseMemNumaIndexLoc& other) const
     {
         if (nodeIndex != other.nodeIndex) {
             return nodeIndex < other.nodeIndex;
@@ -136,7 +136,7 @@ struct UbseMemNumaIndexLoc {
         }
         return numaIndex < other.numaIndex;
     }
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemNumaIndexLoc &obj)
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemNumaIndexLoc& obj)
     {
         return os << "nodeIndex=" << obj.nodeIndex << ", socketIndex=" << obj.socketIndex
                   << " numaIndex=" << obj.numaIndex;
@@ -145,7 +145,7 @@ struct UbseMemNumaIndexLoc {
 
 class MemNumaInfo {
 public:
-    MemNumaInfo(const UbseMemNumaLoc &ubseMemNumaLoc, const UbseMemNumaIndexLoc &ubseMemNumaIndexLoc,
+    MemNumaInfo(const UbseMemNumaLoc& ubseMemNumaLoc, const UbseMemNumaIndexLoc& ubseMemNumaIndexLoc,
                 const GlobalNumaIndex globalIndex)
         : mUbseMemNumaLoc{ubseMemNumaLoc},
           mUbseMemNumaIndexLoc{ubseMemNumaIndexLoc},
@@ -153,7 +153,7 @@ public:
     {
     }
     void Update(time_t timestamp, const uint64_t memTotal, const uint64_t memUsed, const uint64_t memFree,
-                const std::vector<unsigned short> &cpuList)
+                const std::vector<unsigned short>& cpuList)
     {
         this->mTimestamp = timestamp;
         this->mMemTotal = memTotal;
@@ -163,7 +163,7 @@ public:
         this->mPercent = percent;
         this->mCpuList = cpuList;
     }
-    void UpdateActualMemTotal(const uint64_t &memTotal)
+    void UpdateActualMemTotal(const uint64_t& memTotal)
     {
         this->mActualMemTotal = memTotal;
     }
@@ -189,7 +189,7 @@ public:
 // 哈希函数
 template <>
 struct std::hash<ubse::mem::strategy::UbseMemNumaIndexLoc> {
-    std::size_t operator()(const ubse::mem::strategy::UbseMemNumaIndexLoc &key) const noexcept
+    std::size_t operator()(const ubse::mem::strategy::UbseMemNumaIndexLoc& key) const noexcept
     {
         static std::hash<int> intHash;
         static std::hash<int64_t> int64Hash;
@@ -199,13 +199,13 @@ struct std::hash<ubse::mem::strategy::UbseMemNumaIndexLoc> {
 namespace ubse::mem::strategy {
 class MemNodeInfo {
 public:
-    MemNodeInfo(const NodeIndex nodeIndex, const NodeData &nodeData)
+    MemNodeInfo(const NodeIndex nodeIndex, const NodeData& nodeData)
         : mNodeId(nodeData.nodeId),
           mNodeIndex(nodeIndex),
           mNodeData{nodeData} {};
 
-    BResult Init(std::unordered_map<UbseMemNumaLoc, UbseMemNumaIndexLoc> &id2Index,
-                 std::unordered_map<UbseMemNumaIndexLoc, UbseMemNumaLoc> &index2Id, GlobalNumaIndex &beginGlobalIndex)
+    BResult Init(std::unordered_map<UbseMemNumaLoc, UbseMemNumaIndexLoc>& id2Index,
+                 std::unordered_map<UbseMemNumaIndexLoc, UbseMemNumaLoc>& index2Id, GlobalNumaIndex& beginGlobalIndex)
     {
         mCurSocketIndex = 0;
         mCurNumaIndex = 0;
@@ -232,9 +232,9 @@ public:
                 ubse::mem::strategy::UbseMemNumaLoc ubseMemNumaLoc = {curNuma.nodeId, curNuma.socketId, curNuma.numaId};
                 ubse::mem::strategy::UbseMemNumaIndexLoc ubseMemNumaIndexLoc = {mNodeIndex, mCurSocketIndex,
                                                                                 mCurNumaIndex};
-                UBSE_LOG_INFO << "Init node data, nodeId=" << curNuma.nodeId << ", socketId=" << curNuma.socketId <<
-                            ", numaId=" << curNuma.numaId << ", mNodeIndex=" << mNodeIndex << ", mCurSocketIndex=" <<
-                            mCurSocketIndex << ", mCurNumaIndex=" << mCurNumaIndex;
+                UBSE_LOG_INFO << "Init node data, nodeId=" << curNuma.nodeId << ", socketId=" << curNuma.socketId
+                              << ", numaId=" << curNuma.numaId << ", mNodeIndex=" << mNodeIndex
+                              << ", mCurSocketIndex=" << mCurSocketIndex << ", mCurNumaIndex=" << mCurNumaIndex;
                 std::shared_ptr<MemNumaInfo> numa;
                 try {
                     numa = std::make_shared<MemNumaInfo>(ubseMemNumaLoc, ubseMemNumaIndexLoc, beginGlobalIndex);
@@ -254,7 +254,7 @@ public:
         return 0;
     }
 
-    std::shared_ptr<MemNumaInfo> GetNumaInfoById(const UbseMemNumaLoc &id)
+    std::shared_ptr<MemNumaInfo> GetNumaInfoById(const UbseMemNumaLoc& id)
     {
         auto find = mNumaInfoIdMap.find(id);
         if (find == mNumaInfoIdMap.end()) {
@@ -266,7 +266,7 @@ public:
     std::vector<std::string> GetSocketList() const
     {
         std::vector<std::string> result;
-        for (const auto &[numaLoc, _] : mNumaInfoIdMap) {
+        for (const auto& [numaLoc, _] : mNumaInfoIdMap) {
             result.push_back(std::to_string(numaLoc.socketId));
         }
         return result;
@@ -275,13 +275,13 @@ public:
     std::vector<std::shared_ptr<MemNumaInfo>> GetAllNumaInfo()
     {
         std::vector<std::shared_ptr<MemNumaInfo>> result{};
-        for (const auto &pair : mNumaInfoIdMap) {
+        for (const auto& pair : mNumaInfoIdMap) {
             result.push_back(pair.second);
         }
         return result;
     }
 
-    std::shared_ptr<MemNumaInfo> GetNumaInfoByIndex(const UbseMemNumaIndexLoc &index)
+    std::shared_ptr<MemNumaInfo> GetNumaInfoByIndex(const UbseMemNumaIndexLoc& index)
     {
         auto find = mNumaInfoIndexMap.find(index);
         if (find == mNumaInfoIndexMap.end()) {
@@ -302,7 +302,7 @@ public:
 
     void ResetAccountInfo() noexcept
     {
-        for (auto &numa : mNumaInfoIdMap) {
+        for (auto& numa : mNumaInfoIdMap) {
             if (numa.second != nullptr) {
                 numa.second->mMemBorrowed = 0;
                 numa.second->mWaterBorrowCount = 0;
@@ -312,7 +312,7 @@ public:
         }
     }
 
-    BResult GetNodeLeftShareMemSize(int64_t &nodeLeftShareMem)
+    BResult GetNodeLeftShareMemSize(int64_t& nodeLeftShareMem)
     {
         return 0;
     }

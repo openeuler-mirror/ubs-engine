@@ -16,9 +16,9 @@
 
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
 #include "lcne/ubse_lcne_urma_eid.h"
 #include "src/framework/http/ubse_http_module.h"
-#include "adapter_plugins/mti/ubse_mti_def.h"
 namespace ubse::lcne {
 using namespace ubse::context;
 using namespace adapter_plugins::mti;
@@ -257,4 +257,4 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_ParseFailed)
     UbseResult ret = UbseLcneUrmaEid::GetInstance().GetUrmaEid(socketInfoMap);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
-}  // namespace ubse::lcne
+} // namespace ubse::lcne

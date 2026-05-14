@@ -22,7 +22,7 @@ using namespace ubse::log;
 
 BaseMessagePtr BaseMessage::gNullPtr(nullptr);
 
-VmResult BaseMessage::SetInputRawData(uint8_t *rawData, uint32_t size, bool copy)
+VmResult BaseMessage::SetInputRawData(uint8_t* rawData, uint32_t size, bool copy)
 {
     if (rawData == nullptr) {
         UBSE_LOG_ERROR << "set_input_raw_data input rawData is null.";

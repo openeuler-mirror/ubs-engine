@@ -19,10 +19,10 @@ namespace fs = std::filesystem;
 
 namespace ubse::ut::log {
 using namespace ubse::context;
-std::string FindFirstFileMatchingPattern(const std::string &pattern, const std::string prefix)
+std::string FindFirstFileMatchingPattern(const std::string& pattern, const std::string prefix)
 {
     std::regex regexPattern(pattern);
-    for (const auto &entry : fs::directory_iterator(prefix)) {
+    for (const auto& entry : fs::directory_iterator(prefix)) {
         if (entry.is_regular_file() && std::regex_match(entry.path().filename().string(), regexPattern)) {
             return entry.path().string();
         }
@@ -62,7 +62,7 @@ void TestUbseLoggerFileSink::TearDown()
     if (!fs::exists(currentPath + FILE_PATH)) {
         return;
     }
-    for (const auto &entry : fs::directory_iterator(currentPath + FILE_PATH)) {
+    for (const auto& entry : fs::directory_iterator(currentPath + FILE_PATH)) {
         if (!entry.is_regular_file()) {
             continue;
         }
@@ -239,7 +239,7 @@ TEST_F(TestUbseLoggerFileSink, NonPeerDirRollFileWithMaxCount)
                      .empty()); // 3号压缩文件应存在
     // 检查原始日志文件是否存在
     ASSERT_TRUE(!fs::exists(currentPath + FILE_PATH + "test_log.log"));
-    for (const auto &entry : std::filesystem::directory_iterator(currentPath + FILE_PATH)) {
+    for (const auto& entry : std::filesystem::directory_iterator(currentPath + FILE_PATH)) {
         if (!entry.is_regular_file()) {
             continue;
         }
@@ -273,9 +273,9 @@ TEST_F(TestUbseLoggerFileSink, FileIndexIncrement)
     // 设置ubseLoggerEntry4的行数为4
     UbseLoggerEntry ubseLoggerEntry4("test_log", UbseLogLevel::INFO, "Test.log", "TestFunction", 4);
     ASSERT_TRUE(sink.Initialize());
-    UbseLoggerEntry *entrys[] = {&ubseLoggerEntry1, &ubseLoggerEntry2, &ubseLoggerEntry3, &ubseLoggerEntry4};
+    UbseLoggerEntry* entrys[] = {&ubseLoggerEntry1, &ubseLoggerEntry2, &ubseLoggerEntry3, &ubseLoggerEntry4};
     // 将4条日志消息写入
-    for (const auto &entry : entrys) {
+    for (const auto& entry : entrys) {
         ASSERT_TRUE(sink.Write(*entry));
     }
     // 循环4次生成4个两位数字符串

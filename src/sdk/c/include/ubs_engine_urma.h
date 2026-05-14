@@ -52,7 +52,7 @@ typedef struct {
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-uint32_t ubs_urma_dev_get(ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt);
+uint32_t ubs_urma_dev_get(ubs_urma_dev_t** urma_devices, uint32_t* urma_cnt);
 
 /**
  * @brief 分配指定的urma设备
@@ -67,7 +67,7 @@ uint32_t ubs_urma_dev_get(ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt);
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
  */
-uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info);
+uint32_t ubs_urma_dev_alloc(const char* name, ubs_urma_dev_info_t* dev_info);
 
 /**
  * @brief 释放指定的urma设备
@@ -81,7 +81,7 @@ uint32_t ubs_urma_dev_alloc(const char *name, ubs_urma_dev_info_t *dev_info);
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  * UBS_ENGINE_ERR_NOT_EXIST: urma设备不存在
  */
-uint32_t ubs_urma_dev_free(const char *name);
+uint32_t ubs_urma_dev_free(const char* name);
 
 #ifdef __cplusplus
 }

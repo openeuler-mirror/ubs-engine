@@ -18,9 +18,9 @@
 #include <mockcpp/mockcpp.hpp>
 #include "ubse_ipc_common.h"
 #include "ubse_mem_account.h"
-#include "ubse_mem_buffer_convert.cpp"
 #include "ubse_mem_buffer_convert.h"
 #include "ubse_mem_controller_def.h"
+#include "ubse_mem_buffer_convert.cpp"
 
 namespace ubse::mem_controller::ut {
 using namespace api::server;
@@ -241,8 +241,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_shm";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -292,8 +292,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateReqUnpackFailed)
                     ubse::mem::controller::UBSE_MAX_USR_INFO_LEN * sizeof(uint8_t) + sizeof(uint64_t) +
                     sizeof(uint32_t) + UBS_MEM_MAX_SLOT_NUM * sizeof(uint32_t);
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_shm";
     uint32_t nameLen = MAX_MEM_RESOURCE_NAME_LENGTH + 1; // 超出最大长度
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -376,8 +376,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateWithAffinityReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_shm";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -430,8 +430,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateWithLenderReqUnpackSuccess)
                     sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_shm";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -493,11 +493,11 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateWithAffinityReqUnpackFailed)
                     ubse::mem::controller::UBSE_MAX_USR_INFO_LEN * sizeof(uint8_t) + sizeof(uint64_t) +
                     sizeof(uint32_t) + UBS_MEM_MAX_SLOT_NUM * sizeof(uint32_t) + sizeof(uint32_t);
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
-    uint8_t *ptr = buffer.buffer;
+    uint8_t* ptr = buffer.buffer;
     uint32_t nameLen = MAX_MEM_RESOURCE_NAME_LENGTH + 1; // 超出最大长度
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
-    const char *name = "test_shm";
+    const char* name = "test_shm";
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
 
     EXPECT_EQ(UbseMemShmCreateWithAffinityReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_DESERIALIZE_FAILED);
@@ -576,8 +576,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemCreateReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_mem";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_mem";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -624,8 +624,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemCreateWithLenderReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_mem";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_mem";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -736,8 +736,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemCreateWithCandidateReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_mem";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_mem";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -825,8 +825,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemFdPermissionReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_mem";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_mem";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -897,8 +897,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_numa";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_numa";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -976,8 +976,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateLenderReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_numa";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_numa";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1081,8 +1081,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateWithCandidateReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_numa";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_numa";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1169,8 +1169,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmAttachReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *name = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* name = "test_shm";
     uint32_t nameLen = strlen(name);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1240,8 +1240,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemNameUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *testName = "test_name";
+    uint8_t* ptr = buffer.buffer;
+    const char* testName = "test_name";
     uint32_t nameLen = strlen(testName);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1278,8 +1278,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmGetReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *testName = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* testName = "test_shm";
     uint32_t nameLen = strlen(testName);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1304,8 +1304,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmDetachReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *testName = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* testName = "test_shm";
     uint32_t nameLen = strlen(testName);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1330,8 +1330,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmDeleteReqUnpackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *testName = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* testName = "test_shm";
     uint32_t nameLen = strlen(testName);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1356,8 +1356,8 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmtatusGetReqUnPackSuccess)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
-    const char *testName = "test_shm";
+    uint8_t* ptr = buffer.buffer;
+    const char* testName = "test_shm";
     uint32_t nameLen = strlen(testName);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
@@ -1382,7 +1382,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmtatusGetReqUnPackFailure)
     buffer.buffer = new (std::nothrow) uint8_t[buffer.length];
 
     // 填充缓冲区数据
-    uint8_t *ptr = buffer.buffer;
+    uint8_t* ptr = buffer.buffer;
     uint32_t nameLen = UBS_MEM_MAX_NAME_LENGTH + 1; // 超出最大长度
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &nameLen, sizeof(uint32_t));
 

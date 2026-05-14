@@ -23,8 +23,8 @@
 namespace vm::overcommit {
 class VmMemAdapter {
 public:
-    static VmResult GetMemoryRemoteNumaIds(const std::unordered_set<std::string> &borrowIds,
-                                           std::unordered_map<std::string, uint16_t> &borrowIdMaps);
+    static VmResult GetMemoryRemoteNumaIds(const std::unordered_set<std::string>& borrowIds,
+                                           std::unordered_map<std::string, uint16_t>& borrowIdMaps);
 };
 } // namespace vm::overcommit
 #endif // VM_MEM_ADAPTER_H

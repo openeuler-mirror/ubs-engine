@@ -12,7 +12,7 @@
 
 #include "ubse_mmi_def.h"
 namespace ubse::adapter_plugins::mmi {
-bool UbseUdsInfo::CheckPermission(const UbseUdsInfo &other) const
+bool UbseUdsInfo::CheckPermission(const UbseUdsInfo& other) const
 {
     if (other.username == "ubse" || other.username == "root" || other.uid == 0) {
         return true;
@@ -25,215 +25,213 @@ bool UbseUdsInfo::CheckPermission(const UbseUdsInfo &other) const
     return uid == other.uid;
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseUdsInfo &obj)
+std::ostream& operator<<(std::ostream& os, const UbseUdsInfo& obj)
 {
     return os << "(uid: " << obj.uid << " gid: " << obj.gid << " pid: " << obj.pid << " username: " << obj.username
               << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const FdOwner &obj)
+std::ostream& operator<<(std::ostream& os, const FdOwner& obj)
 {
     return os << "(uid: " << obj.uid << " gid: " << obj.gid << " pid: " << obj.pid << " mode: " << obj.mode << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemAddrInfo &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemAddrInfo& obj)
 {
     return os << "(addr: " << obj.addr << " size: " << obj.size << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseNumaLocation &obj)
+std::ostream& operator<<(std::ostream& os, const UbseNumaLocation& obj)
 {
     return os << "(nodeId: " << obj.nodeId << " numaId: " << obj.numaId << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemBaseBorrowReq &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemBaseBorrowReq& obj)
 {
     return os << "(name: " << obj.name << " requestNodeId: " << obj.requestNodeId << " requestId: " << obj.requestId
               << " username: " << obj.udsInfo.username << " uid: " << obj.udsInfo.uid << ")";
 }
 
-std::ostream &operator << (std::ostream &os, const UbseTrustRingData &obj)
+std::ostream& operator<<(std::ostream& os, const UbseTrustRingData& obj)
 {
     os << "(trustRingId: " << obj.trustRingId;
     return os << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemFdBorrowReq &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemFdBorrowReq& obj)
 {
-    os << "(" << static_cast<const UbseMemBaseBorrowReq &>(obj) << " requestNodeId: " << obj.requestNodeId
+    os << "(" << static_cast<const UbseMemBaseBorrowReq&>(obj) << " requestNodeId: " << obj.requestNodeId
        << " importNodeId: " << obj.importNodeId << " size: " << obj.size << " distance: " << obj.distance
        << " lenderLocs: ";
-    for (const auto &loc : obj.lenderLocs) {
+    for (const auto& loc : obj.lenderLocs) {
         os << loc;
     }
     os << " owner: " << obj.owner;
     return os << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemFdPermissionReq &req)
+std::ostream& operator<<(std::ostream& os, const UbseMemFdPermissionReq& req)
 {
-    return os << "(: " << static_cast<const UbseMemBaseBorrowReq &>(req) << " fdOwner: " << req.fdOwner << ")";
+    return os << "(: " << static_cast<const UbseMemBaseBorrowReq&>(req) << " fdOwner: " << req.fdOwner << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemFdPermissionResp &resp)
+std::ostream& operator<<(std::ostream& os, const UbseMemFdPermissionResp& resp)
 {
     return os << "(result=" << resp.result << " request_id=" << resp.requestId << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemNumaBorrowReq &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowReq& obj)
 {
-    return os << "(" << static_cast<const UbseMemFdBorrowReq &>(obj) << " srcSocket: " << obj.srcSocket
+    return os << "(" << static_cast<const UbseMemFdBorrowReq&>(obj) << " srcSocket: " << obj.srcSocket
               << " srcNuma: " << obj.srcNuma << " highWatermark: " << obj.highWatermark
               << " lowWatermark: " << obj.lowWatermark << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemShareBorrowReq &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowReq& obj)
 {
     return os << "(name: " << obj.name << " requestNodeId: " << obj.requestNodeId << " baseNodeId: " << obj.baseNodeId
               << " size: " << obj.size << " distance: " << obj.distance << " udsInfo: " << obj.udsInfo << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemShareAttachReq &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemShareAttachReq& obj)
 {
     return os << "(name: " << obj.name << " requestNodeId: " << obj.requestNodeId
               << " importNodeId: " << obj.importNodeId << " size: " << obj.size << " udsInfo: " << obj.udsInfo << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemShareDetachReq &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemShareDetachReq& obj)
 {
     return os << "(name: " << obj.name << " requestNodeId: " << obj.requestNodeId
               << " unImportNodeId: " << obj.unImportNodeId << " udsInfo: " << obj.udsInfo << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowReq &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemAddrBorrowReq& obj)
 {
-    os << "(" << static_cast<const UbseMemBaseBorrowReq &>(obj) << " requestNodeId: " << obj.requestNodeId
+    os << "(" << static_cast<const UbseMemBaseBorrowReq&>(obj) << " requestNodeId: " << obj.requestNodeId
        << " importNodeId: " << obj.importNodeId << " srcSocket: " << obj.srcSocket << " srcNuma: " << obj.srcNuma
        << " dstSocket: " << obj.dstSocket << " dstNuma: " << obj.dstNuma << " importPid: " << obj.importPid
        << " exportNodeId: " << obj.exportNodeId << " exportPid: " << obj.exportPid << " exportAddrList: ";
-    for (const auto &addrList : obj.exportAddrList) {
+    for (const auto& addrList : obj.exportAddrList) {
         os << addrList << ",";
     }
     return os << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemImportResult &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemImportResult& obj)
 {
     return os << "(memId: " << obj.memId << " numaId: " << obj.numaId << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemImportStatus &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemImportStatus& obj)
 {
     os << "(errCode: " << obj.errCode << " scna: " << obj.scna << " importResults: ";
-    for (const auto &result : obj.importResults) {
+    for (const auto& result : obj.importResults) {
         os << result << ",";
     }
     return os << " expectState: " << obj.expectState << " state: " << obj.state << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemObmmInfo &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemObmmInfo& obj)
 {
     return os << "(memId: " << obj.memId << " desc: " << obj.desc.addr << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemExportStatus &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemExportStatus& obj)
 {
     os << "(errCode: " << obj.errCode << " exportObmmInfo: ";
-    for (const auto &obmmInfo : obj.exportObmmInfo) {
+    for (const auto& obmmInfo : obj.exportObmmInfo) {
         os << obmmInfo << ",";
     }
     return os << " expectState: " << obj.expectState << " state: " << obj.state << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemDebtNumaInfo &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemDebtNumaInfo& obj)
 {
     return os << "(nodeId: " << obj.nodeId << " socketId: " << obj.socketId << " numaId: " << obj.numaId
               << " size: " << obj.size << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemAlgoResult &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemAlgoResult& obj)
 {
     os << "(exportNumaInfos: ";
-    for (const auto &info : obj.exportNumaInfos) {
+    for (const auto& info : obj.exportNumaInfos) {
         os << info << ",";
     }
     os << " importNumaInfos: ";
-    for (const auto &info : obj.importNumaInfos) {
+    for (const auto& info : obj.importNumaInfos) {
         os << info << ",";
     }
     return os << " blockSize: " << obj.blockSize << " attachSocketId: " << obj.attachSocketId << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemBorrowExportBaseObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemBorrowExportBaseObj& obj)
 {
     return os << "(algoResult: " << obj.algoResult << " status: " << obj.status << " errorCode: " << obj.errorCode
               << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemBorrowImportBaseObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemBorrowImportBaseObj& obj)
 {
     os << "(algoResult: " << obj.algoResult << " exportObmmInfo: ";
-    for (const auto &obmmInfo : obj.exportObmmInfo) {
+    for (const auto& obmmInfo : obj.exportObmmInfo) {
         os << obmmInfo << ",";
     }
     return os << " status: " << obj.status << " errorCode: " << obj.errorCode << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemFdBorrowExportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemFdBorrowExportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj &>(obj) << " req: " << obj.req << ")";
+    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj&>(obj) << " req: " << obj.req << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemFdBorrowImportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemFdBorrowImportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj &>(obj) << " req: " << obj.req << ")";
+    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj&>(obj) << " req: " << obj.req << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemNumaBorrowExportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowExportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj &>(obj) << " req: " << obj.req << ")";
+    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj&>(obj) << " req: " << obj.req << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemNumaBorrowImportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowImportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj &>(obj) << " req: " << obj.req << ")";
+    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj&>(obj) << " req: " << obj.req << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowExportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemAddrBorrowExportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj &>(obj) << " req: " << obj.req << ")";
+    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj&>(obj) << " req: " << obj.req << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowImportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemAddrBorrowImportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj &>(obj) << " req: " << obj.req << ")";
+    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj&>(obj) << " req: " << obj.req << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemShareBorrowExportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowExportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj &>(obj) << " req: " << obj.req << ")";
+    return os << "(" << static_cast<const UbseMemBorrowExportBaseObj&>(obj) << " req: " << obj.req << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemAttachResourceShareAttr &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemAttachResourceShareAttr& obj)
 {
     return os << "("
-              << "uid: " << obj.uid << " gid: " << obj.gid << " size: " << obj.size << " owner: " << obj.owner
-              << ")";
+              << "uid: " << obj.uid << " gid: " << obj.gid << " size: " << obj.size << " owner: " << obj.owner << ")";
 }
 
-std::ostream &operator<<(std::ostream &os, const UbseMemShareBorrowImportObj &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowImportObj& obj)
 {
-    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj &>(obj) << " realExe: " << obj.realExe
-              << " importNodeId: " << obj.importNodeId << " shareAttr: " << obj.shareAttr << " req: " << obj.req
-              << ")";
+    return os << "(" << static_cast<const UbseMemBorrowImportBaseObj&>(obj) << " realExe: " << obj.realExe
+              << " importNodeId: " << obj.importNodeId << " shareAttr: " << obj.shareAttr << " req: " << obj.req << ")";
 }
 
-bool UbseMemNumaLoc::operator==(const UbseMemNumaLoc &other) const
+bool UbseMemNumaLoc::operator==(const UbseMemNumaLoc& other) const
 {
     return nodeId == other.nodeId && socketId == other.socketId && numaId == other.numaId;
 }
 // 重载 < 运算符
-bool UbseMemNumaLoc::operator<(const UbseMemNumaLoc &other) const
+bool UbseMemNumaLoc::operator<(const UbseMemNumaLoc& other) const
 {
     if (nodeId != other.nodeId) {
         return nodeId < other.nodeId;
@@ -243,12 +241,12 @@ bool UbseMemNumaLoc::operator<(const UbseMemNumaLoc &other) const
     }
     return numaId < other.numaId;
 }
-std::ostream &operator<<(std::ostream &os, const UbseMemNumaLoc &obj)
+std::ostream& operator<<(std::ostream& os, const UbseMemNumaLoc& obj)
 {
     return os << "nodeId=" << obj.nodeId << ", socketId=" << obj.socketId << ", numaId=" << obj.numaId;
 }
 
-std::ostream &operator<<(std::ostream &os, const SocketCnaInfo &obj)
+std::ostream& operator<<(std::ostream& os, const SocketCnaInfo& obj)
 {
     return os << "importNodeId=" << obj.importNodeId << ", importSocketId=" << obj.importSocketId
               << ", exportNodeId=" << obj.exportNodeId << ", exportSocketId=" << obj.exportSocketId

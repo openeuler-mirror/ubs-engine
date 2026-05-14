@@ -38,9 +38,9 @@ public:
         }
     }
 
-    VmResult SetInputRawData(uint8_t *rawData, uint32_t size, bool copy = false);
+    VmResult SetInputRawData(uint8_t* rawData, uint32_t size, bool copy = false);
 
-    inline uint8_t *SerializedData() const
+    inline uint8_t* SerializedData() const
     {
         return mOutputRawData;
     }
@@ -50,7 +50,7 @@ public:
         return mOutputRawDataSize;
     }
 
-    inline uint8_t *InputRawData() const
+    inline uint8_t* InputRawData() const
     {
         return mInputRawData;
     }
@@ -75,28 +75,28 @@ public:
     }
 
     template <class Child>
-    static Ref<BaseMessage> Convert(const Ref<Child> &child)
+    static Ref<BaseMessage> Convert(const Ref<Child>& child)
     {
         if (child.Get() != nullptr) {
-            return Ref<BaseMessage>(static_cast<BaseMessage *>(child.Get()));
+            return Ref<BaseMessage>(static_cast<BaseMessage*>(child.Get()));
         }
         return gNullPtr;
     }
 
     template <class Child>
-    static Ref<BaseMessage> Convert(const Child &child)
+    static Ref<BaseMessage> Convert(const Child& child)
     {
         if (child.Get() != nullptr) {
-            return Ref<BaseMessage>(static_cast<BaseMessage *>(child.Get()));
+            return Ref<BaseMessage>(static_cast<BaseMessage*>(child.Get()));
         }
         return gNullPtr;
     }
 
     template <class Parent>
-    static Ref<Parent> DeConvert(const Ref<BaseMessage> &child)
+    static Ref<Parent> DeConvert(const Ref<BaseMessage>& child)
     {
         if (child.Get() != nullptr) {
-            return Ref<Parent>(static_cast<Parent *>(child.Get()));
+            return Ref<Parent>(static_cast<Parent*>(child.Get()));
         }
         return Ref<Parent>(nullptr); // Return a Ref smart pointer to an object of type Parent.
     }
@@ -120,11 +120,11 @@ public:
     }
 
 protected:
-    uint8_t *mInputRawData = nullptr;
+    uint8_t* mInputRawData = nullptr;
     uint32_t mInputRawDataSize = 0;
     bool mInputRawDataOwned = false;
     bool mOutputRawDataOwned = false;
-    uint8_t *mOutputRawData = nullptr;
+    uint8_t* mOutputRawData = nullptr;
     uint32_t mOutputRawDataSize = 0;
     uint32_t mErrCode = 0;
 };

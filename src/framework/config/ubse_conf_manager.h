@@ -13,10 +13,10 @@
 #ifndef UBSE_CONFIG_MANAGER_H
 #define UBSE_CONFIG_MANAGER_H
 
+#include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <shared_mutex>
 
 #include "ubse_common_def.h"
 
@@ -25,11 +25,11 @@ using namespace ubse::common::def;
 class UbseConfModule;
 class Format {
 public:
-    const std::string charSectionStart_;  // 配置节首字符 [
-    const std::string charSectionEnd_;  // 配置节尾字符 [
-    const std::string charAssign_;  // 等号
-    const std::string charCommentSemicolon_;  // 参数注释（分号）
-    const std::string charCommentHash_;  // 参数注释（警号）
+    const std::string charSectionStart_;     // 配置节首字符 [
+    const std::string charSectionEnd_;       // 配置节尾字符 [
+    const std::string charAssign_;           // 等号
+    const std::string charCommentSemicolon_; // 参数注释（分号）
+    const std::string charCommentHash_;      // 参数注释（警号）
 
     explicit Format(std::string section_start = "[", std::string section_end = "]", std::string assign = "=",
                     std::string commentSemicolon = ";", std::string commentHash = "#")
@@ -120,7 +120,7 @@ public:
 private:
     UbseConfigManager();
 
-    UbseResult ParseFile(const std::string& filePath);  // 解析文件, 校验文件并读入内存
+    UbseResult ParseFile(const std::string& filePath); // 解析文件, 校验文件并读入内存
 
     void ParseLine(const std::string& filePath, std::string line, const size_t& lineCount, std::string& tempSection);
 
@@ -130,17 +130,17 @@ private:
     void ParseConf(const std::string& filePath, const std::string& line, const size_t& lineCount,
                    std::string& tempSection);
 
-    UbseResult ReadConfFile(const std::string& filePath);  // 读取文件到内存
+    UbseResult ReadConfFile(const std::string& filePath); // 读取文件到内存
 
-    void AddConfig(const std::string &section, const std::string &key, const std::string &value);
+    void AddConfig(const std::string& section, const std::string& key, const std::string& value);
 
     Format format_;
-    std::unordered_map<std::string, std::vector<std::string>> parseErrors_;  // 解析错误信息
+    std::unordered_map<std::string, std::vector<std::string>> parseErrors_; // 解析错误信息
     std::shared_mutex rwLock_;
-    ConfigMap configMap_;  // 全部配置
+    ConfigMap configMap_; // 全部配置
     std::unordered_set<std::string> fileSet_;
 };
 
-}  // namespace ubse::config
+} // namespace ubse::config
 
-#endif  // UBSE_CONFIG_MANAGER_H
+#endif // UBSE_CONFIG_MANAGER_H

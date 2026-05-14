@@ -12,8 +12,8 @@
 
 #include "mp_smap_controller.h"
 
-#include <iostream>
 #include <cstring>
+#include <iostream>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

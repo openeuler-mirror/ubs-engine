@@ -5,9 +5,6 @@
 #include <unistd.h>
 #include <cstdint>
 
-#include "api/ubse_mem_controller_api_common.h"
-#include "message/node_mem_debtInfo_query_req_simpo.h"
-#include "message/node_mem_debt_info_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -28,10 +25,10 @@
 #include "ubse_mem_def.h"
 #include "ubse_mem_prehandle_manager.h"
 #include "ubse_mem_scheduler.h"
+#include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_mmi_module.h"
-#include "ubse_mem_sign_verifier.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
@@ -41,6 +38,9 @@
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 #include "ubse_topo_util.h"
+#include "api/ubse_mem_controller_api_common.h"
+#include "message/node_mem_debtInfo_query_req_simpo.h"
+#include "message/node_mem_debt_info_simpo.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -134,61 +134,53 @@ void Stop()
     UbseTimerHandlerUnregister(UBSE_MEM_SHM_CLEAN_TIMER);
 }
 
-void LoadObjState(NodeMemDebtInfo &nodeMemDebtInfo)
+void LoadObjState(NodeMemDebtInfo& nodeMemDebtInfo)
 {
-    for (const auto &item : nodeMemDebtInfo.fdImportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.fdImportObjMap) {
         nodeMemDebtInfo.fdImportObjMap[item.first].status.state = UBSE_MEM_IMPORT_SUCCESS;
     }
-    for (const auto &item : nodeMemDebtInfo.fdExportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.fdExportObjMap) {
         nodeMemDebtInfo.fdExportObjMap[item.first].status.state = UBSE_MEM_EXPORT_SUCCESS;
     }
-    for (const auto &item : nodeMemDebtInfo.numaExportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.numaExportObjMap) {
         nodeMemDebtInfo.numaExportObjMap[item.first].status.state = UBSE_MEM_EXPORT_SUCCESS;
     }
-    for (const auto &item : nodeMemDebtInfo.numaImportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.numaImportObjMap) {
         nodeMemDebtInfo.numaImportObjMap[item.first].status.state = UBSE_MEM_IMPORT_SUCCESS;
     }
-    for (const auto &item : nodeMemDebtInfo.shareImportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.shareImportObjMap) {
         nodeMemDebtInfo.shareImportObjMap[item.first].status.state = UBSE_MEM_IMPORT_SUCCESS;
     }
-    for (const auto &item : nodeMemDebtInfo.shareExportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.shareExportObjMap) {
         nodeMemDebtInfo.shareExportObjMap[item.first].status.state = UBSE_MEM_EXPORT_SUCCESS;
     }
-    for (const auto &item : nodeMemDebtInfo.addrExportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.addrExportObjMap) {
         nodeMemDebtInfo.addrExportObjMap[item.first].status.state = UBSE_MEM_EXPORT_SUCCESS;
     }
-    for (const auto &item : nodeMemDebtInfo.addrImportObjMap) {
+    for (const auto& item : nodeMemDebtInfo.addrImportObjMap) {
         nodeMemDebtInfo.addrImportObjMap[item.first].status.state = UBSE_MEM_IMPORT_SUCCESS;
     }
 }
 
-bool SignShareExportForRecovery(UbseMemShareBorrowExportObj &exportObj)
+bool SignShareExportForRecovery(UbseMemShareBorrowExportObj& exportObj)
 {
     constexpr uint32_t maxRetries = 5;
     if (!IsHighSafety()) {
         return true;
     }
     for (uint32_t retry = 0; retry <= maxRetries; ++retry) {
-        if (const auto ret = UbseMemSignVerifier::Sign("share",
-            exportObj.req.trustRingData.reqSignedData,
-            exportObj.req.trustRingData.trustRingId);
+        if (const auto ret = UbseMemSignVerifier::Sign("share", exportObj.req.trustRingData.reqSignedData,
+                                                       exportObj.req.trustRingData.trustRingId);
             ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to sign request, " << FormatRetCode(ret)
-                           << ", name=" << exportObj.req.name;
+            UBSE_LOG_ERROR << "Failed to sign request, " << FormatRetCode(ret) << ", name=" << exportObj.req.name;
             continue;
         }
-        UbseExportSignReq trustReq{
-            exportObj.req.trustRingData.reqSignedData,
-            "share",
-            exportObj.status.exportObmmInfo,
-            exportObj.req.trustRingData.trustRingId
-        };
-        if (const auto ret = UbseMemSignVerifier::SignAndVerify(trustReq,
-            exportObj.req.trustRingData.lendSignedDatas);
+        UbseExportSignReq trustReq{exportObj.req.trustRingData.reqSignedData, "share", exportObj.status.exportObmmInfo,
+                                   exportObj.req.trustRingData.trustRingId};
+        if (const auto ret = UbseMemSignVerifier::SignAndVerify(trustReq, exportObj.req.trustRingData.lendSignedDatas);
             ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to sign lend information, " << FormatRetCode(ret)
-                           << ", name=" << exportObj.req.name
-                           << ", trustRingId=" << trustReq.trustRingId;
+                           << ", name=" << exportObj.req.name << ", trustRingId=" << trustReq.trustRingId;
             sleep(SEND_RETRY_DURATION);
             continue;
         }
@@ -197,7 +189,7 @@ bool SignShareExportForRecovery(UbseMemShareBorrowExportObj &exportObj)
     return false;
 }
 
-uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node)
+uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo& node)
 {
     UBSE_LOG_INFO << "local node state change, state=" << static_cast<uint32_t>(node.localState);
     if (node.localState == UbseNodeLocalState::UBSE_NODE_READY) {
@@ -210,16 +202,16 @@ uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node)
         UBSE_LOG_ERROR << "Failed to load all objs from obmm.";
         return ret;
     }
-    for (auto &exportObj : nodeMemDebtInfo.shareExportObjMap) {
-        for (auto &nodeInfo : exportObj.second.req.shmRegion.nodelist) {
+    for (auto& exportObj : nodeMemDebtInfo.shareExportObjMap) {
+        for (auto& nodeInfo : exportObj.second.req.shmRegion.nodelist) {
             nodeInfo.nodeId = std::to_string(nodeInfo.index + 1);
         }
         if (!SignShareExportForRecovery(exportObj.second)) {
             return UBSE_ERROR;
         }
     }
-    for (auto &importObj : nodeMemDebtInfo.shareImportObjMap) {
-        for (auto &nodeInfo : importObj.second.req.shmRegion.nodelist) {
+    for (auto& importObj : nodeMemDebtInfo.shareImportObjMap) {
+        for (auto& nodeInfo : importObj.second.req.shmRegion.nodelist) {
             nodeInfo.nodeId = std::to_string(nodeInfo.index + 1);
         }
     }
@@ -229,7 +221,7 @@ uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node)
     return UBSE_OK;
 }
 
-uint16_t GetMarId(const std::string &portGroupIdStr)
+uint16_t GetMarId(const std::string& portGroupIdStr)
 {
     if (portGroupIdStr.empty()) {
         UBSE_LOG_WARN << "The portGroupIdStr=" << portGroupIdStr;
@@ -253,22 +245,22 @@ uint16_t GetMarId(const std::string &portGroupIdStr)
 #endif
 }
 
-void FillAttachSocketId(UbseMemBorrowImportBaseObj &importObj, const bool isFdOrAddr,
-                        const UbseNodeMemCnaInfoOutput &cnaOutput)
+void FillAttachSocketId(UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr,
+                        const UbseNodeMemCnaInfoOutput& cnaOutput)
 {
     try {
         importObj.algoResult.attachSocketId = std::stol(cnaOutput.borrowSocketId);
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         importObj.algoResult.attachSocketId = 0;
         UBSE_LOG_ERROR << "Invalid argument: " << e.what();
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         importObj.algoResult.attachSocketId = 0;
         UBSE_LOG_ERROR << "Out of range: " << e.what();
     }
 }
 
-void GetDcnaWhenSpecifylink(const UbseNodeMemCnaInfoInput &cnaInput, const UbseNodeMemCnaInfoOutput &cnaOutput,
-                            uint32_t &dcna, const UbseMemNumaBorrowImportObj &importObj, std::string &borrowPortId)
+void GetDcnaWhenSpecifylink(const UbseNodeMemCnaInfoInput& cnaInput, const UbseNodeMemCnaInfoOutput& cnaOutput,
+                            uint32_t& dcna, const UbseMemNumaBorrowImportObj& importObj, std::string& borrowPortId)
 {
     if (importObj.req.linkInfo.lenderPort == -1) {
         return;
@@ -285,7 +277,7 @@ void GetDcnaWhenSpecifylink(const UbseNodeMemCnaInfoInput &cnaInput, const UbseN
     }
     UbseCpuLocation location{};
     std::string portCna{};
-    for (const auto &cpuInfo : nodeInfo.cpuInfos) {
+    for (const auto& cpuInfo : nodeInfo.cpuInfos) {
         if (cpuInfo.second.socketId == socketId) {
             location = cpuInfo.first;
             break;
@@ -297,7 +289,7 @@ void GetDcnaWhenSpecifylink(const UbseNodeMemCnaInfoInput &cnaInput, const UbseN
         UBSE_LOG_WARN << "location " << location.nodeId << " - " << location.chipId << " is not found in cpuInfo";
         return;
     }
-    for (const auto &portInfo : cpu->second.portInfos) {
+    for (const auto& portInfo : cpu->second.portInfos) {
         if (portInfo.second.portId == std::to_string(importObj.req.linkInfo.lenderPort)) {
             UBSE_LOG_INFO << "portCna is " << portInfo.second.portCna;
             dcna = portInfo.second.portCna;
@@ -309,8 +301,8 @@ void GetDcnaWhenSpecifylink(const UbseNodeMemCnaInfoInput &cnaInput, const UbseN
     }
 }
 
-uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::string &importNodeId,
-                                 UbseMemNumaBorrowImportObj &importObj)
+uint32_t GetCnaInfoForNumaBorrow(const std::string& exportNodeId, const std::string& importNodeId,
+                                 UbseMemNumaBorrowImportObj& importObj)
 {
     UBSE_LOG_INFO << "importObj.req.linkInfo.lenderPort=" << importObj.req.linkInfo.lenderPort;
     UbseNodeMemCnaInfoInput cnaInput;
@@ -333,7 +325,7 @@ uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::str
     uint32_t dcna = cnaOutput.exportNodeCna;
     std::string borrowPortId = cnaOutput.portGroupId;
     GetDcnaWhenSpecifylink(cnaInput, cnaOutput, dcna, importObj, borrowPortId);
-    for (auto &newObmmDesc : importObj.exportObmmInfo) {
+    for (auto& newObmmDesc : importObj.exportObmmInfo) {
         // mar_id为port_id除4。port 0-3对应mar_id 0，port 4-7对应mar_id 1, port 8对应mar_id 2
         newObmmDesc.desc.scna = cnaOutput.borrowNodeCna;
         newObmmDesc.desc.dcna = dcna;
@@ -353,8 +345,8 @@ uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::str
     return UBSE_OK;
 }
 
-uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string &importNodeId,
-                              UbseMemBorrowImportBaseObj &importObj, const bool isFdOrAddr)
+uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string& importNodeId,
+                              UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr)
 {
     UbseNodeMemCnaInfoInput cnaInput;
     cnaInput.exportNodeId = exportNodeId;
@@ -374,7 +366,7 @@ uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string
         return UBSE_ERROR;
     }
     FillAttachSocketId(importObj, isFdOrAddr, cnaOutput);
-    for (auto &newObmmDesc : importObj.exportObmmInfo) {
+    for (auto& newObmmDesc : importObj.exportObmmInfo) {
         // mar_id为port_id除4。port 0-3对应mar_id 0，port 4-7对应mar_id 1, port 8对应mar_id 2
         newObmmDesc.desc.scna = cnaOutput.borrowNodeCna;
         newObmmDesc.desc.dcna = cnaOutput.exportNodeCna;
@@ -396,22 +388,22 @@ uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string
 }
 
 template <typename T>
-void ProcessNodeMapWithHandler(UbseMemDebtLedger &ledger, const std::string &nodeId, std::function<void(T &)> handler)
+void ProcessNodeMapWithHandler(UbseMemDebtLedger& ledger, const std::string& nodeId, std::function<void(T&)> handler)
 {
     auto nodeMap = ledger.GetDebtMap<T>().FindNodeMap(nodeId);
     if (!nodeMap) {
         return;
     }
     auto allResources = nodeMap->GetAll();
-    for (const auto &[name, _] : allResources) {
+    for (const auto& [name, _] : allResources) {
         nodeMap->Modify(name, handler);
     }
 }
 
-void UpdateSchedulerCache(const std::string &nodeId)
+void UpdateSchedulerCache(const std::string& nodeId)
 {
     UbseMemNodeObjChangeHandler(nodeController::UbseNodeController::GetInstance().GetCurNode());
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
 
     ProcessNodeMapWithHandler<UbseMemFdBorrowExportObj>(ledger, nodeId, UbseMemFdExportObjStateChangeHandler);
     ProcessNodeMapWithHandler<UbseMemFdBorrowImportObj>(ledger, nodeId, UbseMemFdImportObjStateChangeHandler);

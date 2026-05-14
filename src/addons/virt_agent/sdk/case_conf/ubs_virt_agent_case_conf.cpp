@@ -19,7 +19,7 @@
 #include "ubs_virt_agent_case_conf_helper.h"
 #include "vm_sdk_def.h"
 static const int MAX_CASE_CONF_PARAM_LENGTH = 128;
-virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info)
+virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t* case_conf_info)
 {
     if (case_conf_info == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: node_list or node_cnt is nullptr.";
@@ -47,7 +47,7 @@ virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info)
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_case_conf_set(const char *param, case_conf_set_info_t *case_conf_set_info)
+virt_agent_ret_t ubs_virt_agent_case_conf_set(const char* param, case_conf_set_info_t* case_conf_set_info)
 {
     if (param == nullptr || case_conf_set_info == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: param or case_conf_set_info is nullptr.";

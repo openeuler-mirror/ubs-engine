@@ -18,8 +18,8 @@
 
 namespace ubse::mem::strategy {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
-void UbseMemAccountHelper::UpdateAlgoAccountState(const std::string &name, UbseMemState state,
-                                                  const UbseMemAlgoResult &algoResult, BorrowedType type)
+void UbseMemAccountHelper::UpdateAlgoAccountState(const std::string& name, UbseMemState state,
+                                                  const UbseMemAlgoResult& algoResult, BorrowedType type)
 {
     if (type != BorrowedType::SHM && algoResult.importNumaInfos.empty()) {
         UBSE_LOG_ERROR << "Import info is null, can't get import node id";

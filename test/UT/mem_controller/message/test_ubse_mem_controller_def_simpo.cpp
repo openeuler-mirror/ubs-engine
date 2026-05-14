@@ -12,8 +12,8 @@
 
 #include "test_ubse_mem_controller_def_simpo.h"
 
-#include <ubse_error.h>
 #include <arpa/inet.h>
+#include <ubse_error.h>
 
 #include "message/ubse_mem_controller_def_simpo.h"
 namespace ubse::mem::controller::message::ut {
@@ -57,12 +57,12 @@ def::UbseNode ConstructUbseNode()
 {
     def::UbseNode node;
     node.slotId = 1;
-    node.socketId[0] = 1;  // socketId是1
-    node.socketId[1] = 2;  // socketId是2
-    node.numaIds[0][0] = 1;  // numaId是1
-    node.numaIds[0][1] = 2;  // numaId是2
-    node.numaIds[1][0] = 3;  // numaId是3
-    node.numaIds[1][1] = 4;  // numaId是4
+    node.socketId[0] = 1;   // socketId是1
+    node.socketId[1] = 2;   // socketId是2
+    node.numaIds[0][0] = 1; // numaId是1
+    node.numaIds[0][1] = 2; // numaId是2
+    node.numaIds[1][0] = 3; // numaId是3
+    node.numaIds[1][1] = 4; // numaId是4
     // 初始化 IPv4 地址
     struct in_addr ipv4_addr {};
     if (inet_pton(AF_INET, "192.168.1.1", &ipv4_addr) == 1) {
@@ -259,4 +259,4 @@ TEST_F(TestUbseMemControllerDefSimpo, TestAddrDescSerAndDes)
     EXPECT_EQ(ptrDes->Deserialize(), UBSE_OK);
     EXPECT_EQ(ptrDes->GetUbseMemAddrDesc().name, desc.name);
 }
-}  // namespace ubse::mem::controller::message::ut
+} // namespace ubse::mem::controller::message::ut

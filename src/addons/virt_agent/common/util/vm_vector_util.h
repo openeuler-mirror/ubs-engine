@@ -22,7 +22,7 @@ namespace vm {
 class VectorUtil {
 public:
     template <typename T>
-    static std::string VectorToString(const std::vector<T> &vec, const std::string &delimiter = ", ")
+    static std::string VectorToString(const std::vector<T>& vec, const std::string& delimiter = ", ")
     {
         if (vec.empty()) {
             return "";
@@ -39,7 +39,7 @@ public:
         return oss.str();
     }
 
-    static void RemoveCommonElements(std::vector<uint16_t> &sourceVector, std::vector<uint16_t> &elementsToRemove);
+    static void RemoveCommonElements(std::vector<uint16_t>& sourceVector, std::vector<uint16_t>& elementsToRemove);
 };
 } // namespace vm
 #endif // VM_VECTOR_UTIL_H

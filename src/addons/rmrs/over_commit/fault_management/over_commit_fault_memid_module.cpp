@@ -45,7 +45,7 @@ const std::string SUB_MODULE_NAME = "[OverCommit][FaultManagement][MemIdFault] "
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << SUB_MODULE_NAME
 #define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << SUB_MODULE_NAME
 
-MpResult OverCommitFaultMemIdModule::GetOverCommitScene(const std::string &nodeId)
+MpResult OverCommitFaultMemIdModule::GetOverCommitScene(const std::string& nodeId)
 {
     // 容器还是虚机
     mSceneType = MpConfiguration::GetInstance().GetSceneType();
@@ -67,7 +67,7 @@ MpResult OverCommitFaultMemIdModule::GetOverCommitScene(const std::string &nodeI
 }
 
 MpResult GetContainerNumaInfoList(outinterface::SrcMemoryBorrowParam oParam,
-                                  std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList, uint16_t remoteNumaId,
+                                  std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList, uint16_t remoteNumaId,
                                   NumaBindType bindType)
 {
     std::unordered_map<std::uint16_t, std::vector<pid_t>> pidMap;
@@ -86,7 +86,7 @@ MpResult GetContainerNumaInfoList(outinterface::SrcMemoryBorrowParam oParam,
         return MEM_POOLING_ERROR;
     }
     VmNumaInfoWithSocket numaInfoWithSocket;
-    for (const auto &info : pidInfos) {
+    for (const auto& info : pidInfos) {
         if (bindType == NumaBindType::BIND_SINGLE) {
             if (info.localNumaIds.empty()) {
                 UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -97,7 +97,7 @@ MpResult GetContainerNumaInfoList(outinterface::SrcMemoryBorrowParam oParam,
             numaInfoWithSocket.localNumaId = info.localNumaIds[0];
             // 获取第一个numaId对应的socketId，若获取不到则为-1
             auto it = std::find_if(info.metaNumaInfos.begin(), info.metaNumaInfos.end(),
-                                   [&](const MetaNumaInfo &m) { return m.numaId == numaInfoWithSocket.localNumaId; });
+                                   [&](const MetaNumaInfo& m) { return m.numaId == numaInfoWithSocket.localNumaId; });
 
             numaInfoWithSocket.socketId = (it != info.metaNumaInfos.end()) ? it->socketId : -1;
         } else {
@@ -118,7 +118,7 @@ MpResult GetContainerNumaInfoList(outinterface::SrcMemoryBorrowParam oParam,
 }
 
 MpResult OverCommitFaultMemIdModule::GetPidNumaInfo(outinterface::SrcMemoryBorrowParam oParam,
-                                                    std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
+                                                    std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
                                                     uint16_t remoteNumaId)
 {
     MpResult ret = MEM_POOLING_ERROR;
@@ -149,7 +149,7 @@ MpResult OverCommitFaultMemIdModule::GetPidNumaInfo(outinterface::SrcMemoryBorro
 
     // 判断远端numa上是否有内存被使用,如果没有则将vmNumaInfoWithSocketList清空
     bool hasRemoteMem = std::any_of(vmNumaInfoWithSocketList.begin(), vmNumaInfoWithSocketList.end(),
-                                    [](const VmNumaInfoWithSocket &info) { return info.remoteUsedMem > 0; });
+                                    [](const VmNumaInfoWithSocket& info) { return info.remoteUsedMem > 0; });
     if (!hasRemoteMem) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << TAG << "No remote numa memory used, clear vmNumaInfoWithSocketList.";
@@ -160,7 +160,7 @@ MpResult OverCommitFaultMemIdModule::GetPidNumaInfo(outinterface::SrcMemoryBorro
     return MEM_POOLING_OK;
 }
 
-uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string &localNodeId, uint16_t localNumaId, uint16_t remoteNumaId,
+uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string& localNodeId, uint16_t localNumaId, uint16_t remoteNumaId,
                                             NumaBindType bindType)
 {
     // 3.1. 创建账本
@@ -173,7 +173,7 @@ uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string &localNodeId, uint
         return MEM_POOLING_ERROR;
     }
     uint64_t borrowSize{0};
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         if (bindType == NumaBindType::BIND_SINGLE) {
             if ((borrowLocalNuma == localNumaId) && (borrowRemoteNuma == remoteNumaId)) {
@@ -193,7 +193,7 @@ uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string &localNodeId, uint
     return borrowSize;
 }
 
-MpResult GetLocalBorrowNumaIdOfMemId(const std::string &localNodeId, int16_t &localNumaId, uint16_t memId)
+MpResult GetLocalBorrowNumaIdOfMemId(const std::string& localNodeId, int16_t& localNumaId, uint16_t memId)
 {
     std::vector<BorrowRecord> borrowRecords;
     auto ret = BorrowRecordHelper::Instance().CollectBorrowRecordsWithFault(localNodeId, borrowRecords);
@@ -202,7 +202,7 @@ MpResult GetLocalBorrowNumaIdOfMemId(const std::string &localNodeId, int16_t &lo
             << TAG << "Query borrow record failed. localNodeId=" << localNodeId << ", memId=" << memId << ".";
         return MEM_POOLING_ERROR;
     }
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
         auto it = std::find(borrowMemId.begin(), borrowMemId.end(), memId);
         if (it != borrowMemId.end()) {
@@ -213,7 +213,7 @@ MpResult GetLocalBorrowNumaIdOfMemId(const std::string &localNodeId, int16_t &lo
 }
 
 MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, WaterMark water,
-                          MemBorrowExecuteResult &borrowExecuteResult)
+                          MemBorrowExecuteResult& borrowExecuteResult)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Start borrow mem.";
     NumaBindType bindType;
@@ -253,7 +253,7 @@ MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, Wa
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitFaultMemIdModule::GetWaterMark(struct WaterMark &waterMark)
+MpResult OverCommitFaultMemIdModule::GetWaterMark(struct WaterMark& waterMark)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Start to get GetWaterMarkFromK8s ";
     auto ret = OverCommitStorage::Instance().GetWaterMark(waterMark.highWaterMark, waterMark.lowWaterMark);
@@ -266,10 +266,10 @@ MpResult OverCommitFaultMemIdModule::GetWaterMark(struct WaterMark &waterMark)
     return MEM_POOLING_OK;
 }
 
-void GetBothVmNumaInfoMultiScene(std::vector<VmNumaInfoWithSocket> &allVmNumaInfoOnRemoteNuma,
-                                 std::vector<VmNumaInfo> &numaInfoOnBoth)
+void GetBothVmNumaInfoMultiScene(std::vector<VmNumaInfoWithSocket>& allVmNumaInfoOnRemoteNuma,
+                                 std::vector<VmNumaInfo>& numaInfoOnBoth)
 {
-    for (const VmNumaInfoWithSocket &vmNumaInfo : allVmNumaInfoOnRemoteNuma) {
+    for (const VmNumaInfoWithSocket& vmNumaInfo : allVmNumaInfoOnRemoteNuma) {
         VmNumaInfo info;
         info.pid = vmNumaInfo.pid;
         info.localNumaId = vmNumaInfo.localNumaId;
@@ -287,10 +287,10 @@ void GetBothVmNumaInfoMultiScene(std::vector<VmNumaInfoWithSocket> &allVmNumaInf
         << TAG << "GetBothVmNumaInfoMultiScene size=" << numaInfoOnBoth.size() << ".";
 }
 
-MpResult OverCommitFaultMemIdModule::PrepareParamForBorrowMem(outinterface::SrcMemoryBorrowParam &param, uint16_t memId,
+MpResult OverCommitFaultMemIdModule::PrepareParamForBorrowMem(outinterface::SrcMemoryBorrowParam& param, uint16_t memId,
                                                               uint16_t preRemoteNumaId,
-                                                              std::vector<VmNumaInfo> &allVmNumaInfoOnBoth,
-                                                              mempooling::WaterMark &waterMark)
+                                                              std::vector<VmNumaInfo>& allVmNumaInfoOnBoth,
+                                                              mempooling::WaterMark& waterMark)
 {
     // 获取场景类型
     if (GetOverCommitScene(param.srcNid) != MEM_POOLING_OK) {
@@ -336,7 +336,7 @@ MpResult OverCommitFaultMemIdModule::PrepareParamForBorrowMem(outinterface::SrcM
 
     return MEM_POOLING_OK;
 }
-void ShowPids(const FMVmInfoResult &fMVmInfoResult, const uint64_t faultMemSize)
+void ShowPids(const FMVmInfoResult& fMVmInfoResult, const uint64_t faultMemSize)
 {
     std::string pidsStr{};
     for (auto pid : fMVmInfoResult.pids) {
@@ -347,7 +347,7 @@ void ShowPids(const FMVmInfoResult &fMVmInfoResult, const uint64_t faultMemSize)
         << "KB, fMVmInfoResult.totalNeedBorrowMem=" << fMVmInfoResult.totalNeedBorrowMem << "KB.";
 }
 
-MpResult GetRemoteNumaSize(uint64_t &remoteNumaTotalSize, GetNumaSizePara param, NumaBindType bindType)
+MpResult GetRemoteNumaSize(uint64_t& remoteNumaTotalSize, GetNumaSizePara param, NumaBindType bindType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << TAG << "Get remoteTotalSize remoteNumaId=" << param.remoteNumaId << ".";
@@ -361,7 +361,7 @@ MpResult GetRemoteNumaSize(uint64_t &remoteNumaTotalSize, GetNumaSizePara param,
     return MEM_POOLING_OK;
 }
 
-MpResult GetPreRemoteNumaSize(uint64_t &preRemoteTotalSize, GetNumaSizePara param, NumaBindType bindType)
+MpResult GetPreRemoteNumaSize(uint64_t& preRemoteTotalSize, GetNumaSizePara param, NumaBindType bindType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << TAG << "Get preRemoteTotalSize preRemoteNumaId=" << param.preRemoteNumaId << ".";
@@ -375,8 +375,8 @@ MpResult GetPreRemoteNumaSize(uint64_t &preRemoteTotalSize, GetNumaSizePara para
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitFaultMemIdModule::GetSelectPids(FMVmInfoResult &fMVmInfoResult, uint64_t faultMemSize,
-                                                   std::vector<VmNumaInfo> &allVmNumaInfoOnBoth)
+MpResult OverCommitFaultMemIdModule::GetSelectPids(FMVmInfoResult& fMVmInfoResult, uint64_t faultMemSize,
+                                                   std::vector<VmNumaInfo>& allVmNumaInfoOnBoth)
 {
     auto ret = baseInstance.FindClosestVmForMemAlloc(allVmNumaInfoOnBoth, faultMemSize, fMVmInfoResult.pids,
                                                      fMVmInfoResult.totalNeedBorrowMem);
@@ -411,9 +411,9 @@ MpResult OverCommitFaultMemIdModule::ExecEmpty(outinterface::SrcMemoryBorrowPara
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit(BorrowInNodeData &borrowInNodeData,
-                                                                  uint64_t &faultMemSize, uint16_t &preRemoteNumaId,
-                                                                  uid_t &uid, std::string &username)
+MpResult OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit(BorrowInNodeData& borrowInNodeData,
+                                                                  uint64_t& faultMemSize, uint16_t& preRemoteNumaId,
+                                                                  uid_t& uid, std::string& username)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "IsBorrowIdOfCurNidOverCommit start.";
     // 查询账本信息
@@ -431,7 +431,7 @@ MpResult OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit(BorrowInNodeDa
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "BorrowRecords is empty.";
         return MEM_POOLING_ERROR;
     }
-    for (const auto &record : borrowRecords) {
+    for (const auto& record : borrowRecords) {
         auto itr = std::find(record.borrowMemId.begin(), record.borrowMemId.end(), memId);
         if (itr != record.borrowMemId.end()) {
             borrowInNodeData.borrowId = record.name;
@@ -600,7 +600,7 @@ MpResult OverCommitFaultMemIdModule::ReturnFaultMem(outinterface::SrcMemoryBorro
 
 // rpc消息向agent获取node本地的虚拟机信息
 MpResult OverCommitFaultMemIdModule::GetVmNumaInfoMapRpc(std::string importNodeId,
-                                                         std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
+                                                         std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
                                                          uint16_t remoteNumaId)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -613,7 +613,7 @@ MpResult OverCommitFaultMemIdModule::GetVmNumaInfoMapRpc(std::string importNodeI
     RmrsOutStream builder;
     builder << vmNumaInfoParam;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) {
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
             delete[] data;
         }};
     uint32_t ret = UbseRpcSend(endpoint_get_vm_info, reqData, &vmNumaInfoWithSocketList,
@@ -640,7 +640,7 @@ MpResult OverCommitFaultMemIdModule::MemFreeExecuteRpc(std::string borrowId, std
     RmrsOutStream builder;
     builder << borrowId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) {
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
             delete[] data;
         }};
     uint32_t ret = 0;
@@ -662,7 +662,9 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
     RmrsOutStream builder;
     builder << pids;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     uint32_t ret = 0;
     UbseRpcSend(endpoint_fm_disable_pid, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler);
@@ -684,7 +686,9 @@ MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(std::string borro
     RmrsOutStream builder;
     builder << borrowId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     uint32_t ret = 0;
     UbseRpcSend(endpoint_fm_memfree_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler);
@@ -709,7 +713,7 @@ MpResult OverCommitFaultMemIdModule::MemIdExecuteRpc(OverCommitFaultMemIdExecute
     RmrsOutStream builder;
     builder << param;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) {
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
             delete[] data;
         }};
     uint32_t ret;
@@ -786,7 +790,7 @@ MpResult OverCommitFaultMemIdModule::MemIdExecute(OverCommitFaultMemIdExecutePar
 }
 
 // pid级别迁移到其他远端numa
-MpResult OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma(std::vector<pid_t> &pids, uint16_t preRemoteNumaId,
+MpResult OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, uint16_t preRemoteNumaId,
                                                                uint16_t remoteNumaId, int16_t localNumaId,
                                                                uint64_t remoteNumaTotalSize)
 {
@@ -846,7 +850,7 @@ MpResult OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma(std::vector<pid_t
 }
 
 MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
-                                                      std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList)
+                                                      std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList)
 {
     std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
     MpResult ret = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
@@ -869,11 +873,11 @@ MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
         return MEM_POOLING_OK;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Enter allVmNumaInfoInfoList.";
-    for (const mempooling::exportV2::VmDomainInfo &vmDomainInfo : vmDomainInfos) {
+    for (const mempooling::exportV2::VmDomainInfo& vmDomainInfo : vmDomainInfos) {
         VmNumaInfoWithSocket info{};
         info.pid = vmDomainInfo.metaData.pid;
 
-        for (const auto &[_, numaInfo] : vmDomainInfo.numaInfo) {
+        for (const auto& [_, numaInfo] : vmDomainInfo.numaInfo) {
             if (numaInfo.isLocal) {
                 // 本地 NUMA
                 info.localNumaId = numaInfo.numaId;
@@ -887,7 +891,7 @@ MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
         }
         auto vmLocalNumaInfo = std::find_if(
             numaInfos.begin(), numaInfos.end(),
-            [info](mempooling::exportV2::NumaInfo &numaInfo) { return info.localNumaId == numaInfo.metaData.numaId; });
+            [info](mempooling::exportV2::NumaInfo& numaInfo) { return info.localNumaId == numaInfo.metaData.numaId; });
         if (vmLocalNumaInfo == numaInfos.end()) {
             return MEM_POOLING_ERROR;
         }
@@ -905,11 +909,11 @@ MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
     return MEM_POOLING_OK;
 }
 
-void OverCommitFaultMemIdModule::GetBothVmNumaInfo(std::vector<VmNumaInfoWithSocket> &allVmNumaInfoOnRemoteNuma,
-                                                   uint16_t localNumaId, std::vector<VmNumaInfo> &numaInfoOnBoth,
-                                                   int16_t &srcSocketId)
+void OverCommitFaultMemIdModule::GetBothVmNumaInfo(std::vector<VmNumaInfoWithSocket>& allVmNumaInfoOnRemoteNuma,
+                                                   uint16_t localNumaId, std::vector<VmNumaInfo>& numaInfoOnBoth,
+                                                   int16_t& srcSocketId)
 {
-    for (const VmNumaInfoWithSocket &vmNumaInfo : allVmNumaInfoOnRemoteNuma) {
+    for (const VmNumaInfoWithSocket& vmNumaInfo : allVmNumaInfoOnRemoteNuma) {
         if (vmNumaInfo.localNumaId == localNumaId) {
             VmNumaInfo info;
             info.pid = vmNumaInfo.pid;

@@ -9,19 +9,18 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
- 
+
 #ifndef MP_SMAP_CONTROLLER_H
 #define MP_SMAP_CONTROLLER_H
- 
- 
+
+#include <sys/types.h>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <sys/types.h>
 #include "ubse_com.h"
 #include "ubse_logger.h"
-#include "mp_smap_helper.h"
 #include "mempooling_message.h"
+#include "mp_smap_helper.h"
 
 namespace mempooling::smap {
 using namespace ubse::com;
@@ -104,5 +103,5 @@ public:
 };
 
 } // namespace mempooling::smap
- 
+
 #endif // MP_SMAP_CONTROLLER_H

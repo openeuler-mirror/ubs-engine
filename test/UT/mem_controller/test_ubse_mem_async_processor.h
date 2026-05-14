@@ -13,9 +13,9 @@
 #ifndef UBS_ENGINE_TEST_UBSE_MEM_ASYNC_PROCESSOR_H
 #define UBS_ENGINE_TEST_UBSE_MEM_ASYNC_PROCESSOR_H
 
+#include "ubse_mem_async_processor.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_mem_async_processor.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem_controller;
@@ -27,5 +27,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::mem_controller::ut
 #endif // UBS_ENGINE_TEST_UBSE_MEM_ASYNC_PROCESSOR_H

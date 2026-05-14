@@ -13,15 +13,15 @@
 #ifndef UBSE_MANAGER_UBSE_ELECTION_DEF_H
 #define UBSE_MANAGER_UBSE_ELECTION_DEF_H
 
+#include <atomic>
 #include <cstdint>
-#include <string>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <atomic>
+#include <string>
+#include <vector>
 
 namespace ubse::election {
-constexpr const char *INVALID_NODE_ID = "";
+constexpr const char* INVALID_NODE_ID = "";
 constexpr const uint32_t DEFAULT_HEART_BEAT_TIME = 2000;
 constexpr const uint32_t DEFAULT_HEART_BEAT_LOST = 3;
 const uint32_t MAX_HEART_BEAT_LOST = 20;
@@ -55,17 +55,17 @@ struct Node {
     uint16_t port;
     UbseNodeChangeState state = UbseNodeChangeState::UNCHANGED; // 节点变化Add, Delete, UnChanged
 
-    bool operator < (const Node &other) const
+    bool operator<(const Node& other) const
     {
         return id < other.id;
     }
 
-    bool operator > (const Node &other) const
+    bool operator>(const Node& other) const
     {
         return id > other.id;
     }
 
-    bool operator == (const Node &other) const
+    bool operator==(const Node& other) const
     {
         return id == other.id;
     }
@@ -149,12 +149,12 @@ struct ElectionReplyPkt {
 };
 
 struct CallbackCtx {
-    std::map<UBSE_ID_TYPE, BroadcastStatus> *broadcast;
+    std::map<UBSE_ID_TYPE, BroadcastStatus>* broadcast;
     std::string destId{};
-    uint8_t *standbyStatus;
-    std::mutex *mtx = nullptr;
-    std::atomic<bool> *stopping;
-    std::atomic<int> *activeCount;
+    uint8_t* standbyStatus;
+    std::mutex* mtx = nullptr;
+    std::atomic<bool>* stopping;
+    std::atomic<int>* activeCount;
 };
 } // namespace ubse::election
 #endif // UBSE_MANAGER_UBSE_ELECTION_DEF_H

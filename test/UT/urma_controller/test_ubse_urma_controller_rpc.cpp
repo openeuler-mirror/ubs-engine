@@ -12,12 +12,12 @@
 
 #include "test_ubse_urma_controller_rpc.h"
 #include <map>
-#include "test_ubse_urma_controller_def.h"
 #include "ubse_com_module.h"
 #include "ubse_com_op_code.h"
 #include "ubse_context.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_rpc.h"
+#include "test_ubse_urma_controller_def.h"
 
 namespace ubse::urmaControllerRpc::ut {
 using namespace ubse::com;

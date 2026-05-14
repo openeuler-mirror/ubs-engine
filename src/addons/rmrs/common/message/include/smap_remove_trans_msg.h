@@ -13,9 +13,9 @@
 #ifndef SMAP_REMOVE_SIMPO_H
 #define SMAP_REMOVE_SIMPO_H
 
-#include "over_commit_def.h"
-#include "mempooling_interface.h"
 #include "common_delete_func.h"
+#include "mempooling_interface.h"
+#include "over_commit_def.h"
 namespace mempooling {
 using namespace mempooling::over_commit;
 using namespace mempooling::outinterface;
@@ -30,10 +30,7 @@ class SmapRemoveTransMsg {
 public:
     SmapRemoveTransMsg() = default;
 
-    explicit SmapRemoveTransMsg(SmapRemoveTrans smapRemoveTrans)
-        : _smapRemoveTrans(std::move(smapRemoveTrans))
-    {
-    }
+    explicit SmapRemoveTransMsg(SmapRemoveTrans smapRemoveTrans) : _smapRemoveTrans(std::move(smapRemoveTrans)) {}
 
     inline SmapRemoveTrans GetSmapRemoveTrans() const
     {
@@ -41,5 +38,5 @@ public:
     }
     SmapRemoveTrans _smapRemoveTrans{};
 };
-}
+} // namespace mempooling
 #endif // SMAP_REMOVE_SIMPO_H

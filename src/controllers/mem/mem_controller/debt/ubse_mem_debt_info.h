@@ -12,8 +12,8 @@
 
 #ifndef UBSE_MEM_DEBT_INFO_H
 #define UBSE_MEM_DEBT_INFO_H
-#include "lock/ubse_lock.h"
 #include "ubse_mmi_interface.h"
+#include "lock/ubse_lock.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::utils;
@@ -39,5 +39,5 @@ NodeMemDebtInfo GetNodeMemDebtInfoById(const std::string& nodeId);
 * @return 账本
 */
 NodeMemDebtInfo GetNoDeletedNodeMemDebtInfoById(const std::string& nodeId);
-}  // namespace ubse::mem::controller
-#endif  // UBSE_MEM_DEBT_INFO_H
+} // namespace ubse::mem::controller
+#endif // UBSE_MEM_DEBT_INFO_H

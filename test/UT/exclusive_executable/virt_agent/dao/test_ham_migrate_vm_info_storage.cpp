@@ -31,10 +31,10 @@ void TestHamMigrateVmInfoStorage::TearDown()
     GlobalMockObject::verify();
 }
 
-uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t UbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
                               UbseStorageDealDataFunc func)
 {
-    auto *hamMigrateVmInfos = static_cast<std::vector<HamMigrateVmInfo> *>(ctx);
+    auto* hamMigrateVmInfos = static_cast<std::vector<HamMigrateVmInfo>*>(ctx);
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfos->emplace_back(hamMigrateVmInfo);
     return VM_OK;

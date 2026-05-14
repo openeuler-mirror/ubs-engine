@@ -29,7 +29,8 @@ using namespace ubse::context;
 using namespace ubse::nodeController;
 
 // mock UbseGetDirConnectInfo函数 - 正常情况
-std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectInfo() {
+std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectInfo()
+{
     return {
         {"link0", {1, 1, 1, "interface0", 2, 1, 1, "interface2", LinkStatus::available}},
         {"link1", {0, 1, 0, "interface1", 2, 1, 0, "interface2", LinkStatus::available}},
@@ -50,7 +51,7 @@ void TestUbseNodeApi::TearDown()
 
 TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenNodePackFail)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -61,7 +62,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenNodePackFail)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenApiServerModuleIsNull)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -75,7 +76,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenApiServerModuleIsNull)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenSendResponseFail)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -91,7 +92,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenSendResponseFail)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeListWhenNodeListPackFail)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -102,7 +103,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeListWhenNodeListPackFail)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeListWhenApiServerModuleIsNull)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -116,7 +117,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeListWhenApiServerModuleIsNull)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeListWhenSendResponseFail)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -132,7 +133,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeListWhenSendResponseFail)
 
 TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenCpuLinkListPack)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -143,7 +144,7 @@ TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenCpuLinkListPack)
 
 TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenApiServerModuleIsNull)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -157,7 +158,7 @@ TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenApiServerModuleIsNull)
 
 TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenSendResponseFail)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -173,7 +174,7 @@ TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenSendResponseFail)
 
 TEST_F(TestUbseNodeApi, UbseClusterListWhenNodeInfoIsEmpty)
 {
-    auto &ubseCtx = UbseContext::GetInstance();
+    auto& ubseCtx = UbseContext::GetInstance();
     std::vector<UbseNodeInfo> nodeList;
     auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<UbseModule> nullModule = nullptr;
@@ -337,9 +338,9 @@ TEST_F(TestUbseNodeApi, RegisterWhenSuccess)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenListPackFail)
 {
-    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t)UBSE_OK));
     MOCKER_CPP(UbseNodeNumaMemGet).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t) UBSE_ERROR_INVAL));
+    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t)UBSE_ERROR_INVAL));
     uint8_t dummyVal = 0;
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
@@ -349,9 +350,9 @@ TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenListPackFail)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenServerModuleIsNull)
 {
-    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t)UBSE_OK));
     MOCKER_CPP(UbseNodeNumaMemGet).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t)UBSE_OK));
     std::shared_ptr<UbseApiServerModule> nullModule = nullptr;
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullModule));
     uint8_t dummyVal = 0;
@@ -363,9 +364,9 @@ TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenServerModuleIsNull)
 
 TEST_F(TestUbseNodeApi, UbseServerNodeNumaMemGetWhenSuccess)
 {
-    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseSlotIdUnpack).stubs().will(returnValue((uint32_t)UBSE_OK));
     MOCKER_CPP(UbseNodeNumaMemGet).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t) UBSE_OK));
+    MOCKER_CPP(UbseNumaInfoListPack).stubs().will(returnValue((uint32_t)UBSE_OK));
     MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseApiServerModule> module = std::make_shared<UbseApiServerModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(module));
@@ -380,7 +381,7 @@ TEST_F(TestUbseNodeApi, UbseQueryCpuTopoWhenSuccess)
 {
     std::vector<CliPhysicalLink> cpuTopoLinks;
     cpuTopoLinks.emplace_back("0", "0", "0", "eth0", "1", "0", "0", "eth0", "0/0/0-1/0/0");
-    MOCKER_CPP(GetCpuTopoLink).stubs().with(outBound(cpuTopoLinks)).will(returnValue(UBSE_OK));    
+    MOCKER_CPP(GetCpuTopoLink).stubs().with(outBound(cpuTopoLinks)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseApiServerModule> module = std::make_shared<UbseApiServerModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(module));
@@ -389,7 +390,7 @@ TEST_F(TestUbseNodeApi, UbseQueryCpuTopoWhenSuccess)
     ::api::server::UbseRequestContext ctx{};
     auto ret = UbseNodeApi::UbseQueryCpuTopo(req, ctx);
     ASSERT_EQ(ret, UBSE_OK);
-}  
+}
 
 TEST_F(TestUbseNodeApi, UbseQueryCpuTopoWhenEmpty)
 {
@@ -401,7 +402,7 @@ TEST_F(TestUbseNodeApi, UbseQueryCpuTopoWhenEmpty)
     ::api::server::UbseRequestContext ctx{};
     auto ret = UbseNodeApi::UbseQueryCpuTopo(req, ctx);
     ASSERT_EQ(ret, UBSE_OK);
-}  
+}
 
 TEST_F(TestUbseNodeApi, UbseQueryCpuTopoWhenFailed)
 {
@@ -445,15 +446,24 @@ TEST_F(TestUbseNodeApi, GetCpuTopoLink)
 {
     MOCKER_CPP(&UbseNodeController::UbseGetDirConnectInfo).stubs().will(invoke(MockUbseGetDirConnectInfo));
     std::unordered_map<std::string, UbseNodeInfo> allNodeInfoMap;
-    allNodeInfoMap["0"] = UbseNodeInfo{.nodeId = "0", .slotId = 0, .hostName = "node0", 
-        .cpuInfos = {{UbseCpuLocation{"0", 1}, UbseCpuInfo{.slotId = 0,.socketId = 2, .chipId = "1"}}}, 
-        .clusterState = UbseNodeClusterState::UBSE_NODE_UNKNOWN};
-    allNodeInfoMap["1"] = UbseNodeInfo{.nodeId = "1", .slotId = 1, .hostName = "node1", 
-        .cpuInfos = {{UbseCpuLocation{"1", 1}, UbseCpuInfo{.slotId = 1,.socketId = 2, .chipId = "1"}}}, 
-        .clusterState = UbseNodeClusterState::UBSE_NODE_SMOOTHING};
-    allNodeInfoMap["2"] = UbseNodeInfo{.nodeId = "2", .slotId = 2, .hostName = "node2", 
-        .cpuInfos = {{UbseCpuLocation{"2", 1}, UbseCpuInfo{.slotId = 2,.socketId = 2, .chipId = "1"}}}, 
-        .clusterState = UbseNodeClusterState::UBSE_NODE_WORKING};
+    allNodeInfoMap["0"] =
+        UbseNodeInfo{.nodeId = "0",
+                     .slotId = 0,
+                     .hostName = "node0",
+                     .cpuInfos = {{UbseCpuLocation{"0", 1}, UbseCpuInfo{.slotId = 0, .socketId = 2, .chipId = "1"}}},
+                     .clusterState = UbseNodeClusterState::UBSE_NODE_UNKNOWN};
+    allNodeInfoMap["1"] =
+        UbseNodeInfo{.nodeId = "1",
+                     .slotId = 1,
+                     .hostName = "node1",
+                     .cpuInfos = {{UbseCpuLocation{"1", 1}, UbseCpuInfo{.slotId = 1, .socketId = 2, .chipId = "1"}}},
+                     .clusterState = UbseNodeClusterState::UBSE_NODE_SMOOTHING};
+    allNodeInfoMap["2"] =
+        UbseNodeInfo{.nodeId = "2",
+                     .slotId = 2,
+                     .hostName = "node2",
+                     .cpuInfos = {{UbseCpuLocation{"2", 1}, UbseCpuInfo{.slotId = 2, .socketId = 2, .chipId = "1"}}},
+                     .clusterState = UbseNodeClusterState::UBSE_NODE_WORKING};
     MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(allNodeInfoMap));
     std::vector<CliPhysicalLink> cpuTopoLinks;
     GetCpuTopoLink(cpuTopoLinks);
@@ -464,18 +474,27 @@ TEST_F(TestUbseNodeApi, GetCpuTopoLinkWhenNodesUnknown)
 {
     MOCKER_CPP(&UbseNodeController::UbseGetDirConnectInfo).stubs().will(invoke(MockUbseGetDirConnectInfo));
     std::unordered_map<std::string, UbseNodeInfo> allNodeInfoMap;
-    allNodeInfoMap["0"] = UbseNodeInfo{.nodeId = "0", .slotId = 0, .hostName = "node0", 
-        .cpuInfos = {{UbseCpuLocation{"0", 1}, UbseCpuInfo{.slotId = 0,.socketId = 2, .chipId = "1"}}}, 
-        .clusterState = UbseNodeClusterState::UBSE_NODE_UNKNOWN};
-    allNodeInfoMap["1"] = UbseNodeInfo{.nodeId = "1", .slotId = 1, .hostName = "node1", 
-        .cpuInfos = {{UbseCpuLocation{"1", 1}, UbseCpuInfo{.slotId = 1,.socketId = 2, .chipId = "1"}}}, 
-        .clusterState = UbseNodeClusterState::UBSE_NODE_WORKING};
-    allNodeInfoMap["2"] = UbseNodeInfo{.nodeId = "2", .slotId = 2, .hostName = "node2", 
-        .cpuInfos = {{UbseCpuLocation{"2", 1}, UbseCpuInfo{.slotId = 2,.socketId = 2, .chipId = "1"}}}, 
-        .clusterState = UbseNodeClusterState::UBSE_NODE_UNKNOWN};
+    allNodeInfoMap["0"] =
+        UbseNodeInfo{.nodeId = "0",
+                     .slotId = 0,
+                     .hostName = "node0",
+                     .cpuInfos = {{UbseCpuLocation{"0", 1}, UbseCpuInfo{.slotId = 0, .socketId = 2, .chipId = "1"}}},
+                     .clusterState = UbseNodeClusterState::UBSE_NODE_UNKNOWN};
+    allNodeInfoMap["1"] =
+        UbseNodeInfo{.nodeId = "1",
+                     .slotId = 1,
+                     .hostName = "node1",
+                     .cpuInfos = {{UbseCpuLocation{"1", 1}, UbseCpuInfo{.slotId = 1, .socketId = 2, .chipId = "1"}}},
+                     .clusterState = UbseNodeClusterState::UBSE_NODE_WORKING};
+    allNodeInfoMap["2"] =
+        UbseNodeInfo{.nodeId = "2",
+                     .slotId = 2,
+                     .hostName = "node2",
+                     .cpuInfos = {{UbseCpuLocation{"2", 1}, UbseCpuInfo{.slotId = 2, .socketId = 2, .chipId = "1"}}},
+                     .clusterState = UbseNodeClusterState::UBSE_NODE_UNKNOWN};
     MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(allNodeInfoMap));
     std::vector<CliPhysicalLink> cpuTopoLinks;
     GetCpuTopoLink(cpuTopoLinks);
     ASSERT_EQ(cpuTopoLinks.size(), 3);
 }
-}  // namespace ubse::node::api::ut
+} // namespace ubse::node::api::ut

@@ -25,7 +25,7 @@ class UbseMemShareBorrowExportobjSimpo : public UbseBaseMessage {
 public:
     UbseMemShareBorrowExportobjSimpo() = default;
 
-    explicit UbseMemShareBorrowExportobjSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemShareBorrowExportobjSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

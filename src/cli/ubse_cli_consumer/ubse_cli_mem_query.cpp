@@ -34,7 +34,7 @@ using namespace ubse::adapter_plugins::mmi;
 class UbseCliMemQuery::UbseCliMemQueryImpl {
 public:
     template <typename T, uint16_t ModuleCode, uint16_t OpCode>
-    bool UbseCliMemQueryRequest(const std::string &name, T &container)
+    bool UbseCliMemQueryRequest(const std::string& name, T& container)
     {
         UbseSerialization ubse_req_serial;
         ubse_req_serial << name;
@@ -42,8 +42,8 @@ public:
             errorMsg_ = data::error::REQUEST_INFO_SER_FAILED;
             return false;
         }
-        ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-            static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+        ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(),
+                                          static_cast<uint32_t>(ubse_req_serial.GetLength())};
         ubse_api_buffer_t ubse_res_buffer{};
         UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
         if (uint32_t ret = ubse_invoke_call(ModuleCode, OpCode, &ubse_req_buffer, &ubse_res_buffer); ret != UBSE_OK) {
@@ -60,18 +60,18 @@ public:
     }
 
     template <typename InfoType, uint16_t ModuleCode, uint16_t OpCode>
-    std::shared_ptr<framework::UbseCliResultEcho> HandleQueryError(const std::string &name)
+    std::shared_ptr<framework::UbseCliResultEcho> HandleQueryError(const std::string& name)
     {
         if (errorCode_ == UBSE_ERR_NOT_EXIST) {
             return UbseCliRegModule::UbseCliStringPromptReply(memory::error::MEM_QUERY_NOT_EXIST_IN_CREATING);
         } else {
             return UbseCliRegModule::UbseCliStringPromptReply(errorMsg_ +
-                " The failure occurred during the query process.");
+                                                              " The failure occurred during the query process.");
         }
     }
 
     template <typename InfoType, uint16_t ModuleCode, uint16_t OpCode>
-    std::shared_ptr<framework::UbseCliResultEcho> HandleWaitCreatingState(const std::string &name)
+    std::shared_ptr<framework::UbseCliResultEcho> HandleWaitCreatingState(const std::string& name)
     {
         InfoType info{};
         while (true) {
@@ -87,7 +87,7 @@ public:
                     return UbseCliRegModule::UbseCliStringPromptReply(memory::error::MEM_QUERY_NOT_EXIST_IN_CREATING);
                 case UbseMemStage::UBSE_ERR_ONLY_IMPORT:
                     return UbseCliRegModule::UbseCliStringPromptReply(info.GetStringResult() +
-                        "\nbut export node is fault");
+                                                                      "\nbut export node is fault");
                 case UbseMemStage::UBSE_CREATING:
                 case UbseMemStage::UBSE_DELETING:
                     sleep(RETRY_WAIT_TIME);
@@ -99,7 +99,7 @@ public:
     }
 
     template <typename InfoType, uint16_t ModuleCode, uint16_t OpCode>
-    std::shared_ptr<framework::UbseCliResultEcho> HandleNonWaitCreatingState(const std::string &name)
+    std::shared_ptr<framework::UbseCliResultEcho> HandleNonWaitCreatingState(const std::string& name)
     {
         InfoType info{};
         if (!UbseCliMemQueryRequest<InfoType, ModuleCode, OpCode>(name, info)) {
@@ -109,7 +109,7 @@ public:
     }
 
     template <typename InfoType, uint16_t ModuleCode, uint16_t OpCode>
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliQueryMemByNameImpl(const std::string &name, WaitType waitType)
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliQueryMemByNameImpl(const std::string& name, WaitType waitType)
     {
         if (waitType == WaitType::WAIT_CREATING) {
             return HandleWaitCreatingState<InfoType, ModuleCode, OpCode>(name);
@@ -118,7 +118,7 @@ public:
         }
     }
 
-    bool ShmMemoryGet(const std::string &name, UbseMemShmInfo &shmDesc)
+    bool ShmMemoryGet(const std::string& name, UbseMemShmInfo& shmDesc)
     {
         UbseSerialization serial;
         serial << name;
@@ -158,14 +158,14 @@ public:
     }
 
     // 处理 EXIST 状态
-    static std::shared_ptr<UbseCliResultEcho> HandleExistState(const UbseMemShmInfo &desc, UbseCliShmOperation op)
+    static std::shared_ptr<UbseCliResultEcho> HandleExistState(const UbseMemShmInfo& desc, UbseCliShmOperation op)
     {
         bool isAttach = !IsExportOperation(op);
         return UbseCliRegModule::UbseCliStringPromptReply(desc.GetStringResult(isAttach));
     }
 
     // 处理 ERR_ONLY_IMPORT 状态（需要额外提示）
-    static std::shared_ptr<UbseCliResultEcho> HandleErrOnlyImportState(const UbseMemShmInfo &desc,
+    static std::shared_ptr<UbseCliResultEcho> HandleErrOnlyImportState(const UbseMemShmInfo& desc,
                                                                        UbseCliShmOperation op)
     {
         bool isAttach = !IsExportOperation(op);
@@ -200,7 +200,7 @@ public:
         }
     }
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliQueryShmMemByNameImpl(const std::string &name,
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliQueryShmMemByNameImpl(const std::string& name,
                                                                                UbseCliShmOperation operation)
     {
         while (true) {
@@ -238,7 +238,7 @@ private:
     const int RETRY_WAIT_TIME = 5;
 
 private:
-    uint32_t errorCode_{ UBSE_OK };
+    uint32_t errorCode_{UBSE_OK};
     std::string errorMsg_{};
 };
 
@@ -248,27 +248,28 @@ UbseCliMemQuery::UbseCliMemQuery()
 }
 UbseCliMemQuery::~UbseCliMemQuery() noexcept = default;
 
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemQuery::UbseCliGetNumaMemByName(const std::string &name,
-    WaitType waitType)
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemQuery::UbseCliGetNumaMemByName(const std::string& name,
+                                                                                       WaitType waitType)
 {
     if (this->pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
     }
     return this->pImpl_->UbseCliQueryMemByNameImpl<UbseNumaInfo, static_cast<uint16_t>(UBSE_MEM),
-        static_cast<uint16_t>(UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME)>(name, waitType);
+                                                   static_cast<uint16_t>(UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME)>(name,
+                                                                                                              waitType);
 }
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemQuery::UbseCliGetFdMemByName(const std::string &name,
-    WaitType waitType)
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemQuery::UbseCliGetFdMemByName(const std::string& name,
+                                                                                     WaitType waitType)
 {
     if (this->pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
     }
     return this->pImpl_->UbseCliQueryMemByNameImpl<UbseFdInfo, static_cast<uint16_t>(UBSE_MEM),
-        static_cast<uint16_t>(UBSE_MEM_CLI_FD_INFO_GET_BY_NAME)>(name, waitType);
+                                                   static_cast<uint16_t>(UBSE_MEM_CLI_FD_INFO_GET_BY_NAME)>(name,
+                                                                                                            waitType);
 }
 
-
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemQuery::UbseCliGetShmMemByName(const std::string &name,
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemQuery::UbseCliGetShmMemByName(const std::string& name,
                                                                                       UbseCliShmOperation operation)
 {
     if (this->pImpl_ == nullptr) {
@@ -285,11 +286,11 @@ public:
         std::string bondingEid{};
         std::string guid{};
     };
-    bool UbseCliGetIdsWithHostName(std::unordered_map<std::string, std::string> &node_id_with_hostname)
+    bool UbseCliGetIdsWithHostName(std::unordered_map<std::string, std::string>& node_id_with_hostname)
     {
         UbseSerialization ubse_req_serial(constant::REQUEST_BUFFER_CAPACITY);
-        ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-            static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+        ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(),
+                                          static_cast<uint32_t>(ubse_req_serial.GetLength())};
         ubse_api_buffer_t ubse_res_buffer{};
         uint32_t ret = ubse_invoke_call(UBSE_NODE, UBSE_CLUSTER_INFO, &ubse_req_buffer, &ubse_res_buffer);
         UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
@@ -337,23 +338,23 @@ public:
         return true;
     }
 
-    bool UbseCliFetchDebtInfoByPage(const std::string &node_id, DebtFetchType type,
-        std::vector<FlatDebtInformation> &borrow_account, std::vector<FlatDebtInformation> &lend_account,
-        const Filter &filter)
+    bool UbseCliFetchDebtInfoByPage(const std::string& node_id, DebtFetchType type,
+                                    std::vector<FlatDebtInformation>& borrow_account,
+                                    std::vector<FlatDebtInformation>& lend_account, const Filter& filter)
     {
         for (int pageNum = ubse::common::def::NO_1; pageNum <= MAX_PAGE_NUM; pageNum++) {
-            DebtFetchInfo debtFetchInfo{ node_id, filter.name,    AccountTypeUtil::StringToAccountType(filter.type),
-                pageNum, EACH_PAGE_SIZE, type };
+            DebtFetchInfo debtFetchInfo{node_id, filter.name,    AccountTypeUtil::StringToAccountType(filter.type),
+                                        pageNum, EACH_PAGE_SIZE, type};
             UbseSerialization ubse_account_req_serial;
             if (!DebtFetchInfo::Serialize(ubse_account_req_serial, debtFetchInfo)) {
                 errorMsg_ = std::string(data::error::REQUEST_INFO_SER_FAILED);
                 return false;
             }
-            ubse_api_buffer_t ubse_req_account_buffer{ ubse_account_req_serial.GetBuffer(),
-                static_cast<uint32_t>(ubse_account_req_serial.GetLength()) };
+            ubse_api_buffer_t ubse_req_account_buffer{ubse_account_req_serial.GetBuffer(),
+                                                      static_cast<uint32_t>(ubse_account_req_serial.GetLength())};
             ubse_api_buffer_t ubse_res_account_buffer{};
             auto ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_BORROW_DETAIL_DEBT_PARTIAL_FETCH,
-                &ubse_req_account_buffer, &ubse_res_account_buffer);
+                                        &ubse_req_account_buffer, &ubse_res_account_buffer);
             UbseCliBufferGuard ubseCliBufferGuardForAccount(ubse_res_account_buffer);
             if (ret != UBSE_OK) {
                 errorMsg_ = std::string("ERROR: Internal error with error code " + std::to_string(ret));
@@ -367,10 +368,10 @@ public:
             }
             if (debtFetchInfo.type == DebtFetchType::IMPORT) {
                 borrow_account.insert(borrow_account.end(), std::make_move_iterator(partialFetchRes.flatDebt.begin()),
-                    std::make_move_iterator(partialFetchRes.flatDebt.end()));
+                                      std::make_move_iterator(partialFetchRes.flatDebt.end()));
             } else {
                 lend_account.insert(lend_account.end(), std::make_move_iterator(partialFetchRes.flatDebt.begin()),
-                    std::make_move_iterator(partialFetchRes.flatDebt.end()));
+                                    std::make_move_iterator(partialFetchRes.flatDebt.end()));
             }
             if (!partialFetchRes.NeedToContinue) {
                 break;
@@ -379,11 +380,11 @@ public:
         return true;
     }
 
-    bool UbseCliGetAllDebtInfo(std::unordered_map<std::string, std::string> &node_id_with_hostname,
-        std::vector<FlatDebtInformation> &borrow_account, std::vector<FlatDebtInformation> &lend_account,
-        const Filter &filter)
+    bool UbseCliGetAllDebtInfo(std::unordered_map<std::string, std::string>& node_id_with_hostname,
+                               std::vector<FlatDebtInformation>& borrow_account,
+                               std::vector<FlatDebtInformation>& lend_account, const Filter& filter)
     {
-        for (const auto &[node_id, hostname] : node_id_with_hostname) {
+        for (const auto& [node_id, hostname] : node_id_with_hostname) {
             for (DebtFetchType type : allDebtFetchTypes) {
                 if (!UbseCliFetchDebtInfoByPage(node_id, type, borrow_account, lend_account, filter)) {
                     return false;
@@ -393,25 +394,26 @@ public:
         return true;
     }
 
-    void UbseCliProcessExport(const std::string &type_name, const FlatDebtInformation &account,
-        std::unordered_map<std::string, UbseBorrowDetailInfo> &ubse_borrow_details)
+    void UbseCliProcessExport(const std::string& type_name, const FlatDebtInformation& account,
+                              std::unordered_map<std::string, UbseBorrowDetailInfo>& ubse_borrow_details)
     {
         std::string key = account.name + "_" + account.importId + " " + type_name;
-        ubse_borrow_details.insert({ key, UbseBorrowDetailInfo{ account.name, type_name, account.importId,
-            account.lendId, account.numaLendInfos, "fault", "-" } });
+        ubse_borrow_details.insert({key, UbseBorrowDetailInfo{account.name, type_name, account.importId, account.lendId,
+                                                              account.numaLendInfos, "fault", "-"}});
 
         if (UbseMemStateMap.find(static_cast<UbseMemState>(account.status)) != UbseMemStateMap.end()) {
             ubse_borrow_details[key].status = UbseMemStateMap[static_cast<UbseMemState>(account.status)];
         }
     }
 
-    void UbseCliProcessImport(const std::string &type_name, const FlatDebtInformation &account,
-        std::unordered_map<std::string, UbseBorrowDetailInfo> &ubse_borrow_details)
+    void UbseCliProcessImport(const std::string& type_name, const FlatDebtInformation& account,
+                              std::unordered_map<std::string, UbseBorrowDetailInfo>& ubse_borrow_details)
     {
         std::string key = account.name + "_" + account.importId + " " + type_name;
         if (ubse_borrow_details.find(key) == ubse_borrow_details.end()) {
-            ubse_borrow_details.insert({ key, UbseBorrowDetailInfo{ account.name, type_name, account.importId,
-                account.lendId, account.numaLendInfos, "fault", account.handle } });
+            ubse_borrow_details.insert(
+                {key, UbseBorrowDetailInfo{account.name, type_name, account.importId, account.lendId,
+                                           account.numaLendInfos, "fault", account.handle}});
             return;
         }
 
@@ -426,19 +428,20 @@ public:
         }
     }
 
-    void ProcessLendAccount(const std::vector<FlatDebtInformation> &lend_account,
-        std::unordered_map<std::string, UbseBorrowDetailInfo> &ubse_borrow_details,
-        std::unordered_map<std::string, UbseShmAttachRecord> &shm_export_account)
+    void ProcessLendAccount(const std::vector<FlatDebtInformation>& lend_account,
+                            std::unordered_map<std::string, UbseBorrowDetailInfo>& ubse_borrow_details,
+                            std::unordered_map<std::string, UbseShmAttachRecord>& shm_export_account)
     {
-        for (const auto &account : lend_account) {
+        for (const auto& account : lend_account) {
             if (AccountTypeUtil::AccountTypeToString(account.type).empty()) {
                 continue;
             }
             if (account.type == AccountType::SHM) {
                 std::string key = account.name + "_" + account.lendId + " S";
-                shm_export_account.insert({ key,
-                    { false, UbseBorrowDetailInfo{ account.name, "share", account.importId, account.lendId,
-                    account.numaLendInfos, "fault", "-" } } });
+                shm_export_account.insert(
+                    {key,
+                     {false, UbseBorrowDetailInfo{account.name, "share", account.importId, account.lendId,
+                                                  account.numaLendInfos, "fault", "-"}}});
 
                 if (UbseMemStateMap.find(static_cast<ubse::adapter_plugins::mmi::UbseMemState>(account.status)) !=
                     UbseMemStateMap.end()) {
@@ -451,11 +454,11 @@ public:
         }
     }
 
-    void ProcessBorrowAccount(const std::vector<FlatDebtInformation> &borrow_account,
-        std::unordered_map<std::string, UbseBorrowDetailInfo> &ubse_borrow_details,
-        std::unordered_map<std::string, UbseShmAttachRecord> &shm_export_account)
+    void ProcessBorrowAccount(const std::vector<FlatDebtInformation>& borrow_account,
+                              std::unordered_map<std::string, UbseBorrowDetailInfo>& ubse_borrow_details,
+                              std::unordered_map<std::string, UbseShmAttachRecord>& shm_export_account)
     {
-        for (const auto &account : borrow_account) {
+        for (const auto& account : borrow_account) {
             if (AccountTypeUtil::AccountTypeToString(account.type).empty()) {
                 continue;
             }
@@ -463,20 +466,21 @@ public:
                 std::string key = account.name + "_" + account.lendId + " S";
                 auto new_key = key + account.importId;
                 if (shm_export_account.find(key) == shm_export_account.end()) {
-                    ubse_borrow_details.insert({ new_key, UbseBorrowDetailInfo{ account.name, "share", account.importId,
-                        account.lendId, account.numaLendInfos, "fault", account.handle } });
+                    ubse_borrow_details.insert(
+                        {new_key, UbseBorrowDetailInfo{account.name, "share", account.importId, account.lendId,
+                                                       account.numaLendInfos, "fault", account.handle}});
                     continue;
                 }
                 shm_export_account[key].hasAttached = true;
                 shm_export_account[key].ubseOneBorrowDetailInfo.borrowNode = account.importId;
                 shm_export_account[key].ubseOneBorrowDetailInfo.handle = account.handle;
-                ubse_borrow_details.insert({ new_key, shm_export_account[key].ubseOneBorrowDetailInfo });
+                ubse_borrow_details.insert({new_key, shm_export_account[key].ubseOneBorrowDetailInfo});
 
                 if (shm_export_account[key].ubseOneBorrowDetailInfo.status == "single") {
                     ubse_borrow_details[new_key].status =
                         UbseMemStateMap.find(static_cast<UbseMemState>(account.status)) != UbseMemStateMap.end() ?
-                        UbseMemStateMap[static_cast<UbseMemState>(account.status)] :
-                        "fault";
+                            UbseMemStateMap[static_cast<UbseMemState>(account.status)] :
+                            "fault";
                 }
             } else {
                 UbseCliProcessImport(AccountTypeUtil::AccountTypeToString(account.type), account, ubse_borrow_details);
@@ -490,12 +494,11 @@ public:
     }
 
 private:
-    std::vector<DebtFetchType> allDebtFetchTypes = { DebtFetchType::EXPORT, DebtFetchType::IMPORT };
+    std::vector<DebtFetchType> allDebtFetchTypes = {DebtFetchType::EXPORT, DebtFetchType::IMPORT};
     std::unordered_map<UbseMemState, std::string> UbseMemStateMap = {
-        { UBSE_MEM_EXPORT_RUNNING, "exporting" },      { UBSE_MEM_EXPORT_SUCCESS, "single" },
-        { UBSE_MEM_EXPORT_DESTROYING, "unexporting" }, { UBSE_MEM_IMPORT_RUNNING, "importing" },
-        { UBSE_MEM_IMPORT_SUCCESS, "done" },           { UBSE_MEM_IMPORT_DESTROYING, "unimporting" }
-    };
+        {UBSE_MEM_EXPORT_RUNNING, "exporting"},      {UBSE_MEM_EXPORT_SUCCESS, "single"},
+        {UBSE_MEM_EXPORT_DESTROYING, "unexporting"}, {UBSE_MEM_IMPORT_RUNNING, "importing"},
+        {UBSE_MEM_IMPORT_SUCCESS, "done"},           {UBSE_MEM_IMPORT_DESTROYING, "unimporting"}};
 
 private:
     std::string errorMsg_{};
@@ -505,7 +508,7 @@ UbseCliMemDisplayBorrowDetail::UbseCliMemDisplayBorrowDetail()
     this->pImpl_ = SafeMakeUnique<UbseCliMemDisplayBorrowDetailImpl>();
 }
 std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemDisplayBorrowDetail::UbseCliQueryBorrowDetail(
-    const Filter &filter)
+    const Filter& filter)
 {
     if (this->pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
@@ -523,11 +526,11 @@ std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemDisplayBorrowDetail::Ubs
     std::unordered_map<std::string, UbseShmAttachRecord> shm_export_account{};
     this->pImpl_->ProcessLendAccount(lend_account, ubse_borrow_details, shm_export_account);
     this->pImpl_->ProcessBorrowAccount(borrow_account, ubse_borrow_details, shm_export_account);
-    for (const auto &[key, value] : shm_export_account) {
+    for (const auto& [key, value] : shm_export_account) {
         if (value.hasAttached) {
             continue;
         }
-        ubse_borrow_details.insert({ key + " single_export_shm", value.ubseOneBorrowDetailInfo });
+        ubse_borrow_details.insert({key + " single_export_shm", value.ubseOneBorrowDetailInfo});
     }
     if (ubse_borrow_details.empty()) {
         return UbseCliRegModule::UbseCliStringPromptReply(memory::info::MEM_BORROW_DETAIL_EMPTY);

@@ -31,35 +31,35 @@ public:
      * @param hostNumaCpuInfo Stores NUMA nodes information.
      * @return VmResult, 0 indicates success, and any non-zero value indicates fail or other exception
      */
-    static VmResult GetLocalHostVmCollectData(HostVmDomainInfo &hostVmDomainInfo, HostNumaCpuInfo &hostNumaCpuInfo);
+    static VmResult GetLocalHostVmCollectData(HostVmDomainInfo& hostVmDomainInfo, HostNumaCpuInfo& hostNumaCpuInfo);
 
     /**
      * Get information about all VMs on the local node.
      * @param hostVmDomainInfo Stores VM domain information.
      * @return VmResult, 0 indicates success, and any non-zero value indicates fail or other exception
      */
-    static VmResult GetLocalHostVmDomainInfo(HostVmDomainInfo &hostVmDomainInfo);
+    static VmResult GetLocalHostVmDomainInfo(HostVmDomainInfo& hostVmDomainInfo);
 
     /**
      * Update global information about all VMs on the local node.
      * @param hostVmDomainInfo Stores VM domain information.
      * @return VmResult, 0 indicates success, and any non-zero value indicates fail or other exception
      */
-    static VmResult UpdateVmDomainInfo(HostVmDomainInfo &hostVmDomainInfo);
+    static VmResult UpdateVmDomainInfo(HostVmDomainInfo& hostVmDomainInfo);
 
     /**
      * Get information about all VMs on the local node from global.
      * @param hostVmDomainInfo Stores VM domain information.
      * @return VmResult, 0 indicates success, and any non-zero value indicates fail or other exception
      */
-    static VmResult GetVmDomainInfosFromGlobal(HostVmDomainInfo &hostVmDomainInfo);
+    static VmResult GetVmDomainInfosFromGlobal(HostVmDomainInfo& hostVmDomainInfo);
 
     /**
      * Get information about all NUMA nodes on the local node.
      * @param hostNumaCpuInfo Stores NUMA nodes information.
      * @return VmResult, 0 indicates success, and any non-zero value indicates fail or other exception
      */
-    static VmResult GetLocalHostNumaInfo(HostNumaCpuInfo &hostNumaCpuInfo);
+    static VmResult GetLocalHostNumaInfo(HostNumaCpuInfo& hostNumaCpuInfo);
 
 private:
     static std::mutex vmDomainMutex;

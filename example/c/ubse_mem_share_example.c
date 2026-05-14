@@ -17,7 +17,7 @@
 #include "ubse/ubs_engine_mem.h"
 
 static volatile int g_running = 1;
-static const char *g_shm_name = "demo_shm";
+static const char* g_shm_name = "demo_shm";
 static const uint64_t g_shm_size = 4 * 1024 * 1024; // 4MB
 static ubs_mem_fd_owner_t g_owner;
 static ubs_mem_shm_desc_t g_shm_desc;
@@ -29,7 +29,7 @@ static void ubs_mem_share_create_example(void)
     region.node_cnt = 2;
     region.slot_ids[0] = 1;
     region.slot_ids[1] = 2;
-    ubs_mem_nodes_t *provider = NULL;
+    ubs_mem_nodes_t* provider = NULL;
     printf("=== ubs_mem_share_create_example ===\n");
     int ret = ubs_mem_shm_create(g_shm_name, g_shm_size, usr_info, 0, &region, provider);
     if (ret != 0) {
@@ -94,7 +94,7 @@ static void ubs_mem_share_attach_example(void)
     g_owner.uid = getuid();
     g_owner.gid = getgid();
     g_owner.pid = getpid();
-    ubs_mem_shm_desc_t *shm_descs = NULL;
+    ubs_mem_shm_desc_t* shm_descs = NULL;
 
     printf("=== ubs_mem_share_attach_example ===\n");
     int ret = ubs_mem_shm_attach(g_shm_name, &g_owner, 0666, &shm_descs);
@@ -128,7 +128,7 @@ static void ubs_mem_share_delete_example(void)
 }
 static void ubs_mem_share_get_example(void)
 {
-    ubs_mem_shm_desc_t *shm_descs = NULL;
+    ubs_mem_shm_desc_t* shm_descs = NULL;
     printf("=== ubs_mem_share_get_example ===\n");
     const int ret = ubs_mem_shm_get("shm_mem", &shm_descs);
     if (ret != 0) {
@@ -154,7 +154,7 @@ static void ubs_mem_share_get_example(void)
 }
 static void ubs_mem_share_list_example(void)
 {
-    ubs_mem_shm_desc_t *shm_descs = NULL;
+    ubs_mem_shm_desc_t* shm_descs = NULL;
     uint32_t shm_desc_cnt = 0;
 
     printf("=== ubs_mem_share_list_example ===\n");
@@ -198,7 +198,7 @@ static void ubs_mem_shm_fault_get_example(void)
     }
 }
 
-static const char *fault_type_to_string(ubs_mem_fault_type_t type)
+static const char* fault_type_to_string(ubs_mem_fault_type_t type)
 {
     switch (type) {
         case UB_MEM_ATOMIC_DATA_ERR:
@@ -246,7 +246,7 @@ static const char *fault_type_to_string(ubs_mem_fault_type_t type)
     }
 }
 
-static int32_t shm_fault_handler(const char *name, uint64_t memid, ubs_mem_fault_type_t type)
+static int32_t shm_fault_handler(const char* name, uint64_t memid, ubs_mem_fault_type_t type)
 {
     if (name == NULL) {
         fprintf(stderr, "[FAULT HANDLER] Error: name is NULL\n");

@@ -31,39 +31,39 @@ public:
     static std::condition_variable migrateCv;
     static std::condition_variable borrowCv;
 
-    static StatusManager &GetInstance()
+    static StatusManager& GetInstance()
     {
         static StatusManager gInstance;
         return gInstance;
     }
 
-    static void EscapeStrategyHandle(EscapeAction &escapeAction);
+    static void EscapeStrategyHandle(EscapeAction& escapeAction);
 
-    static void MemoryBorrowOperation(const VMNodeLocInfo &originNode, const std::vector<pid_t> &pids,
-                                      const std::vector<uint64_t> &borrowSizes);
+    static void MemoryBorrowOperation(const VMNodeLocInfo& originNode, const std::vector<pid_t>& pids,
+                                      const std::vector<uint64_t>& borrowSizes);
 
-    static VmResult PerformMemoryBorrow(const mempooling::SrcMemoryBorrowParam &borrowParam,
-                                        const std::vector<uint64_t> &borrowSizes,
-                                        mempooling::MemBorrowExecuteResult &result);
+    static VmResult PerformMemoryBorrow(const mempooling::SrcMemoryBorrowParam& borrowParam,
+                                        const std::vector<uint64_t>& borrowSizes,
+                                        mempooling::MemBorrowExecuteResult& result);
 
-    static void MemoryReturnOperation(EscapeAction &escapeAction);
+    static void MemoryReturnOperation(EscapeAction& escapeAction);
 
     static void BorrowQueueOperation();
 
-    static void WhetherEnterBorrowQueue(const EscapeAction &escapeAction);
+    static void WhetherEnterBorrowQueue(const EscapeAction& escapeAction);
 
     VmResult Init();
 
     static void LoadGlobalBorrowMap();
 
-    static void AddTaskFilterSet(const VMNodeLocInfo &nodeLocInfo);
-    static void RemoveTaskFilterSet(const VMNodeLocInfo &nodeLocInfo);
-    static bool StillInTask(const std::string &hostId, const int16_t &socketId, const int16_t &numaId);
-    static std::vector<mempooling::VMPresetParam> ConvertToVmPresetParam(const std::vector<pid_t> &pids);
-    static VmResult MigrateByBorrowIdStatus(const mempooling::SrcMemoryBorrowParam &srcMemoryBorrowParam,
-                                            std::vector<BorrowIdStatus> &BorrowIdStatuses);
-    static VmResult ReturnByBorrowIdStatus(const mempooling::SrcMemoryBorrowParam &srcMemoryBorrowParam,
-                                           std::vector<BorrowIdStatus> &BorrowIdStatuses);
+    static void AddTaskFilterSet(const VMNodeLocInfo& nodeLocInfo);
+    static void RemoveTaskFilterSet(const VMNodeLocInfo& nodeLocInfo);
+    static bool StillInTask(const std::string& hostId, const int16_t& socketId, const int16_t& numaId);
+    static std::vector<mempooling::VMPresetParam> ConvertToVmPresetParam(const std::vector<pid_t>& pids);
+    static VmResult MigrateByBorrowIdStatus(const mempooling::SrcMemoryBorrowParam& srcMemoryBorrowParam,
+                                            std::vector<BorrowIdStatus>& BorrowIdStatuses);
+    static VmResult ReturnByBorrowIdStatus(const mempooling::SrcMemoryBorrowParam& srcMemoryBorrowParam,
+                                           std::vector<BorrowIdStatus>& BorrowIdStatuses);
     static bool isFirstMigOperation()
     {
         return firstMigFlag.load(std::memory_order_acquire);
@@ -79,11 +79,11 @@ private:
     static inline std::set<std::string> g_taskFilterSet{};
     std::vector<bool> mRSStatus{true};
 
-    static void CleanEmptyBorrowRes(mempooling::MemBorrowExecuteResult &result);
+    static void CleanEmptyBorrowRes(mempooling::MemBorrowExecuteResult& result);
 
-    static std::vector<BorrowIdStatus> GenerateBorrowIdStatuses(const VMNodeLocInfo &nodeLoc,
-                                                                const mempooling::MemBorrowExecuteResult &borrowResult);
-    static void MigrateSuccessBorrowId(std::vector<BorrowIdStatus> &BorrowIdStatuses);
+    static std::vector<BorrowIdStatus> GenerateBorrowIdStatuses(const VMNodeLocInfo& nodeLoc,
+                                                                const mempooling::MemBorrowExecuteResult& borrowResult);
+    static void MigrateSuccessBorrowId(std::vector<BorrowIdStatus>& BorrowIdStatuses);
     static void markFirstMigOperation()
     {
         bool expected = true;

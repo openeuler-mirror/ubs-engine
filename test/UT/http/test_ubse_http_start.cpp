@@ -26,5 +26,4 @@ void TestUbseHttpStart::TearDown()
     GlobalMockObject::verify();
 }
 
-
 } // namespace ubse::ut::http

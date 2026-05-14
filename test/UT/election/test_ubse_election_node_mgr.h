@@ -13,9 +13,9 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_ELECTION_NODE_MGR_H
 #define UBSE_MANAGER_TEST_UBSE_ELECTION_NODE_MGR_H
 
+#include "ubse_election_def.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_election_def.h"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
@@ -27,6 +27,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::election
 
 #endif // UBSE_MANAGER_TEST_UBSE_ELECTION_NODE_MGR_H

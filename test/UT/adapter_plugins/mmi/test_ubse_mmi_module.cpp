@@ -41,8 +41,8 @@ TEST_F(TestUbseMmiModule, UbseMemFdImportExecutor_Success)
     importObj.algoResult.exportNumaInfos = {{"2", 0, 0, 1 << 29}, {"2", 0, 1, 1 << 29}};
     importObj.algoResult.importNumaInfos = {{"1", 0, 0, 1 << 29}, {"1", 0, 1, 1 << 29}};
     importObj.status.decoderResult.resize(8);
-    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc *desc, unsigned long flags,
-                                                      int base_dist, int *numa) {
+    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc* desc, unsigned long flags,
+                                                      int base_dist, int* numa) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
     auto ret = module.UbseMemFdImportExecutor(importObj);
@@ -71,7 +71,7 @@ TEST_F(TestUbseMmiModule, UbseMemFdExportExecutor_Success)
         .with(_, outBound(static_cast<uint32_t>(0x444)))
         .will(returnValue(static_cast<uint32_t>(0)));
     RmObmmExecutor::GetInstance().obmmExportFunc = [](const size_t length[OBMM_MAX_LOCAL_NUMA_NODES],
-                                                      unsigned long flags, struct obmm_mem_desc *desc) {
+                                                      unsigned long flags, struct obmm_mem_desc* desc) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
     auto ret = module.UbseMemFdExportExecutor(exportObj);
@@ -162,7 +162,7 @@ TEST_F(TestUbseMmiModule, UbseMemNumaExportExecutor_Success)
         .will(returnValue(static_cast<uint32_t>(0)));
 
     RmObmmExecutor::GetInstance().obmmExportFunc = [](const size_t length[OBMM_MAX_LOCAL_NUMA_NODES],
-                                                      unsigned long flags, struct obmm_mem_desc *desc) {
+                                                      unsigned long flags, struct obmm_mem_desc* desc) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
     auto ret = module.UbseMemNumaExportExecutor(exportobj);
@@ -192,8 +192,8 @@ TEST_F(TestUbseMmiModule, UbseMemNumaImportExecutor_Success)
     importObj.algoResult.attachSocketId = 0;
     importObj.algoResult.exportNumaInfos = {{"2", 0, 0, 1 << 29}, {"2", 0, 1, 1 << 29}};
     importObj.algoResult.importNumaInfos = {{"1", 0, 0, 1 << 29}, {"1", 0, 1, 1 << 29}};
-    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc *desc, unsigned long flags,
-                                                      int base_dist, int *numa) {
+    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc* desc, unsigned long flags,
+                                                      int base_dist, int* numa) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
 
@@ -228,8 +228,8 @@ TEST_F(TestUbseMmiModule, UbseMemNumaImportExecutor_Success)
     std::vector<mem_id> memIdList = {1};
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node1));
     MOCKER(&RmObmmExecutor::ObmmImport,
-           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                                  UbseMemImportStatus &status, int *numa))
+           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo>& desc, ObmmOpParam& opParam,
+                                                  UbseMemImportStatus& status, int* numa))
         .stubs()
         .will(returnValue(memIdList));
     MOCKER(&MemInstanceInnerCommon::GetNuma).stubs().will(returnValue(5));
@@ -304,8 +304,8 @@ TEST_F(TestUbseMmiModule, UbseMemNumaUnImportExecutor_Success)
 }
 
 uint64_t MockReadAgentLocalObmmMetaData(uint64_t taskId,
-                                        std::vector<UbseMemLocalObmmMetaData> &ubseMemLocalObmmMetaDatas,
-                                        bool &lastPage)
+                                        std::vector<UbseMemLocalObmmMetaData>& ubseMemLocalObmmMetaDatas,
+                                        bool& lastPage)
 {
     UbseMemLocalObmmMetaData data{};
 

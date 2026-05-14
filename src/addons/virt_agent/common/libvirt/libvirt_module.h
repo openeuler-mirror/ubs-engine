@@ -19,17 +19,17 @@
 #include "vm_error.h"
 
 namespace vm::libvirt {
-using VirConnectPtr = void *;
+using VirConnectPtr = void*;
 enum class VirDomainAbortJobFlagsValues : uint8_t {
     VIR_DOMAIN_ABORT_JOB_POSTCOPY = 1 << 0, // Interrupt post-copy migration.
     VIR_DOMAIN_ABORT_JOB_HAM = 1 << 1,      // Interrupt ham migration.
 };
 
-using VirConnectOpenFunc = void *(*)(const char *);
-using VirConnectCloseFunc = void (*)(void *);
-using VirDomainFreeFunc = int (*)(void *);
-using VirDomainAbortJobFlagsFunc = int (*)(void *, VirDomainAbortJobFlagsValues);
-using VirDomainLookupByUUIDStringFunc = void *(*)(void *, const char *);
+using VirConnectOpenFunc = void* (*)(const char*);
+using VirConnectCloseFunc = void (*)(void*);
+using VirDomainFreeFunc = int (*)(void*);
+using VirDomainAbortJobFlagsFunc = int (*)(void*, VirDomainAbortJobFlagsValues);
+using VirDomainLookupByUUIDStringFunc = void* (*)(void*, const char*);
 
 class LibvirtModule {
 public:
@@ -48,7 +48,7 @@ public:
     static VirDomainAbortJobFlagsFunc VirDomainAbortJobFlags();
 
 private:
-    static void *libvirtHandle;
+    static void* libvirtHandle;
     static VirConnectOpenFunc virConnectOpenFunc;
     static VirConnectCloseFunc virConnectCloseFunc;
     static VirDomainFreeFunc virDomainFreeFunc;

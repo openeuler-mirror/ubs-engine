@@ -18,7 +18,7 @@ using namespace ubse::message;
 class NodeMemDebtInfoQueryReqSimpo : public UbseBaseMessage {
 public:
     NodeMemDebtInfoQueryReqSimpo() = default;
-    explicit NodeMemDebtInfoQueryReqSimpo(uint8_t *data, uint32_t size)
+    explicit NodeMemDebtInfoQueryReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

@@ -12,10 +12,10 @@
 
 #include "mp_file_util.h"
 
-#include <regex>
-#include <cstdlib>
 #include <climits>
+#include <cstdlib>
 #include <fstream>
+#include <regex>
 
 #include "ubse_logger.h"
 #include "mp_configuration.h"
@@ -30,7 +30,7 @@ using namespace ubse::log;
  * @param info vector<string> &: 文件内容, 按行输出
  * @return MEM_POOLING_RES
  */
-MEM_POOLING_RES MpFileUtil::GetFileInfo(const string &path, vector<string> &info)
+MEM_POOLING_RES MpFileUtil::GetFileInfo(const string& path, vector<string>& info)
 {
     auto realFileName = std::make_unique<char[]>(PATH_MAX);
     if (realFileName == nullptr) {
@@ -52,7 +52,7 @@ MEM_POOLING_RES MpFileUtil::GetFileInfo(const string &path, vector<string> &info
         while (getline(file, line)) {
             info.push_back(line);
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "read file failed: " << e.what();
         file.close();
         return MEM_POOLING_ERROR;

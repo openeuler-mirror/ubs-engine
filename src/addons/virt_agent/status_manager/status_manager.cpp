@@ -39,14 +39,14 @@ VmResult StatusManager::Init()
 void StatusManager::LoadGlobalBorrowMap()
 {
     UBSE_LOG_INFO << "LoadGlobalBorrowMap start.";
-    auto &ResCol = ResourceCollect::GetInstance();
+    auto& ResCol = ResourceCollect::GetInstance();
     if (const auto ret = ResourceCollect::InitGlobalBorrowMap(); ret != VM_OK) {
         UBSE_LOG_WARN << "Failed to init global borrow map.";
         return;
     }
     const auto globalBorrowMap = ResCol.GetGlobalBorrowMap();
     std::map<VMNodeLocInfo, std::vector<std::string>> nodeLocBorrowIdMap;
-    for (const auto &[fst, snd] : globalBorrowMap) {
+    for (const auto& [fst, snd] : globalBorrowMap) {
         if (snd.memMigrateStatus != MemMigrateStatus::READY_TO_MIGRATE) {
             continue;
         }
@@ -56,7 +56,7 @@ void StatusManager::LoadGlobalBorrowMap()
             nodeLocBorrowIdMap[snd.nodeLocInfo] = {fst};
         }
     }
-    for (const auto &[fst, snd] : nodeLocBorrowIdMap) {
+    for (const auto& [fst, snd] : nodeLocBorrowIdMap) {
         UBSE_LOG_INFO << "[LoadGlobalBorrowMap] nodeLoc = " << fst.toString()
                       << ", borrowIds = " << VectorUtil::VectorToString(snd);
         const std::vector<pid_t> pids = ResCol.GetPidsOnNuma(fst, "migratingOnly");
@@ -77,9 +77,9 @@ void StatusManager::LoadGlobalBorrowMap()
     }
 }
 
-VmResult StatusManager::PerformMemoryBorrow(const SrcMemoryBorrowParam &borrowParam,
-                                            const std::vector<uint64_t> &borrowSizes,
-                                            MemBorrowExecuteResult &borrowResult)
+VmResult StatusManager::PerformMemoryBorrow(const SrcMemoryBorrowParam& borrowParam,
+                                            const std::vector<uint64_t>& borrowSizes,
+                                            MemBorrowExecuteResult& borrowResult)
 {
     UBSE_LOG_INFO << "[borrow] task start, borrow_item_size = " << borrowSizes.size();
     try {
@@ -115,15 +115,15 @@ VmResult StatusManager::PerformMemoryBorrow(const SrcMemoryBorrowParam &borrowPa
                            << ", presentNumaIds_size = " << borrowResult.presentNumaIds.size();
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Watermark conversion error: " << e.what();
         return VM_ERROR;
     }
     return VM_OK;
 }
 
-void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo &originNode, const std::vector<pid_t> &pids,
-                                          const std::vector<uint64_t> &borrowSizes)
+void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo& originNode, const std::vector<pid_t>& pids,
+                                          const std::vector<uint64_t>& borrowSizes)
 {
     UBSE_LOG_INFO << "[borrow] task start, borrow_item_size = " << borrowSizes.size();
 
@@ -151,7 +151,7 @@ void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo &originNode, const
     auto BorrowIdStatuses = GenerateBorrowIdStatuses(originNode, borrowResult);
     ResourceCollect::GetInstance().UpdateGlobalBorrowMap(BorrowIdStatuses);
 
-    const vector<VMPresetParam> &vmPresetParam = ConvertToVmPresetParam(pids);
+    const vector<VMPresetParam>& vmPresetParam = ConvertToVmPresetParam(pids);
     // 2. Memory migration (memory scheduling interface)
     const auto UBSRMRSMemMigrate = MempoolingModule::UBSRMRSMemMigrate();
     if (UBSRMRSMemMigrate == nullptr) {
@@ -171,8 +171,8 @@ void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo &originNode, const
     UBSE_LOG_INFO << "[borrow] task end.";
 }
 
-std::vector<BorrowIdStatus> StatusManager::GenerateBorrowIdStatuses(const VMNodeLocInfo &nodeLoc,
-                                                                    const MemBorrowExecuteResult &borrowResult)
+std::vector<BorrowIdStatus> StatusManager::GenerateBorrowIdStatuses(const VMNodeLocInfo& nodeLoc,
+                                                                    const MemBorrowExecuteResult& borrowResult)
 {
     std::vector<BorrowIdStatus> result;
     const size_t count = borrowResult.borrowIds.size();
@@ -186,14 +186,14 @@ std::vector<BorrowIdStatus> StatusManager::GenerateBorrowIdStatuses(const VMNode
     return result;
 }
 
-void StatusManager::MigrateSuccessBorrowId(std::vector<BorrowIdStatus> &BorrowIdStatuses)
+void StatusManager::MigrateSuccessBorrowId(std::vector<BorrowIdStatus>& BorrowIdStatuses)
 {
-    for (auto &[borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
+    for (auto& [borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
         memMigrateStatus = MemMigrateStatus::MIGRATE_SUCCESS;
     }
 }
 
-void StatusManager::CleanEmptyBorrowRes(MemBorrowExecuteResult &result)
+void StatusManager::CleanEmptyBorrowRes(MemBorrowExecuteResult& result)
 {
     // Create temporary containers to store new data
     vector<std::string> newBorrowIds;
@@ -211,12 +211,12 @@ void StatusManager::CleanEmptyBorrowRes(MemBorrowExecuteResult &result)
     result.presentNumaIds.swap(newPresentNumaId);
 }
 
-std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vector<pid_t> &pids)
+std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vector<pid_t>& pids)
 {
     std::vector<VMPresetParam> vmPresetParams;
     try {
         vmPresetParams.reserve(pids.size());
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Memory allocation failed: " << e.what();
         return {};
     }
@@ -232,8 +232,8 @@ std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vect
     return vmPresetParams;
 }
 
-VmResult StatusManager::MigrateByBorrowIdStatus(const SrcMemoryBorrowParam &srcMemoryBorrowParam,
-                                                std::vector<BorrowIdStatus> &BorrowIdStatuses)
+VmResult StatusManager::MigrateByBorrowIdStatus(const SrcMemoryBorrowParam& srcMemoryBorrowParam,
+                                                std::vector<BorrowIdStatus>& BorrowIdStatuses)
 {
     UBSE_LOG_DEBUG << "[borrow] start migrate no used borrowIds.";
     const VMNodeLocInfo curNodeLoc = {.hostName = "",
@@ -246,14 +246,14 @@ VmResult StatusManager::MigrateByBorrowIdStatus(const SrcMemoryBorrowParam &srcM
         return VM_ERROR;
     }
 
-    const vector<VMPresetParam> &vmPresetParam = ConvertToVmPresetParam(pids);
+    const vector<VMPresetParam>& vmPresetParam = ConvertToVmPresetParam(pids);
     const auto UBSRMRSMemMigrate = MempoolingModule::UBSRMRSMemMigrate();
     if (UBSRMRSMemMigrate == nullptr) {
         UBSE_LOG_ERROR << "[borrow] UBSRMRSMemMigrate is nullptr.";
         return VM_ERROR;
     }
     MemBorrowExecuteResult borrowResult;
-    for (auto &[borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
+    for (auto& [borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
         borrowResult.borrowIds.emplace_back(borrowId);
         borrowResult.presentNumaIds.emplace_back(presentNumaId);
     }
@@ -262,7 +262,7 @@ VmResult StatusManager::MigrateByBorrowIdStatus(const SrcMemoryBorrowParam &srcM
         UBSE_LOG_ERROR << "[borrow] migrate failed. waite for next alarm, " << FormatRetCode(res);
         return VM_ERROR;
     }
-    for (auto &[borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
+    for (auto& [borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
         memMigrateStatus = MemMigrateStatus::MIGRATE_SUCCESS;
     }
     ResourceCollect::GetInstance().UpdateGlobalBorrowMap(BorrowIdStatuses);
@@ -271,8 +271,8 @@ VmResult StatusManager::MigrateByBorrowIdStatus(const SrcMemoryBorrowParam &srcM
     return VM_OK;
 }
 
-VmResult StatusManager::ReturnByBorrowIdStatus(const SrcMemoryBorrowParam &srcMemoryBorrowParam,
-                                               std::vector<BorrowIdStatus> &BorrowIdStatuses)
+VmResult StatusManager::ReturnByBorrowIdStatus(const SrcMemoryBorrowParam& srcMemoryBorrowParam,
+                                               std::vector<BorrowIdStatus>& BorrowIdStatuses)
 {
     UBSE_LOG_DEBUG << "[return] start return no used borrowIds.";
     const VMNodeLocInfo curNodeLoc = {.hostName = "",
@@ -286,7 +286,7 @@ VmResult StatusManager::ReturnByBorrowIdStatus(const SrcMemoryBorrowParam &srcMe
         return VM_ERROR;
     }
     std::vector<std::string> returnMemNames;
-    for (auto &[borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
+    for (auto& [borrowId, presentNumaId, memMigrateStatus, nodeLocInfo] : BorrowIdStatuses) {
         returnMemNames.emplace_back(borrowId);
     }
     UBSE_LOG_INFO << "[return] returnMemNames:" << VectorUtil::VectorToString(returnMemNames);
@@ -299,7 +299,7 @@ VmResult StatusManager::ReturnByBorrowIdStatus(const SrcMemoryBorrowParam &srcMe
     return VM_OK;
 }
 
-void StatusManager::MemoryReturnOperation(EscapeAction &escapeAction)
+void StatusManager::MemoryReturnOperation(EscapeAction& escapeAction)
 {
     std::lock_guard lockGuard(returnMutex);
     VmTaskCounter::StartTask("memoryReturn");
@@ -309,7 +309,7 @@ void StatusManager::MemoryReturnOperation(EscapeAction &escapeAction)
     UBSE_LOG_INFO << "[return] vm memory return for node=" << escapeAction.curNodeLoc.hostId
                   << ", numaId=" << escapeAction.curNodeLoc.numaId
                   << ", memNames=" << VectorUtil::VectorToString(escapeAction.returnMemNames);
-    auto &ResourceCollect = ResourceCollect::GetInstance();
+    auto& ResourceCollect = ResourceCollect::GetInstance();
     const std::vector<pid_t> pids = ResourceCollect.GetPidsOnNuma(escapeAction.curNodeLoc, "migratingOnly");
     const SrcMemoryBorrowParam borrowParam = {
         .srcNid = escapeAction.curNodeLoc.hostId,
@@ -331,7 +331,7 @@ void StatusManager::MemoryReturnOperation(EscapeAction &escapeAction)
     VmTaskCounter::CompleteTask("memoryReturn");
 }
 
-void StatusManager::EscapeStrategyHandle(EscapeAction &escapeAction)
+void StatusManager::EscapeStrategyHandle(EscapeAction& escapeAction)
 {
     switch (escapeAction.actionType) {
         case EscapeActionType::BORROW:
@@ -357,7 +357,7 @@ void StatusManager::EscapeStrategyHandle(EscapeAction &escapeAction)
             return;
     }
 }
-void StatusManager::WhetherEnterBorrowQueue(const EscapeAction &escapeAction)
+void StatusManager::WhetherEnterBorrowQueue(const EscapeAction& escapeAction)
 {
     AddTaskFilterSet(escapeAction.curNodeLoc);
     std::unique_lock<std::mutex> borrowLocLock(borrowMutex);
@@ -369,7 +369,7 @@ void StatusManager::WhetherEnterBorrowQueue(const EscapeAction &escapeAction)
 
 void StatusManager::BorrowQueueOperation()
 {
-    auto &ResourceCollect = ResourceCollect::GetInstance();
+    auto& ResourceCollect = ResourceCollect::GetInstance();
     while (true) {
         std::unique_lock<std::mutex> borrowWaitLock(borrowMutex);
         borrowCv.wait(borrowWaitLock, [] { return !g_borrowQueue.empty() || VmConfiguration::exitFlag.load(); });
@@ -397,19 +397,19 @@ void StatusManager::BorrowQueueOperation()
     }
 }
 
-void StatusManager::AddTaskFilterSet(const VMNodeLocInfo &nodeLocInfo)
+void StatusManager::AddTaskFilterSet(const VMNodeLocInfo& nodeLocInfo)
 {
     WriteLocker lock(&taskFilterSetLock_);
     g_taskFilterSet.insert(nodeLocInfo.toString());
 }
 
-void StatusManager::RemoveTaskFilterSet(const VMNodeLocInfo &nodeLocInfo)
+void StatusManager::RemoveTaskFilterSet(const VMNodeLocInfo& nodeLocInfo)
 {
     WriteLocker lock(&taskFilterSetLock_);
     g_taskFilterSet.erase(nodeLocInfo.toString());
 }
 
-bool StatusManager::StillInTask(const std::string &hostId, const int16_t &socketId, const int16_t &numaId)
+bool StatusManager::StillInTask(const std::string& hostId, const int16_t& socketId, const int16_t& numaId)
 {
     ReadLocker lock(&taskFilterSetLock_);
     std::ostringstream oss;

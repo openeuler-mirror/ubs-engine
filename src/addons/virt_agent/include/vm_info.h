@@ -62,7 +62,7 @@ struct VmDomainInfo {
         oss << "hostName:" << hostName << ",";
         oss << "pid:" << pid << ",";
         oss << "numaMemInfo:[";
-        for (const auto &item : numaMemInfo) {
+        for (const auto& item : numaMemInfo) {
             oss << item.second.ToString() << ",";
         }
         oss << "]";
@@ -86,7 +86,7 @@ struct HostVmDomainInfo {
         oss << "nodeId:" << nodeId << ",";
         oss << "hostName:" << hostName << ",";
         oss << "vmDomainInfos:[";
-        for (const auto &vmDomainInfo : vmDomainInfos) {
+        for (const auto& vmDomainInfo : vmDomainInfos) {
             oss << vmDomainInfo.toString() << ",";
         }
         oss << "]";

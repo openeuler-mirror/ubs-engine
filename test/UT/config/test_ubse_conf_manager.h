@@ -13,8 +13,8 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_CONF_MANAGER_H
 #define UBSE_MANAGER_TEST_UBSE_CONF_MANAGER_H
 
-#include "gtest/gtest.h"
 #include "ubse_conf_manager.h"
+#include "gtest/gtest.h"
 
 namespace ubse::ut::config {
 class TestUbseConfManager : public testing::Test {
@@ -25,8 +25,8 @@ protected:
     static std::string configDir;
     static std::string invalidDir;
 
-    static ubse::config::UbseConfigManager &cfgMgr;
+    static ubse::config::UbseConfigManager& cfgMgr;
 };
-}
+} // namespace ubse::ut::config
 
 #endif // UBSE_MANAGER_TEST_UBSE_CONF_MANAGER_H

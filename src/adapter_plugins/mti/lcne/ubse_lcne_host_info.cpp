@@ -11,14 +11,14 @@
  */
 
 #include "ubse_lcne_host_info.h"
-#include <cstdint>  // for uint32_t, uint8_t
-#include "ubse_http_module.h"  // for UbseHttpModule
-#include "securec.h"  // for memcpy_s, EOK
-#include "ubse_context.h"  // for UbseContext
-#include "ubse_error.h"  // for UBSE_ERROR, UBSE_OK, UBSE_ERROR_NOMEM
-#include "ubse_logger.h"  // for FormatRetCode, UBSE_DEFINE_THIS_MO...
-#include "ubse_pointer_process.h"  // for SafeDeleteArray
-#include "ubse_xml.h"  // for UbseXml, UbseXmlError // for UbseByteBuffer
+#include <cstdint>                // for uint32_t, uint8_t
+#include "ubse_context.h"         // for UbseContext
+#include "ubse_error.h"           // for UBSE_ERROR, UBSE_OK, UBSE_ERROR_NOMEM
+#include "ubse_http_module.h"     // for UbseHttpModule
+#include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
+#include "ubse_pointer_process.h" // for SafeDeleteArray
+#include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
+#include "securec.h"              // for memcpy_s, EOK
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -117,4 +117,4 @@ UbseResult UbseLcneHostInfo::ParseHostQueryResponse(const std::string& responseS
                    << UbseLcneOSInfoToString(ubseLcneOSInfo);
     return UBSE_OK;
 }
-}  // namespace ubse::lcne
+} // namespace ubse::lcne

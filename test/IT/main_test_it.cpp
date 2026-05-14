@@ -22,9 +22,9 @@
 #include <iostream>
 #include <mockcpp/mockcpp.hpp>
 
-#include "test_it_utils.h"
 #include "ubse_it_dir.h"
 #include "ubse_lcne_dev.h"
+#include "test_it_utils.h"
 
 namespace ubse::it {
 using namespace ubse::it::utils;
@@ -45,16 +45,16 @@ const std::string STORE_PATH = "/var/lib/ubse/data";
 const std::string MASTER_LOG_PATH = std::string(IT_DIRECTORY) + "/manager_log/";
 const std::string CLI_LOG_PATH = std::string(IT_DIRECTORY) + "/cli_log/";
 const std::string UDS_ADDRESS = std::string(IT_DIRECTORY) + "/uds/ubseAgentUds.socket";
-UbseCmdAndFunc *g_pstCmdFuncServer = nullptr;
-UbseCmdAndFunc *g_pstCmdFuncCli = nullptr;
-UbseContext &g_ubseContext = UbseContext::GetInstance();
+UbseCmdAndFunc* g_pstCmdFuncServer = nullptr;
+UbseCmdAndFunc* g_pstCmdFuncCli = nullptr;
+UbseContext& g_ubseContext = UbseContext::GetInstance();
 std::string g_configFilePath{};
 std::string g_backupFilePath{};
 std::string g_pluginConfigFilePath{};
 std::string g_pluginBackupFilePath{};
 
 // 备份文件
-int32_t BackupFile(const std::string &originalFile, const std::string &backupFile)
+int32_t BackupFile(const std::string& originalFile, const std::string& backupFile)
 {
     std::ifstream src(originalFile, std::ios::binary);
     std::ofstream dst(backupFile, std::ios::binary);
@@ -68,7 +68,7 @@ int32_t BackupFile(const std::string &originalFile, const std::string &backupFil
     return UBSE_OK;
 }
 
-void ReplaceConfigItem(std::string &content, const std::string &key, const std::string &newValue)
+void ReplaceConfigItem(std::string& content, const std::string& key, const std::string& newValue)
 {
     size_t pos = content.find(key + "=");
     if (pos == std::string::npos) {
@@ -85,8 +85,8 @@ void ReplaceConfigItem(std::string &content, const std::string &key, const std::
     content.replace(valueStartPos, endPos - valueStartPos, newValue);
 }
 
-void InsertConfigItem(std::string &content, const std::string &section, const std::string &key,
-                      const std::string &value)
+void InsertConfigItem(std::string& content, const std::string& section, const std::string& key,
+                      const std::string& value)
 {
     size_t pos = content.find("[" + section + "]");
     if (pos == std::string::npos) {
@@ -101,8 +101,8 @@ void InsertConfigItem(std::string &content, const std::string &section, const st
     content.insert(endPos, "\n" + key + "=" + value + "\n");
 }
 
-void ReplaceSectionConfigItem(std::string &content, const std::string &section, const std::string &key,
-                              const std::string &newValue)
+void ReplaceSectionConfigItem(std::string& content, const std::string& section, const std::string& key,
+                              const std::string& newValue)
 {
     size_t pos = content.find("[" + section + "]");
     if (pos == std::string::npos) {
@@ -127,7 +127,7 @@ void ReplaceSectionConfigItem(std::string &content, const std::string &section, 
     content.replace(valueStartPos, endPos - valueStartPos, newValue);
 }
 
-void DeleteConfigItem(std::string &content, const std::string &key)
+void DeleteConfigItem(std::string& content, const std::string& key)
 {
     size_t pos = content.find(key + "=");
     if (pos == std::string::npos) {
@@ -143,7 +143,7 @@ void DeleteConfigItem(std::string &content, const std::string &key)
     content.erase(pos, endPos - pos + 1);
 }
 
-void CreateDir(const std::string &dirPath)
+void CreateDir(const std::string& dirPath)
 {
     std::filesystem::path path(dirPath);
     if (!std::filesystem::is_directory(path)) {
@@ -155,7 +155,7 @@ void CreateDir(const std::string &dirPath)
     }
 }
 
-void ClearDir(const std::string &dirPath)
+void ClearDir(const std::string& dirPath)
 {
     std::filesystem::path path(dirPath);
     if (!std::filesystem::exists(path)) {
@@ -166,7 +166,7 @@ void ClearDir(const std::string &dirPath)
 }
 
 // 更改配置文件
-int32_t UpdateMasterConfig(const std::string &configPath)
+int32_t UpdateMasterConfig(const std::string& configPath)
 {
     // 读取文件内容
     std::ifstream inFile(configPath);
@@ -194,7 +194,7 @@ int32_t UpdateMasterConfig(const std::string &configPath)
     return UBSE_OK;
 }
 
-int32_t UpdateCliConfig(const std::string &configPath)
+int32_t UpdateCliConfig(const std::string& configPath)
 {
     // 读取文件内容
     std::ifstream inFile(configPath);
@@ -221,7 +221,7 @@ int32_t UpdateCliConfig(const std::string &configPath)
     return UBSE_OK;
 }
 
-int32_t UpdatePluginConfig(const std::string &configPath)
+int32_t UpdatePluginConfig(const std::string& configPath)
 {
     // 读取文件内容
     std::ifstream inFile(configPath);
@@ -250,7 +250,7 @@ int32_t UpdatePluginConfig(const std::string &configPath)
 }
 
 // 恢复文件
-int32_t RestoreFile(const std::string &originalFile, const std::string &backupFile)
+int32_t RestoreFile(const std::string& originalFile, const std::string& backupFile)
 {
     if (std::remove(originalFile.c_str()) != 0) {
         std::cerr << "Error: Unable to remove file: " << originalFile << std::endl;
@@ -264,11 +264,11 @@ int32_t RestoreFile(const std::string &originalFile, const std::string &backupFi
     return UBSE_OK;
 }
 
-ProcessMmap *MemoryMapping()
+ProcessMmap* MemoryMapping()
 {
-    ProcessMmap *pMmap = nullptr;
+    ProcessMmap* pMmap = nullptr;
     /* mmap匿名映射一段内存 */
-    pMmap = static_cast<ProcessMmap *>(
+    pMmap = static_cast<ProcessMmap*>(
         mmap(nullptr, sizeof(ProcessMmap), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
     if (pMmap == MAP_FAILED) {
         std::cout << "Set mmap failed, errno " << errno << std::endl;
@@ -310,9 +310,9 @@ void ITestResourceInit()
 
 unsigned int TestShowCallStack()
 {
-    void *array[STACK_CALL_MAX_FLOOR];
+    void* array[STACK_CALL_MAX_FLOOR];
     int stackNum = backtrace(array, STACK_CALL_MAX_FLOOR);
-    char **stackTrace;
+    char** stackTrace;
     int uiLoop;
     int iPid = getpid();
 
@@ -341,7 +341,7 @@ void TestSigSegvProc(int iSigNo)
 }
 
 /* 在服务端进程中执行特定的命令，并处理这些命令的结果 */
-void ITestServerStart(ProcessMmap *pMmap)
+void ITestServerStart(ProcessMmap* pMmap)
 {
     int32_t iRet = -1;
     uint32_t uiMsgDeal = 0;
@@ -382,7 +382,7 @@ void ITestServerStart(ProcessMmap *pMmap)
 }
 
 /* 在客户端进程中执行特定的命令，并处理这些命令的结果 */
-void ITestCliStart(ProcessMmap *pMmap)
+void ITestCliStart(ProcessMmap* pMmap)
 {
     int32_t iRet = -1;
     uint32_t uiMsgDeal = 0;
@@ -422,7 +422,7 @@ void ITestCliStart(ProcessMmap *pMmap)
 }
 
 /* 创建一个子进程，并在子进程中执行一个特定的函数。 */
-uint32_t ITestSetSubProcess(FuncPtr *opt, ProcessMmap *pMmap, pid_t *pid, const std::string &procName)
+uint32_t ITestSetSubProcess(FuncPtr* opt, ProcessMmap* pMmap, pid_t* pid, const std::string& procName)
 {
     pid_t fpid;
     /* 调用fork()函数创建一个子进程 */
@@ -458,7 +458,7 @@ void SignalHandler(int32_t signo)
 }
 
 /* 创建一个子进程 */
-uint32_t ITestSetProcess(ProcessMmap *pMmap)
+uint32_t ITestSetProcess(ProcessMmap* pMmap)
 {
     uint32_t uiRet;
     uint32_t i;
@@ -513,7 +513,7 @@ void ITestCmdAndFuncRegister(TagTestCmdInfo enCmd, FuncPtrp pFunc, ProcessMode p
     }
 }
 
-void ITestGetCliResult(ProcessMmap *pMmap, uint32_t uiTime, int32_t *psiStatus)
+void ITestGetCliResult(ProcessMmap* pMmap, uint32_t uiTime, int32_t* psiStatus)
 {
     uint32_t uiTimeTmp = uiTime;
     while (pMmap->stCliInfo.iStatus == -1 && uiTimeTmp > 0) {
@@ -526,7 +526,7 @@ void ITestGetCliResult(ProcessMmap *pMmap, uint32_t uiTime, int32_t *psiStatus)
     return;
 }
 
-void ITestGetServerResult(ProcessMmap *pMmap, uint32_t uiTime, int32_t *psiStatus)
+void ITestGetServerResult(ProcessMmap* pMmap, uint32_t uiTime, int32_t* psiStatus)
 {
     uint32_t uiTimeTmp = uiTime;
     while (pMmap->stServerInfo.iStatus == -1 && uiTimeTmp > 0) {
@@ -539,7 +539,7 @@ void ITestGetServerResult(ProcessMmap *pMmap, uint32_t uiTime, int32_t *psiStatu
     return;
 }
 
-int32_t ITestCmdServerStart(ProcessMmap *pMmap)
+int32_t ITestCmdServerStart(ProcessMmap* pMmap)
 {
     std::cout << "----------UbseMaster Creating----------" << std::endl;
     // 清除数据库
@@ -566,7 +566,7 @@ int32_t ITestCmdServerStart(ProcessMmap *pMmap)
     return res;
 }
 
-int32_t ITestCmdCliStart(ProcessMmap *pMmap)
+int32_t ITestCmdCliStart(ProcessMmap* pMmap)
 {
     std::cout << "----------UbseCli Creating----------" << std::endl;
     // 配置文件修改
@@ -577,7 +577,7 @@ int32_t ITestCmdCliStart(ProcessMmap *pMmap)
     return res;
 }
 
-int32_t ITestCmdServerStop(ProcessMmap *pMmap)
+int32_t ITestCmdServerStop(ProcessMmap* pMmap)
 {
     std::cout << "----------UbseMaster Stopping----------" << std::endl;
     // 停止Master
@@ -586,7 +586,7 @@ int32_t ITestCmdServerStop(ProcessMmap *pMmap)
     return UBSE_OK;
 }
 
-int32_t ITestCmdCliStop(ProcessMmap *pMmap)
+int32_t ITestCmdCliStop(ProcessMmap* pMmap)
 {
     std::cout << "----------UbseCli Stopping----------" << std::endl;
     // 停止Cli
@@ -595,7 +595,7 @@ int32_t ITestCmdCliStop(ProcessMmap *pMmap)
     return UBSE_OK;
 }
 
-void ITestQuitProcess(ProcessMmap *pMmap)
+void ITestQuitProcess(ProcessMmap* pMmap)
 {
     uint32_t t = 0;
     uint32_t uiMaxDelay = 20;
@@ -618,7 +618,7 @@ void ITestQuitProcess(ProcessMmap *pMmap)
     return;
 }
 
-void ITestClearResource(ProcessMmap *pMmap)
+void ITestClearResource(ProcessMmap* pMmap)
 {
     munmap(pMmap, sizeof(ProcessMmap));
     delete[] g_pstCmdFuncCli;

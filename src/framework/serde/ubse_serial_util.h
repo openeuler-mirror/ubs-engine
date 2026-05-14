@@ -34,9 +34,9 @@ inline bool Unlikely(bool condition)
     return __builtin_expect(static_cast<int>(condition), 0) != 0;
 }
 
-using common_len = uint64_t;    // 外部传入长度类型，用于兼容各种长度
-using base_type = uint64_t;     // 基础类型比较类型，通过能否与该类型强转来判断是否是基础类型
-using base_ptr_type = uint8_t;  // 基础指针类型比较类型，通过能否与该类型强转来判断是否是基础指针类型，必须是uint8
+using common_len = uint64_t; // 外部传入长度类型，用于兼容各种长度
+using base_type = uint64_t;  // 基础类型比较类型，通过能否与该类型强转来判断是否是基础类型
+using base_ptr_type = uint8_t; // 基础指针类型比较类型，通过能否与该类型强转来判断是否是基础指针类型，必须是uint8
 
 using serial_head = uint32_t;   // 头块[类型块:长度块]，长度块高位替换为类型块即为头块
 using serial_type = uint8_t;    // 类型块
@@ -44,10 +44,11 @@ using serial_len = serial_head; // 长度块，实际为头块的bit_len(serial_
 constexpr serial_head LEN_CTRL_OFFSET = (sizeof(serial_len) - sizeof(serial_type)) * 8; // 长度块bit长度
 constexpr serial_head LEN_CTRL_MASK = (serial_head(1) << LEN_CTRL_OFFSET) - 1;
 
-constexpr serial_type MAX_BASE_TYPE_NUMS = 64; // 基础类型上限
-constexpr common_len INIT_CAPACITY = 256;       // 【可变】
-constexpr common_len MAX_CAPACITY = serial_head(1) << LEN_CTRL_OFFSET;  // 容量上限【可变，尽量为2^n】
-constexpr common_len ONCE_LIMIT_LEN = MAX_CAPACITY >> 8;  // 单次添加序列化内容长度上限，超过会导致序列化失败【可变，尽量为2^n】
+constexpr serial_type MAX_BASE_TYPE_NUMS = 64;                         // 基础类型上限
+constexpr common_len INIT_CAPACITY = 256;                              // 【可变】
+constexpr common_len MAX_CAPACITY = serial_head(1) << LEN_CTRL_OFFSET; // 容量上限【可变，尽量为2^n】
+constexpr common_len ONCE_LIMIT_LEN = MAX_CAPACITY >>
+                                      8; // 单次添加序列化内容长度上限，超过会导致序列化失败【可变，尽量为2^n】
 
 enum class CTRL_TYPE { // 控制类型
     CTRL_CODE_START = MAX_BASE_TYPE_NUMS,
@@ -70,7 +71,8 @@ enum class ALIGN_BASE : serial_head {
  * @tparam T 类型
  * @param ptr 地址
  */
-template <typename T> void UbseSerialFreeFunc(T *&ptr)
+template <typename T>
+void UbseSerialFreeFunc(T*& ptr)
 {
     if (ptr != nullptr) {
         delete[] ptr;
@@ -84,11 +86,12 @@ template <typename T> void UbseSerialFreeFunc(T *&ptr)
  * @details 序列化时，保证ptr指向内存中有内容且len长度正确
  * @details 反序列化时，保证ptr已经分配足够内存空间，如果空间不够，会反序列化失败
  */
-template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_ptr_type>>> struct addr_len {
-    T *ptr;
+template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_ptr_type>>>
+struct addr_len {
+    T* ptr;
     common_len len;
     addr_len() : ptr(nullptr), len(0){};
-    addr_len(T *p, common_len l) : ptr(p), len(l * sizeof(T)){};
+    addr_len(T* p, common_len l) : ptr(p), len(l * sizeof(T)){};
 };
 
 /**
@@ -105,41 +108,46 @@ struct array_len_insert {
  * @brief 右值套件，用于控制传入右值的类型。
  * @tparam T 期望右值的类型
  */
-template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_type>>> struct right_v {
+template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_type>>>
+struct right_v {
     T val;
     right_v() = delete;
-    template <typename U> right_v(U &) = delete;
-    template <typename U> explicit right_v(U &&v) : val(static_cast<T>(v)){};
+    template <typename U>
+    right_v(U&) = delete;
+    template <typename U>
+    explicit right_v(U&& v) : val(static_cast<T>(v)){};
 };
 
 /**
  * @brief 枚举值套件，用于控制传入枚举值的类型。
  * @tparam T 枚举类型
  */
-template <typename T> struct enum_v {
-    T *l_val = nullptr;
+template <typename T>
+struct enum_v {
+    T* l_val = nullptr;
     T r_val;
     enum_v() = delete;
-    explicit enum_v(T &v) : l_val(&v), r_val(v){};
-    explicit enum_v(T &&v) : r_val(v){};
+    explicit enum_v(T& v) : l_val(&v), r_val(v){};
+    explicit enum_v(T&& v) : r_val(v){};
 };
 
-template <typename T> serial_type GetTypeId();
+template <typename T>
+serial_type GetTypeId();
 
-template <typename T> serial_type GetTypePointerId();
+template <typename T>
+serial_type GetTypePointerId();
 
 class UbseSerialization {
 public:
     UbseSerialization();
     explicit UbseSerialization(ALIGN_BASE align);
-    explicit UbseSerialization(common_len cap,
-                              ALIGN_BASE align = static_cast<ALIGN_BASE>(sizeof(serial_head)));
+    explicit UbseSerialization(common_len cap, ALIGN_BASE align = static_cast<ALIGN_BASE>(sizeof(serial_head)));
 
-    UbseSerialization(const UbseSerialization &other) = delete;
-    UbseSerialization operator = (const UbseSerialization &other) = delete;
+    UbseSerialization(const UbseSerialization& other) = delete;
+    UbseSerialization operator=(const UbseSerialization& other) = delete;
 
-    UbseSerialization(UbseSerialization &&other) noexcept;
-    UbseSerialization &operator = (UbseSerialization &&other) noexcept;
+    UbseSerialization(UbseSerialization&& other) noexcept;
+    UbseSerialization& operator=(UbseSerialization&& other) noexcept;
 
     ~UbseSerialization();
 
@@ -156,10 +164,10 @@ public:
 
     // 禁止基础类型的右值传入，防止反序列化时无法确定类型
     template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_type>>>
-    UbseSerialization &operator << (T &&) = delete;
+    UbseSerialization& operator<<(T&&) = delete;
 
     template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_type>>>
-    UbseSerialization &operator << (const T &param)
+    UbseSerialization& operator<<(const T& param)
     {
         if (Unlikely(!mFlag_)) {
             return *this;
@@ -171,30 +179,33 @@ public:
         }
         writeTypeAndLen(mBuf_ + mLen_, GetTypeId<T>(), sizeof(T));
         mLen_ += alignedHeadLen;
-        *(reinterpret_cast<T *>(mBuf_ + mLen_)) = param;
+        *(reinterpret_cast<T*>(mBuf_ + mLen_)) = param;
         mLen_ += alignedParamLen;
         return *this;
     }
 
     template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_type>>>
-    UbseSerialization &operator << (T &param)
+    UbseSerialization& operator<<(T& param)
     {
-        const T &constParam = param;
+        const T& constParam = param;
         return *this << constParam;
     }
 
-    template <typename T> UbseSerialization &operator << (right_v<T> &&rv)
+    template <typename T>
+    UbseSerialization& operator<<(right_v<T>&& rv)
     {
         return *this << rv.val;
     }
 
-    template <typename T> UbseSerialization &operator << (enum_v<T> &&e)
+    template <typename T>
+    UbseSerialization& operator<<(enum_v<T>&& e)
     {
         int e_v = static_cast<int>(e.r_val);
         return *this << e_v;
     }
 
-    template <typename T> UbseSerialization &operator << (const std::vector<T> &vec)
+    template <typename T>
+    UbseSerialization& operator<<(const std::vector<T>& vec)
     {
         *this << array_len_insert(vec.size());
         if (vec.empty()) {
@@ -210,38 +221,40 @@ public:
         return *this;
     }
 
-    template <typename T_KEY, typename T_VAL> UbseSerialization &operator << (const std::map<T_KEY, T_VAL> &map)
+    template <typename T_KEY, typename T_VAL>
+    UbseSerialization& operator<<(const std::map<T_KEY, T_VAL>& map)
     {
         *this << array_len_insert(map.size());
-        for (auto &element : map) {
+        for (auto& element : map) {
             *this << element.first << element.second;
         }
         return *this;
     }
 
     template <typename T_KEY, typename T_VAL, typename T_CMP>
-    UbseSerialization &operator << (const std::map<T_KEY, T_VAL, T_CMP> &map)
+    UbseSerialization& operator<<(const std::map<T_KEY, T_VAL, T_CMP>& map)
     {
         *this << array_len_insert(map.size());
-        for (auto &element : map) {
+        for (auto& element : map) {
             *this << element.first << element.second;
         }
         return *this;
     }
 
-    UbseSerialization &operator << (array_len_insert arrayLenInsert);
+    UbseSerialization& operator<<(array_len_insert arrayLenInsert);
 
-    UbseSerialization &operator << (const std::string &str);
+    UbseSerialization& operator<<(const std::string& str);
 
-    UbseSerialization &operator << (std::string &&str);
+    UbseSerialization& operator<<(std::string&& str);
 
-    UbseSerialization &operator << (const char *str);
+    UbseSerialization& operator<<(const char* str);
 
-    UbseSerialization &operator << (UbseSerialization &kid);
+    UbseSerialization& operator<<(UbseSerialization& kid);
 
-    template <typename T> UbseSerialization &operator << (addr_len<T> addrLen)
+    template <typename T>
+    UbseSerialization& operator<<(addr_len<T> addrLen)
     {
-        add(reinterpret_cast<base_ptr_type *>(addrLen.ptr), addrLen.len, GetTypePointerId<T>());
+        add(reinterpret_cast<base_ptr_type*>(addrLen.ptr), addrLen.len, GetTypePointerId<T>());
         return *this;
     }
 
@@ -254,7 +267,7 @@ public:
      *          当bGetCtrl为true时，该序列化对象就无法再继续序列化；
      * @return 序列化结果的起始地址
      */
-    base_ptr_type *GetBuffer(bool bGetCtrl = false);
+    base_ptr_type* GetBuffer(bool bGetCtrl = false);
 
     inline common_len GetLength() const
     {
@@ -275,7 +288,7 @@ private:
         *(reinterpret_cast<serial_head*>(buf)) = (static_cast<serial_head>(type) << LEN_CTRL_OFFSET) | len;
     }
 
-    void add(const base_ptr_type *addr, common_len len, serial_type type);
+    void add(const base_ptr_type* addr, common_len len, serial_type type);
 
     inline common_len AlignTo(common_len l) const
     {
@@ -283,14 +296,15 @@ private:
     }
 
 private:
-    base_ptr_type *mBuf_;
+    base_ptr_type* mBuf_;
     common_len mAlignOffset_;
     common_len mLen_;
     common_len mCap_;
     bool mFlag_;
 };
 
-template <> UbseSerialization& UbseSerialization::operator << <bool>(const std::vector<bool>& vec);
+template <>
+UbseSerialization& UbseSerialization::operator<< <bool>(const std::vector<bool>& vec);
 
 /**
  * @brief 获取数组长度的容器
@@ -301,10 +315,11 @@ template <> UbseSerialization& UbseSerialization::operator << <bool>(const std::
  * de >> arrayLenCapture(len); 即可获取数组长度，若反序列化失败返回0
  *
  */
-template <typename T> struct array_len_capture {
-    T &len;
+template <typename T>
+struct array_len_capture {
+    T& len;
     array_len_capture() = delete;
-    explicit array_len_capture(T &l) : len(l)
+    explicit array_len_capture(T& l) : len(l)
     {
         len = 0;
     }
@@ -315,10 +330,11 @@ template <typename T> struct array_len_capture {
  * @tparam T 基础类型的模板
  * @details 仅用于反序列化，ptr为动态分配的地址，需要用freeFunc手动释放
  */
-template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_ptr_type>>> struct alloc_addr_len_ {
-    T *ptr;
+template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_ptr_type>>>
+struct alloc_addr_len_ {
+    T* ptr;
     common_len len;
-    void (*freeFunc)(T *&ptr);
+    void (*freeFunc)(T*& ptr);
     alloc_addr_len_() : ptr(nullptr), len(0), freeFunc(UbseSerialFreeFunc){};
 };
 
@@ -326,16 +342,16 @@ class UbseDeSerialization {
 public:
     UbseDeSerialization();
 
-    UbseDeSerialization(const base_ptr_type *buf, common_len len, bool bNew = false);
+    UbseDeSerialization(const base_ptr_type* buf, common_len len, bool bNew = false);
 
-    UbseDeSerialization(const UbseDeSerialization &) = delete;
-    UbseDeSerialization operator = (const UbseDeSerialization &) = delete;
-    UbseDeSerialization(UbseDeSerialization &&) = delete;
-    UbseDeSerialization operator = (UbseDeSerialization &&) = delete;
+    UbseDeSerialization(const UbseDeSerialization&) = delete;
+    UbseDeSerialization operator=(const UbseDeSerialization&) = delete;
+    UbseDeSerialization(UbseDeSerialization&&) = delete;
+    UbseDeSerialization operator=(UbseDeSerialization&&) = delete;
 
     ~UbseDeSerialization();
 
-    bool Set(base_ptr_type *buf, common_len len, bool bNew = false);
+    bool Set(base_ptr_type* buf, common_len len, bool bNew = false);
 
     /**
      * @brief 获取用于反序列的内存的地址
@@ -344,7 +360,7 @@ public:
      * @warning 当bGetCtrl为true时，只有mGetBufCtrl也为true
      * 即该内存为此对象独自持有，才可转移内存的控制权
      */
-    base_ptr_type *GetBuffer(bool bGetCtrl = false);
+    base_ptr_type* GetBuffer(bool bGetCtrl = false);
 
     inline common_len GetLength() const
     {
@@ -363,7 +379,7 @@ public:
     }
 
     template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_type>>>
-    UbseDeSerialization &operator >> (T &param)
+    UbseDeSerialization& operator>>(T& param)
     {
         auto alignedHeadLen = AlignTo(sizeof(serial_head));
         auto alignedParamLen = AlignTo(sizeof(T));
@@ -376,12 +392,13 @@ public:
             return *this;
         }
         mPos_ += alignedHeadLen;
-        param = *(reinterpret_cast<T *>(mPos_));
+        param = *(reinterpret_cast<T*>(mPos_));
         mPos_ += alignedParamLen;
         return *this;
     }
 
-    template <typename T> UbseDeSerialization &operator >> (std::vector<T> &vec)
+    template <typename T>
+    UbseDeSerialization& operator>>(std::vector<T>& vec)
     {
         common_len len;
         *this >> array_len_capture(len);
@@ -413,7 +430,8 @@ public:
         return *this;
     }
 
-    template <typename T_KEY, typename T_VAL> UbseDeSerialization &operator >> (std::map<T_KEY, T_VAL> &map)
+    template <typename T_KEY, typename T_VAL>
+    UbseDeSerialization& operator>>(std::map<T_KEY, T_VAL>& map)
     {
         common_len len;
         *this >> array_len_capture(len);
@@ -426,7 +444,7 @@ public:
     }
 
     template <typename T_KEY, typename T_VAL, typename T_CMP>
-    UbseDeSerialization &operator >> (std::map<T_KEY, T_VAL, T_CMP> &map)
+    UbseDeSerialization& operator>>(std::map<T_KEY, T_VAL, T_CMP>& map)
     {
         uint64_t len;
         *this >> array_len_capture(len);
@@ -438,7 +456,8 @@ public:
         return *this;
     }
 
-    template <typename T> UbseDeSerialization &operator >> (alloc_addr_len_<T> &allocAddrLen)
+    template <typename T>
+    UbseDeSerialization& operator>>(alloc_addr_len_<T>& allocAddrLen)
     {
         base_ptr_type* addr;
         common_len len;
@@ -464,15 +483,16 @@ public:
         return *this;
     }
 
-    UbseDeSerialization &operator >> (std::string &str);
+    UbseDeSerialization& operator>>(std::string& str);
 
-    UbseDeSerialization &operator >> (char *&str);
+    UbseDeSerialization& operator>>(char*& str);
 
-    UbseDeSerialization &operator >> (UbseDeSerialization &kid);
+    UbseDeSerialization& operator>>(UbseDeSerialization& kid);
 
-    template <typename T> UbseDeSerialization &operator >> (addr_len<T> addrLen)
+    template <typename T>
+    UbseDeSerialization& operator>>(addr_len<T> addrLen)
     {
-        base_ptr_type *addr;
+        base_ptr_type* addr;
         common_len len;
         if (!get(addr, len, GetTypePointerId<T>())) {
             return *this;
@@ -487,7 +507,8 @@ public:
         return *this;
     }
 
-    template <typename T> UbseDeSerialization &operator >> (enum_v<T> &&e)
+    template <typename T>
+    UbseDeSerialization& operator>>(enum_v<T>&& e)
     {
         if (Unlikely(e.l_val == nullptr)) {
             mFlag_ = false;
@@ -507,7 +528,8 @@ public:
      * @param arrayLenCapture 获取长度的容器
      * @return UbseDeSerialization对象
      */
-    template <typename T> UbseDeSerialization &operator >> (array_len_capture<T> &&arrayLenCapture)
+    template <typename T>
+    UbseDeSerialization& operator>>(array_len_capture<T>&& arrayLenCapture)
     {
         auto expectReadLen = AlignTo(sizeof(serial_head));
         if (!checkValid(expectReadLen)) {
@@ -527,7 +549,7 @@ private:
     // 默认必须能读到控制头
     bool checkValid(common_len expectLen);
 
-    bool get(base_ptr_type *&addr, common_len &len, serial_type type);
+    bool get(base_ptr_type*& addr, common_len& len, serial_type type);
 
     /**
      * @brief 从指定地址根据类型读取长度，安全性由调用者保证
@@ -535,7 +557,7 @@ private:
      * @param type 类型
      * @return std::optional<serial_len>，若类型不匹配则为空，反之则读取到长度
      */
-    inline std::optional<serial_len> readLenByType(base_ptr_type *buf, const serial_type &type)
+    inline std::optional<serial_len> readLenByType(base_ptr_type* buf, const serial_type& type)
     {
         std::optional<serial_len> result;
         auto head = *reinterpret_cast<serial_head*>(buf);
@@ -552,52 +574,89 @@ private:
     }
 
 private:
-    base_ptr_type *mBuf_;
-    base_ptr_type *mPos_;
+    base_ptr_type* mBuf_;
+    base_ptr_type* mPos_;
     common_len mLen_;
     bool mFlag_;
     bool mGetBufCtrl_;
     common_len mAlignOffset_;
 };
 
-template <> UbseDeSerialization& UbseDeSerialization::operator >> <bool>(std::vector<bool>& vec);
+template <>
+UbseDeSerialization& UbseDeSerialization::operator>> <bool>(std::vector<bool>& vec);
 
-template <> serial_type GetTypeId<short>();
-template <> serial_type GetTypeId<int>();
-template <> serial_type GetTypeId<long>();
-template <> serial_type GetTypeId<long long>();
-template <> serial_type GetTypeId<unsigned short>();
-template <> serial_type GetTypeId<unsigned int>();
-template <> serial_type GetTypeId<unsigned long>();
-template <> serial_type GetTypeId<unsigned long long>();
-template <> serial_type GetTypeId<char>();
-template <> serial_type GetTypeId<signed char>();
-template <> serial_type GetTypeId<unsigned char>();
-template <> serial_type GetTypeId<wchar_t>();
-template <> serial_type GetTypeId<char16_t>();
-template <> serial_type GetTypeId<char32_t>();
-template <> serial_type GetTypeId<bool>();
-template <> serial_type GetTypeId<float>();
-template <> serial_type GetTypeId<double>();
+template <>
+serial_type GetTypeId<short>();
+template <>
+serial_type GetTypeId<int>();
+template <>
+serial_type GetTypeId<long>();
+template <>
+serial_type GetTypeId<long long>();
+template <>
+serial_type GetTypeId<unsigned short>();
+template <>
+serial_type GetTypeId<unsigned int>();
+template <>
+serial_type GetTypeId<unsigned long>();
+template <>
+serial_type GetTypeId<unsigned long long>();
+template <>
+serial_type GetTypeId<char>();
+template <>
+serial_type GetTypeId<signed char>();
+template <>
+serial_type GetTypeId<unsigned char>();
+template <>
+serial_type GetTypeId<wchar_t>();
+template <>
+serial_type GetTypeId<char16_t>();
+template <>
+serial_type GetTypeId<char32_t>();
+template <>
+serial_type GetTypeId<bool>();
+template <>
+serial_type GetTypeId<float>();
+template <>
+serial_type GetTypeId<double>();
 
-template <> serial_type GetTypePointerId<short>();
-template <> serial_type GetTypePointerId<int>();
-template <> serial_type GetTypePointerId<long>();
-template <> serial_type GetTypePointerId<long long>();
-template <> serial_type GetTypePointerId<unsigned short>();
-template <> serial_type GetTypePointerId<unsigned int>();
-template <> serial_type GetTypePointerId<unsigned long>();
-template <> serial_type GetTypePointerId<unsigned long long>();
-template <> serial_type GetTypePointerId<char>();
-template <> serial_type GetTypePointerId<signed char>();
-template <> serial_type GetTypePointerId<unsigned char>();
-template <> serial_type GetTypePointerId<wchar_t>();
-template <> serial_type GetTypePointerId<char16_t>();
-template <> serial_type GetTypePointerId<char32_t>();
-template <> serial_type GetTypePointerId<bool>();
-template <> serial_type GetTypePointerId<float>();
-template <> serial_type GetTypePointerId<double>();
-template <> serial_type GetTypePointerId<std::_Bit_reference>();
-template <> serial_type GetTypePointerId<std::string>();
-} // namespace ubse::utils
+template <>
+serial_type GetTypePointerId<short>();
+template <>
+serial_type GetTypePointerId<int>();
+template <>
+serial_type GetTypePointerId<long>();
+template <>
+serial_type GetTypePointerId<long long>();
+template <>
+serial_type GetTypePointerId<unsigned short>();
+template <>
+serial_type GetTypePointerId<unsigned int>();
+template <>
+serial_type GetTypePointerId<unsigned long>();
+template <>
+serial_type GetTypePointerId<unsigned long long>();
+template <>
+serial_type GetTypePointerId<char>();
+template <>
+serial_type GetTypePointerId<signed char>();
+template <>
+serial_type GetTypePointerId<unsigned char>();
+template <>
+serial_type GetTypePointerId<wchar_t>();
+template <>
+serial_type GetTypePointerId<char16_t>();
+template <>
+serial_type GetTypePointerId<char32_t>();
+template <>
+serial_type GetTypePointerId<bool>();
+template <>
+serial_type GetTypePointerId<float>();
+template <>
+serial_type GetTypePointerId<double>();
+template <>
+serial_type GetTypePointerId<std::_Bit_reference>();
+template <>
+serial_type GetTypePointerId<std::string>();
+} // namespace ubse::serial
 #endif // UBSE_MANAGER_UBSE_SERIAL_UTIL_H

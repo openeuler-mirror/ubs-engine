@@ -295,7 +295,7 @@ private:
 class UbseMemNodeBorrowInfoMessage : public UbseBaseMessage {
 public:
     UbseMemNodeBorrowInfoMessage() = default;
-    explicit UbseMemNodeBorrowInfoMessage(uint8_t *data, uint32_t size)
+    explicit UbseMemNodeBorrowInfoMessage(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

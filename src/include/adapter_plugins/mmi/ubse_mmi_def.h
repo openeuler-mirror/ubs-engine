@@ -17,9 +17,9 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "adapter_plugins/mti/ubse_mti_mami_def.h"
 #include "ubse_def.h"
 #include "ubse_mmi_obmm_def.h"
+#include "adapter_plugins/mti/ubse_mti_mami_def.h"
 
 namespace ubse::adapter_plugins::mmi {
 constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
@@ -45,8 +45,8 @@ struct UbseUdsInfo {
     std::string username{};
 
     // 权限校验方法：比较当前对象与传入对象的权限信息
-    bool CheckPermission(const UbseUdsInfo &other) const;
-    friend std::ostream &operator<<(std::ostream &os, const UbseUdsInfo &obj);
+    bool CheckPermission(const UbseUdsInfo& other) const;
+    friend std::ostream& operator<<(std::ostream& os, const UbseUdsInfo& obj);
 };
 
 struct FdOwner {
@@ -54,7 +54,7 @@ struct FdOwner {
     gid_t gid{0}; // 使用方进程的的运行用户的groupid
     pid_t pid{0}; // 使用方进程的的运行用户的pid
     mode_t mode;
-    friend std::ostream &operator<<(std::ostream &os, const FdOwner &obj);
+    friend std::ostream& operator<<(std::ostream& os, const FdOwner& obj);
 };
 
 enum UbseMemDistance {
@@ -127,13 +127,13 @@ struct UbseShmRegionDesc {
 struct UbseMemAddrInfo {
     uint64_t addr{0}; // 内存起始地址
     uint64_t size{0}; // 该段地址长度
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemAddrInfo &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemAddrInfo& obj);
 };
 
 struct UbseNumaLocation {
     std::string nodeId; // 节点ID
     uint32_t numaId{0}; // numa id
-    friend std::ostream &operator<<(std::ostream &os, const UbseNumaLocation &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseNumaLocation& obj);
 };
 
 struct UbseMemPrivData {
@@ -165,7 +165,7 @@ struct UbseTrustRingData {
         std::vector<std::string>().swap(lendSignedDatas);
     }
 
-    friend std::ostream &operator<<(std::ostream &os, const UbseTrustRingData &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseTrustRingData& obj);
 };
 
 static constexpr int INVALID_SOCKET_ID = -1;
@@ -177,7 +177,7 @@ struct UbseMemBaseBorrowReq {
     uint64_t requestId{};
     UbseUdsInfo udsInfo{}; // 使用方进程信息
     UbseTrustRingData trustRingData{};
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemBaseBorrowReq &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemBaseBorrowReq& obj);
 };
 
 struct UbseMemFdBorrowReq : public UbseMemBaseBorrowReq {
@@ -188,19 +188,19 @@ struct UbseMemFdBorrowReq : public UbseMemBaseBorrowReq {
     std::vector<uint64_t> lenderSizes{};        // 借出大小，与lenderLocs一一对应
     std::vector<std::string> candidateNodeList; // 借出节点候选列表
     FdOwner owner;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemFdBorrowReq &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemFdBorrowReq& obj);
 };
 
 struct UbseMemFdPermissionReq : public UbseMemBaseBorrowReq {
     FdOwner fdOwner; // 内存资源属主信息和内存资源的访问权限
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemFdPermissionReq &req);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemFdPermissionReq& req);
 };
 
 struct UbseMemFdPermissionResp {
     uint32_t result;    // 执行结果
     uint64_t requestId; // 请求id
 
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemFdPermissionResp &resp);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemFdPermissionResp& resp);
 };
 
 struct UbseMemLenderLinkInfo {
@@ -210,11 +210,11 @@ struct UbseMemLenderLinkInfo {
 };
 
 struct UbseMemLenderInfo {
-    uint64_t lender_size; // 借出内存大小, 单位Byte, 取值范围大于等于4*1024*1024
-    std::string nodeId;   // 节点唯一标识, 采用slotid, 与lcne保持一致
-    uint32_t socketId{UINT32_MAX};    // socket id, UINT32_MAX表示无效值
-    uint32_t numaId{UINT32_MAX};      // 节点中的numa id, UINT32_MAX表示无效值
-    uint32_t portId{UINT32_MAX};      // 指定链路借用, UINT32_MAX表示无效值
+    uint64_t lender_size;          // 借出内存大小, 单位Byte, 取值范围大于等于4*1024*1024
+    std::string nodeId;            // 节点唯一标识, 采用slotid, 与lcne保持一致
+    uint32_t socketId{UINT32_MAX}; // socket id, UINT32_MAX表示无效值
+    uint32_t numaId{UINT32_MAX};   // 节点中的numa id, UINT32_MAX表示无效值
+    uint32_t portId{UINT32_MAX};   // 指定链路借用, UINT32_MAX表示无效值
 };
 
 struct UbseMemShmAffinitySocketInfo {
@@ -230,7 +230,7 @@ struct UbseMemNumaBorrowReq : public UbseMemFdBorrowReq {
     size_t lowWatermark{11};   // 必填，算法比分在，单位%
     UbseMemLenderLinkInfo linkInfo{};
     uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN]; // 调用方私有数据，UBSE只负责保存，get时原样返回
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemNumaBorrowReq &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowReq& obj);
 };
 
 struct UbseMemShareBorrowReq : public UbseMemBaseBorrowReq {
@@ -245,19 +245,19 @@ struct UbseMemShareBorrowReq : public UbseMemBaseBorrowReq {
     UbseMemLenderInfo lenderInfo;                            // 指定借出方信息
     UbseMemPrivData
         ubseMemPrivData; // 传递给OBMM的内存访问属性；全0表示无效，UBSE自行组装访问属性；非全零，直接使用该字段传递给OBMM
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemShareBorrowReq &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowReq& obj);
 };
 
 struct UbseMemShareAttachReq : public UbseMemBaseBorrowReq {
     std::string importNodeId; // 导入节点ID
     size_t size{0};           // 必填，单位字节，map的大小，用来check大小，必须小于create.size
     FdOwner owner;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemShareAttachReq &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShareAttachReq& obj);
 };
 
 struct UbseMemShareDetachReq : public UbseMemBaseBorrowReq {
     std::string unImportNodeId; // 去导入节点ID
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemShareDetachReq &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShareDetachReq& obj);
 };
 
 struct UbseMemAddrBorrowReq : public UbseMemBaseBorrowReq {
@@ -271,7 +271,7 @@ struct UbseMemAddrBorrowReq : public UbseMemBaseBorrowReq {
     uint64_t exportPid{0};                         // 借出进程PID
     std::vector<UbseMemAddrInfo> exportAddrList{}; // 借出地址段  最大段数=CPU核数
     uint16_t wrDelayComp{1}; // 目前仅支持接力/非接力模式，1为非接力模式，0为接力模式，默认使用非接力模式
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowReq &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemAddrBorrowReq& obj);
 };
 
 struct UbseMemOperationResp {
@@ -294,7 +294,7 @@ struct UbseMemReturnReq : public UbseMemBaseBorrowReq {
 struct UbseMemImportResult {
     uint64_t memId{0};  // obmm导入返回的memid
     int64_t numaId{-1}; // 导入类型为NUMA时，该值为导入的numaId，以设备导入时，该值无意义
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemImportResult &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemImportResult& obj);
 };
 
 struct UbseMemImportStatus {
@@ -304,14 +304,14 @@ struct UbseMemImportStatus {
     std::vector<mti::mami::UbseMamiMemImportResult> decoderResult{};
     UbseMemState expectState = UBSE_MEM_STATE_SUCCEEDED;
     UbseMemState state = UBSE_MEM_STATE_INIT;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemImportStatus &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemImportStatus& obj);
 };
 
 struct UbseMemObmmInfo {
     uint64_t memId{0};
     ubse_mem_obmm_mem_desc desc;
     UbMemFaultType memIdStatus{UB_MEM_HEALTHY}; // 内存状态
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemObmmInfo &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemObmmInfo& obj);
 };
 
 struct UbseMemExportStatus {
@@ -319,7 +319,7 @@ struct UbseMemExportStatus {
     std::vector<UbseMemObmmInfo> exportObmmInfo{};       // 执行导出后的obmm描述信息
     UbseMemState expectState = UBSE_MEM_STATE_SUCCEEDED; // 对象期望状态
     UbseMemState state = UBSE_MEM_STATE_INIT;            // 对象当前状态
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemExportStatus &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemExportStatus& obj);
 };
 
 struct UbseMemDebtNumaInfo {
@@ -329,7 +329,7 @@ struct UbseMemDebtNumaInfo {
     uint64_t size{0};
     uint32_t portId{0};
     uint32_t chipId{0}; // 中心侧算法后获取，用于远端numa获取以及内存预上线
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemDebtNumaInfo &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemDebtNumaInfo& obj);
 };
 
 // 算法决策结果
@@ -338,7 +338,7 @@ struct UbseMemAlgoResult {
     std::vector<UbseMemDebtNumaInfo> importNumaInfos{}; // 导入numa借用关系
     uint32_t blockSize{128};                            // 芯片拆分粒度, 单位MB
     uint32_t attachSocketId{0};                         // 当前借用实际使用的硬件通路，来源cna查询
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemAlgoResult &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemAlgoResult& obj);
 };
 
 class UbseMemBorrowExportBaseObj {
@@ -350,7 +350,7 @@ public:
     uint32_t errorCode{0};
     bool isCreateReportReceived{false};    // 主节点是否已经收到过上报，非持久化数据
     bool isDestroyedReportReceived{false}; // 主节点是否已经收到过上报，非持久化数据
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemBorrowExportBaseObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemBorrowExportBaseObj& obj);
 };
 
 class UbseMemBorrowImportBaseObj {
@@ -363,56 +363,56 @@ public:
     bool isCreateReportReceived{false};    // 主节点是否已经收到过上报，非持久化数据
     bool isDestroyedReportReceived{false}; // 主节点是否已经收到过上报，非持久化数据
     bool isLastExportSuccess{false};       // 上一次状态是否是exportSuccess
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemBorrowImportBaseObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemBorrowImportBaseObj& obj);
 };
 
 class UbseMemFdBorrowExportObj final : public UbseMemBorrowExportBaseObj {
 public:
     UbseMemFdBorrowReq req; // 请求参数
     UbseMemReturnReq returnReq;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemFdBorrowExportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemFdBorrowExportObj& obj);
 };
 
 class UbseMemFdBorrowImportObj final : public UbseMemBorrowImportBaseObj {
 public:
     UbseMemFdBorrowReq req; // 请求参数
     UbseMemReturnReq returnReq;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemFdBorrowImportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemFdBorrowImportObj& obj);
 };
 
 class UbseMemNumaBorrowExportObj final : public UbseMemBorrowExportBaseObj {
 public:
     UbseMemNumaBorrowReq req; // 请求参数
     UbseMemReturnReq returnReq;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemNumaBorrowExportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowExportObj& obj);
 };
 
 class UbseMemNumaBorrowImportObj final : public UbseMemBorrowImportBaseObj {
 public:
     UbseMemNumaBorrowReq req; // 请求参数
     UbseMemReturnReq returnReq;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemNumaBorrowImportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemNumaBorrowImportObj& obj);
 };
 
 class UbseMemAddrBorrowExportObj final : public UbseMemBorrowExportBaseObj {
 public:
     UbseMemAddrBorrowReq req{}; // 请求参数
     UbseMemReturnReq returnReq{};
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowExportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemAddrBorrowExportObj& obj);
 };
 
 class UbseMemAddrBorrowImportObj : public UbseMemBorrowImportBaseObj {
 public:
     UbseMemAddrBorrowReq req; // 请求参数
     UbseMemReturnReq returnReq;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemAddrBorrowImportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemAddrBorrowImportObj& obj);
 };
 
 class UbseMemShareBorrowExportObj final : public UbseMemBorrowExportBaseObj {
 public:
     UbseMemShareBorrowReq req; // 请求参数
     UbseMemReturnReq returnReq;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemShareBorrowExportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowExportObj& obj);
 };
 
 // 共享内存map的入参，map的uid必须等于create的uid 等等
@@ -421,7 +421,7 @@ struct UbseMemAttachResourceShareAttr {
     gid_t gid{};
     size_t size{0};  // 必填，单位字节，map的大小，用来check大小，必须小于create.size
     FdOwner owner{}; // 内存资源属主信息和访问权限
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemAttachResourceShareAttr &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemAttachResourceShareAttr& obj);
 };
 
 class UbseMemShareBorrowImportObj final : public UbseMemBorrowImportBaseObj {
@@ -432,7 +432,7 @@ public:
     UbseMemAttachResourceShareAttr shareAttr{}; // map 参数
     UbseMemShareBorrowReq req;                  // 请求参数
     UbseMemReturnReq returnReq;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemShareBorrowImportObj &obj);
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowImportObj& obj);
 };
 
 using UbseMemFdImportObjMap = std::unordered_map<std::string, UbseMemFdBorrowImportObj>;       // resourceId,obj
@@ -461,10 +461,10 @@ struct UbseMemNumaLoc {
     std::string nodeId; // 节点id
     int socketId{-1};   // socket id
     int64_t numaId{-1}; // numa id
-    bool operator==(const UbseMemNumaLoc &other) const;
+    bool operator==(const UbseMemNumaLoc& other) const;
     // 重载 < 运算符
-    bool operator<(const UbseMemNumaLoc &other) const;
-    friend std::ostream &operator<<(std::ostream &os, const UbseMemNumaLoc &obj);
+    bool operator<(const UbseMemNumaLoc& other) const;
+    friend std::ostream& operator<<(std::ostream& os, const UbseMemNumaLoc& obj);
 };
 
 struct SocketCnaInfo {
@@ -477,7 +477,7 @@ struct SocketCnaInfo {
     uint32_t scna{};          // 借入端的cna
     uint32_t dcna{};          // 借出端的cna
     uint16_t marId{};         // 借入端导入时用端口所属的mar
-    friend std::ostream &operator<<(std::ostream &os, const SocketCnaInfo &obj);
+    friend std::ostream& operator<<(std::ostream& os, const SocketCnaInfo& obj);
 };
 } // namespace ubse::adapter_plugins::mmi
 #endif // UBSE_MMI_DEF_H

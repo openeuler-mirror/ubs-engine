@@ -29,7 +29,7 @@ class ElectionRole {
 public:
     virtual void ProcTimer() = 0;
 
-    virtual uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) = 0;
+    virtual uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply) = 0;
 
     virtual UBSE_ID_TYPE GetMasterNode() = 0;
 
@@ -57,13 +57,13 @@ public:
         return UbseElectionNodeMgr::GetInstance().GetHeartBeatLost();
     }
 };
-UbseResult GetBootTime(uint64_t &bootTime);
+UbseResult GetBootTime(uint64_t& bootTime);
 UbseResult ConnectAllNodes();
-UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE &masterId, const std::vector<UBSE_ID_TYPE> &allNodes);
-UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYPE> &allNodes,
-    const UBSE_ID_TYPE &masterId, const UBSE_ID_TYPE &agentId);
-bool IsSmallestNode(const Node &myself, const std::vector<Node> &allNodes);
-bool IsSecondSmallestNode(const Node &myself, const std::vector<Node> &allNodes);
+UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE& masterId, const std::vector<UBSE_ID_TYPE>& allNodes);
+UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYPE>& allNodes,
+                                                   const UBSE_ID_TYPE& masterId, const UBSE_ID_TYPE& agentId);
+bool IsSmallestNode(const Node& myself, const std::vector<Node>& allNodes);
+bool IsSecondSmallestNode(const Node& myself, const std::vector<Node>& allNodes);
 uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID);
 uint32_t ForceElection(UBSE_ID_TYPE myselfID);
 bool GetElectionCandidate();

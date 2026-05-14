@@ -38,7 +38,7 @@ struct UbseRoleInfo {
 
     UbseRoleInfo() : nodeId("unknown"), nodeRole("unknown"), status(0) {} // 设置默认值
 
-    UbseRoleInfo(const std::string &id, const std::string &role, int stat = 0)
+    UbseRoleInfo(const std::string& id, const std::string& role, int stat = 0)
         : nodeId(id),
           nodeRole(role),
           status(stat)
@@ -87,7 +87,7 @@ enum class UbseElectionHandlerPriority {
     LOW
 };
 
-using ElectinHandler = std::function<uint32_t(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)>;
+using ElectinHandler = std::function<uint32_t(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)>;
 
 struct UbseElectionHandler {
     UbseElectionEventType type;           // 事件类型
@@ -95,14 +95,14 @@ struct UbseElectionHandler {
     UbseElectionHandlerPriority priority; // 优先级
     int sequenceId;                       // 执行顺序
     ElectinHandler handler;               // 注册函数
-    bool operator<(const UbseElectionHandler &other) const
+    bool operator<(const UbseElectionHandler& other) const
     {
         if (priority != other.priority) {
             return priority < other.priority;
         }
         return sequenceId < other.sequenceId;
     }
-    bool operator==(const UbseElectionHandler &other) const
+    bool operator==(const UbseElectionHandler& other) const
     {
         return type == other.type && name == other.name && priority == other.priority &&
                sequenceId == other.sequenceId && handler.target_type() == other.handler.target_type();
@@ -122,35 +122,35 @@ public:
     }
 
     // 设置事件类型
-    inline UbseElectionHandlerBuilder &SetType(UbseElectionEventType type)
+    inline UbseElectionHandlerBuilder& SetType(UbseElectionEventType type)
     {
         ubseElectionHandler.type = type;
         return *this;
     }
 
     // 设置优先级
-    inline UbseElectionHandlerBuilder &SetPriority(UbseElectionHandlerPriority priority)
+    inline UbseElectionHandlerBuilder& SetPriority(UbseElectionHandlerPriority priority)
     {
         ubseElectionHandler.priority = priority;
         return *this;
     }
 
     // 设置执行顺序
-    inline UbseElectionHandlerBuilder &SetSequenceId(int sequenceId)
+    inline UbseElectionHandlerBuilder& SetSequenceId(int sequenceId)
     {
         ubseElectionHandler.sequenceId = sequenceId;
         return *this;
     }
 
     // 设置函数名
-    inline UbseElectionHandlerBuilder &SetName(const std::string &name)
+    inline UbseElectionHandlerBuilder& SetName(const std::string& name)
     {
         ubseElectionHandler.name = name;
         return *this;
     }
 
     // 设置回调函数
-    inline UbseElectionHandlerBuilder &SetHandler(ElectinHandler handler = nullptr)
+    inline UbseElectionHandlerBuilder& SetHandler(ElectinHandler handler = nullptr)
     {
         ubseElectionHandler.handler = std::move(handler);
         return *this;
@@ -171,7 +171,7 @@ private:
  * @param[in/out] count: 节点数量
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetNodeCount(uint32_t &count)
+uint32_t UbseGetNodeCount(uint32_t& count)
 {
     return 0;
 }
@@ -182,7 +182,7 @@ uint32_t UbseGetNodeCount(uint32_t &count)
  * @param[in/out] count: 节点个数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo> &roleInfos, uint32_t &count)
+uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo>& roleInfos, uint32_t& count)
 {
     return 0;
 }
@@ -193,7 +193,7 @@ uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo> &roleInfos, uint32_t &count)
  * @param[in] nodeId: 节点ID
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetRoleInfo(UbseRoleInfo &roleInfo, const std::string &nodeId)
+uint32_t UbseGetRoleInfo(UbseRoleInfo& roleInfo, const std::string& nodeId)
 {
     return 0;
 }
@@ -203,7 +203,7 @@ uint32_t UbseGetRoleInfo(UbseRoleInfo &roleInfo, const std::string &nodeId)
  * @param[out] roleInfo: 主节点信息
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetMasterInfo(UbseRoleInfo &roleInfo)
+uint32_t UbseGetMasterInfo(UbseRoleInfo& roleInfo)
 {
     return 0;
 }
@@ -213,7 +213,7 @@ uint32_t UbseGetMasterInfo(UbseRoleInfo &roleInfo)
  * @param[out] roleInfo: 备节点信息
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetStandbyInfo(UbseRoleInfo &roleInfo)
+uint32_t UbseGetStandbyInfo(UbseRoleInfo& roleInfo)
 {
     return 0;
 }
@@ -223,7 +223,7 @@ uint32_t UbseGetStandbyInfo(UbseRoleInfo &roleInfo)
  * @param[out] roleInfos: 节点角色信息列表
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo> &roleInfos)
+uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo>& roleInfos)
 {
     return 0;
 }
@@ -233,7 +233,7 @@ uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo> &roleInfos)
  * @param[in] handler 回调函数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler &handler)
+uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler& handler)
 {
     return 0;
 }
@@ -243,7 +243,7 @@ uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler &handler)
  * @param[in] handler 回调函数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler)
+uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler& handler)
 {
     return 0;
 }
@@ -254,7 +254,7 @@ uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler)
  * @param[in/out] status 节点工作状态 0：没有准备好，1：准备好
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseGetNodeStatus(const std::string &role, uint8_t &status)
+uint32_t UbseGetNodeStatus(const std::string& role, uint8_t& status)
 {
     return 0;
 }
@@ -264,7 +264,7 @@ uint32_t UbseGetNodeStatus(const std::string &role, uint8_t &status)
  * @param[out] currentNode: 当前节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo &currentNode)
+uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo& currentNode)
 {
     return 0;
 }
@@ -274,7 +274,7 @@ uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo &currentNode)
  * @param[out] nodeIds: 所有物理节点id
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE> &nodeIds)
+uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE>& nodeIds)
 {
     return 0;
 }
@@ -284,7 +284,7 @@ uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE> &nodeIds)
  * @param roleInfos [out]: 当前所有节点状态信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos)
+uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo>& roleInfos)
 {
     return 0;
 }
@@ -294,7 +294,7 @@ uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos)
  * @param role [OUT] 待获取角色
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetRole(std::string &role)
+uint32_t UbseGetRole(std::string& role)
 {
     role = "Master";
     return 0;
@@ -305,7 +305,7 @@ uint32_t UbseGetRole(std::string &role)
  * @param masterNodeId [out] Master角色节点ID
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
+uint32_t UbseGetMasterNodeId(std::string& masterNodeId)
 {
     masterNodeId = "NODE11347";
     return 0;
@@ -316,7 +316,7 @@ uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
  * @param currentNodeId [out] 获得当前节点的NodeID
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetCurrentNodeId(std::string &currentNodeId)
+uint32_t UbseGetCurrentNodeId(std::string& currentNodeId)
 {
     currentNodeId = "NODE11347";
     return 0;

@@ -25,18 +25,18 @@ public:
 
 private:
     static UbseCliCommandInfo UbseCliQueryMem();
-    static std::shared_ptr<UbseCliResultEcho> UbseCliMemQueryFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliMemQueryFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 
     static UbseCliCommandInfo UbseCliCheckMemoryStatus();
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeLendInfo();
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeBorrowInfo();
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCheckMemoryStatusFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCheckMemoryStatusFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> UbseCliMemoryStatusData(UbseDeSerialization &ubse_de_serial, size_t size);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessNumaStatusData(UbseDeSerialization &deSerialization,
-        size_t numaInfoSize);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliMemoryStatusData(UbseDeSerialization& ubse_de_serial, size_t size);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessNumaStatusData(UbseDeSerialization& deSerialization,
+                                                                           size_t numaInfoSize);
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNumaStatus();
     static std::shared_ptr<UbseCliResultEcho> QueryMemConfig();
 
@@ -48,14 +48,14 @@ private:
 
     UbseCliCommandInfo ShmMemoryAttach();
 
-    static std::shared_ptr<UbseCliResultEcho> DeleteMemoryFunc(const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> DeleteMemoryFunc(const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> ShmMemoryAttachFunc(const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> ShmMemoryAttachFunc(const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> ShmMemoryDetachFunc(const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> ShmMemoryDetachFunc(const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> CreateMemoryFunc(const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> CreateMemoryFunc(const std::map<std::string, std::string>& params);
 };
-bool CheckName(const std::string &name);
+bool CheckName(const std::string& name);
 } // namespace ubse::cli::reg
 #endif

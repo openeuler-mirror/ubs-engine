@@ -11,7 +11,6 @@
  */
 #include <securec.h>
 
-#include "ubs_engine_topo.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -20,6 +19,7 @@
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_query_api.h"
+#include "ubs_engine_topo.h"
 
 namespace ubse::mem::controller::debt {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -27,8 +27,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::election;
 using namespace ubse::log;
 
-uint32_t FillNumaDesc(const std::string &name, const std::string &importNodeId,
-                      const UbseMemNumaBorrowImportObj &importObj, def::UbseMemNumaDesc &numaDesc)
+uint32_t FillNumaDesc(const std::string& name, const std::string& importNodeId,
+                      const UbseMemNumaBorrowImportObj& importObj, def::UbseMemNumaDesc& numaDesc)
 {
     numaDesc.name = name;
     UbseMemResult memResult = GetNumaStageByObj(name, importNodeId);
@@ -52,7 +52,7 @@ uint32_t FillNumaDesc(const std::string &name, const std::string &importNodeId,
     numaDesc.size = importObj.req.size;
     return UBSE_OK;
 }
-uint32_t UbseMemNumaGet(const UbseMemDebtQueryRequest &request, def::UbseMemNumaDesc &numaDesc)
+uint32_t UbseMemNumaGet(const UbseMemDebtQueryRequest& request, def::UbseMemNumaDesc& numaDesc)
 {
     UbseRoleInfo currentRoleInfo{};
     if (const auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
@@ -82,7 +82,7 @@ uint32_t UbseMemNumaGet(const UbseMemDebtQueryRequest &request, def::UbseMemNuma
     }
     return FillNumaDesc(name, importNodeId, *importObjPtr, numaDesc);
 }
-void FillExportNuma(def::UbseMemNumaDesc &numaDesc, std::vector<UbseMemDebtNumaInfo> exportNumaInfos)
+void FillExportNuma(def::UbseMemNumaDesc& numaDesc, std::vector<UbseMemDebtNumaInfo> exportNumaInfos)
 {
     if (exportNumaInfos.empty()) {
         return;
@@ -94,11 +94,11 @@ void FillExportNuma(def::UbseMemNumaDesc &numaDesc, std::vector<UbseMemDebtNumaI
         }
     }
     std::set<uint32_t> numaIds{};
-    for (auto &numaInfo : exportNumaInfos) {
+    for (auto& numaInfo : exportNumaInfos) {
         numaIds.insert(numaInfo.numaId);
     }
     uint32_t index = 0;
-    for (auto &item : numaIds) {
+    for (auto& item : numaIds) {
         if (index >= UBS_TOPO_NUMA_NUM) {
             break;
         }
@@ -106,7 +106,7 @@ void FillExportNuma(def::UbseMemNumaDesc &numaDesc, std::vector<UbseMemDebtNumaI
         index++;
     }
 }
-uint32_t UbseMemNumaList(const UbseMemDebtQueryRequest &request, std::vector<def::UbseMemNumaDesc> &numaDescs)
+uint32_t UbseMemNumaList(const UbseMemDebtQueryRequest& request, std::vector<def::UbseMemNumaDesc>& numaDescs)
 {
     const UbseUdsInfo udsInfo = request.udsInfo;
     numaDescs.clear();
@@ -126,7 +126,7 @@ uint32_t UbseMemNumaList(const UbseMemDebtQueryRequest &request, std::vector<def
         return UBSE_OK;
     }
 
-    for (const auto &[name, importObjPtr] : nodeImportMap->GetAll()) {
+    for (const auto& [name, importObjPtr] : nodeImportMap->GetAll()) {
         if (!importObjPtr->req.udsInfo.CheckPermission(udsInfo)) {
             continue;
         }
@@ -147,7 +147,7 @@ uint32_t UbseMemNumaList(const UbseMemDebtQueryRequest &request, std::vector<def
     }
     return UBSE_OK;
 }
-uint32_t UbseMemNumaGetWithImportNode(const UbseMemDebtQueryRequest &request, UbseMemNumaDesc &numaDesc)
+uint32_t UbseMemNumaGetWithImportNode(const UbseMemDebtQueryRequest& request, UbseMemNumaDesc& numaDesc)
 {
     UbseRoleInfo currentRoleInfo{};
     if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
@@ -200,13 +200,13 @@ uint32_t UbseMemNumaGetWithImportNode(const UbseMemDebtQueryRequest &request, Ub
     return UBSE_OK; // 根据查找结果返回
 }
 
-UbseMemResult GetNumaStageByObj(const std::string &name, const std::string &importNodeId)
+UbseMemResult GetNumaStageByObj(const std::string& name, const std::string& importNodeId)
 {
     return GetStageByObj<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>(name, importNodeId);
 }
 
-UbseMemNumaBorrowExportObj UbseNumaExportObjGet(const std::string &nodeId, const std::string &name,
-                                                const std::string &importNodeId, const bool isFromTaskManager)
+UbseMemNumaBorrowExportObj UbseNumaExportObjGet(const std::string& nodeId, const std::string& name,
+                                                const std::string& importNodeId, const bool isFromTaskManager)
 {
     UbseMemNumaBorrowExportObj obj{};
     if (isFromTaskManager) {
@@ -228,7 +228,7 @@ UbseMemNumaBorrowExportObj UbseNumaExportObjGet(const std::string &nodeId, const
     return *exportObjPtr;
 }
 
-UbseMemNumaBorrowImportObj UbseNumaImportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemNumaBorrowImportObj UbseNumaImportObjGet(const std::string& nodeId, const std::string& name,
                                                 const bool isFromTaskManager)
 {
     UbseMemNumaBorrowImportObj obj{};

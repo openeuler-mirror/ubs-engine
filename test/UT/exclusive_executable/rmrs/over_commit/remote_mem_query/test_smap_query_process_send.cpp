@@ -31,7 +31,7 @@ namespace mempooling {
 class TestSmapQueryProcessSend : public ::testing::Test {
 protected:
     outinterface::SrcMemoryBorrowParam srcParam;
-    std::vector<uint32_t> numaIds = { 0, 1 };
+    std::vector<uint32_t> numaIds = {0, 1};
     UbseByteBuffer reqData;
 
     void SetUp() override
@@ -66,8 +66,8 @@ TEST_F(TestSmapQueryProcessSend, SendMsg_ShouldReturnError_WhenRackRpcSendFailed
     MOCKER_CPP(&SmapQueryProcessSend::CreateRequestData, MpResult(*)(UbseByteBuffer & reqData))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-        const UbseComRespHandler &handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     EXPECT_EQ(smapQueryProcessSend.SendMsg(), MEM_POOLING_ERROR);
@@ -79,8 +79,8 @@ TEST_F(TestSmapQueryProcessSend, SendMsg_ShouldReturnError_WhenHandleResponseFai
     MOCKER_CPP(&SmapQueryProcessSend::CreateRequestData, MpResult(*)(UbseByteBuffer & reqData))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-        const UbseComRespHandler &handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     smapQueryProcessSend.sendResult_ = MEM_POOLING_ERROR;
@@ -90,8 +90,8 @@ TEST_F(TestSmapQueryProcessSend, SendMsg_ShouldReturnError_WhenHandleResponseFai
 TEST_F(TestSmapQueryProcessSend, SendMsg_ShouldReturnOk_WhenAllOperationsSucceed)
 {
     SmapQueryProcessSend smapQueryProcessSend(std::move(srcParam), std::move(numaIds));
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-        const UbseComRespHandler &handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     smapQueryProcessSend.sendResult_ = MEM_POOLING_OK;
@@ -101,11 +101,8 @@ TEST_F(TestSmapQueryProcessSend, SendMsg_ShouldReturnOk_WhenAllOperationsSucceed
 TEST_F(TestSmapQueryProcessSend, RespHandlerResCodeNotOk)
 {
     SmapQueryProcessSend smapQueryProcessSend(std::move(srcParam), std::move(numaIds));
-    UbseByteBuffer respData = {
-        .data = reinterpret_cast<uint8_t *>(std::string("1").data()),
-        .len = 1
-    };
-    smapQueryProcessSend.RespHandler(static_cast<void *>(&smapQueryProcessSend), respData, MEM_POOLING_ERROR);
+    UbseByteBuffer respData = {.data = reinterpret_cast<uint8_t*>(std::string("1").data()), .len = 1};
+    smapQueryProcessSend.RespHandler(static_cast<void*>(&smapQueryProcessSend), respData, MEM_POOLING_ERROR);
     EXPECT_EQ(smapQueryProcessSend.sendResult_, MEM_POOLING_ERROR);
 }
 
@@ -123,43 +120,32 @@ TEST_F(TestSmapQueryProcessSend, CreateRequestDataError_WhenMemcpySSuccess)
 TEST_F(TestSmapQueryProcessSend, RespHandlerResCodeError_WhenDeserializeSuccess)
 {
     SmapQueryProcessSend smapQueryProcessSend(std::move(srcParam), std::move(numaIds));
-    UbseByteBuffer respData = {
-        .data = reinterpret_cast<uint8_t *>(std::string("").data()),
-        .len = 0
-    };
-    smapQueryProcessSend.RespHandler(static_cast<void *>(&smapQueryProcessSend), respData, MEM_POOLING_OK);
+    UbseByteBuffer respData = {.data = reinterpret_cast<uint8_t*>(std::string("").data()), .len = 0};
+    smapQueryProcessSend.RespHandler(static_cast<void*>(&smapQueryProcessSend), respData, MEM_POOLING_OK);
     EXPECT_EQ(smapQueryProcessSend.sendResult_, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapQueryProcessSend, RespHandlerResCodeError_WhenGetErrorRetCode)
 {
     SmapQueryProcessSend smapQueryProcessSend(std::move(srcParam), std::move(numaIds));
-    ResponseInfo responseInfo = {
-        .code = MEM_POOLING_ERROR,
-        .message = "error"
-    };
+    ResponseInfo responseInfo = {.code = MEM_POOLING_ERROR, .message = "error"};
     ResponseInfoSimpo responseInfoSimpo = ResponseInfoSimpo(responseInfo);
     RmrsOutStream builder;
     builder << responseInfoSimpo;
-    UbseByteBuffer respData = {.data = builder.GetBufferPointer(),
-                               .len = builder.GetSize()};
-    smapQueryProcessSend.RespHandler(static_cast<void *>(&smapQueryProcessSend), respData, MEM_POOLING_OK);
+    UbseByteBuffer respData = {.data = builder.GetBufferPointer(), .len = builder.GetSize()};
+    smapQueryProcessSend.RespHandler(static_cast<void*>(&smapQueryProcessSend), respData, MEM_POOLING_OK);
     EXPECT_EQ(smapQueryProcessSend.sendResult_, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestSmapQueryProcessSend, RespHandlerResCodeOk_WhenGetSuccessRetCode)
 {
     SmapQueryProcessSend smapQueryProcessSend(std::move(srcParam), std::move(numaIds));
-    ResponseInfo responseInfo = {
-        .code = MEM_POOLING_OK,
-        .message = "success"
-    };
+    ResponseInfo responseInfo = {.code = MEM_POOLING_OK, .message = "success"};
     ResponseInfoSimpo responseInfoSimpo = ResponseInfoSimpo(responseInfo);
     RmrsOutStream builder;
     builder << responseInfoSimpo;
-    UbseByteBuffer respData = {.data = builder.GetBufferPointer(),
-                               .len = builder.GetSize()};
-    smapQueryProcessSend.RespHandler(static_cast<void *>(&smapQueryProcessSend), respData, MEM_POOLING_OK);
+    UbseByteBuffer respData = {.data = builder.GetBufferPointer(), .len = builder.GetSize()};
+    smapQueryProcessSend.RespHandler(static_cast<void*>(&smapQueryProcessSend), respData, MEM_POOLING_OK);
     EXPECT_EQ(smapQueryProcessSend.sendResult_, MEM_POOLING_OK);
 }
 } // namespace mempooling

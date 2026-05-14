@@ -14,8 +14,8 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_error.h"
-#include "ubse_security_module.h"
 #include "ubse_security_manager.h"
+#include "ubse_security_module.h"
 
 namespace ubse::ut::security {
 class TestUbseSecurityModule : public testing::Test {
@@ -92,16 +92,12 @@ TEST_F(TestUbseSecurityModule, testModifyEffectiveCapabilities)
     std::vector<__u32> invalidCaps = {
         CAP_KILL,
     };
-    EXPECT_EQ(securityModule.ModifyEffectiveCapabilities(invalidCaps,
-        true),
-        UBSE_ERROR_INVAL);
+    EXPECT_EQ(securityModule.ModifyEffectiveCapabilities(invalidCaps, true), UBSE_ERROR_INVAL);
     std::vector<__u32> validCaps = {
-            CAP_FOWNER,
-            CAP_DAC_OVERRIDE,
-            CAP_CHOWN,
-   };
-    EXPECT_EQ(securityModule.ModifyEffectiveCapabilities(validCaps,
-            true),
-    UBSE_OK);
+        CAP_FOWNER,
+        CAP_DAC_OVERRIDE,
+        CAP_CHOWN,
+    };
+    EXPECT_EQ(securityModule.ModifyEffectiveCapabilities(validCaps, true), UBSE_OK);
 }
-}
+} // namespace ubse::ut::security

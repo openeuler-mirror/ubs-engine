@@ -12,21 +12,21 @@
 
 #include "ubse_logger.h"
 
-#include <chrono>         // for duration_cast, duration, high_resol...
-#include <unistd.h>              // for getpid, pid_t
-#include <algorithm>             // for max
-#include <ctime>                 // for time_t, gmtime, strftime
-#include <iomanip>               // for operator<<, setfill, setw
-#include <iostream>              // for basic_ostream, operator<<, ostream
-#include <new>                   // for nothrow
-#include <utility>               // for move
+#include <unistd.h>  // for getpid, pid_t
+#include <algorithm> // for max
+#include <chrono>    // for duration_cast, duration, high_resol...
+#include <cstdint>
+#include <ctime>    // for time_t, gmtime, strftime
+#include <iomanip>  // for operator<<, setfill, setw
+#include <iostream> // for basic_ostream, operator<<, ostream
+#include <new>      // for nothrow
 #include <sstream>
 #include <string>
-#include <cstdint>
+#include <utility> // for move
 
-#include "securec.h"             // for memcpy_s, EOK, errno_t
 #include "ubse_error.h"          // for UBSE_OK, UBSE_ERROR
 #include "ubse_logger_manager.h" // for UbseLoggerManager
+#include "securec.h"             // for memcpy_s, EOK, errno_t
 #include "trace_context.h"
 
 namespace ubse::log {
@@ -49,21 +49,21 @@ static std::thread::id GetThreadId()
     return tid;
 }
 
-static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
+static void FormatTimestamp(std::ostringstream& oss, uint64_t timestamp)
 {
     // 定义日期时间缓冲区大小、每秒微秒数、每毫秒微秒数
-    constexpr int dateTimeBufferSize = 32; // 日期时间缓冲区的大小
-    constexpr uint64_t microsecondsPerSecond = 1000000; // 1秒 = 1000000微秒
+    constexpr int dateTimeBufferSize = 32;                // 日期时间缓冲区的大小
+    constexpr uint64_t microsecondsPerSecond = 1000000;   // 1秒 = 1000000微秒
     constexpr uint64_t microsecondsPerMillisecond = 1000; // 1毫秒 = 1000微秒
-    constexpr int millisecondWidth = 3; // 毫秒部分的宽度
+    constexpr int millisecondWidth = 3;                   // 毫秒部分的宽度
     // 将时间戳从微秒转换为秒
     std::time_t seconds = static_cast<std::time_t>(timestamp / microsecondsPerSecond);
     // 定义本地时间和GMT时间的时间结构
-    std::tm localTime {}; // 本地时间
-    std::tm gmtTime {}; // GMT时间
+    std::tm localTime{}; // 本地时间
+    std::tm gmtTime{};   // GMT时间
     // 根据秒数获取本地时间和GMT时间
     localtime_r(&seconds, &localTime); // 获取本地时间（本地时区）
-    gmtime_r(&seconds, &gmtTime); // 获取GMT时间（全球协调时间）
+    gmtime_r(&seconds, &gmtTime);      // 获取GMT时间（全球协调时间）
     // 初始化一个缓冲区来存储格式化后的日期时间
     char dateTimeBuffer[dateTimeBufferSize] = {0};
     // 使用本地时间格式化日期时间到缓冲区
@@ -74,7 +74,7 @@ static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
     // 计算时区偏移量（本地时间 - GMT时间）
     int offsetSeconds = static_cast<int>(difftime(localSeconds, gmtSeconds));
     // 将偏移量转换为小时和分钟
-    int offsetHours = offsetSeconds / 3600; // 小时
+    int offsetHours = offsetSeconds / 3600;                    // 小时
     int offsetMinutes = (std::abs(offsetSeconds) % 3600) / 60; // 分钟
     // 初始化一个缓冲区存储时区偏移量字符串
     char tzBuffer[7] = {0}; // 格式："+08:00"
@@ -85,7 +85,7 @@ static void FormatTimestamp(std::ostringstream &oss, uint64_t timestamp)
     oss << '[' << dateTimeBuffer << std::setw(millisecondWidth) << std::setfill('0') << milliseconds << tzBuffer << ']';
 }
 
-static const char *LogLevelToString(UbseLogLevel level)
+static const char* LogLevelToString(UbseLogLevel level)
 {
     switch (level) {
         case UbseLogLevel::DEBUG:
@@ -103,7 +103,7 @@ static const char *LogLevelToString(UbseLogLevel level)
     }
 }
 
-void UbseLogOutput(const char *moduleName, UbseLogLevel level, const char *msg)
+void UbseLogOutput(const char* moduleName, UbseLogLevel level, const char* msg)
 {
     UbseIsLog(level) && UbseLog() == (UbseLoggerEntry(moduleName, level, FILENAME, nullptr, __LINE__) << msg);
 }
@@ -114,7 +114,7 @@ std::string FormatRetCode(uint32_t retCode)
     return retCodeString;
 }
 
-UbseLoggerEntry::UbseLoggerEntry(const char *gModuleName, UbseLogLevel level, const char *file, const char *func,
+UbseLoggerEntry::UbseLoggerEntry(const char* gModuleName, UbseLogLevel level, const char* file, const char* func,
                                  uint32_t line)
     : moduleName(gModuleName),
       level(level),
@@ -130,7 +130,7 @@ UbseLoggerEntry::UbseLoggerEntry(const char *gModuleName, UbseLogLevel level, co
     traceId = TraceContext::GetTraceId();
 }
 
-UbseLoggerEntry::UbseLoggerEntry(const UbseLoggerEntry &other)
+UbseLoggerEntry::UbseLoggerEntry(const UbseLoggerEntry& other)
     : moduleName(other.moduleName),
       timeStamp(other.timeStamp),
       pid(other.pid),
@@ -158,7 +158,7 @@ UbseLoggerEntry::UbseLoggerEntry(const UbseLoggerEntry &other)
     }
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator=(const UbseLoggerEntry &other)
+UbseLoggerEntry& UbseLoggerEntry::operator=(const UbseLoggerEntry& other)
 {
     if (this == &other) {
         return *this;
@@ -194,11 +194,11 @@ UbseLoggerEntry &UbseLoggerEntry::operator=(const UbseLoggerEntry &other)
     return *this;
 }
 
-void UbseLoggerEntry::OutPutLog(std::ostream &os)
+void UbseLoggerEntry::OutPutLog(std::ostream& os)
 {
     std::ostringstream oss;
-    char *start = !heapBuffer ? &logEntryBuffer[0] : &(heapBuffer.get())[0];
-    const char *const end = start + currentSize;
+    char* start = !heapBuffer ? &logEntryBuffer[0] : &(heapBuffer.get())[0];
+    const char* const end = start + currentSize;
 
     FormatTimestamp(oss, timeStamp);
     std::string traceIdStr(traceId);
@@ -209,23 +209,23 @@ void UbseLoggerEntry::OutPutLog(std::ostream &os)
     DecodeData(oss, start, end);
     os << oss.str() << std::endl;
 }
-void UbseLoggerEntry::FormatSyslog(std::ostream &os)
+void UbseLoggerEntry::FormatSyslog(std::ostream& os)
 {
     std::ostringstream oss;
-    char *start = !heapBuffer ? &logEntryBuffer[0] : &(heapBuffer.get())[0];
-    const char *const end = start + currentSize;
+    char* start = !heapBuffer ? &logEntryBuffer[0] : &(heapBuffer.get())[0];
+    const char* const end = start + currentSize;
     if (func) {
         oss << "[" << file << ':' << func << ':' << line << "] ";
     }
     DecodeData(oss, start, end);
     os << oss.str() << std::endl;
 }
-const char *UbseLoggerEntry::GetModuleName()
+const char* UbseLoggerEntry::GetModuleName()
 {
     return moduleName;
 }
 
-const char *UbseLoggerEntry::GetFile()
+const char* UbseLoggerEntry::GetFile()
 {
     return file;
 }
@@ -244,55 +244,55 @@ uint64_t UbseLoggerEntry::GetEntryTimeStamp()
     return timeStamp;
 }
 
-char *UbseLoggerEntry::GetMessage(size_t &length)
+char* UbseLoggerEntry::GetMessage(size_t& length)
 {
     length = currentSize;
     return !heapBuffer ? &logEntryBuffer[0] : &(heapBuffer.get())[0];
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(char data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(char data)
 {
     EncodeData<char>(UbseLoggerTypeId::CHAR, data);
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(int32_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(int32_t data)
 {
     EncodeData<int32_t>(UbseLoggerTypeId::INT32, data);
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(uint32_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(uint32_t data)
 {
     EncodeData<uint32_t>(UbseLoggerTypeId::UINT32, data);
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(int64_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(int64_t data)
 {
     EncodeData<int64_t>(UbseLoggerTypeId::INT64, data);
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(uint64_t data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(uint64_t data)
 {
     EncodeData<uint64_t>(UbseLoggerTypeId::UINT64, data);
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(double data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(double data)
 {
     EncodeData<double>(UbseLoggerTypeId::DOUBLE, data);
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(const std::string &data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(const std::string& data)
 {
     EncodeString(data.c_str(), data.length());
     return *this;
 }
 
-UbseLoggerEntry &UbseLoggerEntry::operator<<(const char *data)
+UbseLoggerEntry& UbseLoggerEntry::operator<<(const char* data)
 {
     EncodeData(data);
     return *this;
@@ -329,7 +329,7 @@ uint32_t UbseLoggerEntry::ResizeBuffer(size_t addSize)
     }
 }
 
-char *UbseLoggerEntry::GetBuffer()
+char* UbseLoggerEntry::GetBuffer()
 {
     if (!heapBuffer) {
         return &logEntryBuffer[currentSize];
@@ -337,7 +337,7 @@ char *UbseLoggerEntry::GetBuffer()
     return &(heapBuffer.get())[currentSize];
 }
 
-void UbseLoggerEntry::EncodeString(const char *data, size_t length)
+void UbseLoggerEntry::EncodeString(const char* data, size_t length)
 {
     if (length == 0) {
         return;
@@ -346,63 +346,63 @@ void UbseLoggerEntry::EncodeString(const char *data, size_t length)
     if (ret != UBSE_OK) {
         return;
     }
-    char *buffer = GetBuffer();
-    *reinterpret_cast<UbseLoggerTypeId *>(buffer++) = UbseLoggerTypeId::STRING;
+    char* buffer = GetBuffer();
+    *reinterpret_cast<UbseLoggerTypeId*>(buffer++) = UbseLoggerTypeId::STRING;
     if (memcpy_s(buffer, length + 1, data, length + 1) != EOK) {
         return;
     }
     currentSize += sizeof(UbseLoggerTypeId) + length + 1;
 }
 
-void UbseLoggerEntry::EncodeData(const char *data)
+void UbseLoggerEntry::EncodeData(const char* data)
 {
     if (data != nullptr) {
         EncodeString(data, strlen(data));
     }
 }
 
-char *UbseLoggerEntry::DecodeChar(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeChar(std::ostream& os, char* buffer)
 {
-    char data = *reinterpret_cast<char *>(buffer);
+    char data = *reinterpret_cast<char*>(buffer);
     os << data;
     return buffer + sizeof(char);
 }
 
-char *UbseLoggerEntry::DecodeUint(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeUint(std::ostream& os, char* buffer)
 {
-    uint32_t data = *reinterpret_cast<uint32_t *>(buffer);
+    uint32_t data = *reinterpret_cast<uint32_t*>(buffer);
     os << data;
     return buffer + sizeof(uint32_t);
 }
 
-char *UbseLoggerEntry::DecodeUlong(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeUlong(std::ostream& os, char* buffer)
 {
-    uint64_t data = *reinterpret_cast<uint64_t *>(buffer);
+    uint64_t data = *reinterpret_cast<uint64_t*>(buffer);
     os << data;
     return buffer + sizeof(uint64_t);
 }
 
-char *UbseLoggerEntry::DecodeInt(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeInt(std::ostream& os, char* buffer)
 {
-    int32_t data = *reinterpret_cast<int32_t *>(buffer);
+    int32_t data = *reinterpret_cast<int32_t*>(buffer);
     os << data;
     return buffer + sizeof(int32_t);
 }
 
-char *UbseLoggerEntry::DecodeLong(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeLong(std::ostream& os, char* buffer)
 {
-    int64_t data = *reinterpret_cast<int64_t *>(buffer);
+    int64_t data = *reinterpret_cast<int64_t*>(buffer);
     os << data;
     return buffer + sizeof(int64_t);
 }
-char *UbseLoggerEntry::DecodeDouble(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeDouble(std::ostream& os, char* buffer)
 {
-    double data = *reinterpret_cast<double *>(buffer);
+    double data = *reinterpret_cast<double*>(buffer);
     os << data;
     return buffer + sizeof(double);
 }
 
-char *UbseLoggerEntry::DecodeString(std::ostream &os, char *buffer)
+char* UbseLoggerEntry::DecodeString(std::ostream& os, char* buffer)
 {
     while (*buffer != '\0') {
         os << *buffer;
@@ -411,7 +411,7 @@ char *UbseLoggerEntry::DecodeString(std::ostream &os, char *buffer)
     return ++buffer;
 }
 
-void UbseLoggerEntry::DecodeData(std::ostream &os, char *start, const char *end)
+void UbseLoggerEntry::DecodeData(std::ostream& os, char* start, const char* end)
 {
     while (start < end) {
         auto id = static_cast<UbseLoggerTypeId>(*start);
@@ -451,7 +451,7 @@ bool UbseIsLog(UbseLogLevel level)
     }
     return ubse::log::UbseLoggerManager::gInstance->IsLog(level);
 }
-bool UbseLog::operator==(UbseLoggerEntry &loggerEntry)
+bool UbseLog::operator==(UbseLoggerEntry& loggerEntry)
 {
     ubse::log::UbseLoggerManager::gInstance->Push(std::move(loggerEntry));
     return true;

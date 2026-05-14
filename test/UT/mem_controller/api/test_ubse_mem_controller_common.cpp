@@ -14,13 +14,13 @@
 #include <ubse_com_module.h>
 #include <ubse_error.h>
 #include <string>
-#include "message/ubse_mem_operation_resp_simpo.h"
 #include "ubse_election.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_helper.h"
 #include "ubse_mmi_def.h"
+#include "message/ubse_mem_operation_resp_simpo.h"
 
 namespace ubse::mem_controller::ut {
 using namespace mem::controller;
@@ -160,8 +160,7 @@ TEST_F(TestUbseMemControllerCommonHelper, UbseMemCreateWithLenderReqIsValidTest)
     // 5. 测试 lenders 数量超过最大值的情况
     {
         std::vector<UbseMemNumaLender> tooManyLenders(5, {.slotId = 1, .socketId = 1, .numaId = 0, .size = size});
-        EXPECT_EQ(UBSE_ERR_INVALID_ARG,
-                  UbseMemCreateWithLenderReqIsValid(name, borrower, tooManyLenders));
+        EXPECT_EQ(UBSE_ERR_INVALID_ARG, UbseMemCreateWithLenderReqIsValid(name, borrower, tooManyLenders));
     }
     // 6. 测试 lender 的 size 小于最小值的情况
     {
@@ -299,8 +298,7 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemNumaCreateReqTest)
         // 模拟memcpy_s失败
         MOCKER_CPP(&memcpy_s).stubs().will(returnValue(1));
         UbseMemNumaBorrowReq req;
-        EXPECT_EQ(ConvertUbseMemNumaCreateReq(validName, validBorrower, validOpt, req),
-                  UBSE_ERR_INVALID_ARG);
+        EXPECT_EQ(ConvertUbseMemNumaCreateReq(validName, validBorrower, validOpt, req), UBSE_ERR_INVALID_ARG);
     }
 }
 
@@ -324,29 +322,25 @@ TEST_F(TestUbseMemControllerCommonHelper, UbseMemCreateWithCandidateReqIsValid)
     }
     // 测试用例2: 名称无效
     {
-        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(invalidName, validBorrower, validOpt),
-                  UBSE_ERR_INVALID_ARG);
+        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(invalidName, validBorrower, validOpt), UBSE_ERR_INVALID_ARG);
     }
     // 测试用例3: nodeId为空
     {
         UbseMemBorrower borrower;
-        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(validName, borrower, validOpt),
-                  UBSE_ERR_INVALID_ARG);
+        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(validName, borrower, validOpt), UBSE_ERR_INVALID_ARG);
     }
     // 测试用例4: 内存大小不足
     {
         UbseMemNumaCandidateOpt opt;
         opt.size = minMemSize - 1;
         opt.slotIds = validSlotIds;
-        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(validName, validBorrower, opt),
-                  UBSE_ERR_INVALID_ARG);
+        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(validName, validBorrower, opt), UBSE_ERR_INVALID_ARG);
     }
     // 测试用例5: slotIds为空
     {
         UbseMemNumaCandidateOpt opt;
         opt.size = minMemSize;
-        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(validName, validBorrower, opt),
-                  UBSE_ERR_INVALID_ARG);
+        ASSERT_EQ(UbseMemCreateWithCandidateReqIsValid(validName, validBorrower, opt), UBSE_ERR_INVALID_ARG);
     }
     // 测试用例6: 多个无效条件同时存在
     {
@@ -418,8 +412,7 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemNumaCreateWithCandidateR
         // 模拟memcpy_s失败
         MOCKER_CPP(&memcpy_s).stubs().will(returnValue(1));
         UbseMemNumaBorrowReq req;
-        EXPECT_EQ(ConvertUbseMemNumaCreateWithCandidateReq(name, borrower, opt, req),
-                  UBSE_ERR_INVALID_ARG);
+        EXPECT_EQ(ConvertUbseMemNumaCreateWithCandidateReq(name, borrower, opt, req), UBSE_ERR_INVALID_ARG);
     }
 }
 
@@ -478,8 +471,7 @@ TEST_F(TestUbseMemControllerCommonHelper, UbseMemAddrCreateReqIsValidTest)
         validLender.pid = 1234;
         validLender.vaLists = {{.size = 4 * 1024 * 1024}};
 
-        EXPECT_EQ(UBSE_ERR_INVALID_ARG,
-                  UbseMemAddrCreateReqIsValid(invalidName, validBorrower, validLender));
+        EXPECT_EQ(UBSE_ERR_INVALID_ARG, UbseMemAddrCreateReqIsValid(invalidName, validBorrower, validLender));
     }
 
     // 测试用例3: borrower的nodeId为空
@@ -490,8 +482,7 @@ TEST_F(TestUbseMemControllerCommonHelper, UbseMemAddrCreateReqIsValidTest)
         validLender.pid = 1234;
         validLender.vaLists = {{.size = 4 * 1024 * 1024}};
 
-        EXPECT_EQ(UBSE_ERR_INVALID_ARG,
-                  UbseMemAddrCreateReqIsValid(validName, emptyBorrower, validLender));
+        EXPECT_EQ(UBSE_ERR_INVALID_ARG, UbseMemAddrCreateReqIsValid(validName, emptyBorrower, validLender));
     }
 
     // 测试用例4: lender的pid为0
@@ -502,8 +493,7 @@ TEST_F(TestUbseMemControllerCommonHelper, UbseMemAddrCreateReqIsValidTest)
         invalidLender.pid = 0;
         invalidLender.vaLists = {{.size = 4 * 1024 * 1024}};
 
-        EXPECT_EQ(UBSE_ERR_INVALID_ARG,
-                  UbseMemAddrCreateReqIsValid(validName, validBorrower, invalidLender));
+        EXPECT_EQ(UBSE_ERR_INVALID_ARG, UbseMemAddrCreateReqIsValid(validName, validBorrower, invalidLender));
     }
 
     // 测试用例5: lender的vaLists为空
@@ -525,8 +515,7 @@ TEST_F(TestUbseMemControllerCommonHelper, UbseMemAddrCreateReqIsValidTest)
         invalidLender.pid = 1234;
         invalidLender.vaLists = {{.size = 0}}; // 小于最小值
 
-        EXPECT_EQ(UBSE_ERR_INVALID_ARG,
-                  UbseMemAddrCreateReqIsValid(validName, validBorrower, invalidLender));
+        EXPECT_EQ(UBSE_ERR_INVALID_ARG, UbseMemAddrCreateReqIsValid(validName, validBorrower, invalidLender));
     }
 
     // 测试用例7: 多个无效条件同时存在
@@ -537,8 +526,7 @@ TEST_F(TestUbseMemControllerCommonHelper, UbseMemAddrCreateReqIsValidTest)
         invalidLender.pid = 0;
         invalidLender.vaLists = {{.size = 0}};
 
-        EXPECT_EQ(UBSE_ERR_INVALID_ARG,
-                  UbseMemAddrCreateReqIsValid(invalidName, emptyBorrower, invalidLender));
+        EXPECT_EQ(UBSE_ERR_INVALID_ARG, UbseMemAddrCreateReqIsValid(invalidName, emptyBorrower, invalidLender));
     }
 }
 
@@ -682,27 +670,27 @@ ubse::nodeController::UbseNodeInfo CreateTestNode(ubse::nodeController::UbseNode
     node.clusterState = state;
     return node;
 }
- 
+
 TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkNotExistTest)
 {
     MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(ubse::nodeController::UbseNodeInfo()));
     EXPECT_EQ(WaitNodeStateWork(TEST_NODE_ID), UBSE_ERR_NODE_NOT_EXIST);
 }
- 
+
 TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkSuccessTest)
 {
     auto node = CreateTestNode(ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING);
     MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
     EXPECT_EQ(WaitNodeStateWork(TEST_NODE_ID), UBSE_OK);
 }
- 
+
 TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkFailedTest)
 {
     auto node = CreateTestNode(ubse::nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING);
     MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
     EXPECT_EQ(WaitNodeStateWork(TEST_NODE_ID), UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS);
 }
- 
+
 TEST_F(TestUbseMemControllerCommonHelper, WaitNodeStateWorkNodeFaultTest)
 {
     auto node = CreateTestNode(ubse::nodeController::UbseNodeClusterState::UBSE_NODE_FAULT);

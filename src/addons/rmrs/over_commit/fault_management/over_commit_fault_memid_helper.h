@@ -23,7 +23,7 @@ using ubse::common::def::UbseResult;
 
 class OverCommitFaultMemIdHelper {
 public:
-    static OverCommitFaultMemIdHelper &Instance()
+    static OverCommitFaultMemIdHelper& Instance()
     {
         static OverCommitFaultMemIdHelper instance;
         return instance;
@@ -34,8 +34,8 @@ public:
 private:
     OverCommitFaultMemIdHelper() = default;
     ~OverCommitFaultMemIdHelper() = default;
-    OverCommitFaultMemIdHelper(const OverCommitFaultMemIdHelper &) = delete;
-    OverCommitFaultMemIdHelper &operator=(const OverCommitFaultMemIdHelper &) = delete;
+    OverCommitFaultMemIdHelper(const OverCommitFaultMemIdHelper&) = delete;
+    OverCommitFaultMemIdHelper& operator=(const OverCommitFaultMemIdHelper&) = delete;
 };
 
 } // namespace mempooling

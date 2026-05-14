@@ -26,8 +26,8 @@ using namespace ubse::mem::strategy;
 using namespace ubse::mem::scheduler;
 using namespace ubse::nodeController;
 
-ubse::common::def::UbseResult FAKE_GetUbseConf(const std::string &section, const std::string &configKey,
-                                               std::string &configValue)
+ubse::common::def::UbseResult FAKE_GetUbseConf(const std::string& section, const std::string& configKey,
+                                               std::string& configValue)
 {
     if (section == "ubse.strategy" && configKey == "system.pool.memory.ratio") {
         configValue = "100";

@@ -18,14 +18,14 @@
 #include <regex>
 #include <set>
 
-#include "adapter_plugins/mti/ubse_mti_def.h"
-#include "securec.h"
-#include "ubse_net_util.h"
-#include "ubse_com_module.h"
 #include "ubse_com_base.h"
+#include "ubse_com_module.h"
 #include "ubse_election_module.h"
+#include "ubse_net_util.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_str_util.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
+#include "securec.h"
 
 namespace ubse::nodeController {
 using namespace ubse::adapter_plugins::mti;
@@ -37,7 +37,7 @@ struct UbseNodeTopoMap {
     std::unordered_map<std::string, std::string> devNameToNodeIdMap;
 };
 
-uint32_t UbseGetNodeTopology(std::vector<UbseNodeTopology> &topologies)
+uint32_t UbseGetNodeTopology(std::vector<UbseNodeTopology>& topologies)
 {
     auto comModule = UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
     if (comModule == nullptr) {
@@ -56,19 +56,19 @@ uint32_t UbseGetNodeTopology(std::vector<UbseNodeTopology> &topologies)
     return UBSE_OK;
 }
 
-void FillTelemetryNodeData(const std::string &nodeId, const UbseNodeInfo &nodeInfo,
-                           std::unordered_map<std::string, TelemetryNodeData> &nodeDbMap)
+void FillTelemetryNodeData(const std::string& nodeId, const UbseNodeInfo& nodeInfo,
+                           std::unordered_map<std::string, TelemetryNodeData>& nodeDbMap)
 {
-    TelemetryNodeData &telData = nodeDbMap[nodeId];
+    TelemetryNodeData& telData = nodeDbMap[nodeId];
     telData.nodeId = nodeId;
     telData.hostname = nodeInfo.hostName;
 
     std::map<uint32_t, SocketData> socketMap;
 
     // 处理 NUMA 信息
-    for (const auto &[loc, numaInfo] : nodeInfo.numaInfos) {
+    for (const auto& [loc, numaInfo] : nodeInfo.numaInfos) {
         uint32_t sockId = numaInfo.socketId;
-        SocketData &sock = socketMap[sockId];
+        SocketData& sock = socketMap[sockId];
         sock.socketId = std::to_string(sockId); // 确保 socketId 被设置
 
         NumaData numaData;
@@ -87,17 +87,17 @@ void FillTelemetryNodeData(const std::string &nodeId, const UbseNodeInfo &nodeIn
         }
     }
 
-    for (auto &[_, sock] : socketMap) {
+    for (auto& [_, sock] : socketMap) {
         telData.sockets.push_back(std::move(sock));
     }
 }
 
-void BuildDevTopologyAndMappings(const std::string &nodeId, const UbseNodeInfo &nodeInfo,
-                                 UbseDevTopology &devTopologyInfo,
-                                 std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                                 std::unordered_map<std::string, std::unordered_set<std::string>> &nodeIdToDevNameMap)
+void BuildDevTopologyAndMappings(const std::string& nodeId, const UbseNodeInfo& nodeInfo,
+                                 UbseDevTopology& devTopologyInfo,
+                                 std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                                 std::unordered_map<std::string, std::unordered_set<std::string>>& nodeIdToDevNameMap)
 {
-    for (const auto &[loc, cpuInfo] : nodeInfo.cpuInfos) {
+    for (const auto& [loc, cpuInfo] : nodeInfo.cpuInfos) {
         std::string devNameStr = nodeId + "-" + cpuInfo.chipId;
         UbseDevName devName;
         devName.devName = devNameStr;
@@ -115,7 +115,7 @@ void BuildDevTopologyAndMappings(const std::string &nodeId, const UbseNodeInfo &
         // 构建 UbsePortMap
         std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> portMap;
 
-        for (const auto &[portLoc, portInfo] : cpuInfo.portInfos) {
+        for (const auto& [portLoc, portInfo] : cpuInfo.portInfos) {
             adapter_plugins::mti::UbseMtiCpuTopoPortInfo port;
             port.portId = portInfo.portId;
             port.ifName = portInfo.ifName;
@@ -145,11 +145,11 @@ void BuildDevTopologyAndMappings(const std::string &nodeId, const UbseNodeInfo &
         nodeIdToDevNameMap[nodeId].insert(devName.devName);
 
         // 处理对端映射（模仿旧逻辑）
-        for (const auto &[portName, portInfo] : cpuInfo.portInfos) {
+        for (const auto& [portName, portInfo] : cpuInfo.portInfos) {
             UbseDevName peerDevName = {portInfo.remoteSlotId, portInfo.remoteChipId};
             if (!peerDevName.devName.empty()) {
-                const std::string &peerDevNameStr = peerDevName.devName;
-                const std::string &peerNodeId = portInfo.remoteSlotId; // 模仿旧代码
+                const std::string& peerDevNameStr = peerDevName.devName;
+                const std::string& peerNodeId = portInfo.remoteSlotId; // 模仿旧代码
 
                 devNameToNodeIdMap[peerDevNameStr] = peerNodeId;
                 nodeIdToDevNameMap[peerNodeId].insert(peerDevNameStr);
@@ -158,7 +158,7 @@ void BuildDevTopologyAndMappings(const std::string &nodeId, const UbseNodeInfo &
     }
 }
 
-UbseResult UbseGetElectionMap(std::unordered_map<std::string, ElectionNodeInfo> &nodeRoleMap)
+UbseResult UbseGetElectionMap(std::unordered_map<std::string, ElectionNodeInfo>& nodeRoleMap)
 {
     auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
     if (electionModule == nullptr) {
@@ -181,7 +181,7 @@ UbseResult UbseGetElectionMap(std::unordered_map<std::string, ElectionNodeInfo> 
         nodeRoleMap[standby.id] = {true, ELECTION_ROLE_STANDBY};
         UBSE_LOG_DEBUG << "UbseGetElectionMap standby.id is " << standby.id;
     }
-    for (auto &ag : agent) {
+    for (auto& ag : agent) {
         if (!ag.id.empty()) {
             nodeRoleMap[ag.id] = {true, ELECTION_ROLE_AGENT};
             UBSE_LOG_DEBUG << "UbseGetElectionMap ag.id is " << ag.id;
@@ -190,7 +190,7 @@ UbseResult UbseGetElectionMap(std::unordered_map<std::string, ElectionNodeInfo> 
     return UBSE_OK;
 }
 
-std::string GetSocketId(const std::string &devName)
+std::string GetSocketId(const std::string& devName)
 {
     size_t pos = devName.find('-');
     if (pos == std::string::npos) {
@@ -232,8 +232,8 @@ void DevTopoChangeFunc(UbseDevTopology& devTopologyInfo,
         if (it == socketIdMap.end()) {
             UBSE_LOG_DEBUG << "LCNE Unmodified topology key is " << lcneDevName.devName;
             // b.边信息
-            std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>&
-                portInfos = devTopo.second.second;
+            std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>& portInfos =
+                devTopo.second.second;
             ChangeEdgeInfo(socketIdMap, portInfos);
             // 插入修改后结果
             newDevTopologyInfo.insert(devTopo);
@@ -265,7 +265,7 @@ void AccessMapChangeFunc(std::unordered_map<std::string, std::string>& devNameTo
                          std::unordered_map<UbseDevName, UbseDevName, UbseDevNameHash>& socketIdMap)
 {
     std::unordered_map<std::string, std::string> newDevNameToNodeIdMap;
-    for (auto &devNameToNodeId : devNameToNodeIdMap) {
+    for (auto& devNameToNodeId : devNameToNodeIdMap) {
         UbseDevName lcneDevName(devNameToNodeId.first);
         auto it = socketIdMap.find(lcneDevName);
         if (it == socketIdMap.end()) {
@@ -273,7 +273,7 @@ void AccessMapChangeFunc(std::unordered_map<std::string, std::string>& devNameTo
             continue;
         }
         // 如有映射，则进行改动(改动原值)
-        auto &osDevName = it->second;
+        auto& osDevName = it->second;
         std::string newSocketId;
         std::string newNodeId;
         osDevName.SplitDevName(newNodeId, newSocketId);
@@ -282,44 +282,44 @@ void AccessMapChangeFunc(std::unordered_map<std::string, std::string>& devNameTo
     devNameToNodeIdMap = newDevNameToNodeIdMap;
 
     // 7.nodeid不会变化，因此不存在改动外层key的情况
-    for (auto &nodeIdToDevName : nodeIdToDevNameMap) {
-        auto &nodeId = nodeIdToDevName.first;
+    for (auto& nodeIdToDevName : nodeIdToDevNameMap) {
+        auto& nodeId = nodeIdToDevName.first;
         std::unordered_set<std::string> newDevNameSet;
-        for (auto &localDevNameStr : nodeIdToDevName.second) {
+        for (auto& localDevNameStr : nodeIdToDevName.second) {
             UbseDevName lcneDevName(localDevNameStr);
             auto it = socketIdMap.find(lcneDevName);
             if (it == socketIdMap.end()) {
                 newDevNameSet.insert(localDevNameStr);
                 continue;
             }
-            auto &osDevName = it->second;
+            auto& osDevName = it->second;
             newDevNameSet.insert(osDevName.devName);
         }
         nodeIdToDevName.second = newDevNameSet;
     }
 }
 
-void UbseSocketIdChange(std::unordered_map<std::string, TelemetryNodeData> &nodeDbMap, UbseDevTopology &devTopologyInfo,
-                        std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                        std::unordered_map<std::string, std::unordered_set<std::string>> &nodeIdToDevNameMap)
+void UbseSocketIdChange(std::unordered_map<std::string, TelemetryNodeData>& nodeDbMap, UbseDevTopology& devTopologyInfo,
+                        std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                        std::unordered_map<std::string, std::unordered_set<std::string>>& nodeIdToDevNameMap)
 {
     // nodeDbMap(OS socketId) devTopologyInfo(LCNE socketId)
     std::unordered_map<UbseDevName, UbseDevName, UbseDevNameHash> socketIdMap;
     // 1.遍历LCNE数据，当nodeDbMap存在该nodeid的情况，才做修改
-    for (auto &nodeInfo : nodeIdToDevNameMap) {
-        auto &nodeId = nodeInfo.first;
+    for (auto& nodeInfo : nodeIdToDevNameMap) {
+        auto& nodeId = nodeInfo.first;
         auto it = nodeDbMap.find(nodeId);
         if (it == nodeDbMap.end()) {
             continue;
         }
         // 2.该节点 LCNE socketId数据排序
         std::vector<std::string> lcneSocketIdVec;
-        for (auto &devName : nodeInfo.second) {
+        for (auto& devName : nodeInfo.second) {
             auto socketName = GetSocketId(devName);
             lcneSocketIdVec.emplace_back(socketName);
         }
         // socketid保证为uint32的string
-        std::sort(lcneSocketIdVec.begin(), lcneSocketIdVec.end(), [](const std::string &a, const std::string &b) {
+        std::sort(lcneSocketIdVec.begin(), lcneSocketIdVec.end(), [](const std::string& a, const std::string& b) {
             try {
                 return std::stoul(a) < std::stoul(b);
             } catch (...) {
@@ -327,18 +327,18 @@ void UbseSocketIdChange(std::unordered_map<std::string, TelemetryNodeData> &node
             }
         });
         // 3.该节点OS socketId数据排序
-        auto &osSocketIdVec = it->second.sockets;
-        for (auto &os : osSocketIdVec) {
+        auto& osSocketIdVec = it->second.sockets;
+        for (auto& os : osSocketIdVec) {
             UBSE_LOG_DEBUG << "Begin osSocketIdVec socketId is " << os.socketId;
         }
-        std::sort(osSocketIdVec.begin(), osSocketIdVec.end(), [](const SocketData &a, const SocketData &b) -> bool {
+        std::sort(osSocketIdVec.begin(), osSocketIdVec.end(), [](const SocketData& a, const SocketData& b) -> bool {
             try {
                 return std::stoul(a.socketId) < std::stoul(b.socketId);
             } catch (...) {
                 return std::tuple(a.socketId.length(), a.socketId) < std::tuple(b.socketId.length(), b.socketId);
             }
         });
-        for (auto &os : osSocketIdVec) {
+        for (auto& os : osSocketIdVec) {
             UBSE_LOG_DEBUG << "End osSocketIdVec socketId is " << os.socketId;
         }
         // 4.提供该节点的socketId映射 LCNE socketId -> OS socketId
@@ -356,13 +356,13 @@ void UbseSocketIdChange(std::unordered_map<std::string, TelemetryNodeData> &node
     AccessMapChangeFunc(devNameToNodeIdMap, nodeIdToDevNameMap, socketIdMap);
 }
 
-uint32_t UbseNodeTopoGetBasicData(std::unordered_map<std::string, TelemetryNodeData> &nodeDbMap,
-                                  std::unordered_map<std::string, ElectionNodeInfo> &nodeRoleMap,
-                                  UbseDevTopology &devTopologyInfo,
-                                  std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                                  std::unordered_map<std::string, std::unordered_set<std::string>> &nodeIdToDevNameMap)
+uint32_t UbseNodeTopoGetBasicData(std::unordered_map<std::string, TelemetryNodeData>& nodeDbMap,
+                                  std::unordered_map<std::string, ElectionNodeInfo>& nodeRoleMap,
+                                  UbseDevTopology& devTopologyInfo,
+                                  std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                                  std::unordered_map<std::string, std::unordered_set<std::string>>& nodeIdToDevNameMap)
 {
-    const auto &allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
+    const auto& allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
 
     nodeDbMap.clear();
     nodeRoleMap.clear();
@@ -370,7 +370,7 @@ uint32_t UbseNodeTopoGetBasicData(std::unordered_map<std::string, TelemetryNodeD
     devNameToNodeIdMap.clear();
     nodeIdToDevNameMap.clear();
 
-    for (const auto &[nodeId, nodeInfo] : allNodeInfo) {
+    for (const auto& [nodeId, nodeInfo] : allNodeInfo) {
         // 1. 填充遥测数据
         FillTelemetryNodeData(nodeId, nodeInfo, nodeDbMap);
 
@@ -392,8 +392,8 @@ uint32_t UbseNodeTopoGetBasicData(std::unordered_map<std::string, TelemetryNodeD
 }
 
 UbseResult UbseNodeTopologyMgrGetLocalSocketInfo(
-    const std::string &localNodeId, std::unordered_set<std::string> &socketSet,
-    std::unordered_map<std::string, std::unordered_set<std::string>> &nodeIdToSocketIdMap)
+    const std::string& localNodeId, std::unordered_set<std::string>& socketSet,
+    std::unordered_map<std::string, std::unordered_set<std::string>>& nodeIdToSocketIdMap)
 {
     auto it = nodeIdToSocketIdMap.find(localNodeId);
     if (it == nodeIdToSocketIdMap.end()) {
@@ -404,14 +404,15 @@ UbseResult UbseNodeTopologyMgrGetLocalSocketInfo(
     return UBSE_OK;
 }
 
-void TopoBfsPerLayerPerEdge(
-    std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData, std::queue<std::string>& que, int jumpCount,
-    std::unordered_set<std::string>& traversedDevNameSet,
-    std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>& edgeMap)
+void TopoBfsPerLayerPerEdge(std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData, std::queue<std::string>& que,
+                            int jumpCount, std::unordered_set<std::string>& traversedDevNameSet,
+                            std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>& edgeMap)
 {
     for (auto& edge : edgeMap) {
         UbseMtiCpuTopoPortInfo ubsePortInfo = edge.second;
-        if (ubsePortInfo.portStatus == UbseMtiCpuTopoPortStatus::DOWN) {continue;}
+        if (ubsePortInfo.portStatus == UbseMtiCpuTopoPortStatus::DOWN) {
+            continue;
+        }
         auto remoteDevName = ubsePortInfo.remoteDevName.devName;
         if (traversedDevNameSet.find(remoteDevName) == traversedDevNameSet.end()) {
             traversedDevNameSet.insert(remoteDevName);
@@ -436,23 +437,24 @@ UbseResult TopoBfsPerLayer(const UbseDevTopology& devTopologyInfo,
             UBSE_LOG_INFO << "The DevName " << devName.devName << " doesn't exist.";
             continue;
         }
-        std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> edgeMap =
-            it->second.second;
+        std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> edgeMap = it->second.second;
         TopoBfsPerLayerPerEdge(edgeData, que, jumpCount, traversedDevNameSet, edgeMap);
     }
     return UBSE_OK;
 }
 
 // 根据跳数bfs
-UbseResult UbseTopologyBfs(int jump, UbseDevTopology &devTopologyInfo,
-                           std::vector<std::pair<TopologyEdgeInfo, int>> &edgeData, const std::string &localDevName)
+UbseResult UbseTopologyBfs(int jump, UbseDevTopology& devTopologyInfo,
+                           std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData, const std::string& localDevName)
 {
     std::queue<std::string> que;
     std::unordered_set<std::string> traversedDevNameSet;
     que.push(localDevName);
     traversedDevNameSet.insert(localDevName);
     for (int jumpCount = 1; jumpCount <= jump; jumpCount++) {
-        if (que.empty()) {break;}
+        if (que.empty()) {
+            break;
+        }
         auto ret = TopoBfsPerLayer(devTopologyInfo, edgeData, que, jumpCount, traversedDevNameSet);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "TopoBfsPerLayer failed. " << FormatRetCode(ret);
@@ -462,21 +464,21 @@ UbseResult UbseTopologyBfs(int jump, UbseDevTopology &devTopologyInfo,
     return UBSE_OK;
 }
 
-UbseResult UbseGetTopologyInfoByJump(const JumpCount &jump, UbseDevTopology &devTopologyInfo,
-                                     std::vector<std::pair<TopologyEdgeInfo, int>> &edgeData,
-                                     const std::string &localDevName)
+UbseResult UbseGetTopologyInfoByJump(const JumpCount& jump, UbseDevTopology& devTopologyInfo,
+                                     std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData,
+                                     const std::string& localDevName)
 {
     if (jump == JumpCount::One) {
         return UbseTopologyBfs(1, devTopologyInfo, edgeData, localDevName); // 1表示1跳
     } else if (jump == JumpCount::Two) {
         return UbseTopologyBfs(2, devTopologyInfo, edgeData, localDevName); // 2表示2跳
-    } else if (jump == JumpCount::All) { // 所有的跳数，即小于总节点数
+    } else if (jump == JumpCount::All) {                                    // 所有的跳数，即小于总节点数
         return UbseTopologyBfs(devTopologyInfo.size(), devTopologyInfo, edgeData, localDevName);
     }
     return UBSE_ERROR;
 }
 
-UbseResult DevNameRemoveNodeName(const std::string &remoteDevNameStr, std::string &remoteDevSocketNameStr)
+UbseResult DevNameRemoveNodeName(const std::string& remoteDevNameStr, std::string& remoteDevSocketNameStr)
 {
     std::regex pattern(R"((\w+)-(\w+))");
 
@@ -492,9 +494,9 @@ UbseResult DevNameRemoveNodeName(const std::string &remoteDevNameStr, std::strin
     return UBSE_OK;
 }
 
-UbseResult UbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                                      std::string &remoteNodeName, std::string &remoteDevSocketNameStr,
-                                      const std::string &remoteDevNameStr)
+UbseResult UbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                                      std::string& remoteNodeName, std::string& remoteDevSocketNameStr,
+                                      const std::string& remoteDevNameStr)
 {
     auto it = devNameToNodeIdMap.find(remoteDevNameStr);
     if (it == devNameToNodeIdMap.end()) {
@@ -512,10 +514,10 @@ UbseResult UbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::strin
     return UBSE_OK;
 }
 
-TelemetrySocketData &UbseNodePadSocketData(const std::string &remoteNodeName, const std::string &remoteDevSocketNameStr,
-                                           const std::string &remoteDevNameStr,
-                                           TelemetrySocketData &telemetrySocketData,
-                                           std::unordered_map<std::string, TelemetryNodeData> &nodeDbMap)
+TelemetrySocketData& UbseNodePadSocketData(const std::string& remoteNodeName, const std::string& remoteDevSocketNameStr,
+                                           const std::string& remoteDevNameStr,
+                                           TelemetrySocketData& telemetrySocketData,
+                                           std::unordered_map<std::string, TelemetryNodeData>& nodeDbMap)
 {
     telemetrySocketData.nodeId = remoteNodeName;                  // LCNE可提供
     telemetrySocketData.socket.socketId = remoteDevSocketNameStr; // LCNE可提供
@@ -527,7 +529,7 @@ TelemetrySocketData &UbseNodePadSocketData(const std::string &remoteNodeName, co
         telemetrySocketData.hostname = nodeData.hostname;
         // 查找设备
         auto itSocket = find_if(nodeData.sockets.begin(), nodeData.sockets.end(),
-                                [&remoteDevSocketNameStr](const SocketData &socketData) {
+                                [&remoteDevSocketNameStr](const SocketData& socketData) {
                                     return socketData.socketId == remoteDevSocketNameStr;
                                 });
         if (itSocket != nodeData.sockets.end()) {
@@ -540,10 +542,10 @@ TelemetrySocketData &UbseNodePadSocketData(const std::string &remoteNodeName, co
 }
 
 // 填充每个socket的数据
-UbseResult VmFillSpecDataPerSocket(std::vector<VmNodeData> &nodeTopology,
-                                   std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                                   const std::string &remoteDevName, UbseNodeData &ubseNodeData,
-                                   UbseLcneTopoData &ubseLcneTopoData)
+UbseResult VmFillSpecDataPerSocket(std::vector<VmNodeData>& nodeTopology,
+                                   std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                                   const std::string& remoteDevName, UbseNodeData& ubseNodeData,
+                                   UbseLcneTopoData& ubseLcneTopoData)
 {
     std::string remoteDevNodeName;
     std::string remoteDevSocketNameStr;
@@ -578,11 +580,11 @@ UbseResult VmFillSpecDataPerSocket(std::vector<VmNodeData> &nodeTopology,
     return UBSE_OK;
 }
 
-UbseResult VmTopoGetResult(std::vector<VmNodeData> &nodeTopology, UbseDevTopology &devTopologyInfo,
-                           std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                           std::vector<std::pair<TopologyEdgeInfo, int>> &edgeDataVec, UbseNodeData &ubseNodeData)
+UbseResult VmTopoGetResult(std::vector<VmNodeData>& nodeTopology, UbseDevTopology& devTopologyInfo,
+                           std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                           std::vector<std::pair<TopologyEdgeInfo, int>>& edgeDataVec, UbseNodeData& ubseNodeData)
 {
-    for (auto &edgeInfo : edgeDataVec) {
+    for (auto& edgeInfo : edgeDataVec) {
         std::string remoteDevNameStr = edgeInfo.first.remoteDevName; // 远程x跳的DevName
         int jumpCount = edgeInfo.second;
         std::string ifName = edgeInfo.first.ifName;
@@ -598,12 +600,12 @@ UbseResult VmTopoGetResult(std::vector<VmNodeData> &nodeTopology, UbseDevTopolog
     return UBSE_OK;
 }
 
-UbseResult UbseVmGetTopologyInfoBfs(const JumpCount &jump,
-                                    std::unordered_map<std::string, std::vector<VmNodeData>> &nodeTopology,
-                                    UbseNodeTopoMap &ubseNodeTopoMap, std::unordered_set<std::string> &localDevNameSet,
-                                    UbseNodeData &ubseNodeData)
+UbseResult UbseVmGetTopologyInfoBfs(const JumpCount& jump,
+                                    std::unordered_map<std::string, std::vector<VmNodeData>>& nodeTopology,
+                                    UbseNodeTopoMap& ubseNodeTopoMap, std::unordered_set<std::string>& localDevNameSet,
+                                    UbseNodeData& ubseNodeData)
 {
-    for (auto &localDevName : localDevNameSet) {
+    for (auto& localDevName : localDevNameSet) {
         std::string localDevNameStr(localDevName);
         UbseDevName devNameId(localDevNameStr);
         auto it = ubseNodeTopoMap.devTopologyInfo.find(devNameId);
@@ -635,9 +637,9 @@ UbseResult UbseVmGetTopologyInfoBfs(const JumpCount &jump,
     return UBSE_OK;
 }
 
-UbseResult UbseVmGetTopologyInfo(const JumpCount &jump,
-                                 std::unordered_map<std::string, std::vector<VmNodeData>> &nodeTopology,
-                                 const std::string &localNodeId)
+UbseResult UbseVmGetTopologyInfo(const JumpCount& jump,
+                                 std::unordered_map<std::string, std::vector<VmNodeData>>& nodeTopology,
+                                 const std::string& localNodeId)
 {
     UBSE_LOG_DEBUG << "UbseVmGetTopologyInfo init";
     std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};  // K:nodeId V：遥测数据
@@ -664,8 +666,8 @@ UbseResult UbseVmGetTopologyInfo(const JumpCount &jump,
     return UbseVmGetTopologyInfoBfs(jump, nodeTopology, ubseNodeTopoMap, localDevNameSet, ubseNodeData);
 }
 
-uint32_t UbseVmGetNodeTopologyInfo(const JumpCount &jump,
-                                   std::unordered_map<std::string, std::vector<VmNodeData>> &nodeData)
+uint32_t UbseVmGetNodeTopologyInfo(const JumpCount& jump,
+                                   std::unordered_map<std::string, std::vector<VmNodeData>>& nodeData)
 {
     UbseNodeInfo nodeInfo = UbseNodeController::GetInstance().GetCurNode();
     return UbseVmGetTopologyInfo(jump, nodeData, nodeInfo.nodeId);
@@ -681,7 +683,7 @@ UbseResult UbseNodeGetBorrowNodeCna(UbseNodeMemCnaInfoOutput& ubseNodeMemCnaInfo
         UBSE_LOG_ERROR << "borrowDevName " << borrowDevName.devName << "Does not exist in devTopologyInfo";
         return UBSE_ERROR;
     }
-    for (auto &borrowDirectConnect : itBorrow->second.second) {
+    for (auto& borrowDirectConnect : itBorrow->second.second) {
         // 从借入访问的借出的设备名称
         UbseDevName borrowToExportDevName(borrowDirectConnect.second.remoteSlotId + "-" +
                                           borrowDirectConnect.second.remoteChipId);
@@ -702,10 +704,10 @@ UbseResult UbseNodeGetBorrowNodeCna(UbseNodeMemCnaInfoOutput& ubseNodeMemCnaInfo
                    << "is not directly linked to exportDevName: " << exportDevName.devName;
     return UBSE_ERROR;
 }
-UbseResult MemFillPerEdgeData(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
-                              std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                              const std::string &localDevName, const std::pair<TopologyEdgeInfo, int> &edge,
-                              UbseNodeData &ubseNodeData)
+UbseResult MemFillPerEdgeData(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                              std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                              const std::string& localDevName, const std::pair<TopologyEdgeInfo, int>& edge,
+                              UbseNodeData& ubseNodeData)
 {
     std::string remoteDevNodeName;
     std::string remoteDevSocketNameStr;
@@ -735,14 +737,16 @@ UbseResult MemFillPerEdgeData(std::unordered_map<std::string, std::vector<MemNod
 
     return UBSE_OK;
 }
-UbseResult MemFillAllEdgeData(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
-                              std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                              const std::string &localDevName, std::vector<std::pair<TopologyEdgeInfo, int>> &edgeData,
-                              UbseNodeData &ubseNodeData)
+UbseResult MemFillAllEdgeData(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                              std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                              const std::string& localDevName, std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData,
+                              UbseNodeData& ubseNodeData)
 {
-    for (auto &edge : edgeData) {
+    for (auto& edge : edgeData) {
         // 只要1跳
-        if (edge.second != 1) {continue;}
+        if (edge.second != 1) {
+            continue;
+        }
         auto ret = MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData);
         if (ret != UBSE_OK) {
             UBSE_LOG_WARN << "MemFillPerEdgeData Failed. " << FormatRetCode(ret);
@@ -751,13 +755,13 @@ UbseResult MemFillAllEdgeData(std::unordered_map<std::string, std::vector<MemNod
     }
     return UBSE_OK;
 }
-UbseResult MemTopoGetResult(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology,
-                            UbseDevTopology &devTopologyInfo,
-                            std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                            std::unordered_map<std::string, std::vector<std::pair<TopologyEdgeInfo, int>>> &edgeDataMap,
-                            UbseNodeData &ubseNodeData)
+UbseResult MemTopoGetResult(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                            UbseDevTopology& devTopologyInfo,
+                            std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                            std::unordered_map<std::string, std::vector<std::pair<TopologyEdgeInfo, int>>>& edgeDataMap,
+                            UbseNodeData& ubseNodeData)
 {
-    for (auto &edgeInfo : edgeDataMap) {
+    for (auto& edgeInfo : edgeDataMap) {
         std::string localDevNameStr = edgeInfo.first;
         std::vector<std::pair<TopologyEdgeInfo, int>> edgeData = edgeInfo.second;
         if (edgeData.empty()) {
@@ -776,7 +780,7 @@ UbseResult MemTopoGetResult(std::unordered_map<std::string, std::vector<MemNodeD
     }
     return UBSE_OK;
 }
-UbseResult MemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+UbseResult MemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     UBSE_LOG_DEBUG << "UbseMemGetTopologyInfo init";
     std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};  // K:nodeId V：遥测数据
@@ -784,13 +788,14 @@ UbseResult MemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNod
     UbseDevTopology devTopologyInfo;
     std::unordered_map<std::string, std::string> devNameToNodeIdMap;
     std::unordered_map<std::string, std::unordered_set<std::string>> nodeIdToDevNameMap;
-    auto ret = UbseNodeTopoGetBasicData(nodeDbMap, nodeRoleMap, devTopologyInfo, devNameToNodeIdMap, nodeIdToDevNameMap);
+    auto ret =
+        UbseNodeTopoGetBasicData(nodeDbMap, nodeRoleMap, devTopologyInfo, devNameToNodeIdMap, nodeIdToDevNameMap);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseNodeTopoGetBasicData Failed. " << FormatRetCode(ret);
         return ret;
     }
     std::unordered_map<std::string, std::vector<std::pair<TopologyEdgeInfo, int>>> edgeDataMap;
-    for (auto &devInfo : devTopologyInfo) {
+    for (auto& devInfo : devTopologyInfo) {
         std::string localSocketId = devInfo.first.devName;
         std::vector<std::pair<TopologyEdgeInfo, int>> edgeData;
         UbseGetTopologyInfoByJump(JumpCount::One, devTopologyInfo, edgeData, localSocketId);
@@ -801,19 +806,19 @@ UbseResult MemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNod
     return MemTopoGetResult(nodeTopology, devTopologyInfo, devNameToNodeIdMap, edgeDataMap, ubseNodeData);
 }
 std::unordered_map<std::string, std::vector<MemNodeData>> ConvertToOldTopology(
-    const std::unordered_map<std::string, UbseNodeInfo> &newNodeInfoMap)
+    const std::unordered_map<std::string, UbseNodeInfo>& newNodeInfoMap)
 {
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
 
-    for (const auto &[nodeId, nodeInfo] : newNodeInfoMap) {
+    for (const auto& [nodeId, nodeInfo] : newNodeInfoMap) {
         // 用于按 socketId 分组数据
         std::unordered_map<uint32_t, SocketData> socketDataMap;
 
         // Step 1: 遍历 cpuInfos，填充 cpus 和 socketId
-        for (const auto &[cpuLoc, cpuInfo] : nodeInfo.cpuInfos) {
+        for (const auto& [cpuLoc, cpuInfo] : nodeInfo.cpuInfos) {
             uint32_t socketId = cpuInfo.socketId;
 
-            SocketData &sockData = socketDataMap[socketId];
+            SocketData& sockData = socketDataMap[socketId];
             sockData.socketId = std::to_string(socketId);
 
             // 添加 CPU
@@ -826,9 +831,9 @@ std::unordered_map<std::string, std::vector<MemNodeData>> ConvertToOldTopology(
         }
 
         // Step 2: 遍历 numaInfos，填充 numas
-        for (const auto &[numaLoc, numaInfo] : nodeInfo.numaInfos) {
+        for (const auto& [numaLoc, numaInfo] : nodeInfo.numaInfos) {
             uint32_t socketId = numaInfo.socketId;
-            SocketData &sockData = socketDataMap[socketId];
+            SocketData& sockData = socketDataMap[socketId];
             sockData.socketId = std::to_string(socketId); // 确保初始化
 
             NumaData numaData;
@@ -840,7 +845,7 @@ std::unordered_map<std::string, std::vector<MemNodeData>> ConvertToOldTopology(
 
         // Step 3: 为每个 socket 构造 MemNodeData
         std::vector<MemNodeData> memNodeDataVector;
-        for (auto &[socketId, socketData] : socketDataMap) {
+        for (auto& [socketId, socketData] : socketDataMap) {
             TelemetrySocketData telemetryData;
             telemetryData.nodeId = nodeInfo.nodeId;
             telemetryData.socket = socketData;
@@ -848,7 +853,7 @@ std::unordered_map<std::string, std::vector<MemNodeData>> ConvertToOldTopology(
 
             MemNodeData memNodeData;
             // 使用移动构造
-            static_cast<TelemetrySocketData &>(memNodeData) = std::move(telemetryData);
+            static_cast<TelemetrySocketData&>(memNodeData) = std::move(telemetryData);
             memNodeData.isRegisterRm = true; // 根据实际逻辑判断是否可注册 UBSE
 
             memNodeDataVector.push_back(std::move(memNodeData));
@@ -862,7 +867,7 @@ std::unordered_map<std::string, std::vector<MemNodeData>> ConvertToOldTopology(
     return nodeTopology;
 }
 
-uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     auto ret = MemGetTopologyInfo(nodeTopology);
     // mem不需要0跳数设备（非CPU拓扑0跳数）
@@ -880,8 +885,8 @@ uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemN
     return ret;
 }
 
-uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput &nodeMemCnaInfoInput,
-                                       UbseNodeMemCnaInfoOutput &nodeMemCnaInfoOutput)
+uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput& nodeMemCnaInfoInput,
+                                       UbseNodeMemCnaInfoOutput& nodeMemCnaInfoOutput)
 {
     // 获取硬件拓扑，基于socket链接
     std::unordered_map<std::string, TelemetryNodeData> nodeDbMap{};  // K:nodeId V：遥测数据
@@ -896,8 +901,7 @@ uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput &nodeMemCna
         return ret;
     }
     // 找到借出设备
-    UbseDevName exportDevName(nodeMemCnaInfoInput.exportNodeId + "-" +
-                              nodeMemCnaInfoInput.exportSocketId);
+    UbseDevName exportDevName(nodeMemCnaInfoInput.exportNodeId + "-" + nodeMemCnaInfoInput.exportSocketId);
     auto it = devTopologyInfo.find(exportDevName);
     if (it == devTopologyInfo.end()) {
         UBSE_LOG_ERROR << "exportDevName " << exportDevName.devName << "Does not exist in devTopologyInfo";
@@ -908,7 +912,7 @@ uint32_t UbseNodeMemGetTopologyCnaInfo(const UbseNodeMemCnaInfoInput &nodeMemCna
     }
     UBSE_LOG_DEBUG << "exportDevName is " << exportDevName.devName;
     // 2D full mesh连接下，node之间的socket只会一一对应连接，不会全连接
-    for (auto &directConnect : it->second.second) {
+    for (auto& directConnect : it->second.second) {
         std::string directNodeId = directConnect.second.remoteSlotId;
         if (directConnect.second.remoteSlotId != nodeMemCnaInfoInput.borrowNodeId) {
             UBSE_LOG_DEBUG << "The directNodeId " << directNodeId << " is not direct node";

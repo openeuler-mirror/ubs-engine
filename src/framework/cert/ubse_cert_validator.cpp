@@ -32,7 +32,7 @@ using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 constexpr mode_t FILEPERMISSION = 0600;
 
-SecureBuffer UbseSslValidator::LoadPasswordFromFile(const char *path)
+SecureBuffer UbseSslValidator::LoadPasswordFromFile(const char* path)
 {
     if (!UbseFileUtil::CheckFileExists(path)) {
         UBSE_LOG_ERROR << "[CERT] Password file not found at path=" << path;
@@ -79,20 +79,20 @@ bool UbseSslValidator::CheckAllFileExist()
     return res;
 }
 
-X509 *UbseSslValidator::LoadAndValidateCert(const char *path, const char *name)
+X509* UbseSslValidator::LoadAndValidateCert(const char* path, const char* name)
 {
     if (!UbseFileUtil::CheckFileExists(path)) {
         UBSE_LOG_ERROR << "[CERT] " << name << " file not found at path=" << path;
         return nullptr;
     }
 
-    FILE *fp = fopen(path, "r");
+    FILE* fp = fopen(path, "r");
     if (!fp) {
         UBSE_LOG_ERROR << "[CERT] Failed to open " << name << " file at path=" << path;
         return nullptr;
     }
 
-    X509 *cert = PEM_read_X509(fp, nullptr, nullptr, nullptr);
+    X509* cert = PEM_read_X509(fp, nullptr, nullptr, nullptr);
     fclose(fp);
 
     if (!cert) {
@@ -127,19 +127,19 @@ X509 *UbseSslValidator::LoadAndValidateCert(const char *path, const char *name)
     return cert;
 }
 
-EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const char *password, const char *name)
+EVP_PKEY* UbseSslValidator::LoadAndValidatePrivateKey(const char* keyPath, const char* password, const char* name)
 {
     if (!UbseFileUtil::CheckFileExists(keyPath)) {
         UBSE_LOG_ERROR << "[CERT] " << name << " file not found.";
         return nullptr;
     }
-    FILE *fp = fopen(keyPath, "r");
+    FILE* fp = fopen(keyPath, "r");
     if (!fp) {
         UBSE_LOG_ERROR << "[CERT] Failed to open " << name << " file.";
         return nullptr;
     }
     ERR_clear_error();
-    EVP_PKEY *pkey = PEM_read_PrivateKey(fp, nullptr, nullptr, const_cast<void *>(static_cast<const void *>(password)));
+    EVP_PKEY* pkey = PEM_read_PrivateKey(fp, nullptr, nullptr, const_cast<void*>(static_cast<const void*>(password)));
     if (!pkey) {
         int errorCode = ERR_get_error();
         UBSE_LOG_ERROR << "[CERT] Failed to parse " << name
@@ -151,7 +151,7 @@ EVP_PKEY *UbseSslValidator::LoadAndValidatePrivateKey(const char *keyPath, const
     return pkey;
 }
 
-bool UbseSslValidator::VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const char *certName, const char *keyName)
+bool UbseSslValidator::VerifyCertAndKeyMatch(X509* cert, EVP_PKEY* pkey, const char* certName, const char* keyName)
 {
     if (!cert || !pkey) {
         UBSE_LOG_ERROR << "[CERT] " << certName << " or " << keyName << " is invalid.";
@@ -165,14 +165,14 @@ bool UbseSslValidator::VerifyCertAndKeyMatch(X509 *cert, EVP_PKEY *pkey, const c
     return true;
 }
 
-X509_STORE *UbseSslValidator::LoadAndValidateCaStore(const char *caPath)
+X509_STORE* UbseSslValidator::LoadAndValidateCaStore(const char* caPath)
 {
     if (!UbseFileUtil::CheckFileExists(caPath)) {
         UBSE_LOG_ERROR << "[CERT] CA trust file not found.";
         return nullptr;
     }
 
-    X509_STORE *store = X509_STORE_new();
+    X509_STORE* store = X509_STORE_new();
     if (!store) {
         UBSE_LOG_ERROR << "[CERT] Failed to create X509 certificate store.";
         return nullptr;
@@ -196,13 +196,13 @@ bool UbseSslValidator::ValidateCRLIfExists()
     }
 
     // 尝试加载 CRL
-    FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
+    FILE* fp = fopen(UbseSSLConfig::CrlFile, "r");
     if (!fp) {
         UBSE_LOG_ERROR << "[CERT] Failed to open CRL file.";
         return false;
     }
 
-    X509_CRL *crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
+    X509_CRL* crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
     fclose(fp);
 
     if (!crl) {
@@ -273,24 +273,24 @@ bool UbseSslValidator::ValidateAll()
     return true;
 }
 
-bool UbseSslValidator::ConfigureCrlValidation(SSL_CTX *ctx)
+bool UbseSslValidator::ConfigureCrlValidation(SSL_CTX* ctx)
 {
     if (!UbseFileUtil::CheckFileExists(UbseSSLConfig::CrlFile)) {
         UBSE_LOG_WARN << "CRL file not found, skipping CRL validation.";
         return true;
     }
-    X509_STORE *store = SSL_CTX_get_cert_store(ctx);
+    X509_STORE* store = SSL_CTX_get_cert_store(ctx);
     if (!store) {
         UBSE_LOG_ERROR << "Failed to get certificate store from SSL context.";
         return false;
     }
-    FILE *fp = fopen(UbseSSLConfig::CrlFile, "r");
+    FILE* fp = fopen(UbseSSLConfig::CrlFile, "r");
     if (!fp) {
         UBSE_LOG_ERROR << "Failed to open CRL file.";
         return false;
     }
     ERR_clear_error();
-    X509_CRL *crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
+    X509_CRL* crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
     fclose(fp);
     if (!crl) {
         int errorCode = ERR_get_error();

@@ -20,7 +20,7 @@
 
 namespace ucache {
 /* 获取doc子节点中key对应的string类型value,类型检查失败返回UCACHE_ERR */
-uint32_t JsonUtil::GetJsonStringValue(const rapidjson::Document &doc, const char *key, std::string &output)
+uint32_t JsonUtil::GetJsonStringValue(const rapidjson::Document& doc, const char* key, std::string& output)
 {
     if (key == nullptr) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Input key is nullptr.";
@@ -40,7 +40,7 @@ uint32_t JsonUtil::GetJsonStringValue(const rapidjson::Document &doc, const char
 }
 
 /* 将Value对象打印成json字符串 */
-JSON_STR JsonUtil::PrintJsonString(const rapidjson::Value &value)
+JSON_STR JsonUtil::PrintJsonString(const rapidjson::Value& value)
 {
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);

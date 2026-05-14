@@ -24,13 +24,13 @@
 namespace vm {
 class OsHelper {
 public:
-    static VmResult GetPidsByContainerIds(const std::unordered_set<std::string> &containerIds,
-                                          std::unordered_map<std::string, std::vector<pid_t>> &containerInfos);
+    static VmResult GetPidsByContainerIds(const std::unordered_set<std::string>& containerIds,
+                                          std::unordered_map<std::string, std::vector<pid_t>>& containerInfos);
 
 private:
     static std::string procPathPrefix;
 
-    static std::string ParseContainerFile(const std::string &cgroupPath);
+    static std::string ParseContainerFile(const std::string& cgroupPath);
 };
 } // namespace vm
 

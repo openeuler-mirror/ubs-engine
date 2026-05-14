@@ -24,21 +24,21 @@ using std::string;
 class LibvirtHelper {
 public:
     LibvirtHelper() = default;
-    LibvirtHelper(const LibvirtHelper &) = delete;
-    LibvirtHelper &operator=(const LibvirtHelper &) = delete;
+    LibvirtHelper(const LibvirtHelper&) = delete;
+    LibvirtHelper& operator=(const LibvirtHelper&) = delete;
 
-    static inline LibvirtHelper &GetInstance()
+    static inline LibvirtHelper& GetInstance()
     {
         static LibvirtHelper instance;
         return instance;
     }
-    static void FreeDomain(void *domain);
+    static void FreeDomain(void* domain);
 
     VmResult Init();
     void DeInit();
     VmResult Connect();
     VmResult CloseConn();
-    VmResult DomainAbortJobFlags(const string &uuid, libvirt::VirDomainAbortJobFlagsValues flags, int tryTimes = 1);
+    VmResult DomainAbortJobFlags(const string& uuid, libvirt::VirDomainAbortJobFlagsValues flags, int tryTimes = 1);
 
 private:
     libvirt::VirConnectPtr virConnect{};

@@ -12,11 +12,11 @@
 
 #ifndef UBS_ENGINE_UBSE_VSOCK_HELPER_H
 #define UBS_ENGINE_UBSE_VSOCK_HELPER_H
-#include <cstdint>
-#include <string>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
+#include <cstdint>
+#include <string>
 
 #include "ubse_secure_buffer.h"
 
@@ -43,8 +43,8 @@ struct MsgHeader {
 class UbseVsockClient {
 public:
     UbseVsockClient();
-    UbseVsockClient(const UbseVsockClient &) = delete;
-    UbseVsockClient &operator=(const UbseVsockClient &) = delete;
+    UbseVsockClient(const UbseVsockClient&) = delete;
+    UbseVsockClient& operator=(const UbseVsockClient&) = delete;
     ~UbseVsockClient();
 
     /**
@@ -53,17 +53,17 @@ public:
     * @param rsp 请求信息签名
     * @return uint32_t 返回结果，表示这次请求结果
     */
-    uint32_t UbseVsockSend(UbseSignReq &req, UbseSignRsp &rsp);
+    uint32_t UbseVsockSend(UbseSignReq& req, UbseSignRsp& rsp);
 
 private:
     bool Connect();
     void Disconnect();
-    SSL_CTX *InitSslCtx();
-    bool SendMessage(uint32_t id, uint32_t type, const void *data, uint32_t data_len);
-    bool RecvMessage(UbseSignRsp &rsp);
+    SSL_CTX* InitSslCtx();
+    bool SendMessage(uint32_t id, uint32_t type, const void* data, uint32_t data_len);
+    bool RecvMessage(UbseSignRsp& rsp);
 
     int sockFd_{-1};
-    SSL *ssl_ = nullptr;
+    SSL* ssl_ = nullptr;
     uint32_t hostPort_{0};
     uint32_t hostCid_{0};
     bool isInitOk_ = false;

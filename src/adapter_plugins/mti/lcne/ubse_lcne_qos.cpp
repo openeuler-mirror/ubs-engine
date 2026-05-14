@@ -90,7 +90,7 @@ UbseResult UbseLcneQos::DeleteQosProfile(std::string profileName)
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::QueryQosProfile(std::string profileName, UbseMtiQosProfile &ubseLcneQosProfile)
+UbseResult UbseLcneQos::QueryQosProfile(std::string profileName, UbseMtiQosProfile& ubseLcneQosProfile)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -180,7 +180,7 @@ UbseResult UbseLcneQos::DeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &profileName)
+UbseResult UbseLcneQos::QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& profileName)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -214,7 +214,7 @@ UbseResult UbseLcneQos::QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &profi
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile, std::string &xmlStr)
+UbseResult UbseLcneQos::BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile, std::string& xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -260,7 +260,7 @@ UbseResult UbseLcneQos::BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile,
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr)
+UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profileName, std::string& xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -283,7 +283,7 @@ UbseResult UbseLcneQos::BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profil
 
     return UBSE_OK;
 }
-UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseMtiQosProfile &ubseLcneQosProfile)
+UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseMtiQosProfile& ubseLcneQosProfile)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {
@@ -314,15 +314,15 @@ UbseResult UbseLcneQos::ParseQosProfileResponse(std::string body, UbseMtiQosProf
     try {
         ubseLcneQosProfile.minBandWidth = std::stoul(minBandWidthStr) * BYTE_TO_BIT;
         ubseLcneQosProfile.maxBandWidth = std::stoul(maxBandWidthStr) * BYTE_TO_BIT;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return UBSE_ERROR;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-UbseResult UbseLcneQos::ParseVfeQosResponse(std::string body, std::string &profileName)
+UbseResult UbseLcneQos::ParseVfeQosResponse(std::string body, std::string& profileName)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {

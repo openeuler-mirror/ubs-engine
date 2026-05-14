@@ -13,34 +13,33 @@
 
 #include "mem_manager_base.h"
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <ctime>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <mutex>
 #include <regex>
 #include <sstream>
 #include <string>
 #include <thread>
-#include <atomic>
-#include <condition_variable>
-#include <iostream>
-#include <mutex>
 #include <vector>
 
 #include <rapidjson/document.h>
+#include "ubse_def.h"
+#include "ubse_logger.h"
+#include "ubse_mem_controller.h"
+#include "ubse_node.h"
+#include "ubse_pointer_process.h"
+#include "ubse_storage.h"
 #include "mp_error.h"
 #include "mp_json_util.h"
 #include "mp_mem_json_util.h"
 #include "mp_parse_util.h"
 #include "mp_sync_data_helper.h"
-#include "ubse_pointer_process.h"
 #include "rmrs_serialize.h"
 #include "securec.h"
-#include "ubse_def.h"
-#include "ubse_logger.h"
-#include "ubse_mem_controller.h"
-#include "ubse_node.h"
-#include "ubse_storage.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -54,7 +53,7 @@ using namespace ubse::mem::controller;
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
 
-uint32_t GetNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t GetNodeInfoImmediatelyRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::vector<mempooling::exportV2::NumaInfo> numaInfos;
     auto ret = mempooling::exportV2::Exporter::GetNumaInfoImmediately(numaInfos);
@@ -70,13 +69,13 @@ uint32_t GetNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBu
     builder << numaInfos;
     resp.data = builder.GetBufferPointer();
     resp.len = builder.GetSize();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     return MEM_POOLING_OK;
 }
 
-uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] SyncAntiDataRecvHandler start.";
     SyncUpdateAntiNodeParam param;
@@ -92,7 +91,7 @@ uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp
         LOG_ERROR << "[MpElection][SyncData] New data failed.";
         return MEM_POOLING_ERROR;
     }
-    buffer.freeFunc = [](uint8_t *data) {
+    buffer.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     errno_t err = memcpy_s(buffer.data, buffer.len, tempNodeAntiMapStr.c_str(), tempNodeAntiMapStr.length());
@@ -120,7 +119,7 @@ uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp
     retBuilder << result;
     resp.len = retBuilder.GetSize();
     resp.data = retBuilder.GetBufferPointer();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (ret != 0) {
@@ -131,25 +130,25 @@ uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp
     return MEM_POOLING_OK;
 }
 
-void GetNodeInfoImmediatelyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void GetNodeInfoImmediatelyResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr) {
         return;
     }
-    std::vector<mempooling::exportV2::NumaInfo> &numaInfos =
-        *(static_cast<std::vector<mempooling::exportV2::NumaInfo> *>(ctx));
+    std::vector<mempooling::exportV2::NumaInfo>& numaInfos =
+        *(static_cast<std::vector<mempooling::exportV2::NumaInfo>*>(ctx));
     RmrsInStream builder(respData.data, respData.len);
     builder >> numaInfos;
     return;
 }
 
-void ParallelSendGetNodeInfo(const std::vector<std::string> &nodeList,
-                             std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>> &nodeInfoMap)
+void ParallelSendGetNodeInfo(const std::vector<std::string>& nodeList,
+                             std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>>& nodeInfoMap)
 {
     std::vector<std::thread> threads;
     std::mutex mapMutex;
 
-    for (const auto &node : nodeList) {
+    for (const auto& node : nodeList) {
         (void)threads.emplace_back([&, node]() {
             std::vector<mempooling::exportV2::NumaInfo> numaInfos;
             UbseComEndpoint endpoint = {
@@ -164,12 +163,12 @@ void ParallelSendGetNodeInfo(const std::vector<std::string> &nodeList,
             }
         });
     }
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 }
 
-uint32_t GetAllNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t GetAllNodeInfoImmediatelyRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     // 采取在主节点查询所有节点，而不是传入，非working的还要过滤
     // 遇到smoothing状态则进行重试，间隔1s，最多重试30次
@@ -186,7 +185,7 @@ uint32_t GetAllNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByt
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Get all nodes empty.";
             return MEM_POOLING_ERROR;
         }
-        for (const auto &[nodeId, roleInfo] : allNodes) {
+        for (const auto& [nodeId, roleInfo] : allNodes) {
             if (roleInfo.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING) {
                 UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "NodeId=" << nodeId << " is working.";
                 nodeList.push_back(nodeId);
@@ -216,13 +215,13 @@ uint32_t GetAllNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByt
     builder << nodeInfoMap;
     resp.data = builder.GetBufferPointer();
     resp.len = builder.GetSize();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     return MEM_POOLING_OK;
 }
 
-uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] SyncAntiDataStandBy start.";
     SyncUpdateAntiNodeParam param;
@@ -239,7 +238,7 @@ uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer &req, UbseByteBuffe
         buffer.len = 0;
         return MEM_POOLING_ERROR;
     }
-    buffer.freeFunc = [](uint8_t *data) {
+    buffer.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     errno_t err = memcpy_s(buffer.data, buffer.len, tempNodeAntiMapStr.c_str(), tempNodeAntiMapStr.length());
@@ -262,7 +261,7 @@ uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer &req, UbseByteBuffe
     retBuilder << result;
     resp.len = retBuilder.GetSize();
     resp.data = retBuilder.GetBufferPointer();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (ret != 0) {
@@ -273,8 +272,8 @@ uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer &req, UbseByteBuffe
     return MEM_POOLING_OK;
 }
 
-uint32_t UpdateDataBaseAndCache(UbseByteBuffer &buffer, const MpUpdateAntiNodeParam &antiParam,
-                                ubse::election::UbseRoleInfo &standbyRole)
+uint32_t UpdateDataBaseAndCache(UbseByteBuffer& buffer, const MpUpdateAntiNodeParam& antiParam,
+                                ubse::election::UbseRoleInfo& standbyRole)
 {
     // 更新数据库
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] Update antinode base start.";
@@ -296,4 +295,4 @@ uint32_t UpdateDataBaseAndCache(UbseByteBuffer &buffer, const MpUpdateAntiNodePa
     }
     return MEM_POOLING_OK;
 }
-}
+} // namespace mempooling

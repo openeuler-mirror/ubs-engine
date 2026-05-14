@@ -15,16 +15,16 @@
 #include <fstream>
 #include <regex>
 #include <variant>
-#include "message/ubse_ras_oom_message.h"
 #include "ubse_com_module.h"
 #include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_str_util.h"
 #include "ubse_ras.h"
 #include "ubse_ras_com_handler.h"
+#include "ubse_str_util.h"
+#include "message/ubse_ras_oom_message.h"
 #include "src/framework/security/ubse_security_module.h"
 
 using namespace ubse::election;
@@ -54,10 +54,10 @@ const uint64_t READ_FILE_SLEEP_TIME = 1;
 const uint16_t HUGEPAGE_OOM = 2;
 constexpr auto UBSE_ADMISSION_CONFIG_SECTION_NAME = "ubse_plugin_admission";
 constexpr auto OCK_VM_ENABLE = "virt_agent";
-using LibPtr = void *;
+using LibPtr = void*;
 constexpr int MAX_OOM_TIMEOUT_MS = 3600000;
 
-std::vector<int> SplitNids(const std::string &nid_str)
+std::vector<int> SplitNids(const std::string& nid_str)
 {
     std::vector<int> nids;
     std::stringstream ss(nid_str);
@@ -65,7 +65,7 @@ std::vector<int> SplitNids(const std::string &nid_str)
     while (std::getline(ss, item, ',')) {
         try {
             nids.push_back(std::stoi(item));
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             UBSE_LOG_ERROR << "Caught exception=" << e.what();
         }
     }
@@ -76,8 +76,8 @@ std::vector<int> SplitNids(const std::string &nid_str)
  * eventMessage的形式为: "1650_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],sync:1,timeout:30000,reason:2,"
 "timesec:1741057335,timeusec:469389}",其中1650指的是msgid
  * */
-UbseResult ParseEventMessage(const std::string &message,
-                             std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue)
+UbseResult ParseEventMessage(const std::string& message,
+                             std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue)
 {
     std::regex pattern(R"(^(\d+)_\{nr_nid:(\d+),nid:\[(-?\d+(?:,-?\d+)*)\],)"
                        R"(sync:(\d+),timeout:(\d+),reason:(\d+),timesec:(\d+),timeusec:(\d+)\})");
@@ -117,13 +117,13 @@ UbseResult ParseEventMessage(const std::string &message,
     return UBSE_OK;
 }
 
-UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
-                            const std::string &eventMessage)
+UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
+                            const std::string& eventMessage)
 {
     int oomReasonId = 0;
     try {
         oomReasonId = std::get<int>(messageValue.at("reason"));
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
@@ -134,7 +134,7 @@ UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, i
     size_t nidsSize = 0;
     try {
         nidsSize = std::get<std::vector<int>>(messageValue.at("nid")).size();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
@@ -145,8 +145,8 @@ UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, i
     return UBSE_OK;
 }
 
-uint32_t ProcessSmallpageOom(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
-                             uint64_t &nrFree)
+uint32_t ProcessSmallpageOom(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
+                             uint64_t& nrFree)
 {
     // 小页场景是为了以后预埋，目前就打日志
     UBSE_LOG_INFO << "Smallpage case is for future, just need ack.";
@@ -157,7 +157,7 @@ uint32_t ProcessSmallpageOom(std::map<std::string, std::variant<uint64_t, long, 
   OS保证同一个numa的oom在上报未得到ack之前，其他发生oom的虚机不上报消息，即OS内部做频率拦截
  */
 UbseResult CheckHugePageOomParam(
-    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue)
+    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue)
 {
     try {
         auto nr_nid = std::get<int>(messageValue.at("nr_nid"));
@@ -171,14 +171,14 @@ UbseResult CheckHugePageOomParam(
             UBSE_LOG_ERROR << "sync is " << sync << ", vm oom scene should be 1.";
             return UBSE_ERROR_INVAL;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
 }
 
-static std::vector<std::string> GetLineInfo(const std::string &line)
+static std::vector<std::string> GetLineInfo(const std::string& line)
 {
     std::vector<std::string> strs;
     std::stringstream ss(line);
@@ -192,7 +192,7 @@ static std::vector<std::string> GetLineInfo(const std::string &line)
 /*
  * 用于获取只有一行数据的文件里面的内容
  */
-UbseResult GetFileValue(std::string &filePath, int16_t index, uint64_t &value)
+UbseResult GetFileValue(std::string& filePath, int16_t index, uint64_t& value)
 {
     std::ifstream file(filePath);
     if (!file.is_open()) {
@@ -216,7 +216,7 @@ UbseResult GetFileValue(std::string &filePath, int16_t index, uint64_t &value)
     return UBSE_OK;
 }
 
-UbseResult IsRemoteNuma(int16_t numaId, bool &isRemote)
+UbseResult IsRemoteNuma(int16_t numaId, bool& isRemote)
 {
     std::string numaRemoteAttrPath = "/sys/devices/system/node/node" + std::to_string(numaId) + "/remote";
     uint64_t remoteAttr = 0;
@@ -229,7 +229,7 @@ UbseResult IsRemoteNuma(int16_t numaId, bool &isRemote)
     return UBSE_OK;
 }
 
-UbseResult GetFreeHugepages(int16_t numaId, uint64_t &memFree)
+UbseResult GetFreeHugepages(int16_t numaId, uint64_t& memFree)
 {
     std::string numaHugepageFilePath =
         "/sys/devices/system/node/node" + std::to_string(numaId) + "/hugepages/hugepages-2048kB/free_hugepages";
@@ -241,7 +241,7 @@ UbseResult GetFreeHugepages(int16_t numaId, uint64_t &memFree)
     return UBSE_OK;
 }
 
-UbseResult GetRemoteFreeHugepages(uint64_t &memFree)
+UbseResult GetRemoteFreeHugepages(uint64_t& memFree)
 {
     std::string allFreeHugepagePath = "/sys/kernel/mm/hugepages/hugepages-2048kB/free_hugepages";
     uint64_t allFreeHugepage = 0;
@@ -323,7 +323,7 @@ UbseResult InitOomHandler()
     std::vector<__u32> caps{CAP_DAC_OVERRIDE};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
     static constexpr auto obmmPath = "libubturbo_client.so";
-    void *handle = dlopen(obmmPath, RTLD_NOW); // 生命周期与进程一致,进程结束后释放
+    void* handle = dlopen(obmmPath, RTLD_NOW); // 生命周期与进程一致,进程结束后释放
     if (handle == nullptr) {
         UBSE_LOG_WARN << "Dlopen libubturbo_client.so failed, error is " << dlerror();
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
@@ -369,7 +369,7 @@ static long GetMillisecondsTime()
     return nowTimeMilliseconds;
 }
 
-UbseResult GetFreeMemInfo(int16_t numaId, uint64_t &memFree)
+UbseResult GetFreeMemInfo(int16_t numaId, uint64_t& memFree)
 {
     std::string numaFilePath = "/sys/devices/system/node/node" + std::to_string(numaId) + "/meminfo";
     std::ifstream file(numaFilePath);
@@ -408,7 +408,7 @@ uint64_t InitOomWaitTime()
     return oomWaitTime;
 }
 
-bool IsNumaMemFreeEnough(NumaId numaId, uint64_t startTime, uint64_t memNeed, uint64_t &memFree, int timeOut)
+bool IsNumaMemFreeEnough(NumaId numaId, uint64_t startTime, uint64_t memNeed, uint64_t& memFree, int timeOut)
 {
     auto currentTime = GetMillisecondsTime();
     UBSE_LOG_DEBUG << "[OOM] startTime=" << startTime << "ms, currentTime=" << currentTime
@@ -461,8 +461,8 @@ UbseResult SmapUrgentMigrateOut(uint64_t memNeed)
     return UBSE_OK;
 }
 
-UbseResult GetOomNumaId(const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
-                        int &oomNumaId)
+UbseResult GetOomNumaId(const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
+                        int& oomNumaId)
 {
     try {
         auto nids = std::get<std::vector<int>>(messageValue.at("nid"));
@@ -475,7 +475,7 @@ UbseResult GetOomNumaId(const std::map<std::string, std::variant<uint64_t, long,
             UBSE_LOG_ERROR << "Invalid numa id=" << oomNumaId;
             return UBSE_ERROR_INVAL;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_ERROR_INVAL;
     }
@@ -483,7 +483,7 @@ UbseResult GetOomNumaId(const std::map<std::string, std::variant<uint64_t, long,
 }
 
 uint32_t ProcessHugepageOom(
-    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue, uint64_t &nrFree)
+    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue, uint64_t& nrFree)
 {
     auto ret = CheckHugePageOomParam(messageValue);
     if (ret != UBSE_OK) {
@@ -523,7 +523,7 @@ uint32_t ProcessHugepageOom(
         auto timeUsec = std::get<long>(messageValue.at("timeusec"));
         uint64_t startTime = static_cast<uint64_t>(timeSec) * NO_1000 + timeUsec / NO_1000;
         isEnough = IsNumaMemFreeEnough(oomNumaId, startTime, memNeed, memFree, timeOut);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Caught exception=" << e.what();
         return UBSE_OK; // 已经成功给virt发布事件，返回成功
     }

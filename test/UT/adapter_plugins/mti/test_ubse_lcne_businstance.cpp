@@ -171,7 +171,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_HttpSendFailed)
 TEST_F(TestUbseLcneBusInstance, QueryBusinstance_RspStatusFailed)
 {
     UbseLcneBusInstanceInfo busInstanceInfo;
-    
+
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = 404;
@@ -185,7 +185,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_RspStatusFailed)
 TEST_F(TestUbseLcneBusInstance, QueryBusinstance_RspEmpty)
 {
     UbseLcneBusInstanceInfo busInstanceInfo;
-    
+
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -199,7 +199,7 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_RspEmpty)
 TEST_F(TestUbseLcneBusInstance, QueryBusinstance_ParseFailed)
 {
     UbseLcneBusInstanceInfo busInstanceInfo;
-    
+
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -212,4 +212,4 @@ TEST_F(TestUbseLcneBusInstance, QueryBusinstance_ParseFailed)
 
     EXPECT_EQ(UbseLcneBusInstance::GetInstance().QueryBusinstance(busInstanceInfo), UBSE_ERROR);
 }
-}  // namespace ubse::ut::lcne
+} // namespace ubse::ut::lcne

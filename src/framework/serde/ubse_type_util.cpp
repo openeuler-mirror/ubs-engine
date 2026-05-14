@@ -232,4 +232,4 @@ serial_type GetTypePointerId<std::string>()
 {
     return static_cast<serial_type>(allowed_type::STRING);
 }
-}  // namespace ubse::utils
+} // namespace ubse::serial

@@ -22,14 +22,14 @@
 #include <sstream>
 #include <string>
 
-#include "lock/ubse_lock.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 #include "ubse_error.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
+#include "lock/ubse_lock.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 namespace ubse::mem::controller {
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::utils;
@@ -49,16 +49,16 @@ struct UbseMemBorrowStatus {
     bool hasExport = false;
 };
 
-uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::string &name,
-                                    const std::string &requestNodeId, std::string errMsg, uint32_t errorCode,
+uint32_t BuildOperationRespWhenFail(UbseMemOperationResp& resp, const std::string& name,
+                                    const std::string& requestNodeId, std::string errMsg, uint32_t errorCode,
                                     MemOperationType type = MemOperationType::FD_BORROW);
 
-uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult errorCode,
+uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp& resp, UbseResult errorCode,
                                        MemOperationType type = MemOperationType::FD_BORROW);
 
 std::shared_mutex& GetDecoderImportMutex();
 
-inline std::string GenerateExportObjKey(const std::string &name, const std::string &importNodeId)
+inline std::string GenerateExportObjKey(const std::string& name, const std::string& importNodeId)
 {
     return name + "_" + importNodeId;
 }
@@ -66,7 +66,7 @@ inline std::string GenerateExportObjKey(const std::string &name, const std::stri
 bool IsSdkRequest(uint64_t requestId);
 
 template <class importType>
-UbseResult GetErrorCodeByObjState(const importType &importObj, const bool &exportObjExist)
+UbseResult GetErrorCodeByObjState(const importType& importObj, const bool& exportObjExist)
 {
     if (importObj.status.state == UBSE_MEM_IMPORT_RUNNING || importObj.status.state == UBSE_MEM_EXPORT_RUNNING ||
         importObj.status.state == UBSE_MEM_EXPORT_SUCCESS) {
@@ -96,7 +96,7 @@ UbseResult GetErrorCodeByObjState(const importType &importObj, const bool &expor
 }
 
 template <class importType>
-UbseMemStage GetOptStageByObjState(const importType &importObj, const bool &exportObjExist)
+UbseMemStage GetOptStageByObjState(const importType& importObj, const bool& exportObjExist)
 {
     if (importObj.status.state == UBSE_MEM_IMPORT_RUNNING || importObj.status.state == UBSE_MEM_EXPORT_RUNNING ||
         importObj.status.state == UBSE_MEM_EXPORT_SUCCESS) {
@@ -129,7 +129,7 @@ UbseMemStage GetOptStageByObjState(const importType &importObj, const bool &expo
 }
 
 template <class importType>
-UbseMemStage GetMemStageByImportObjState(const importType &importObj, const bool &importObjExist)
+UbseMemStage GetMemStageByImportObjState(const importType& importObj, const bool& importObjExist)
 {
     if (!importObjExist) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -146,7 +146,7 @@ UbseMemStage GetMemStageByImportObjState(const importType &importObj, const bool
 }
 
 template <class ImportType>
-UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType> &importObjPtr)
+UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType>& importObjPtr)
 {
     if (!importObjPtr) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -165,7 +165,7 @@ UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType>
 }
 
 template <class ExportType>
-UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType> &exportObjPtr)
+UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType>& exportObjPtr)
 {
     if (!exportObjPtr) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -181,10 +181,10 @@ UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType>
     return UbseMemStage::UBSE_EXIST;
 }
 
-UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj &importObj, const bool &importObjExist);
+UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj& importObj, const bool& importObjExist);
 
 template <class exportType>
-UbseMemStage GetMemStageByExportObjState(const exportType &exportObj, const bool &exportObjExist)
+UbseMemStage GetMemStageByExportObjState(const exportType& exportObj, const bool& exportObjExist)
 {
     if (!exportObjExist) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -200,34 +200,34 @@ UbseMemStage GetMemStageByExportObjState(const exportType &exportObj, const bool
     return UbseMemStage::UBSE_EXIST;
 }
 
-void InitializeResponse(const UbseMemReturnReq &req, UbseMemOperationResp &resp);
+void InitializeResponse(const UbseMemReturnReq& req, UbseMemOperationResp& resp);
 
-uint32_t ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
-                                 const std::vector<UbseMemObmmInfo> &exportObmmInfo,
-                                 const decoder::utils::ImportDecoderParam &importDecoderParam,
-                                 UbseMemImportStatus &status);
+uint32_t ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair,
+                                 const std::vector<UbseMemObmmInfo>& exportObmmInfo,
+                                 const decoder::utils::ImportDecoderParam& importDecoderParam,
+                                 UbseMemImportStatus& status);
 
-void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair, UbseMemImportStatus &status,
+void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair, UbseMemImportStatus& status,
                                uint8_t decoderId);
 
-uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus &status, uint8_t decoderId);
+uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus& status, uint8_t decoderId);
 
 void InitAgentMaxWaitTime(uint32_t timeout);
 
 uint32_t GetWaitTimeOut();
 
-bool CheckCommonReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                 const std::string &realRequestNodeId, const std::string &importNodeId,
-                                 const std::string &exportNodeId = "");
-bool CheckShareReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                const std::string &realRequestNodeId, const UbseShmRegionDesc &shareRegion);
-bool CheckShareDetachPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                const std::string &realRequestNodeId, const std::string &importNodeId);
+bool CheckCommonReturnPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                 const std::string& realRequestNodeId, const std::string& importNodeId,
+                                 const std::string& exportNodeId = "");
+bool CheckShareReturnPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                const std::string& realRequestNodeId, const UbseShmRegionDesc& shareRegion);
+bool CheckShareDetachPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                const std::string& realRequestNodeId, const std::string& importNodeId);
 
-uint32_t WaitNodeStateWork(const std::string &importNode);
+uint32_t WaitNodeStateWork(const std::string& importNode);
 
 template <class ObjType>
-bool HasAgentAlreadyReported(const std::string &name, const std::string &exeNodeId, bool ObjType::*reportedFlagField)
+bool HasAgentAlreadyReported(const std::string& name, const std::string& exeNodeId, bool ObjType::*reportedFlagField)
 {
     auto objPtr = debt::UbseMemDebtLedger::GetInstance().GetDebtMap<ObjType>().GetResource(exeNodeId, name);
     if (!objPtr) {

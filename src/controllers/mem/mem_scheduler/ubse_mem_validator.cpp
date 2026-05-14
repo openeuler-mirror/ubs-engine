@@ -25,20 +25,20 @@ namespace ubse::mem::strategy {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::nodeController;
 namespace {
-std::unordered_set<NodeId> GetIntersection(const std::vector<ubse::nodeController::UbseNodeInfo> &group,
-                                           const std::vector<ubse::nodeController::UbseNodeInfo> &provider)
+std::unordered_set<NodeId> GetIntersection(const std::vector<ubse::nodeController::UbseNodeInfo>& group,
+                                           const std::vector<ubse::nodeController::UbseNodeInfo>& provider)
 {
     std::unordered_set<NodeId> result;
     std::unordered_set<std::string> vec2Ids;  // 存储vec2中所有元素的nodeId
     std::unordered_set<std::string> addedIds; // 记录已加入结果的nodeId，避免重复
 
     // 1. 提取vec2的所有nodeId到哈希集合
-    for (const auto &node : provider) {
+    for (const auto& node : provider) {
         vec2Ids.insert(node.nodeId);
     }
 
     // 2. 遍历vec1，检查是否存在于vec2中，且未重复加入结果
-    for (const auto &node : group) {
+    for (const auto& node : group) {
         auto currentId = node.nodeId;
         // 若当前node的id在vec2中，且未加入结果，则添加
         if (vec2Ids.count(currentId) && !addedIds.count(currentId)) {
@@ -49,7 +49,7 @@ std::unordered_set<NodeId> GetIntersection(const std::vector<ubse::nodeControlle
     return result;
 }
 
-void PrintUbseStatus(tc::rs::mem::UbseStatus &ubseStatus)
+void PrintUbseStatus(tc::rs::mem::UbseStatus& ubseStatus)
 {
     for (int i = 0; i < tc::rs::mem::NUM_TOTAL_NUMA; i++) {
         if (ubseStatus.numaStatus[i].memTotal <= 0 && ubseStatus.numaLedgerStatus[i].memLent <= 0 &&
@@ -70,12 +70,12 @@ void PrintUbseStatus(tc::rs::mem::UbseStatus &ubseStatus)
     }
 }
 
-UbseResult CheckAllocatorIsValid(const std::unordered_map<std::string, NodeConfig> &nodeConfigs)
+UbseResult CheckAllocatorIsValid(const std::unordered_map<std::string, NodeConfig>& nodeConfigs)
 {
     bool foundFirst = false;
     UbseAllocator firstAllocator;
 
-    for (const auto &[node, config] : nodeConfigs) {
+    for (const auto& [node, config] : nodeConfigs) {
         if (config.isLender) {
             if (!foundFirst) {
                 firstAllocator = config.allocator;
@@ -92,12 +92,12 @@ UbseResult CheckAllocatorIsValid(const std::unordered_map<std::string, NodeConfi
     return UBSE_OK;
 }
 
-UbseResult CheckBlockSizeIsValid(const std::unordered_map<std::string, NodeConfig> &nodeConfigs)
+UbseResult CheckBlockSizeIsValid(const std::unordered_map<std::string, NodeConfig>& nodeConfigs)
 {
     bool foundFirst = false;
     uint32_t blockSize = 0;
 
-    for (const auto &[node, config] : nodeConfigs) {
+    for (const auto& [node, config] : nodeConfigs) {
         if (config.isLender) {
             if (!foundFirst) {
                 blockSize = config.blockSize;
@@ -123,17 +123,17 @@ ubse::nodeController::UbseMemProviderNodeList GetAllNodeId()
 {
     ubse::nodeController::UbseMemProviderNodeList result;
     auto nodes = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &item : nodes) {
+    for (const auto& item : nodes) {
         result.emplace_back(item.second);
     }
     return result;
 }
 
-ubse::nodeController::UbseMemProviderNodeList GetAllNodeIdExceptSelf(const std::string &nodeId)
+ubse::nodeController::UbseMemProviderNodeList GetAllNodeIdExceptSelf(const std::string& nodeId)
 {
     ubse::nodeController::UbseMemProviderNodeList result;
     auto nodes = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &item : nodes) {
+    for (const auto& item : nodes) {
         if (item.second.nodeId == nodeId) {
             continue;
         }
@@ -142,7 +142,7 @@ ubse::nodeController::UbseMemProviderNodeList GetAllNodeIdExceptSelf(const std::
     return result;
 }
 
-std::unordered_set<NodeId> GetImportNodeAllGroup(const std::string &nodeId)
+std::unordered_set<NodeId> GetImportNodeAllGroup(const std::string& nodeId)
 {
     ubse::nodeController::UbseMemProviderNodeList providerNodeList;
     auto ret = ubse::nodeController::UbseNodeController::GetInstance().GetMemProviderNodeList(providerNodeList);
@@ -155,7 +155,7 @@ std::unordered_set<NodeId> GetImportNodeAllGroup(const std::string &nodeId)
     }
     // 借出节点是否在provider中，若是则不可借出
     if (std::find_if(providerNodeList.begin(), providerNodeList.end(),
-                     [&nodeId](const struct ubse::nodeController::UbseNodeInfo &info) {
+                     [&nodeId](const struct ubse::nodeController::UbseNodeInfo& info) {
                          return info.nodeId == nodeId;
                      }) != providerNodeList.end()) {
         return {};
@@ -170,10 +170,10 @@ std::unordered_set<NodeId> GetImportNodeAllGroup(const std::string &nodeId)
     if (groupList.empty()) {
         groupList.emplace_back(GetAllNodeId());
     }
-    for (const auto &group : groupList) {
+    for (const auto& group : groupList) {
         auto nodeGroupIter = std::find_if(
             group.begin(), group.end(),
-            [&nodeId](const struct ubse::nodeController::UbseNodeInfo &info) { return info.nodeId == nodeId; });
+            [&nodeId](const struct ubse::nodeController::UbseNodeInfo& info) { return info.nodeId == nodeId; });
         if (nodeGroupIter == group.end()) {
             continue;
         }
@@ -182,10 +182,10 @@ std::unordered_set<NodeId> GetImportNodeAllGroup(const std::string &nodeId)
     return {};
 }
 
-void SetStatusInvalid(const std::unordered_map<int16_t, std::set<int16_t>> &linkMap,
-                      tc::rs::mem::UbseStatus &ubseStatus)
+void SetStatusInvalid(const std::unordered_map<int16_t, std::set<int16_t>>& linkMap,
+                      tc::rs::mem::UbseStatus& ubseStatus)
 {
-    for (auto &status : ubseStatus.numaStatus) {
+    for (auto& status : ubseStatus.numaStatus) {
         auto it = linkMap.find(status.numa.hostId);
         if (it == linkMap.end() || it->second.find(status.numa.socketId) == it->second.end()) {
             status.memFree = INVALID_VALUE64;
@@ -200,10 +200,10 @@ void SetStatusInvalid(const std::unordered_map<int16_t, std::set<int16_t>> &link
     }
 }
 
-void SetStatusInvalid(const std::unordered_map<int16_t, std::set<int16_t>> &linkMap,
-                      tc::rs::mem::UbseStatus &ubseStatus, NodeIndex createReqNodeId, SocketIndex socketIndex)
+void SetStatusInvalid(const std::unordered_map<int16_t, std::set<int16_t>>& linkMap,
+                      tc::rs::mem::UbseStatus& ubseStatus, NodeIndex createReqNodeId, SocketIndex socketIndex)
 {
-    for (auto &status : ubseStatus.numaStatus) {
+    for (auto& status : ubseStatus.numaStatus) {
         auto it = linkMap.find(status.numa.hostId);
         if (status.numa.hostId == createReqNodeId && status.numa.socketId == socketIndex) {
             continue;
@@ -221,7 +221,7 @@ void SetStatusInvalid(const std::unordered_map<int16_t, std::set<int16_t>> &link
     }
 }
 
-UbseResult GetAllNodeTopoInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+UbseResult GetAllNodeTopoInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     auto ret = UbseMemGetTopologyInfo(nodeTopology);
     if (ret != UBSE_OK) {
@@ -230,9 +230,9 @@ UbseResult GetAllNodeTopoInfo(std::unordered_map<std::string, std::vector<MemNod
     return ret;
 }
 
-void GetLinkMap(std::unordered_map<int16_t, std::set<int16_t>> &linkMap, const std::vector<MemNodeData> &socketList)
+void GetLinkMap(std::unordered_map<int16_t, std::set<int16_t>>& linkMap, const std::vector<MemNodeData>& socketList)
 {
-    for (auto &linkSock : socketList) {
+    for (auto& linkSock : socketList) {
         if (linkSock.socket.numas.empty()) {
             continue;
         }
@@ -241,10 +241,10 @@ void GetLinkMap(std::unordered_map<int16_t, std::set<int16_t>> &linkMap, const s
         try {
             linkSockIdx = std::stoi(linkSock.socket.socketId);
             oneNumaIdx = std::stoi(linkSock.socket.numas[NO_0].numaId); // 任取一个该sock下的numa即可
-        } catch (const std::invalid_argument &e) {
+        } catch (const std::invalid_argument& e) {
             UBSE_LOG_WARN << "stoi throw a exception, error=" << e.what();
             continue;
-        } catch (const std::out_of_range &e) {
+        } catch (const std::out_of_range& e) {
             UBSE_LOG_WARN << "stoi throw a exception, error=" << e.what();
             continue;
         }
@@ -258,9 +258,9 @@ void GetLinkMap(std::unordered_map<int16_t, std::set<int16_t>> &linkMap, const s
     }
 }
 
-bool CheckPeerIsConnect(const std::vector<MemNodeData> &memNodeDatas, const std::string &key)
+bool CheckPeerIsConnect(const std::vector<MemNodeData>& memNodeDatas, const std::string& key)
 {
-    for (const auto &nodeData : memNodeDatas) {
+    for (const auto& nodeData : memNodeDatas) {
         if (nodeData.nodeId + "-" + nodeData.socket.socketId == key) {
             return true;
         }
@@ -268,9 +268,8 @@ bool CheckPeerIsConnect(const std::vector<MemNodeData> &memNodeDatas, const std:
     return false;
 }
 
-
-void GetLinkMap(const std::string &key, std::unordered_map<int16_t, std::set<int16_t>> &linkMap,
-                std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+void GetLinkMap(const std::string& key, std::unordered_map<int16_t, std::set<int16_t>>& linkMap,
+                std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     auto topologyIter = nodeTopology.find(key);
     if (topologyIter == nodeTopology.end()) {
@@ -297,11 +296,10 @@ void GetLinkMap(const std::string &key, std::unordered_map<int16_t, std::set<int
     GetLinkMap(linkMap, topologyIter->second);
 }
 
-
-UbseResult CheckLenderNumaInSameSocket(const std::vector<ubse::adapter_plugins::mmi::UbseNumaLocation> &lenderLocs)
+UbseResult CheckLenderNumaInSameSocket(const std::vector<ubse::adapter_plugins::mmi::UbseNumaLocation>& lenderLocs)
 {
     int socket = -1;
-    for (const auto &lender : lenderLocs) {
+    for (const auto& lender : lenderLocs) {
         auto numaInfo = UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(lender.nodeId, lender.numaId);
         if (numaInfo == nullptr) {
             UBSE_LOG_ERROR << "Numa not exist. nodeId=" << lender.nodeId << ", numa=" << lender.numaId;
@@ -319,8 +317,7 @@ UbseResult CheckLenderNumaInSameSocket(const std::vector<ubse::adapter_plugins::
     return UBSE_OK;
 }
 
-
-bool CheckLentNumaHaveReservedMemory(const std::string &nodeId, const int64_t &numaId, const uint64_t &lentSize)
+bool CheckLentNumaHaveReservedMemory(const std::string& nodeId, const int64_t& numaId, const uint64_t& lentSize)
 {
     auto numaInfo = UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(nodeId, numaId);
     if (numaInfo == nullptr) {
@@ -330,14 +327,15 @@ bool CheckLentNumaHaveReservedMemory(const std::string &nodeId, const int64_t &n
     uint64_t memOut = 0;
     try {
         memOut = ubse::utils::SafeAddMulti(numaInfo->mMemLent, numaInfo->mMemShared, lentSize);
-    } catch (const std::overflow_error &e) {
+    } catch (const std::overflow_error& e) {
         UBSE_LOG_ERROR << "SafeAddMulti failed: " << e.what();
         return false;
     }
     if (memOut > numaInfo->mMemTotal) {
         UBSE_LOG_ERROR << "The reserved memory is insufficient."
                        << "Node=" << nodeId << ", numaId=" << numaId << ", MemLent=" << SizeByte2Mb(numaInfo->mMemLent)
-                       << "MB, MemShared=" << SizeByte2Mb(numaInfo->mMemShared) << "MB, requestSize=" << SizeByte2Mb(lentSize)
+                       << "MB, MemShared=" << SizeByte2Mb(numaInfo->mMemShared)
+                       << "MB, requestSize=" << SizeByte2Mb(lentSize)
                        << "MB, reserved=" << SizeByte2Mb(numaInfo->mMemTotal) << "MB.";
         return false;
     }
@@ -345,26 +343,25 @@ bool CheckLentNumaHaveReservedMemory(const std::string &nodeId, const int64_t &n
     return true;
 }
 
-uint32_t GetSocketIdByNumaId(const std::string &nodeId, const uint32_t numaId, uint32_t &socketId)
+uint32_t GetSocketIdByNumaId(const std::string& nodeId, const uint32_t numaId, uint32_t& socketId)
 {
     auto numaPtr = UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(nodeId, numaId);
     if (numaPtr == nullptr) {
-        UBSE_LOG_ERROR << "Get numaInfo failed, lender nodeId=" << nodeId
-                       << ", numaId=" << numaId;
+        UBSE_LOG_ERROR << "Get numaInfo failed, lender nodeId=" << nodeId << ", numaId=" << numaId;
         return UBSE_SCHEDULER_ERROR_INVAL;
     }
     socketId = numaPtr->mUbseMemNumaLoc.socketId;
     return UBSE_OK;
 }
 
-uint32_t CheckPortIdIsValid(const std::string &nodeId, const uint32_t socketId, const uint32_t portId)
+uint32_t CheckPortIdIsValid(const std::string& nodeId, const uint32_t socketId, const uint32_t portId)
 {
     auto nodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetNodeById(nodeId);
-    for (const auto &[_, cpuInfo] : nodeInfo.cpuInfos) {
+    for (const auto& [_, cpuInfo] : nodeInfo.cpuInfos) {
         if (cpuInfo.socketId != socketId) {
             continue;
         }
-        for (const auto &[_, portInfo] : cpuInfo.portInfos) {
+        for (const auto& [_, portInfo] : cpuInfo.portInfos) {
             if (portInfo.portId == std::to_string(portId)) {
                 return UBSE_OK;
             }
@@ -374,7 +371,7 @@ uint32_t CheckPortIdIsValid(const std::string &nodeId, const uint32_t socketId, 
     return UBSE_SCHEDULER_ERROR_INVAL;
 }
 
-void FilterByLenderNode(const UbseMemLenderInfo &lenderInfo, tc::rs::mem::UbseStatus &ubseStatus)
+void FilterByLenderNode(const UbseMemLenderInfo& lenderInfo, tc::rs::mem::UbseStatus& ubseStatus)
 {
     auto hostId = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(lenderInfo.nodeId);
     if (hostId == INVALID_META_ID) {
@@ -382,7 +379,7 @@ void FilterByLenderNode(const UbseMemLenderInfo &lenderInfo, tc::rs::mem::UbseSt
         return;
     }
 
-    for (auto &status : ubseStatus.numaStatus) {
+    for (auto& status : ubseStatus.numaStatus) {
         if (status.numa.hostId != hostId) {
             status.memFree = INVALID_VALUE64;
             status.memTotal = INVALID_VALUE64;
@@ -391,9 +388,9 @@ void FilterByLenderNode(const UbseMemLenderInfo &lenderInfo, tc::rs::mem::UbseSt
     }
 }
 
-void FilterByLenderSocket(const UbseMemLenderInfo &lenderInfo, tc::rs::mem::UbseStatus &ubseStatus)
+void FilterByLenderSocket(const UbseMemLenderInfo& lenderInfo, tc::rs::mem::UbseStatus& ubseStatus)
 {
-    for (auto &numaStatus : ubseStatus.numaStatus) {
+    for (auto& numaStatus : ubseStatus.numaStatus) {
         if (numaStatus.numa.hostId == INVALID_META_ID) {
             continue;
         }
@@ -414,9 +411,9 @@ void FilterByLenderSocket(const UbseMemLenderInfo &lenderInfo, tc::rs::mem::Ubse
     }
 }
 
-void FilterByLenderNuma(const UbseMemLenderInfo &lenderInfo, tc::rs::mem::UbseStatus &ubseStatus)
+void FilterByLenderNuma(const UbseMemLenderInfo& lenderInfo, tc::rs::mem::UbseStatus& ubseStatus)
 {
-    for (auto &numaStatus : ubseStatus.numaStatus) {
+    for (auto& numaStatus : ubseStatus.numaStatus) {
         if (numaStatus.numa.hostId == INVALID_META_ID) {
             continue;
         }
@@ -441,7 +438,7 @@ void FilterByLenderNuma(const UbseMemLenderInfo &lenderInfo, tc::rs::mem::UbseSt
 void UbseMemValidator::InitStatus()
 {
     auto numaList = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo("");
-    for (const auto &numa : numaList) {
+    for (const auto& numa : numaList) {
         if (numa == nullptr || numa->mGlobalIndex >= tc::rs::mem::NUM_TOTAL_NUMA) {
             UBSE_LOG_ERROR << "numa==nullptr||numa->mGlobalIndex>=NUM_TOTAL_NUMA";
             return;
@@ -488,8 +485,7 @@ UbseResult UbseMemValidator::CheckBorrowSizeMeetLimit()
     uint64_t borrowedSize = 0;
     const int64_t maxConvertibleBytes = static_cast<int64_t>(std::numeric_limits<int32_t>::max()) * ONE_M;
     if (requestSize_ > static_cast<size_t>(maxConvertibleBytes)) {
-        UBSE_LOG_ERROR << "Request size " << requestSize_
-                       << " exceeds maximum supported size for int32_t conversion ("
+        UBSE_LOG_ERROR << "Request size " << requestSize_ << " exceeds maximum supported size for int32_t conversion ("
                        << maxConvertibleBytes << " bytes).";
         return UBSE_ERROR;
     }
@@ -501,7 +497,7 @@ UbseResult UbseMemValidator::CheckBorrowSizeMeetLimit()
     }
     borrowedSizeMb = ubse::mem::strategy::CeilToN(borrowedSizeMb, blockSize.value());
 
-    for (auto &numaLedgerStatu : ubseStatus_.numaLedgerStatus) {
+    for (auto& numaLedgerStatu : ubseStatus_.numaLedgerStatus) {
         if (numaLedgerStatu.numa.hostId == requetNodeIndex) {
             borrowedSize += SizeByte2Mb(numaLedgerStatu.memBorrowed);
         }
@@ -520,7 +516,7 @@ UbseResult UbseMemValidator::CheckBorrowSizeMeetLimit()
 UbseResult UbseMemValidator::FilterLendNodeHasBorrowed()
 {
     auto numaList = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo("");
-    for (const auto &numa : numaList) {
+    for (const auto& numa : numaList) {
         if (AlgoAccountManger::GetInstance().CheckProviderNodeHasBorrowed(numa->mUbseMemNumaLoc.nodeId)) {
             UBSE_LOG_WARN << "Provider node=" << numa->mUbseMemNumaLoc.nodeId
                           << " has borrowed before, it can not lend.";
@@ -544,7 +540,7 @@ UbseResult UbseMemValidator::FilterNodeIsLender()
 {
     auto nodeMap = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
     std::set<int16_t> lenderHostSet;
-    for (auto &[nodeId, nodeInfo] : nodeMap) {
+    for (auto& [nodeId, nodeInfo] : nodeMap) {
         if (!nodeInfo.isLender) {
             UBSE_LOG_WARN << "Node=" << nodeId << " is not a lender.";
             continue;
@@ -556,7 +552,7 @@ UbseResult UbseMemValidator::FilterNodeIsLender()
         lenderHostSet.insert(nodeIdx);
     }
 
-    for (auto &status : ubseStatus_.numaStatus) {
+    for (auto& status : ubseStatus_.numaStatus) {
         if (lenderHostSet.find(status.numa.hostId) == lenderHostSet.end()) {
             status.memFree = INVALID_VALUE64;
             status.memTotal = INVALID_VALUE64;
@@ -577,7 +573,7 @@ UbseResult UbseMemValidator::FilterNumaBySamePlane()
         UBSE_LOG_ERROR << "can't find key=" << key;
         return UBSE_ERROR;
     }
-    auto &socketList = topologyIterator->second; // 对端直连的信息
+    auto& socketList = topologyIterator->second; // 对端直连的信息
     std::unordered_map<int16_t, std::set<int16_t>> linkMap;
     GetLinkMap(linkMap, socketList);
     SetStatusInvalid(linkMap, ubseStatus_);
@@ -588,7 +584,7 @@ SocketIndex GetSocketIndex(std::string nodeId, uint32_t socketId)
 {
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     UbseMemNumaIndexLoc ubseMemNumaIndexLoc;
-    for (auto &[numaLoc, numaInfo] : nodeInfo.numaInfos) {
+    for (auto& [numaLoc, numaInfo] : nodeInfo.numaInfos) {
         if (numaInfo.socketId == socketId) {
             auto foundMapping = UbseMemTopologyInfoManager::GetInstance().ConvertNumaLoc(
                 {nodeId, static_cast<int>(socketId), numaLoc.numaId}, ubseMemNumaIndexLoc);
@@ -612,7 +608,7 @@ UbseResult UbseMemValidator::FilterShareBySamePlane()
         UBSE_LOG_ERROR << "can't find key: " << key;
         return UBSE_ERROR;
     }
-    auto &socketList = topologyIterator->second; // 对端直连的信息
+    auto& socketList = topologyIterator->second; // 对端直连的信息
     std::unordered_map<int16_t, std::set<int16_t>> linkMap;
     GetLinkMap(linkMap, socketList);
     SocketIndex socketIndex = GetSocketIndex(importNodeId_, srcSocket_);
@@ -627,7 +623,7 @@ UbseResult UbseMemValidator::FilterCandidateNodeList()
         return UBSE_OK;
     }
     std::set<int16_t> candidateSet;
-    for (auto &nodeId : candidateNodeList_) {
+    for (auto& nodeId : candidateNodeList_) {
         UBSE_LOG_INFO << "NodeId=" << nodeId << " is in the candidateNodeList";
         auto hostId = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(nodeId);
         if (hostId == INVALID_META_ID) {
@@ -636,7 +632,7 @@ UbseResult UbseMemValidator::FilterCandidateNodeList()
         candidateSet.insert(hostId);
     }
 
-    for (auto &status : ubseStatus_.numaStatus) {
+    for (auto& status : ubseStatus_.numaStatus) {
         if (candidateSet.find(status.numa.hostId) == candidateSet.end()) {
             status.memFree = INVALID_VALUE64;
             status.memTotal = INVALID_VALUE64;
@@ -649,11 +645,11 @@ UbseResult UbseMemValidator::FilterNodeByGroup()
 {
     std::set<int16_t> lenderHostSet;
     auto providerNodes = GetImportNodeAllGroup(importNodeId_);
-    for (auto &node : providerNodes) {
+    for (auto& node : providerNodes) {
         UBSE_LOG_INFO << "request nodeId=" << importNodeId_ << ", providerNode=" << node;
     }
 
-    for (const auto &nodeId : providerNodes) {
+    for (const auto& nodeId : providerNodes) {
         auto nodeIdx = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(nodeId);
         if (nodeIdx == INVALID_META_ID) {
             continue;
@@ -661,7 +657,7 @@ UbseResult UbseMemValidator::FilterNodeByGroup()
         lenderHostSet.insert(nodeIdx);
     }
 
-    for (auto &status : ubseStatus_.numaStatus) {
+    for (auto& status : ubseStatus_.numaStatus) {
         if (lenderHostSet.find(status.numa.hostId) == lenderHostSet.end()) {
             status.memFree = INVALID_VALUE64;
             status.memTotal = INVALID_VALUE64;
@@ -674,7 +670,7 @@ UbseResult UbseMemValidator::FilterNodeByGroup()
 UbseResult UbseMemValidator::FilterNodeIsDown()
 {
     auto numaList = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo("");
-    for (const auto &numa : numaList) {
+    for (const auto& numa : numaList) {
         if (!UbseMemTopologyInfoManager::GetInstance().CheckNodeStatus(numa->mUbseMemNumaLoc.nodeId)) {
             UBSE_LOG_WARN << "Provider node=" << numa->mUbseMemNumaLoc.nodeId << " is not working, can't lend out";
             ubseStatus_.numaStatus[numa->mGlobalIndex].memFree = INVALID_VALUE64;
@@ -699,7 +695,7 @@ UbseResult UbseMemValidator::FilterShareNodeList()
         return UBSE_OK;
     }
     std::set<int16_t> providerSet;
-    for (auto &nodeId : providerList_) {
+    for (auto& nodeId : providerList_) {
         UBSE_LOG_INFO << "NodeId=" << nodeId << " is in the share node list";
         auto hostId = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(nodeId);
         if (hostId == INVALID_META_ID) {
@@ -708,7 +704,7 @@ UbseResult UbseMemValidator::FilterShareNodeList()
         providerSet.insert(hostId);
     }
 
-    for (auto &status : ubseStatus_.numaStatus) {
+    for (auto& status : ubseStatus_.numaStatus) {
         if (providerSet.find(status.numa.hostId) == providerSet.end()) {
             status.memFree = INVALID_VALUE64;
             status.memTotal = INVALID_VALUE64;
@@ -787,7 +783,7 @@ UbseResult UbseMemValidator::CheckLendNodeIsDown()
 UbseResult UbseMemValidator::FilterNumaByLendSocket()
 {
     UBSE_LOG_INFO << "lenderNode=" << linkInfo_.lenderNode << ", lendSocketId=" << linkInfo_.lenderSocketId;
-    for (auto &numaStatus : ubseStatus_.numaStatus) {
+    for (auto& numaStatus : ubseStatus_.numaStatus) {
         if (numaStatus.numa.hostId == INVALID_META_ID) {
             continue;
         }
@@ -818,7 +814,7 @@ UbseResult UbseMemValidator::FilterInvalidSocketLendTimes()
     uint64_t blockSizeByte = static_cast<uint64_t>(blockSize.value()) * ONE_M;
     uint32_t blocks = CeilToN(requestSize_, blockSizeByte) / blockSizeByte;
 
-    for (auto &numaStatus : ubseStatus_.numaStatus) {
+    for (auto& numaStatus : ubseStatus_.numaStatus) {
         if (numaStatus.numa.hostId == INVALID_META_ID) {
             continue;
         }
@@ -917,7 +913,7 @@ UbseResult UbseMemValidator::FilterByLinkPortDown()
 
     auto importNodeIndex = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(importNodeId_);
 
-    for (auto &status : ubseStatus_.numaStatus) {
+    for (auto& status : ubseStatus_.numaStatus) {
         auto it = linkMap.find(status.numa.hostId);
         if (status.numa.hostId == INVALID_META_ID || status.numa.hostId == importNodeIndex) {
             continue;
@@ -925,8 +921,8 @@ UbseResult UbseMemValidator::FilterByLinkPortDown()
 
         if (it == linkMap.end() || it->second.find(status.numa.socketId) == it->second.end()) {
             UBSE_LOG_INFO << "[hostId=" << status.numa.hostId << ", sockIndex=" << int16_t(status.numa.socketId)
-                      << ", numaIndex=" << int16_t(status.numa.numaId)
-                      << " can not find link to importNodeId=" << importNodeId_;
+                          << ", numaIndex=" << int16_t(status.numa.numaId)
+                          << " can not find link to importNodeId=" << importNodeId_;
             status.memFree = INVALID_VALUE64;
             status.memTotal = INVALID_VALUE64;
             status.memUsed = INVALID_VALUE64;

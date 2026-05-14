@@ -19,13 +19,13 @@
 #include <thread>
 #include <vector>
 
+#include "ubse_error.h"
+#include "ubse_mmi_interface.h"
+#include "ubse_node_controller.h"
 #include "api/ubse_mem_controller_addr_api.h"
 #include "api/ubse_mem_controller_fd_api.h"
 #include "api/ubse_mem_controller_numa_api.h"
 #include "api/ubse_mem_controller_share_api.h"
-#include "ubse_error.h"
-#include "ubse_mmi_interface.h"
-#include "ubse_node_controller.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::adapter_plugins::mmi;
@@ -54,20 +54,20 @@ void UnInit();
 
 void Stop();
 
-uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string &importNodeId,
-                              UbseMemBorrowImportBaseObj &importObj, const bool isFdOrAddr = false);
+uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string& importNodeId,
+                              UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr = false);
 
-uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::string &importNodeId,
-                                 UbseMemNumaBorrowImportObj &importObj);
+uint32_t GetCnaInfoForNumaBorrow(const std::string& exportNodeId, const std::string& importNodeId,
+                                 UbseMemNumaBorrowImportObj& importObj);
 
 /* *
  * 启动时加载所有初始对象
  * @return 0: 成功; 非0: 失败
  */
-uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node);
+uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo& node);
 
 template <class ObjMap>
-void GetNoStateObjMap(ObjMap &objMap, const UbseMemState &state)
+void GetNoStateObjMap(ObjMap& objMap, const UbseMemState& state)
 {
     for (auto itreator = objMap.begin(); itreator != objMap.end();) {
         if (itreator->second.status.state == state) {
@@ -79,8 +79,8 @@ void GetNoStateObjMap(ObjMap &objMap, const UbseMemState &state)
 }
 
 template <class importType, class exportType>
-UbseResult GetStateByObjExist(const bool &importObjExist, const bool &exportObjExist, const importType &importObj,
-                              const exportType &exportObj)
+UbseResult GetStateByObjExist(const bool& importObjExist, const bool& exportObjExist, const importType& importObj,
+                              const exportType& exportObj)
 {
     if (!importObjExist && exportObjExist) {
         if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {

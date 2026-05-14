@@ -25,15 +25,15 @@ namespace ubse::mmi {
 
 class UbseMmiTimeoutManager {
 public:
-    static UbseMmiTimeoutManager &Instance();
+    static UbseMmiTimeoutManager& Instance();
 
     uint64_t Register(uint64_t timeoutMs, std::function<void()> callback);
     void Unregister(uint64_t handle);
 
-    UbseMmiTimeoutManager(const UbseMmiTimeoutManager &) = delete;
-    UbseMmiTimeoutManager &operator=(const UbseMmiTimeoutManager &) = delete;
-    UbseMmiTimeoutManager(UbseMmiTimeoutManager &&) = delete;
-    UbseMmiTimeoutManager &operator=(UbseMmiTimeoutManager &&) = delete;
+    UbseMmiTimeoutManager(const UbseMmiTimeoutManager&) = delete;
+    UbseMmiTimeoutManager& operator=(const UbseMmiTimeoutManager&) = delete;
+    UbseMmiTimeoutManager(UbseMmiTimeoutManager&&) = delete;
+    UbseMmiTimeoutManager& operator=(UbseMmiTimeoutManager&&) = delete;
 
 private:
     UbseMmiTimeoutManager();
@@ -64,16 +64,16 @@ public:
 
     void Cancel();
 
-    UbseMmiTimeoutGuard(const UbseMmiTimeoutGuard &) = delete;
-    UbseMmiTimeoutGuard &operator=(const UbseMmiTimeoutGuard &) = delete;
-    UbseMmiTimeoutGuard(UbseMmiTimeoutGuard &&) = delete;
-    UbseMmiTimeoutGuard &operator=(UbseMmiTimeoutGuard &&) = delete;
+    UbseMmiTimeoutGuard(const UbseMmiTimeoutGuard&) = delete;
+    UbseMmiTimeoutGuard& operator=(const UbseMmiTimeoutGuard&) = delete;
+    UbseMmiTimeoutGuard(UbseMmiTimeoutGuard&&) = delete;
+    UbseMmiTimeoutGuard& operator=(UbseMmiTimeoutGuard&&) = delete;
 
 private:
     std::atomic<bool> cancelled_{false};
     uint64_t handle_{0};
 };
 
-}  // namespace ubse::mmi
+} // namespace ubse::mmi
 
-#endif  // UBSE_MMI_TIMEOUT_GUARD_H
+#endif // UBSE_MMI_TIMEOUT_GUARD_H

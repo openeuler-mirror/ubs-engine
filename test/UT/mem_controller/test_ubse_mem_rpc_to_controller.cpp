@@ -12,11 +12,11 @@
 
 #include "test_ubse_mem_rpc_to_controller.h"
 #include <mockcpp/mockcpp.hpp>
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
 #include "ubse_error.h"
 #include "ubse_mem_async_processor.h"
 #include "ubse_mem_util.h"
 #include "ubse_thread_pool_module.h"
+#include "message/ubse_mem_numa_borrow_req_simpo.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
@@ -41,7 +41,7 @@ TEST_F(TestUbseMemRpcToController, DoNumaBorrowAsync)
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create("ubseMemController", 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
     UbseMemNumaBorrowReq ubseMemNumaBorrowReq{};
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(DoNumaBorrowAsync(ubseMemNumaBorrowReq), UBSE_ERROR);
 }
@@ -53,7 +53,7 @@ TEST_F(TestUbseMemRpcToController, DoNumaBorrowRespAsync)
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create("ubseMemController", 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
     UbseMemOperationResp ubseMemOperationResp{};
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(DoNumaBorrowRespAsync(ubseMemOperationResp), UBSE_ERROR);
 }
@@ -65,7 +65,7 @@ TEST_F(TestUbseMemRpcToController, DoReturnAsync)
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create("ubseMemController", 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
     UbseMemReturnReq ubseMemReturnReq{};
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(DoReturnAsync(ubseMemReturnReq, "1"), UBSE_ERROR);
 }
@@ -77,8 +77,8 @@ TEST_F(TestUbseMemRpcToController, DoReturnRespAsync)
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create("ubseMemController", 1, 1000);
     MOCKER_CPP(&GetExecutor).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
     UbseMemOperationResp ubseMemOperationResp{};
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(DoReturnRespAsync(ubseMemOperationResp), UBSE_ERROR);
 }
-}
+} // namespace ubse::mem_controller::ut

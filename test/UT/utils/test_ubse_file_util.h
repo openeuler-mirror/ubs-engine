@@ -14,23 +14,23 @@
 #define UBSE_MANAGER_TEST_UBSE_FILE_UTIL_H
 
 #include <fstream>
+#include "ubse_file_util.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_file_util.h"
 
 namespace ubse::ut::utils {
 using namespace std;
 
 class FileSystemMock {
 public:
-    static void CreateFile(const string &path, const string &content)
+    static void CreateFile(const string& path, const string& content)
     {
         ofstream ofs(path);
         ofs << content;
         ofs.close();
     }
 
-    static void RemoveFile(const string &path)
+    static void RemoveFile(const string& path)
     {
         (void)remove(path.c_str());
     }
@@ -44,7 +44,6 @@ public:
 
     void TearDown() override;
 };
-}
-
+} // namespace ubse::ut::utils
 
 #endif // UBSE_MANAGER_TEST_UBSE_FILE_UTIL_H

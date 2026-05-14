@@ -25,7 +25,7 @@ namespace ubse {
 using namespace ubse::context;
 using namespace ubse::log;
 
-UbseContext &g_ubseContext = UbseContext::GetInstance();
+UbseContext& g_ubseContext = UbseContext::GetInstance();
 
 void SignalHandler(int signum)
 {
@@ -36,13 +36,13 @@ void SignalHandler(int signum)
     }
 
     g_globalStop.store(true); // 设置全局停止标志
-    g_globalCv.notify_all(); // 唤醒所有等待线程
+    g_globalCv.notify_all();  // 唤醒所有等待线程
 }
 } // namespace ubse
 
 using namespace ubse;
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     InitializeAuditFunctions();
     // 注册exit信号,实现优雅退出

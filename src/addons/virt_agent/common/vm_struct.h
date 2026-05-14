@@ -27,7 +27,7 @@
 namespace std {
 template <>
 struct hash<vm::NodeLocInfo> {
-    size_t operator()(const vm::NodeLocInfo &key) const noexcept
+    size_t operator()(const vm::NodeLocInfo& key) const noexcept
     {
         // Use the hash combination method recommended by Huawei BoostKit.
         size_t seed = 0;
@@ -74,7 +74,7 @@ struct NumaInfoToKeep {
     time_t numaMigrateLastTime = 0;
 };
 
-inline NumaStatus MapStringToNumaStatus(const std::string &status)
+inline NumaStatus MapStringToNumaStatus(const std::string& status)
 {
     if (status == "normal") {
         return NumaStatus::NORMAL;
@@ -156,7 +156,7 @@ struct VMBasicInfo
         oss << "  remoteUsedMem:" << remoteUsedMem << std::endl;
         oss << "  vmCreateTime:" << vmCreateTime << std::endl;
         oss << "  numaMemInfo:[";
-        for (const auto &item : numaMemInfo) {
+        for (const auto& item : numaMemInfo) {
             oss << item.second.ToString() << ",";
         }
         oss << "]";
@@ -207,7 +207,7 @@ struct EscapeAction {
             << "    },";
         return oss.str();
     }
-    void GetEscapeActionType(std::ostringstream &oss) const
+    void GetEscapeActionType(std::ostringstream& oss) const
     {
         oss << "\"escapeActionType\": ";
         if (actionType == EscapeActionType::BORROW) {
@@ -233,7 +233,7 @@ struct BorrowIdStatus {
     MemMigrateStatus memMigrateStatus = MemMigrateStatus::READY_TO_MIGRATE;
     VMNodeLocInfo nodeLocInfo{};
 
-    bool operator==(const BorrowIdStatus &borrowIdStatus) const
+    bool operator==(const BorrowIdStatus& borrowIdStatus) const
     {
         if (this->borrowId == borrowIdStatus.borrowId) {
             return true;
@@ -259,10 +259,10 @@ using NumaInfoToKeepMap = std::map<VMNodeLocInfo, NumaInfoToKeep>;
 using GlobalBorrowMap = std::unordered_map<std::string, BorrowIdStatus>;
 
 template <typename T>
-void SortByNodeId(std::vector<T> &items)
+void SortByNodeId(std::vector<T>& items)
 {
     // Define a lambda expression as a comparator
-    auto comparator = [](const T &pre, const T &curr) {
+    auto comparator = [](const T& pre, const T& curr) {
         return pre.nodeId < curr.nodeId;
     };
     // Using std::sort for sorting, passing a custom comparator.
@@ -285,13 +285,13 @@ struct AlarmNumaInfo {
         oss << "  isMemReturn: " << isMemReturn << std::endl;
         oss << "  oomEventFlag: " << oomEventFlag << std::endl;
         oss << "  vmBasicInfos:[" << std::endl;
-        for (auto &vmBasicInfo : vmBasicInfos) {
+        for (auto& vmBasicInfo : vmBasicInfos) {
             oss << vmBasicInfo.second.toString() << "," << std::endl;
         }
         oss << "  borrowItemInfo:[" << std::endl;
         oss << "    borrowItem.size():" << borrowItemInfo.borrowItem.size() << std::endl;
         oss << "    BorrowItem:[" << std::endl;
-        for (auto &borrowItem : borrowItemInfo.borrowItem) {
+        for (auto& borrowItem : borrowItemInfo.borrowItem) {
             oss << "      importMemId:" << borrowItem.importMemId << ";";
             for (uint16_t i = 0; i < borrowItem.exportLocNum && i < borrowItem.exportLocInfo.size() &&
                                  i < borrowItem.requestSize.size();

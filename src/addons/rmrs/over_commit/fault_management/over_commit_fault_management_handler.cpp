@@ -11,8 +11,8 @@
  */
 
 #include "over_commit_fault_management_handler.h"
-#include "over_commit_fault_memid_module.h"
 #include "mem_borrow_executor.h"
+#include "over_commit_fault_memid_module.h"
 #include "over_commit_fault_node_module.h"
 
 namespace mempooling::over_commit {
@@ -22,7 +22,7 @@ const int MEMID_FAIL_RESPONSE_DATA_LENGTH = 2;
 
 // 故障处理相关Handler
 // memid级别故障处理：获取节点上的VM numa info
-uint32_t OverCommitFaultManagementHandler::GetVmNumaInfoMapRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t OverCommitFaultManagementHandler::GetVmNumaInfoMapRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler start.";
@@ -39,7 +39,7 @@ uint32_t OverCommitFaultManagementHandler::GetVmNumaInfoMapRecvHandler(const Ubs
     builder << result;
     resp.len = builder.GetSize();
     resp.data = builder.GetBufferPointer();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (MEM_POOLING_OK != ret) {
@@ -51,7 +51,7 @@ uint32_t OverCommitFaultManagementHandler::GetVmNumaInfoMapRecvHandler(const Ubs
     return ret;
 }
 
-void OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(void *ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(void* ctx, const UbseByteBuffer& respData,
                                                                   uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
@@ -59,7 +59,7 @@ void OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(void *ctx, con
         return;
     }
     OverCommitFaultVmNumaInfoResult result;
-    auto *overCommitFaultVmNumaInfoResult = static_cast<OverCommitFaultVmNumaInfoResult *>(ctx);
+    auto* overCommitFaultVmNumaInfoResult = static_cast<OverCommitFaultVmNumaInfoResult*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit][FaultManagement] Send error, res=" << resCode << ".";
@@ -71,7 +71,7 @@ void OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(void *ctx, con
 }
 
 // memid级别故障处理：执行大页配置、setRemoteNumaInfo
-uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] MemIdExecuteRecvHandler start.";
 
@@ -102,21 +102,21 @@ uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByt
         resp.data[0] = static_cast<uint8_t>(res);
     }
 
-    resp.freeFunc = [](uint8_t *p) {
+    resp.freeFunc = [](uint8_t* p) {
         if (p != nullptr) {
             delete[] p;
         }
     };
     return res;
 }
-void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void *ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void* ctx, const UbseByteBuffer& respData,
                                                               uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
         return;
     }
-    auto *result = static_cast<uint32_t *>(ctx);
+    auto* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         return;
@@ -125,8 +125,8 @@ void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void *ctx, const U
 }
 
 // memid级别故障处理：不迁回，直接归还
-uint32_t OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler(const UbseByteBuffer &req,
-                                                                                 UbseByteBuffer &resp)
+uint32_t OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler(const UbseByteBuffer& req,
+                                                                                 UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[OverCommit][FaultManagement] MemIdReturnDirectlyExecuteRecvHandler start.";
@@ -158,7 +158,7 @@ uint32_t OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler
         resp.data[0] = static_cast<uint8_t>(ret);
     }
 
-    resp.freeFunc = [](uint8_t *p) {
+    resp.freeFunc = [](uint8_t* p) {
         if (p != nullptr) {
             delete[] p;
         }
@@ -167,8 +167,8 @@ uint32_t OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler
 }
 
 // pid级别关闭冷热流动
-uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(const UbseByteBuffer &req,
-                                                                                UbseByteBuffer &resp)
+uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(const UbseByteBuffer& req,
+                                                                                UbseByteBuffer& resp)
 {
     std::vector<pid_t> pids;
     RmrsInStream builder(req.data, req.len);
@@ -198,7 +198,7 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
         }
         resp.data[0] = static_cast<uint8_t>(retSmap);
     }
-    resp.freeFunc = [](uint8_t *p) {
+    resp.freeFunc = [](uint8_t* p) {
         if (p != nullptr) {
             delete[] p;
         }
@@ -206,7 +206,7 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
     return retSmap;
 }
 
-void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void *ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void* ctx, const UbseByteBuffer& respData,
                                                                            uint32_t resCode)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "DisableSmapProcessMigrateResHandler resCode = " << resCode;
@@ -214,7 +214,7 @@ void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void 
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
         return;
     }
-    auto *result = static_cast<uint32_t *>(ctx);
+    auto* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         return;
@@ -222,7 +222,7 @@ void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void 
     *result = MEM_POOLING_OK;
 }
 
-void OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler(void *ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler(void* ctx, const UbseByteBuffer& respData,
                                                                             uint32_t resCode)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "MemIdReturnDirectlyExecuteResHandler resCode = " << resCode;
@@ -230,7 +230,7 @@ void OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler(void
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
         return;
     }
-    auto *result = static_cast<uint32_t *>(ctx);
+    auto* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         return;
@@ -239,8 +239,8 @@ void OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler(void
 }
 
 // memid级别故障处理：内存迁回 + 归还
-uint32_t OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(const UbseByteBuffer &req,
-                                                                         UbseByteBuffer &resp)
+uint32_t OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(const UbseByteBuffer& req,
+                                                                         UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[OverCommit][FaultManagement] MemIdReturnExecuteRecvHandler start.";
@@ -272,7 +272,7 @@ uint32_t OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(const U
         resp.data[0] = static_cast<uint8_t>(ret);
     }
 
-    resp.freeFunc = [](uint8_t *p) {
+    resp.freeFunc = [](uint8_t* p) {
         if (p != nullptr) {
             delete[] p;
         }
@@ -280,14 +280,14 @@ uint32_t OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(const U
     return ret;
 }
 
-void OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler(void *ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler(void* ctx, const UbseByteBuffer& respData,
                                                                     uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
         return;
     }
-    auto *result = static_cast<uint32_t *>(ctx);
+    auto* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         return;
@@ -296,7 +296,7 @@ void OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler(void *ctx, c
 }
 
 // 故障numa处理：在借入节点上借用内存、迁出pid、归还内存
-uint32_t OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     LOG_DEBUG << "FaultNumaProcessRecvHandler start.";
     FaultRecordsInNode faultRecordsInNode;
@@ -326,7 +326,7 @@ uint32_t OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(const Ubs
         resp.data[0] = static_cast<uint8_t>(ret);
     }
 
-    resp.freeFunc = [](uint8_t *p) {
+    resp.freeFunc = [](uint8_t* p) {
         if (p != nullptr) {
             delete[] p;
         }
@@ -334,14 +334,14 @@ uint32_t OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(const Ubs
     return ret;
 }
 
-void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void *ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void* ctx, const UbseByteBuffer& respData,
                                                                   uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         LOG_ERROR << "Ctx or respData is null.";
         return;
     }
-    auto *result = static_cast<uint32_t *>(ctx);
+    auto* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         return;

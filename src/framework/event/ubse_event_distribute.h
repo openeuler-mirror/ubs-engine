@@ -42,21 +42,21 @@ public:
           numsMidThs_(numsMidThs),
           numsLowThs_(numsLowThs){};
 
-    void RegisterSubscribe(const std::string &eventId, UbseEventPriority priority, UbseEventHandler registerFunc);
+    void RegisterSubscribe(const std::string& eventId, UbseEventPriority priority, UbseEventHandler registerFunc);
 
-    void UnRegisterSubscribe(const std::string &eventId, UbseEventHandler registerFunc);
+    void UnRegisterSubscribe(const std::string& eventId, UbseEventHandler registerFunc);
 
-    inline bool IsRegisteredSubscribe(const std::string &eventId)
+    inline bool IsRegisteredSubscribe(const std::string& eventId)
     {
         std::shared_lock<std::shared_mutex> readLock(eventSubMutex_);
         return subscribes_.find(eventId) != subscribes_.end();
     }
 
-    void PubEvent(const std::string &eventId, const std::string &eventMsg);
+    void PubEvent(const std::string& eventId, const std::string& eventMsg);
 
     void EventDistribute();
 
-    void Distribute(EventTask &task);
+    void Distribute(EventTask& task);
 
     UbseResult Init();
 
@@ -83,7 +83,7 @@ private:
 private:
     std::map<std::string, uint32_t> congestCntMap_;
 
-    void MonitorCongestion(const std::string &eventId, const std::string &eventMsg);
+    void MonitorCongestion(const std::string& eventId, const std::string& eventMsg);
 };
 
 using UbseEventDistributePtr = Ref<UbseEventDistribute>;

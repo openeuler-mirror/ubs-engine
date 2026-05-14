@@ -4,23 +4,23 @@
 
 #include "ubse_node_controller_collector.h"
 
+#include <sys/stat.h>
 #include <unistd.h>
 #include <fstream>
 #include <regex>
-#include <sys/stat.h>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "securec.h"
 
-#include "ubse_conf_module.h"
 #include "ubse_com.h"
+#include "ubse_conf_module.h"
 #include "ubse_const_def.h"
+#include "ubse_mem_configuration.h"
 #include "ubse_net_util.h"
 #include "ubse_node_controller_util.h"
-#include "ubse_str_util.h"
 #include "ubse_os_util.h"
-#include "sentry_observer.h"
-#include "ubse_mem_configuration.h"
 #include "ubse_security_module.h"
+#include "ubse_str_util.h"
+#include "sentry_observer.h"
 
 namespace ubse::nodeController {
 using namespace ubse::com;
@@ -50,7 +50,7 @@ static std::string FREE_PAGE_SUFFIX_PATH_2 = "kB/free_hugepages";
 static std::string NUMA_PATH = "/sys/devices/system/node/has_cpu";
 static std::string OBMM_POOL_PATH = "/sys/kernel/obmm_mempool/obmm-";
 
-UbseResult CollectNodeBaseInfo(UbseNodeInfo &ubseNodeInfo)
+UbseResult CollectNodeBaseInfo(UbseNodeInfo& ubseNodeInfo)
 {
     GetCurNodeInfo(ubseNodeInfo);
     char hostname[UBSE_HOST_NAME_MAX_LEN + 1];
@@ -68,13 +68,13 @@ UbseResult CollectNodeBaseInfo(UbseNodeInfo &ubseNodeInfo)
     ret = confModule->GetConf<bool>(IS_LENDER_SECTION, IS_LENDER_KEY, ubseNodeInfo.isLender);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "get " << IS_LENDER_KEY << " from config failed, err code: " << ret
-                    << ", will use default value: true";
+                      << ", will use default value: true";
         ubseNodeInfo.isLender = true;
     }
     return UBSE_OK;
 }
 
-UbseResult CollectNodeTopology(UbseNodeInfo &ubseNodeInfo)
+UbseResult CollectNodeTopology(UbseNodeInfo& ubseNodeInfo)
 {
     auto ret = CollectIpList(ubseNodeInfo);
     if (ret != UBSE_OK) {
@@ -93,7 +93,7 @@ UbseResult CollectNodeTopology(UbseNodeInfo &ubseNodeInfo)
     return ret;
 }
 
-UbseResult ParseIP(const std::string &ip, UbseIpV4Addr &ipv4)
+UbseResult ParseIP(const std::string& ip, UbseIpV4Addr& ipv4)
 {
     std::smatch match;
     auto it = ip.begin();
@@ -107,10 +107,10 @@ UbseResult ParseIP(const std::string &ip, UbseIpV4Addr &ipv4)
         int num = 0;
         try {
             num = std::stoi(part);
-        } catch (const std::invalid_argument &) {
+        } catch (const std::invalid_argument&) {
             UBSE_LOG_ERROR << "addr is invalid argument, value=" << part;
             return UBSE_ERROR_INVAL;
-        } catch (const std::out_of_range &) {
+        } catch (const std::out_of_range&) {
             UBSE_LOG_ERROR << "addr out of int range, value=" << part;
             return UBSE_ERROR_INVAL;
         }
@@ -130,7 +130,7 @@ UbseResult ParseIP(const std::string &ip, UbseIpV4Addr &ipv4)
     return UBSE_OK;
 }
 
-UbseResult CollectIpList(UbseNodeInfo &ubseNodeInfo)
+UbseResult CollectIpList(UbseNodeInfo& ubseNodeInfo)
 {
     std::vector<std::string> ipInfos{};
     auto ret = UbseNetUtil::GetIpInfo(ipInfos);
@@ -149,7 +149,7 @@ UbseResult CollectIpList(UbseNodeInfo &ubseNodeInfo)
 }
 
 template <class T>
-uint32_t ProcessListLine(const std::string &line, T &idList)
+uint32_t ProcessListLine(const std::string& line, T& idList)
 {
     std::string token;
     std::stringstream ss(line);
@@ -161,7 +161,7 @@ uint32_t ProcessListLine(const std::string &line, T &idList)
             try {
                 int id = std::stoi(token);
                 idList.push_back(id);
-            } catch (const std::exception &e) {
+            } catch (const std::exception& e) {
                 UBSE_LOG_ERROR << "get cpu id failed, " << e.what();
                 return UBSE_ERROR;
             }
@@ -172,7 +172,7 @@ uint32_t ProcessListLine(const std::string &line, T &idList)
             try {
                 start = std::stoi(token.substr(0, dashPos));
                 end = std::stoi(token.substr(dashPos + 1));
-            } catch (const std::exception &e) {
+            } catch (const std::exception& e) {
                 UBSE_LOG_ERROR << "Failed to get cpu id:" << e.what();
                 return UBSE_ERROR;
             }
@@ -190,7 +190,7 @@ uint32_t ProcessListLine(const std::string &line, T &idList)
     return UBSE_OK;
 }
 
-UbseResult CollectCpuList(uint32_t numa, std::vector<uint16_t> &cpuList)
+UbseResult CollectCpuList(uint32_t numa, std::vector<uint16_t>& cpuList)
 {
     const std::string cpuListPath = CPU_LIST_PREFIX_PATH + std::to_string(numa) + CPU_LIST_SUFFIX_PATH;
     std::ifstream inputFile(cpuListPath);
@@ -208,7 +208,7 @@ UbseResult CollectCpuList(uint32_t numa, std::vector<uint16_t> &cpuList)
     return UBSE_OK;
 }
 
-UbseResult GetSocketId(uint32_t &socketId, uint16_t cpuId)
+UbseResult GetSocketId(uint32_t& socketId, uint16_t cpuId)
 {
     const std::string socketIdPathTemp = SOCKET_ID_PREFIX_PATH + std::to_string(cpuId) + SOCKET_ID_SUFFIX_PATH;
     std::ifstream inputFile(socketIdPathTemp);
@@ -220,7 +220,7 @@ UbseResult GetSocketId(uint32_t &socketId, uint16_t cpuId)
     return UBSE_OK;
 }
 
-uint32_t CollectMemSize(uint32_t numa, uint64_t &memSize, uint64_t &memFree)
+uint32_t CollectMemSize(uint32_t numa, uint64_t& memSize, uint64_t& memFree)
 {
     std::string memInfoPathTemp = MEM_PREFIX_PATH + std::to_string(numa) + MEM_SUFFIX_PATH;
     std::ifstream inputFile(memInfoPathTemp);
@@ -250,7 +250,7 @@ uint32_t CollectMemSize(uint32_t numa, uint64_t &memSize, uint64_t &memFree)
     return UBSE_OK;
 }
 
-UbseResult CollectNrHugePages(uint32_t numa, uint32_t &nrHugePages, uint32_t hugePagesType)
+UbseResult CollectNrHugePages(uint32_t numa, uint32_t& nrHugePages, uint32_t hugePagesType)
 {
     const std::string nrHugePagesTemp = NR_PAGE_PREFIX_PATH + std::to_string(numa) + NR_PAGE_SUFFIX_PATH_1 +
                                         std::to_string(hugePagesType) + NR_PAGE_SUFFIX_PATH_2;
@@ -269,7 +269,7 @@ UbseResult CollectNrHugePages(uint32_t numa, uint32_t &nrHugePages, uint32_t hug
     return UBSE_OK;
 }
 
-UbseResult CollectFreeHugePages(uint32_t numa, uint32_t &freeHugePages, uint32_t hugePagesType)
+UbseResult CollectFreeHugePages(uint32_t numa, uint32_t& freeHugePages, uint32_t hugePagesType)
 {
     const std::string freeHugePagesTemp = FREE_PAGE_PREFIX_PATH + std::to_string(numa) + FREE_PAGE_SUFFIX_PATH_1 +
                                           std::to_string(hugePagesType) + FREE_PAGE_SUFFIX_PATH_2;
@@ -288,7 +288,7 @@ UbseResult CollectFreeHugePages(uint32_t numa, uint32_t &freeHugePages, uint32_t
     return UBSE_OK;
 }
 
-UbseResult CollectObmmPoolFile(const std::string &filePath, std::string &outPut)
+UbseResult CollectObmmPoolFile(const std::string& filePath, std::string& outPut)
 {
     std::ifstream inputFile(filePath);
     if (!inputFile.is_open()) {
@@ -302,8 +302,8 @@ UbseResult CollectObmmPoolFile(const std::string &filePath, std::string &outPut)
     return UBSE_OK;
 }
 
-void CollectObmmMemPoolInfo(const uint32_t numa, uint64_t &total, uint64_t &used, uint64_t &available_cleared,
-                            uint64_t &available_uncleared)
+void CollectObmmMemPoolInfo(const uint32_t numa, uint64_t& total, uint64_t& used, uint64_t& available_cleared,
+                            uint64_t& available_uncleared)
 {
     total = 0;
     used = 0;
@@ -337,15 +337,15 @@ void CollectObmmMemPoolInfo(const uint32_t numa, uint64_t &total, uint64_t &used
         available_cleared = std::stoull(availableClearedStr, nullptr, 0);
         available_uncleared = std::stoull(availableunClearedStr, nullptr, 0);
     } catch (const std::invalid_argument& e) {
-        UBSE_LOG_ERROR << "Invalid para: " <<e.what();
+        UBSE_LOG_ERROR << "Invalid para: " << e.what();
         return;
     } catch (const std::out_of_range& e) {
-        UBSE_LOG_ERROR << "Out of range: " <<e.what();
+        UBSE_LOG_ERROR << "Out of range: " << e.what();
         return;
     }
 }
 
-uint32_t GetLocalNumas(std::vector<uint32_t> &nodeIds)
+uint32_t GetLocalNumas(std::vector<uint32_t>& nodeIds)
 {
     const std::string hasCpuPath = NUMA_PATH;
     std::ifstream inputFile(hasCpuPath);
@@ -363,7 +363,7 @@ uint32_t GetLocalNumas(std::vector<uint32_t> &nodeIds)
     return UBSE_OK;
 }
 
-UbseResult CollectHugePagesInfo(UbseNumaInfo &info, uint32_t numa)
+UbseResult CollectHugePagesInfo(UbseNumaInfo& info, uint32_t numa)
 {
     constexpr uint32_t HUGE_PAGE_2M = 2048;
     auto ret = CollectNrHugePages(numa, info.nr_hugepages_2M, HUGE_PAGE_2M);
@@ -410,7 +410,7 @@ UbseResult CollectHugePagesInfo(UbseNumaInfo &info, uint32_t numa)
     return UBSE_OK;
 }
 
-UbseResult CollectBasicInfo(UbseNumaInfo &info, uint32_t numa)
+UbseResult CollectBasicInfo(UbseNumaInfo& info, uint32_t numa)
 {
     auto ret = CollectCpuList(numa, info.bindCore);
     if (ret != UBSE_OK) {
@@ -430,7 +430,7 @@ UbseResult CollectBasicInfo(UbseNumaInfo &info, uint32_t numa)
     return UBSE_OK;
 }
 
-UbseResult CollectSingleNumaInfo(UbseNumaInfo &info, const std::string &nodeId, uint32_t numa)
+UbseResult CollectSingleNumaInfo(UbseNumaInfo& info, const std::string& nodeId, uint32_t numa)
 {
     info.location = {nodeId, numa};
 
@@ -448,7 +448,7 @@ UbseResult CollectSingleNumaInfo(UbseNumaInfo &info, const std::string &nodeId, 
     return UBSE_OK;
 }
 
-UbseResult CollectNumaInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
+UbseResult CollectNumaInfo(UbseNodeInfo& ubseNodeInfo, const std::string& nodeId)
 {
     std::vector<uint32_t> numas{};
     auto ret = GetLocalNumas(numas);
@@ -489,7 +489,7 @@ void AddEdgeInfo(
     portInfo.remotePortId = port.second.remotePortId;
 }
 
-UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
+UbseResult CollectCpuInfo(UbseNodeInfo& ubseNodeInfo, const std::string& nodeId)
 {
     adapter_plugins::mti::UbseDevTopology devTopology{};
     adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfosGroupByDevName{};
@@ -516,8 +516,8 @@ UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
         info.chipId = cpuTopoInfo.chipId;
         info.cardId = cpuTopoInfo.cardId;
         info.busNodeCna = cpuTopoInfo.busNodeCna;
-        info.eid = cpuTopoInfo.eid;  // LCNE获取时能保证key存在
-        info.guid = cpuTopoInfo.guid;  // LCNE获取时能保证key存在
+        info.eid = cpuTopoInfo.eid;   // LCNE获取时能保证key存在
+        info.guid = cpuTopoInfo.guid; // LCNE获取时能保证key存在
         for (auto& port : cpuTopoInfo.portInfos) {
             nodeController::UbsePortInfo portInfo{};
             AddEdgeInfo(port, portInfo);
@@ -528,7 +528,7 @@ UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
     return UBSE_OK;
 }
 
-UbseResult CollectSysSentryState(UbseNodeInfo &ubseNodeInfo)
+UbseResult CollectSysSentryState(UbseNodeInfo& ubseNodeInfo)
 {
     if (!syssentry::UbseRasObserver::GetInstance().IsSentryMsgMonitorRunning() ||
         !syssentry::UbseRasObserver::GetInstance().IsConfigSuccess()) {
@@ -539,7 +539,7 @@ UbseResult CollectSysSentryState(UbseNodeInfo &ubseNodeInfo)
     return UBSE_OK;
 }
 
-UbseResult CollectObmmKernelState(UbseNodeInfo &ubseNodeInfo)
+UbseResult CollectObmmKernelState(UbseNodeInfo& ubseNodeInfo)
 {
     std::string path = "/sys/module/obmm";
     struct stat info;

@@ -16,7 +16,7 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_timer_controller.h"  // 需要包含这个头文件
+#include "ubse_timer_controller.h" // 需要包含这个头文件
 
 #include <chrono>
 #include <thread>
@@ -249,7 +249,9 @@ TEST(TestUbseTimerController, TestStartInvalidParams)
     context::g_globalStop.store(false);
     std::shared_ptr<UbseTaskExecutorModule> executorModule = std::make_shared<UbseTaskExecutorModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(executorModule));
-    auto callback = []() { return UBSE_OK; };
+    auto callback = []() {
+        return UBSE_OK;
+    };
     UbseTimerController timer;
     // 测试interval为0
     EXPECT_NE(UBSE_OK, timer.Start(0, callback, "test"));

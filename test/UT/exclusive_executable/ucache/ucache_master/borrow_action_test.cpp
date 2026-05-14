@@ -10,16 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <vector>
+#include "borrow_action.h"
 #include <iostream>
+#include <vector>
+#include "ubse_error.h"
 #include "gtest/gtest.h"
+#include "mem_borrow.h"
 #include "mockcpp/mokc.h"
 #include "securec.h"
-#include "ucache_error.h"
 #include "ucache_config.h"
-#include "borrow_action.h"
-#include "ubse_error.h"
-#include "mem_borrow.h"
+#include "ucache_error.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -38,43 +38,31 @@ protected:
     {
         cout << "[Phase SetUp Begin]" << endl;
         MemBorrowTopo::SetTopology(physicalTopo);
-        MemBorrowTopo::globalMemBorrowTopo.lendMap = {
-            {"Node1", {}},
-            {"Node2", {}}
-        };
+        MemBorrowTopo::globalMemBorrowTopo.lendMap = {{"Node1", {}}, {"Node2", {}}};
 
-        MemBorrowTopo::globalMemBorrowTopo.borrowMap = {
-            {"Node0", {}},
-            {"Node1", {}}
-        };
+        MemBorrowTopo::globalMemBorrowTopo.borrowMap = {{"Node0", {}}, {"Node1", {}}};
 
         MemBorrowTopo::globalMemBorrowTopo.borrowMemInfoPerNodeMap = {
-            {
-                "Node0",
-                {
-                    .numaNodeSize = {
-                        {0, 5 * granularity},
-                        {1, 5 * granularity},
-                        {2, 5 * granularity},
-                        {3, 5 * granularity},
-                    },
-                    .freeMem = 10 * granularity,
-                    .totalMem = 20 * granularity
-                }
-            },
-            {
-                "Node1",
-                {
-                    .numaNodeSize = {
-                        {0, 5 * granularity},
-                        {1, 5 * granularity},
-                        {2, 5 * granularity},
-                        {3, 5 * granularity},
-                    },
-                    .freeMem = 10 * granularity,
-                    .totalMem = 20 * granularity
-                }
-            },
+            {"Node0",
+             {.numaNodeSize =
+                  {
+                      {0, 5 * granularity},
+                      {1, 5 * granularity},
+                      {2, 5 * granularity},
+                      {3, 5 * granularity},
+                  },
+              .freeMem = 10 * granularity,
+              .totalMem = 20 * granularity}},
+            {"Node1",
+             {.numaNodeSize =
+                  {
+                      {0, 5 * granularity},
+                      {1, 5 * granularity},
+                      {2, 5 * granularity},
+                      {3, 5 * granularity},
+                  },
+              .freeMem = 10 * granularity,
+              .totalMem = 20 * granularity}},
         };
         cout << "[Phase SetUp End]" << endl;
     }
@@ -91,20 +79,17 @@ protected:
 
 TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Bad)
 {
-    std::vector<BorrowAction> actionSet {
-        {
-            .type = static_cast<ActionType>(2),
-            .nodeMemBorrowInfo = {
-                .totalSize = 2 * granularity,
-                .srcNodeId = "Node0",
-                .destNodeId = "Node1",
-            }
-        },
+    std::vector<BorrowAction> actionSet{
+        {.type = static_cast<ActionType>(2),
+         .nodeMemBorrowInfo =
+             {
+                 .totalSize = 2 * granularity,
+                 .srcNodeId = "Node0",
+                 .destNodeId = "Node1",
+             }},
     };
 
-    MOCKER(ucache::borrow_action::ExecuteBorrowMem)
-        .stubs()
-        .will(returnValue(UCACHE_OK));
+    MOCKER(ucache::borrow_action::ExecuteBorrowMem).stubs().will(returnValue(UCACHE_OK));
 
     uint32_t ret = ExecuteBorrowActions(actionSet);
     EXPECT_EQ(ret, MEM_ACTION_TYPE_ERROR);
@@ -112,20 +97,17 @@ TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Bad)
 
 TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Borrow_Success)
 {
-    std::vector<BorrowAction> actionSet {
-        {
-            .type = ActionType::BORROW,
-            .nodeMemBorrowInfo = {
-                .totalSize = 2 * granularity,
-                .srcNodeId = "Node0",
-                .destNodeId = "Node1",
-            }
-        },
+    std::vector<BorrowAction> actionSet{
+        {.type = ActionType::BORROW,
+         .nodeMemBorrowInfo =
+             {
+                 .totalSize = 2 * granularity,
+                 .srcNodeId = "Node0",
+                 .destNodeId = "Node1",
+             }},
     };
 
-    MOCKER(ucache::borrow_action::ExecuteBorrowMem)
-        .stubs()
-        .will(returnValue(UCACHE_OK));
+    MOCKER(ucache::borrow_action::ExecuteBorrowMem).stubs().will(returnValue(UCACHE_OK));
 
     uint32_t ret = ExecuteBorrowActions(actionSet);
     EXPECT_EQ(ret, UCACHE_OK);
@@ -133,40 +115,34 @@ TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Borrow_Success)
 
 TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Borrow_Failed)
 {
-    std::vector<BorrowAction> actionSet {
-        {
-            .type = ActionType::BORROW,
-            .nodeMemBorrowInfo = {
-                .totalSize = 2 * granularity,
-                .srcNodeId = "Node0",
-                .destNodeId = "Node1",
-            }
-        },
+    std::vector<BorrowAction> actionSet{
+        {.type = ActionType::BORROW,
+         .nodeMemBorrowInfo =
+             {
+                 .totalSize = 2 * granularity,
+                 .srcNodeId = "Node0",
+                 .destNodeId = "Node1",
+             }},
     };
 
-    MOCKER(ucache::borrow_action::ExecuteBorrowMem)
-        .stubs()
-        .will(returnValue(UCACHE_ERR));
+    MOCKER(ucache::borrow_action::ExecuteBorrowMem).stubs().will(returnValue(UCACHE_ERR));
     uint32_t ret = ExecuteBorrowActions(actionSet);
     EXPECT_EQ(ret, UCACHE_ERR);
 }
 
 TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Return_Success)
 {
-    std::vector<BorrowAction> actionSet {
-        {
-            .type = ActionType::RETURN,
-            .nodeMemBorrowInfo = {
-                .totalSize = 2 * granularity,
-                .srcNodeId = "Node0",
-                .destNodeId = "Node1",
-            }
-        },
+    std::vector<BorrowAction> actionSet{
+        {.type = ActionType::RETURN,
+         .nodeMemBorrowInfo =
+             {
+                 .totalSize = 2 * granularity,
+                 .srcNodeId = "Node0",
+                 .destNodeId = "Node1",
+             }},
     };
 
-    MOCKER(ucache::borrow_action::ExecuteReturnMem)
-        .stubs()
-        .will(returnValue(UCACHE_OK));
+    MOCKER(ucache::borrow_action::ExecuteReturnMem).stubs().will(returnValue(UCACHE_OK));
 
     uint32_t ret = ExecuteBorrowActions(actionSet);
     EXPECT_EQ(ret, UCACHE_OK);
@@ -174,20 +150,17 @@ TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Return_Success)
 
 TEST_F(BorrowActionTest, ExecuteBorrowActions_ActionType_Return_Failed)
 {
-    std::vector<BorrowAction> actionSet {
-        {
-            .type = ActionType::RETURN,
-            .nodeMemBorrowInfo = {
-                .totalSize = 2 * granularity,
-                .srcNodeId = "Node0",
-                .destNodeId = "Node1",
-            }
-        },
+    std::vector<BorrowAction> actionSet{
+        {.type = ActionType::RETURN,
+         .nodeMemBorrowInfo =
+             {
+                 .totalSize = 2 * granularity,
+                 .srcNodeId = "Node0",
+                 .destNodeId = "Node1",
+             }},
     };
 
-    MOCKER(ucache::borrow_action::ExecuteReturnMem)
-        .stubs()
-        .will(returnValue(UCACHE_ERR));
+    MOCKER(ucache::borrow_action::ExecuteReturnMem).stubs().will(returnValue(UCACHE_ERR));
 
     uint32_t ret = ExecuteBorrowActions(actionSet);
     EXPECT_EQ(ret, UCACHE_ERR);
@@ -198,7 +171,7 @@ TEST_F(BorrowActionTest, ExecuteBorrowMem_InvalidArgumentTest)
     std::string from = "3";
     std::string to = "1";
     MOCKER_CPP(&ucache::mem_borrow::MemBorrowTopo::GetBorrowableNumaInfo,
-               uint32_t(*)(const std::string &node, int &socketId, int &numaId))
+               uint32_t(*)(const std::string& node, int& socketId, int& numaId))
         .stubs()
         .will(returnValue(EXEC_MEM_BORROW_ERROR));
     uint32_t ret = ExecuteBorrowMem(from, to);
@@ -210,7 +183,7 @@ TEST_F(BorrowActionTest, ExecuteBorrowMem_SafeStoInt_failed)
     std::string from = "abc";
     std::string to = "1";
     MOCKER_CPP(&ucache::mem_borrow::MemBorrowTopo::GetBorrowableNumaInfo,
-               uint32_t(*)(const std::string &node, int &socketId, int &numaId))
+               uint32_t(*)(const std::string& node, int& socketId, int& numaId))
         .stubs()
         .will(returnValue(UCACHE_OK));
 
@@ -223,7 +196,7 @@ TEST_F(BorrowActionTest, ExecuteBorrowMemTest)
     std::string from = "Node1";
     std::string to = "Node2";
     MOCKER_CPP(&ucache::mem_borrow::MemBorrowTopo::GetBorrowableNumaInfo,
-               uint32_t(*)(const std::string &node, int &socketId, int &numaId))
+               uint32_t(*)(const std::string& node, int& socketId, int& numaId))
         .stubs()
         .will(returnValue(UCACHE_OK));
     uint32_t ret = ExecuteBorrowMem(from, to);
@@ -246,11 +219,11 @@ TEST_F(BorrowActionTest, ExecuteReturnMemTest)
     std::string from = "Node1";
     std::string to = "Node2";
     MOCKER_CPP(&ucache::mem_borrow::MemBorrowTopo::GetReturnableMem,
-               uint32_t(*)(const std::string &node, int &socketId, int &numaId))
+               uint32_t(*)(const std::string& node, int& socketId, int& numaId))
         .stubs()
         .will(returnValue(UCACHE_OK));
     MOCKER_CPP(&ucache::mem_borrow::MemBorrowTopo::DelNumaNodeBorrowSize,
-               uint32_t(*)(const std::string &from, const std::string &to, std::string &memName, int &numaId))
+               uint32_t(*)(const std::string& from, const std::string& to, std::string& memName, int& numaId))
         .stubs()
         .will(returnValue(UCACHE_OK));
     uint32_t ret = ExecuteReturnMem(from, to);

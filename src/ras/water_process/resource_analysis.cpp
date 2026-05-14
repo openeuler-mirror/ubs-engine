@@ -8,20 +8,20 @@
 #include <vector>
 #include "ubse_event.h"
 #include "ubse_json_util.h"
+#include "ubse_logger.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_json_def.h"
 #include "ubse_mem_meta_data.h"
 #include "ubse_mem_topology_info_manager.h"
 #include "ubse_node_controller.h"
-#include "ubse_logger.h"
 
 namespace ubse::mem::strategy {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::common::def;
 using namespace ubse::utils;
 
-    void BuildNumaInfoMap(std::map<std::string, std::string> &numaInfoMap, const std::shared_ptr<MemNumaInfo> item)
+void BuildNumaInfoMap(std::map<std::string, std::string>& numaInfoMap, const std::shared_ptr<MemNumaInfo> item)
 {
     if (item == nullptr) {
         return;
@@ -53,7 +53,7 @@ using namespace ubse::utils;
     numaInfoMap.emplace("numaLoc", numaLoc);
 }
 
-std::string GetAllNumaJsonInfo(const NodeId &nodeId)
+std::string GetAllNumaJsonInfo(const NodeId& nodeId)
 {
     auto list = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo(nodeId);
     if (list.empty()) {
@@ -96,45 +96,45 @@ static std::string ToString(const WatermarkWarningType warning)
     return "";
 }
 
-inline uint64_t MinMemId(const std::vector<ubse::adapter_plugins::mmi::UbseMemObmmInfo> &exportMemId)
+inline uint64_t MinMemId(const std::vector<ubse::adapter_plugins::mmi::UbseMemObmmInfo>& exportMemId)
 {
     if (exportMemId.empty()) {
         return 0;
     }
     std::vector<uint64_t> memIdList{};
-    for (const auto &obmmInfo : exportMemId) {
+    for (const auto& obmmInfo : exportMemId) {
         memIdList.push_back(obmmInfo.memId);
     }
     const auto minIter = std::min_element(memIdList.begin(), memIdList.end());
     return *minIter;
 }
 
-inline uint64_t MinMemId(const std::vector<ubse::adapter_plugins::mmi::UbseMemImportResult> &importMemId)
+inline uint64_t MinMemId(const std::vector<ubse::adapter_plugins::mmi::UbseMemImportResult>& importMemId)
 {
     if (importMemId.empty()) {
         return 0;
     }
 
     std::vector<uint64_t> memIdList{};
-    for (const auto &importResult : importMemId) {
+    for (const auto& importResult : importMemId) {
         memIdList.push_back(importResult.memId);
     }
     const auto minIter = std::min_element(memIdList.begin(), memIdList.end());
     return *minIter;
 }
 
-bool CheckNumaLocIsRight(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj &importObj,
-                         const UbseMemNumaLoc &memIdLoc)
+bool CheckNumaLocIsRight(const ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj& importObj,
+                         const UbseMemNumaLoc& memIdLoc)
 {
     return importObj.req.importNodeId == memIdLoc.nodeId && !importObj.algoResult.importNumaInfos.empty() &&
            importObj.algoResult.importNumaInfos[0].numaId == memIdLoc.numaId &&
            importObj.algoResult.importNumaInfos[0].socketId == memIdLoc.socketId;
 }
 
-void GetAllImportItemByMap(std::vector<UbseMemEventNotifyBorrowItem> &tmpBorrow, const UbseMemNumaLoc &memIdLoc,
-                           const ubse::adapter_plugins::mmi::UbseMemNumaImportObjMap &numaImportObjMap)
+void GetAllImportItemByMap(std::vector<UbseMemEventNotifyBorrowItem>& tmpBorrow, const UbseMemNumaLoc& memIdLoc,
+                           const ubse::adapter_plugins::mmi::UbseMemNumaImportObjMap& numaImportObjMap)
 {
-    for (const auto &[name, importObj] : numaImportObjMap) {
+    for (const auto& [name, importObj] : numaImportObjMap) {
         if (CheckNumaLocIsRight(importObj, memIdLoc)) {
             UbseMemEventNotifyBorrowItem tmp{};
             tmp.name = name;
@@ -154,15 +154,15 @@ void GetAllImportItemByMap(std::vector<UbseMemEventNotifyBorrowItem> &tmpBorrow,
     }
 }
 
-void GetAllImportItem(const UbseMemNumaLoc &memIdLoc, std::vector<UbseMemEventNotifyBorrowItem> &tmpBorrow)
+void GetAllImportItem(const UbseMemNumaLoc& memIdLoc, std::vector<UbseMemEventNotifyBorrowItem>& tmpBorrow)
 {
     auto debtInfoMap = ubse::mem::controller::GetNodeMemDebtInfoMap();
-    for (const auto &nodeMap : debtInfoMap) {
+    for (const auto& nodeMap : debtInfoMap) {
         GetAllImportItemByMap(tmpBorrow, memIdLoc, nodeMap.second.numaImportObjMap);
     }
 }
 
-UbseResult WaterWarningProcess(WatermarkWarningType warningType, const UbseMemNumaLoc &warningNumaLoc, bool isOom)
+UbseResult WaterWarningProcess(WatermarkWarningType warningType, const UbseMemNumaLoc& warningNumaLoc, bool isOom)
 {
     static std::string highEventId = "RegisterMemEventNotifyFunc_high";
     static std::string lowEventId = "RegisterMemEventNotifyFunc_low";

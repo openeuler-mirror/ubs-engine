@@ -14,8 +14,8 @@
 
 #include <mockcpp/mockcpp.hpp>
 #include <set>
-#include "share_decision_maker.h"
 #include "ubse_pointer_process.h"
+#include "share_decision_maker.h"
 
 namespace ubse::ut::algorithm {
 using namespace tc::rs::mem;
@@ -90,7 +90,7 @@ StrategyParam GetDefaultParam(int numHosts)
 TEST_F(BorrowDecisionMakerTest, TestBorrowDecisionMaker)
 {
     // 初始化
-    MemPoolStrategy &strategy = MemPoolStrategy::GetInstance();
+    MemPoolStrategy& strategy = MemPoolStrategy::GetInstance();
     auto param = GetDefaultParam(4 * 4);
     strategy.Init(param);
     strategy.SetLogLevel(DEBUG);
@@ -238,7 +238,7 @@ TEST_F(BorrowDecisionMakerTest, TestBorrowFilterCase3)
     targetLoc.socketId = -1;
     try {
         mBorrowDecisionMaker->LenderFilter(requestLoc, targetLoc, mBorrowDecisionMaker->mStrategyImpl_->memSysStatus_);
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         ASSERT_STREQ(e.what(), "Please check targetLoc in BorrowDecisionMaker::LenderFilter!");
     }
 }

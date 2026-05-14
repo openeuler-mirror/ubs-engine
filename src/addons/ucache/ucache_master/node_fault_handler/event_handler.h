@@ -13,9 +13,9 @@
 #ifndef EVENT_HANDLER_H
 #define EVENT_HANDLER_H
 
-#include <string>
 #include <atomic>
 #include <map>
+#include <string>
 #include "ubse_ras.h"
 #include "data_collect.h"
 

@@ -12,8 +12,8 @@
 
 #include "test_ubse_mem_obj_restore.h"
 #include "ubse_mem_common_utils.h"
-#include "ubse_mem_obj_restore.h"
 #include "ubse_mem_def.h"
+#include "ubse_mem_obj_restore.h"
 
 #include <securec.h>
 
@@ -35,20 +35,20 @@ protected:
     }
 };
 
-void MockConstructSingleNumaImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                      UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj, bool &isNormal)
+void MockConstructSingleNumaImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                      UbseMemNumaBorrowImportObj& ubseMemNumaBorrowImportObj, bool& isNormal)
 {
     isNormal = true;
 }
 
-void MockConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                      UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj, bool &isNormal)
+void MockConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                      UbseMemNumaBorrowExportObj& ubseMemNumaBorrowExportObj, bool& isNormal)
 {
     isNormal = true;
 }
 
-void MockConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                       UbseMemShareBorrowImportObj &mxeMemShareBorrowImportObj, bool &isNormal)
+void MockConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                       UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, bool& isNormal)
 {
     isNormal = true;
 }
@@ -120,7 +120,7 @@ TEST_F(TestUbseMemObjRestore, ConstructShareImportObj_success)
     metaData.customMeta.numaSizes[0] = 1024;
     metaDatas.emplace_back(metaData);
     UbseMemShareImportObjMap importObjMap{};
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
+    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id>& id))
         .stubs()
         .will(returnValue(UBSE_OK));
     auto ret = ConstructShareImportObj(metaDatas, importObjMap);
@@ -137,7 +137,7 @@ TEST_F(TestUbseMemObjRestore, ConstructSingleShareImportObj_success)
     metaData.customMeta.memidCount = 1;
     metaDatas.emplace_back(metaData);
     UbseMemShareBorrowImportObj importObjMap{};
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
+    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id>& id))
         .stubs()
         .will(returnValue(UBSE_OK));
     bool isNormal{};
@@ -156,7 +156,7 @@ TEST_F(TestUbseMemObjRestore, ConstructShareImportObjFromExportMetaData_success)
     metaData.usedPidCount = 1;
     metaDatas.emplace_back(metaData);
     UbseMemShareImportObjMap importObjMap{};
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
+    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id>& id))
         .stubs()
         .will(returnValue(UBSE_OK));
     auto ret = ConstructShareImportObjFromExportMetaData(metaDatas, importObjMap);

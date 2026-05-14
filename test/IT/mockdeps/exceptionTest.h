@@ -27,6 +27,6 @@ void TestSIGXCPU();
 void TestSIGXFSZ();
 
 void TestSIGSYS();
-}
+} // namespace ubse::it::exception
 
 #endif // EXCEPTIONTEST_H

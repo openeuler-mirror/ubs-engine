@@ -18,9 +18,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "ubse_common_def.h"
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
-#include "ubse_common_def.h"
 
 namespace tc::rs::mem {
 #define LOG_LEVEL mStrategyImpl->GetLogLevel()
@@ -108,8 +108,8 @@ public:
     * @param result [OUT] 借用请求决策结果(借出numa数量, 借出numa位置, 借入numa位置, 各numa内存借用量)
     * @return
     */
-    BResult MemoryBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                         BorrowResult &result) override;
+    BResult MemoryBorrow(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                         BorrowResult& result) override;
 
     /**
     * @brief 决策共享请求
@@ -118,22 +118,22 @@ public:
     * @param result [OUT] 共享请求决策结果
     * @return
     */
-    BResult MemoryShare(const ShareRequest &shareRequest, const UbseStatus &ubseStatus, ShareResult &result) override;
+    BResult MemoryShare(const ShareRequest& shareRequest, const UbseStatus& ubseStatus, ShareResult& result) override;
 
-    BResult Init(const StrategyParam &param) override;
+    BResult Init(const StrategyParam& param) override;
 
     /**
     * @brief 将ubseStatus.debtDetails保存至成员变量中, 并将其转换为DebtInfo (每一对节点间的内存借用量)
     * @param ubseStatus [IN] 发起请求时系统状态信息(各numa内存状态, 各numa借用共享状态, 各节点间借用债务数)
     * @return
     */
-    BResult InitDebtInfo(const UbseStatus &ubseStatus);
+    BResult InitDebtInfo(const UbseStatus& ubseStatus);
 
     /**
     * @brief 根据调用决策时各numa状态, 初始化各numa, socket, host状态(sysStatus成员变量)
     * @param ubseStatus [IN] 发起请求时系统状态信息(各numa内存状态, 各numa借用共享状态, 各节点间借用债务数)
     */
-    BResult InitSysStatus(const UbseStatus &ubseStatus);
+    BResult InitSysStatus(const UbseStatus& ubseStatus);
 
     /**
     * @brief 判断socket借出或共享内存后是否超过节点借用内存上限、共享内存上限、提供内存上限
@@ -143,7 +143,7 @@ public:
     * @param sysStatus [IN] 系统numa, socket, host状态
     * @return
     */
-    bool MaxOutFilter(MemLoc targetLoc, int32_t requestSize, RequestMode requestMode, const SysStatus &sysStatus);
+    bool MaxOutFilter(MemLoc targetLoc, int32_t requestSize, RequestMode requestMode, const SysStatus& sysStatus);
 
     /**
     * @brief 统计socket上各numa的剩余内存, 考虑水线、预留内存总量
@@ -152,7 +152,7 @@ public:
     * @param sysStatus [IN] 系统numa, socket, host状态
     * @return socket上的numa位置列表, 以及各numa内存余量, 单位MB
     */
-    TargetSocket NumaMemFree(MemLoc targetLoc, RequestUrgentLevel urgentLevel, const SysStatus &sysStatus) const;
+    TargetSocket NumaMemFree(MemLoc targetLoc, RequestUrgentLevel urgentLevel, const SysStatus& sysStatus) const;
 
     /**
     * @brief 判断socket的剩余内存是否足够借用或共享 (综合考虑各numa水线下内存, 预留内存)
@@ -164,7 +164,7 @@ public:
     * @return
     */
     bool MemFreeFilter(MemLoc targetLoc, int32_t requestSize, RequestUrgentLevel urgentLevel,
-                       const SysStatus &sysStatus, TargetSocket &numaList) const;
+                       const SysStatus& sysStatus, TargetSocket& numaList) const;
 
     /**
     * @brief 候选socket依据各numa的剩余内存, 确定各numa提供的内存量
@@ -180,7 +180,7 @@ public:
     * @param targetSocket [IN] 目标socket. 借用, 共享请求的目标socket为numa拆分结果; 归还请求的目标socket为待归还借用债务
     * @return
     */
-    double ComputeShareLatencyScore(int32_t requestSizeS, const TargetSocket &targetSocket) const;
+    double ComputeShareLatencyScore(int32_t requestSizeS, const TargetSocket& targetSocket) const;
 
     /**
     * @brief 候选socket依据各numa的剩余内存, 确定各numa提供的内存量
@@ -188,8 +188,8 @@ public:
     * @param requestSize[IN] socket提供内存量
     * @return 提供内存的numa位置,和numa提供的内存
     */
-    TargetSocket TargetSocket2NumaByReliable(const MemLoc &requestLoc, const TargetSocket &numaList,
-                                             const SysStatus &sysStatus, int32_t requestSize);
+    TargetSocket TargetSocket2NumaByReliable(const MemLoc& requestLoc, const TargetSocket& numaList,
+                                             const SysStatus& sysStatus, int32_t requestSize);
 
     /**
     * @brief 计算请求方与目标socket的时延评分, 适用于借用、归还、共享请求.
@@ -199,7 +199,7 @@ public:
     * @param requestMode [IN] 请求类型, 借用、归还或共享
     * @return
     */
-    double LatencyScore(MemLoc requestLocBR, int32_t requestSizeS, const TargetSocket &targetSocket,
+    double LatencyScore(MemLoc requestLocBR, int32_t requestSizeS, const TargetSocket& targetSocket,
                         RequestMode requestMode) const;
 
     /**
@@ -208,7 +208,7 @@ public:
     * @param regionStatus [IN] 系统各域内存状态
     * @return
     */
-    double GetRegionStatus(const SysStatus &sysStatus, RegionStatus &regionStatus) const;
+    double GetRegionStatus(const SysStatus& sysStatus, RegionStatus& regionStatus) const;
 
     /**
     * @brief 计算域均衡性评分, 适用于借用、归还、共享请求
@@ -217,8 +217,8 @@ public:
     * @param regionStatus [IN] 系统各域内存状态
     * @return
     */
-    double RegionBalanceScore(const TargetSocket &targetSocket, RequestMode requestMode,
-                              const RegionStatus &regionStatus) const;
+    double RegionBalanceScore(const TargetSocket& targetSocket, RequestMode requestMode,
+                              const RegionStatus& regionStatus) const;
 
     /**
     * @brief 计算目标socket的均衡性评分, 适用于借用、归还、共享请求.
@@ -227,7 +227,7 @@ public:
     * @param sysStatus [IN] 系统numa, socket, host状态
     * @return
     */
-    double BalanceScore(const TargetSocket &targetSocket, RequestMode requestMode, const SysStatus &sysStatus) const;
+    double BalanceScore(const TargetSocket& targetSocket, RequestMode requestMode, const SysStatus& sysStatus) const;
 
     /**
     * @brief 计算目标socket的可靠性评分, 适用于借用、归还、共享请求.
@@ -237,11 +237,11 @@ public:
     * @param sysStatus [IN] 系统numa, socket, host状态
     * @return
     */
-    double ReliabilityScore(MemLoc requestLocBR, const TargetSocket &targetSocket, RequestMode requestMode,
-                            const SysStatus &sysStatus) const;
+    double ReliabilityScore(MemLoc requestLocBR, const TargetSocket& targetSocket, RequestMode requestMode,
+                            const SysStatus& sysStatus) const;
 
-    void SplitNumaWithVector(const std::vector<uint32_t> &numaVector, TargetSocket numaList, int32_t &lentSize,
-                             std::unordered_set<uint32_t> &lentNumas, TargetSocket &tmpSocket);
+    void SplitNumaWithVector(const std::vector<uint32_t>& numaVector, TargetSocket numaList, int32_t& lentSize,
+                             std::unordered_set<uint32_t>& lentNumas, TargetSocket& tmpSocket);
 
     /**
     * @brief 计算目标socket的numa拆分评分, 适用于借用、共享请求, 归还请求无需该评分
@@ -249,7 +249,7 @@ public:
     * @param targetSocket [IN] 目标socket. 借用, 共享请求的目标socket为numa拆分结果
     * @return
     */
-    static double DivideNumaScore(int32_t requestSize, const TargetSocket &targetSocket);
+    static double DivideNumaScore(int32_t requestSize, const TargetSocket& targetSocket);
 
     /**
     * @brief 当请求紧急程度为L1、L2时, 若socket提供内存触发L0水线, 则借用代价增加惩罚项
@@ -258,7 +258,7 @@ public:
     * @param sysStatus [IN] 系统numa, socket, host状态
     * @return
     */
-    double PenaltyScore(int32_t requestSize, TargetSocket targetSocket, const SysStatus &sysStatus) const;
+    double PenaltyScore(int32_t requestSize, TargetSocket targetSocket, const SysStatus& sysStatus) const;
 
     /**
     * @brief 获得MemPoolStrategy的mLogLevel成员变量, 用于decision_maker的日志打印功能
@@ -274,21 +274,21 @@ public:
     * @param borrowRequest [IN] 借用请求方信息
     * @return
     */
-    BResult BorrowParamCheck(const BorrowRequest &borrowRequest);
+    BResult BorrowParamCheck(const BorrowRequest& borrowRequest);
 
     /**
     * @brief 共享请求输入参数检查
     * @param shareRequest [IN] 共享请求方信息
     * @return
     */
-    BResult ShareParamCheck(const ShareRequest &shareRequest);
+    BResult ShareParamCheck(const ShareRequest& shareRequest);
 
     /**
     * @brief BorrowDecisionMaker空指针检查
     * @param decisionMaker [IN] BorrowDecisionMaker指针
     * @return
     */
-    static void CleanUpBorrowDecisionMaker(BorrowDecisionMaker *decisionMaker);
+    static void CleanUpBorrowDecisionMaker(BorrowDecisionMaker* decisionMaker);
 
     /**
      * @brief 计算节点内存状态
@@ -297,7 +297,7 @@ public:
      * @param numa
      * @param timeStamp
      */
-    void OperateMemStatus(const UbseStatus &ubseStatus, int i, MemLoc numa, time_t timeStamp);
+    void OperateMemStatus(const UbseStatus& ubseStatus, int i, MemLoc numa, time_t timeStamp);
 
     /**
      * @brief 计算节点借入借出内存情况
@@ -305,7 +305,7 @@ public:
      * @param i
      * @param numa
      */
-    void OperateLedgerStatus(const UbseStatus &ubseStatus, int i, MemLoc numa);
+    void OperateLedgerStatus(const UbseStatus& ubseStatus, int i, MemLoc numa);
 
     /**
      * @brief 根据紧急程度获得水线
@@ -328,14 +328,14 @@ public:
      * @param targetSocket
      * @return
      */
-    int32_t GetRequestSize(const TargetSocket &targetSocket) const;
+    int32_t GetRequestSize(const TargetSocket& targetSocket) const;
 
     /**
      * @brief 获取节点的借出内存，单位Byte
      * @param targetSocket
      * @return
      */
-    uint64_t GetRequestByteSize(const TargetSocket &targetSocket) const;
+    uint64_t GetRequestByteSize(const TargetSocket& targetSocket) const;
 
     /**
      * @brief 检查节点内存是否可以借出
@@ -351,21 +351,21 @@ public:
      * @param borrowRequest
      * @return
      */
-    bool IsHostIdInvalid(const BorrowRequest &borrowRequest);
+    bool IsHostIdInvalid(const BorrowRequest& borrowRequest);
 
     /**
      * @brief 请求是否合法
      * @param borrowRequest
      * @return
      */
-    bool IsInvalidRequest(const BorrowRequest &borrowRequest);
+    bool IsInvalidRequest(const BorrowRequest& borrowRequest);
 
     /**
      * @brief 检查节点最大借入节点数设置
      * @param borrowRequest
      * @return
      */
-    bool CheckMaxBorrowHosts(const BorrowRequest &borrowRequest);
+    bool CheckMaxBorrowHosts(const BorrowRequest& borrowRequest);
 
     /**
      * @brief 域平衡检查边界
@@ -374,7 +374,7 @@ public:
      * @param y
      * @return
      */
-    bool CheckBoundary(const RegionStatus &regionStatus, int x, int y) const;
+    bool CheckBoundary(const RegionStatus& regionStatus, int x, int y) const;
 
     /**
      * 检查重要参数是否为0

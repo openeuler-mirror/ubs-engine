@@ -13,15 +13,15 @@
 #include "test_it_utils.h"
 
 namespace ubse::it::utils {
-char **g_argv;
+char** g_argv;
 
-void SetArgv(char **argv)
+void SetArgv(char** argv)
 {
     g_argv = argv;
 }
 
-char **GetArgv()
+char** GetArgv()
 {
     return g_argv;
 }
-}
+} // namespace ubse::it::utils

@@ -88,21 +88,21 @@ TEST_F(TestMemFragmentationSdkServer, GetNodeInfo_ShouldReturnError_WhenGetUBSRM
 
 UBSRMRSGetNumaInfoListOnNodeFunc MockUBSRMRSGetNumaInfoListOnNodeError()
 {
-    return [](std::vector<NumaInfo> &) {
+    return [](std::vector<NumaInfo>&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSGetNumaInfoListOnNodeFunc MockUBSRMRSGetNumaInfoListOnNodeIsEmpty()
 {
-    return [](std::vector<NumaInfo> &vmInfoList) {
+    return [](std::vector<NumaInfo>& vmInfoList) {
         return VM_OK;
     };
 }
 
 UBSRMRSGetNumaInfoListOnNodeFunc MockUBSRMRSGetNumaInfoListOnNodeOK()
 {
-    return [](std::vector<NumaInfo> &numaInfos) {
+    return [](std::vector<NumaInfo>& numaInfos) {
         NumaInfo numaInfo;
         numaInfo.metaData.nodeId = "1";
         numaInfo.metaData.numaId = 0;
@@ -226,21 +226,21 @@ TEST_F(TestMemFragmentationSdkServer, GetVmInfo_ShouldReturnError_WhenGetUBSRMRS
 
 UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNodeError()
 {
-    return [](std::vector<mempooling::VmDomainInfo> &) {
+    return [](std::vector<mempooling::VmDomainInfo>&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNodeIsEmpty()
 {
-    return [](std::vector<mempooling::VmDomainInfo> &vmInfoList) {
+    return [](std::vector<mempooling::VmDomainInfo>& vmInfoList) {
         return VM_OK;
     };
 }
 
 UBSRMRSGetVmInfoListOnNodeFunc MockUBSRMRSGetVmInfoListOnNodeOK()
 {
-    return [](std::vector<mempooling::VmDomainInfo> &vmDomainInfos) {
+    return [](std::vector<mempooling::VmDomainInfo>& vmDomainInfos) {
         mempooling::VmDomainInfo vmDomainInfo;
         vmDomainInfo.timestamp = globalDefaultTimestamp;
         vmDomainInfo.metaData.hostName = "controller";
@@ -391,14 +391,14 @@ TEST_F(TestMemFragmentationSdkServer, UpdateAntiAffinityConfig_ShouldReturnError
 
 UBSRMRSUpdateAntiNodeFunc MockUBSRMRSUpdateAntiNodeError()
 {
-    return [](const std::map<std::string, std::vector<std::string>> &) {
+    return [](const std::map<std::string, std::vector<std::string>>&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSUpdateAntiNodeFunc MockUBSRMRSUpdateAntiNodeOK()
 {
-    return [](const std::map<std::string, std::vector<std::string>> &) {
+    return [](const std::map<std::string, std::vector<std::string>>&) {
         return VM_OK;
     };
 }
@@ -437,7 +437,7 @@ TEST_F(TestMemFragmentationSdkServer, UpdateAntiAffinityConfig_ShouldReturnOk_Wh
 TEST_F(TestMemFragmentationSdkServer, ParseKey_ShouldReturnEmpty_WhenBufferIsInsufficient)
 {
     const uint8_t buffer[] = {0, 0, 0, 0};
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
     auto result = VirtMemFragSdk::ParseKey(buffer, sizeof(buffer) - 1, ptr);
     EXPECT_TRUE(result.first.empty());
 }
@@ -450,7 +450,7 @@ TEST_F(TestMemFragmentationSdkServer, ParseKey_ShouldReturnEmpty_WhenBufferIsIns
 TEST_F(TestMemFragmentationSdkServer, ParseKey_ShouldReturnKey_WhenBufferIsValid)
 {
     const uint8_t buffer[] = {0x05, 0x00, 0x00, 0x00, 't', 'e', 's', 't', 0x00};
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
     auto result = VirtMemFragSdk::ParseKey(buffer, sizeof(buffer), ptr);
     EXPECT_EQ(result.first, "test");
 }
@@ -463,7 +463,7 @@ TEST_F(TestMemFragmentationSdkServer, ParseKey_ShouldReturnKey_WhenBufferIsValid
 TEST_F(TestMemFragmentationSdkServer, ParseValues_ShouldReturnEmpty_WhenBufferIsInsufficient)
 {
     const uint8_t buffer[] = {0, 0, 0, 0};
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
     auto result = VirtMemFragSdk::ParseValues(buffer, sizeof(buffer) - 1, ptr);
     EXPECT_TRUE(result.empty());
 }
@@ -476,7 +476,7 @@ TEST_F(TestMemFragmentationSdkServer, ParseValues_ShouldReturnEmpty_WhenBufferIs
 TEST_F(TestMemFragmentationSdkServer, ParseValues_ShouldReturnValues_WhenBufferIsValid)
 {
     const uint8_t buffer[] = {0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 't', 'e', 's', 't', 0x00};
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
     auto result = VirtMemFragSdk::ParseValues(buffer, sizeof(buffer), ptr);
     ASSERT_EQ(result.size(), 1);
     EXPECT_EQ(result[0], "test");
@@ -490,7 +490,7 @@ TEST_F(TestMemFragmentationSdkServer, ParseValues_ShouldReturnValues_WhenBufferI
 TEST_F(TestMemFragmentationSdkServer, ParseEntry_ShouldReturnEmpty_WhenKeyIsInvalid)
 {
     const uint8_t buffer[] = {0, 0, 0, 0};
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
     auto result = VirtMemFragSdk::ParseEntry(buffer, sizeof(buffer) - 1, ptr);
     EXPECT_TRUE(result.first.empty());
     EXPECT_TRUE(result.second.empty());
@@ -505,7 +505,7 @@ TEST_F(TestMemFragmentationSdkServer, ParseEntry_ShouldReturnEntry_WhenBufferIsV
 {
     const uint8_t buffer[] = {0x05, 0x00, 0x00, 0x00, 't',  'e', 's', 't', 0x00, 0x01, 0x00, 0x00,
                               0x00, 0x06, 0x00, 0x00, 0x00, 'v', 'a', 'l', 'u',  'e',  0x00};
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
     auto result = VirtMemFragSdk::ParseEntry(buffer, sizeof(buffer), ptr);
     EXPECT_EQ(result.first, "test");
     ASSERT_EQ(result.second.size(), 1);
@@ -537,7 +537,7 @@ TEST_F(TestMemFragmentationSdkServer, DeserializeNodeAntiDictionary_ShouldReturn
     MOCKER(UbseGetAllNodeInfos).reset();
 }
 
-uint32_t MockUbseGetAllNodeInfos(std::vector<UbseRoleInfo> &roleInfos)
+uint32_t MockUbseGetAllNodeInfos(std::vector<UbseRoleInfo>& roleInfos)
 {
     UbseRoleInfo info{};
     info.nodeId = "node";
@@ -697,14 +697,14 @@ TEST_F(TestMemFragmentationSdkServer, MemBorrowStrategy_ShouldReturnError_WhenGe
 
 UBSRMRSMemBorrowStrategyFunc MockUBSRMRSMemBorrowStrategyError()
 {
-    return [](const SrcMemoryBorrowParam &, const uint64_t &, MemBorrowStrategyResult &) {
+    return [](const SrcMemoryBorrowParam&, const uint64_t&, MemBorrowStrategyResult&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSMemBorrowStrategyFunc MockUBSRMRSMemBorrowStrategyOK()
 {
-    return [](const SrcMemoryBorrowParam &, const uint64_t &, MemBorrowStrategyResult &) {
+    return [](const SrcMemoryBorrowParam&, const uint64_t&, MemBorrowStrategyResult&) {
         return VM_OK;
     };
 }
@@ -824,8 +824,8 @@ TEST_F(TestMemFragmentationSdkServer, SetSrcNodeHugePage_ShouldReturnError_WhenG
     MOCKER(MemHandler::GetBorrowedSizeMap).reset();
 }
 
-VmResult MockGetBorrowedSizeMap(const std::vector<uint16_t> &remoteNumaIds,
-                                std::map<uint16_t, uint64_t> &numaBorrowedSizeMap)
+VmResult MockGetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
+                                std::map<uint16_t, uint64_t>& numaBorrowedSizeMap)
 {
     uint16_t numaId = 0;
     uint64_t borrowedSize = (::vm::NO_1024) * (::vm::NO_1024);
@@ -908,14 +908,14 @@ TEST_F(TestMemFragmentationSdkServer, MemBorrowExecute_ShouldReturnError_WhenGet
 
 UBSRMRSMemBorrowExecuteFunc MockUBSRMRSMemBorrowExecuteError()
 {
-    return [](const SrcMemoryBorrowParam &, const std::vector<DestMemoryBorrowParam> &, MemBorrowExecuteResult &) {
+    return [](const SrcMemoryBorrowParam&, const std::vector<DestMemoryBorrowParam>&, MemBorrowExecuteResult&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSMemBorrowExecuteFunc MockUBSRMRSMemBorrowExecuteOK()
 {
-    return [](const SrcMemoryBorrowParam &, const std::vector<DestMemoryBorrowParam> &, MemBorrowExecuteResult &) {
+    return [](const SrcMemoryBorrowParam&, const std::vector<DestMemoryBorrowParam>&, MemBorrowExecuteResult&) {
         return VM_OK;
     };
 }
@@ -1066,14 +1066,14 @@ TEST_F(TestMemFragmentationSdkServer, MemMigrateStrategy_ShouldReturnError_WhenG
 
 UBSRMRSMigrateStrategyFunc MockUBSRMRSMigrateStrategyError()
 {
-    return [](const std::string &, const std::vector<VMPresetParam> &, const uint64_t &, MigrateStrategyResult &) {
+    return [](const std::string&, const std::vector<VMPresetParam>&, const uint64_t&, MigrateStrategyResult&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSMigrateStrategyFunc MockUBSRMRSMigrateStrategyOK()
 {
-    return [](const std::string &, const std::vector<VMPresetParam> &, const uint64_t &, MigrateStrategyResult &) {
+    return [](const std::string&, const std::vector<VMPresetParam>&, const uint64_t&, MigrateStrategyResult&) {
         return VM_OK;
     };
 }
@@ -1201,16 +1201,16 @@ TEST_F(TestMemFragmentationSdkServer, MemMigrateExecute_ShouldReturnError_WhenGe
 
 UBSRMRSMigrateExecuteFunc MockUBSRMRSMigrateExecuteError()
 {
-    return [](const std::string &, const std::vector<VMMigrateOutParam> &, const std::uint64_t &,
-              const std::vector<std::string> &) {
+    return [](const std::string&, const std::vector<VMMigrateOutParam>&, const std::uint64_t&,
+              const std::vector<std::string>&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSMigrateExecuteFunc MockUBSRMRSMigrateExecuteOK()
 {
-    return [](const std::string &, const std::vector<VMMigrateOutParam> &, const std::uint64_t &,
-              const std::vector<std::string> &) {
+    return [](const std::string&, const std::vector<VMMigrateOutParam>&, const std::uint64_t&,
+              const std::vector<std::string>&) {
         return VM_OK;
     };
 }
@@ -1306,14 +1306,14 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_ShouldReturnError_WhenNodeIdIsEm
 
 UBSRMRSMemFreeFunc MockUBSRMRSMemFreeError()
 {
-    return [](const std::string &) {
+    return [](const std::string&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSMemFreeFunc MockUBSRMRSMemFreeOK()
 {
-    return [](const std::string &) {
+    return [](const std::string&) {
         return VM_OK;
     };
 }
@@ -1383,14 +1383,14 @@ TEST_F(TestMemFragmentationSdkServer, MemRollback_ShouldReturnError_WhenGetUBSRM
 
 UBSRMRSMemBorrowRollbackFunc MockUBSRMRSMemBorrowRollbackError()
 {
-    return [](const std::string &, const std::vector<std::string> &) {
+    return [](const std::string&, const std::vector<std::string>&) {
         return VM_ERROR;
     };
 }
 
 UBSRMRSMemBorrowRollbackFunc MockUBSRMRSMemBorrowRollbackOK()
 {
-    return [](const std::string &, const std::vector<std::string> &) {
+    return [](const std::string&, const std::vector<std::string>&) {
         return VM_OK;
     };
 }
@@ -1564,7 +1564,7 @@ TEST_F(TestMemFragmentationSdkServer, MemTaskQuery_ShouldReturnOK_WhenTaskExists
     MemTaskResultQueryMsg msg(taskInfoC);
     ASSERT_EQ(msg.Serialize(), VM_OK);
 
-    UbseIpcMessage req{const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(taskId.c_str())),
+    UbseIpcMessage req{const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(taskId.c_str())),
                        static_cast<uint32_t>(taskId.size())};
     UbseRequestContext context{};
     context.requestId = 12345;
@@ -1595,7 +1595,7 @@ TEST_F(TestMemFragmentationSdkServer, MemTaskQuery_ConvertTaskResult_failed)
     MemTaskResultQueryMsg msg(taskInfoC);
     ASSERT_EQ(msg.Serialize(), VM_OK);
 
-    UbseIpcMessage req{const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(taskId.c_str())),
+    UbseIpcMessage req{const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(taskId.c_str())),
                        static_cast<uint32_t>(taskId.size())};
     UbseRequestContext context{};
     context.requestId = 12345;
@@ -1625,7 +1625,7 @@ TEST_F(TestMemFragmentationSdkServer, MemTaskQuery_ConvertTaskResult_succeed)
 
     ThreadTaskManager::GetInstance().SetMemBorrowResult(taskId, taskInfoC.memBorrowResult);
 
-    UbseIpcMessage req{const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(taskId.c_str())),
+    UbseIpcMessage req{const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(taskId.c_str())),
                        static_cast<uint32_t>(taskId.size())};
     UbseRequestContext context{};
     context.requestId = 12345;
@@ -1641,7 +1641,7 @@ TEST_F(TestMemFragmentationSdkServer, MemTaskQuery_ConvertTaskResult_succeed)
 TEST_F(TestMemFragmentationSdkServer, MemReturn_Async_WhenEverythingIsOk)
 {
     bool isAsync = true;
-    UbseIpcMessage req{reinterpret_cast<uint8_t *>(&isAsync), sizeof(bool)};
+    UbseIpcMessage req{reinterpret_cast<uint8_t*>(&isAsync), sizeof(bool)};
     UbseRequestContext context{};
 
     MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeOK));
@@ -1658,7 +1658,7 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_Async_WhenEverythingIsOk)
 TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_WhenEverythingIsOk)
 {
     bool isAsync = false;
-    UbseIpcMessage req{reinterpret_cast<uint8_t *>(&isAsync), sizeof(bool)};
+    UbseIpcMessage req{reinterpret_cast<uint8_t*>(&isAsync), sizeof(bool)};
     UbseRequestContext context{};
 
     MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeOK));
@@ -1675,7 +1675,7 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_WhenEverythingIsOk)
 TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_UBSRMRSMemFreeFailed)
 {
     bool isAsync = false;
-    UbseIpcMessage req{reinterpret_cast<uint8_t *>(&isAsync), sizeof(bool)};
+    UbseIpcMessage req{reinterpret_cast<uint8_t*>(&isAsync), sizeof(bool)};
     UbseRequestContext context{};
 
     MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeError));

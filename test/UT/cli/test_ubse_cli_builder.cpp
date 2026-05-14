@@ -34,14 +34,14 @@ std::string UbseFuncB()
     return "INFO: Call \t UbseFuncB!";
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliTestFunString([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliTestFunString(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     return std::make_shared<UbseCliStringEcho>(std::string(UbseFuncA() + UbseFuncB()));
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliTestInvDemo1([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliTestInvDemo1(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     UbseCliResBuilder res_builder(UBSE_CLI_NUM_3, UBSE_CLI_NUM_10);
     size_t row = res_builder.UbseCliAddRow();
@@ -56,15 +56,15 @@ std::shared_ptr<UbseCliResultEcho> UbseCliTestInvDemo1([
     res_builder1.UbseCliAddlineSeparate(res_builder1.UbseCliGetRows());
     res_builder1.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "Alice");
     res_builder1.UbseCliSetCellData(row, UBSE_CLI_NUM_2,
-        "A wonderful person who enjoys writing code in C++ and solving complex problems.");
+                                    "A wonderful person who enjoys writing code in C++ and solving complex problems.");
     res_builder1.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "30");
     row = res_builder1.UbseCliAddRow();
     res_builder1.UbseCliAddlineSeparate(res_builder1.UbseCliGetRows());
     res_builder1.UbseCliSetCellData(row, UBSE_CLI_NUM_1,
-        "Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob ");
+                                    "Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob Bob ");
     res_builder1.UbseCliSetCellData(row, UBSE_CLI_NUM_2, UbseFuncB());
     res_builder1.UbseCliSetCellData(row, UBSE_CLI_NUM_3,
-        "25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 ");
+                                    "25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 ");
     res_builder1.UbseCliAddBottomlineSeparate();
 
     std::vector<UbseCliVariableCellInfo> cells;
@@ -72,8 +72,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliTestInvDemo1([
     cells.push_back(res_builder1.UbseCliVariableCellBuild());
     return std::make_shared<UbseCliVariableCellsEcho>(cells);
 }
-std::shared_ptr<UbseCliResultEcho> UbseCliTestInvDemo2([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliTestInvDemo2(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     UbseCliResBuilder fault_res_builder(UBSE_CLI_NUM_4, UBSE_CLI_NUM_10 * UBSE_CLI_NUM_10);
     UbseCliResBuilder res_builder(UBSE_CLI_NUM_4, UBSE_CLI_NUM_10 * UBSE_CLI_NUM_3);
@@ -94,10 +94,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliTestInvDemo2([
     res_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "$399.99");
     res_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "50");
 
-    std::map<size_t, std::string> mergeCellDat{ { UBSE_CLI_NUM_1, "Home Appliances" },
-        { res_builder.UbseCliGetCols(),
-        "A comprehensive range of essential household devices designed to enhance convenience and efficiency in "
-        "daily life" } };
+    std::map<size_t, std::string> mergeCellDat{
+        {UBSE_CLI_NUM_1, "Home Appliances"},
+        {res_builder.UbseCliGetCols(),
+         "A comprehensive range of essential household devices designed to enhance convenience and efficiency in "
+         "daily life"}};
     res_builder.UbseCliAddMergeRow(mergeCellDat);
 
     row = res_builder.UbseCliAddRow();

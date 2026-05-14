@@ -3,12 +3,6 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <cstdint>
-#include "securec.h"
-#include "src/framework/misc/ubse_os_util.h"
-#include "src/framework/security/ubse_security_module.h"
-#include "src/ras/ubse_ras_handler.h"
-#include "sys_sentry_module.h"
-#include "trace_context.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -16,6 +10,12 @@
 #include "ubse_pointer_process.h"
 #include "ubse_ras.h"
 #include "ubse_timer.h"
+#include "securec.h"
+#include "src/framework/misc/ubse_os_util.h"
+#include "src/framework/security/ubse_security_module.h"
+#include "src/ras/ubse_ras_handler.h"
+#include "sys_sentry_module.h"
+#include "trace_context.h"
 
 using namespace ubse::log;
 using namespace ubse::context;
@@ -24,7 +24,7 @@ using namespace ubse::security;
 namespace syssentry {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-using LibPtr = void *;
+using LibPtr = void*;
 
 const std::vector<int> ALARM_EVENT_LIST = {ubse::ras::ALARM_REBOOT_EVENT, ubse::ras::ALARM_OOM_EVENT,
                                            ubse::ras::ALARM_PANIC_EVENT, ubse::ras::ALARM_KERNEL_REBOOT_EVENT,
@@ -37,7 +37,7 @@ const uint32_t UBSE_RAS_CONFIG_SYSSENTRY_TIMER_INTERVAL = NO_5;
 const std::string UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME = "UbseRasQueryMsgMonitorTimer";
 const uint32_t UBSE_RAS_QUERY_MSG_MONITOR_TIMER_INTERVAL = NO_2;
 
-UbseRasObserver &UbseRasObserver::GetInstance()
+UbseRasObserver& UbseRasObserver::GetInstance()
 {
     static UbseRasObserver instance;
     return instance;
@@ -47,7 +47,7 @@ UbseRasObserver::UbseRasObserver() = default;
 
 UbseRasObserver::~UbseRasObserver() = default;
 
-LibPtr GetFuncByDlsym(void *handle, const std::string &symbo)
+LibPtr GetFuncByDlsym(void* handle, const std::string& symbo)
 {
     dlerror();
     auto func = dlsym(handle, symbo.c_str());
@@ -168,7 +168,7 @@ void UbseRasObserver::Stop()
     }
 }
 
-void LogValidFaultMsg(const std::string &invalidStr)
+void LogValidFaultMsg(const std::string& invalidStr)
 {
     std::ostringstream oss;
     for (auto ch : invalidStr) {
@@ -184,7 +184,7 @@ void LogValidFaultMsg(const std::string &invalidStr)
 
 void UbseRasObserver::SentryEventListen()
 {
-    struct alarm_register *registerInfo = nullptr;
+    struct alarm_register* registerInfo = nullptr;
     RegisterSentryEvent(&registerInfo);
     if (registerInfo == nullptr) {
         UBSE_LOG_WARN << "xalarm is not registered, ret: register info is null. ";
@@ -192,7 +192,7 @@ void UbseRasObserver::SentryEventListen()
     }
 
     while (!stopThread) {
-        auto *msg = new (std::nothrow) alarm_msg();
+        auto* msg = new (std::nothrow) alarm_msg();
         if (msg == nullptr) {
             UBSE_LOG_ERROR << "New alarm msg failed. ";
             continue;
@@ -231,7 +231,7 @@ void UbseRasObserver::SentryEventListen()
     SafeDelete(registerInfo);
 }
 
-void UbseRasObserver::RegisterSentryEvent(alarm_register **registerInfo)
+void UbseRasObserver::RegisterSentryEvent(alarm_register** registerInfo)
 {
     UBSE_LOG_INFO << "Register sentry event start";
     if (registerInfo == nullptr) {
@@ -269,7 +269,7 @@ void UbseRasObserver::RegisterSentryEvent(alarm_register **registerInfo)
     UBSE_LOG_INFO << "Register sentry event end";
 }
 
-void UbseRasObserver::UnRegisterXalarm(alarm_register **registerInfo)
+void UbseRasObserver::UnRegisterXalarm(alarm_register** registerInfo)
 {
     if (registerInfo != nullptr && *registerInfo != nullptr) {
         xalarmUnRegisterFunc(registerInfo);

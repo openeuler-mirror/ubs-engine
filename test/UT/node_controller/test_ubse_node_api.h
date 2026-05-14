@@ -12,24 +12,25 @@
 
 #ifndef TEST_UBSE_NODE_API_H
 #define TEST_UBSE_NODE_API_H
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
-#include "ubse_node_api.h"
-#include "ubse_serial_util.h"
-#include "ubse_context.h"
 #include "ubse_api_server_module.h"
-#include "ubse_node_controller_query_api.h"
-#include "ubse_node_api_convert.h"
+#include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
+#include "ubse_node_api.h"
+#include "ubse_node_api_convert.h"
+#include "ubse_node_controller_query_api.h"
+#include "ubse_serial_util.h"
 
 namespace ubse::node::api {
-extern void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo> &nodeList);
-extern std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestContext &context);
-extern void GetCpuTopoLink(std::vector<ubse::nodeController::CliPhysicalLink> &cpuTopoLinks);
-extern uint32_t SerializePhysicalLinks(std::vector<ubse::nodeController::CliPhysicalLink> links, uint8_t *&buffer, size_t &size);
-}
+extern void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo>& nodeList);
+extern std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestContext& context);
+extern void GetCpuTopoLink(std::vector<ubse::nodeController::CliPhysicalLink>& cpuTopoLinks);
+extern uint32_t SerializePhysicalLinks(std::vector<ubse::nodeController::CliPhysicalLink> links, uint8_t*& buffer,
+                                       size_t& size);
+} // namespace ubse::node::api
 namespace ubse::node::api::ut {
 using namespace ubse::node::api;
 using namespace ubse::serial;
@@ -44,5 +45,5 @@ public:
 
     void TearDown() override;
 };
-}
-#endif  // TEST_UBSE_NODE_API_H
+} // namespace ubse::node::api::ut
+#endif // TEST_UBSE_NODE_API_H

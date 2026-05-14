@@ -203,7 +203,7 @@ TEST_F(TestUbseLogger, TestEncodeString)
 TEST_F(TestUbseLogger, testEncodeData)
 {
     UbseLoggerEntry ubseLoggerEntry(nullptr, UbseLogLevel::INFO, nullptr, nullptr, 0);
-    char *data = "test";
+    char* data = "test";
     EXPECT_NO_THROW(ubseLoggerEntry.EncodeData(data));
 }
 /*
@@ -220,7 +220,7 @@ TEST_F(TestUbseLogger, TestDecodeChar)
     std::ostringstream oss;                    // 用于捕获输出流
 
     // 调用被测试的函数
-    const char *nextBuffer = ubseLoggerEntry.DecodeChar(oss, buffer);
+    const char* nextBuffer = ubseLoggerEntry.DecodeChar(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(char)); // 验证返回的指针
 }
 /*
@@ -234,7 +234,7 @@ TEST_F(TestUbseLogger, TestDecodeUint)
     std::ostringstream oss;
     char buffer[512]; // 设置buffer的容量为512
     std::copy_n(&value, sizeof(uint32_t), buffer);
-    const char *nextBuffer = ubseLoggerEntry.DecodeUint(oss, buffer);
+    const char* nextBuffer = ubseLoggerEntry.DecodeUint(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint32_t)); // 验证返回的指针
 
     value = 0; // 设置value为0测试边界值
@@ -258,7 +258,7 @@ TEST_F(TestUbseLogger, TestDecodeUlong)
     std::ostringstream oss;
     char buffer[512]; // 设置buffer的容量为512
     std::copy_n(&value, sizeof(uint64_t), buffer);
-    const char *nextBuffer = ubseLoggerEntry.DecodeUlong(oss, buffer);
+    const char* nextBuffer = ubseLoggerEntry.DecodeUlong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(uint64_t)); // 验证返回的指针
 
     value = 0; // 设置value为0测试边界值
@@ -284,7 +284,7 @@ TEST_F(TestUbseLogger, TestDecodeInt)
     std::copy_n(&value, sizeof(int32_t), buffer);
     std::ostringstream oss; // 用于捕获输出流
     // 调用被测试的函数
-    const char *nextBuffer = ubseLoggerEntry.DecodeInt(oss, buffer);
+    const char* nextBuffer = ubseLoggerEntry.DecodeInt(oss, buffer);
     // 验证输出
     EXPECT_EQ(nextBuffer, buffer + sizeof(int32_t)); // 验证返回的指针
 
@@ -311,7 +311,7 @@ TEST_F(TestUbseLogger, TestDecodeLong)
     std::copy_n(&value, sizeof(int64_t), buffer);
     std::ostringstream oss; // 用于捕获输出流
     // 调用DecodeString
-    const char *nextBuffer = ubseLoggerEntry.DecodeLong(oss, buffer);
+    const char* nextBuffer = ubseLoggerEntry.DecodeLong(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(int64_t)); // 验证返回的指针
 
     value = INT64_MIN; // 测试INT64_MIN边界值
@@ -339,7 +339,7 @@ TEST_F(TestUbseLogger, TestDecodeDouble)
     std::ostringstream oss; // 用于捕获输出流
 
     // 调用被测试的函数
-    const char *nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
+    const char* nextBuffer = ubseLoggerEntry.DecodeDouble(oss, buffer);
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 
     value = DBL_MAX; // 测试DBL_MAX边界值
@@ -385,7 +385,6 @@ TEST_F(TestUbseLogger, TestDecodeDouble)
     EXPECT_EQ(nextBuffer, buffer + sizeof(double)); // 验证返回的指针
 }
 
-
 /*
  * 用例描述：
  * 测试DecodeData方法
@@ -403,37 +402,37 @@ TEST_F(TestUbseLogger, TestDecodeData)
     uint32_t s = 123456;              // 设置要写入的uint32_t型数为123456
     uint64_t value = 123456789012345; // 设置要写入的uint64_t型数为123456789012345
     double d = 3.14;                  // 设置要写入的double型数为3.14
-    const char *str = "test1";
+    const char* str = "test1";
     const std::string data = "test2";
 
-    *reinterpret_cast<UbseLoggerTypeId *>(&buffer[size]) = UbseLoggerTypeId::CHAR;
+    *reinterpret_cast<UbseLoggerTypeId*>(&buffer[size]) = UbseLoggerTypeId::CHAR;
     size += sizeof(UbseLoggerTypeId);
-    *reinterpret_cast<char *>(&buffer[size]) = c;
+    *reinterpret_cast<char*>(&buffer[size]) = c;
     size += sizeof(char);
 
-    *reinterpret_cast<UbseLoggerTypeId *>(&buffer[size]) = UbseLoggerTypeId::INT32;
+    *reinterpret_cast<UbseLoggerTypeId*>(&buffer[size]) = UbseLoggerTypeId::INT32;
     size += sizeof(UbseLoggerTypeId);
-    *reinterpret_cast<int32_t *>(&buffer[size]) = i;
+    *reinterpret_cast<int32_t*>(&buffer[size]) = i;
     size += sizeof(int32_t);
 
-    *reinterpret_cast<UbseLoggerTypeId *>(&buffer[size]) = UbseLoggerTypeId::INT64;
+    *reinterpret_cast<UbseLoggerTypeId*>(&buffer[size]) = UbseLoggerTypeId::INT64;
     size += sizeof(UbseLoggerTypeId);
-    *reinterpret_cast<int64_t *>(&buffer[size]) = v;
+    *reinterpret_cast<int64_t*>(&buffer[size]) = v;
     size += sizeof(int64_t);
 
-    *reinterpret_cast<UbseLoggerTypeId *>(&buffer[size]) = UbseLoggerTypeId::UINT32;
+    *reinterpret_cast<UbseLoggerTypeId*>(&buffer[size]) = UbseLoggerTypeId::UINT32;
     size += sizeof(UbseLoggerTypeId);
-    *reinterpret_cast<uint32_t *>(&buffer[size]) = s;
+    *reinterpret_cast<uint32_t*>(&buffer[size]) = s;
     size += sizeof(uint32_t);
 
-    *reinterpret_cast<UbseLoggerTypeId *>(&buffer[size]) = UbseLoggerTypeId::UINT64;
+    *reinterpret_cast<UbseLoggerTypeId*>(&buffer[size]) = UbseLoggerTypeId::UINT64;
     size += sizeof(UbseLoggerTypeId);
-    *reinterpret_cast<uint64_t *>(&buffer[size]) = value;
+    *reinterpret_cast<uint64_t*>(&buffer[size]) = value;
     size += sizeof(uint64_t);
 
-    *reinterpret_cast<UbseLoggerTypeId *>(&buffer[size]) = UbseLoggerTypeId::DOUBLE;
+    *reinterpret_cast<UbseLoggerTypeId*>(&buffer[size]) = UbseLoggerTypeId::DOUBLE;
     size += sizeof(UbseLoggerTypeId);
-    *reinterpret_cast<double *>(&buffer[size]) = d;
+    *reinterpret_cast<double*>(&buffer[size]) = d;
     size += sizeof(double);
     ubseLoggerEntry.DecodeData(oss, &buffer[0], (&buffer[0]) + size);
     EXPECT_EQ(oss.str(), "A-123456-1234567890123451234561234567890123453.14");
@@ -446,8 +445,8 @@ TEST_F(TestUbseLogger, TestDecodeData)
 TEST_F(TestUbseLogger, TestUbseIsLog)
 {
     UbseLogLevel level = UbseLogLevel::INFO;
-    LoggerOptions options{ UbseLoggerManager::StringToLogLevel("INFO"), 30, 20,
-        1024 }; // 设置30为filesize，20为fileNums，1024为maxItem
+    LoggerOptions options{UbseLoggerManager::StringToLogLevel("INFO"), 30, 20,
+                          1024}; // 设置30为filesize，20为fileNums，1024为maxItem
     UbseLoggerManager::gInstance = UbseLoggerManager::Instance();
     UbseLoggerManager::gInstance->SetLogLevel(options.minLogLevel);
     EXPECT_TRUE(UbseIsLog(level));
@@ -538,4 +537,4 @@ TEST_F(TestUbseLogger, TestFormatSyslog)
     str = DeleteOther(str);
     EXPECT_EQ(str, "-123456789012345\n");
 }
-}
+} // namespace ubse::ut::log

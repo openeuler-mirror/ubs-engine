@@ -14,9 +14,9 @@
 #define UBSE_LOGGER_WRITER_H
 #include <iostream>
 #include <utility>
+#include "ubse_logger.h"
 #include "referable/ubse_ref.h"
 #include "syslog.h"
-#include "ubse_logger.h"
 
 namespace ubse::log {
 using namespace ubse::utils;
@@ -37,14 +37,14 @@ public:
     virtual ~UbseLoggerWriter() = default;
     explicit UbseLoggerWriter() = default;
 
-    virtual bool Write(UbseLoggerEntry &loggerEntry) = 0;
+    virtual bool Write(UbseLoggerEntry& loggerEntry) = 0;
 };
 
 class UbseDefaultLoggerWriter : public UbseLoggerWriter {
 public:
     explicit UbseDefaultLoggerWriter() = default;
 
-    bool Write(UbseLoggerEntry &loggerEntry) override
+    bool Write(UbseLoggerEntry& loggerEntry) override
     {
         loggerEntry.OutPutLog(std::cout);
         return true;

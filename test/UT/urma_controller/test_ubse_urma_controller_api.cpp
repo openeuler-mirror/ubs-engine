@@ -29,12 +29,12 @@
 
 namespace ubse::urmaController {
 
-size_t UbseStringCalcSize(const std::string &str, size_t maxLen);
-UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_t> status,
-                        std::vector<uint64_t> &hwResIds, api::server::UbseIpcMessage &response);
-uint32_t ParseUrmaDevGetRequest(const api::server::UbseIpcMessage &req, uint32_t &nodeId,
-                                std::vector<std::string> &deviceNameList);
-UbseResult AllocRspPack(ubse::urma::UbseUrmaDevPath &pathInfos, api::server::UbseIpcMessage &response);
+size_t UbseStringCalcSize(const std::string& str, size_t maxLen);
+UbseResult LocalDevPack(std::vector<std::string>& nameInfos, std::vector<uint32_t> status,
+                        std::vector<uint64_t>& hwResIds, api::server::UbseIpcMessage& response);
+uint32_t ParseUrmaDevGetRequest(const api::server::UbseIpcMessage& req, uint32_t& nodeId,
+                                std::vector<std::string>& deviceNameList);
+UbseResult AllocRspPack(ubse::urma::UbseUrmaDevPath& pathInfos, api::server::UbseIpcMessage& response);
 
 } // namespace ubse::urmaController
 

@@ -15,9 +15,9 @@
 
 #include <gtest/gtest.h>
 
+#include "ubse_ipc_client.h"
 #include "src/framework/ipc/client/ubse_uds_client.h"
 #include "src/framework/ipc/ubse_ipc_message.h"
-#include "ubse_ipc_client.h"
 
 namespace ubse::ut::ipc {
 using namespace ubse::ipc;

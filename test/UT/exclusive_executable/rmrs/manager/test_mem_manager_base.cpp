@@ -10,14 +10,14 @@
 #include "mockcpp/mokc.h"
 
 #define private public
-#include "exporter.h"
-#include "mem_manager_base.h"
-#include "mp_sync_data_helper.h"
-#include "rmrs_serialize.h"
 #include "ubse_com.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
 #include "ubse_storage.h"
+#include "exporter.h"
+#include "mem_manager_base.h"
+#include "mp_sync_data_helper.h"
+#include "rmrs_serialize.h"
 #undef private
 using namespace std;
 using namespace mempooling;
@@ -38,7 +38,8 @@ protected:
         cout << "[TestMemManagerBase SetUp End]" << endl;
     }
 
-    void TearDown() override    {
+    void TearDown() override
+    {
         cout << "[TestMemManagerBase TearDown Begin]" << endl;
         GlobalMockObject::verify();
         GlobalMockObject::reset();
@@ -50,7 +51,7 @@ protected:
 // 1.  GetNodeInfoImmediatelyRecvHandler
 // =========================================================================
 
-uint32_t GetNumaInfoImmediatelyMockSuccess(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
+uint32_t GetNumaInfoImmediatelyMockSuccess(std::vector<mempooling::exportV2::NumaInfo>& numaInfos)
 {
     mempooling::exportV2::NumaInfo info;
     info.timestamp = 0;
@@ -61,7 +62,7 @@ uint32_t GetNumaInfoImmediatelyMockSuccess(std::vector<mempooling::exportV2::Num
 TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_Succeed)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo> &))
+               uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(invoke(GetNumaInfoImmediatelyMockSuccess));
 
@@ -82,7 +83,7 @@ TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_Succeed)
 TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_EmptyDataFail)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo> &))
+               uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -97,7 +98,7 @@ TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_EmptyDataFail)
 TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_GetNumaInfoImmediatelyFail)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo> &))
+               uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -115,11 +116,11 @@ TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_GetNumaInfoImmediat
 
 TEST_F(TestMemManagerBase, UpdateDataBaseAndCache_Succeed)
 {
-    MOCKER_CPP(&ubse::storage::UbseStoragePutData, uint32_t(*)(const char *, const char *, UbseByteBuffer *))
+    MOCKER_CPP(&ubse::storage::UbseStoragePutData, uint32_t(*)(const char*, const char*, UbseByteBuffer*))
         .stubs()
         .will(returnValue(0));
 
-    MOCKER_CPP(&ubse::election::UbseGetStandbyInfo, uint32_t(*)(ubse::election::UbseRoleInfo &))
+    MOCKER_CPP(&ubse::election::UbseGetStandbyInfo, uint32_t(*)(ubse::election::UbseRoleInfo&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -142,7 +143,7 @@ TEST_F(TestMemManagerBase, UpdateDataBaseAndCache_Succeed)
 
 TEST_F(TestMemManagerBase, SyncAntiDataStandByRecvHandler_Succeed)
 {
-    MOCKER_CPP(&ubse::storage::UbseStoragePutData, uint32_t(*)(const char *, const char *, UbseByteBuffer *))
+    MOCKER_CPP(&ubse::storage::UbseStoragePutData, uint32_t(*)(const char*, const char*, UbseByteBuffer*))
         .stubs()
         .will(returnValue(0));
 
@@ -173,14 +174,14 @@ TEST_F(TestMemManagerBase, SyncAntiDataStandByRecvHandler_Succeed)
 // =========================================================================
 
 //  Mock  1 UbseGetStandbyInfo
-uint32_t UbseGetStandbyInfoMockSuccess(ubse::election::UbseRoleInfo &role)
+uint32_t UbseGetStandbyInfoMockSuccess(ubse::election::UbseRoleInfo& role)
 {
     role.nodeId = "standby_node_1";
     return MEM_POOLING_OK;
 }
 
 //  Mock  2 ( Mock )
-uint32_t SyncDataToNodeMockSuccess(const std::vector<std::string> &nodeList, uint32_t opCode, const UbseByteBuffer &req)
+uint32_t SyncDataToNodeMockSuccess(const std::vector<std::string>& nodeList, uint32_t opCode, const UbseByteBuffer& req)
 {
     return MEM_POOLING_OK;
 }
@@ -188,18 +189,18 @@ uint32_t SyncDataToNodeMockSuccess(const std::vector<std::string> &nodeList, uin
 TEST_F(TestMemManagerBase, SyncAntiDataRecvHandler_Succeed)
 {
     // 1.  (UpdateDataBaseAndCache )
-    MOCKER_CPP(&ubse::storage::UbseStoragePutData, uint32_t(*)(const char *, const char *, UbseByteBuffer *))
+    MOCKER_CPP(&ubse::storage::UbseStoragePutData, uint32_t(*)(const char*, const char*, UbseByteBuffer*))
         .stubs()
         .will(returnValue(0));
 
     // 2.  (UpdateDataBaseAndCache )
     //  lambda
-    MOCKER_CPP(&ubse::election::UbseGetStandbyInfo, uint32_t(*)(ubse::election::UbseRoleInfo &))
+    MOCKER_CPP(&ubse::election::UbseGetStandbyInfo, uint32_t(*)(ubse::election::UbseRoleInfo&))
         .stubs()
         .will(invoke(UbseGetStandbyInfoMockSuccess));
 
     MOCKER_CPP(&mempooling::sync::MpSyncDataHelper::SyncDataToNode,
-               uint32_t(*)(const std::vector<std::string> &, uint32_t, const UbseByteBuffer &))
+               uint32_t(*)(const std::vector<std::string>&, uint32_t, const UbseByteBuffer&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -227,7 +228,7 @@ TEST_F(TestMemManagerBase, SyncAntiDataRecvHandler_Succeed)
     EXPECT_EQ(ret, MEM_POOLING_OK);
     EXPECT_NE(resp.data, nullptr);
 
-    //  RmrsOutStream    
+    //  RmrsOutStream
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }
@@ -248,8 +249,8 @@ std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> GetAllNodesM
 }
 
 //  RPC  (ParallelSendGetNodeInfo )
-uint32_t UbseRpcSendMockSuccess(const UbseComEndpoint &endpoint, const UbseByteBuffer &req, void *ctx,
-                                const UbseComRespHandler &handler)
+uint32_t UbseRpcSendMockSuccess(const UbseComEndpoint& endpoint, const UbseByteBuffer& req, void* ctx,
+                                const UbseComRespHandler& handler)
 {
     //
     std::vector<mempooling::exportV2::NumaInfo> dummyInfos;
@@ -271,13 +272,13 @@ TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_AllWorking_Succe
     // 1.  GetAllNodes WORKING  sleep
     using str2UbseNodeInfo = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>;
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetAllNodes,
-               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController *))
+               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController*))
         .stubs()
         .will(invoke(GetAllNodesMockWorking));
 
-    // 2.  ParallelSendGetNodeInfo  UbseRpcSendMockSuccess    
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &, const UbseByteBuffer &, void *,
-                                         const UbseComRespHandler &))
+    // 2.  ParallelSendGetNodeInfo  UbseRpcSendMockSuccess
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendMockSuccess));
 
@@ -304,10 +305,10 @@ std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> GetNoNodes()
 
 TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_AllNodesEmpty_Failed)
 {
-    // 1.  GetAllNodes WORKING  sleep    
+    // 1.  GetAllNodes WORKING  sleep
     using str2UbseNodeInfo = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>;
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetAllNodes,
-               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController *))
+               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController*))
         .stubs()
         .will(invoke(GetNoNodes));
 
@@ -342,11 +343,11 @@ TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_SMOOTHING_Failed
 {
     using str2UbseNodeInfo = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>;
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetAllNodes,
-               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController *))
+               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController*))
         .stubs()
         .will(invoke(GetAllNodesMockSmoothingStatus));
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &, const UbseByteBuffer &, void *,
-                                         const UbseComRespHandler &))
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendMockSuccess));
     UbseByteBuffer req = {nullptr, 0, nullptr};
@@ -378,11 +379,11 @@ TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_INIT_Failed)
 {
     using str2UbseNodeInfo = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>;
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetAllNodes,
-               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController *))
+               str2UbseNodeInfo(*)(ubse::nodeController::UbseNodeController*))
         .stubs()
         .will(invoke(GetAllNodesMockInitStatus));
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &, const UbseByteBuffer &, void *,
-                                         const UbseComRespHandler &))
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendMockSuccess));
     UbseByteBuffer req = {nullptr, 0, nullptr};
@@ -399,7 +400,7 @@ TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_INIT_Failed)
 
 TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyResHandler_CtxNUll_Failed)
 {
-    void *ctx = nullptr;
+    void* ctx = nullptr;
     UbseByteBuffer resp = {nullptr, 0, nullptr};
     uint32_t resCode;
     (void)GetNodeInfoImmediatelyResHandler(ctx, resp, resCode);
@@ -429,4 +430,4 @@ TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyResHandler_Succeed)
         resp.freeFunc(resp.data);
     }
 }
-}
+} // namespace mempooling

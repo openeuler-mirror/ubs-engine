@@ -20,7 +20,7 @@ namespace ubse::election {
  * @param[out] nodeIds: 所有物理节点id
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetNodeIds(std::vector<std::string> &nodeIds)
+uint32_t UbseGetNodeIds(std::vector<std::string>& nodeIds)
 {
     nodeIds = {"Node0", "Node1"};
     return 0;
@@ -31,7 +31,7 @@ uint32_t UbseGetNodeIds(std::vector<std::string> &nodeIds)
  * @param[in] handler 回调函数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler &handler)
+uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler& handler)
 {
     return 0;
 }
@@ -41,7 +41,7 @@ uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler &handler)
  * @param[in] handler 回调函数
  * @return 成功返回 0, 失败返回非 0
  */
-uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler)
+uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler& handler)
 {
     return 0;
 }
@@ -51,7 +51,7 @@ uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler)
  * @param role [OUT] 待获取角色
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t RackGetRole(std::string &role)
+uint32_t RackGetRole(std::string& role)
 {
     role = "Master";
     return 0;
@@ -62,7 +62,7 @@ uint32_t RackGetRole(std::string &role)
  * @param role [IN] 目标角色
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t RackSetRole(std::string &role)
+uint32_t RackSetRole(std::string& role)
 {
     return 0;
 }
@@ -72,7 +72,7 @@ uint32_t RackSetRole(std::string &role)
  * @param masterNodeId [out] Master角色节点ID
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
+uint32_t UbseGetMasterNodeId(std::string& masterNodeId)
 {
     masterNodeId = "NODE11347";
     return 0;
@@ -83,7 +83,7 @@ uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
  * @param currentNodeId [out] 获得当前节点的NodeID
  * @return RackResult, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetCurrentNodeId(std::string &currentNodeId)
+uint32_t UbseGetCurrentNodeId(std::string& currentNodeId)
 {
     currentNodeId = "NODE11347";
     return 0;

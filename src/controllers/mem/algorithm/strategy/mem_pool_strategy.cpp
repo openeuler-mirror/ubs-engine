@@ -14,25 +14,25 @@
 #include "mem_pool_strategy_impl.h"
 
 namespace tc::rs::mem {
-MemPoolStrategy &MemPoolStrategy::GetInstance()
+MemPoolStrategy& MemPoolStrategy::GetInstance()
 {
     static MemPoolStrategyImpl impl;
     return impl;
 }
 
-BResult MemPoolStrategy::Init(const StrategyParam &param)
+BResult MemPoolStrategy::Init(const StrategyParam& param)
 {
     return UBSE_ERROR;
 }
 
-BResult MemPoolStrategy::MemoryBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                                      BorrowResult &result)
+BResult MemPoolStrategy::MemoryBorrow(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                                      BorrowResult& result)
 {
     return UBSE_ERROR;
 }
 
-BResult MemPoolStrategy::MemoryShare(const ShareRequest &shareRequest, const UbseStatus &ubseStatus,
-                                     ShareResult &result)
+BResult MemPoolStrategy::MemoryShare(const ShareRequest& shareRequest, const UbseStatus& ubseStatus,
+                                     ShareResult& result)
 {
     return UBSE_ERROR;
 }

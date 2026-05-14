@@ -9,10 +9,9 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <cstdint>
-#include <set>
 #include "mock_init.h"
 #include <cstdint>
+#include <set>
 #include "mem_pool_strategy.h"
 
 using namespace tc::rs::mem;
@@ -190,7 +189,7 @@ StrategyParam GetRs1650DefaultParam(int numHosts)
         if (neighborNodes.find(i) == neighborNodes.end()) {
             continue;
         }
-        param.neighborNodes[i] = neighborNodes; 
+        param.neighborNodes[i] = neighborNodes;
         param.neighborNodes[i].erase(i);
     }
     param.maxMemSizePerBorrow = 4 * 1024;

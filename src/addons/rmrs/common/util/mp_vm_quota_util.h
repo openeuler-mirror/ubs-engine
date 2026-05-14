@@ -24,19 +24,17 @@ namespace mempooling {
 class MpVmQuotaUtil {
 public:
     static std::string GetVmNameFromPid(pid_t pid);
-    
-    static std::map<int, uint64_t> ParseNumatuneXml(const std::string &xmlStr);
-    
-    static uint32_t ValidateNumaQuota(
-        pid_t pid,
-        const std::vector<mempooling::outinterface::PageSwapPair> &pageSwapPairs);
+
+    static std::map<int, uint64_t> ParseNumatuneXml(const std::string& xmlStr);
+
+    static uint32_t ValidateNumaQuota(pid_t pid,
+                                      const std::vector<mempooling::outinterface::PageSwapPair>& pageSwapPairs);
 
 private:
-    static uint32_t GetVmNumaLimits(pid_t pid, std::map<int, uint64_t> &numaLimits);
-    
-    static uint32_t CheckQuotaExceedsLimit(
-        const std::vector<mempooling::outinterface::PageSwapPair> &pageSwapPairs,
-        const std::map<int, uint64_t> &numaLimits);
+    static uint32_t GetVmNumaLimits(pid_t pid, std::map<int, uint64_t>& numaLimits);
+
+    static uint32_t CheckQuotaExceedsLimit(const std::vector<mempooling::outinterface::PageSwapPair>& pageSwapPairs,
+                                           const std::map<int, uint64_t>& numaLimits);
 };
 
 } // namespace mempooling

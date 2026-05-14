@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <iostream>             // for basic_ostream, char_traits, operator<<
-#include <unordered_set>        // for unordered_set
+#include <iostream>      // for basic_ostream, char_traits, operator<<
+#include <unordered_set> // for unordered_set
 #include "syslog.h"
 
 #include "ubse_conf_module.h"   // for UbseConfModule
@@ -46,7 +46,7 @@ UbseLoggerConfig::~UbseLoggerConfig() = default;
 UbseResult UbseLoggerConfig::Initialize()
 {
     // 调用配置管理接口
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     pImpl_->cfgRef_ = ctxRef.GetModule<UbseConfModule>();
     if (pImpl_->cfgRef_ == nullptr) {
         return UBSE_ERROR;

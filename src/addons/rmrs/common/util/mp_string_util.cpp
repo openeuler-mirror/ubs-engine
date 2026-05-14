@@ -18,7 +18,7 @@
 
 namespace mempooling {
 
-MEM_POOLING_RES MpStringUtil::SafeStopid(const std::string &str, pid_t &ret) noexcept
+MEM_POOLING_RES MpStringUtil::SafeStopid(const std::string& str, pid_t& ret) noexcept
 {
     if (str.empty()) {
         return MEM_POOLING_ERROR;
@@ -30,14 +30,14 @@ MEM_POOLING_RES MpStringUtil::SafeStopid(const std::string &str, pid_t &ret) noe
         }
         ret = static_cast<pid_t>(value);
         return MEM_POOLING_OK;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return MEM_POOLING_ERROR_INVAL;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return MEM_POOLING_ERROR_EXCEEDS_RANGE;
     }
 }
 
-MEM_POOLING_RES MpStringUtil::SafeStoul(const std::string &str, uint32_t &ret) noexcept
+MEM_POOLING_RES MpStringUtil::SafeStoul(const std::string& str, uint32_t& ret) noexcept
 {
     if (str.empty()) {
         return MEM_POOLING_ERROR;
@@ -49,14 +49,14 @@ MEM_POOLING_RES MpStringUtil::SafeStoul(const std::string &str, uint32_t &ret) n
         }
         ret = static_cast<uint32_t>(value);
         return MEM_POOLING_OK;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return MEM_POOLING_ERROR_INVAL;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return MEM_POOLING_ERROR_EXCEEDS_RANGE;
     }
 }
 
-MEM_POOLING_RES MpStringUtil::SafeStoull(const std::string &str, uint64_t &ret) noexcept
+MEM_POOLING_RES MpStringUtil::SafeStoull(const std::string& str, uint64_t& ret) noexcept
 {
     if (str.empty()) {
         return MEM_POOLING_ERROR;
@@ -68,14 +68,14 @@ MEM_POOLING_RES MpStringUtil::SafeStoull(const std::string &str, uint64_t &ret) 
         }
         ret = static_cast<uint64_t>(value);
         return MEM_POOLING_OK;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return MEM_POOLING_ERROR_INVAL;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return MEM_POOLING_ERROR_EXCEEDS_RANGE;
     }
 }
 
-uint64_t MpStringUtil::SafeStoullOld(const std::string &str)
+uint64_t MpStringUtil::SafeStoullOld(const std::string& str)
 {
     if (str.empty()) {
         return 0;
@@ -86,14 +86,14 @@ uint64_t MpStringUtil::SafeStoullOld(const std::string &str)
             throw std::out_of_range("Value out of range for uint64_t");
         }
         return static_cast<uint64_t>(value);
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         throw std::invalid_argument("Invalid argument: " + str);
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         throw std::out_of_range("Out of range: " + str);
     }
 }
 
-MEM_POOLING_RES MpStringUtil::SafeStoi16(const std::string &str, int16_t &ret) noexcept
+MEM_POOLING_RES MpStringUtil::SafeStoi16(const std::string& str, int16_t& ret) noexcept
 {
     if (str.empty()) {
         return MEM_POOLING_ERROR;
@@ -105,14 +105,14 @@ MEM_POOLING_RES MpStringUtil::SafeStoi16(const std::string &str, int16_t &ret) n
         }
         ret = static_cast<int16_t>(value);
         return MEM_POOLING_OK;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return MEM_POOLING_ERROR_INVAL;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return MEM_POOLING_ERROR_EXCEEDS_RANGE;
     }
 }
 
-int16_t MpStringUtil::SafeStoi16Old(const std::string &str)
+int16_t MpStringUtil::SafeStoi16Old(const std::string& str)
 {
     if (str.empty()) {
         return 0;
@@ -123,14 +123,14 @@ int16_t MpStringUtil::SafeStoi16Old(const std::string &str)
             throw std::out_of_range("Value out of range for int16_t");
         }
         return static_cast<int16_t>(value);
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         throw std::invalid_argument("Invalid argument: " + str);
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         throw std::out_of_range("Out of range: " + str);
     }
 }
 
-MEM_POOLING_RES MpStringUtil::SafeStou16(const std::string &str, uint16_t &ret) noexcept
+MEM_POOLING_RES MpStringUtil::SafeStou16(const std::string& str, uint16_t& ret) noexcept
 {
     if (str.empty()) {
         return MEM_POOLING_ERROR;
@@ -142,14 +142,14 @@ MEM_POOLING_RES MpStringUtil::SafeStou16(const std::string &str, uint16_t &ret) 
         }
         ret = static_cast<uint16_t>(value);
         return MEM_POOLING_OK;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return MEM_POOLING_ERROR_INVAL;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return MEM_POOLING_ERROR_EXCEEDS_RANGE;
     }
 }
 
-MEM_POOLING_RES MpStringUtil::SafeStoi64(const std::string &str, int64_t &ret) noexcept
+MEM_POOLING_RES MpStringUtil::SafeStoi64(const std::string& str, int64_t& ret) noexcept
 {
     if (str.empty()) {
         return MEM_POOLING_ERROR;
@@ -161,14 +161,14 @@ MEM_POOLING_RES MpStringUtil::SafeStoi64(const std::string &str, int64_t &ret) n
         }
         ret = static_cast<int64_t>(value);
         return MEM_POOLING_OK;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return MEM_POOLING_ERROR_INVAL;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return MEM_POOLING_ERROR_EXCEEDS_RANGE;
     }
 }
 
-MEM_POOLING_RES MpStringUtil::SafeStof(const std::string &str, float_t &ret) noexcept
+MEM_POOLING_RES MpStringUtil::SafeStof(const std::string& str, float_t& ret) noexcept
 {
     if (str.empty()) {
         return MEM_POOLING_ERROR;
@@ -177,9 +177,9 @@ MEM_POOLING_RES MpStringUtil::SafeStof(const std::string &str, float_t &ret) noe
         auto value = std::stof(str);
         ret = static_cast<float_t>(value);
         return MEM_POOLING_OK;
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         return MEM_POOLING_ERROR_INVAL;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         return MEM_POOLING_ERROR_EXCEEDS_RANGE;
     }
 }

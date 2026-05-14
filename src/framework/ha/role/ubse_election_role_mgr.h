@@ -17,9 +17,6 @@
 #include <memory>
 #include <mutex>
 #include <utility>
-#include "../ubse_election_comm_mgr.h"
-#include "../ubse_election_def.h"
-#include "../ubse_election_node_mgr.h"
 #include "ubse_com_module.h"
 #include "ubse_election_module.h"
 #include "ubse_election_role.h"
@@ -27,6 +24,9 @@
 #include "ubse_election_role_initializer.h"
 #include "ubse_election_role_master.h"
 #include "ubse_election_role_standby.h"
+#include "../ubse_election_comm_mgr.h"
+#include "../ubse_election_def.h"
+#include "../ubse_election_node_mgr.h"
 
 namespace ubse::election {
 #define MODULE_LOG_NAME "ubse"
@@ -34,7 +34,7 @@ class RoleMgr {
 public:
     RoleMgr()
     {
-        UbseElectionNodeMgr &nodeMgr = UbseElectionNodeMgr::GetInstance();
+        UbseElectionNodeMgr& nodeMgr = UbseElectionNodeMgr::GetInstance();
         Node myself;
         nodeMgr.GetMyselfNode(myself);
         currentRole_ = SafeMakeShared<Initializer>();
@@ -47,7 +47,7 @@ public:
         }
     };
 
-    static RoleMgr &GetInstance()
+    static RoleMgr& GetInstance()
     {
         static RoleMgr roleMgr;
         return roleMgr;
@@ -55,7 +55,7 @@ public:
 
     std::shared_ptr<ElectionRole> GetRole();
 
-    void SwitchRole(RoleType roleType, RoleContext &ctx);
+    void SwitchRole(RoleType roleType, RoleContext& ctx);
 
     std::shared_ptr<UbseElectionCommMgr> GetCommMgr()
     {
@@ -70,7 +70,7 @@ public:
 
     void RoleChangeNotifyAsync(UbseElectionEventType type, UBSE_ID_TYPE newId);
 
-    uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
+    uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt& rcvPkt, ElectionReplyPkt& reply);
     void ProcTimer();
 
 private:
@@ -97,7 +97,7 @@ private:
         {
         }
 
-        bool operator<(const SafeHandler &other) const
+        bool operator<(const SafeHandler& other) const
         {
             if (priority != other.priority) {
                 return priority < other.priority;

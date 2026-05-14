@@ -9,10 +9,10 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <cstring>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <cstring>
 
 #include "ubse_cli_reg.h"
 #include "ubse_cli_whitelist.h"
@@ -39,7 +39,7 @@ void SignalHandler(int signum)
 }
 } // namespace
 
-int ValidateStartupConditions(int argc, char *argv[])
+int ValidateStartupConditions(int argc, char* argv[])
 {
     if (static_cast<size_t>(argc) < MIN_NUM_PARAMS || static_cast<size_t>(argc) > MAX_NUM_PARAMS) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Unsupported number of parameters");
@@ -52,7 +52,7 @@ int ValidateStartupConditions(int argc, char *argv[])
     return UBSE_OK;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     auto validRet = ValidateStartupConditions(argc, argv);
     if (validRet != UBSE_OK) {
@@ -87,18 +87,18 @@ int main(int argc, char *argv[])
     timer.it_value.tv_sec = TIMEOUT_SECONDS;
     if (setitimer(ITIMER_REAL, &timer, nullptr) != 0) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Set timer failed. " +
-            std::string(strerror(errno)) + "\n");
+                                                                     std::string(strerror(errno)) + "\n");
         return UBSE_ERROR;
     }
     // 取消ipc日志
-    ubse::ipc::UbseIpcLog::SetLogFunc([]([[maybe_unused]]uint32_t level, [[maybe_unused]]const char *message) {});
+    ubse::ipc::UbseIpcLog::SetLogFunc([]([[maybe_unused]] uint32_t level, [[maybe_unused]] const char* message) {});
     UbseCliModuleRegistry::GetInstance()
         .UbseCliGetMatchCommand()
         .commandFunc(UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliGetInputOptionMap())
         ->UbseCliDisplayResult();
     if (setitimer(ITIMER_REAL, nullptr, nullptr) != 0) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Set timer failed. " +
-            std::string(strerror(errno)) + "\n");
+                                                                     std::string(strerror(errno)) + "\n");
         return UBSE_ERROR;
     }
     return UBSE_OK;

@@ -11,16 +11,15 @@
  */
 
 #include "ubse_security.h"
-#include <vector>
 #include <linux/capability.h>
+#include <vector>
 #include "ubse_error.h"
 #include "ubse_security_module.h"
-
 
 namespace ubse::security {
 uint32_t ChangeOverrideCapability(bool isAdd)
 {
-    std::vector<__u32> cap {CAP_DAC_OVERRIDE};
+    std::vector<__u32> cap{CAP_DAC_OVERRIDE};
     return UbseSecurityModule::ModifyEffectiveCapabilities(cap, isAdd);
 }
-}
+} // namespace ubse::security

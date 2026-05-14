@@ -14,10 +14,10 @@
 
 #include "mockcpp/mockcpp.hpp"
 
-#include "message/ubse_mem_controller_serial.h"
-#include "message/ubse_mem_return_req_simpo.h"
 #include "ubse_error.h"
 #include "ubse_serial_util.h"
+#include "message/ubse_mem_controller_serial.h"
+#include "message/ubse_mem_return_req_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::message;

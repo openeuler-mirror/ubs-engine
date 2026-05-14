@@ -20,7 +20,7 @@ namespace ubse::com {
  * @param[in] handler: 消息处理函数
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseRegRpcService(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler)
+uint32_t UbseRegRpcService(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler)
 {
     return 0;
 }
@@ -135,8 +135,8 @@ static int32_t SyncCallFunc(const ock::memory::MessageParam &messageParam, const
  * @param[in] handler: 处理返回结果的处理函数,对端返回消息后，同步调用回调函数
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-    const UbseComRespHandler &handler)
+uint32_t UbseRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                     const UbseComRespHandler& handler)
 {
     return 0;
 }
@@ -149,9 +149,9 @@ uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqD
  * @param[in] handler: 处理返回结果的处理函数,对端返回消息后，异步调用回调函数
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseRpcAsyncSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-    const UbseComRespHandler &handler)
+uint32_t UbseRpcAsyncSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                          const UbseComRespHandler& handler)
 {
     return 0;
 }
-}
+} // namespace ubse::com

@@ -15,12 +15,12 @@
 
 #include "mempool_borrow_module.h"
 
+#include <securec.h>
 #include <ubse_com.h>
 #include <ubse_def.h>
 #include <ubse_logger.h>
 #include <ubse_mem_controller.h>
 #include <ubse_node.h>
-#include <securec.h>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -52,7 +52,7 @@ constexpr uint64_t DELETE_TIMEOUT_SCAN_SECONDS = 30;
 class MemReturnScanner {
 public:
     // 获取唯一实例
-    static MemReturnScanner &Instance()
+    static MemReturnScanner& Instance()
     {
         static MemReturnScanner instance;
         return instance;
@@ -66,8 +66,8 @@ private:
     MemReturnScanner() : running(false) {}
     ~MemReturnScanner() = default;
     // 禁止拷贝和赋值
-    MemReturnScanner(const MemReturnScanner &) = delete;
-    MemReturnScanner &operator=(const MemReturnScanner &) = delete;
+    MemReturnScanner(const MemReturnScanner&) = delete;
+    MemReturnScanner& operator=(const MemReturnScanner&) = delete;
 
     std::mutex scanMtx;
     std::atomic<bool> running;

@@ -20,7 +20,7 @@ using namespace ubse::http;
 
 class UbseLcneLinkInfo {
 public:
-    static UbseLcneLinkInfo &GetInstance()
+    static UbseLcneLinkInfo& GetInstance()
     {
         static UbseLcneLinkInfo instance("127.0.0.1",
                                          LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
@@ -31,8 +31,8 @@ public:
     uint32_t SubLcneLinkInfo();
 
 private:
-    UbseLcneLinkInfo(const std::string &host, int port) : host(host), port(port) {}
-    uint32_t ParseMonitorData(std::string &resBody);
+    UbseLcneLinkInfo(const std::string& host, int port) : host(host), port(port) {}
+    uint32_t ParseMonitorData(std::string& resBody);
     std::string host;
     int port;
 };

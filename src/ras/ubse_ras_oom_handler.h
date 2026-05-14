@@ -12,6 +12,6 @@ UbseResult OomHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
 UbseResult InitOomHandler();
 
-}
+} // namespace ubse::ras
 
 #endif // UBSE_MANAGER_MXE_RAS_OOM_HANDLER_H

@@ -22,4 +22,4 @@ void TestMemPoolUtils::TearDown()
 {
     Test::TearDown();
 }
-}
+} // namespace ubse::ut::algorithm

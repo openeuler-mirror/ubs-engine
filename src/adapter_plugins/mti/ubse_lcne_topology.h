@@ -14,8 +14,8 @@
 #define UBSE_LCNE_TOPOLOGY_H
 
 #include "ubse_common_def.h"
-#include "ubse_http_common.h"
 #include "ubse_error.h"
+#include "ubse_http_common.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 #include <atomic>
@@ -54,16 +54,16 @@ struct LcneNodeInfo {
 };
 
 struct LcnePortCnaInfo {
-    std::string portId;  // port_id / 4 = portGroupId
-    std::string portCna; // <bus-port-cna>
+    std::string portId;     // port_id / 4 = portGroupId
+    std::string portCna;    // <bus-port-cna>
     uint32_t portCnaUint32; // 转为标准的cna值
 };
 
 struct LcneNodeCnaInfo {
-    std::string slotId;     // 槽位号
-    std::string chipId;     // 模组号
-    std::string cardId;     // 卡号
-    std::string busNodeCna; // <bus-node-cna>
+    std::string slotId;        // 槽位号
+    std::string chipId;        // 模组号
+    std::string cardId;        // 卡号
+    std::string busNodeCna;    // <bus-node-cna>
     uint32_t busNodeCnaUint32; // 转为标准的cna值
     std::vector<LcnePortCnaInfo> ports;
 };
@@ -128,6 +128,6 @@ private:
     // 所链接的设备和它的端口的映射
     std::unordered_map<std::string, std::unordered_set<std::string>> peerDevToPortMap;
 };
-}  // namespace ubse::mti
+} // namespace ubse::mti
 
 #endif // UBSE_LCNE_TOPOLOGY_H

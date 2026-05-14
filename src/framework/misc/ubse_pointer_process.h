@@ -18,7 +18,7 @@
 #include <type_traits> // For std::is_void_v
 
 template <typename T>
-void SafeFree(T &ptr)
+void SafeFree(T& ptr)
 {
     if (ptr) {
         free(ptr);
@@ -27,7 +27,7 @@ void SafeFree(T &ptr)
 }
 
 template <typename T>
-void SafeDelete(T &ptr)
+void SafeDelete(T& ptr)
 {
     if (ptr) {
         delete ptr;
@@ -36,7 +36,7 @@ void SafeDelete(T &ptr)
 }
 
 template <typename T>
-void SafeDeleteArray(T *&ptr, size_t ptrLen = 1)
+void SafeDeleteArray(T*& ptr, size_t ptrLen = 1)
 {
     static_assert(!std::is_void_v<T>, "Cannot delete array of void");
     if (ptr && ptrLen != 0) {
@@ -46,9 +46,9 @@ void SafeDeleteArray(T *&ptr, size_t ptrLen = 1)
 }
 
 template <typename T, typename... Args>
-std::shared_ptr<T> SafeMakeShared(Args &&...args)
+std::shared_ptr<T> SafeMakeShared(Args&&... args)
 {
-    T *raw = new (std::nothrow) T(std::forward<Args>(args)...);
+    T* raw = new (std::nothrow) T(std::forward<Args>(args)...);
     if (!raw) {
         return nullptr;
     }
@@ -56,7 +56,7 @@ std::shared_ptr<T> SafeMakeShared(Args &&...args)
 }
 
 template <typename... Args>
-std::unique_ptr<uint8_t[]> SafeMakeUnique(size_t size, Args &&...args)
+std::unique_ptr<uint8_t[]> SafeMakeUnique(size_t size, Args&&... args)
 {
     auto raw = new (std::nothrow) uint8_t[size]{std::forward<Args>(args)...};
     if (!raw) {
@@ -66,9 +66,9 @@ std::unique_ptr<uint8_t[]> SafeMakeUnique(size_t size, Args &&...args)
 }
 
 template <typename T, typename... Args>
-std::unique_ptr<T> SafeMakeUnique(Args &&...args)
+std::unique_ptr<T> SafeMakeUnique(Args&&... args)
 {
-    T *raw = new (std::nothrow) T(std::forward<Args>(args)...);
+    T* raw = new (std::nothrow) T(std::forward<Args>(args)...);
     if (!raw) {
         return nullptr;
     }
@@ -76,7 +76,7 @@ std::unique_ptr<T> SafeMakeUnique(Args &&...args)
 }
 
 template <typename... Args>
-std::shared_ptr<uint8_t[]> SafeMakeShared(size_t size, Args &&...args)
+std::shared_ptr<uint8_t[]> SafeMakeShared(size_t size, Args&&... args)
 {
     auto raw = new (std::nothrow) uint8_t[size]{std::forward<Args>(args)...};
     if (!raw) {

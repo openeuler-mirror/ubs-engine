@@ -18,7 +18,7 @@
 
 namespace ucache::master {
 using namespace turbo::ucache;
-uint32_t DispatchTask(const TaskRequest &tReq, TaskResponse &tResp, const std::string &destNode);
+uint32_t DispatchTask(const TaskRequest& tReq, TaskResponse& tResp, const std::string& destNode);
 
 }; // namespace ucache::master
 

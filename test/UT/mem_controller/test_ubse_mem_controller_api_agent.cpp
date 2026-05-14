@@ -14,26 +14,26 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-#include "message/ubse_mem_return_req_simpo.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
-#include "message/test_ubse_mem_share_detach_req_simpo.h"
+#include "ubse_api_server_module.h"
 #include "ubse_conf.h"
-#include "ubse_context.h"
 #include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_election.h"
-#include "ubse_mem_util.h"
 #include "ubse_error.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_handler.h"
 #include "ubse_mem_controller_numa_api.h"
-#include "ubse_thread_pool_module.h"
-#include "ubse_serial_util.h"
-#include "ubse_api_server_module.h"
+#include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
+#include "ubse_serial_util.h"
+#include "ubse_thread_pool_module.h"
+#include "message/test_ubse_mem_share_detach_req_simpo.h"
+#include "message/ubse_mem_addr_borrow_req_simpo.h"
+#include "message/ubse_mem_fd_borrow_req_simpo.h"
+#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_return_req_simpo.h"
+#include "message/ubse_mem_share_attach_req_simpo.h"
+#include "message/ubse_mem_share_borrow_req_simpo.h"
 #include "ubse_mem_controller_api_agent.cpp"
 
 namespace ubse::mem_controller::ut {
@@ -113,7 +113,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow)
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(mem::controller::UbseMemNumaBorrow(req, resp), UBSE_ERROR);
@@ -140,11 +140,12 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemReturn)
     const auto sendFunc =
         &UbseComModule::RpcSend<mem::controller::message::UbseMemReturnReqSimpoPtr, UbseBaseMessagePtr>;
     std::chrono::seconds timeout(1);
-    Ref<ubse::task_executor::UbseTaskExecutor> taskExecutorPtr = new ubse::task_executor::UbseTaskExecutor("task", 0, 0);
+    Ref<ubse::task_executor::UbseTaskExecutor> taskExecutorPtr =
+        new ubse::task_executor::UbseTaskExecutor("task", 0, 0);
     MOCKER_CPP(&ubse::mem::util::GetExecutor).stubs().will(returnValue(taskExecutorPtr));
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemReturn(req, MemOperationType::NUMA_RETURN, resp), UBSE_ERROR);
@@ -161,18 +162,17 @@ TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandler)
     EXPECT_EQ(DeleteMemoryHandler(request, context), UBSE_ERROR);
 
     UbseSerialization serialization1;
-    serialization1 << "test" << "xx";
+    serialization1 << "test"
+                   << "xx";
     request.buffer = serialization1.GetBuffer();
     request.length = serialization1.GetLength();
     UbseRoleInfo currentNodeInfo;
     currentNodeInfo.nodeId = "1";
-    MOCKER(&UbseGetCurrentNodeInfo)
-        .stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_ERROR));
+    MOCKER(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_ERROR));
     EXPECT_EQ(DeleteMemoryHandler(request, context), UBSE_ERROR_NULLPTR);
 
     MOCKER(&UbseGetCurrentNodeInfo).reset();
-    MOCKER(&UbseGetCurrentNodeInfo)
-        .stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
+    MOCKER(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
     MOCKER(UbseMemReturn).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseApiServerModule> module = std::make_shared<UbseApiServerModule>();
     MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(module));
@@ -182,8 +182,7 @@ TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandler)
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow1)
 {
-    MOCKER(&election::UbseGetCurrentNodeInfo)
-        .stubs().will(returnValue(UBSE_OK));
+    MOCKER(&election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
     election::UbseRoleInfo masterInfo{};
     masterInfo.nodeId = "1";
     MOCKER_CPP(&election::UbseGetMasterInfo)
@@ -205,7 +204,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow1)
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemNumaBorrow(req, resp), UBSE_ERROR);
@@ -215,8 +214,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemReturn1)
 {
     election::UbseRoleInfo masterInfo{};
     masterInfo.nodeId = "1";
-    MOCKER(&election::UbseGetCurrentNodeInfo)
-        .stubs().will(returnValue(UBSE_OK));
+    MOCKER(&election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&election::UbseGetMasterInfo)
         .stubs()
         .with(outBound(masterInfo))
@@ -235,10 +233,11 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemReturn1)
         &UbseComModule::RpcSend<mem::controller::message::UbseMemReturnReqSimpoPtr, UbseBaseMessagePtr>;
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
-    Ref<ubse::task_executor::UbseTaskExecutor> taskExecutorPtr = new ubse::task_executor::UbseTaskExecutor("task", 0, 0);
+    Ref<ubse::task_executor::UbseTaskExecutor> taskExecutorPtr =
+        new ubse::task_executor::UbseTaskExecutor("task", 0, 0);
     MOCKER_CPP(&ubse::mem::util::GetExecutor).stubs().will(returnValue(taskExecutorPtr));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemReturn(req, MemOperationType::NUMA_RETURN, resp), UBSE_ERROR);
@@ -246,8 +245,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemReturn1)
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemAddrBorrow)
 {
-    MOCKER(&election::UbseGetCurrentNodeInfo)
-        .stubs().will(returnValue(UBSE_OK));
+    MOCKER(&election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
     election::UbseRoleInfo masterInfo{};
     masterInfo.nodeId = "1";
     MOCKER_CPP(&election::UbseGetMasterInfo)
@@ -269,7 +267,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemAddrBorrow)
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemAddrBorrow(req, resp), UBSE_ERROR);
@@ -277,8 +275,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemAddrBorrow)
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemAddrBorrow1)
 {
-    MOCKER(&election::UbseGetCurrentNodeInfo)
-        .stubs().will(returnValue(UBSE_OK));
+    MOCKER(&election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
     election::UbseRoleInfo masterInfo{};
     masterInfo.nodeId = "1";
     MOCKER_CPP(&election::UbseGetMasterInfo)
@@ -302,7 +299,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemAddrBorrow1)
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(ubse::mem::controller::agent::UbseMemAddrBorrow(req, resp), UBSE_ERROR);
@@ -330,7 +327,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemShareBorrow)
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(ubse::mem::controller::agent::UbseMemShareBorrow(req, resp), UBSE_ERROR);
@@ -358,7 +355,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemShareAttach)
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(ubse::mem::controller::agent::UbseMemShareAttach(req, resp), UBSE_ERROR);
@@ -386,7 +383,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemShareDetach)
     std::chrono::seconds timeout(1);
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetWaitTimeout).stubs().will(returnValue(timeout));
-    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()> &task) =
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
         &task_executor::UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(ubse::mem::controller::agent::UbseMemShareDetach(req, resp), UBSE_ERROR);
@@ -772,7 +769,6 @@ TEST_F(TestUbseMemControllerApiAgent, SwitchReturnType_Default)
     EXPECT_EQ(sendParam.GetOpCode(), static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_NUMA_RETURN));
 }
 
-
 TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_SignFail)
 {
     UbseMemFdBorrowReq req{};
@@ -816,15 +812,15 @@ TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandlerSuccess)
 
     // 构造有效的请求数据
     UbseSerialization serialization;
-    serialization << "valid_name" << "NUMA_RETURN";
+    serialization << "valid_name"
+                  << "NUMA_RETURN";
     request.buffer = serialization.GetBuffer();
     request.length = serialization.GetLength();
 
     // 模拟依赖项
     UbseRoleInfo currentNodeInfo;
     currentNodeInfo.nodeId = "1";
-    MOCKER(&UbseGetCurrentNodeInfo)
-        .stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
+    MOCKER(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
 
     // 模拟内存返回成功
     UbseMemOperationResp mockResp{};
@@ -863,7 +859,8 @@ TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandlerGetCurrentNodeFail)
 
     // 构造有效的请求数据
     UbseSerialization serialization;
-    serialization << "valid_name" << "NUMA_RETURN";
+    serialization << "valid_name"
+                  << "NUMA_RETURN";
     request.buffer = serialization.GetBuffer();
     request.length = serialization.GetLength();
 
@@ -882,15 +879,15 @@ TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandlerMemoryReturnFail)
 
     // 构造有效的请求数据
     UbseSerialization serialization;
-    serialization << "valid_name" << "NUMA_RETURN";
+    serialization << "valid_name"
+                  << "NUMA_RETURN";
     request.buffer = serialization.GetBuffer();
     request.length = serialization.GetLength();
 
     // 模拟依赖项
     UbseRoleInfo currentNodeInfo;
     currentNodeInfo.nodeId = "1";
-    MOCKER(&UbseGetCurrentNodeInfo)
-        .stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
+    MOCKER(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
 
     // 模拟内存返回失败
     MOCKER(UbseMemReturn).stubs().will(returnValue(UBSE_ERROR));
@@ -898,4 +895,4 @@ TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandlerMemoryReturnFail)
     // 执行测试
     EXPECT_EQ(DeleteMemoryHandler(request, context), UBSE_ERROR);
 }
-}
+} // namespace ubse::mem_controller::ut

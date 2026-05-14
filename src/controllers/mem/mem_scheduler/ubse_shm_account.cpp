@@ -20,9 +20,9 @@ namespace ubse::mem::account {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace strategy;
 
-void ShareAlgoAccount::UpdateMapNumaInfo(bool isAdd, const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+void ShareAlgoAccount::UpdateMapNumaInfo(bool isAdd, const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
-    for (auto &debtNumaInfo : algoResult.importNumaInfos) {
+    for (auto& debtNumaInfo : algoResult.importNumaInfos) {
         auto numaInfo =
             strategy::UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
         if (numaInfo == nullptr) {
@@ -34,7 +34,7 @@ void ShareAlgoAccount::UpdateMapNumaInfo(bool isAdd, const ubse::adapter_plugins
 
 void ShareAlgoAccount::UpdateSharedNumaInfo(bool isAdd)
 {
-    for (auto &debtNumaInfo : exportNumaLocs_) {
+    for (auto& debtNumaInfo : exportNumaLocs_) {
         auto numaInfo =
             strategy::UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
         if (numaInfo == nullptr) {
@@ -46,7 +46,7 @@ void ShareAlgoAccount::UpdateSharedNumaInfo(bool isAdd)
 }
 
 void ShareAlgoAccount::UpdateStateByNoExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                                            const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+                                            const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     if (state == UBSE_MEM_SCHEDULING) {
         accountState_ = strategy::AccountState::ONLY_EXPORT_EXIST;
@@ -68,7 +68,7 @@ void ShareAlgoAccount::UpdateStateByNoExist(ubse::adapter_plugins::mmi::UbseMemS
 }
 
 void ShareAlgoAccount::UpdateStateByImportExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+                                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     if (state == UBSE_MEM_EXPORT_SUCCESS) {
         accountState_ = strategy::AccountState::IMPORT_EXPORT_EXIST;
@@ -86,7 +86,7 @@ void ShareAlgoAccount::UpdateStateByImportExist(ubse::adapter_plugins::mmi::Ubse
 }
 
 void ShareAlgoAccount::UpdateStateByExportExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+                                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     if (state == UBSE_MEM_IMPORT_SUCCESS) {
         accountState_ = strategy::AccountState::IMPORT_EXPORT_EXIST;
@@ -102,7 +102,7 @@ void ShareAlgoAccount::UpdateStateByExportExist(ubse::adapter_plugins::mmi::Ubse
 }
 
 void ShareAlgoAccount::UpdateStateByBothExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                                              const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+                                              const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     if (state == UBSE_MEM_EXPORT_DESTROYED) {
         accountState_ = strategy::AccountState::ONLY_IMPORT_EXIST;
@@ -120,7 +120,7 @@ void ShareAlgoAccount::UpdateStateByBothExist(ubse::adapter_plugins::mmi::UbseMe
 }
 
 void ShareAlgoAccount::UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
-                                              const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult)
+                                              const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {
     UBSE_LOG_INFO << "memState is " << memState << " account state is " << static_cast<int>(accountState_);
     switch (accountState_) {

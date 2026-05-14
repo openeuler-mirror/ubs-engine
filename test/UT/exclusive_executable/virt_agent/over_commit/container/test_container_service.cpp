@@ -14,9 +14,9 @@
 
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
+#include "ubse_ut_dir.h"
 #include "container_service.h"
 #include "os_helper.h"
-#include "ubse_ut_dir.h"
 #include "vm_mem_adapter.h"
 
 using namespace vm;

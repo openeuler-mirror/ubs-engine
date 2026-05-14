@@ -56,17 +56,17 @@ public:
      * @param[in] loggerEntry 要写入的日志消息
      * @return 如果写入成功返回 true，否则返回 false
      */
-    bool Write(UbseLoggerEntry &loggerEntry) override;
+    bool Write(UbseLoggerEntry& loggerEntry) override;
 
 private:
-    bool IsFileStatusChanged(const std::string &fileName);
+    bool IsFileStatusChanged(const std::string& fileName);
 
     /* *
      * @brief 触发文件滚动操作
      * @param[in] fileName 日志文件名
      * @return 如果滚动成功返回 true，否则返回 false
      */
-    bool RollFile(const std::string &fileName);
+    bool RollFile(const std::string& fileName);
 
     /* *
      * @brief 生成压缩日志文件的文件名
@@ -75,14 +75,14 @@ private:
      * @param[in] timeStamp 时间戳，用于生成唯一文件名
      * @return 生成的压缩日志文件名
      */
-    std::string GenerateCompressedFilename(const std::string &fileName, uint32_t index, time_t timeStamp);
+    std::string GenerateCompressedFilename(const std::string& fileName, uint32_t index, time_t timeStamp);
 
     /* *
      * @brief 打开日志文件进行写入
      * @param[in] fileName 日志文件名
      * @return 如果文件打开成功返回 true，否则返回 false
      */
-    bool OpenFile(const std::string &fileName);
+    bool OpenFile(const std::string& fileName);
 
     /* *
      * @brief 压缩日志文件
@@ -91,19 +91,19 @@ private:
      * @param[in] destFilename 目标压缩文件名
      * @return 如果压缩成功返回 true，否则返回 false
      */
-    bool CompressFile(const std::string &fileName, const std::string &sourceFilename, const std::string &destFilename);
+    bool CompressFile(const std::string& fileName, const std::string& sourceFilename, const std::string& destFilename);
 
     /* *
      * @brief 重命名压缩包名
      * @param[in] compressedFiles 压缩包名数组
      */
-    uint32_t RenameCompressedFile(std::vector<std::string> &compressedFiles);
+    uint32_t RenameCompressedFile(std::vector<std::string>& compressedFiles);
 
     /* *
      * @brief 管理日志文件的滚动和压缩
      * @param[in] fileName 日志文件名
      */
-    void ManageFileRotation(const std::string &fileName);
+    void ManageFileRotation(const std::string& fileName);
 
 private:
     const std::string filenameSuffixPattern_ = R"(_\d{8}_\d{6}_\d{3}\.tar\.gz)";
@@ -112,6 +112,6 @@ private:
     uint32_t maxFileSize_;
     uint32_t maxFileCount_;
 };
-}
+} // namespace ubse::log
 
 #endif // UBSE_FILE_SINK_H

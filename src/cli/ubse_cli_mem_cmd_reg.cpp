@@ -16,7 +16,6 @@
 #include <regex>
 #include <thread>
 
-#include "src/sdk/c/include/ubs_error.h"
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_cli_mem_attach.h"
 #include "ubse_cli_mem_create.h"
@@ -27,6 +26,7 @@
 #include "ubse_mem_controller.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
+#include "src/sdk/c/include/ubs_error.h"
 
 namespace ubse::cli::reg {
 UBSE_CLI_REGISTER_MODULE("CLI_MEM_MODULE", UbseCliRegMemModule);
@@ -37,7 +37,8 @@ using namespace ubse::mem::controller;
 // public option reg
 static const std::string PUBLIC_NAME_OPTION = "name";
 // public option desc
-static const std::string PUBLIC_NAME_OPTION_TIP = "Input a unique name. The name must not exceed 47 characters "
+static const std::string PUBLIC_NAME_OPTION_TIP =
+    "Input a unique name. The name must not exceed 47 characters "
     "and can only include English letters, numbers, dots, colons, underscores, and hyphens.";
 // public option input error
 static const std::string PUBLIC_NAME_OPTION_REQUIRED =
@@ -162,7 +163,7 @@ const uint32_t REQUEST_BUFFER_CAPACITY = 8;
 const int8_t RETRY_WAIT_TIME = 10;
 constexpr size_t NODE_LENGTH = 80; // hostname(slot_id), hostname最长为64
 
-std::string FormatHostnameSlot(const std::string &hostname, uint32_t slotId)
+std::string FormatHostnameSlot(const std::string& hostname, uint32_t slotId)
 {
     return (hostname.empty() ? "-" : hostname) + "(" + std::to_string(slotId) + ")";
 }
@@ -170,8 +171,7 @@ std::string FormatHostnameSlot(const std::string &hostname, uint32_t slotId)
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowInfo()
 {
     UbseSerialization ubse_req_serial(REQUEST_BUFFER_CAPACITY); // Create a blank request.
-    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(MEM_MODULE_CODE, MEM_NODE_BORROW_OP_CODE, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
@@ -216,7 +216,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowIn
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeLendInfo()
 {
-    ubse_api_buffer_t ubse_req_buffer{ nullptr, 0 };
+    ubse_api_buffer_t ubse_req_buffer{nullptr, 0};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NODE_LEND, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
@@ -269,7 +269,7 @@ struct UbseNumaStatusInfo {
 };
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatusData(
-    UbseDeSerialization &deSerialization, size_t numaInfoSize)
+    UbseDeSerialization& deSerialization, size_t numaInfoSize)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_6, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
@@ -302,7 +302,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatus
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
 {
-    ubse_api_buffer_t ubse_req_buffer{ nullptr, 0 };
+    ubse_api_buffer_t ubse_req_buffer{nullptr, 0};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NUMA_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
@@ -324,8 +324,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::QueryMemConfig()
 {
     UbseSerialization ubse_req_serial(REQUEST_BUFFER_CAPACITY);
-    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CONFIG, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
@@ -364,13 +363,13 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::QueryMemConfig()
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-bool CheckBorrowDetailType(const std::string &type)
+bool CheckBorrowDetailType(const std::string& type)
 {
     return type == "fd" || type == "numa" || type == "share";
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     auto it_kind = params.find(DISPLAY_MEM_T_OPTION);
     auto it_borrow_type = params.find(DISPLAY_MEM_BT_OPTION);
@@ -416,12 +415,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
     return UbseCliStringPromptReply(DISPLAY_MEM_TYPE_PARAM_INVALID);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatusFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatusFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     UbseSerialization ubse_req_serial(UBSE_CLI_NUM_8);
-    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CHECK_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
@@ -440,8 +438,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatus
     return UbseCliMemoryStatusData(ubse_de_serial, size);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemoryStatusData(UbseDeSerialization &ubse_de_serial,
-    size_t size)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemoryStatusData(UbseDeSerialization& ubse_de_serial,
+                                                                                size_t size)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
@@ -486,13 +484,13 @@ UbseCliCommandInfo UbseCliRegMemModule::UbseCliCheckMemoryStatus()
     return builder.UbseCliBuild();
 }
 
-bool LinkIsMatch(const std::string &str)
+bool LinkIsMatch(const std::string& str)
 {
     const std::regex pattern(R"(^\d+/\d+/\d+-\d+/\d+/\d+$)");
     return std::regex_match(str, pattern);
 }
 
-bool SizeIsMatch(const std::string &str, size_t &size)
+bool SizeIsMatch(const std::string& str, size_t& size)
 {
     std::regex pattern(R"(^(\d+)(G|M))");
     std::smatch match;
@@ -520,7 +518,7 @@ bool SizeIsMatch(const std::string &str, size_t &size)
     return true;
 }
 
-bool CheckName(const std::string &name)
+bool CheckName(const std::string& name)
 {
     if (name.length() > MAX_NAME_LENGTH || name.empty()) {
         return false;
@@ -533,8 +531,8 @@ bool CheckName(const std::string &name)
     return true;
 }
 
-static std::string FormatMemoryInfoReply(const std::string &name, int64_t numaId, const std::string &importNode,
-    const std::string &exportNode)
+static std::string FormatMemoryInfoReply(const std::string& name, int64_t numaId, const std::string& importNode,
+                                         const std::string& exportNode)
 {
     std::ostringstream oss;
     oss << "name:" << name << '\n'
@@ -559,10 +557,10 @@ struct ParsedResponse {
     std::string errorMsg;
 };
 
-ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t &responseBuffer)
+ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t& responseBuffer)
 {
     ParsedResponse result{};
-    UbseDeSerialization deserial{ responseBuffer.buffer, responseBuffer.length };
+    UbseDeSerialization deserial{responseBuffer.buffer, responseBuffer.length};
     std::string name;
     std::string state;
     try {
@@ -575,11 +573,11 @@ ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t &responseBuffer)
         auto stageInt = std::stoi(state);
         result.stage = static_cast<UbseMemStage>(stageInt);
         result.name = std::move(name);
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         result.success = false;
         result.errorMsg = "ERROR: Internal error.";
         return result;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         result.success = false;
         result.errorMsg = "ERROR: Internal error.";
         return result;
@@ -603,7 +601,7 @@ ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t &responseBuffer)
 }
 
 // 处理 IPC 超时后的轮询查询逻辑
-std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string &name)
+std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string& name)
 {
     while (true) {
         UbseSerialization timeOutSerial;
@@ -611,7 +609,7 @@ std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string &name)
         if (!timeOutSerial.Check()) {
             return UbseCliRegModule::UbseCliStringPromptReply(SERIALIZATION_ERROR);
         }
-        ubse_api_buffer_t requestBuffer{ timeOutSerial.GetBuffer(), static_cast<uint32_t>(timeOutSerial.GetLength()) };
+        ubse_api_buffer_t requestBuffer{timeOutSerial.GetBuffer(), static_cast<uint32_t>(timeOutSerial.GetLength())};
         ubse_api_buffer_t responseBuffer;
         uint32_t ret =
             ubse_invoke_call(MEM_MODULE_CODE, MEMORY_NUMA_STATE_QUERY_OP_CODE, &requestBuffer, &responseBuffer);
@@ -647,7 +645,7 @@ std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string &name)
     }
 }
 
-bool ParseRegionString(const std::string &regionStr, std::vector<uint32_t> &regions)
+bool ParseRegionString(const std::string& regionStr, std::vector<uint32_t>& regions)
 {
     if (regionStr.empty() || regionStr.front() == ',' || regionStr.back() == ',') {
         return false;
@@ -681,9 +679,9 @@ bool ParseRegionString(const std::string &regionStr, std::vector<uint32_t> &regi
     return !regions.empty();
 }
 
-static std::set<std::string> GetAllowedParams(const std::string &type)
+static std::set<std::string> GetAllowedParams(const std::string& type)
 {
-    std::set<std::string> allowed = { CREATE_MEM_T_OPTION, CREATE_MEM_N_OPTION, CREATE_MEM_S_OPTION };
+    std::set<std::string> allowed = {CREATE_MEM_T_OPTION, CREATE_MEM_N_OPTION, CREATE_MEM_S_OPTION};
 
     if (type == "numa") {
         allowed.insert(CREATE_MEM_L_OPTION);
@@ -694,10 +692,10 @@ static std::set<std::string> GetAllowedParams(const std::string &type)
     return allowed;
 }
 
-static bool ValidateParamsWhitelist(const std::map<std::string, std::string> &params,
-                                    const std::set<std::string> &allowed, std::string &errorMsg)
+static bool ValidateParamsWhitelist(const std::map<std::string, std::string>& params,
+                                    const std::set<std::string>& allowed, std::string& errorMsg)
 {
-    for (const auto &[key, value] : params) {
+    for (const auto& [key, value] : params) {
         if (allowed.find(key) != allowed.end()) {
             continue;
         } else if (key == CREATE_MEM_L_OPTION) {
@@ -711,8 +709,8 @@ static bool ValidateParamsWhitelist(const std::map<std::string, std::string> &pa
     return true;
 }
 
-static bool ValidateCommonParams(const std::map<std::string, std::string> &params, std::string &name, size_t &size,
-                                 std::string &errorMsg)
+static bool ValidateCommonParams(const std::map<std::string, std::string>& params, std::string& name, size_t& size,
+                                 std::string& errorMsg)
 {
     auto itName = params.find(CREATE_MEM_N_OPTION);
     if (itName == params.end()) {
@@ -740,7 +738,7 @@ static bool ValidateCommonParams(const std::map<std::string, std::string> &param
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
@@ -749,7 +747,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
     if (it == params.end()) {
         return UbseCliStringPromptReply(CREATE_MEM_TYPE_OPTION_REQUIRED);
     }
-    const std::string &type = it->second;
+    const std::string& type = it->second;
     if (type != "numa" && type != "share" && type != "fd") {
         return UbseCliStringPromptReply(CREATE_MEM_TYPE_PARAM_INVALID);
     }
@@ -789,13 +787,13 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
     }
 }
 
-bool CheckDeleteType(const std::string &type)
+bool CheckDeleteType(const std::string& type)
 {
     return type == "fd" || type == "numa" || type == "addr" || type == "share";
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
@@ -820,7 +818,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
     if (!serial.Check()) {
         return UbseCliStringPromptReply(SERIALIZATION_ERROR);
     }
-    ubse_api_buffer_t reqBuffer{ serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength()) };
+    ubse_api_buffer_t reqBuffer{serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
     ubse_api_buffer_t resBuffer{};
     UbseCliWaitIndicator waitIndicator("Deleting memory");
     uint32_t ret = ubse_invoke_call(MEM_MODULE_CODE, MEMORY_DELETE_OP_CODE, &reqBuffer, &resBuffer);
@@ -832,9 +830,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
     }
-    UbseDeSerialization deserial{ resBuffer.buffer, resBuffer.length };
+    UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
     // 成功回显
-    uint32_t errorCode{ 0 };
+    uint32_t errorCode{0};
     std::string errMsg;
     deserial >> errorCode >> errMsg;
     if (deserial.Check() && errorCode == MEM_SUCCESS_CODE) {
@@ -880,7 +878,7 @@ void UbseCliRegMemModule::UbseCliSignUp()
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryAttachFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
@@ -897,7 +895,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryAttachFunc(
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryDetachFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);

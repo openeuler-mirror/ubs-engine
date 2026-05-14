@@ -26,14 +26,14 @@ namespace ubse::utils {
 template <typename T>
 class UbseEnvUtil {
 public:
-    static bool Parse(const std::string &value, T &out) = delete;
+    static bool Parse(const std::string& value, T& out) = delete;
 };
 
 // 模板特化：std::string
 template <>
 class UbseEnvUtil<std::string> {
 public:
-    static bool Parse(const std::string &value, std::string &out)
+    static bool Parse(const std::string& value, std::string& out)
     {
         // 限制长度
         static constexpr size_t MAX_LENGTH = 1024;
@@ -49,7 +49,7 @@ public:
 template <>
 class UbseEnvUtil<bool> {
 public:
-    static bool Parse(const std::string &value, bool &out)
+    static bool Parse(const std::string& value, bool& out)
     {
         std::string lower;
         lower.reserve(value.size());
@@ -70,7 +70,7 @@ public:
 template <>
 class UbseEnvUtil<int16_t> {
 public:
-    static bool Parse(const std::string &value, int16_t &out)
+    static bool Parse(const std::string& value, int16_t& out)
     {
         try {
             size_t end = 0;
@@ -111,7 +111,7 @@ public:
  * @return T 解析结果，解析失败时使用默认值。
  */
 template <typename T>
-T GetEnv(const char *name, const T &defaultVal = T{})
+T GetEnv(const char* name, const T& defaultVal = T{})
 {
     if (const auto envValue = std::getenv(name)) {
         T parsed;

@@ -17,10 +17,10 @@
 #include <thread>
 #include <vector>
 #include "ubse_common_def.h"
-#include "referable/ubse_ref.h"
 #include "ubse_error.h"
 #include "ubse_event_queue.h"
 #include "ubse_logger_module.h"
+#include "referable/ubse_ref.h"
 
 namespace ubse::event {
 constexpr uint32_t DEFAULT_QUEUE_SIZE = 1024;
@@ -41,7 +41,7 @@ public:
 
     void Stop();
 
-    static void *Worker(void *paramsData);
+    static void* Worker(void* paramsData);
 
     UbseEventQueue highPriorityQueue_, mediumPriorityQueue_, lowPriorityQueue_;
 
@@ -56,20 +56,20 @@ private:
     uint32_t mediumPriority_{};
     uint32_t lowPriority_{};
 
-    pthread_t *threads_ = nullptr;
+    pthread_t* threads_ = nullptr;
     pthread_barrier_t initBarrier_{};
 
     std::atomic<bool> isThreadsRunning_{false};
 
     UbseResult CleanupInitFailure(size_t createdCount);
-    UbseEventQueue *GetQueueByIndex(size_t index);
+    UbseEventQueue* GetQueueByIndex(size_t index);
 };
 
 using UbseEventThreadPoolPtr = Ref<UbseEventThreadPool>;
 
 struct ThreadParams {
-    UbseEventThreadPool *ubseEventThreadPool = nullptr;
-    UbseEventQueue *ubseEventQueue = nullptr;
+    UbseEventThreadPool* ubseEventThreadPool = nullptr;
+    UbseEventQueue* ubseEventQueue = nullptr;
 };
 } // namespace ubse::event
 

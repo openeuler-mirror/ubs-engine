@@ -27,12 +27,12 @@ namespace ubse::context {
 std::atomic<bool> g_globalStop{false};
 std::condition_variable_any g_globalCv;
 
-std::string Demangle(const std::string &mangledName)
+std::string Demangle(const std::string& mangledName)
 {
     int status = 0;
     auto demangled = abi::__cxa_demangle(mangledName.c_str(), nullptr, nullptr, &status);
     // 使用智能指针自动释放内存
-    std::unique_ptr<char, void (*)(void *)> guard(demangled, std::free);
+    std::unique_ptr<char, void (*)(void*)> guard(demangled, std::free);
     if (status != 0) {
         return mangledName; // 返回原始名称
     }
@@ -40,13 +40,13 @@ std::string Demangle(const std::string &mangledName)
     return demangled ? std::string(demangled) : mangledName;
 }
 
-inline long CountDuration(const std::chrono::time_point<std::chrono::system_clock> &start,
-                          const std::chrono::time_point<std::chrono::system_clock> &end)
+inline long CountDuration(const std::chrono::time_point<std::chrono::system_clock>& start,
+                          const std::chrono::time_point<std::chrono::system_clock>& end)
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 
-UbseResult UbseContext::Run(int argc, char *argv[], ProcessMode mode)
+UbseResult UbseContext::Run(int argc, char* argv[], ProcessMode mode)
 {
     std::cout << "UbseContext::Run-start ProcessMode: " << static_cast<int>(mode) << std::endl;
     auto startTime = std::chrono::system_clock::now();
@@ -93,8 +93,8 @@ UbseResult UbseContext::Run(int argc, char *argv[], ProcessMode mode)
     return UBSE_OK;
 }
 
-UbseResult InitModule(const std::string &moduleName, std::shared_ptr<UbseModule> module,
-                      std::chrono::system_clock::time_point &moduleStartTime)
+UbseResult InitModule(const std::string& moduleName, std::shared_ptr<UbseModule> module,
+                      std::chrono::system_clock::time_point& moduleStartTime)
 {
     UbseResult res = module->Initialize();
     if (res != UBSE_OK) {
@@ -109,8 +109,8 @@ UbseResult InitModule(const std::string &moduleName, std::shared_ptr<UbseModule>
     return UBSE_OK;
 }
 
-UbseResult StartModule(const std::string &moduleName, std::shared_ptr<UbseModule> module,
-                       std::chrono::system_clock::time_point &moduleStartTime)
+UbseResult StartModule(const std::string& moduleName, std::shared_ptr<UbseModule> module,
+                       std::chrono::system_clock::time_point& moduleStartTime)
 {
     UbseResult res = module->Start();
     if (res != UBSE_OK) {
@@ -152,12 +152,12 @@ UbseResult UbseContext::InitAndStartModule()
 }
 
 UbseResult UbseContext::InitModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec)
 {
     std::cout << "UbseContext::InitModule-start" << std::endl;
     auto startTime = std::chrono::system_clock::now();
     auto moduleStartTime = std::chrono::system_clock::now();
-    for (const auto &it : sortedModuleVec) {
+    for (const auto& it : sortedModuleVec) {
         if (!g_globalStop.load()) {
             auto ret = ubse::context::InitModule(Demangle(it.first.name()), it.second, moduleStartTime);
             if (ret != UBSE_OK) {
@@ -172,12 +172,12 @@ UbseResult UbseContext::InitModule(
 }
 
 UbseResult UbseContext::StartModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec)
 {
     std::cout << "UbseContext::StartModule-start" << std::endl;
     auto startTime = std::chrono::system_clock::now();
     auto moduleStartTime = startTime;
-    for (const auto &it : sortedModuleVec) {
+    for (const auto& it : sortedModuleVec) {
         if (!g_globalStop.load()) {
             auto ret = ubse::context::StartModule(Demangle(it.first.name()), it.second, moduleStartTime);
             if (ret != UBSE_OK) {
@@ -193,14 +193,14 @@ UbseResult UbseContext::StartModule(
 }
 
 UbseResult UbseContext::StopModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec)
 {
     std::cout << "UbseContext::StopModule-start" << std::endl;
     for (auto it = sortedModuleVec.rbegin(); it != sortedModuleVec.rend(); ++it) {
         try {
             moduleMap_.erase(it->first);
             it->second->Stop();
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             std::cerr << "UbseContext::StopModule-Error: stopping module " << Demangle(it->first.name()) << ": "
                       << e.what() << std::endl;
         }
@@ -211,13 +211,13 @@ UbseResult UbseContext::StopModule(
 }
 
 UbseResult UbseContext::DestroyModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec)
 {
     std::cout << "UbseContext::DestroyModule-start" << std::endl;
     for (auto it = sortedModuleVec.rbegin(); it != sortedModuleVec.rend(); ++it) {
         try {
             it->second->UnInitialize();
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             std::cerr << "UbseContext::DestroyModule-Error: destroying module " << Demangle(it->first.name()) << ": "
                       << e.what() << std::endl;
         }
@@ -247,10 +247,10 @@ void UbseContext::Stop()
 UbseResult UbseContext::RegisterArg()
 {
     std::cout << "UbseContext::RegisterArg-start" << std::endl;
-    for (const auto &it : moduleMap_) {
+    for (const auto& it : moduleMap_) {
         try {
             it.second->RegArgs();
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             std::cerr << "UbseContext::RegisterArg-Error: registering arguments for module "
                       << Demangle(it.first.name()) << ": " << e.what() << std::endl;
             return UBSE_ERROR_PARSE_ARGS_FAILED;
@@ -260,7 +260,7 @@ UbseResult UbseContext::RegisterArg()
     return UBSE_OK;
 }
 
-UbseResult UbseContext::ParserArgs(int argc, char *argv[])
+UbseResult UbseContext::ParserArgs(int argc, char* argv[])
 {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -281,14 +281,14 @@ UbseResult UbseContext::ParserArgs(int argc, char *argv[])
         argMap_[key] = value;
     }
     std::cout << "UbseContext::ParserArgs-Args: ";
-    for (const auto &it : argMap_) {
+    for (const auto& it : argMap_) {
         std::cout << "[" << it.first << ": " << it.second << "] ";
     }
     std::cout << std::endl;
     return UBSE_OK;
 }
 
-UbseResult UbseContext::GetArgStr(const std::string &argName, std::string &argValue)
+UbseResult UbseContext::GetArgStr(const std::string& argName, std::string& argValue)
 {
     auto it = argMap_.find(argName);
     if (it != argMap_.end()) {
@@ -319,8 +319,8 @@ UbseResult UbseContext::CreateModules()
 }
 
 UbseResult UbseContext::CreateModules(
-    const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+    const std::unordered_map<std::type_index, ModuleEntry>& creatorMap,
+    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec)
 {
     if (!sortedModuleVec.empty()) {
         return UBSE_OK;
@@ -328,11 +328,11 @@ UbseResult UbseContext::CreateModules(
     std::vector<std::type_index> sortedModuleName;
     try {
         sortedModuleName = TopologicalSort(creatorMap);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         std::cerr << "UbseContext::CreateModules-Error: " << e.what() << std::endl;
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    for (const std::type_index &moduleName : sortedModuleName) {
+    for (const std::type_index& moduleName : sortedModuleName) {
         auto creatorIt = creatorMap.find(moduleName);
         if (creatorIt == creatorMap.end()) {
             std::cerr << "UbseContext::CreateModules-Error: creator for module " << Demangle(moduleName.name())
@@ -342,14 +342,14 @@ UbseResult UbseContext::CreateModules(
             auto module = creatorIt->second.creator();
             sortedModuleVec.emplace_back(moduleName, module);
             moduleMap_[moduleName] = module;
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             std::cerr << "UbseContext::CreateModules-Error: creating module " << Demangle(moduleName.name()) << ": "
                       << e.what() << std::endl;
             return UBSE_ERROR_MODULE_LOAD_FAILED;
         }
     }
     std::cout << "UbseContext::CreateModules-ModuleList: ";
-    for (const auto &it : sortedModuleName) {
+    for (const auto& it : sortedModuleName) {
         std::cout << "[moduleName: " << Demangle(it.name()) << "] ";
     }
     std::cout << std::endl;
@@ -357,13 +357,13 @@ UbseResult UbseContext::CreateModules(
 }
 
 std::vector<std::type_index> UbseContext::TopologicalSort(
-    const std::unordered_map<std::type_index, ModuleEntry> &creatorMap)
+    const std::unordered_map<std::type_index, ModuleEntry>& creatorMap)
 {
     std::vector<std::type_index> sorted;
     std::unordered_set<std::type_index> visited;
     std::unordered_set<std::type_index> visiting;
 
-    for (const auto &[name, entry] : creatorMap) {
+    for (const auto& [name, entry] : creatorMap) {
         if (visited.find(name) == visited.end()) {
             if (!TopologicalSortUtil(creatorMap, name, visited, visiting, sorted)) {
                 throw std::runtime_error("Cyclic dependency detected");
@@ -373,10 +373,10 @@ std::vector<std::type_index> UbseContext::TopologicalSort(
     return sorted;
 }
 
-bool UbseContext::TopologicalSortUtil(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-                                      const std::type_index &moduleName, std::unordered_set<std::type_index> &visited,
-                                      std::unordered_set<std::type_index> &visiting,
-                                      std::vector<std::type_index> &sorted)
+bool UbseContext::TopologicalSortUtil(const std::unordered_map<std::type_index, ModuleEntry>& creatorMap,
+                                      const std::type_index& moduleName, std::unordered_set<std::type_index>& visited,
+                                      std::unordered_set<std::type_index>& visiting,
+                                      std::vector<std::type_index>& sorted)
 {
     if (visiting.find(moduleName) != visiting.end()) {
         return false;
@@ -388,8 +388,8 @@ bool UbseContext::TopologicalSortUtil(const std::unordered_map<std::type_index, 
 
     visiting.insert(moduleName);
 
-    const auto &entry = creatorMap.at(moduleName);
-    for (const auto &dependency : entry.dependencies) {
+    const auto& entry = creatorMap.at(moduleName);
+    for (const auto& dependency : entry.dependencies) {
         if (creatorMap.find(dependency) == creatorMap.end()) {
             std::cerr << "UbseContext::CreateModules-Error: " << Demangle(dependency.name())
                       << " which is a dependency of " << Demangle(moduleName.name()) << " is not registered"

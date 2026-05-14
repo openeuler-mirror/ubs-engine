@@ -21,11 +21,11 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 namespace {
 template <typename ObjType>
-common::def::UbseResult SerializeObjType(serial::UbseSerialization &out,
+common::def::UbseResult SerializeObjType(serial::UbseSerialization& out,
                                          const std::variant<adapter_plugins::mmi::UbseMemNumaBorrowImportObj,
                                                             adapter_plugins::mmi::UbseMemAddrBorrowImportObj,
-                                                            adapter_plugins::mmi::UbseMemFdBorrowImportObj> &obj,
-                                         const std::string &expectedType)
+                                                            adapter_plugins::mmi::UbseMemFdBorrowImportObj>& obj,
+                                         const std::string& expectedType)
 {
     if (auto importObj = std::get_if<ObjType>(&obj)) {
         bool success = false;

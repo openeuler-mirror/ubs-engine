@@ -13,26 +13,26 @@
 #ifndef VM_SMAP_HELPER_H
 #define VM_SMAP_HELPER_H
 
+#include <chrono>
+#include <fstream>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <chrono>
-#include <fstream>
 
 #include <csignal>
+#include "ubse_file_util.h"
 #include "mp_configuration.h"
 #include "mp_error.h"
 #include "mp_module.h"
 #include "mp_smap_module.h"
 #include "over_commit_def.h"
-#include "ubse_file_util.h"
 
 namespace mempooling::smap {
 using std::mutex;
 
 class MpSmapHelper {
 public:
-    static MpSmapHelper &GetInstance();
+    static MpSmapHelper& GetInstance();
     static const size_t setSmapRemoteNumaInfoMaxRetryCount;
     static const uint32_t setSmapRemoteNumaInfoMaxRetryInterval; // 单位s
 
@@ -40,64 +40,64 @@ public:
 
     static void VmSmapClose();
 
-    MpResult GetHugePageCanonicalPath(const std::string &remoteNumaId, std::string &filePath);
+    MpResult GetHugePageCanonicalPath(const std::string& remoteNumaId, std::string& filePath);
 
-    static MpResult GetOriginalHugePages(const std::string &filePath, uint64_t &originalHugePages);
+    static MpResult GetOriginalHugePages(const std::string& filePath, uint64_t& originalHugePages);
 
-    static MpResult RewriteHugePages(const std::string &realPath, uint64_t targetHugePages);
+    static MpResult RewriteHugePages(const std::string& realPath, uint64_t targetHugePages);
 
-    MpResult AllocateHugePages(std::vector<uint64_t> &remoteNumaIds, std::vector<uint64_t> &borrowSizes);
+    MpResult AllocateHugePages(std::vector<uint64_t>& remoteNumaIds, std::vector<uint64_t>& borrowSizes);
 
-    MpResult TryAllocateHugePagesOnce(const std::string &filePath, uint64_t targetHugePages);
+    MpResult TryAllocateHugePagesOnce(const std::string& filePath, uint64_t targetHugePages);
 
     MpResult AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize);
 
-    static int QueryVMFreqArray(int pidIn, uint16_t *dataIn, uint32_t lengthIn, uint32_t &lengthOut, int dataSource);
+    static int QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint32_t lengthIn, uint32_t& lengthOut, int dataSource);
 
     static MpResult SmapMode(int runMode);
 
     static MpResult SmapMigrateRemoteNuma(MigrateNumaMsg msg);
 
-    static MpResult SmapMigratePidRemoteNumaHelper(pid_t *pidArr, int len, int srcNid, int destNid);
+    static MpResult SmapMigratePidRemoteNumaHelper(pid_t* pidArr, int len, int srcNid, int destNid);
 
-    static MpResult SmapMigratePidMultiRemoteNumaHelper(MigrateEscapeMsg &msg);
+    static MpResult SmapMigratePidMultiRemoteNumaHelper(MigrateEscapeMsg& msg);
 
-    static MpResult SmapMigratePidMultiRemoteNumaHelperWithRetry(MigrateEscapeMsg &msg);
+    static MpResult SmapMigratePidMultiRemoteNumaHelperWithRetry(MigrateEscapeMsg& msg);
 
-    static int SmapEnableProcessMigrateHelper(pid_t *pidArr, int len, int enable, int flags);
+    static int SmapEnableProcessMigrateHelper(pid_t* pidArr, int len, int enable, int flags);
 
-    static MpResult SetSmapRemoteNumaInfo(const int16_t &srcNumaId,
-                                          const std::vector<over_commit::MemBorrowInfoWithSrc> &memBorrowInfoWithSrcs);
+    static MpResult SetSmapRemoteNumaInfo(const int16_t& srcNumaId,
+                                          const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs);
 
     static MigrateOutMsg GetMigrateOutMsgInOverCommit(
-        const std::vector<over_commit::MemMigrateResult> &memMigrateResults, const uint16_t ratio);
+        const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio);
 
     static MigrateOutMsg GetMigrateOutMsgInOverCommitMultiNuma(
-        const std::vector<over_commit::MemMigrateResult> &memMigrateResults, const uint16_t ratio);
+        const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio);
 
-    static MpResult MigrateOutInOverCommit(const std::vector<over_commit::MemMigrateResult> &memMigrateResults,
+    static MpResult MigrateOutInOverCommit(const std::vector<over_commit::MemMigrateResult>& memMigrateResults,
                                            uint16_t ratio = SMAP_RATIO_MP);
 
     static MpResult ReadAndSetRunMode();
 
     static MpResult SetRunModeAndWrite(int runMode);
 
-    static int SmapAddProcessTrackingHelper(const std::vector<pid_t> &pidVec, const std::vector<uint32_t> &scanTimeVec,
-                                            int scanType, const std::vector<uint32_t> &durationVec);
+    static int SmapAddProcessTrackingHelper(const std::vector<pid_t>& pidVec, const std::vector<uint32_t>& scanTimeVec,
+                                            int scanType, const std::vector<uint32_t>& durationVec);
 
-    static int SmapRemoveProcessTrackingHelper(const std::vector<pid_t> &pidVec, int flags);
+    static int SmapRemoveProcessTrackingHelper(const std::vector<pid_t>& pidVec, int flags);
 
-    static MpResult SmapMigrateBack(MigrateBackMsg &migrateBackMsg);
+    static MpResult SmapMigrateBack(MigrateBackMsg& migrateBackMsg);
 
-    static MpResult SmapEnableNuma(EnableNodeMsg &enableMsg);
+    static MpResult SmapEnableNuma(EnableNodeMsg& enableMsg);
 
     static MpResult GetLocalSmapBackResult(uint64_t taskId);
 
-    static MpResult SmapGetBackResult(uint64_t taskId, uint16_t &ret);
+    static MpResult SmapGetBackResult(uint64_t taskId, uint16_t& ret);
 
-    static MpResult SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload> &processPayloadList);
+    static MpResult SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload>& processPayloadList);
     static MpResult GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
-                                                std::unordered_map<pid_t, smap::ProcessPayload> &processPayloadMap);
+                                                std::unordered_map<pid_t, smap::ProcessPayload>& processPayloadMap);
 
     static const int smapParamErrorCode;    // SMAP参数错误码 Invalid argument -22
     static const int smapDealErrorCode;     // SMAP处理异常错误码 -9

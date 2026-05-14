@@ -11,14 +11,14 @@
  */
 
 #include "mp_borrow_conf_util.h"
-#include "mp_configuration.h"
 #include "ubse_logger.h"
+#include "mp_configuration.h"
 
 namespace mempooling {
 using namespace ubse::log;
 
-MpResult MpParseGroupProviderConf::ParseBorrowConf(UbseMemGroupNodeList &groupList,
-                                                   UbseMemProviderNodeList &providerList)
+MpResult MpParseGroupProviderConf::ParseBorrowConf(UbseMemGroupNodeList& groupList,
+                                                   UbseMemProviderNodeList& providerList)
 {
     uint32_t ret = UbseNodeController::GetInstance().GetMemGroupNodeList(groupList);
     if (ret != 0) {
@@ -33,7 +33,7 @@ MpResult MpParseGroupProviderConf::ParseBorrowConf(UbseMemGroupNodeList &groupLi
         }
         std::vector<UbseNodeInfo> firstGroup;
         firstGroup.reserve(allNodes.size());
-        for (const auto &kv : allNodes) {
+        for (const auto& kv : allNodes) {
             firstGroup.push_back(kv.second);
         }
         groupList.push_back(std::move(firstGroup));
@@ -57,17 +57,17 @@ MpResult MpParseGroupProviderConf::BuildBorrowMap()
     }
     borrowMap.clear();
     std::unordered_set<std::string> providerSet;
-    for (const auto &p : providerList) {
+    for (const auto& p : providerList) {
         (void)providerSet.insert(p.nodeId);
     }
     bool providerEmpty = providerSet.empty();
     for (size_t i = 0; i < groupList.size(); ++i) {
-        for (const auto &node : groupList[i]) {
-            auto &borrowable = borrowMap[node.nodeId];
+        for (const auto& node : groupList[i]) {
+            auto& borrowable = borrowMap[node.nodeId];
             if (!providerEmpty && providerSet.count(node.nodeId)) {
                 continue;
             }
-            for (const auto &candidate : groupList[i]) {
+            for (const auto& candidate : groupList[i]) {
                 if (candidate.nodeId == node.nodeId) {
                     continue;
                 }
@@ -84,15 +84,15 @@ MpResult MpParseGroupProviderConf::BuildBorrowMap()
     return MEM_POOLING_OK;
 }
 
-MpResult MpParseGroupProviderConf::GetBorrowableList(const std::string &curNid,
-                                                     std::unordered_set<std::string> &borrowableNidSet) // 改成引用
+MpResult MpParseGroupProviderConf::GetBorrowableList(const std::string& curNid,
+                                                     std::unordered_set<std::string>& borrowableNidSet) // 改成引用
 {
     uint32_t ret = BuildBorrowMap();
     if (ret != 0) {
         return ret;
     }
-    for (const auto &kv : borrowMap) {
-        for (const auto &target : kv.second) {
+    for (const auto& kv : borrowMap) {
+        for (const auto& target : kv.second) {
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "srcNid=" << kv.first << ", targetNid=" << target;
         }
     }

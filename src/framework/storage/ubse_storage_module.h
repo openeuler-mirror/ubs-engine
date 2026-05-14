@@ -25,13 +25,13 @@ const std::string DB_STORE_DIR = "/var/lib/ubse/data";
 const uint32_t DIR_MODE = 0750;
 const uint32_t DIR_MODE_MASK = 0777;
 
- /* *
+/* *
  * 远程查询回调
  * @param kvs [OUT] 模糊查询查询 结果列表
  * @return UbseResult, 成功返回0, 失败返回非0
  * @brief kv需要使用ResultFree进行释放
  */
-using RemoteGetHandler = std::function<UbseResult(const std::vector<KV> &kvs)>;
+using RemoteGetHandler = std::function<UbseResult(const std::vector<KV>& kvs)>;
 
 class UbseStorageModule : public UbseModule {
 public:
@@ -55,7 +55,7 @@ public:
      * @param valueLen [IN] 存储数据 value 长度
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult Put(const std::string &dbName, const std::string &key, uint8_t *value, const uint32_t valueLen);
+    UbseResult Put(const std::string& dbName, const std::string& key, uint8_t* value, const uint32_t valueLen);
 
     /* *
      * 精确查询
@@ -65,7 +65,7 @@ public:
      * @return UbseResult, 成功返回0, 失败返回非0
      * @brief kv需要使用ResultFree进行释放
      */
-    UbseResult Get(const std::string &dbName, const std::string &key, KV &kv);
+    UbseResult Get(const std::string& dbName, const std::string& key, KV& kv);
 
     /* *
      * 从主节点精确查询数据
@@ -74,19 +74,19 @@ public:
      * @param handler [IN] 结果处理函数
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult RemoteGet(const std::string &dbName, const std::string &key, const RemoteGetHandler &handler);
+    UbseResult RemoteGet(const std::string& dbName, const std::string& key, const RemoteGetHandler& handler);
 
     /* *
      * 清理 精确查询接口为 kv 数据分配空间
      * @param data Get接口返回的 kv 对象
      */
-    static void ResultFree(KV &data);
+    static void ResultFree(KV& data);
 
     /* *
      * 清理 模糊查询接口为 kvs 数据分配空间
      * @param data Get接口返回的 kvs 对象
      */
-    static void ResultFree(std::vector<KV> &data);
+    static void ResultFree(std::vector<KV>& data);
 
     /* *
      * 删除数据
@@ -94,12 +94,12 @@ public:
      * @param key [IN] 删除数据 key
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    UbseResult Delete(const std::string &dbName, const std::string &key);
+    UbseResult Delete(const std::string& dbName, const std::string& key);
 
 private:
     class Impl;
     std::unique_ptr<Impl> pImpl_;
 };
-}
+} // namespace ubse::storage
 
 #endif // UBSE_STORE_MODULE_H

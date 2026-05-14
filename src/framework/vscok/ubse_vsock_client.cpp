@@ -77,14 +77,14 @@ bool UbseVsockClient::Connect()
     addr.svm_cid = hostCid_;
     addr.svm_port = hostPort_;
 
-    if (connect(sockFd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == -1) {
+    if (connect(sockFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1) {
         close(sockFd_);
         sockFd_ = INVALID_SOCK_FD;
         UBSE_LOG_ERROR << "Failed to connect vsock server";
         return false;
     }
 
-    SSL_CTX *ctx = InitSslCtx(); // 直接接收返回值，无需传地址！
+    SSL_CTX* ctx = InitSslCtx(); // 直接接收返回值，无需传地址！
     if (!ctx) {                  // 检查是否返回NULL
         UBSE_LOG_ERROR << "InitSslCtx error";
         return false;
@@ -134,9 +134,9 @@ void UbseVsockClient::Disconnect()
     }
 }
 
-int PemPasswordCallback(char *buf, int size, int rwflag, void *usrdata)
+int PemPasswordCallback(char* buf, int size, int rwflag, void* usrdata)
 {
-    const char *value = static_cast<const char *>(usrdata);
+    const char* value = static_cast<const char*>(usrdata);
     if (value == nullptr) {
         return 0; // 失败
     }
@@ -148,14 +148,14 @@ int PemPasswordCallback(char *buf, int size, int rwflag, void *usrdata)
     return len; // 返回实际写入的字节数
 }
 
-SSL_CTX *UbseVsockClient::InitSslCtx()
+SSL_CTX* UbseVsockClient::InitSslCtx()
 {
     // OpenSSL基础初始化
     OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr);
     OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
 
     // 创建TLS客户端上下文（最低版本TLS1.3）
-    SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+    SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
     if (!ctx) {
         UBSE_LOG_ERROR << "SSL_CTX_new failed";
         return nullptr;
@@ -172,7 +172,7 @@ SSL_CTX *UbseVsockClient::InitSslCtx()
 
     password = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
     SSL_CTX_set_default_passwd_cb(ctx, PemPasswordCallback);
-    SSL_CTX_set_default_passwd_cb_userdata(ctx, (void *)(password.c_str()));
+    SSL_CTX_set_default_passwd_cb_userdata(ctx, (void*)(password.c_str()));
 
     // 1. 加载客户端证书+私钥（供服务端验证）
     if (SSL_CTX_use_certificate_file(ctx, UbseSSLConfig::ServerCertFile, SSL_FILETYPE_PEM) <= 0 ||
@@ -200,7 +200,7 @@ SSL_CTX *UbseVsockClient::InitSslCtx()
     return ctx;
 }
 
-bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void *data, uint32_t data_len)
+bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void* data, uint32_t data_len)
 {
     if (sockFd_ < 0) {
         UBSE_LOG_ERROR << "Not connect vsock server";
@@ -210,7 +210,7 @@ bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void *data, 
     std::unique_ptr<char[]> buffer(new char[total_size]);
     const auto safeSize = 1LL << 20;
 
-    MsgHeader *hdr = reinterpret_cast<MsgHeader *>(buffer.get());
+    MsgHeader* hdr = reinterpret_cast<MsgHeader*>(buffer.get());
     hdr->id = id;
     hdr->version = 0xffff0400;
     hdr->type = type;
@@ -234,7 +234,7 @@ bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void *data, 
     return true;
 }
 
-bool UbseVsockClient::RecvMessage(UbseSignRsp &rsp)
+bool UbseVsockClient::RecvMessage(UbseSignRsp& rsp)
 {
     if (sockFd_ < 0) {
         return false;
@@ -259,7 +259,7 @@ bool UbseVsockClient::RecvMessage(UbseSignRsp &rsp)
     return true;
 }
 
-uint32_t UbseVsockClient::UbseVsockSend(UbseSignReq &req, UbseSignRsp &rsp)
+uint32_t UbseVsockClient::UbseVsockSend(UbseSignReq& req, UbseSignRsp& rsp)
 {
     if (!Connect()) {
         return UBSE_ERROR;

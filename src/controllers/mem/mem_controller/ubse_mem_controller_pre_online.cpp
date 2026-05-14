@@ -4,21 +4,20 @@
 
 #include "ubse_mem_controller_pre_online.h"
 
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_mem_controller_msg.h"
-#include "ubse_mmi_interface.h"
 #include "ubse_mem_util.h"
+#include "ubse_mmi_interface.h"
 #include "ubse_mmi_module.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_mmi_interface.h"
 #include "ubse_timer.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -63,7 +62,7 @@ bool IsClusterPreOnLineReady()
 {
     preOnLineMutexMap.lock_shared();
     int onlineCount = 0;
-    for (const auto &pair : nodePreOnLine) {
+    for (const auto& pair : nodePreOnLine) {
         if (pair.second == PreOnLineState::ONLINE &&
             ++onlineCount >= 2) { // 当集群>=2节点处于Online状态，即可进行numa借用；但不保证一定能成功。
             preOnLineMutexMap.unlock_shared();
@@ -74,14 +73,14 @@ bool IsClusterPreOnLineReady()
     return false;
 }
 
-void SetNodePreOnLine(const std::string &nodeId, PreOnLineState state)
+void SetNodePreOnLine(const std::string& nodeId, PreOnLineState state)
 {
     preOnLineMutexMap.lock();
     nodePreOnLine[nodeId] = state;
     preOnLineMutexMap.unlock();
 }
 
-bool IsNodeOnLine(const std::string &nodeId)
+bool IsNodeOnLine(const std::string& nodeId)
 {
     preOnLineMutexMap.lock_shared();
     if (nodePreOnLine.find(nodeId) != nodePreOnLine.end() && nodePreOnLine[nodeId] == PreOnLineState::ONLINE) {
@@ -93,7 +92,7 @@ bool IsNodeOnLine(const std::string &nodeId)
     return false;
 }
 
-void PreOnlineThread(const ubse::nodeController::UbseNodeInfo &ubseNode, bool isInitCluster)
+void PreOnlineThread(const ubse::nodeController::UbseNodeInfo& ubseNode, bool isInitCluster)
 {
     try {
         std::thread([ubseNode, isInitCluster]() -> void {
@@ -103,12 +102,12 @@ void PreOnlineThread(const ubse::nodeController::UbseNodeInfo &ubseNode, bool is
                 SetNodePreOnLine(ubseNode.nodeId, PreOnLineState::OFFLINE);
             }
         }).detach();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "nodeId=" << ubseNode.nodeId << " create thread failed, " << e.what();
     }
 }
 
-UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
+UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo& ubseNode)
 {
     UBSE_LOG_INFO << "nodeId=" << ubseNode.nodeId << " online, state=" << static_cast<uint32_t>(ubseNode.clusterState);
 
@@ -147,7 +146,7 @@ UbseResult PreOnlineHandler(const ubse::nodeController::UbseNodeInfo &ubseNode)
     return UBSE_OK;
 }
 
-bool ValidPreOnLine(const std::string &nodeId)
+bool ValidPreOnLine(const std::string& nodeId)
 {
     if (g_globalStop.load()) {
         UBSE_LOG_WARN << "process already stop.";
@@ -168,7 +167,7 @@ bool ValidPreOnLine(const std::string &nodeId)
 * @param msg
 * @return
 */
-std::vector<std::string> ParseLcneTopologyNotifyMsg(const std::string &msg)
+std::vector<std::string> ParseLcneTopologyNotifyMsg(const std::string& msg)
 {
     std::istringstream stream(msg);
     std::string segment;
@@ -201,7 +200,7 @@ std::vector<std::string> ParseLcneTopologyNotifyMsg(const std::string &msg)
     return nodeList;
 }
 
-bool ValidWhenLcneTopologyChange(const std::string &eventMessage)
+bool ValidWhenLcneTopologyChange(const std::string& eventMessage)
 {
     if (g_globalStop.load()) {
         UBSE_LOG_WARN << "process already stop.";
@@ -218,7 +217,7 @@ bool ValidWhenLcneTopologyChange(const std::string &eventMessage)
     return true;
 }
 
-UbseResult LcneTopologyChangeHandler(std::string &, std::string &eventMessage)
+UbseResult LcneTopologyChangeHandler(std::string&, std::string& eventMessage)
 {
     UBSE_LOG_INFO << "lcne, msg=" << eventMessage;
     if (!ValidWhenLcneTopologyChange(eventMessage)) {
@@ -246,8 +245,7 @@ UbseResult LcneTopologyChangeHandler(std::string &, std::string &eventMessage)
                 UBSE_LOG_WARN << "lcne, nodeId=" << id << " not collect.";
                 continue;
             }
-            UBSE_LOG_INFO << "lcne, node=" << id << " state="
-                          << static_cast<uint32_t>(iter->second.clusterState);
+            UBSE_LOG_INFO << "lcne, node=" << id << " state=" << static_cast<uint32_t>(iter->second.clusterState);
             if (iter->second.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT ||
                 iter->second.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
                 continue;
@@ -258,7 +256,7 @@ UbseResult LcneTopologyChangeHandler(std::string &, std::string &eventMessage)
     return UBSE_OK;
 }
 
-uint16_t GetMarId(const std::string &portId, uint16_t &marId)
+uint16_t GetMarId(const std::string& portId, uint16_t& marId)
 {
     if (portId.empty()) {
         UBSE_LOG_WARN << "The portId=" << portId;
@@ -313,7 +311,7 @@ UbseResult GenerateSocketCna(const std::string& nodeId, UbseCpuInfo cpu, ubse::n
     return UBSE_OK;
 }
 
-std::vector<SocketCnaInfo> GeneratePreOnLineCna(const std::string &nodeId)
+std::vector<SocketCnaInfo> GeneratePreOnLineCna(const std::string& nodeId)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " start to generate pre online cna";
     ubse::nodeController::UbseNodeInfo info = UbseNodeController::GetInstance().GetNodeById(nodeId);
@@ -381,7 +379,7 @@ std::unordered_set<std::string> FilterLcneRemote(ubse::nodeController::UbseNodeI
     return remoteNodeIdSet;
 }
 
-UbseTaskExecutorPtr GenerateTask(const std::string &taskName)
+UbseTaskExecutorPtr GenerateTask(const std::string& taskName)
 {
     auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
@@ -391,7 +389,7 @@ UbseTaskExecutorPtr GenerateTask(const std::string &taskName)
     return taskExecutor->Get("ubseMemController");
 }
 
-void RemoveTask(const std::string &taskName)
+void RemoveTask(const std::string& taskName)
 {
     auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
@@ -401,7 +399,7 @@ void RemoveTask(const std::string &taskName)
     taskExecutor->Remove(taskName);
 }
 
-UbseResult ReqPreOnLine(const std::string &nodeId, const std::string &taskName, UbseTaskExecutorPtr ptr,
+UbseResult ReqPreOnLine(const std::string& nodeId, const std::string& taskName, UbseTaskExecutorPtr ptr,
                         std::unordered_set<std::string> remoteNodeIdSet)
 {
     UbseResult ret = UBSE_OK;
@@ -568,7 +566,7 @@ void handlePreOnLineTask(PreOnLineResp reply)
         // 将任务期望状态置为 offline
         preOnLineTask[reply.taskName].expectState = PreOnLineState::OFFLINE;
         // 从task任务列表里面移除操作节点
-        PreOnLineTask &task = iter->second;
+        PreOnLineTask& task = iter->second;
         task.preOnLineNodes.erase(
             std::remove(task.preOnLineNodes.begin(), task.preOnLineNodes.end(), reply.operateNode));
         // 将节点预上线状态改为 offline
@@ -584,7 +582,7 @@ void handlePreOnLineTask(PreOnLineResp reply)
     }
     UBSE_LOG_INFO << "task=" << reply.taskName << ", pre online node=" << reply.operateNode << " success";
     // 从task任务列表里面移除操作节点
-    PreOnLineTask &task = iter->second;
+    PreOnLineTask& task = iter->second;
     task.preOnLineNodes.erase(std::remove(task.preOnLineNodes.begin(), task.preOnLineNodes.end(), reply.operateNode));
     if (task.preOnLineNodes.empty() && task.expectState == PreOnLineState::ONLINE) {
         UBSE_LOG_INFO << "task=" << reply.taskName << ", node=" << task.nodeId << " all task success, set online";
@@ -615,7 +613,7 @@ void PreOnLineUnInit()
     }
 }
 
-uint32_t SerializePreOnLine(PreOnLineReq req, uint8_t *&buffer, size_t &size)
+uint32_t SerializePreOnLine(PreOnLineReq req, uint8_t*& buffer, size_t& size)
 {
     UbseSerialization outStream;
     outStream << req.taskName;
@@ -640,7 +638,7 @@ uint32_t SerializePreOnLine(PreOnLineReq req, uint8_t *&buffer, size_t &size)
     return UBSE_OK;
 }
 
-uint32_t DeSerializePreOnLine(PreOnLineReq &req, uint8_t *buffer, size_t size)
+uint32_t DeSerializePreOnLine(PreOnLineReq& req, uint8_t* buffer, size_t size)
 {
     UbseDeSerialization inStream(buffer, size);
     inStream >> req.taskName;
@@ -670,7 +668,7 @@ uint32_t DeSerializePreOnLine(PreOnLineReq &req, uint8_t *buffer, size_t size)
     return UBSE_OK;
 }
 
-uint32_t SerializePreOnlineResp(PreOnLineResp resp, uint8_t *&buffer, size_t &size)
+uint32_t SerializePreOnlineResp(PreOnLineResp resp, uint8_t*& buffer, size_t& size)
 {
     UbseSerialization outStream;
     outStream << resp.taskName << resp.operateNode << resp.ret;
@@ -683,7 +681,7 @@ uint32_t SerializePreOnlineResp(PreOnLineResp resp, uint8_t *&buffer, size_t &si
     return UBSE_OK;
 }
 
-uint32_t DeSerializePreOnLineResp(PreOnLineResp &resp, uint8_t *buffer, size_t size)
+uint32_t DeSerializePreOnLineResp(PreOnLineResp& resp, uint8_t* buffer, size_t size)
 {
     UbseDeSerialization inStream(buffer, size);
     inStream >> resp.taskName >> resp.operateNode >> resp.ret;

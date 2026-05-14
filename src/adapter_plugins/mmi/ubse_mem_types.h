@@ -13,12 +13,12 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_TYPES_H
 #define UBSE_MANAGER_UBSE_MEM_TYPES_H
 
+#include <adapter_plugins/mti/ubse_mti_mami_def.h>
 #include <sys/types.h>
 #include <ostream>
 #include <set>
 #include <string>
 #include <vector>
-#include <adapter_plugins/mti/ubse_mti_mami_def.h>
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -26,7 +26,7 @@
 #include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
-inline constexpr char const *MMI_LOG_INFO = "[MMI] ";
+inline constexpr char const* MMI_LOG_INFO = "[MMI] ";
 
 constexpr uint16_t INVALID_VALUE16 = 0xFFFF;
 constexpr uint64_t DEFAULT_BLOCK_SIZE = 128;
@@ -83,7 +83,7 @@ struct UbseMemLocalObmmCustomMeta {
     uint32_t attachSocket{};               // 导入时实际挂载的socketId
     char name[UBSE_MEM_MAX_NAME_LENGTH]{}; // 全局uuid，控制面需要！
     uint16_t memidCount{}; // memid的总个数，芯片表项碎片导致一次借用，会有多个memid，决策完之后就能知道，用于回滚
-    uint32_t regionMask{0};                                 // 共享域的bit位
+    uint32_t regionMask{0};                                // 共享域的bit位
     uint8_t importNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{}; // 共享没有import numaid
     uint8_t exportNumaIds[TOPOLOGY_MAX_NUMA_PER_SOCKET]{};
     int32_t importSocket{};

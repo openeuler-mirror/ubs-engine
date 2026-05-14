@@ -23,7 +23,7 @@ extern "C" {
 #define UBSE_ERR_CODE 1000
 
 // UBSE错误码信息数组
-static const ubs_error_info_t *const ubse_error_infos[] = {
+static const ubs_error_info_t* const ubse_error_infos[] = {
     [UBS_ENGINE_ERR_OUT_OF_RANGE - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBSE_ERR_OUT_OF_RANGE", "Parameter out of range"},
     [UBS_ENGINE_ERR_RESOURCE - UBSE_ERR_CODE] = &(ubs_error_info_t){"UBSE_ERR_RESOURCE", "Resource allocation error"},
@@ -49,8 +49,7 @@ static const ubs_error_info_t *const ubse_error_infos[] = {
     [UBS_ENGINE_ERR_ALLOCATE - UBSE_ERR_CODE] = &(ubs_error_info_t){"UBSE_ERR_ALLOCATE", "Failed to Allocate."},
     [UBS_ENGINE_ERR_NODE_NOT_EXIST - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBS_ENGINE_ERR_NODE_NOT_EXIST", "UBSE node does not exist"},
-    [UBS_ENGINE_ERR_NODE_FAULT - UBSE_ERR_CODE] =
-        &(ubs_error_info_t){"UBS_ENGINE_ERR_NODE_FAULT", "UBSE node fault"},
+    [UBS_ENGINE_ERR_NODE_FAULT - UBSE_ERR_CODE] = &(ubs_error_info_t){"UBS_ENGINE_ERR_NODE_FAULT", "UBSE node fault"},
 };
 
 #ifdef __cplusplus

@@ -13,13 +13,13 @@
 #ifndef MP_MEMORY_INFO_H
 #define MP_MEMORY_INFO_H
 
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <algorithm>
 
-#include "mp_json_util.h"
 #include "ubse_str_util.h"
+#include "mp_json_util.h"
 
 namespace mempooling {
 using namespace ubse::utils;
@@ -71,8 +71,7 @@ struct RackNumaMemInfo {
         oss << "RackNumaMemInfo(numaId=" << numaId << ", socketId=" << socketId << ", memTotal=" << memTotal
             << ", memFree=" << memFree << ", memUsed=" << memUsed << ", vmMemTotal=" << vmMemTotal
             << ", vmMemFree=" << vmMemFree << ", vmUsedMem=" << vmUsedMem << ", reservedMem=" << reservedMem
-            << ", lentMem=" << lentMem << ", sharedMem=" << sharedMem
-            << ", canBorrowMem=" << canBorrowMem << ")";
+            << ", lentMem=" << lentMem << ", sharedMem=" << sharedMem << ", canBorrowMem=" << canBorrowMem << ")";
         return oss.str();
     }
 };
@@ -107,11 +106,11 @@ struct RackBorrowedAndLentInfo {
     {
         std::ostringstream oss;
         oss << "RackBorrowedAndLentInfo(\n  borrowedItem=[";
-        for (const auto &item : borrowedItem) {
+        for (const auto& item : borrowedItem) {
             oss << "\n    " << item.ToString();
         }
         oss << "\n  ],\n  lentItem=[";
-        for (const auto &item : lentItem) {
+        for (const auto& item : lentItem) {
             oss << "\n    " << item.ToString();
         }
         oss << "\n  ]\n)";
@@ -145,16 +144,16 @@ struct NodeMemoryInfo {
     std::vector<RackNumaMemInfo> numaMemInfo;
 };
 
-uint64_t StringToKB(std::string &str);
+uint64_t StringToKB(std::string& str);
 
 struct NodeMemoryInfoList {
     std::vector<NodeMemoryInfo> nodeMemoryInfoList;
-    bool FromJson(const std::string &jsonString);
-    bool ParseNodeMemoryInfoMap(const JSON_VEC &nodeMemoryInfoListVec, const int &i, JSON_MAP &nodeMemoryInfoMap);
-    bool ParseNumaMemInfoMap(const JSON_VEC &numaMemInfoVec, const int &i, const int &j, JSON_MAP &numaMemInfoMap);
-    bool CreateNodeMemoryInfoListVec(const std::string &jsonString, JSON_MAP &NodeMemoryInfoListMAP,
-                                     JSON_VEC &nodeMemoryInfoListVec);
-    bool CreateNumaMemInfoVec(JSON_VEC &numaMemInfoVec, const int &i, JSON_MAP &nodeMemoryInfoMap);
+    bool FromJson(const std::string& jsonString);
+    bool ParseNodeMemoryInfoMap(const JSON_VEC& nodeMemoryInfoListVec, const int& i, JSON_MAP& nodeMemoryInfoMap);
+    bool ParseNumaMemInfoMap(const JSON_VEC& numaMemInfoVec, const int& i, const int& j, JSON_MAP& numaMemInfoMap);
+    bool CreateNodeMemoryInfoListVec(const std::string& jsonString, JSON_MAP& NodeMemoryInfoListMAP,
+                                     JSON_VEC& nodeMemoryInfoListVec);
+    bool CreateNumaMemInfoVec(JSON_VEC& numaMemInfoVec, const int& i, JSON_MAP& nodeMemoryInfoMap);
 };
 
 struct NodeMemoryInfoWithReservedMem : NodeMemoryInfo {
@@ -164,7 +163,7 @@ struct NodeMemoryInfoWithReservedMem : NodeMemoryInfo {
     uint64_t canBorrowMem;
 
     NodeMemoryInfoWithReservedMem() : reservedMem(0), sharedMem(0), socketId(0), canBorrowMem(0) {}
-    NodeMemoryInfoWithReservedMem(const NodeMemoryInfo &nodeMemoryInfo, uint64_t reservedMem_, uint64_t sharedMem_)
+    NodeMemoryInfoWithReservedMem(const NodeMemoryInfo& nodeMemoryInfo, uint64_t reservedMem_, uint64_t sharedMem_)
         : NodeMemoryInfo(nodeMemoryInfo),
           reservedMem(reservedMem_),
           sharedMem(sharedMem_),
@@ -172,7 +171,7 @@ struct NodeMemoryInfoWithReservedMem : NodeMemoryInfo {
           canBorrowMem(0)
     {
     }
-    NodeMemoryInfoWithReservedMem &operator=(const NodeMemoryInfo &nodeMemoryInfo)
+    NodeMemoryInfoWithReservedMem& operator=(const NodeMemoryInfo& nodeMemoryInfo)
     {
         if (this != &nodeMemoryInfo) {
             NodeMemoryInfo::operator=(nodeMemoryInfo);

@@ -20,7 +20,7 @@ using namespace ubse::adapter_plugins::mmi;
 class UbseMemReturnReqSimpo : public UbseBaseMessage {
 public:
     UbseMemReturnReqSimpo() = default;
-    explicit UbseMemReturnReqSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemReturnReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

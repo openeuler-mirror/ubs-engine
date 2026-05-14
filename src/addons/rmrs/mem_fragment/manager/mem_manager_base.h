@@ -23,6 +23,10 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ubse_def.h"
+#include "ubse_common_def.h"
+#include "ubse_election.h"
+#include "ubse_mem_controller.h"
 #include "mem_json_def.h"
 #include "mempooling_message.h"
 #include "mp_anti_param_json_util.h"
@@ -31,20 +35,16 @@
 #include "mp_module.h"
 #include "mp_sync_data_helper.h"
 #include "turbo_rmrs_interface.h"
-#include "ubse_common_def.h"
-#include "ubse_def.h"
-#include "ubse_mem_controller.h"
-#include "ubse_election.h"
 
 namespace mempooling {
 
-uint32_t GetNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-uint32_t GetAllNodeInfoImmediatelyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-uint32_t UpdateDataBaseAndCache(UbseByteBuffer &buffer, const MpUpdateAntiNodeParam &antiParam,
-                                ubse::election::UbseRoleInfo &standbyRole);
-void GetNodeInfoImmediatelyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+uint32_t GetNodeInfoImmediatelyRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+uint32_t SyncAntiDataRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+uint32_t SyncAntiDataStandByRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+uint32_t GetAllNodeInfoImmediatelyRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+uint32_t UpdateDataBaseAndCache(UbseByteBuffer& buffer, const MpUpdateAntiNodeParam& antiParam,
+                                ubse::election::UbseRoleInfo& standbyRole);
+void GetNodeInfoImmediatelyResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 } // namespace mempooling
 
 #endif // MEM_MANAGER_BASE_H

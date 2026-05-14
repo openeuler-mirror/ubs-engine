@@ -37,7 +37,7 @@ public:
 * @param memDebtInfoMap [out] 借用账本对象集合
 * @return 成功返回0, 失败返回非0
 */
-uint32_t UbseGetMemDebtInfo(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap);
+uint32_t UbseGetMemDebtInfo(const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap);
 
 } // namespace ubse::mem::controller
 

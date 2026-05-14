@@ -14,10 +14,10 @@
 #define RS_MEM_ALGO_BORROW_DECISION_MAKER_H
 
 #include <cstring>
+#include "ubse_error.h"
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
 #include "mem_pool_strategy_impl.h"
-#include "ubse_error.h"
 
 namespace tc::rs::mem {
 
@@ -28,19 +28,19 @@ const int HALF_MAX_DEBT_COST = (MAX_DEBT_COST / 2);
 struct BorrowTreeNodeStatus {
     BorrowTreeNodeStatus() = default;
     SysStatus sysStatus{};         /* 决策组合对应的系统状态 */
-    BorrowResult *borrowResults{}; /* 批量借用决策结果 */
+    BorrowResult* borrowResults{}; /* 批量借用决策结果 */
 };
 
 class BorrowDecisionMaker {
 public:
-    explicit BorrowDecisionMaker(MemPoolStrategyImpl *strategyImpl)
+    explicit BorrowDecisionMaker(MemPoolStrategyImpl* strategyImpl)
     {
         mStrategyImpl_ = strategyImpl;
     };
-    MemPoolStrategyImpl *mStrategyImpl_ = nullptr;
-    MemPoolConfig *memConfig_ = nullptr;
-    BorrowTreeNodeStatus *mParentStat_ = nullptr;
-    BorrowTreeNodeStatus *mChildStat_ = nullptr;
+    MemPoolStrategyImpl* mStrategyImpl_ = nullptr;
+    MemPoolConfig* memConfig_ = nullptr;
+    BorrowTreeNodeStatus* mParentStat_ = nullptr;
+    BorrowTreeNodeStatus* mChildStat_ = nullptr;
 
     /**
     * @brief 贪心策略, 筛选满足借用约束的剩余内存最多的numa
@@ -50,8 +50,8 @@ public:
     * @param maxNumaFreeSizeBytes [OUT] 最优numa的剩余内存容量
     * @return
     */
-    BResult SelectOptimalNumaGreedy(const BorrowRequest &borrowRequest, const SysStatus &sysStatus, int &idxMaxFree,
-                                    uint64_t &maxNumaFreeSizeBytes) const;
+    BResult SelectOptimalNumaGreedy(const BorrowRequest& borrowRequest, const SysStatus& sysStatus, int& idxMaxFree,
+                                    uint64_t& maxNumaFreeSizeBytes) const;
 
     /**
     * @brief 基于贪心策略选择借入方和借出方
@@ -60,22 +60,22 @@ public:
     * @param borrowResult [OUT] 借用请求决策结果(借出numa数量, 借出numa位置, 借入numa位置, 各numa内存借用量)
     * @return
     */
-    BResult DetermineLenderGreedy(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
-                                  BorrowResult &borrowResult) const;
+    BResult DetermineLenderGreedy(const BorrowRequest& borrowRequest, const SysStatus& sysStatus,
+                                  BorrowResult& borrowResult) const;
 
     /**
      * @brief 基于时延选择借入方numa位置
      * @param borrowRequest
      * @param borrowResult
      */
-    void GetBorrowerNuma(const BorrowRequest &borrowRequest, BorrowResult &borrowResult) const;
+    void GetBorrowerNuma(const BorrowRequest& borrowRequest, BorrowResult& borrowResult) const;
 
     /**
      * @brief 获取节点的numa列表
      * @param borrowRequest
      * @return
      */
-    int *GetNumaList(const BorrowRequest &borrowRequest) const;
+    int* GetNumaList(const BorrowRequest& borrowRequest) const;
 
     /**
      * @brief 检查socket和host是否直连
@@ -83,7 +83,7 @@ public:
      * @param socketIdx
      * @return
      */
-    bool CheckDirectConnect(const BorrowRequest &borrowRequest, int socketIdx) const;
+    bool CheckDirectConnect(const BorrowRequest& borrowRequest, int socketIdx) const;
 
     /**
      * @brief 检查是否同host
@@ -99,7 +99,7 @@ public:
      * @param sysStatus
      * @return
      */
-    int GetBorrowedNum(MemLoc requestLoc, const SysStatus &sysStatus) const;
+    int GetBorrowedNum(MemLoc requestLoc, const SysStatus& sysStatus) const;
 
     /**
      * @brief 检查是否超过借入节点限制
@@ -116,7 +116,7 @@ public:
      * @param sysStatus
      * @return
      */
-    bool IsNeverBorrowed(MemLoc requestLoc, MemLoc targetLoc, const SysStatus &sysStatus) const;
+    bool IsNeverBorrowed(MemLoc requestLoc, MemLoc targetLoc, const SysStatus& sysStatus) const;
 
     /**
     * @brief 独立借用请求决策器, 贪心策略
@@ -125,8 +125,8 @@ public:
     * @param borrowResult [OUT] 借用请求决策结果(借出numa数量, 借出numa位置, 借入numa位置, 各numa内存借用量)
     * @return
     */
-    BResult MemoryBorrowGreedy(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                               BorrowResult &borrowResult) const;
+    BResult MemoryBorrowGreedy(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                               BorrowResult& borrowResult) const;
 
     /**
     * @brief 判断目标socket是否在候选集内, 仅适用于借用请求
@@ -135,7 +135,7 @@ public:
     * @param sysStatus [IN] 系统numa, socket, host状态
     * @return
     */
-    bool LenderFilter(MemLoc requestLoc, MemLoc targetLoc, const SysStatus &sysStatus) const;
+    bool LenderFilter(MemLoc requestLoc, MemLoc targetLoc, const SysStatus& sysStatus) const;
 
     /**
     * @brief 计算所有候选socket的借用代价
@@ -146,8 +146,8 @@ public:
     * @param socketCosts [OUT] 各socket的借用代价, 调用时预留空间mConfig->mNumAvailSockets
     * @return
     */
-    BResult ComputeSocketCosts(const BorrowRequest &borrowRequest, const SysStatus &sysStatus, int numAvailSockets,
-                               std::vector<TargetSocket> &targetSockets, std::vector<double> &socketCosts) const;
+    BResult ComputeSocketCosts(const BorrowRequest& borrowRequest, const SysStatus& sysStatus, int numAvailSockets,
+                               std::vector<TargetSocket>& targetSockets, std::vector<double>& socketCosts) const;
 
     /**
     * @brief 系统socket初筛, 并计算所有候选socket的借用代价(ComputeSocketCosts)
@@ -157,8 +157,8 @@ public:
     * @param socketCosts [OUT] 各socket的借用代价, 调用时预留空间mConfig->mNumAvailSockets
     * @return
     */
-    BResult GetSocketBorrowCost(const BorrowRequest &borrowRequest, const SysStatus &sysStatus,
-                                std::vector<BorrowResult> &socketResults, std::vector<double> &socketCosts) const;
+    BResult GetSocketBorrowCost(const BorrowRequest& borrowRequest, const SysStatus& sysStatus,
+                                std::vector<BorrowResult>& socketResults, std::vector<double>& socketCosts) const;
 
     /**
     * @brief 从所有socket中选择借用代价最低的topK个socket, 保存结果(以拆分numa形式存储)
@@ -168,8 +168,8 @@ public:
     * @param borrowResults [IN] 借用决策的topK最优决策结果(未确定借入方numa位置), borrowResults.lenderLength=0表示socket不可借
     * @return
     */
-    BResult SelectTopKBorrow(const BorrowRequest &borrowRequest, const SysStatus &sysStatus, int topK,
-                             BorrowResult *borrowResults) const;
+    BResult SelectTopKBorrow(const BorrowRequest& borrowRequest, const SysStatus& sysStatus, int topK,
+                             BorrowResult* borrowResults) const;
 
     /**
     * @brief 确定借出方socket对应的借入方numa位置, 并保存决策结果(borrowResult)
@@ -178,7 +178,7 @@ public:
     * @param borrowResult [IN] 借用决策的决策结果(已确定借入方numa位置), borrowResults.lenderLength=0表示socket不可借
     * @return
     */
-    BResult Borrower2Numa(MemLoc requestLoc, const SysStatus &sysStatus, BorrowResult &borrowResult) const;
+    BResult Borrower2Numa(MemLoc requestLoc, const SysStatus& sysStatus, BorrowResult& borrowResult) const;
 
     /**
     * @brief 独立借用请求决策器, 评分策略
@@ -187,8 +187,8 @@ public:
     * @param borrowResult [OUT] 借用请求决策结果(借出numa数量, 借出numa位置, 借入numa位置, 各numa内存借用量)
     * @return
     */
-    BResult SingleMemBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                            BorrowResult &borrowResult);
+    BResult SingleMemBorrow(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                            BorrowResult& borrowResult);
 };
 } // namespace tc::rs::mem
 #endif // RS_MEM_ALGO_BORROW_DECISION_MAKER_H

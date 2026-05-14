@@ -47,7 +47,7 @@ protected:
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 8 && __GNUC_PATCHLEVEL__ == 5
 template <class T, class U = T>
-T exchangeHdagger(T &obj, U &&new_value)
+T exchangeHdagger(T& obj, U&& new_value)
 {
     T old_value = std::move(obj);
     obj = std::forward<U>(new_value);
@@ -62,7 +62,7 @@ public:
     Ref() noexcept = default;
 
     // fix: can't be explicit
-    Ref(T *newObj) noexcept
+    Ref(T* newObj) noexcept
     {
         // if new obj is not null, increase reference count and assign to mObj
         // else nothing need to do as mObj is nullptr by default
@@ -72,7 +72,7 @@ public:
         }
     }
 
-    Ref(const Ref<T> &other) noexcept
+    Ref(const Ref<T>& other) noexcept
     {
         // if other's obj is not null, increase reference count and assign to mObj
         // else nothing need to do as mObj is nullptr by default
@@ -83,9 +83,9 @@ public:
     }
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 8 && __GNUC_PATCHLEVEL__ == 5
-    Ref(Ref<T> &&other) noexcept : mObj(exchangeHdagger(other.mObj, nullptr))
+    Ref(Ref<T>&& other) noexcept : mObj(exchangeHdagger(other.mObj, nullptr))
 #else
-    Ref(Ref<T> &&other) noexcept : mObj_(std::__exchange(other.mObj_, nullptr))
+    Ref(Ref<T>&& other) noexcept : mObj_(std::__exchange(other.mObj_, nullptr))
 #endif
     {
         // move constructor
@@ -101,13 +101,13 @@ public:
     }
 
     // operator =
-    inline Ref<T> &operator=(T *newObj)
+    inline Ref<T>& operator=(T* newObj)
     {
         this->Set(newObj);
         return *this;
     }
 
-    inline Ref<T> &operator=(const Ref<T> &other)
+    inline Ref<T>& operator=(const Ref<T>& other)
     {
         if (this != &other) {
             this->Set(other.mObj_);
@@ -115,7 +115,7 @@ public:
         return *this;
     }
 
-    Ref<T> &operator=(Ref<T> &&other) noexcept
+    Ref<T>& operator=(Ref<T>&& other) noexcept
     {
         if (this != &other) {
             auto tmp = mObj_;
@@ -132,38 +132,38 @@ public:
     }
 
     // equal operator
-    inline bool operator==(const Ref<T> &other) const
+    inline bool operator==(const Ref<T>& other) const
     {
         return mObj_ == other.mObj_;
     }
 
-    inline bool operator==(T *other) const
+    inline bool operator==(T* other) const
     {
         return mObj_ == other;
     }
 
-    inline bool operator!=(const Ref<T> &other) const
+    inline bool operator!=(const Ref<T>& other) const
     {
         return mObj_ != other.mObj_;
     }
 
-    inline bool operator!=(T *other) const
+    inline bool operator!=(T* other) const
     {
         return mObj_ != other;
     }
 
     // get operator and set
-    inline T *operator->() const
+    inline T* operator->() const
     {
         return mObj_;
     }
 
-    inline T *Get() const
+    inline T* Get() const
     {
         return mObj_;
     }
 
-    inline void Set(T *newObj)
+    inline void Set(T* newObj)
     {
         if (newObj == mObj_) {
             return;
@@ -181,7 +181,7 @@ public:
     }
 
 private:
-    T *mObj_ = nullptr;
+    T* mObj_ = nullptr;
 };
 
 /*

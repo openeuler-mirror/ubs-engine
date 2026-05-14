@@ -55,8 +55,8 @@ constexpr uint32_t FILE_MAX_SIZE = 2 * 1024 * 1024; // 2 * 1024 * 1024: 文件�
  * - 如果存在CRL并导入失败，整个操作将中止
  * - 依赖于 ImportCaCrl() 和 ImportCert() 两个函数
  */
-bool ImportCertSet(const std::string &serverCertPath, const std::string &trustCertPath,
-                   const std::string &serverKeyPath, const std::string &caCrlPath, std::string &errMsg)
+bool ImportCertSet(const std::string& serverCertPath, const std::string& trustCertPath,
+                   const std::string& serverKeyPath, const std::string& caCrlPath, std::string& errMsg)
 {
     if (!caCrlPath.empty()) {
         if (!ImportCaCrl(caCrlPath, errMsg)) {
@@ -70,7 +70,7 @@ bool ImportCertSet(const std::string &serverCertPath, const std::string &trustCe
     return true;
 }
 
-bool SetEgidAndEuid(uid_t &gid, uid_t &uid, std::string &errMsg)
+bool SetEgidAndEuid(uid_t& gid, uid_t& uid, std::string& errMsg)
 {
     if (setegid(gid) != 0) {
         errMsg = "Set egid failed, gid=" + std::to_string(gid) + ", error_info=" + std::strerror(errno);
@@ -84,7 +84,7 @@ bool SetEgidAndEuid(uid_t &gid, uid_t &uid, std::string &errMsg)
     return true;
 }
 
-bool CopyFileContents(const std::string &sourcePath, const std::string &destinationPath, std::string &errMsg)
+bool CopyFileContents(const std::string& sourcePath, const std::string& destinationPath, std::string& errMsg)
 {
     std::ifstream sourceFile(sourcePath, std::ios::binary);
     if (!sourceFile) {
@@ -95,7 +95,7 @@ bool CopyFileContents(const std::string &sourcePath, const std::string &destinat
     uid_t original_euid = geteuid();
     uid_t original_egid = getegid();
 
-    struct passwd *pw = getpwnam("ubse");
+    struct passwd* pw = getpwnam("ubse");
     if (pw == nullptr) {
         errMsg = "user ubse does not exists.";
         sourceFile.close();
@@ -127,12 +127,12 @@ bool CopyFileContents(const std::string &sourcePath, const std::string &destinat
     return SetEgidAndEuid(original_egid, original_euid, errMsg);
 }
 
-bool EnterPassword(std::string &errMsg)
+bool EnterPassword(std::string& errMsg)
 {
     uid_t original_euid = geteuid();
     uid_t original_egid = getegid();
 
-    struct passwd *pw = getpwnam("ubse");
+    struct passwd* pw = getpwnam("ubse");
     if (pw == nullptr) {
         errMsg = "user ubse does not exists.";
         return false;
@@ -171,7 +171,7 @@ bool EnterPassword(std::string &errMsg)
     return true;
 }
 
-bool CheckCertPath(std::string &errMsg)
+bool CheckCertPath(std::string& errMsg)
 {
     std::error_code ec;
     if (!std::filesystem::exists(CERT_DIR, ec)) {
@@ -209,17 +209,14 @@ bool CheckCertPath(std::string &errMsg)
  * - 所有目标文件权限均设置为0600
  * - 异常情况下会输出错误信息到标准错误流
  */
-bool ImportCert(const std::string &serverCertPath, const std::string &trustCertPath, const std::string &serverKeyPath,
-                std::string &errMsg)
+bool ImportCert(const std::string& serverCertPath, const std::string& trustCertPath, const std::string& serverKeyPath,
+                std::string& errMsg)
 {
-    return CheckCertPath(errMsg) &&
-           CheckFilePathValid(serverCertPath, true, errMsg) &&
-           CheckFilePathValid(trustCertPath, true, errMsg) &&
-           CheckFilePathValid(serverKeyPath, true, errMsg) &&
+    return CheckCertPath(errMsg) && CheckFilePathValid(serverCertPath, true, errMsg) &&
+           CheckFilePathValid(trustCertPath, true, errMsg) && CheckFilePathValid(serverKeyPath, true, errMsg) &&
            CopyFileContents(serverCertPath, SERVER_CERT_FILENAME, errMsg) &&
            CopyFileContents(trustCertPath, TRUST_CERT_FILENAME, errMsg) &&
-           CopyFileContents(serverKeyPath, SERVER_KEY_FILENAME, errMsg) &&
-           EnterPassword(errMsg);
+           CopyFileContents(serverKeyPath, SERVER_KEY_FILENAME, errMsg) && EnterPassword(errMsg);
 }
 
 /**
@@ -242,19 +239,18 @@ bool ImportCert(const std::string &serverCertPath, const std::string &trustCertP
  * - 目标文件权限设置为0600
  * - 捕获并记录可能的文件操作异常
  */
-bool ImportCaCrl(const std::string &caCrlPath, std::string &errMsg)
+bool ImportCaCrl(const std::string& caCrlPath, std::string& errMsg)
 {
-    return CheckCertPath(errMsg) &&
-           CheckFilePathValid(caCrlPath, true, errMsg) &&
+    return CheckCertPath(errMsg) && CheckFilePathValid(caCrlPath, true, errMsg) &&
            CopyFileContents(caCrlPath, CA_CRL_FILENAME, errMsg);
 }
 
-int DeleteCertificateFiles(std::string &errMsg)
+int DeleteCertificateFiles(std::string& errMsg)
 {
     int deletedFiles = 0;
     std::error_code ec;
 
-    for (const auto &entry : std::filesystem::directory_iterator(CERT_DIR, ec)) {
+    for (const auto& entry : std::filesystem::directory_iterator(CERT_DIR, ec)) {
         if (ec) {
             errMsg = "Failed to iterate certificate directory, " + ec.message();
             return -1;
@@ -293,7 +289,7 @@ int DeleteCertificateFiles(std::string &errMsg)
  * - 此操作会永久删除证书目录下的所有文件
  * - 请谨慎使用，确保不会意外删除重要证书
  */
-UbseResult DeleteCertSet(std::string &errMsg)
+UbseResult DeleteCertSet(std::string& errMsg)
 {
     if (access(CERT_DIR.c_str(), F_OK) != 0) {
         return UBSE_ERROR_FILE_NOT_EXIST;
@@ -337,7 +333,7 @@ UbseResult DeleteCertSet(std::string &errMsg)
  */
 constexpr uint32_t MAX_KEY_LEN = 1000;
 
-void CheckInput(int &ch, std::string &inputData)
+void CheckInput(int& ch, std::string& inputData)
 {
     // 逐字符读取密码
     while ((ch = getchar()) != '\n' && ch != EOF) {
@@ -350,15 +346,15 @@ void CheckInput(int &ch, std::string &inputData)
         }
         inputData += static_cast<char>(ch);
         if (inputData.size() > MAX_KEY_LEN) {
-            std::cout << std::endl << "The password length exceeds " << MAX_KEY_LEN
-                << " characters, please try again." << std::endl;
+            std::cout << std::endl
+                      << "The password length exceeds " << MAX_KEY_LEN << " characters, please try again." << std::endl;
             inputData.clear();
             break;
         }
     }
 }
 
-std::string GetInteractiveInput(const std::string &prompt)
+std::string GetInteractiveInput(const std::string& prompt)
 {
     termios oldt{};
     termios newt{};
@@ -406,7 +402,7 @@ std::string GetInteractiveInput(const std::string &prompt)
  * - 使用 FileUtils 工具类进行路径验证
  * - 支持文件和目录路径检查
  */
-bool CheckFilePathValid(const std::string &filePath, bool isFile, std::string &errMsg)
+bool CheckFilePathValid(const std::string& filePath, bool isFile, std::string& errMsg)
 {
     if (access(filePath.c_str(), F_OK | R_OK) != 0) {
         errMsg = filePath + " not exist or unreadable.";
@@ -417,19 +413,19 @@ bool CheckFilePathValid(const std::string &filePath, bool isFile, std::string &e
         return false;
     }
 
-    struct stat st{};
+    struct stat st {};
     if (stat(filePath.c_str(), &st) != 0) {
-        errMsg = filePath +  " access failed.";
+        errMsg = filePath + " access failed.";
         return false;
     }
 
     if (isFile && !S_ISREG(st.st_mode)) {
-        errMsg = filePath +  " is not regular file.";
+        errMsg = filePath + " is not regular file.";
         return false;
     }
 
     if (st.st_size > FILE_MAX_SIZE) {
-        errMsg = filePath +  " exceeds the maximum size of " + std::to_string(FILE_MAX_SIZE) + " bytes";
+        errMsg = filePath + " exceeds the maximum size of " + std::to_string(FILE_MAX_SIZE) + " bytes";
         return false;
     }
     return true;

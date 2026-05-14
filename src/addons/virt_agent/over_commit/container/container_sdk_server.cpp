@@ -54,8 +54,8 @@ VmResult VirtContainerSdk::Register()
     return VM_OK;
 }
 
-VmResult GetContainerMemInfoWithStructure(const SrcMemoryBorrowParam &borrowParam, const std::vector<pid_t> &pids,
-                                          std::vector<PidInfo> &pidInfos)
+VmResult GetContainerMemInfoWithStructure(const SrcMemoryBorrowParam& borrowParam, const std::vector<pid_t>& pids,
+                                          std::vector<PidInfo>& pidInfos)
 {
     // Get NUMA information collection function
     const auto UBSRMRSPidNumaInfoCollect = MempoolingModule::UBSRMRSPidNumaInfoCollect();
@@ -70,7 +70,7 @@ VmResult GetContainerMemInfoWithStructure(const SrcMemoryBorrowParam &borrowPara
             UBSE_LOG_ERROR << "UBSRMRSPidNumaInfoCollect failed, " << FormatRetCode(ret);
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "UBSRMRSPidNumaInfoCollect exception: " << e.what();
         return VM_ERROR;
     }
@@ -78,7 +78,7 @@ VmResult GetContainerMemInfoWithStructure(const SrcMemoryBorrowParam &borrowPara
     return VM_OK;
 }
 
-VmResult InjectWaterLine(const WaterMark &waterMark)
+VmResult InjectWaterLine(const WaterMark& waterMark)
 {
     UBSE_LOG_DEBUG << "Start to inject waterLine.";
     double highWaterMark = waterMark.highWaterMark;
@@ -105,7 +105,7 @@ VmResult InjectWaterLine(const WaterMark &waterMark)
             UBSE_LOG_ERROR << "failed to inject waterLine, " << FormatRetCode(ret);
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "UBSRMRSSetWaterMark exception: " << e.what();
         return VM_ERROR;
     }
@@ -114,7 +114,7 @@ VmResult InjectWaterLine(const WaterMark &waterMark)
     return VM_OK;
 }
 
-VmResult ConvertToContainerIds(container_id_list_for_c &containerIdList, std::unordered_set<std::string> &containerIds)
+VmResult ConvertToContainerIds(container_id_list_for_c& containerIdList, std::unordered_set<std::string>& containerIds)
 {
     containerIds.clear();
     if (containerIdList.containerIdSize == 0) {
@@ -131,8 +131,8 @@ VmResult ConvertToContainerIds(container_id_list_for_c &containerIdList, std::un
     return VM_OK;
 }
 
-VmResult ConvertToContainerPidInfos(std::unordered_map<std::string, std::vector<pid_t>> &containerInfos,
-                                    std::vector<container_pid_info_for_c> &result)
+VmResult ConvertToContainerPidInfos(std::unordered_map<std::string, std::vector<pid_t>>& containerInfos,
+                                    std::vector<container_pid_info_for_c>& result)
 {
     result.clear();
     if (containerInfos.empty()) {
@@ -141,15 +141,15 @@ VmResult ConvertToContainerPidInfos(std::unordered_map<std::string, std::vector<
     }
     try {
         result.reserve(containerInfos.size());
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Failed to reserve memory for result vector: " << e.what();
         return VM_ERROR_NOMEM;
     }
 
-    for (const auto &entry : containerInfos) {
+    for (const auto& entry : containerInfos) {
         container_pid_info_for_c info = {};
 
-        info.containerId = const_cast<char *>(entry.first.c_str());
+        info.containerId = const_cast<char*>(entry.first.c_str());
 
         info.pidsCount = std::min(entry.second.size(), static_cast<size_t>(NO_2048));
         for (size_t i = 0; i < info.pidsCount; ++i) {
@@ -162,8 +162,8 @@ VmResult ConvertToContainerPidInfos(std::unordered_map<std::string, std::vector<
     return VM_OK;
 }
 
-VmResult GetContainerPidsByContainerIds(std::unordered_set<std::string> &containerIds,
-                                        std::unordered_map<std::string, std::vector<pid_t>> &containerInfos)
+VmResult GetContainerPidsByContainerIds(std::unordered_set<std::string>& containerIds,
+                                        std::unordered_map<std::string, std::vector<pid_t>>& containerInfos)
 {
     auto ret = OsHelper::GetPidsByContainerIds(containerIds, containerInfos);
     if (ret != VM_OK) {
@@ -178,7 +178,7 @@ VmResult GetContainerPidsByContainerIds(std::unordered_set<std::string> &contain
     return VM_OK;
 }
 
-uint32_t VirtContainerSdk::GetContainerPidsHandler(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtContainerSdk::GetContainerPidsHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     // Parse the input data
     UBSE_LOG_DEBUG << "Start to get container pid info.";
@@ -233,7 +233,7 @@ uint32_t VirtContainerSdk::GetContainerPidsHandler(const UbseIpcMessage &req, co
     return ret;
 }
 
-uint32_t VirtContainerSdk::GetMemInfoForPid(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtContainerSdk::GetMemInfoForPid(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     // Parse the input data
     UBSE_LOG_DEBUG << "Start to get container info";
@@ -278,7 +278,7 @@ uint32_t VirtContainerSdk::GetMemInfoForPid(const UbseIpcMessage &req, const Ubs
     return ret;
 }
 
-uint32_t VirtContainerSdk::InjectWaterLineHandler(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtContainerSdk::InjectWaterLineHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     // Parse the input data
     UBSE_LOG_DEBUG << "Start to inject waterline.";
@@ -310,7 +310,7 @@ uint32_t VirtContainerSdk::InjectWaterLineHandler(const UbseIpcMessage &req, con
     return ret;
 }
 
-uint32_t VirtContainerSdk::WaterLineMemBorrow(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtContainerSdk::WaterLineMemBorrow(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_DEBUG << "Start to do water line mem borrow.";
     // Parse input params
@@ -362,7 +362,7 @@ uint32_t VirtContainerSdk::WaterLineMemBorrow(const UbseIpcMessage &req, const U
     return VM_OK;
 }
 
-uint32_t VirtContainerSdk::WaterLineMemMigrate(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtContainerSdk::WaterLineMemMigrate(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_DEBUG << "Start to do water line mem migrate.";
     // Parse input params
@@ -381,10 +381,10 @@ uint32_t VirtContainerSdk::WaterLineMemMigrate(const UbseIpcMessage &req, const 
         return ret;
     }
     UBSE_LOG_INFO << "nodeLocInfo = " << nodeLocInfo.toString();
-    for (auto &borrowId : borrowIdSet) {
+    for (auto& borrowId : borrowIdSet) {
         UBSE_LOG_INFO << "borrowIdSet = " << borrowId;
     }
-    for (auto &param : vmPresetParamList) {
+    for (auto& param : vmPresetParamList) {
         UBSE_LOG_INFO << "ratio = " << param.ratio << ", pid = " << param.pid;
     }
     // Get water line mem migrate result
@@ -406,7 +406,7 @@ uint32_t VirtContainerSdk::WaterLineMemMigrate(const UbseIpcMessage &req, const 
     return VM_OK;
 }
 
-uint32_t VirtContainerSdk::WaterLineMemReturn(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtContainerSdk::WaterLineMemReturn(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_DEBUG << "Start to do water line mem return.";
     // Parse input params

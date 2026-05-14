@@ -31,9 +31,9 @@ public:
      * @param info vector<string> &: file content, output by line
      * @return Operation result, 0 indicates success, and any non-zero value indicates an exception
      */
-    static VmResult GetFileInfo(const string &path, vector<string> &info);
+    static VmResult GetFileInfo(const string& path, vector<string>& info);
 
-    static bool CanonicalPath(std::string &path);
+    static bool CanonicalPath(std::string& path);
 };
 } // namespace vm
 
