@@ -340,7 +340,10 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
     borrower.nodeId = name.substr(0, name.find('-'));
 
     UbseResult ret = UbseMemNumaDelete(deleteName, borrower);
-    if (ret != UBSE_OK) {
+    if (ret == UBSE_ERR_UNIMPORT_SUCCESS && isFault) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) 
+                << "[FaultManager] Export return failed in fault scenario, but return interface reports success.";
+    } else if (ret != UBSE_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Free memory of borrowId " << name
             << " by memfabric failed. Ret_code=" << static_cast<int>(ret) << ".";
@@ -384,12 +387,6 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
                     break;
                 }
             }
-        }
-
-        if (ret != UBSE_ERR_UNIMPORT_SUCCESS && isFault) {
-            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) 
-                << "[FaultManager] Export return failed in fault scenario, but return interface reports success.";
-            break;
         }
 
         return MEM_POOLING_RESOURCE_DELETE;

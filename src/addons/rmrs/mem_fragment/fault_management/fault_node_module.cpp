@@ -787,7 +787,7 @@ MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bo
     ExecuteBorrow(borrowExecuteParamCollectList, successExecuteParamCollectList, forwardMemIdParamList);
     // 借入节点的待销毁远端numa处理 替换&归还 发rpc
     bool isNodeProcessFailed = false;
-    ExecuteNumaReplaceAndReturn(successExecuteParamCollectList, failFlag, forceDeleteMem);
+    ExecuteNumaReplaceAndReturn(successExecuteParamCollectList, isNodeProcessFailed, forceDeleteMem);
     if (ForwardMemIdFaultDeal(forwardMemIdParamList, forceDeleteMem) == MEM_POOLING_OK && !isNodeProcessFailed) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] [FaultLentNode] Node fault deal success.";
         return MEM_POOLING_OK;
