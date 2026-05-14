@@ -76,6 +76,7 @@ Checks:
   - readability-function-size               # 函数体不超过50条语句
   - readability-identifier-naming           # 命名规范(详见CheckOptions)
   - readability-redundant-string-init        # 冗余字符串初始化(如string s = "")
+  - readability-isolate-declaration          # 保持每个声明单独占一行
 
 # 错误级别警告：use-after-move必须修复
 WarningsAsErrors: 'bugprone-use-after-move'

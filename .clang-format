@@ -70,21 +70,21 @@ BreakAfterJavaFieldAnnotations: false
 BreakStringLiterals: true
 
 # --- 指针与引用对齐 ---
-PointerAlignment: Right       # 指针*靠近变量名: Type *name
+PointerAlignment: Left       # 指针*靠近类型: Type* name
 DerivePointerAlignment: false # 不自动推导对齐方式
 
 # --- Include 管理 ---
 IncludeBlocks: Preserve       # 保持include块原样，不自动重排
-SortIncludes: true           # 不自动排序include，避免破坏依赖顺序
+SortIncludes: true           # 在每个include块内部排序，但保持块结构不变
 SortUsingDeclarations: true  # 不自动排序using声明
 IncludeCategories:
   - Regex: '<.*\.h>'
     Priority: 1
   - Regex: '^<.*'
     Priority: 2
-  - Regex: '^"rack_def\.h"'
+  - Regex: '^"ubse_def\.h"'
     Priority: 3
-  - Regex: '^"rack_.*\.h"'
+  - Regex: '^"ubse_.*\.h"'
     Priority: 4
   - Regex: '.*'
     Priority: 5
