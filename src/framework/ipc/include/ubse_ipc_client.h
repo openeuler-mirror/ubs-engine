@@ -72,6 +72,11 @@ uint32_t ubse_long_link_connect(void);
  * @return
  */
 uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler);
+
+uint32_t ubse_fd_fault_register(ubs_mem_fd_fault_handler handler);
+
+uint32_t ubse_numa_fault_register(ubs_mem_numa_fault_handler handler);
+
 #ifdef __cplusplus
 }
 #endif
