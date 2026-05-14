@@ -657,14 +657,14 @@ uint32_t GetCnaTopoByPeerNodeInfo(const UbseMemShareAttachReq &req, const UbseMe
     }
     // 多路径情况下，会给dcna重新赋值，当指定port时以指定port为准，否则选择直连导入socket的最小端口号，作为单路径路由表的配置
     if (IsSameSocketMultiPortTopo()) {
-        uint32_t minPortId = UINT32_MAX;
-        uint32_t minPortCna{};
-        if (GetPortInfo(req.importNodeId, importObj, remoteNode, minPortId, minPortCna) != UBSE_OK) {
+        uint32_t portId = importObj.req.lenderInfo.portId;
+        uint32_t portCna{};
+        if (GetPortInfo(req.importNodeId, importObj, remoteNode, portId, portCna) != UBSE_OK) {
             return UBSE_ERROR;
         }
         for (auto &obmmInfo : importObj.exportObmmInfo) {
-            obmmInfo.desc.dcna = minPortCna;
-            obmmInfo.desc.marId = minPortId / 4; // minPortId / 4 能得到marId
+            obmmInfo.desc.dcna = portCna;
+            obmmInfo.desc.marId = portId / 4; // portId / 4 能得到marId
         }
     }
     return UBSE_OK;
