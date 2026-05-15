@@ -211,50 +211,17 @@ MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string &name
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] CollectBorrowRecords failed.";
-            return ret;
-        }
-        for (auto &recordTmp : borrowRecords) {
-            if (recordTmp.name == name) {
-                record = recordTmp;
-                UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[MemFree][MemFreeExecute] Find borrow_id=" << name << " in ubse debt.";
-                return MEM_POOLING_OK;
+        } else {
+            for (auto &recordTmp : borrowRecords) {
+                if (recordTmp.name == name && recordTmp.borrowMemId.size() > 0) {
+                    record = recordTmp;
+                    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                        << "[MemFree][MemFreeExecute] Find borrow_id=" << name << " in ubse debt.";
+                    return MEM_POOLING_OK;
+                }
             }
         }
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] Borrow_id=" << name << " not found in current round, wait 1s to retry...";
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-
-    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] Not found borrow_id="
-        << name << "in ubse debt after retry " << maxRetry << " times.";
-    
-    return MEM_POOLING_ERROR;
-}
-
-MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string &name, BorrowRecord &record, bool isFault)
-{
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] Start to get borrow record, borrow_id=" << name << ", isFault=" << isFault;
-    int maxRetry = 6;
-    int curRetry = maxRetry;
-    while (curRetry--) {
-        std::vector<BorrowRecord> borrowRecords;
-        auto ret = BorrowRecordHelper::Instance().CollectBorrowRecordsAll(borrowRecords, isFault);
-        if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] CollectBorrowRecords failed.";
-            return ret;
-        }
-        for (auto &recordTmp : borrowRecords) {
-            if (recordTmp.name == name) {
-                record = recordTmp;
-                UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[MemFree][MemFreeExecute] Find borrow_id=" << name << " in ubse debt.";
-                return MEM_POOLING_OK;
-            }
-        }
+        
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Borrow_id=" << name << " not found in current round, wait 1s to retry...";
         std::this_thread::sleep_for(std::chrono::seconds(1));
