@@ -252,6 +252,8 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDieP
     SetMamiImportInfoByDecoderParam(chipDiePair, importDecoderParam, mamiImportInfo);
     decoder::utils::DecoderEntryLoc loc{};
     SetDecoderLocByMamiImportInfo(mamiImportInfo, loc);
+    UBSE_LOG_INFO << "Add decoder entry, marId=" << mamiImportInfo.marId << ", dstCNA=" << mamiImportInfo.dstCNA
+                         << ", flag=" << mamiImportInfo.flag;
     if (importDecoderParam.isHighSafety &&
         exportObmmInfo.size() != importDecoderParam.trustRingData.lendSignedDatas.size()) {
         UBSE_LOG_ERROR << "The size of of signed data is illegal.";
