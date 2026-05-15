@@ -121,6 +121,54 @@ uint32_t UBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &outSrcParam, const
 
 暂无
 
+## UBSRMRSBatchBorrowStrategy: 批量内存借用策略
+
+### 摘要 SYNOPSIS
+
+```cpp
+#include "mempooling_interface.h"
+
+uint32_t UBSRMRSBatchBorrowStrategy(const BatchSrcMemoryBorrowParam &outSrcParam, 
+                                    const uint64_t &borrowSize,
+                                    std::vector<MemBorrowStrategyResult> &outBorrowStrategyResult,
+                                    BorrowStrategy borrowStrategy);
+```
+
+### 描述 DESCRIPTION
+
+批量内存借用策略，决策从哪些节点借用内存以及借用内存大小，返回决策结果数组。支持多个NUMA同时借用，根据借用策略将总借用大小分配到各个NUMA。
+
+### 参数 Parameters
+
+| name | IN/OUT | description |
+|------|--------|-------------|
+| outSrcParam | IN | 批量借入节点信息。包含srcNid（借入方节点Id）、srcNumaNum（借入方NUMA数量）、srcNumaId（借入方NUMA Id数组）、uid（借入方用户uid）、username（借入方用户名） |
+| borrowSize | IN | 总借用大小，需要为blockSize的整数倍。单位：KB |
+| outBorrowStrategyResult | OUT | 决策结果数组。每个NUMA对应一个MemBorrowStrategyResult，包含srcParam（借入方信息）、borrowSize（该NUMA的借用大小）、destParam（借出方信息数组） |
+| borrowStrategy | IN | 借用策略。目前支持AVERAGE（平均分配策略） |
+
+### 返回值 RETURN VALUE
+
+返回0：批量借用策略执行成功。
+
+返回1：批量借用策略执行失败。
+
+### 约束 CONSTRAINTS
+
+- 本节点调用。
+
+- 所有节点的ubse配置项须保持一致。
+
+- borrowSize需要为blockSize的整数倍，单位：KB。
+
+- srcNumaId数组不能为空，且每个NUMA Id必须 >= 0，唯一，存在于本地节点。
+
+- 单节点借用上限为1TB，单socket借用上限为512GB。
+
+### 附注 NOTES
+
+暂无
+
 ## UBSRMRSMemBorrowExecute: 内存借用执行
 
 ### 摘要 SYNOPSIS
@@ -704,6 +752,59 @@ int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const
 ### 附注 NOTES
 
 暂无
+
+
+## UBSRMRSSmapEnableProcessMigrateGrouped: 分组启用进程冷热迁移
+
+### 摘要 SYNOPSIS
+
+```cpp
+#include "mempooling_interface.h"
+
+uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<PageSwapPair> &pageSwapPairs);
+```
+
+### 描述 DESCRIPTION
+
+分组启用进程冷热迁移，每个PageSwapPair映射为一个MigrationGroup，支持多组本地NUMA与远端NUMA配对配置。
+
+### 参数 PARAMETERS
+
+| name          | IN/OUT | description                                          |
+| ------------- | ------ | ---------------------------------------------------- |
+| pid           | IN     | 进程PID                                              |
+| pageSwapPairs | IN     | 页交换配对数组，每个PageSwapPair包含localNumas和remoteNumas |
+
+**PageSwapPair结构**：
+| field       | type                  | description                      |
+| ----------- | --------------------- | -------------------------------- |
+| localNumas  | vector\<NumaQuota\>   | 本地NUMA配额数组，大小范围[1, 4] |
+| remoteNumas | vector\<NumaQuota\>   | 远端NUMA配额数组，大小范围[1, 18] |
+
+**NumaQuota结构**：
+| field  | type     | description        |
+| ------ | -------- | ------------------ |
+| numaId | uint32_t | NUMA节点ID         |
+| quota  | uint32_t | 配额，单位KB       |
+
+### 返回值 RETURN VALUE
+
+返回值0：表示成功
+
+返回非0：表示失败
+
+### 约束 CONSTRAINTS
+
+- 本节点调用
+- pageSwapPairs数组大小范围[1, 8]（MAX_MIGRATION_GROUP_NUM）
+- 每个PageSwapPair的localNumas数组大小范围[1, 4]（MAX_GROUP_LOCAL_NUMA）
+- 每个PageSwapPair的remoteNumas数组大小范围[1, 18]（REMOTE_NUMA_NUM）
+- NUMA配额需通过VM numatune XML限制校验（MpVmQuotaUtil::ValidateNumaQuota）
+
+### 附注 NOTES
+
+暂无
+
 
 ## UBSRMRSSmapRemoveProcessTracking: 通知SMAP移除进程扫描
 
