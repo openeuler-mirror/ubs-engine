@@ -103,6 +103,6 @@ void ubse_print_fault_info(const char *memory_type, const char *name, uint64_t m
         return;
     }
 
-    printf("[FAULT] %s memory: name=%s, memid=%lu, type=%s(%d)\n",
+    printf("[FAULT] %s memory: name=%s, handleId=%lu, type=%s(%d)\n",
            memory_type, name, (unsigned long)memid, ubse_fault_type_to_string(type), type);
 }
