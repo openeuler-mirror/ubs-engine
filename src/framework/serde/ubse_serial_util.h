@@ -20,6 +20,7 @@
 #include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "securec.h"
 
@@ -241,6 +242,15 @@ public:
         return *this;
     }
 
+    template <typename T> UbseSerialization& operator<<(const std::unordered_set<T>& set)
+    {
+        *this << array_len_insert(set.size());
+        for (auto& element : set) {
+            *this << element;
+        }
+        return *this;
+    }
+
     UbseSerialization& operator<<(array_len_insert arrayLenInsert);
 
     UbseSerialization& operator<<(const std::string& str);
@@ -452,6 +462,22 @@ public:
             T_KEY key;
             *this >> key;
             *this >> map[key];
+        }
+        return *this;
+    }
+
+    template <typename T> UbseDeSerialization& operator>>(std::unordered_set<T>& set)
+    {
+        common_len len;
+        *this >> array_len_capture(len);
+        if (len == 0) {
+            set.clear();
+            return *this;
+        }
+        for (common_len i = 0; i < len; i++) {
+            T element;
+            *this >> element;
+            set.emplace(std::move(element));
         }
         return *this;
     }
