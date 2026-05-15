@@ -1542,7 +1542,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault()
 MpResult BorrowRecordHelper::GetFragMentFaultBorrowRecords(std::string nodeId, 
                                                            std::vector<BorrowRecord> &fragMentFaultBorrowRecords) 
 {
-    fragMentFaultBorrowRecords = gBorrowRecordsFragMentFault;
+    fragMentFaultBorrowRecords = gBorrowRecordsFragMentFault[nodeId];
     return MEM_POOLING_OK;
 }
 
