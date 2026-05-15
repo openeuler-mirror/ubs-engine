@@ -47,6 +47,10 @@ public:
     static MpResult RewriteHugePages(const std::string& realPath, uint64_t targetHugePages);
 
     MpResult AllocateHugePages(std::vector<uint64_t>& remoteNumaIds, std::vector<uint64_t>& borrowSizes);
+     
+    MpResult ReleaseHugePages(std::vector<uint64_t> &remoteNumaIds, std::vector<uint64_t> &borrowSizes);
+
+    MpResult ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize);
 
     MpResult TryAllocateHugePagesOnce(const std::string& filePath, uint64_t targetHugePages);
 

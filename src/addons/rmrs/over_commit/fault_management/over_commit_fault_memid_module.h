@@ -43,6 +43,40 @@ struct VmNumaInfoWithSocket {
     }
 };
 
+struct MemBorrowExecuteParam {
+    SrcMemoryBorrowParam srcParam;
+    std::vector<uint64_t> borrowSizes;
+    uint16_t highWaterMark;
+    uint16_t lowWaterMark;
+};
+
+struct FaultHandleMemBorrowResult {
+    std::vector<std::string> borrowIds;
+    std::vector<uint16_t> presentNumaId;
+    uint32_t retCode = MEM_POOLING_ERROR;
+
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << R"({"borrowIds"=[)";
+        for (size_t i = 0; i < borrowIds.size(); ++i) {
+            oss << "\"" << borrowIds[i] << "\"";
+            if (i + 1 < borrowIds.size()) {
+                oss << ",";
+            }
+        }
+        oss << R"(],"presentNumaId"=[)";
+        for (size_t i = 0; i < presentNumaId.size(); ++i) {
+            oss << presentNumaId[i];
+            if (i + 1 < presentNumaId.size()) {
+                oss << ",";
+            }
+        }
+        oss << "]}";
+        return oss.str();
+    }
+};
+
 // 获取VmInfo，传入参数，序列化和反序列化
 struct OverCommitFaultVmNumaInfoParam {
     uint16_t remoteNumaId;
@@ -121,7 +155,8 @@ public:
 
     MpResult MemFreeExecuteRpc(std::string borrowId, std::string importNodeId);
     MpResult DisableSmapProcessMigrateRpc(std::vector<pid_t> pids, std::string importNodeId);
-    MpResult MemFreeDirectlyExecuteRpc(std::string borrowId, std::string importNodeId);
+    MpResult MemFreeDirectlyExecuteRpc(outinterface::SrcMemoryBorrowParam oSrcParam, uint16_t preRemoteNumaId,
+                                       std::string borrowId);
     MpResult MemIdExecuteRpc(OverCommitFaultMemIdExecuteParam param, std::string importNodeId);
     MpResult MemIdExecute(OverCommitFaultMemIdExecuteParam param);
     MpResult VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, uint16_t preRemoteNumaId, uint16_t remoteNumaId,
@@ -149,9 +184,9 @@ public:
     MpResult ExecuteMemBorrow(const BorrowRecord& record, uint64_t adjustSize, const std::string& nodeId,
                               uint32_t targetNuma, UbseMemNumaDesc& outMemDesc);
 
-    void ClearFalutBidBorrowedMap()
+    void ClearFaultBidBorrowedMap()
     {
-        falutBidBorrowedMap.clear();
+        faultBidBorrowedMap.clear();
     }
 
     MpResult GetWaterMark(struct WaterMark& waterMark);
@@ -166,7 +201,7 @@ public:
                                           uint16_t& preRemoteNumaId, uid_t& uid, std::string& username);
 
 private:
-    std::unordered_map<std::string, MemBorrowExecuteResult> falutBidBorrowedMap;
+    std::unordered_map<std::string, MemBorrowExecuteResult> faultBidBorrowedMap;
     FaultMemIdModule& baseInstance = FaultMemIdModule::Instance();
     MpSceneType mSceneType{MpSceneType::VIRTUAL_SCENE};
     NumaBindType mBindType{NumaBindType::BIND_INVALID};

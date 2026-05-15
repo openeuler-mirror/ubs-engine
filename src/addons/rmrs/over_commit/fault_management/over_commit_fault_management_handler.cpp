@@ -120,7 +120,8 @@ uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByt
     };
     return res;
 }
-void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void* ctx, const UbseByteBuffer& respData,
+
+void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void *ctx, const UbseByteBuffer &respData,
                                                               uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
@@ -184,6 +185,10 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
     std::vector<pid_t> pids;
     RmrsInStream builder(req.data, req.len);
     builder >> pids;
+    for (auto pid : pids) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                        << "[OverCommit][FaultManagement] Disable process migrate, pid=" << pid << ".";
+    }
     int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
     if (MEM_POOLING_OK != static_cast<MpResult>(retSmap)) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -281,6 +286,14 @@ uint32_t OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(const U
             return MEM_POOLING_ERROR;
         }
         resp.data[0] = static_cast<uint8_t>(ret);
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) 
+            << "[OverCommit][FaultManagement] Start to clear fault process borrowId .";
+        MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
+        if (retBorrowIdInFaultProcess != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Clear fault process borrowId failed. ret="
+                << retBorrowIdInFaultProcess << ".";
+        }
     }
 
     resp.freeFunc = [](uint8_t* p) {
@@ -358,6 +371,73 @@ void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void* ctx, con
         return;
     }
     *result = MEM_POOLING_OK;
+}
+
+// 故障处理：在借入节点上借用内存
+uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const UbseByteBuffer &req,
+                                                                           UbseByteBuffer &resp)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) 
+        << "[FaultHandleMemBorrow] FaultHandleMemBorrowRecvHandler start.";
+    if (req.data == nullptr || req.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleMemBorrow] FaultHandleMemBorrowRecvHandler req.data is null.";
+        return MEM_POOLING_ERROR;
+    }
+
+    MemBorrowExecuteParam param;
+    RmrsInStream builderIn(req.data, req.len);
+    builderIn >> param;
+
+    MemBorrowExecuteResult borrowExecuteResult;
+    MpResult ret = MempoolBorrowModule::MemBorrowExecuteInOverCommit(
+        param.srcParam, param.borrowSizes,
+        mempooling::WaterMark({.highWaterMark = param.highWaterMark, .lowWaterMark = param.lowWaterMark}),
+        borrowExecuteResult, true);
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleMemBorrow] MemBorrowExecute Result=" << borrowExecuteResult.ToString() << ".";
+    FaultHandleMemBorrowResult faultHandleMemBorrowResult = {.borrowIds=borrowExecuteResult.borrowIds,
+                                                             .presentNumaId=borrowExecuteResult.presentNumaId};
+    if (MEM_POOLING_OK != ret || borrowExecuteResult.borrowIds.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleMemBorrow] MemBorrowExecute Failed, ret=" << ret << ".";
+        faultHandleMemBorrowResult.retCode = MEM_POOLING_ERROR;
+    } else {
+        faultHandleMemBorrowResult.retCode = MEM_POOLING_OK;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleMemBorrow] FaultHandleMemBorrow sucess.";
+    }
+
+    RmrsOutStream builderOut;
+    builderOut << faultHandleMemBorrowResult;
+    resp.data = builderOut.GetBufferPointer();
+    resp.len = builderOut.GetSize();
+    resp.freeFunc = [](uint8_t *data) {
+        delete[] data;
+    };
+    
+    return MEM_POOLING_OK;
+}
+
+void OverCommitFaultManagementHandler::FaultHandleMemBorrowResHandler(void *ctx, const UbseByteBuffer &respData,
+                                                                      uint32_t resCode)
+{
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleMemBorrowResHandler] invalid rpc response.";
+        return;
+    }
+
+    auto *faultHandleMemBorrowResult = static_cast<FaultHandleMemBorrowResult *>(ctx);
+    faultHandleMemBorrowResult->retCode = MEM_POOLING_ERROR;
+
+    if (resCode != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleMemBorrowResHandler] rpc failed, res=" << resCode << ".";
+        return;
+    }
+
+    RmrsInStream inBuilder(respData.data, respData.len);
+    inBuilder >> (*faultHandleMemBorrowResult);
 }
 
 } // namespace mempooling::over_commit

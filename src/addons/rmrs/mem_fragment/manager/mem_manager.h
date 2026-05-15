@@ -204,6 +204,116 @@ private:
     std::mutex mtxBorrowIdsCompleted;
 };
 
+class FaultNuma {
+public:
+    static FaultNuma &Instance()
+    {
+        static FaultNuma instance;
+        return instance;
+    }
+
+    bool GetFaultNumaList(const std::string &nodeId, std::vector<uint32_t> &numaIdList)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto it = faultNumaMap_.find(nodeId);
+        if (it == faultNumaMap_.end()) {
+            return false;
+        }
+
+        numaIdList = it->second;
+
+        return true;
+    }
+
+    void AddFaultNuma(const std::string &nodeId, uint32_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto &numaList = faultNumaMap_[nodeId];
+
+        auto it = std::find(numaList.begin(), numaList.end(), numaId);
+        if (it == numaList.end()) {
+            numaList.push_back(numaId);
+        }
+    }
+
+    void RemoveFaultNuma(const std::string &nodeId, uint32_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto it = faultNumaMap_.find(nodeId);
+        if (it == faultNumaMap_.end()) {
+            return;
+        }
+
+        auto &numaList = it->second;
+
+        numaList.erase(
+            std::remove(numaList.begin(), numaList.end(), numaId),
+            numaList.end());
+
+        if (numaList.empty()) {
+            faultNumaMap_.erase(it);
+        }
+    }
+
+    bool IsFaultNuma(const std::string &nodeId, uint32_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto it = faultNumaMap_.find(nodeId);
+        if (it == faultNumaMap_.end()) {
+            return false;
+        }
+
+        auto &numaList = it->second;
+
+        return std::find(numaList.begin(),
+                         numaList.end(),
+                         numaId) != numaList.end();
+    }
+
+    void PrintFaultNuma()
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultNuma] Dump begin, FaultNumaMap.size=" << faultNumaMap_.size() << ".";
+
+        for (const auto &kv : faultNumaMap_) {
+            const std::string &nodeId = kv.first;
+            const auto &numaList = kv.second;
+
+            std::ostringstream oss;
+            oss << "[FaultNuma] nodeId=" << nodeId << ", numaList=[";
+
+            for (size_t i = 0; i < numaList.size(); ++i) {
+                oss << numaList[i];
+                if (i + 1 != numaList.size()) {
+                    oss << ",";
+                }
+            }
+            oss << "].";
+
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << oss.str();
+        }
+    }
+
+private:
+    FaultNuma() = default;
+
+    ~FaultNuma() = default;
+
+    FaultNuma(const FaultNuma &) = delete;
+
+    FaultNuma &operator=(const FaultNuma &) = delete;
+
+private:
+    std::unordered_map<std::string, std::vector<uint32_t>> faultNumaMap_;
+    std::mutex mutex_;
+};
+
 class SmapEnableCompleted {
 public:
     static SmapEnableCompleted& Instance()

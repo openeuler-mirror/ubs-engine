@@ -205,10 +205,57 @@ void FillMemMigrateResult(const std::vector<VMResult>& vmResults, std::vector<Me
     }
 }
 
-uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam& srcParasssm, const std::vector<VMPresetParam>& vmParams,
-                                   const std::vector<MemBorrowInfo>& memBorrowInfo,
-                                   const std::vector<BorrowRecord>& borrowRecord,
-                                   std::vector<MemMigrateResult>& memMigrateResult)
+uint32_t FilterVmPresetParamsByFault(const std::string &srcNid,
+                                     const std::vector<VMPresetParam> &vmPresetParams,
+                                     std::vector<VMPresetParam> &workingVmPresetParams)
+{
+    std::vector<uint32_t> remoteNumaIds;
+    if (!FaultNuma::Instance().GetFaultNumaList(srcNid, remoteNumaIds)) {
+        workingVmPresetParams = vmPresetParams;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][FilterVmPresetParamsByFault] No fault numa found, skip filter.";
+        return MEM_POOLING_OK;
+    }
+
+    std::unordered_map<uint16_t, std::vector<pid_t>> numaIdVmPidsMap;
+    auto ret = CollectUtil::GetRemoteVmPidsByLocal(remoteNumaIds, numaIdVmPidsMap);
+    if (ret != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+
+    std::unordered_set<pid_t> faultPids;
+    for (const auto &kv : numaIdVmPidsMap) {
+        faultPids.insert(kv.second.begin(), kv.second.end());
+    }
+
+    workingVmPresetParams.clear();
+    for (const auto &vmParam : vmPresetParams) {
+        if (faultPids.count(vmParam.pid) == 0) {
+            workingVmPresetParams.push_back(vmParam);
+        } else {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][FilterVmPresetParamsByFault] Filter fault handle pid=" << vmParam.pid << ".";
+        }
+    }
+
+    if (workingVmPresetParams.empty()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][FilterVmPresetParamsByFault] After filter,"
+            << "workingVmPresetParams is empty, no need to migrate.";
+        return MEM_POOLING_ERROR;
+    }
+
+    for (const auto &param : workingVmPresetParams) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][FilterVmPresetParamsByFault] After filter,"
+            << "vm.pid=" << param.pid << ", vm.ratio=" << param.ratio << ".";
+    }
+
+    return MEM_POOLING_OK;
+}
+
+uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam &srcParasssm, const std::vector<VMPresetParam> &vmParams,
+                                   const std::vector<MemBorrowInfo> &memBorrowInfo,
+                                   const std::vector<BorrowRecord> &borrowRecord,
+                                   std::vector<MemMigrateResult> &memMigrateResult)
 {
     // 拿到所有vm信息
     std::unordered_map<pid_t, VMInfo> vmInfos;

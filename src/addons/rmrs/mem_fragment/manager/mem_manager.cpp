@@ -387,12 +387,12 @@ MpResult SmapEnableCompleted::Update(const int16_t numaId)
 
 MpResult BorrowIdInFaultProcess::Update(const std::string borrowId)
 {
-    LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] Update of completed smapEnable started, numaId=" << borrowId
+    LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] Update of borrowId in fault started, numaId=" << borrowId
               << ".";
 
     std::unique_lock<std::mutex> lock(mtxBorrowIdInFaultProcess);
     RmrsOutStream builder;
-    LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old smapEnableCompleted size = "
+    LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old BorrowIdInFaultProcess size = "
               << borrowIdInFaultProcess.size() << ".";
     for (const auto& item : borrowIdInFaultProcess) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old BorrowIdInFaultProcess  = " << item;
