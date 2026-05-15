@@ -33,12 +33,14 @@ UBSRMRSMemBorrowFunc MempoolingModule::ubsRMRSMemBorrowFunc_ = nullptr;
 UBSRMRSMemMigrateFunc MempoolingModule::ubsRMRSMemMigrateFunc_ = nullptr;
 UBSRMRSMemReturnFunc MempoolingModule::ubsRMRSMemReturnFunc_ = nullptr;
 UBSRMRSSetRunModeFunc MempoolingModule::ubsRMRSSetRunModeFunc_ = nullptr;
-
 UBSRMRSPidNumaInfoCollectFunc MempoolingModule::ubsRMRSPidNumaInfoCollectFunc_ = nullptr;
 UBSRMRSSetWaterMarkFunc MempoolingModule::ubsRMRSSetWaterMarkFunc_ = nullptr;
 UBSRMRSSmapAddProcessTrackingFunc MempoolingModule::ubsRMRSSmapAddProcessTrackingFunc_ = nullptr;
 UBSRMRSSmapRemoveProcessTrackingFunc MempoolingModule::ubsRMRSSmapRemoveProcessTrackingFunc_ = nullptr;
 UBSRMRSSmapEnableProcessMigrateFunc MempoolingModule::ubsRMRSSmapEnableProcessMigrateFunc_ = nullptr;
+UBSRMRSBatchBorrowStrategyFunc MempoolingModule::ubsRMRSBatchBorrowStrategyFunc_ = nullptr;
+UBSRMRSSmapEnableProcessMigrateGroupedFunc MempoolingModule::ubsRMRSSmapEnableProcessMigrateGroupedFunc_ = nullptr;
+
 VmResult MempoolingModule::Init()
 {
     const std::string libmempoolingPath = "/usr/lib64/libmempooling.so";
@@ -323,4 +325,31 @@ UBSRMRSSmapEnableProcessMigrateFunc MempoolingModule::UBSRMRSSmapEnableProcessMi
     return ubsRMRSSmapEnableProcessMigrateFunc_;
 }
 
+UBSRMRSBatchBorrowStrategyFunc MempoolingModule::UBSRMRSBatchBorrowStrategy()
+{
+    if (ubsRMRSBatchBorrowStrategyFunc_ != nullptr) {
+        return ubsRMRSBatchBorrowStrategyFunc_;
+    }
+    ubsRMRSBatchBorrowStrategyFunc_ =
+        reinterpret_cast<UBSRMRSBatchBorrowStrategyFunc>(dlsym(libmempoolingHandler_, "UBSRMRSBatchBorrowStrategy"));
+    if (ubsRMRSBatchBorrowStrategyFunc_ == nullptr) {
+        UBSE_LOG_ERROR << "Get UBSRMRSBatchBorrowStrategy ptr failed, " << dlerror();
+        return nullptr;
+    }
+    return ubsRMRSBatchBorrowStrategyFunc_;
+}
+
+UBSRMRSSmapEnableProcessMigrateGroupedFunc MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped()
+{
+    if (ubsRMRSSmapEnableProcessMigrateGroupedFunc_ != nullptr) {
+        return ubsRMRSSmapEnableProcessMigrateGroupedFunc_;
+    }
+    ubsRMRSSmapEnableProcessMigrateGroupedFunc_ = reinterpret_cast<UBSRMRSSmapEnableProcessMigrateGroupedFunc>(
+        dlsym(libmempoolingHandler_, "UBSRMRSSmapEnableProcessMigrateGrouped"));
+    if (ubsRMRSSmapEnableProcessMigrateGroupedFunc_ == nullptr) {
+        UBSE_LOG_ERROR << "Get UBSRMRSSmapEnableProcessMigrateGrouped ptr failed, " << dlerror();
+        return nullptr;
+    }
+    return ubsRMRSSmapEnableProcessMigrateGroupedFunc_;
+}
 } // namespace vm::mempooling
