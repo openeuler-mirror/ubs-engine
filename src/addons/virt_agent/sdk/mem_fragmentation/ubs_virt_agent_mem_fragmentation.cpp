@@ -16,8 +16,8 @@
 #include <securec.h>
 #include <ubse_ipc_client.h>
 #include <ubse_ipc_log.h>
+#include <cstring>
 #include "src/sdk/c/include/ubs_error.h"
-
 #include "ubs_virt_agent_mem_fragmentation_helper.h"
 #include "vm_sdk_def.h"
 
@@ -458,5 +458,115 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam)
         return VA_ERROR_BASE;
     }
 
+    return VA_SUCCESS;
+}
+
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s *node_info_list)
+{
+    if (node_info_list == nullptr) {
+        IPC_LOG_ERROR << "Invalid parameters: node_info_list is nullptr.";
+        return VA_ERROR_INVALID_PARAM;
+    }
+    constexpr ubse_api_buffer_t _requestBuffer = {};
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    const uint32_t invokeRet = ubse_invoke_call(UBS_VA_QUERY, UBS_VA_NODE_INFO_LIST, &_requestBuffer, &responseBuffer);
+    if (invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        return VA_ERROR_BASE;
+    }
+    MemFragmentationNodeInfoListMsg repMsg(responseBuffer.buffer, responseBuffer.length);
+    if (const auto ret = repMsg.Deserialize(); ret != VA_SUCCESS) {
+        IPC_LOG_ERROR << "node info list deserialize failed, err=" << ret;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_DESERIALIZE_FAILED;
+    }
+    const auto nodeList = repMsg.GetNodeInfoList();
+    ubse_api_buffer_free(&responseBuffer);
+    if (const auto ret = NodeInfoListToCStyle(nodeList, *node_info_list); ret != VM_OK) {
+        IPC_LOG_ERROR << "NodeInfoListToCStyle failed, err=" << ret;
+        return VA_ERROR_BASE;
+    }
+    return VA_SUCCESS;
+}
+
+virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s *param, const bool is_async, mem_borrow_result_s *result)
+{
+    if (param == nullptr || result == nullptr) {
+        IPC_LOG_ERROR << "Invalid parameters: param or result is nullptr.";
+        return VA_ERROR_INVALID_PARAM;
+    }
+    BorrowParam borrowParam{};
+    auto ret = BorrowParamFromCStyle(param, borrowParam);
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "BorrowParamFromCStyle failed, err=" << ret;
+        return VA_ERROR_INVALID_PARAM;
+    }
+    MemFragmentationMemBorrowParamMsg reqMsg(borrowParam, is_async);
+    ret = reqMsg.Serialize();
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "MemFragmentationMemBorrowParamMsg Serialize failed, err=" << ret;
+        return VA_ERROR_SERIALIZE_FAILED;
+    }
+    const ubse_api_buffer_t requestBuffer = {
+        .buffer = reqMsg.SerializedData(),
+        .length = reqMsg.SerializedDataSize(),
+    };
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    const uint32_t invokeRet =
+        ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_BORROW, &requestBuffer, &responseBuffer);
+    if (invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_BASE;
+    }
+    MemFragmentationMemBorrowResultMsg repMsg(responseBuffer.buffer, responseBuffer.length);
+    ret = repMsg.Deserialize();
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "MemFragmentationMemBorrowResultMsg Deserialize failed, err=" << ret;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_DESERIALIZE_FAILED;
+    }
+    const auto memBorrowRstCs = repMsg.GetMemBorrowResultList();
+    ubse_api_buffer_free(&responseBuffer);
+    ret = BorrowResultToCStyle(memBorrowRstCs, *result);
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "BorrowResultToCStyle failed, err=" << ret;
+        return VA_ERROR_BASE;
+    }
+    return VA_SUCCESS;
+}
+
+virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s *page_swap_enable)
+{
+    std::vector<mem_fragmentation::PageSwapPair> pageSwapPairs;
+    auto ret = PageSwapEnableFromCStyle(page_swap_enable, pageSwapPairs);
+    if (ret != VM_OK) {
+        return VA_ERROR_INVALID_PARAM;
+    }
+    MemFragmentationPageSwapEnableMsg reqMsg(pid, pageSwapPairs);
+    ret = reqMsg.Serialize();
+    if (ret != VM_OK) {
+        return VA_ERROR_SERIALIZE_FAILED;
+    }
+    const ubse_api_buffer_t requestBuffer = {
+        .buffer = reqMsg.SerializedData(),
+        .length = reqMsg.SerializedDataSize(),
+    };
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    if (const uint32_t invokeRet =
+            ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_PAGE_SWAP_ENABLE, &requestBuffer, &responseBuffer);
+        invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        return VA_ERROR_BASE;
+    }
     return VA_SUCCESS;
 }
