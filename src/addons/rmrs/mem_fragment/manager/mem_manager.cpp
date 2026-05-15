@@ -1529,7 +1529,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault()
             }
             recordVec.push_back(record);
         }
-        for (auto &record : gBorrowRecordsFragMentFault) {
+        for (auto &record : recordVec) {
             LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: " 
                       << record.ToString() << ".";
         }
