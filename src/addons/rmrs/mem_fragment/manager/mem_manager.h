@@ -323,7 +323,7 @@ public:
     MpResult UpdateBorrowRecords(bool isFilter = false);
     MpResult UpdateBorrowRecordsAllWithFault();
     MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
-    MpResult UpdateBorrowRecordsWithFragMentFault();
+    MpResult UpdateBorrowRecordsWithFragMentFault(std::string nodeId);
     MpResult CollectBorrowableInfo(const std::string &nodeId,
                                    NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
     MpResult CollectBorrowableInfoList(const std::vector<std::string> &nodeId,
