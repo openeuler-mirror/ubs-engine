@@ -1472,7 +1472,8 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault()
+// 更新传入的nodeId以及集群中可见的nodeId的账本信息
+MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault(std::string nodeId)
 {   
 
     // 目前架构能查到的所有的节点都可以借用 查询所有节点
@@ -1480,6 +1481,15 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault()
     if (allNodeIdList.empty()) {
         return MEM_POOLING_ERROR;
     }
+
+    // 查找nodeId是否在列表中，不存在则添加
+    auto iter = std::find(allNodeIdList.begin(), allNodeIdList.end(), nodeId);
+    if (iter == allNodeIdList.end()) {
+        allNodeIdList.push_back(nodeId);
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) 
+            << "[FaultManager] NodeId: " << nodeId << " not in cluster node list, add it to update list.";
+    }
+
     gBorrowRecordsFragMentFault.clear();
     for (std::string nodeId : allNodeIdList) {
         std::vector<UbseNumaMemoryDebtInfo> debtInfos;
