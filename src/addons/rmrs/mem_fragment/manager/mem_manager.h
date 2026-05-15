@@ -323,8 +323,7 @@ public:
     MpResult UpdateBorrowRecords(bool isFilter = false);
     MpResult UpdateBorrowRecordsAllWithFault();
     MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
-    MpResult UpdateBorrowRecordsWithFragMentFault(const std::string nodeId, 
-                                                  std::vector<BorrowRecord> &fragMentFaultBorrowRecords);
+    MpResult UpdateBorrowRecordsWithFragMentFault();
     MpResult CollectBorrowableInfo(const std::string &nodeId,
                                    NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
     MpResult CollectBorrowableInfoList(const std::vector<std::string> &nodeId,
@@ -333,12 +332,12 @@ public:
     MpResult GetBorrowIdByNumaId(std::vector<std::string> &borrowIds, const uint16_t numaId, const std::string nodeId);
     MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
     MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
-    MpResult GetFragMentFaultBorrowRecords(std::vector<BorrowRecord> &fragMentFaultBorrowRecords);
+    MpResult GetFragMentFaultBorrowRecords(std::string nodeId, std::vector<BorrowRecord> &fragMentFaultBorrowRecords);
 
 private:
     MpResult GenBorrowRecords(const rapidjson::Value& doc, std::vector<BorrowRecord>& borrowRecords);
     std::vector<BorrowRecord> gBorrowRecords;
-    std::vector<BorrowRecord> gBorrowRecordsFragMentFault;
+    std::map<std::string, std::vector<BorrowRecord>> gBorrowRecordsFragMentFault; // key: nodeId value: debts of nodeId
 };
 
 class MemReturnManager {

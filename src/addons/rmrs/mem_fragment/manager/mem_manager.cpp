@@ -1471,67 +1471,76 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault(const std::string nodeId, 
-                                                                  std::vector<BorrowRecord> &fragMentFaultBorrowRecords)
+MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault()
 {   
-    std::vector<UbseNumaMemoryDebtInfo> debtInfos;
-    auto ret = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
-    if (ret == UBSE_ERR_INTERNAL) {
-        LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] UbseGetNumaMemDebtInfoWithNode failed, ret=" 
-                  << static_cast<uint32_t>(ret)
-                  << ".";
+
+    // 目前架构能查到的所有的节点都可以借用 查询所有节点
+    std::vector<std::string> allNodeIdList = MpConfiguration::GetInstance().GetNodeIds();
+    if (allNodeIdList.empty()) {
         return MEM_POOLING_ERROR;
     }
     gBorrowRecordsFragMentFault.clear();
-    for (auto &debtInfo : debtInfos) {
-        BorrowRecord record;
-        record.name = debtInfo.name;
-        record.username = debtInfo.username;
-        record.uid = debtInfo.uid;
-        record.size = debtInfo.size / KB_TO_BYTES;
-        record.lentNode = debtInfo.lentNodeId;
-        record.lentMemId = debtInfo.lentMemId;
-        // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
+    for (std::string nodeId : allNodeIdList) {
+        std::vector<UbseNumaMemoryDebtInfo> debtInfos;
+        auto ret = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
+        if (ret == UBSE_ERR_INTERNAL) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] UbseGetNumaMemDebtInfoWithNode failed, ret=" 
+                    << static_cast<uint32_t>(ret)
+                    << ".";
             return MEM_POOLING_ERROR;
         }
-        record.lentSocketId = debtInfo.lentSocketIdList[0];
-        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
-        size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
-        for (size_t i = 0; i < n; ++i) {
-            LentNuma ln;
-            ln.numaId = static_cast<uint16_t>(debtInfo.lentNumaIdList[i]);
-            ln.lentSize = debtInfo.lentNumaSizeList[i];
-            record.lentNuma.push_back(ln);
+        std::vector<BorrowRecord> recordVec;
+        for (auto &debtInfo : debtInfos) {
+            BorrowRecord record;
+            record.name = debtInfo.name;
+            record.username = debtInfo.username;
+            record.uid = debtInfo.uid;
+            record.size = debtInfo.size / KB_TO_BYTES;
+            record.lentNode = debtInfo.lentNodeId;
+            record.lentMemId = debtInfo.lentMemId;
+            // lentSocketIdList加上空校验
+            if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+                LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
+                return MEM_POOLING_ERROR;
+            }
+            record.lentSocketId = debtInfo.lentSocketIdList[0];
+            record.borrowSocketId = debtInfo.borrowSocketIdList[0];
+            size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
+            for (size_t i = 0; i < n; ++i) {
+                LentNuma ln;
+                ln.numaId = static_cast<uint16_t>(debtInfo.lentNumaIdList[i]);
+                ln.lentSize = debtInfo.lentNumaSizeList[i];
+                record.lentNuma.push_back(ln);
+            }
+            record.borrowNode = debtInfo.borrowNodeId;
+            errno_t res = memcpy_s(&record.borrowLocalNuma, sizeof(record.borrowLocalNuma), debtInfo.usrInfo,
+                                sizeof(record.borrowLocalNuma));
+            if (res != EOK) {
+                LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] memcpy_s failed.";
+                return MEM_POOLING_ERROR;
+            }
+            record.borrowRemoteNuma = static_cast<int16_t>(debtInfo.remoteNumaId);
+            record.borrowMemId = debtInfo.borrowMemId;
+            // 过滤非法条目，当前条目异常的情况仅存在一种：borrowRemoteNuma=-1
+            if (record.borrowRemoteNuma < 0) {
+                LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] BorrowRemoteNuma is invalid, record: " 
+                        << record.ToString() << ".";
+                continue;
+            }
+            recordVec.push_back(record);
         }
-        record.borrowNode = debtInfo.borrowNodeId;
-        errno_t res = memcpy_s(&record.borrowLocalNuma, sizeof(record.borrowLocalNuma), debtInfo.usrInfo,
-                               sizeof(record.borrowLocalNuma));
-        if (res != EOK) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] memcpy_s failed.";
-            return MEM_POOLING_ERROR;
-        }
-        record.borrowRemoteNuma = static_cast<int16_t>(debtInfo.remoteNumaId);
-        record.borrowMemId = debtInfo.borrowMemId;
-        // 过滤非法条目，当前条目异常的情况仅存在一种：borrowRemoteNuma=-1
-        if (record.borrowRemoteNuma < 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] BorrowRemoteNuma is invalid, record: " 
+        for (auto &record : gBorrowRecordsFragMentFault) {
+            LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: " 
                       << record.ToString() << ".";
-            continue;
         }
-        gBorrowRecordsFragMentFault.push_back(record);
+        gBorrowRecordsFragMentFault[nodeId] = recordVec;
     }
-    for (auto &record : gBorrowRecordsFragMentFault) {
-        LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: " << record.ToString() << ".";
-    }
-
-    fragMentFaultBorrowRecords = gBorrowRecordsFragMentFault;
 
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::GetFragMentFaultBorrowRecords(std::vector<BorrowRecord> &fragMentFaultBorrowRecords) 
+MpResult BorrowRecordHelper::GetFragMentFaultBorrowRecords(std::string nodeId, 
+                                                           std::vector<BorrowRecord> &fragMentFaultBorrowRecords) 
 {
     fragMentFaultBorrowRecords = gBorrowRecordsFragMentFault;
     return MEM_POOLING_OK;

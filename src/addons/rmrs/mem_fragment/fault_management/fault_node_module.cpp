@@ -88,7 +88,8 @@ MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, No
 {
     MpResult ret = MEM_POOLING_OK;
     std::vector<BorrowRecord> fragMentFaultBorrowRecords;
-    UbseResult retErrorCode = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(fragMentFaultBorrowRecords);
+    UbseResult retErrorCode = 
+        BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(nodeId, fragMentFaultBorrowRecords);
     if (retErrorCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] GetFragMentFaultBorrowRecords failed.";
@@ -265,7 +266,7 @@ bool FaultNodeModule::ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, s
 
 MpResult FaultNodeModule::GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords)
 {
-    UbseResult res = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(borrowRecords);
+    UbseResult res = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(nodeId, borrowRecords);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] [FaultLentNode] GetFragMentFaultBorrowRecords failed, nodeId=" << nodeId;
@@ -727,9 +728,8 @@ MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
 
     // =========基于不信任原则，获取账本并筛选合法条目===========
     // =========仅处理合法条目，处理完后返回失败，利用UBSE故障重试机制继续处理===========
-    std::vector<BorrowRecord> fragMentFaultBorrowRecords;
     MpResult res = 
-        BorrowRecordHelper::Instance().UpdateBorrowRecordsWithFragMentFault(nodeId, fragMentFaultBorrowRecords);
+        BorrowRecordHelper::Instance().UpdateBorrowRecordsWithFragMentFault();
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] UpdateBorrowRecordsWithFragMentFault failed.";
