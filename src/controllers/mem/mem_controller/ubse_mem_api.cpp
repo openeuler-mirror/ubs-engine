@@ -568,6 +568,15 @@ UbseResult BuildMemShareCreateReq(const UbseIpcMessage &buffer, const UbseReques
         UBSE_LOG_ERROR << "Failed to parse CLI create request, requestId: " << context.requestId;
         return UBSE_ERR_INTERNAL;
     }
+    // ubseMemPrivData 数据和SDK接口默认值一致
+    req.ubseMemPrivData.onePth = 1;
+    req.ubseMemPrivData.wrDelayComp = 0;
+    req.ubseMemPrivData.reduceDelayComp = 0;
+    req.ubseMemPrivData.cmoDelayComp = 0;
+    req.ubseMemPrivData.so = 0;
+    req.ubseMemPrivData.adTrOchip = 1;
+    req.ubseMemPrivData.cacheableFlag = 0;
+    req.shmAnonymous = false;
     return UBSE_OK;
 }
 
