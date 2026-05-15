@@ -18,6 +18,7 @@
 #include <mockcpp/mockcpp.hpp>
 #include <vector>
 
+#include "gmock/gmock-actions.h"
 #include "hugepage_handler.h"
 #include "mem_fragmentation_msg.h"
 #include "mem_fragmentation_sdk_server.h"
@@ -25,6 +26,9 @@
 #include "mem_task_manager.h"
 #include "mempooling_def.h"
 #include "mempooling_module.h"
+#include "msg_utils.h"
+#include "src/addons/virt_agent/common/mempooling/mempooling_module.h"
+#include "src/addons/virt_agent/common/message/sdk/mem_fragmentation_msg.h"
 #include "status_manager.h"
 #include "vm_error.h"
 
@@ -1689,4 +1693,641 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_UBSRMRSMemFreeFailed)
     MOCKER(SendResponse).reset();
 }
 
+TEST_F(TestMemFragmentationSdkServer, BorrowParamDeserializeTest)
+{
+    UbseIpcMessage req{};
+    mem_fragmentation::BorrowParam borrowParam{};
+    bool isAsync{};
+    // error fork 1
+    EXPECT_EQ(VirtMemFragSdk::BorrowParamDeserialize(req, borrowParam, isAsync), VM_ERROR);
+
+    req.buffer = reinterpret_cast<uint8_t *>(true);
+    req.length = sizeof(bool);
+    // error fork 2
+    EXPECT_EQ(VirtMemFragSdk::BorrowParamDeserialize(req, borrowParam, isAsync), VM_ERROR_DESERIALIZE_ERROR);
+
+    // error fork 3
+    mem_fragmentation::BorrowParam borrowParamOri{
+        .nodeId = "",
+        .numaMetaInfos = std::vector<mem_fragmentation::NumaMetaInfo>{},
+        .borrowSize = 0,
+    };
+    mem_fragmentation::MemFragmentationMemBorrowParamMsg reqMsg(borrowParamOri, true);
+    if (const auto ret = reqMsg.Serialize(); ret != VM_OK) {
+        return;
+    }
+    req.buffer = reqMsg.SerializedData();
+    req.length = reqMsg.SerializedDataSize();
+    EXPECT_EQ(VirtMemFragSdk::BorrowParamDeserialize(req, borrowParam, isAsync), VM_ERROR);
+
+    // success fork
+    borrowParamOri.nodeId = "1";
+    borrowParamOri.numaMetaInfos = std::vector{
+        mem_fragmentation::NumaMetaInfo{
+            .socketId = 0,
+            .numaId = 0,
+        },
+        mem_fragmentation::NumaMetaInfo{
+            .socketId = 0,
+            .numaId = 1,
+        },
+    };
+    borrowParamOri.borrowSize = 1024;
+    mem_fragmentation::MemFragmentationMemBorrowParamMsg reqMsg2(borrowParamOri, true);
+    if (const auto ret = reqMsg2.Serialize(); ret != VM_OK) {
+        return;
+    }
+    req.buffer = reqMsg2.SerializedData();
+    req.length = reqMsg2.SerializedDataSize();
+    EXPECT_EQ(VirtMemFragSdk::BorrowParamDeserialize(req, borrowParam, isAsync), VM_OK);
+}
+
+UBSRMRSBatchBorrowStrategyFunc MockMemBorrowStrategyByRMRS()
+{
+    return [](const BatchSrcMemoryBorrowParam &, const uint64_t &, std::vector<MemBorrowStrategyResult> &,
+              BorrowStrategy) -> uint32_t {
+        return VM_OK;
+    };
+}
+
+UBSRMRSBatchBorrowStrategyFunc MockMemBorrowStrategyByRMRSError()
+{
+    return [](const BatchSrcMemoryBorrowParam &, const uint64_t &, std::vector<MemBorrowStrategyResult> &,
+              BorrowStrategy) -> uint32_t {
+        return VM_ERROR;
+    };
+}
+
+UBSRMRSBatchBorrowStrategyFunc MockMemBorrowStrategyByRMRSException()
+{
+    return [](const BatchSrcMemoryBorrowParam &, const uint64_t &, std::vector<MemBorrowStrategyResult> &,
+              BorrowStrategy) -> uint32_t {
+        throw std::exception();
+    };
+}
+
+TEST_F(TestMemFragmentationSdkServer, MemBorrowStrategyByRMRSTest)
+{
+    const mem_fragmentation::BorrowParam borrowParam{
+        .nodeId = "1",
+        .numaMetaInfos =
+            std::vector{
+                mem_fragmentation::NumaMetaInfo{
+                    .socketId = 0,
+                    .numaId = 0,
+                },
+                mem_fragmentation::NumaMetaInfo{
+                    .socketId = 0,
+                    .numaId = 1,
+                },
+            },
+        .borrowSize = 1024,
+    };
+    std::vector<MemBorrowStrategyResult> borrowStrategyRst{};
+
+    // error fork 1
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy)
+        .stubs()
+        .will(returnValue(static_cast<UBSRMRSBatchBorrowStrategyFunc>(nullptr)));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrowStrategyByRMRS(borrowParam, borrowStrategyRst), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy).reset();
+
+    // error fork 2
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy).stubs().will(invoke(MockMemBorrowStrategyByRMRSError));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrowStrategyByRMRS(borrowParam, borrowStrategyRst), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy).reset();
+
+    // error fork 3
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy).stubs().will(invoke(MockMemBorrowStrategyByRMRSException));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrowStrategyByRMRS(borrowParam, borrowStrategyRst), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy).reset();
+
+    // success fork
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy).stubs().will(invoke(MockMemBorrowStrategyByRMRS));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrowStrategyByRMRS(borrowParam, borrowStrategyRst), VM_OK);
+    MOCKER(MempoolingModule::UBSRMRSBatchBorrowStrategy).reset();
+}
+
+/**
+ * @tc.name  : RunBorrowExec_ShouldReturnError_WhenUBSRMRSMemBorrowExecuteIsNull
+ * @tc.number: RunBorrowExec_001
+ * @tc.desc  : 当获取UBSRMRSMemBorrowExecute函数指针为空时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenUBSRMRSMemBorrowExecuteIsNull)
+{
+    const std::string taskId = "test_task_123";
+    MemBorrowStrategyResult memBorrowStrategyRst{};
+    mem_borrow_result_c memBorrowRstC{};
+
+    UBSRMRSMemBorrowExecuteFunc func = nullptr;
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(returnValue(func));
+
+    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
+}
+
+/**
+ * @tc.name  : RunBorrowExec_ShouldReturnError_WhenUBSRMRSMemBorrowExecuteFailed
+ * @tc.number: RunBorrowExec_002
+ * @tc.desc  : 当UBSRMRSMemBorrowExecute执行失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenUBSRMRSMemBorrowExecuteFailed)
+{
+    const std::string taskId = "test_task_123";
+    MemBorrowStrategyResult memBorrowStrategyRst{};
+    mem_borrow_result_c memBorrowRstC{};
+
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(invoke(MockUBSRMRSMemBorrowExecuteError));
+
+    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
+}
+
+/**
+ * @tc.name  : RunBorrowExec_ShouldReturnError_WhenConvertToLegacyResultFailed
+ * @tc.number: RunBorrowExec_003
+ * @tc.desc  : 当ConvertToLegacyResult转换失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenConvertToLegacyResultFailed)
+{
+    const std::string taskId = "test_task_123";
+    MemBorrowStrategyResult memBorrowStrategyRst{};
+    mem_borrow_result_c memBorrowRstC{};
+
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(invoke(MockUBSRMRSMemBorrowExecuteOK));
+    MOCKER(VirtMemFragSdk::ConvertToLegacyResult).stubs().will(returnValue(VM_ERROR));
+
+    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
+    MOCKER(VirtMemFragSdk::ConvertToLegacyResult).reset();
+}
+
+/**
+ * @tc.name  : RunBorrowExec_ShouldReturnError_WhenSetMemBorrowResultFailed
+ * @tc.number: RunBorrowExec_004
+ * @tc.desc  : 当ThreadTaskManager::SetMemBorrowResult失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenSetMemBorrowResultFailed)
+{
+    const std::string taskId = "test_task_123";
+    MemBorrowStrategyResult memBorrowStrategyRst{};
+    mem_borrow_result_c memBorrowRstC{};
+
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(invoke(MockUBSRMRSMemBorrowExecuteOK));
+    MOCKER(VirtMemFragSdk::ConvertToLegacyResult).stubs().will(returnValue(VM_OK));
+    MOCKER_CPP(&ThreadTaskManager::SetMemBorrowResult,
+               uint32_t (ThreadTaskManager::*)(const std::string &, const mem_borrow_result_c &))
+        .stubs()
+        .will(returnValue(VM_ERROR));
+
+    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
+    MOCKER(VirtMemFragSdk::ConvertToLegacyResult).reset();
+    MOCKER_CPP(&ThreadTaskManager::SetMemBorrowResult,
+               uint32_t (ThreadTaskManager::*)(const std::string &, const mem_borrow_result_c &))
+        .reset();
+}
+
+/**
+ * @tc.name  : RunBorrowExec_ShouldReturnOk_WhenEverythingIsOk
+ * @tc.number: RunBorrowExec_005
+ * @tc.desc  : 当一切正常时，函数返回成功
+ */
+TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnOk_WhenEverythingIsOk)
+{
+    const std::string taskId = "test_task_123";
+    MemBorrowStrategyResult memBorrowStrategyRst{};
+    mem_borrow_result_c memBorrowRstC{};
+
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(invoke(MockUBSRMRSMemBorrowExecuteOK));
+    MOCKER(VirtMemFragSdk::ConvertToLegacyResult).stubs().will(returnValue(VM_OK));
+    MOCKER_CPP(&ThreadTaskManager::SetMemBorrowResult,
+               uint32_t (ThreadTaskManager::*)(const std::string &, const mem_borrow_result_c &))
+        .stubs()
+        .will(returnValue(VM_OK));
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .stubs();
+
+    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_OK);
+    MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
+    MOCKER(VirtMemFragSdk::ConvertToLegacyResult).reset();
+    MOCKER_CPP(&ThreadTaskManager::SetMemBorrowResult,
+               uint32_t (ThreadTaskManager::*)(const std::string &, const mem_borrow_result_c &))
+        .reset();
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .reset();
+}
+
+/**
+ * @tc.name  : SyncMemBorrowExec_ShouldReturnError_WhenTaskCreationFailed
+ * @tc.number: SyncMemBorrowExec_001
+ * @tc.desc  : 当任务创建失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, SyncMemBorrowExec_ShouldReturnError_WhenTaskCreationFailed)
+{
+    std::vector<MemBorrowStrategyResult> borrowStrategyRsts{{}};
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &))
+        .stubs()
+        .will(returnValue(std::string()));
+
+    EXPECT_EQ(VirtMemFragSdk::SyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_ERROR);
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &)).reset();
+}
+
+/**
+ * @tc.name  : SyncMemBorrowExec_ShouldReturnError_WhenRunBorrowExecFailed
+ * @tc.number: SyncMemBorrowExec_002
+ * @tc.desc  : 当RunBorrowExec执行失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, SyncMemBorrowExec_ShouldReturnError_WhenRunBorrowExecFailed)
+{
+    std::vector<MemBorrowStrategyResult> borrowStrategyRsts{{}};
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &))
+        .stubs()
+        .will(returnValue(std::string("task_123")));
+    MOCKER(VirtMemFragSdk::RunBorrowExec).stubs().will(returnValue(VM_ERROR));
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .stubs();
+
+    EXPECT_EQ(VirtMemFragSdk::SyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &)).reset();
+    MOCKER(VirtMemFragSdk::RunBorrowExec).reset();
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .reset();
+}
+
+/**
+ * @tc.name  : SyncMemBorrowExec_ShouldReturnOk_WhenEverythingIsOk
+ * @tc.number: SyncMemBorrowExec_003
+ * @tc.desc  : 当一切正常时，函数返回成功
+ */
+TEST_F(TestMemFragmentationSdkServer, SyncMemBorrowExec_ShouldReturnOk_WhenEverythingIsOk)
+{
+    std::vector<MemBorrowStrategyResult> borrowStrategyRsts{{}};
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &))
+        .stubs()
+        .will(returnValue(std::string("task_123")));
+    MOCKER(VirtMemFragSdk::RunBorrowExec).stubs().will(returnValue(VM_OK));
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .stubs();
+
+    EXPECT_EQ(VirtMemFragSdk::SyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &)).reset();
+    MOCKER(VirtMemFragSdk::RunBorrowExec).reset();
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .reset();
+}
+
+/**
+ * @tc.name  : AsyncMemBorrowExec_ShouldReturnError_WhenTaskCreationFailed
+ * @tc.number: AsyncMemBorrowExec_001
+ * @tc.desc  : 当任务创建失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, AsyncMemBorrowExec_ShouldReturnError_WhenTaskCreationFailed)
+{
+    std::vector<MemBorrowStrategyResult> borrowStrategyRsts{{}};
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &))
+        .stubs()
+        .will(returnValue(std::string()));
+
+    EXPECT_EQ(VirtMemFragSdk::AsyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_ERROR);
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &)).reset();
+}
+
+/**
+ * @tc.name  : AsyncMemBorrowExec_ShouldReturnError_WhenStringToCFailed
+ * @tc.number: AsyncMemBorrowExec_002
+ * @tc.desc  : 当StringToC转换失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, AsyncMemBorrowExec_ShouldReturnError_WhenStringToCFailed)
+{
+    std::vector<MemBorrowStrategyResult> borrowStrategyRsts{{}};
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &))
+        .stubs()
+        .will(returnValue(std::string("task_123")));
+    MOCKER(StringToC).stubs().will(returnValue(VM_ERROR));
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .stubs();
+
+    EXPECT_EQ(VirtMemFragSdk::AsyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_ERROR);
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &)).reset();
+    MOCKER(StringToC).reset();
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .reset();
+}
+
+/**
+ * @tc.name  : AsyncMemBorrowExec_ShouldReturnError_WhenThreadCreationFailed
+ * @tc.number: AsyncMemBorrowExec_003
+ * @tc.desc  : 当线程创建失败时，函数返回失败
+ */
+TEST_F(TestMemFragmentationSdkServer, AsyncMemBorrowExec_ShouldReturnError_WhenThreadCreationFailed)
+{
+    std::vector<MemBorrowStrategyResult> borrowStrategyRsts{{}};
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &))
+        .stubs()
+        .will(returnValue(std::string("task_123")));
+    MOCKER(StringToC).stubs().will(returnValue(VM_OK));
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .stubs();
+
+    // 这里模拟线程创建失败的情况，实际线程创建失败会在运行时抛出异常
+    EXPECT_EQ(VirtMemFragSdk::AsyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &)).reset();
+    MOCKER(StringToC).reset();
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .reset();
+}
+
+/**
+ * @tc.name  : AsyncMemBorrowExec_ShouldReturnOk_WhenEverythingIsOk
+ * @tc.number: AsyncMemBorrowExec_004
+ * @tc.desc  : 当一切正常时，函数返回成功
+ */
+TEST_F(TestMemFragmentationSdkServer, AsyncMemBorrowExec_ShouldReturnOk_WhenEverythingIsOk)
+{
+    std::vector<MemBorrowStrategyResult> borrowStrategyRsts{{}};
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &))
+        .stubs()
+        .will(returnValue(std::string("task_123")));
+    MOCKER(StringToC).stubs().will(returnValue(VM_OK));
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .stubs();
+
+    EXPECT_EQ(VirtMemFragSdk::AsyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
+    MOCKER_CPP(&ThreadTaskManager::AddTask, std::string (ThreadTaskManager::*)(const std::string &)).reset();
+    MOCKER(StringToC).reset();
+    MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
+               void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
+        .reset();
+}
+
+TEST_F(TestMemFragmentationSdkServer, BorrowResultSerializeTest)
+{
+    const std::vector memBorrowRstCs{
+        mem_borrow_result_c{
+            .borrow_ids_ptr = {"borrowId1"},
+            .present_numa_ids_ptr = {1},
+            .borrow_ids_size = 1,
+            .present_numa_ids_size = 1,
+            .task_id = "task1",
+        },
+    };
+    UbseIpcMessage resp{};
+
+    // success fork
+    EXPECT_EQ(VirtMemFragSdk::BorrowResultSerialize(memBorrowRstCs, resp), VM_OK);
+}
+
+TEST_F(TestMemFragmentationSdkServer, MemBorrowTest)
+{
+    const mem_fragmentation::BorrowParam borrowParam{
+        .nodeId = "1",
+        .numaMetaInfos =
+            std::vector{
+                mem_fragmentation::NumaMetaInfo{
+                    .socketId = 0,
+                    .numaId = 0,
+                },
+                mem_fragmentation::NumaMetaInfo{
+                    .socketId = 0,
+                    .numaId = 1,
+                },
+            },
+        .borrowSize = 1024,
+    };
+    mem_fragmentation::MemFragmentationMemBorrowParamMsg reqMsg(borrowParam, true);
+    if (const auto ret = reqMsg.Serialize(); ret != VM_OK) {
+        return;
+    }
+    UbseIpcMessage req{
+        .buffer = reqMsg.SerializedData(),
+        .length = reqMsg.SerializedDataSize(),
+    };
+    UbseRequestContext context{};
+    // error fork 1
+    MOCKER(VirtMemFragSdk::BorrowParamDeserialize).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrow(req, context), VM_ERROR);
+    MOCKER(VirtMemFragSdk::BorrowParamDeserialize).reset();
+
+    // error fork 2
+    MOCKER(VirtMemFragSdk::MemBorrowStrategyByRMRS).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrow(req, context), VM_ERROR);
+    MOCKER(VirtMemFragSdk::MemBorrowStrategyByRMRS).reset();
+
+    MOCKER(VirtMemFragSdk::MemBorrowStrategyByRMRS).stubs().will(returnValue(VM_OK));
+    // error fork 3
+    MOCKER(VirtMemFragSdk::AsyncMemBorrowExec).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrow(req, context), VM_ERROR);
+    MOCKER(VirtMemFragSdk::AsyncMemBorrowExec).reset();
+
+    MOCKER(VirtMemFragSdk::AsyncMemBorrowExec).stubs().will(returnValue(VM_OK));
+    // error fork 4
+    MOCKER(VirtMemFragSdk::BorrowResultSerialize).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrow(req, context), VM_ERROR);
+    MOCKER(VirtMemFragSdk::BorrowResultSerialize).reset();
+
+    MOCKER(VirtMemFragSdk::BorrowResultSerialize).stubs().will(returnValue(VM_OK));
+    // error fork 5
+    MOCKER(SendResponse).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrow(req, context), VM_ERROR);
+    MOCKER(SendResponse).reset();
+
+    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
+    // success fork 1
+    EXPECT_EQ(VirtMemFragSdk::MemBorrow(req, context), VM_OK);
+
+    // success fork 2
+    mem_fragmentation::MemFragmentationMemBorrowParamMsg reqMsg2(borrowParam, false);
+    if (const auto ret = reqMsg.Serialize(); ret != VM_OK) {
+        return;
+    }
+    req.buffer = reqMsg.SerializedData();
+    req.length = reqMsg.SerializedDataSize();
+    MOCKER(VirtMemFragSdk::SyncMemBorrowExec).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::MemBorrow(req, context), VM_OK);
+    MOCKER(VirtMemFragSdk::SyncMemBorrowExec).reset();
+    MOCKER(SendResponse).reset();
+    MOCKER(VirtMemFragSdk::BorrowResultSerialize).reset();
+    MOCKER(VirtMemFragSdk::AsyncMemBorrowExec).reset();
+    MOCKER(VirtMemFragSdk::AsyncMemBorrowExec).reset();
+}
+
+TEST_F(TestMemFragmentationSdkServer, PageSwapEnableParamSerializeTest)
+{
+    UbseIpcMessage req{};
+    pid_t pid{};
+    std::vector<mem_fragmentation::PageSwapPair> pageSwapPairs{};
+    // error fork 1
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnableParamSerialize(req, pid, pageSwapPairs), VM_ERROR);
+
+    req.buffer = reinterpret_cast<uint8_t *>(true);
+    req.length = sizeof(bool);
+    // error fork 2
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnableParamSerialize(req, pid, pageSwapPairs), VM_ERROR_DESERIALIZE_ERROR);
+
+    // success fork
+    const std::vector pageSwapPairsOri{
+        mem_fragmentation::PageSwapPair{
+            .localNumaQuotas = std::vector{mem_fragmentation::NumaQuota{
+                .numaId = 1,
+                .quota = 1024,
+            }},
+            .remoteNumaQuotas = std::vector{mem_fragmentation::NumaQuota{
+                .numaId = 5,
+                .quota = 1024,
+            }},
+        },
+    };
+    mem_fragmentation::MemFragmentationPageSwapEnableMsg reqMsg(123, pageSwapPairsOri);
+    if (const auto ret = reqMsg.Serialize(); ret != VM_OK) {
+        return;
+    }
+    req.buffer = reqMsg.SerializedData();
+    req.length = reqMsg.SerializedDataSize();
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnableParamSerialize(req, pid, pageSwapPairs), VM_OK);
+}
+
+UBSRMRSSmapEnableProcessMigrateGroupedFunc MockUBSRMRSSmapEnableProcessMigrateGrouped()
+{
+    return [](pid_t, const std::vector<mempooling::PageSwapPair> &) -> uint32_t {
+        return VM_OK;
+    };
+}
+
+UBSRMRSSmapEnableProcessMigrateGroupedFunc MockUBSRMRSSmapEnableProcessMigrateGroupedError()
+{
+    return [](pid_t, const std::vector<mempooling::PageSwapPair> &) -> uint32_t {
+        return VM_ERROR;
+    };
+}
+
+UBSRMRSSmapEnableProcessMigrateGroupedFunc MockUBSRMRSSmapEnableProcessMigrateGroupedException()
+{
+    return [](pid_t, const std::vector<PageSwapPair> &) -> uint32_t {
+        throw std::exception();
+    };
+}
+
+TEST_F(TestMemFragmentationSdkServer, PageSwapEnableByRMRSTest)
+{
+    const pid_t pid = 123;
+    const std::vector pageSwapPairs{
+        mem_fragmentation::PageSwapPair{
+            .localNumaQuotas = std::vector{mem_fragmentation::NumaQuota{
+                .numaId = 1,
+                .quota = 1024,
+            }},
+            .remoteNumaQuotas = std::vector{mem_fragmentation::NumaQuota{
+                .numaId = 5,
+                .quota = 1024,
+            }},
+        },
+    };
+    // error fork 1
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped)
+        .stubs()
+        .will(returnValue(static_cast<UBSRMRSSmapEnableProcessMigrateGroupedFunc>(nullptr)));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnableByRMRS(pid, pageSwapPairs), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped).reset();
+
+    // error fork 2
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped)
+        .stubs()
+        .will(invoke(MockUBSRMRSSmapEnableProcessMigrateGroupedError));
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped)
+        .stubs()
+        .will(invoke(MockUBSRMRSSmapEnableProcessMigrateGroupedError));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnableByRMRS(pid, pageSwapPairs), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped).reset();
+
+    // error fork 3
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped)
+        .stubs()
+        .will(invoke(MockUBSRMRSSmapEnableProcessMigrateGroupedException));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnableByRMRS(pid, pageSwapPairs), VM_ERROR);
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped).reset();
+
+    // success fork
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped)
+        .stubs()
+        .will(invoke(MockUBSRMRSSmapEnableProcessMigrateGrouped));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnableByRMRS(pid, pageSwapPairs), VM_OK);
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped).reset();
+}
+
+TEST_F(TestMemFragmentationSdkServer, PageSwapEnableTest)
+{
+    const std::vector pageSwapPairs{
+        mem_fragmentation::PageSwapPair{
+            .localNumaQuotas = std::vector{mem_fragmentation::NumaQuota{
+                .numaId = 1,
+                .quota = 1024,
+            }},
+            .remoteNumaQuotas = std::vector{mem_fragmentation::NumaQuota{
+                .numaId = 5,
+                .quota = 1024,
+            }},
+        },
+    };
+    mem_fragmentation::MemFragmentationPageSwapEnableMsg reqMsg(123, pageSwapPairs);
+    if (const auto ret = reqMsg.Serialize(); ret != VM_OK) {
+        return;
+    }
+    const UbseIpcMessage req{
+        .buffer = reqMsg.SerializedData(),
+        .length = reqMsg.SerializedDataSize(),
+    };
+    UbseRequestContext context{};
+    // error fork 1
+    MOCKER(VirtMemFragSdk::PageSwapEnableParamSerialize).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnable(req, context), VM_ERROR);
+    MOCKER(VirtMemFragSdk::PageSwapEnableParamSerialize).reset();
+
+    // error fork 2
+    MOCKER(VirtMemFragSdk::PageSwapEnableByRMRS).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnable(req, context), VM_ERROR);
+    MOCKER(VirtMemFragSdk::PageSwapEnableByRMRS).reset();
+
+    // error fork 3
+    MOCKER(VirtMemFragSdk::PageSwapEnableByRMRS).stubs().will(returnValue(VM_OK));
+    MOCKER(SendResponse).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnable(req, context), VM_ERROR);
+    MOCKER(VirtMemFragSdk::PageSwapEnableByRMRS).reset();
+    MOCKER(SendResponse).reset();
+
+    // success fork
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped)
+        .stubs()
+        .will(invoke(MockUBSRMRSSmapEnableProcessMigrateGrouped));
+    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
+    EXPECT_EQ(VirtMemFragSdk::PageSwapEnable(req, context), VM_OK);
+    MOCKER(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped).reset();
+    MOCKER(SendResponse).reset();
+}
 } // namespace ubse::ut::vm
