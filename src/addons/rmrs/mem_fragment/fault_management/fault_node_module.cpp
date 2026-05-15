@@ -285,7 +285,7 @@ MpResult FaultNodeModule::GetBorrowAbleNodeIdList(std::string curDealNodeId,
     // 去除掉故障节点、已经是借入节点的节点(自己也是)
     for (std::string nodeId : allNodeIdList) {
         NodeType nodeType = NodeType::ABNORMAL;
-        FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);
+        FaultNodeModule::Instance().DetermineNodeTypeFragment(nodeId, nodeType);
         ubse::nodeController::UbseNodeInfo info = UbseNodeController::GetInstance().GetNodeById(nodeId);
         if (info.clusterState == ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING &&
             nodeId != curDealNodeId && (nodeType == NodeType::BORROW_OUT || nodeType == NodeType::NO_RECORD)) {
