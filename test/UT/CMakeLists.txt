@@ -38,6 +38,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_xml
         ubse_mti
         mti_out_of_band
+        ubse_urma_uvs
         ubse_mmi
         mem_controller
         cert_api_static
