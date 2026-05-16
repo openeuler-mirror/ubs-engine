@@ -21,6 +21,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
+#include "ubse_urma_topo_config.h"
 #include "ubse_urma_uvs_module.h"
 #include "lock/ubse_lock.h"
 #include "ubse_urma_uvs.h"
@@ -219,6 +220,11 @@ bool ConvertLinkPortToIndex(uint32_t chipId, uint32_t portId, uint32_t &index)
     return true;
 }
 
+bool ConvertTopoPortToIndex(const UbseUrmaTopoPort &port, uint32_t &index)
+{
+    return ConvertLinkPortToIndex(port.chipId, port.portId, index);
+}
+
 UbseResult FillTopo(const std::string &currentSlotId, const std::vector<PhysicalLink> &allLinkInfo,
                     std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
 {
@@ -258,6 +264,45 @@ UbseResult FillTopo(const std::string &currentSlotId, const std::vector<Physical
             }
             iter->second.links[remotePortIndex][localPortIndex] = true;
         }
+    }
+    return UBSE_OK;
+}
+
+UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig &topoConfig,
+                                std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
+{
+    for (auto &pair : nodeMap) {
+        auto &node = pair.second;
+        if (node.is_current == 1) {
+            continue;
+        }
+
+        for (const auto &link : topoConfig.links) {
+            uint32_t localPortIndex = 0;
+            uint32_t remotePortIndex = 0;
+            if (!ConvertTopoPortToIndex(link.localPort, localPortIndex) ||
+                !ConvertTopoPortToIndex(link.remotePort, remotePortIndex)) {
+                return UBSE_ERROR;
+            }
+            node.links[localPortIndex][remotePortIndex] = true;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult FillClosTopo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
+{
+    UbseUrmaTopoConfig topoConfig;
+    auto ret = LoadUrmaTopoConfig(GetUrmaTopoMode(), topoConfig);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to load URMA topo config, ret=" << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = FillClosTopoByConfig(topoConfig, nodeMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to fill CLOS topo by config, ret=" << FormatRetCode(ret);
+        return ret;
     }
     return UBSE_OK;
 }
@@ -359,7 +404,7 @@ void InitialNodes(const std::string &currentSlotId, const std::set<std::string> 
     }
 }
 
-UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
+UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap, bool isClosType)
 {
     uint16_t superNodeId = 0;
     if (auto ret = UbseSmbios::GetInstance().GetSuperPodId(superNodeId); ret != UBSE_OK) {
@@ -368,7 +413,7 @@ UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &node
 
     for (auto &pair : nodeMap) {
         nodeMap[pair.first].super_node_id = superNodeId;
-        nodeMap[pair.first].type = UbseSmbios::GetInstance().IsClosType() ?  1 : 0;
+        nodeMap[pair.first].type = isClosType ?  1 : 0;
     }
     return UBSE_OK;
 }
@@ -385,12 +430,13 @@ UbseResult FillNodeComInfo(const std::string &currentSlotId, const std::vector<P
     }
     std::unordered_map<std::string, UbcoreTopoNode> nodeMap;
     InitialNodes(currentSlotId, slotIds, nodeMap);
-    ret = FillClusterInfo(nodeMap);
+    const bool isClosType = UbseSmbios::GetInstance().IsClosType();
+    ret = FillClusterInfo(nodeMap, isClosType);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill cluster info";
         return ret;
     }
-    ret = FillTopo(currentSlotId, allLinkInfo, nodeMap);
+    ret = isClosType ? FillClosTopo(nodeMap) : FillTopo(currentSlotId, allLinkInfo, nodeMap);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill topo";
         return ret;
