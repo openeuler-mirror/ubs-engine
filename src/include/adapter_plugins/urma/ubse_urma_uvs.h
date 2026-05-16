@@ -40,6 +40,17 @@ struct UbseUrmaUvsNodeInfo {
     std::vector<UbseUrmaUvsAggrDev> devList;
 };
 
+enum class UbseUrmaUvsTopoMode {
+    NON_CROSS,
+    HCCS_CROSS,
+};
+
+/**
+ * @brief 获取URMA UVS CLOS拓扑建链模式配置。
+ * @return 返回配置的拓扑建链模式；配置缺失或非法时返回NON_CROSS。
+ */
+UbseUrmaUvsTopoMode UbseGetUrmaUvsTopoMode();
+
 /**
  * @brief 下发拓扑和聚合设备信息到urma_uvs
  * @param [in] current_slot_id：当前节点ID

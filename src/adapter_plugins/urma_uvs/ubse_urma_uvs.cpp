@@ -13,6 +13,7 @@
 #include <cstdint>
 #include "securec.h"
 #include "ubse_common_def.h"
+#include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_module.h"     // for UbseModule
 #include "ubse_error.h"
@@ -26,6 +27,7 @@
 
 namespace ubse::urma {
 using namespace ubse::common::def;
+using namespace ubse::config;
 using namespace ubse::context;
 using namespace ubse::log;
 using namespace ubse::nodeController;
@@ -36,9 +38,41 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 utils::ReadWriteLock g_invokeUrmaMutex;
 
+constexpr const char *URMA_UVS_CONFIG_SECTION = "ubse.urma";
+constexpr const char *URMA_UVS_TOPO_MODE_KEY = "topo_mode";
+constexpr const char *URMA_UVS_TOPO_MODE_NON_CROSS = "non-cross";
+constexpr const char *URMA_UVS_TOPO_MODE_HCCS_CROSS = "hccs-cross";
+
 UbseResult FillNodeComInfo(const std::string &currentSlotId, const std::vector<PhysicalLink> &allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
+
+UbseUrmaUvsTopoMode UbseGetUrmaUvsTopoMode()
+{
+    auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
+    if (module == nullptr) {
+        UBSE_LOG_WARN << "Failed to get config module, use default URMA UVS topo_mode=non-cross";
+        return UbseUrmaUvsTopoMode::NON_CROSS;
+    }
+
+    std::string topoMode = URMA_UVS_TOPO_MODE_NON_CROSS;
+    auto ret = module->GetConf<std::string>(URMA_UVS_CONFIG_SECTION, URMA_UVS_TOPO_MODE_KEY, topoMode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to get URMA UVS topo_mode config, use default non-cross, ret="
+                      << FormatRetCode(ret);
+        return UbseUrmaUvsTopoMode::NON_CROSS;
+    }
+
+    if (topoMode == URMA_UVS_TOPO_MODE_NON_CROSS) {
+        return UbseUrmaUvsTopoMode::NON_CROSS;
+    }
+    if (topoMode == URMA_UVS_TOPO_MODE_HCCS_CROSS) {
+        return UbseUrmaUvsTopoMode::HCCS_CROSS;
+    }
+
+    UBSE_LOG_WARN << "Invalid URMA UVS topo_mode=" << topoMode << ", use default non-cross";
+    return UbseUrmaUvsTopoMode::NON_CROSS;
+}
 
 UbseResult UbsePushTopoAndBondingToUvs(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
                                        const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
