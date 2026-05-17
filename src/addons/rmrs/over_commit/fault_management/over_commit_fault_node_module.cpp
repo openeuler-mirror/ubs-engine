@@ -43,7 +43,7 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFault(const std::string 
             LOG_ERROR << "ProcessBorrowOutNodeFaultByMemId failed.";
             return ret;
         }
-        OverCommitFaultMemIdModule::Instance().ClearFalutBidBorrowedMap();
+        OverCommitFaultMemIdModule::Instance().ClearFaultBidBorrowedMap();
     }
 
     LOG_DEBUG << "ProcessBorrowOutNodeFault end.";
@@ -66,6 +66,20 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultByMemId(const std::
     if (debtInfos.empty()) {
         LOG_WARN << "DebtInfos empty.";
         return res;
+    }
+
+    for (const auto &debt : debtInfos) {
+        //  检查remoteNumaId是否有效
+        if (debt.remoteNumaId <= 0) {
+            LOG_WARN << "Invalid remoteNumaId=" << debt.remoteNumaId
+                    << ", skipping for fault node=" << nodeId
+                    << ", borrowNodeId=" << debt.borrowNodeId << ".";
+            continue;
+        }
+
+        // 处理gFaultNumaMap
+        LOG_DEBUG << "Add FaultNuma, numaId=" << debt.remoteNumaId << ", nodeId=" << debt.borrowNodeId << ".";
+        FaultNuma::Instance().AddFaultNuma(debt.borrowNodeId, static_cast<uint32_t>(debt.remoteNumaId));
     }
 
     MpResult result = MEM_POOLING_OK;
@@ -93,6 +107,8 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultByMemId(const std::
         count++;
     }
 
+    LOG_INFO << "Finished faultHandle, Print FaultNUma.";
+    FaultNuma::Instance().PrintFaultNuma();
     if (result != MEM_POOLING_OK) {
         LOG_WARN << "ProcessBorrowOutNodeFaultByMemId failed, errCount=" << errCount << ", totalCount=" << count << ".";
         return MEM_POOLING_ERROR;

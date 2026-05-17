@@ -45,6 +45,8 @@ public:
     MpResult MemFreeWithOpsBySmap(const std::string &name, const std::string &deleteName, bool isFault = false);
 
     MpResult MemFreeWithOpsByMemfabric(const std::string &name, const std::string &deleteName, bool isFault = false);
+ 	     
+    MpResult GetBorrowRecordForSmapParams(const std::string &name, BorrowRecord &record, bool isFault);
 
     MpResult HandleTimeoutFree(const std::string& name, const std::vector<BorrowRecord>& borrowRecords);
 

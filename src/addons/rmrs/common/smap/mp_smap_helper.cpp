@@ -352,6 +352,104 @@ MpResult MpSmapHelper::AllocateHugePages(std::vector<uint64_t> &remoteNumaIds, s
     return MEM_POOLING_OK;
 }
 
+MpResult MpSmapHelper::ReleaseHugePages(std::vector<uint64_t> &remoteNumaIds, std::vector<uint64_t> &borrowSizes)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Release hugePages start.";
+
+    std::unordered_map<uint64_t, uint64_t> map;
+    size_t size = remoteNumaIds.size();
+    for (size_t i = 0; i < size; ++i) {
+        if (map.find(remoteNumaIds[i]) != map.end()) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] Update remoteNumaId:" << remoteNumaIds[i]
+                << ", release borrowSize: " << borrowSizes[i] << ".";
+
+            map[remoteNumaIds[i]] += borrowSizes[i];
+        } else {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] Add remoteNumaId:" << remoteNumaIds[i]
+                << ", release borrowSize: " << borrowSizes[i] << ".";
+
+            map[remoteNumaIds[i]] = borrowSizes[i];
+        }
+    }
+
+    for (const auto &pair : map) {
+        MpResult ret = ReleaseHugePagesWithRetry(pair.first, pair.second);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] ReleaseHugePagesWithRetry failed for numaId="
+                << pair.first << ", ret=" << ret << ".";
+            return MEM_POOLING_ERROR;
+        }
+    }
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Release hugePages end.";
+    return MEM_POOLING_OK;
+}
+
+MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize)
+{
+    const int MAX_RETRY = 100;
+    int retryCnt = 0;
+    std::string filePath;
+
+    MpResult ret = GetHugePageCanonicalPath(std::to_string(numaId), filePath);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetHugePageCanonicalPath failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint64_t originalHugePages = 0;
+    ret = GetOriginalHugePages(filePath, originalHugePages);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetOriginalHugePages failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint64_t releasePages = borrowSize / (2 * 1024 * 1024);
+    uint64_t targetHugePages = 0;
+
+    if (originalHugePages > releasePages) {
+        targetHugePages = originalHugePages - releasePages;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] numaId=" << numaId << ", originalHugePages=" << originalHugePages
+        << ", releasePages=" << releasePages << ", targetHugePages=" << targetHugePages << ".";
+
+    do {
+        ret = TryAllocateHugePagesOnce(filePath, targetHugePages);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] RewriteHugePages failed at retry="
+                << retryCnt << ", numaId=" << numaId << ".";
+            retryCnt++;
+            continue;
+        }
+
+        uint64_t realHugePages = 0;
+        ret = GetOriginalHugePages(filePath, realHugePages);
+        if (ret == MEM_POOLING_OK &&
+            realHugePages <= targetHugePages) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) 
+                << "[MpSmapHelper] Release hugepages success, numaId=" << numaId << ", realHugePages=" 
+                << realHugePages << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
+            return MEM_POOLING_OK;
+        }
+
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] HugePages not reached target, numaId=" << numaId << ", realHugePages=" 
+            << realHugePages << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
+        retryCnt++;
+    } while (retryCnt < MAX_RETRY);
+
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] ReleaseHugePages final failed after " << MAX_RETRY << " retries, numaId=" << numaId
+        << ", targetHugePages=" << targetHugePages << ".";
+
+    return MEM_POOLING_ERROR;
+}
+
 MpResult MpSmapHelper::RewriteHugePages(const std::string &realPath, uint64_t targetHugePages)
 {
     // 按2M为计算单位,计算最后分配大页的大小

@@ -101,6 +101,10 @@ struct VMStat {
     }
 };
 
+uint32_t FilterVmPresetParamsByFault(const std::string &srcNid,
+                                     const std::vector<VMPresetParam> &vmPresetParams,
+                                     std::vector<VMPresetParam> &workingVmPresetParams);
+
 /**
  * @brief 借用内存VM粒度分配策略
  * @param borrowInNode 内存借入节点信息
