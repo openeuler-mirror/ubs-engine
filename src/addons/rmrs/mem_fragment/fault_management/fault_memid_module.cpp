@@ -409,7 +409,7 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
 
 MpResult FaultMemIdModule::NotSameNidDeleteUpdate(std::string borrowId, std::string borrowIdNew)
 {
-    auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true);
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true, true);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][MemId] Rack delete resource(not same nid) failed.";
         return MEM_POOLING_ERROR;
