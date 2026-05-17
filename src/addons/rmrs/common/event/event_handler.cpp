@@ -120,7 +120,7 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
             return resFragMent;
         }
-    } else { //超分场景
+    } else { // 超分场景
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
         NodeType nodeType = NodeType::ABNORMAL;
         MpResult res = FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);
@@ -135,7 +135,7 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
             return MEM_POOLING_OK;
         }
         if (nodeType == NodeType::BORROW_OUT) {
-            res = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);               
+            res = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
             if (res != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[FaultManager] Process BORROW_OUT node fault failed, eventMessage:" << eventMessage << ".";
@@ -207,7 +207,7 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
             return resFragMent;
         }
-    } else { //超分场景
+    } else { // 超分场景
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
         NodeType nodeType = NodeType::ABNORMAL;
         MpResult res = FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);
@@ -253,7 +253,7 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
             return resFragMent;
         }
-    } else { //超分场景
+    } else { // 超分场景
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
         NodeType nodeType = NodeType::ABNORMAL;
         MpResult res = FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);

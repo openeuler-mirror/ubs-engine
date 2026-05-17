@@ -324,6 +324,7 @@ public:
     MpResult UpdateBorrowRecordsAllWithFault();
     MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
     MpResult UpdateBorrowRecordsWithFragMentFault(std::string nodeId);
+    bool ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtInfo, BorrowRecord& outRecord);
     MpResult CollectBorrowableInfo(const std::string &nodeId,
                                    NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
     MpResult CollectBorrowableInfoList(const std::vector<std::string> &nodeId,

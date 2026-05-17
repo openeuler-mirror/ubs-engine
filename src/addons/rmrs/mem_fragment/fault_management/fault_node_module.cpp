@@ -88,7 +88,7 @@ MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, No
 {
     MpResult ret = MEM_POOLING_OK;
     std::vector<BorrowRecord> fragMentFaultBorrowRecords;
-    UbseResult retErrorCode = 
+    UbseResult retErrorCode =
         BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(nodeId, fragMentFaultBorrowRecords);
     if (retErrorCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -723,12 +723,12 @@ MpResult FaultNodeModule::ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> f
 MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
 {
     faultHandleCurRound++;
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round " 
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round "
                                                       << faultHandleCurRound << " start.";
 
     // =========基于不信任原则，获取账本并筛选合法条目===========
     // =========仅处理合法条目，处理完后返回失败，利用UBSE故障重试机制继续处理===========
-    MpResult res = 
+    MpResult res =
         BorrowRecordHelper::Instance().UpdateBorrowRecordsWithFragMentFault(nodeId);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -747,13 +747,13 @@ MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] BORROW_IN Fault is handled by MXE.";
     } else if (nodeType == NodeType::BORROW_OUT) {
-        res = FaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId, true);                 
+        res = FaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId, true);
         if (res != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultManager] Process BORROW_OUT node fault failed.";
         }
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round " 
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round "
                                                       << faultHandleCurRound << " end.";
     // 处理完后返回失败，利用UBSE故障重试机制继续处理
     return MEM_POOLING_ERROR;
