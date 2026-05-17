@@ -46,6 +46,8 @@ public:
 
     MpResult MemFreeWithOpsByMemfabric(const std::string &name, const std::string &deleteName, bool isFault = false);
 
+    MpResult HandleTimeoutFree(const std::string& name, const std::vector<BorrowRecord>& borrowRecords);
+
     MpResult GenerateSmapParams(const std::string &name, MigrateBackMsg &migrateBackMsg, EnableNodeMsg &enableMsg,
                                 std::string &importNodeId, bool isFault = false);
     MpResult SmapMigreatBackRpc(const std::string importNodeId, const MigrateBackMsg &migrateBackMsg);
