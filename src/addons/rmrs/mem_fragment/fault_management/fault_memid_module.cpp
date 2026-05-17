@@ -511,6 +511,7 @@ MpResult FaultMemIdModule::MemIdFaultManage(std::string borrowInNid, uint64_t me
     srcParam.username = borrowInNodeData.username;
     srcParam.srcSocketId = borrowInNodeData.borrowSocketId;
     srcParam.srcNumaId = borrowInNodeData.borrowNumaId;
+    srcParam.srcNid = borrowInNid;
     std::vector<uint64_t> borrowSizes = {memBorrowIdSize};
     MemBorrowStrategyMultiResult borrowStrategyMultiResult;
     borrowStrategyMultiResult.byNodeFault = byNodeFault;
