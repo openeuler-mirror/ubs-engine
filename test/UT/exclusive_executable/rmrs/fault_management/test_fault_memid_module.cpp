@@ -1124,7 +1124,7 @@ TEST_F(TestFaultMemIdModule, IsBorrowIdOfCurNid1)
     uint64_t memBorrowIdSize;
     uint16_t remoteNumaId;
     std::string destPreNid;
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault, MpResult(*)(BorrowRecordHelper * This,
+    MOCKER_CPP(&BorrowRecordHelper::GetFragMentFaultBorrowRecords, MpResult(*)(BorrowRecordHelper * This,
         const std::string nodeId, std::vector<BorrowRecord> &borrowRecords))
         .stubs()
         .will(invoke(FaultMemidModuleCollectBorrowRecords));

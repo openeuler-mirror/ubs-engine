@@ -294,7 +294,7 @@ TEST_F(TestFaultNodeModule, GetBorrowNodeInfoFail2)
 {
     std::string nodeId;
     std::vector<BorrowRecord> borrowRecords;
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
+    MOCKER_CPP(&BorrowRecordHelper::GetFragMentFaultBorrowRecords,
                MpResult(*)(const std::string nodeId, std::vector<BorrowRecord> &borrowRecords))
         .stubs()
         .will(returnValue(1));
