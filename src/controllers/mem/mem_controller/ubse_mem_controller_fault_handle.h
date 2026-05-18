@@ -31,10 +31,23 @@ public:
 
     static UbseResult DeInitMemFaultManager();
 
+    static UbseResult ReportSingleImportDebt(const std::string &targetNodeId,
+                                         const def::ShareHandleInfoVec &shareHandleInfoVec,
+                                         const def::NumaHandleInfoVec &numaHandleInfoVec,
+                                         const def::FdHandleInfoVec &fdHandleInfoVec);
+
 private:
     static uint32_t PanicRebootFaultEventHandler(std::string& eventId, std::string& eventMessage);
 
+    static uint32_t BmcFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, const std::string &faultInfo);
+
+    static uint32_t BmcFaultTimerHandler();
+
+    static void BmcFaultAgentsHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
     static UbseResult MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string& faultId);
+
+    static void SingleImportDebtNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
     static uint32_t MemFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 

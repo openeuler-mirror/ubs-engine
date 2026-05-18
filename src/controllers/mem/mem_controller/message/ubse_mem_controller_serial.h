@@ -13,6 +13,7 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_CONTROLLER_SERIAL_H
 #define UBSE_MANAGER_UBSE_MEM_CONTROLLER_SERIAL_H
 #include "ubse_common_def.h"
+#include "ubse_mem_controller_def.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_serial_util.h"
 
@@ -198,6 +199,14 @@ bool UbseMemReturnReqDeserialize(UbseDeSerialization& in, UbseMemReturnReq& data
 bool UbseMemOperationRespSerialize(UbseSerialization& out, UbseMemOperationResp& data);
 
 bool UbseMemOperationRespDeserialize(UbseDeSerialization& in, UbseMemOperationResp& data);
+
+bool ShareHandleInfoVecSerialize(UbseSerialization &out, const def::ShareHandleInfoVec &data);
+
+bool ShareHandleInfoVecDeserialize(UbseDeSerialization &in, def::ShareHandleInfoVec &data);
+
+bool NumaHandleInfoVecSerialize(UbseSerialization &out, const def::NumaHandleInfoVec &data);
+
+bool NumaHandleInfoVecDeserialize(UbseDeSerialization &in, def::NumaHandleInfoVec &data);
 } // namespace ubse::mem::serial
 
 #endif // UBSE_MANAGER_UBSE_MEM_CONTROLLER_SERIAL_H
