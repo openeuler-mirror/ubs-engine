@@ -195,7 +195,7 @@ private:
 };
 
 // RPC Handler
-void CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
 void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 void NodeNumaReplaceReturnResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);

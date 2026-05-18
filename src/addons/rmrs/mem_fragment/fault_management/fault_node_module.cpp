@@ -725,7 +725,7 @@ bool FaultNodeModule::CheckUBTurboIsAliveRpc(std::string nodeId) {
     UbseByteBuffer reqData = {
         .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) { delete[] data; }};
     bool isAlive = false;
-    UbseRpcSend(endpoint, reqData, &isAlive, CheckUBTurboIsAliveResHandler);
+    auto ret = UbseRpcSend(endpoint, reqData, &isAlive, CheckUBTurboIsAliveResHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAlive failed, ret = " << ret;
         return false;
