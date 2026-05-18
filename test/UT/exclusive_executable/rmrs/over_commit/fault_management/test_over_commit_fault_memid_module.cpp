@@ -214,7 +214,7 @@ MpResult MockGetNumaBindType(OverCommitStorage *This, const std::string &nodeId,
 }
 
 uint32_t MockRackRpcSendReturnOk(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
- 	                          const UbseComRespHandler& handler)
+ 	                             const UbseComRespHandler& handler)
 {
     FaultHandleMemBorrowResult result;
     result.retCode = MEM_POOLING_OK;

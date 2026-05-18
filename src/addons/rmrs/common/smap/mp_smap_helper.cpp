@@ -467,7 +467,7 @@ void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated,
     }
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MpSmapHelper] ReleaseHugePages success after VmsMigrate failed."
+        << "[MpSmapHelper] ReleaseHugePages success after VmsMigrate failed.";
 }
 
 MpResult MpSmapHelper::RewriteHugePages(const std::string &realPath, uint64_t targetHugePages)
