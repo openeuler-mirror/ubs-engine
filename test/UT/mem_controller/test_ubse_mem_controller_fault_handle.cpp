@@ -205,11 +205,11 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_GetNodeIdFai
 {
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
     uint64_t memId = 1;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_NE(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_NE(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInShareImport)
@@ -228,13 +228,14 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInShare
                                                                                            shareImportObj);
 
     uint64_t memId = 100;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_EQ(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_EQ(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
     EXPECT_EQ(memName, "shareTest");
     EXPECT_EQ(memType, "share");
+    EXPECT_EQ(handleId, 100);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInFdImport)
@@ -252,13 +253,14 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInFdImp
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("1", "fdTest", fdImportObj);
 
     uint64_t memId = 200;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_EQ(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_EQ(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
     EXPECT_EQ(memName, "fdTest");
     EXPECT_EQ(memType, "fd");
+    EXPECT_EQ(handleId, 200);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_NotFound)
@@ -267,11 +269,11 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_NotFound)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
 
     uint64_t memId = 999;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_NE(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_NE(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
     EXPECT_EQ(memType, "unknown");
 }
 

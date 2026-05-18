@@ -673,7 +673,7 @@ void UbseMemFaultManager::SingleImportDebtNotifyHandler(const UbseByteBuffer &re
 
 template <typename ImportObjType>
 static bool DoFindInImportMap(debt::UbseMemTypeDebtMap<ImportObjType>& importMap, const std::string& nodeId,
-                              uint64_t memId, UbMemFaultType type, std::string& memName, UbseUdsInfo& udsInfo,
+                              uint64_t memId, std::string& memName, UbseUdsInfo& udsInfo, uint64_t& handleId,
                               const std::string& memTypeStr)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Searching in " << memTypeStr << " import map for memId=" << memId;
@@ -694,8 +694,9 @@ static bool DoFindInImportMap(debt::UbseMemTypeDebtMap<ImportObjType>& importMap
                 importMap.PutResource(nodeId, name, obj);
                 memName = name;
                 udsInfo = obj.req.udsInfo;
+                handleId = (memTypeStr == "numa") ? static_cast<uint64_t>(info.numaId) : info.memId;
                 UBSE_LOG_INFO << "[MEM_CONTROLLER] Found and updated memName=" << memName << " from " << memTypeStr
-                              << " import by memId=" << memId;
+                              << " import by memId=" << memId << ", handleId=" << handleId;
                 return true;
             }
         }
@@ -704,11 +705,10 @@ static bool DoFindInImportMap(debt::UbseMemTypeDebtMap<ImportObjType>& importMap
     return false;
 }
 
-UbseResult FindNameByMemIdInImportObj(uint64_t memId, UbMemFaultType type, std::string& memName, std::string& memType,
-                                      UbseUdsInfo& udsInfo)
+UbseResult FindNameByMemIdInImportObj(uint64_t memId, std::string& memName, std::string& memType,
+                                      UbseUdsInfo& udsInfo, uint64_t& handleId)
 {
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Finding import object by memId=" << memId
-                  << ", faultType=" << static_cast<uint16_t>(type);
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Finding import object by memId=" << memId;
 
     std::string nodeId;
     auto ret = GetCurrentNodeId(nodeId);
@@ -718,20 +718,21 @@ UbseResult FindNameByMemIdInImportObj(uint64_t memId, UbMemFaultType type, std::
     }
 
     auto& ledger = debt::UbseMemDebtLedger::GetInstance();
-    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemShareBorrowImportObj>(), nodeId, memId, type, memName, udsInfo,
+    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemShareBorrowImportObj>(), nodeId, memId, memName, udsInfo, handleId,
                           "share")) {
         memType = "share";
         return UBSE_OK;
     }
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Not found in share import, trying fd import. memId=" << memId;
 
-    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemFdBorrowImportObj>(), nodeId, memId, type, memName, udsInfo, "fd")) {
+    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemFdBorrowImportObj>(), nodeId, memId, memName, udsInfo, handleId,
+                          "fd")) {
         memType = "fd";
         return UBSE_OK;
     }
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Not found in fd import, trying numa import. memId=" << memId;
 
-    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemNumaBorrowImportObj>(), nodeId, memId, type, memName, udsInfo,
+    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemNumaBorrowImportObj>(), nodeId, memId, memName, udsInfo, handleId,
                           "numa")) {
         memType = "numa";
         return UBSE_OK;
@@ -788,29 +789,32 @@ uint32_t UbseMemFaultManager::MemFaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmF
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    ret = FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo);
+    uint64_t handleId = 0;
+    ret = FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId);
     if (ret != UBSE_OK || memName.empty()) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to find and update import object by memId=" << memId << ".";
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Found import object: memName=" << memName << ", memType=" << memType;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Found import object: memName=" << memName << ", memType=" << memType
+                  << ", handleId=" << handleId;
 
-    ret = SendMemFaultMessageByType(memType, memId, memName, udsInfo, type);
+    ret = SendMemFaultMessageByType(memType, handleId, memName, udsInfo, type);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send fault message. memId=" << memId << ", memName=" << memName;
         return ret;
     }
 
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Successfully handled memory fault. memId=" << memId << ", memName=" << memName
-                  << ", memType=" << memType << ", faultType=" << static_cast<uint16_t>(type);
+                  << ", memType=" << memType << ", handleId=" << handleId
+                  << ", faultType=" << static_cast<uint16_t>(type);
     return UBSE_OK;
 }
 
-UbseResult UbseMemFaultManager::SendMemFaultMessageByType(const std::string& memType, uint64_t memId,
+UbseResult UbseMemFaultManager::SendMemFaultMessageByType(const std::string& memType, uint64_t handleId,
                                                           const std::string& memName, const UbseUdsInfo& udsInfo,
                                                           ubse::adapter_plugins::mmi::UbMemFaultType type)
 {
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Sending fault message. memType=" << memType << ", memId=" << memId
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Sending fault message. memType=" << memType << ", handleId=" << handleId
                   << ", memName=" << memName;
 
     if (UbseMemFaultManager::executorPtr == nullptr) {
@@ -820,7 +824,7 @@ UbseResult UbseMemFaultManager::SendMemFaultMessageByType(const std::string& mem
 
     UbseMemFault fault{
         .memName = memName,
-        .handleId = memId,
+        .handleId = handleId,
         .type = static_cast<UbseIpcMemFaultType>(type),
     };
 
