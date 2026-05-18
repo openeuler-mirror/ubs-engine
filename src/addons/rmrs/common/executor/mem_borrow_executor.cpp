@@ -360,23 +360,9 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
         }
         return MEM_POOLING_ERROR;
     }
-    // 先把账本查了，不然删除中查询可能碰到半截账本
-    std::vector<BorrowRecord> borrowRecords;
-    auto res = BorrowRecordHelper::Instance().CollectBorrowRecordsAll(borrowRecords, isFault);
-    if (res != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] Collect all borrowRecords failed.";
-        return res;
-    }
-    UbseMemBorrower borrower;
-    borrower.nodeId = name.substr(0, name.find('-'));
-
-    UbseResult ret = UbseMemNumaDelete(deleteName, borrower);
-    if (isFault && ret == UBSE_ERR_UNIMPORT_SUCCESS) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute][FaultHandle] Free memory of borrowId=" << name
-            << " unimport success in fault handle. Ret_code=" << static_cast<int>(ret) << ".";
-    } else if (ret != UBSE_OK) {
+    
+    auto retMemFreeByUbse = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
+    if (retMemFreeByUbse != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] MemFreeWithOpsByMemfabric failed.";
         return MEM_POOLING_ERROR;
