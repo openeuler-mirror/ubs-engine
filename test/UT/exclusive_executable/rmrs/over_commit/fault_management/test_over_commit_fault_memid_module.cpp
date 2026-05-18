@@ -213,6 +213,17 @@ MpResult MockGetNumaBindType(OverCommitStorage* This, const std::string& nodeId,
     return MEM_POOLING_OK;
 }
 
+uint32_t MockRackRpcSendReturnOk(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                         const UbseComRespHandler& handler)
+{
+    FaultHandleMemBorrowResult result;
+    result.retCode = MEM_POOLING_OK;
+    if (ctx != nullptr) {
+        *(FaultHandleMemBorrowResult*)ctx = result; // 写到指针指向的内容里
+    }
+    return MEM_POOLING_ERROR; // RackRpcSend本身也返回错误
+}
+
 TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteSuccess)
 {
     MemBorrowExecuteResult borrowExecuteResult;
@@ -222,11 +233,10 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteSuccess)
                MpResult(*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
         .stubs()
         .will(invoke(MockGetNumaBindType));
-    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                           MemBorrowExecuteResult&))
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
-        .will(returnValue(MEM_POOLING_OK));
+        .will(invoke(MockRackRpcSendReturnOk));
     MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
         .stubs()
         .will(returnValue(0));
