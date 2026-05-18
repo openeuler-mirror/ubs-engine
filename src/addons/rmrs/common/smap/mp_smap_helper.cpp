@@ -455,19 +455,19 @@ void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated,
                                              const std::vector<uint64_t> borrowSizes)
 {
     if (!hugePageAllocated) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Do not need to release.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Do not need to release.";
         return;
     }
 
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Start to execute release.";
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Start to execute release.";
     MpResult releaseRet = MpSmapHelper::GetInstance().ReleaseHugePages(remoteNumaIds, borrowSizes);
     if (releaseRet != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
-            << "ReleaseHugePages failed after VmsMigrate failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] ReleaseHugePages failed after VmsMigrate failed.";
     }
 
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
-        << "ReleaseHugePages success after VmsMigrate failed.";
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] ReleaseHugePages success after VmsMigrate failed.";
 }
 
 MpResult MpSmapHelper::RewriteHugePages(const std::string &realPath, uint64_t targetHugePages)
