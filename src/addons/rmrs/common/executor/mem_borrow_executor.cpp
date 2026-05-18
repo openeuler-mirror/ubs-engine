@@ -397,9 +397,9 @@ MpResult MemBorrowExecutor::MemFreeWithOpsByMemfabric(const std::string& name, c
 
     UbseResult ret = UbseMemNumaDelete(deleteName, borrower);
     if (isFault && ret == UBSE_ERR_UNIMPORT_SUCCESS) {
- 	         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
- 	             << "[MemFree][MemFreeExecute][FaultHandle] Free memory of borrowId=" << name
- 	             << " unimport success in fault handle. Ret_code=" << static_cast<int>(ret) << ".";
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute][FaultHandle] Free memory of borrowId=" << name
+            << " unimport success in fault handle. Ret_code=" << static_cast<int>(ret) << ".";
     } else if (ret != UBSE_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Free memory of borrowId " << name

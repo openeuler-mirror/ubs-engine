@@ -37,7 +37,7 @@ public:
     static void FaultNumaProcessResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
     static uint32_t FaultHandleMemBorrowRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-    static void FaultHandleMemBorrowResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+    static void FaultHandleMemBorrowResHandler(void* ctx, const UbseByteBuffer &respData, uint32_t resCode);
 };
 } // namespace mempooling::over_commit
 
