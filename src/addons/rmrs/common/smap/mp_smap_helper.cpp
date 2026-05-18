@@ -451,8 +451,8 @@ MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borro
 }
 
 void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated,
-                                             const std::vector<uint64_t> remoteNumaIds,
-                                             const std::vector<uint64_t> borrowSizes)
+                                             std::vector<uint64_t> &remoteNumaIds,
+                                             std::vector<uint64_t> &borrowSizes)
 {
     if (!hugePageAllocated) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Do not need to release.";
