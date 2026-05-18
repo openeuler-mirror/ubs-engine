@@ -221,7 +221,7 @@ uint32_t MockRackRpcSendReturnOk(const UbseComEndpoint& endpoint, const UbseByte
     if (ctx != nullptr) {
         *(FaultHandleMemBorrowResult*)ctx = result; // 写到指针指向的内容里
     }
-    return MEM_POOLING_ERROR; // RackRpcSend本身也返回错误
+    return MEM_POOLING_OK; // RackRpcSend本身也返回错误
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteSuccess)
