@@ -40,4 +40,14 @@ virt_agent_ret_t ubse_mem_task_info_query_msg_unpack(uint8_t* buffer, uint32_t l
 
 virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t* buffer, uint32_t len, MemMigrateStrategy* strategy);
 
+VmResult NodeInfoListToCStyle(const std::vector<NodeInfo> &nodeInfoList, node_info_list_s &node_info_list);
+
+VmResult BorrowParamFromCStyle(const mem_borrow_param_s *src, BorrowParam &borrowParam);
+
+VmResult BorrowResultToCStyle(const std::vector<mem_borrow_result_c> &memBorrowRstCs,
+                              mem_borrow_result_s &mem_borrow_result);
+
+VmResult PageSwapEnableFromCStyle(const page_swap_enable_s *page_swap_enable,
+                                  std::vector<mem_fragmentation::PageSwapPair> &pageSwapPairs);
+
 #endif // UBS_VIRT_AGENT_MEM_FRAGMENTATION_HELPER_H

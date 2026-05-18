@@ -17,6 +17,29 @@
 #include <vector>
 #include "ubs_virt_agent_mem_fragmentation.h"
 
+void StringToCharArr(const std::string& src, char* dest, const size_t& destSize)
+{
+    if (destSize == 0) {
+        return;
+    }
+    if (const auto ret = strncpy_s(dest, destSize, src.c_str(), src.size()); ret != EOK) {
+        IPC_LOG_ERROR << "Failed to copy dest string. Error code: " << ret;
+        return;
+    }
+    dest[destSize - 1] = '\0';
+}
+
+void CharArrToString(const char *src, const size_t &maxLength, std::string &str)
+{
+    if (src == nullptr || maxLength == 0) {
+        return;
+    }
+    str = std::string(src, maxLength);
+    if (const auto nullPos = str.find('\0'); nullPos != std::string::npos) {
+        str.resize(nullPos);
+    }
+}
+
 virt_agent_ret_t ubse_node_info_unpack(uint8_t* buffer, uint32_t len, numa_info_t** numa_infos, uint32_t* node_cnt)
 {
     vm::MemFragmentationMsg msg{buffer, len};
@@ -214,4 +237,149 @@ virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t* buffer, uint32_t 
         (*strategy).vmInfoList[i].destNumaId = outputMsg.vmInfoList[i].destNumaId;
     }
     return VA_SUCCESS;
+}
+
+VmResult NodeInfoListToCStyle(const std::vector<NodeInfo> &nodeInfoList, node_info_list_s &node_info_list)
+{
+    node_info_list.node_len = nodeInfoList.size();
+    if (node_info_list.node_len == 0) {
+        node_info_list.node_infos = nullptr;
+        return VM_OK;
+    }
+
+    node_info_list.node_infos = static_cast<node_info_s *>(malloc(node_info_list.node_len * sizeof(node_info_s)));
+    if (!node_info_list.node_infos) {
+        node_info_list.node_len = 0;
+        return VM_ERROR;
+    }
+
+    for (uint32_t i = 0; i < node_info_list.node_len; ++i) {
+        const auto &[nodeId, numaInfos, isCurrent] = nodeInfoList[i];
+        auto &[node_id, numa_infos, numa_len, is_current] = node_info_list.node_infos[i];
+
+        StringToCharArr(nodeId, reinterpret_cast<char *>(&node_id), VIRT_MEM_MAX_NODE_ID_LENGTH);
+        is_current = isCurrent;
+        numa_len = static_cast<uint32_t>(numaInfos.size());
+        if (numa_len == 0) {
+            numa_infos = nullptr;
+            break;
+        }
+        numa_infos = static_cast<numa_info_t *>(malloc(numa_len * sizeof(numa_info_t)));
+        if (numa_infos == nullptr) {
+            numa_len = 0;
+            break;
+        }
+        for (uint32_t j = 0; j < numa_len; ++j) {
+            numa_infos[j].timestamp = numaInfos[j].timestamp;
+            StringToCharArr(numaInfos[j].metaData.nodeId, reinterpret_cast<char *>(&numa_infos[j].node_id),
+                            VIRT_MEM_MAX_NODE_ID_LENGTH);
+            StringToCharArr(numaInfos[j].metaData.hostName, reinterpret_cast<char *>(&numa_infos[j].host_name),
+                            UBS_VA_HOST_NAME_MAX);
+            numa_infos[j].numa_id = numaInfos[j].metaData.numaId;
+            numa_infos[j].socket_id = numaInfos[j].metaData.socketId;
+            numa_infos[j].is_local = numaInfos[j].metaData.isLocal;
+            numa_infos[j].mem_total = numaInfos[j].metaData.memTotal;
+            numa_infos[j].mem_free = numaInfos[j].metaData.memFree;
+            numa_infos[j].huge_page_data = static_cast<numa_page_data *>(
+                malloc(numaInfos[j].metaData.numaPageInfo.size() * sizeof(numa_page_data)));
+            numa_infos[j].numaPageInfoCount = numaInfos[j].metaData.numaPageInfo.size();
+            if (numa_infos[j].huge_page_data == nullptr) {
+                numa_infos[j].numaPageInfoCount = 0;
+                break;
+            }
+            uint32_t k = 0;
+            for (const auto &[_numaId, numaPageInfo] : numaInfos[j].metaData.numaPageInfo) {
+                numa_infos[j].huge_page_data[k].pageSize = numaPageInfo.pageSize;
+                numa_infos[j].huge_page_data[k].hugePageTotal = numaPageInfo.hugePageTotal;
+                numa_infos[j].huge_page_data[k].hugePageFree = numaPageInfo.hugePageFree;
+                k++;
+            }
+        }
+    }
+    return VM_OK;
+}
+
+VmResult BorrowParamFromCStyle(const mem_borrow_param_s *src, BorrowParam &borrowParam)
+{
+    if (src == nullptr) {
+        return VM_ERROR;
+    }
+    CharArrToString(src->src_nid, VIRT_MEM_MAX_NODE_ID_LENGTH, borrowParam.nodeId);
+    if (borrowParam.nodeId.empty()) {
+        return VM_ERROR;
+    }
+    borrowParam.borrowSize = src->borrow_size;
+    if (borrowParam.borrowSize == 0) {
+        return VM_OK;
+    }
+    if (src->numa_meta_infos != nullptr && src->numa_len > 0) {
+        borrowParam.numaMetaInfos.reserve(src->numa_len);
+
+        for (uint32_t i = 0; i < src->numa_len; ++i) {
+            NumaMetaInfo metaInfo;
+            metaInfo.socketId = src->numa_meta_infos[i].socket_id;
+            metaInfo.numaId = src->numa_meta_infos[i].numa_id;
+
+            borrowParam.numaMetaInfos.emplace_back(std::move(metaInfo));
+        }
+    }
+    return VM_OK;
+}
+
+VmResult BorrowResultToCStyle(const std::vector<mem_borrow_result_c> &memBorrowRstCs,
+                              mem_borrow_result_s &mem_borrow_result)
+{
+    mem_borrow_result.mem_borrow_result_list_len = memBorrowRstCs.size();
+    if (!mem_borrow_result.mem_borrow_result_list_len) {
+        mem_borrow_result.mem_borrow_result_list = nullptr;
+        return VM_OK;
+    }
+    mem_borrow_result.mem_borrow_result_list = new (std::nothrow)
+        mem_borrow_result_c[mem_borrow_result.mem_borrow_result_list_len];
+    if (mem_borrow_result.mem_borrow_result_list == nullptr) {
+        mem_borrow_result.mem_borrow_result_list_len = 0;
+        return VM_ERROR;
+    }
+    for (size_t i = 0; i < memBorrowRstCs.size(); ++i) {
+        mem_borrow_result.mem_borrow_result_list[i] = memBorrowRstCs[i];
+    }
+    return VM_OK;
+}
+
+VmResult PageSwapEnableFromCStyle(const page_swap_enable_s *page_swap_enable,
+                                  std::vector<mem_fragmentation::PageSwapPair> &pageSwapPairs)
+{
+    if (page_swap_enable == nullptr) {
+        return VM_ERROR;
+    }
+
+    pageSwapPairs.reserve(page_swap_enable->page_swap_pairs_len);
+    for (uint8_t i = 0; i < page_swap_enable->page_swap_pairs_len; ++i) {
+        const auto &[local_numas, local_numa_len, remote_numas, remote_numa_len] = page_swap_enable->page_swap_pairs[i];
+        mem_fragmentation::PageSwapPair pageSwapPair;
+
+        if (local_numas != nullptr && local_numa_len > 0) {
+            pageSwapPair.localNumaQuotas.reserve(local_numa_len);
+            for (uint8_t j = 0; j < local_numa_len; ++j) {
+                mem_fragmentation::NumaQuota quota;
+                quota.numaId = local_numas[j].numa_id;
+                quota.quota = local_numas[j].quota;
+                pageSwapPair.localNumaQuotas.push_back(std::move(quota));
+            }
+        }
+
+        if (remote_numas != nullptr && remote_numa_len > 0) {
+            pageSwapPair.remoteNumaQuotas.reserve(remote_numa_len);
+            for (uint8_t k = 0; k < remote_numa_len; ++k) {
+                mem_fragmentation::NumaQuota quota;
+                quota.numaId = remote_numas[k].numa_id;
+                quota.quota = remote_numas[k].quota;
+                pageSwapPair.remoteNumaQuotas.push_back(std::move(quota));
+            }
+        }
+
+        pageSwapPairs.push_back(std::move(pageSwapPair));
+    }
+
+    return VM_OK;
 }
