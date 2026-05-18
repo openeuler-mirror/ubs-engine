@@ -205,6 +205,53 @@ void FillMemMigrateResult(const std::vector<VMResult> &vmResults, std::vector<Me
     }
 }
 
+uint32_t FilterVmPresetParamsByFault(const std::string &srcNid,
+                                     const std::vector<VMPresetParam> &vmPresetParams,
+                                     std::vector<VMPresetParam> &workingVmPresetParams)
+{
+    std::vector<uint32_t> remoteNumaIds;
+    if (!FaultNuma::Instance().GetFaultNumaList(srcNid, remoteNumaIds)) {
+        workingVmPresetParams = vmPresetParams;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][FilterVmPresetParamsByFault] No fault numa found, skip filter.";
+        return MEM_POOLING_OK;
+    }
+
+    std::unordered_map<uint16_t, std::vector<pid_t>> numaIdVmPidsMap;
+    auto ret = CollectUtil::GetRemoteVmPidsByLocal(remoteNumaIds, numaIdVmPidsMap);
+    if (ret != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+
+    std::unordered_set<pid_t> faultPids;
+    for (const auto &kv : numaIdVmPidsMap) {
+        faultPids.insert(kv.second.begin(), kv.second.end());
+    }
+
+    workingVmPresetParams.clear();
+    for (const auto &vmParam : vmPresetParams) {
+        if (faultPids.count(vmParam.pid) == 0) {
+            workingVmPresetParams.push_back(vmParam);
+        } else {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][FilterVmPresetParamsByFault] Filter fault handle pid=" << vmParam.pid << ".";
+        }
+    }
+
+    if (workingVmPresetParams.empty()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][FilterVmPresetParamsByFault] After filter,"
+            << "workingVmPresetParams is empty, no need to migrate.";
+        return MEM_POOLING_ERROR;
+    }
+
+    for (const auto &param : workingVmPresetParams) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][FilterVmPresetParamsByFault] After filter,"
+            << "vm.pid=" << param.pid << ", vm.ratio=" << param.ratio << ".";
+    }
+
+    return MEM_POOLING_OK;
+}
+
 uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam &srcParasssm, const std::vector<VMPresetParam> &vmParams,
                                    const std::vector<MemBorrowInfo> &memBorrowInfo,
                                    const std::vector<BorrowRecord> &borrowRecord,
@@ -282,6 +329,8 @@ uint32_t VMMemMigrateStrategy::Execute(const std::unordered_map<pid_t, VMInfo> &
         strategyReturnValue = MultiNumaVmAllocation(vmInfos, remoteNUMAs, vmResults);
     } else {
         // 单numa场景 迁移策略生成
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[VMMemMigrateStrategy][Execute] Start SingleNumaVmAllocation.";
         strategyReturnValue = SingleNumaVmAllocation(vmInfos, remoteNUMAs, vmResults);
     }
 
@@ -621,6 +670,8 @@ uint32_t VMMemMigrateStrategy::SingleNumaVmAllocation(const std::unordered_map<p
     }
 
     if (FinishBorrowedMemAllocation(remoteNUMAs)) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[VMMemMigrateStrategy][SingleNumaVmAllocation] FinishBorrowedMemAllocation end.";
         return MEM_POOLING_OK;
     }
 
@@ -664,6 +715,9 @@ std::vector<std::pair<pid_t, uint64_t>> VMMemMigrateStrategy::FilterUnborrowedVm
     // 这里筛选未借用过内存的虚机
     for (const auto &pair : vmInfos) {
         if (pair.second.totalRemoteUsedMem == 0 && pair.second.remoteNumaId == 0) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] Pid="
+                << pair.first << ", info=" << pair.second.ToString();
             result.push_back(std::make_pair(pair.first, CalculateRemainingQuota(pair.second)));
         }
     }
@@ -682,6 +736,8 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered
                                                             const std::pair<pid_t, std::uint64_t> &vm,
                                                             std::vector<VMResult> &vmResults)
 {
+    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] "
+                                                        "AllocateMemoryToRemoteUsedVm start.";
     uint32_t borrowedSize = vmInfos.at(vm.first).totalRemoteUsedMem;
     VMResult result;
     result.pid = vm.first;
@@ -725,13 +781,15 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteNoUsedVm(const std::unorder
                                                               const std::pair<pid_t, std::uint64_t> &vm,
                                                               std::vector<VMResult> &vmResults)
 {
+    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] "
+                                                        "AllocateMemoryToRemoteUsedVm start.";
     uint32_t borrowedSize = vmInfos.at(vm.first).totalRemoteUsedMem;
     VMResult result;
     result.pid = vm.first;
     // 已经借用过内存的VM已经在本轮分配完毕，剩下的都是没有借用过内存的VM。将remoteNUMAs按照剩余borrowsize排序，从最大的remoteNUMA开始借用
     SortRemoteNUMAByBorrowSize(remoteNUMAs);
     if (remoteNUMAs.empty()) {
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] "
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] "
                                                             "Remote NUMAs is empty,Not available for allocation.";
         return MEM_POOLING_OK;
     }
@@ -739,7 +797,7 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteNoUsedVm(const std::unorder
     result.remoteNumaId = remoteNUMA->remoteNumaId;
     result.maxRatio = vmInfos.at(vm.first).ratio;
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] Remote borrowed mem=" << remoteNUMA->borrowSize
+        << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] Remote borrowed mem=" << remoteNUMA->borrowSize
         << ", vm mem=" << vm.second << ", pid=" << vm.first << ".";
 
     if (remoteNUMA->borrowSize >= vm.second) {
@@ -751,14 +809,14 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteNoUsedVm(const std::unorder
         remoteNUMA->borrowSize = 0;
         allocatedMem += result.size;
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] Remote NUMA has no enough borrowed mem. "
+            << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] Remote NUMA has no enough borrowed mem. "
                "NUMA="
             << remoteNUMA->remoteNumaId << ".";
         vmResults.push_back(result);
         return MEM_POOLING_OK;
     } else {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVM] Remote NUMA has no borrowed mem. NUMA="
+            << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] Remote NUMA has no borrowed mem. NUMA="
             << remoteNUMA->remoteNumaId << ".";
         return MEM_POOLING_OK;
     }
