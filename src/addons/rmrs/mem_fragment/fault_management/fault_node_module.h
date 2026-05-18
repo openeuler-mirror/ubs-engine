@@ -147,7 +147,7 @@ public:
     MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType &nodeType);
     MpResult DetermineNodeTypeFragment(const std::string nodeId, NodeType &nodeType);
     MpResult FragmentHandleFault(std::string nodeId);
-    bool CheckUBTurboIsAliveRpc();
+    bool CheckUBTurboIsAliveRpc(std::string nodeId);
     MpResult DetermineNodeType(const std::string nodeId, NodeType &nodeType);
     MpResult ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem);
 
