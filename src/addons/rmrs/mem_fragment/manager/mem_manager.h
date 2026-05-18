@@ -58,6 +58,7 @@ struct BorrowRecord {
     std::vector<uint64_t> borrowMemId{}; //  借入memId
     uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
     std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uint16_t borrowSocketId{0};            //  借入内存socketId
 
     std::string ToString() const
     {
@@ -72,6 +73,7 @@ struct BorrowRecord {
             oss << memid << ",";
         }
         oss << "lent_Socket_Id=" << lentSocketId << ",";
+        oss << "borrow_Socket_Id=" << borrowSocketId << ",";
         oss << "lent_Numa=";
         for (const auto &numa : lentNuma) {
             oss << numa.ToString() << ",";
@@ -321,6 +323,8 @@ public:
     MpResult UpdateBorrowRecords(bool isFilter = false);
     MpResult UpdateBorrowRecordsAllWithFault();
     MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+    MpResult UpdateBorrowRecordsWithFragmentFault(std::string nodeId);
+    bool ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtInfo, BorrowRecord& outRecord);
     MpResult CollectBorrowableInfo(const std::string &nodeId,
                                    NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
     MpResult CollectBorrowableInfoList(const std::vector<std::string> &nodeId,
@@ -329,10 +333,12 @@ public:
     MpResult GetBorrowIdByNumaId(std::vector<std::string> &borrowIds, const uint16_t numaId, const std::string nodeId);
     MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
     MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+    MpResult GetFragmentFaultBorrowRecords(std::string nodeId, std::vector<BorrowRecord> &fragMentFaultBorrowRecords);
 
 private:
     MpResult GenBorrowRecords(const rapidjson::Value &doc, std::vector<BorrowRecord> &borrowRecords);
     std::vector<BorrowRecord> gBorrowRecords;
+    std::map<std::string, std::vector<BorrowRecord>> gBorrowRecordsFragmentFault; // key: nodeId value: debts of nodeId
 };
 
 class MemReturnManager {

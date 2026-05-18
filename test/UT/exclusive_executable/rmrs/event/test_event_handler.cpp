@@ -286,17 +286,17 @@ TEST_F(TestEventHandler, PanicVirtualSceneBorrowInSuccess)
                            UbseStorageDealDataFunc func))
               .stubs()
               .will(invoke(SetVirtualScene));
-    MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult(*)(FaultNodeModule *This, const std::string, NodeType&))
+    MOCKER_CPP(&mempooling::FaultNodeModule::FragmentHandleFault,
+               MpResult(*)(FaultNodeModule *This, const std::string))
               .stubs()
-              .will(invoke(setNodeTypeIn));
+              .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"3","importMemID":3})";
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-TEST_F(TestEventHandler, PanicVirtualSceneBorrowOutSuccess)
+TEST_F(TestEventHandler, PanicVirtualSceneBorrowOutFailed)
 {
     MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)())
               .stubs()
@@ -315,7 +315,7 @@ TEST_F(TestEventHandler, PanicVirtualSceneBorrowOutSuccess)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"4","importMemID":4})";
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestEventHandler, PanicOverCommitSceneBorrowInSuccess)
@@ -374,17 +374,17 @@ TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowInSuccess)
                            UbseStorageDealDataFunc func))
               .stubs()
               .will(invoke(SetVirtualScene));
-    MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult(*)(FaultNodeModule *This, const std::string, NodeType&))
+    MOCKER_CPP(&mempooling::FaultNodeModule::FragmentHandleFault,
+               MpResult(*)(FaultNodeModule *This, const std::string))
               .stubs()
-              .will(invoke(setNodeTypeIn));
+              .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"7","importMemID":7})";
     MpResult ret = EventHandler::HandleAlarmKernelRebootEvent(eventId, eventMessage);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowOutSuccess)
+TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowOutFailed)
 {
     MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)())
               .stubs()
@@ -403,7 +403,7 @@ TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowOutSuccess)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"8","importMemID":8})";
     MpResult ret = EventHandler::HandleAlarmKernelRebootEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestEventHandler, KernelRebootOverCommitSceneBorrowInSuccess)
@@ -462,17 +462,17 @@ TEST_F(TestEventHandler, RebootVirtualSceneBorrowInSuccess)
                            UbseStorageDealDataFunc func))
               .stubs()
               .will(invoke(SetVirtualScene));
-    MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult(*)(FaultNodeModule *This, const std::string, NodeType&))
+    MOCKER_CPP(&mempooling::FaultNodeModule::FragmentHandleFault,
+               MpResult(*)(FaultNodeModule *This, const std::string))
               .stubs()
-              .will(invoke(setNodeTypeIn));
+              .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"2","importMemID":2})";
     MpResult ret = EventHandler::HandleAlarmRebootEvent(eventId, eventMessage);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-TEST_F(TestEventHandler, RebootVirtualSceneBorrowOutSuccess)
+TEST_F(TestEventHandler, RebootVirtualSceneBorrowOutFailed)
 {
     MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)())
               .stubs()
@@ -494,7 +494,7 @@ TEST_F(TestEventHandler, RebootVirtualSceneBorrowOutSuccess)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"3","importMemID":3})";
     MpResult ret = EventHandler::HandleAlarmRebootEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestEventHandler, RebootOverCommitSceneBorrowInSuccess)
