@@ -718,10 +718,11 @@ MpResult FaultNodeModule::ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> f
 
 bool FaultNodeModule::CheckUBTurboIsAliveRpc(std::string nodeId) {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) 
-        << "[FaultManager] Master to invoke the slave CheckUBTurboIsAlive.";
+        << "[FaultManager] Master to invoke the slave CheckUBTurboIsAlive, nodeId=" << nodeId << ".";
     UbseComEndpoint endpoint = {
         .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_CHECK_UBTURBO_IS_ALIVE, .address = nodeId};
     RmrsOutStream builder;
+    builder << nodeId;
     UbseByteBuffer reqData = {
         .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) { delete[] data; }};
     bool isAlive = false;
