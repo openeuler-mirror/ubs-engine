@@ -36,7 +36,7 @@ constexpr const char *URMA_CONFIG_SECTION = "ubse.urma";
 constexpr const char *URMA_TOPO_MODE_KEY = "topo_mode";
 constexpr const char *URMA_TOPO_MODE_NON_CROSS = "non-cross";
 constexpr const char *URMA_TOPO_MODE_HCCS_CROSS = "hccs-cross";
-constexpr const char *URMA_TOPO_CONFIG_DIR = "/etc/ubse/urma_topology";
+constexpr const char *URMA_TOPO_CONFIG_DIR = "/etc/ubse/topo";
 constexpr const char *URMA_TOPO_CONFIG_NON_CROSS_FILE = "non-cross.json";
 constexpr const char *URMA_TOPO_CONFIG_HCCS_CROSS_FILE = "hccs-cross.json";
 
