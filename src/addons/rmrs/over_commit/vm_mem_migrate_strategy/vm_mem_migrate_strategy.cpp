@@ -206,8 +206,8 @@ void FillMemMigrateResult(const std::vector<VMResult> &vmResults, std::vector<Me
 }
 
 uint32_t FilterVmPresetParamsByFault(const std::string &srcNid,
-                                    const std::vector<VMPresetParam> &vmPresetParams,
-                                    std::vector<VMPresetParam> &workingVmPresetParams)
+                                     const std::vector<VMPresetParam> &vmPresetParams,
+                                     std::vector<VMPresetParam> &workingVmPresetParams)
 {
     std::vector<uint32_t> remoteNumaIds;
     if (!FaultNuma::Instance().GetFaultNumaList(srcNid, remoteNumaIds)) {

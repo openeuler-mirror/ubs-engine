@@ -90,7 +90,7 @@ uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByt
                 << "[OverCommit][FaultManagement] Borrowed mem is not enough to migrate.";
         }
     }
-    if (res != MEM_POOLING_OK) {   
+    if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit][FaultManagement] Recv MemIdExecuteRecvHandler res=" << res << ".";
         resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
@@ -374,7 +374,7 @@ void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void *ctx, con
 
 // 故障处理：在借入节点上借用内存
 uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const UbseByteBuffer &req,
-                                                                        UbseByteBuffer &resp)
+                                                                           UbseByteBuffer &resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleMemBorrow] FaultHandleMemBorrowRecvHandler start.";
@@ -396,7 +396,7 @@ uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleMemBorrow] MemBorrowExecute Result=" << borrowExecuteResult.ToString() << ".";
     FaultHandleMemBorrowResult faultHandleMemBorrowResult = {.borrowIds=borrowExecuteResult.borrowIds,
-                                                            .presentNumaId=borrowExecuteResult.presentNumaId};
+                                                             .presentNumaId=borrowExecuteResult.presentNumaId};
     if (MEM_POOLING_OK != ret || borrowExecuteResult.borrowIds.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleMemBorrow] MemBorrowExecute Failed, ret=" << ret << ".";
@@ -418,7 +418,7 @@ uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const
 }
 
 void OverCommitFaultManagementHandler::FaultHandleMemBorrowResHandler(void *ctx, const UbseByteBuffer &respData,
-                                                                    uint32_t resCode)
+                                                                      uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)

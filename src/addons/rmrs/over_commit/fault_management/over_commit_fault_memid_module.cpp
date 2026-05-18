@@ -704,8 +704,8 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
 }
 
 MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(outinterface::SrcMemoryBorrowParam oSrcParam,
-                                                            uint16_t preRemoteNumaId,
-                                                            std::string borrowId)
+                                                               uint16_t preRemoteNumaId,
+                                                               std::string borrowId)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Master to invoke the slave MemFreeDirectlyExecuteRpc.";
     // 直接归还说明远端numa上没有虚机使用，直接setRemoteNumaInfo为0即可
@@ -790,7 +790,7 @@ MpResult SetSmapRemoteNumaInfoExec(int16_t localNumaId, uint16_t remoteNumaId, u
 }
 
 MpResult OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize(OverCommitFaultMemIdExecuteParam &param,
-                                                                    const uint64_t adjustSize)
+                                                                      const uint64_t adjustSize)
 {
     // 1. 基础校验
     if (adjustSize == ADJUST_SIZE_NONE) {
@@ -813,7 +813,7 @@ MpResult OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize(OverCommit
     // 3. 执行内存借用
     UbseMemNumaDesc memDesc;
     ret = ExecuteMemBorrow(targetRecord, adjustSize, MpConfiguration::GetInstance().GetNodeId(),
-                        param.remoteNumaId, memDesc);
+                           param.remoteNumaId, memDesc);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "ExecuteMemBorrow failed.";
         return ret;
@@ -848,8 +848,8 @@ MpResult OverCommitFaultMemIdModule::FindTargetBorrowRecord(const std::string& n
 }
 
 MpResult OverCommitFaultMemIdModule::ExecuteMemBorrow(const BorrowRecord& record, uint64_t adjustSize,
-                                                    const std::string& nodeId, uint32_t targetNuma,
-                                                    UbseMemNumaDesc& outMemDesc)
+                                                      const std::string& nodeId, uint32_t targetNuma,
+                                                      UbseMemNumaDesc& outMemDesc)
 {
     // 解析槽位ID
     uint32_t slotId = 0;
@@ -933,7 +933,7 @@ uint64_t CalculateRemoteUsedMemSum(const std::vector<pid_t> &pids, const std::ve
  * 返回 OK 且 adjustSize > 0：虚机场景内存不足，需要调整
  */
 MpResult OverCommitFaultMemIdModule::CheckBorrowedMemSizeForPidMigrate(OverCommitFaultMemIdExecuteParam param,
-                                                                    uint64_t &adjustSize)
+                                                                       uint64_t &adjustSize)
 {
     // 初始化输出参数
     adjustSize = ADJUST_SIZE_NONE;

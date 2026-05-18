@@ -450,8 +450,7 @@ MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borro
     return MEM_POOLING_ERROR;
 }
 
-void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated,
- 	                                         std::vector<uint64_t> &remoteNumaIds,
+void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated, std::vector<uint64_t> &remoteNumaIds,
  	                                         std::vector<uint64_t> &borrowSizes)
 {
     if (!hugePageAllocated) {

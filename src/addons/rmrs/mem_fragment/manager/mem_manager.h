@@ -270,8 +270,8 @@ public:
         auto &numaList = it->second;
 
         return std::find(numaList.begin(),
-                        numaList.end(),
-                        numaId) != numaList.end();
+                         numaList.end(),
+                         numaId) != numaList.end();
     }
 
     void PrintFaultNuma()
