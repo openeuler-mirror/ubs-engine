@@ -13,9 +13,12 @@
 #include <malloc.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
+#include "ubse_mem_fault_common.h"
 
 void print_mem_numa_desc(const ubs_mem_numa_desc_t* numa_desc)
 {
@@ -134,6 +137,23 @@ void ubse_mem_numa_delete_example(void)
     }
 }
 
+static int32_t numa_fault_handler(const char *name, uint64_t numaid, ubs_mem_fault_type_t type)
+{
+    ubse_print_fault_info("NUMA", name, numaid, type);
+    return 0;
+}
+
+static void ubse_mem_numa_fault_register_example(void)
+{
+    printf("=== ubs_mem_numa_fault_register_example ===\n");
+
+    ubse_setup_signal_handlers();
+
+    printf("[MAIN] Registering numa memory fault handler...\n");
+    int32_t ret = ubs_mem_numa_fault_register(numa_fault_handler);
+    ubse_start_fault_monitoring("numa", ret);
+}
+
 int main(void)
 {
     // 测试创建numa内存
@@ -153,4 +173,7 @@ int main(void)
 
     // 测试删除numa内存
     ubse_mem_numa_delete_example();
+
+    // 测试numa内存故障上报
+    ubse_mem_numa_fault_register_example();
 }

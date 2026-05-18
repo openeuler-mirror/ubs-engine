@@ -221,3 +221,47 @@ uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler)
     clientIpcHandlerMap[{UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM}] = ipcHandler;
     return UBSE_OK;
 }
+
+uint32_t ubse_fd_fault_register(ubs_mem_fd_fault_handler handler)
+{
+    uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_FD);
+    if (ret != UBSE_OK) {
+        ubse::ipc::UbseUDSClient::GetInstance().Stop();
+        return ret;
+    }
+    std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
+    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage &msg) -> uint32_t {
+        UbseMemFault fault{};
+        auto ret = DeSerializeMemFault(fault, msg.body, size_t(msg.header.bodyLen));
+        if (ret != UBSE_OK) {
+            IPC_LOG_ERROR << "deserialize fd fault info failed.";
+            return ret;
+        }
+        IPC_LOG_INFO << "fd fault name=" << fault.memName;
+        return handler(fault.memName.c_str(), fault.handleId, static_cast<ubs_mem_fault_type_t>(fault.type));
+    };
+    clientIpcHandlerMap[{UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_FD}] = ipcHandler;
+    return UBSE_OK;
+}
+
+uint32_t ubse_numa_fault_register(ubs_mem_numa_fault_handler handler)
+{
+    uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_NUMA);
+    if (ret != UBSE_OK) {
+        ubse::ipc::UbseUDSClient::GetInstance().Stop();
+        return ret;
+    }
+    std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
+    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage &msg) -> uint32_t {
+        UbseMemFault fault{};
+        auto ret = DeSerializeMemFault(fault, msg.body, size_t(msg.header.bodyLen));
+        if (ret != UBSE_OK) {
+            IPC_LOG_ERROR << "deserialize numa fault info failed.";
+            return ret;
+        }
+        IPC_LOG_INFO << "numa fault name=" << fault.memName;
+        return handler(fault.memName.c_str(), fault.handleId, static_cast<ubs_mem_fault_type_t>(fault.type));
+    };
+    clientIpcHandlerMap[{UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_NUMA}] = ipcHandler;
+    return UBSE_OK;
+}
