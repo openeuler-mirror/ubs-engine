@@ -431,14 +431,14 @@ MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borro
         ret = GetOriginalHugePages(filePath, realHugePages);
         if (ret == MEM_POOLING_OK &&
             realHugePages <= targetHugePages) {
-            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) 
-                << "[MpSmapHelper] Release hugepages success, numaId=" << numaId << ", realHugePages=" 
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] Release hugepages success, numaId=" << numaId << ", realHugePages="
                 << realHugePages << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
             return MEM_POOLING_OK;
         }
 
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MpSmapHelper] HugePages not reached target, numaId=" << numaId << ", realHugePages=" 
+            << "[MpSmapHelper] HugePages not reached target, numaId=" << numaId << ", realHugePages="
             << realHugePages << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
         retryCnt++;
     } while (retryCnt < MAX_RETRY);
@@ -448,6 +448,26 @@ MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borro
         << ", targetHugePages=" << targetHugePages << ".";
 
     return MEM_POOLING_ERROR;
+}
+
+void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated,
+ 	                                         std::vector<uint64_t> &remoteNumaIds,
+ 	                                         std::vector<uint64_t> &borrowSizes)
+{
+    if (!hugePageAllocated) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Do not need to release.";
+        return;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Start to execute release.";
+    MpResult releaseRet = MpSmapHelper::GetInstance().ReleaseHugePages(remoteNumaIds, borrowSizes);
+    if (releaseRet != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] ReleaseHugePages failed after VmsMigrate failed.";
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] ReleaseHugePages success after VmsMigrate failed."
 }
 
 MpResult MpSmapHelper::RewriteHugePages(const std::string &realPath, uint64_t targetHugePages)

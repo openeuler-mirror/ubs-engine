@@ -340,7 +340,8 @@ uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vect
         return MEM_POOLING_ERROR;
     }
     std::vector<MemMigrateResult> memMigrateResults{};
-    ret = ProcessMemMigrateRemoteId(srcParam, workingVmPresetParams, memCurBorrowInfos, borrowRecord, memMigrateResults);
+    ret = ProcessMemMigrateRemoteId(srcParam, workingVmPresetParams, memCurBorrowInfos,
+                                    borrowRecord, memMigrateResults);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate] Process remote numa failed.";
         return MEM_POOLING_ERROR;

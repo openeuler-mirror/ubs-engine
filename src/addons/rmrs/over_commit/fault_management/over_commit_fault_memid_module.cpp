@@ -250,8 +250,8 @@ MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, Wa
         .highWaterMark=water.highWaterMark, .lowWaterMark=water.lowWaterMark};
     LOG_WARN << "Begin rpc to node" << srcParam.srcNid << " to process fault.";
     ubse::com::UbseComEndpoint endpoint_ms = {.moduleId = MP_MODULE_CODE,
-                                                .serviceId = message::OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW,
-                                                .address = srcParam.srcNid};
+                                              .serviceId = message::OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW,
+                                              .address = srcParam.srcNid};
     rmrs::serialize::RmrsOutStream builder;
     builder << param;
     UbseByteBuffer reqData = {
@@ -259,7 +259,7 @@ MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, Wa
 
     FaultHandleMemBorrowResult faultHandleMemBorrowResult;
     ret = UbseRpcSend(endpoint_ms, reqData, &faultHandleMemBorrowResult,
-                    mempooling::over_commit::OverCommitFaultManagementHandler::FaultHandleMemBorrowResHandler);
+                      mempooling::over_commit::OverCommitFaultManagementHandler::FaultHandleMemBorrowResHandler);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "FaultHandleMemBorrow rpc failed. nodeId=" << srcParam.srcNid << ", rpc_ret=" << ret << ".";
         return MEM_POOLING_ERROR;
@@ -267,8 +267,8 @@ MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, Wa
     if (faultHandleMemBorrowResult.retCode != MEM_POOLING_OK) {
         LOG_ERROR << "FaultHandleMemBorrow execute failed. nodeId=" << srcParam.srcNid << ".";
         return MEM_POOLING_ERROR;
-    } 
-    
+    }
+
     borrowExecuteResult.borrowIds = faultHandleMemBorrowResult.borrowIds;
     borrowExecuteResult.presentNumaId = faultHandleMemBorrowResult.presentNumaId;
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -503,7 +503,7 @@ MpResult OverCommitFaultMemIdModule::MemIdFaultManage(std::string borrowInNid, u
     if (allVmNumaInfoOnBoth.empty()) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "No VM on remoteNuma, return directly.";
         // 直接归还该borrowId
-        auto ret = 
+        auto ret =
             OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(oSrcParam, preRemoteNumaId, borNodeData.borrowId);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1027,16 +1027,7 @@ MpResult OverCommitFaultMemIdModule::MemIdExecute(OverCommitFaultMemIdExecutePar
                                              param.remoteNumaTotalSize);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "VmsMigrate failed.";
-            if (hugePageAllocated) {
-                MpResult releaseRet = MpSmapHelper::GetInstance().ReleaseHugePages(remoteNumaIds, borrowSizes);
-                if (releaseRet != MEM_POOLING_OK) {
-                    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
-                        << "ReleaseHugePages failed after VmsMigrate failed.";
-                } else {
-                    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG
-                        << "ReleaseHugePages success after VmsMigrate failed.";
-                }
-            }
+            MpSmapHelper::GetInstance().RollBackHugePagesIfNeeded(hugePageAllocated, remoteNumaIds, borrowSizes);
             return MEM_POOLING_ERROR;
         }
     }

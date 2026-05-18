@@ -213,7 +213,7 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
         }
         resp.data[0] = static_cast<uint8_t>(retSmap);
     }
-    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) 
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[OverCommit][FaultManagement] Start to clear fault process borrowId .";
     MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
     if (retBorrowIdInFaultProcess != MEM_POOLING_OK) {
@@ -376,7 +376,7 @@ void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void *ctx, con
 uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const UbseByteBuffer &req,
                                                                         UbseByteBuffer &resp)
 {
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) 
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleMemBorrow] FaultHandleMemBorrowRecvHandler start.";
     if (req.data == nullptr || req.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)

@@ -52,6 +52,10 @@ public:
  	 
     MpResult ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize);
 
+    void RollBackHugePagesIfNeeded(bool hugePageAllocated,
+ 	                               std::vector<uint64_t> &remoteNumaIds,
+ 	                               std::vector<uint64_t> &borrowSizes);
+
     MpResult TryAllocateHugePagesOnce(const std::string &filePath, uint64_t targetHugePages);
 
     MpResult AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize);
