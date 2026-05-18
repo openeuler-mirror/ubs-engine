@@ -734,7 +734,7 @@ bool FaultNodeModule::CheckUBTurboIsAliveRpc(std::string nodeId) {
     return isAlive;
 }
 
-uint32_t FaultNodeModule::CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAliveHandler start.";
     resp.len = 1;
@@ -766,7 +766,7 @@ uint32_t FaultNodeModule::CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, 
     return ret;
 }
 
-void FaultNodeModule::CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAliveResHandler resCode=" 
         << resCode;

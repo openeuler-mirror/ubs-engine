@@ -185,10 +185,6 @@ public:
     void DoExecuteBorrow(std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
         std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
         std::vector<ForwardMemIdParam> &forwardMemIdParamList);
-    
-    // RPC Handler
-    void CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-    void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
 
 private:
     FaultNodeModule() = default;
@@ -198,6 +194,9 @@ private:
     uint16_t faultHandleCurRound = 0;
 };
 
+// RPC Handler
+void CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
 void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 void NodeNumaReplaceReturnResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
 void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg &rpcMsg, std::vector<pid_t> &destPidList,
@@ -217,8 +216,8 @@ public:
         }
 
         // 注册ubturbo探活消息
-        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
-        auto ret = UbseRegRpcService(endpoint, FaultNodeModule::Instance().CheckUBTurboIsAliveHandler);
+        endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
+        ret = UbseRegRpcService(endpoint, CheckUBTurboIsAliveHandler);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) <<
                 "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";
