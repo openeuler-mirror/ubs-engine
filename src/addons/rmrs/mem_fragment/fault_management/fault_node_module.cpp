@@ -841,7 +841,7 @@ MpResult FaultNodeModule::ProcessBorrowOutNodeFault(const std::string nodeId, bo
     MergeBorrowRecords(borrowRecords, nodeBorrowRecordList);
     for (NodeBorrowRecord nodeBorrowRecordItem : nodeBorrowRecordList) {
         // 如果ubturbo不存活，故障处理直接失败重试
-        if(!CheckUBTurboIsAliveRpc(nodeBorrowRecordItem.nodeId)) {
+        if (!CheckUBTurboIsAliveRpc(nodeBorrowRecordItem.nodeId)) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultManager] UBTurbo is not alive, retry fragment handling.";
             return MEM_POOLING_ERROR;
