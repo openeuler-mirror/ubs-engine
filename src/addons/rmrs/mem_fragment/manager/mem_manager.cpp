@@ -1473,7 +1473,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
 }
 
 // 更新传入的nodeId以及集群中可见的nodeId的账本信息
-MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault(std::string nodeId)
+MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault(std::string nodeId)
 {
     // 目前架构能查到的所有的节点都可以借用 查询所有节点
     std::vector<std::string> allNodeIdList = MpConfiguration::GetInstance().GetNodeIds();
@@ -1489,7 +1489,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault(std::string no
             << "[FaultManager] NodeId: " << nodeId << " not in cluster node list, add it to update list.";
     }
 
-    gBorrowRecordsFragMentFault.clear();
+    gBorrowRecordsFragmentFault.clear();
     for (std::string nodeId : allNodeIdList) {
         std::vector<UbseNumaMemoryDebtInfo> debtInfos;
         auto ret = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
@@ -1515,7 +1515,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragMentFault(std::string no
             LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: "
                       << record.ToString() << ".";
         }
-        gBorrowRecordsFragMentFault[nodeId] = recordVec;
+        gBorrowRecordsFragmentFault[nodeId] = recordVec;
     }
 
     return MEM_POOLING_OK;
@@ -1565,10 +1565,10 @@ bool BorrowRecordHelper::ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtI
     return true;
 }
 
-MpResult BorrowRecordHelper::GetFragMentFaultBorrowRecords(std::string nodeId,
+MpResult BorrowRecordHelper::GetFragmentFaultBorrowRecords(std::string nodeId,
                                                            std::vector<BorrowRecord> &fragMentFaultBorrowRecords)
 {
-    fragMentFaultBorrowRecords = gBorrowRecordsFragMentFault[nodeId];
+    fragMentFaultBorrowRecords = gBorrowRecordsFragmentFault[nodeId];
     return MEM_POOLING_OK;
 }
 
