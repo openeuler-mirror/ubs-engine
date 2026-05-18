@@ -147,6 +147,7 @@ public:
     MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType &nodeType);
     MpResult DetermineNodeTypeFragment(const std::string nodeId, NodeType &nodeType);
     MpResult FragmentHandleFault(std::string nodeId);
+    bool CheckUBTurboIsAliveRpc();
     MpResult DetermineNodeType(const std::string nodeId, NodeType &nodeType);
     MpResult ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem);
 
@@ -184,6 +185,10 @@ public:
     void DoExecuteBorrow(std::vector<BorrowExecuteParam> &successExecuteParamCollectList,
         std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
         std::vector<ForwardMemIdParam> &forwardMemIdParamList);
+    
+    // RPC Handler
+    void CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
 
 private:
     FaultNodeModule() = default;
@@ -210,6 +215,16 @@ public:
                 "[MSG] NodeNumaReplaceReturn reg failed res: " << ret << ".";
             return ret;
         }
+
+        // 注册ubturbo探活消息
+        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
+        auto ret = UbseRegRpcService(endpoint, FaultNodeModule::Instance().CheckUBTurboIsAliveHandler);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) <<
+                "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";
+            return ret;
+        }
+
         return MEM_POOLING_OK;
     }
     void DeInit() override
