@@ -676,6 +676,8 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     UBSE_LOG_INFO << "Share attach begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId;
     auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
+    // deleteAndBorrowLock 避免attach时获取到export对象后, delete紧跟着对export进行删除,导致单边导入账本
+    auto deleteAndBorrowLock = LoggingLockGuard(req.name, LoggingLockGuard::LockType::READ);
     resp.requestId = req.requestId;
     if (req.importNodeId.empty()) {
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "attach with no node is valid.",
