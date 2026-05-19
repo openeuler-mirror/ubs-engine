@@ -135,6 +135,12 @@ uint32_t AssignImportInfo(const UbseMemDebtQueryRequest& request,
 {
     const std::string name = request.name;
     // 填充导入相关数据
+    auto importObj = importObjPtrs[0];
+        error_t cpyRet =
+    memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObj->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
+    if (cpyRet != UBSE_OK) {
+        UBSE_LOG_WARN << "userInfo create from importObj failed, name=" << name;
+    }
     shmDesc.importDesc.clear();
     for (const auto& importObjPtr : importObjPtrs) {
         if (shmDesc.name.empty()) {
@@ -257,6 +263,11 @@ void ProcessShareImportObjects(const def::UbseMemDebtQueryRequest& request,
             UbseMemResult memResult = GetShmImportStageByObj(importObjPtr);
             importDesc.state = memResult.stage;
             shmDesc.importDesc.push_back(std::move(importDesc));
+            error_t cpyRet =
+                memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObjPtr->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
+            if (cpyRet != UBSE_OK) {
+                UBSE_LOG_WARN << "userInfo create from importObj failed, name=" << name;
+            }
         }
     }
 }
