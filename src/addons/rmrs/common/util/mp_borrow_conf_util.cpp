@@ -46,7 +46,7 @@ MpResult MpParseGroupProviderConf::ParseBorrowConf(UbseMemGroupNodeList& groupLi
     return MEM_POOLING_OK;
 }
 
-MpResult MpParseGroupProviderConf::BuildBorrowMap()
+MpResult MpParseGroupProviderConf::BuildBorrowMap(std::map<std::string, std::unordered_set<std::string>> &borrowMap)
 {
     UbseMemGroupNodeList groupList;
     UbseMemProviderNodeList providerList;
@@ -87,7 +87,8 @@ MpResult MpParseGroupProviderConf::BuildBorrowMap()
 MpResult MpParseGroupProviderConf::GetBorrowableList(const std::string& curNid,
                                                      std::unordered_set<std::string>& borrowableNidSet) // 改成引用
 {
-    uint32_t ret = BuildBorrowMap();
+    std::map<std::string, std::unordered_set<std::string>> borrowMap;
+    uint32_t ret = BuildBorrowMap(borrowMap);
     if (ret != 0) {
         return ret;
     }

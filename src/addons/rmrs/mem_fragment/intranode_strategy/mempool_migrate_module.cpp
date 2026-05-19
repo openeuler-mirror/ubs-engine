@@ -134,7 +134,7 @@ struct BatchBorrowContext {
 
     std::map<std::string, uint64_t> nodeBorrowedMap;
     std::map<std::pair<std::string, uint16_t>, uint64_t> socketBorrowedMap;
-    std::vector<DestMemoryBorrowParam>* destParams;
+    std::vector<DestMemoryBorrowParam> destParams;
     std::vector<MemBorrowStrategyResult> results;
 };
 
@@ -1154,7 +1154,7 @@ static uint64_t TryAllocateFromCandidate(const RemoteNumaCandidate& candidate, u
         LOG_ERROR << "[BatchBorrow] BlockSize is zero";
         return 0;
     }
-    uint64_t allocateSize = ((rawAllocateSize + blockSizeKB - 1) / blockSizeKB) * blockSizeKB;
+    uint64_t allocateSize = (rawAllocateSize / blockSizeKB) * blockSizeKB;  // Round down to blockSize multiple
     allocateSize = std::min(allocateSize, candidate.availableMem);
     allocateSize = std::min(allocateSize, limitByQuota);
     if (allocateSize == 0) {
@@ -1183,7 +1183,7 @@ static void ApplyAllocationResult(RemoteNumaCandidate& candidate, uint64_t alloc
     destParam.destNumaNum = 1;
     destParam.destNumaId.push_back(static_cast<int>(candidate.numaId));
     destParam.memSize.push_back(allocateSize);
-    ctx.destParams->push_back(destParam);
+    ctx.destParams.push_back(destParam);
 
     ctx.nodeBorrowedMap[candidate.nodeId] += allocateSize;
     ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] += allocateSize;
@@ -1195,9 +1195,9 @@ static void ApplyAllocationResult(RemoteNumaCandidate& candidate, uint64_t alloc
                  << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId] << "KB"
                  << ", socketTotal=" << ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] << "KB.";
     } else {
-        LOG_DEBUG << "[BatchBorrow] Allocate " << allocateSize << "KB (rounded to blockSize) from " << candidate.nodeId
-                  << "-" << candidate.socketId << "-" << candidate.numaId << ", remaining=" << remaining << "KB."
-                  << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId] << "KB"
+        LOG_DEBUG << "[BatchBorrow] Allocate " << allocateSize << "KB (rounded down to blockSize) from "
+                  << candidate.nodeId  << "-" << candidate.socketId << "-" << candidate.numaId << ", remaining="
+                  << remaining << "KB." << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId] << "KB"
                   << ", socketTotal=" << ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] << "KB.";
     }
 }
@@ -1334,7 +1334,9 @@ static MpResult ProcessBorrowForNuma(int16_t localNumaId, uint64_t needSize, Bat
     result.srcParam.srcNumaId = localNumaId;
     result.srcParam.srcSocketId = socketId;
     result.borrowSize = needSize;
-    ctx.destParams = &result.destParam;
+
+    ctx.destParams.clear();
+
     uint64_t remaining = AllocateFromSamePlane(needSize, ctx);
     if (remaining > 0) {
         LOG_WARN << "[BatchBorrow] Same plane exhausted for localNumaId=" << localNumaId
@@ -1347,6 +1349,8 @@ static MpResult ProcessBorrowForNuma(int16_t localNumaId, uint64_t needSize, Bat
                   << "KB, remaining=" << remaining << "KB.";
         return MEM_POOLING_ERROR;
     }
+
+    result.destParam = std::move(ctx.destParams);
 
     ctx.results.push_back(result);
     return MEM_POOLING_OK;
