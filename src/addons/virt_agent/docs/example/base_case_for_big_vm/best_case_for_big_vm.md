@@ -126,3 +126,128 @@ echo 215 > /sys/devices/system/node/node3/hugepages/hugepages-1048576kB/nr_hugep
 - 不断调用ubs_mem_fragmentation_node_info_list接口查询集群节点信息，直到查询到虚机已释放所有内存
 - 使用ubs_mem_return（异步）接口归还内存（如需要），并使用ubs_task_result_query查询任务结果
 
+
+## 6. 接口说明
+## 6.1 ubs_mem_fragmentation_node_info_list
+### 6.1.1 接口说明
+`def ubs_mem_fragmentation_node_info_list() -> List['NodeInfoT']`
+
+获取集群中的所有节点的numa信息
+### 6.1.2 参数与返回值说明
+```
+参数：无
+
+返回值：
+class NumaInfoHugePageDataT:
+ 	     page_size: int # 大页大小（字节）
+ 	     huge_page_total: int # 总大页数量
+ 	     huge_page_free: int # 可用大页数量
+ 	     
+class NumaInfoT:
+         host_id: str # 主机ID
+ 	     hostname: str # 主机名
+ 	     numa_id: str # NUMA ID
+ 	     socket_id: int # 套接字ID
+ 	     is_local: int # 是否为本地NUMA
+ 	     mem_total: int # 总内存（字节）
+ 	     mem_free: int # 可用内存（字节）
+ 	     numa_huge_page_info: Dict[int, NumaInfoHugePageDataT] # 大页信息字典，键为大页大小（字节），值为大页信息
+ 	     
+class NodeInfoT:
+ 	     node_id: str # 节点ID
+ 	     numa_infos: List[NumaInfoT] # 当前节点NUMA信息列表
+ 	     is_current: bool # 是否为当前节点
+```
+### 6.1.3 调用示例
+详见[test_node_info_list.py](../../../sdk/python/sample/test_node_info_list.py)
+## 6.2 ubs_mem_borrow
+### 6.2.1 接口说明
+`def ubs_mem_borrow(param: 'BorrowParamT', is_async: bool = False) -> List['MemBorrowResultT']`
+
+根据参数执行同步/异步的内存借用操作
+### 6.2.2 参数与返回值说明
+```
+参数：
+class NumaMetaInfoT:
+ 	     socket_id: int # 套接字ID
+ 	     numa_id: int # NUMA ID
+ 	     
+class BorrowParamT:
+ 	     node_id: str # 节点id
+ 	     numa_meta_infos: List[NumaMetaInfoT] # numa元信息列表
+ 	     borrow_size: int # 借用内存大小，单位：MB
+
+is_async # 是否异步执行借用
+
+返回值：
+class MemBorrowResultT:
+ 	     borrow_ids: List[str] # 借用ID列表
+ 	     present_numa_ids: List[int] # 当前NUMA ID列表
+ 	     task_id: str # 异步任务ID
+```
+### 6.2.3 调用示例
+详见[test_mem_borrow.py](../../../sdk/python/sample/test_mem_borrow.py)
+## 6.3 ubs_page_swap_enable
+### 6.3.1 接口说明 
+`def ubs_page_swap_enable(pid: int, page_swap_enable: List['PageSwapPairT']) -> int`
+
+根据参数开启冷热页流动
+### 6.3.2 参数与返回值说明
+```
+参数：
+pid # 虚机PID
+
+class NumaQuotaT:
+ 	     numa_id: int # numa ID
+ 	     quota: int  # numa上允许使用内存，单位：MB
+ 	     
+class PageSwapPairT:
+ 	     local_numa_quotas: List[NumaQuotaT] # 本地NUMA的列表
+ 	     remote_numa_quotas: List[NumaQuotaT] # 远端NUMA的列表
+ 	     
+返回值：
+int # 0 成功，其他值失败
+```
+### 6.3.3 调用示例
+详见[test_page_swap_enable.py](../../../sdk/python/sample/test_page_swap_enable.py)
+## 6.4 ubs_mem_return
+### 6.4.1 接口说明 
+`def ubs_mem_return(is_async: bool = False) -> Tuple[int, str]`
+
+归还内存
+
+### 6.4.2 参数与返回值说明
+```
+参数：
+is_async # 是否异步执行归还
+
+返回值：
+Tuple[int, str] # int: 0 成功，其他值失败；str: 异步任务的task_id
+```
+### 6.4.3 调用示例
+详见[test_mem_return.py](../../../sdk/python/sample/test_mem_return.py)
+## 6.5 ubs_task_result_query
+### 6.5.1 接口说明
+`def ubs_task_result_query(task_id: str) -> Tuple[int, TaskInfoT]`
+
+根据task_id查询任务结果
+### 6.5.2 参数与返回值说明
+```
+参数：
+task_id # 任务ID
+
+返回值：
+Tuple[int, TaskInfoT] # int: 0 成功，其他值失败；TaskInfoT: 任务执行结果
+
+class BorrowExecuteResT:
+ 	     borrow_ids: List[str] # 借用ID列表
+ 	     present_numa_ids: List[int] # 当前NUMA ID列表
+ 	     
+class TaskInfoT:
+ 	     task_id: str # 任务ID
+ 	     status: int # 任务状态
+ 	     result_code: int # 结果码
+ 	     mem_borrow_result: BorrowExecuteResT # 内存借用结果
+```
+### 6.5.3 调用示例
+详见[test_task_query.py](../../../sdk/python/sample/test_task_query.py)
