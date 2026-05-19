@@ -167,6 +167,14 @@ uint32_t OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler
             return MEM_POOLING_ERROR;
         }
         resp.data[0] = static_cast<uint8_t>(ret);
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] Start to clear fault process borrowId .";
+        MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
+        if (retBorrowIdInFaultProcess != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Clear fault process borrowId failed. ret="
+                << retBorrowIdInFaultProcess << ".";
+        }
     }
 
     resp.freeFunc = [](uint8_t *p) {
@@ -212,14 +220,6 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
             return MEM_POOLING_ERROR;
         }
         resp.data[0] = static_cast<uint8_t>(retSmap);
-    }
-    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[OverCommit][FaultManagement] Start to clear fault process borrowId .";
-    MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
-    if (retBorrowIdInFaultProcess != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OverCommit][FaultManagement] Clear fault process borrowId failed. ret="
-            << retBorrowIdInFaultProcess << ".";
     }
     resp.freeFunc = [](uint8_t *p) {
         if (p != nullptr) {
@@ -293,6 +293,14 @@ uint32_t OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(const U
             return MEM_POOLING_ERROR;
         }
         resp.data[0] = static_cast<uint8_t>(ret);
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] Start to clear fault process borrowId .";
+        MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
+        if (retBorrowIdInFaultProcess != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Clear fault process borrowId failed. ret="
+                << retBorrowIdInFaultProcess << ".";
+        }
     }
 
     resp.freeFunc = [](uint8_t *p) {
