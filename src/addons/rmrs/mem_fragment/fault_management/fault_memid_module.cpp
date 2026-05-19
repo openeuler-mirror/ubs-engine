@@ -823,7 +823,7 @@ MpResult FaultMemIdCollect::IsBorrowIdOfCurNid(BorrowInNodeData& borrowInNodeDat
     uint64_t memId = borrowInNodeData.memId;
 
     std::vector<BorrowRecord> borrowRecords;
-    MpResult ret = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(borrowInNid, borrowRecords);
+    MpResult ret = BorrowRecordHelper::Instance().GetFragmentFaultBorrowRecords(borrowInNid, borrowRecords);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][MemId] Faild to get borrow records.";
     }

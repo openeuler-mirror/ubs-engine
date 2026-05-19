@@ -115,10 +115,10 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
     }
     std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
-        MpResult resFragMent = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
-        if (resFragMent != MEM_POOLING_OK) {
+        MpResult resFragment = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
+        if (resFragment != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
-            return resFragMent;
+            return resFragment;
         }
     } else { // 超分场景
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
@@ -131,7 +131,7 @@ MpResult EventHandler::HandleAlarmRebootEvent(ALARM_FAULT_TYPE eventId, std::str
         }
         if (nodeType == NodeType::BORROW_IN) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by MXE.";
+                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by ubse.";
             return MEM_POOLING_OK;
         }
         if (nodeType == NodeType::BORROW_OUT) {
@@ -202,10 +202,10 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
     }
     std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
-        MpResult resFragMent = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
-        if (resFragMent != MEM_POOLING_OK) {
+        MpResult resFragment = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
+        if (resFragment != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
-            return resFragMent;
+            return resFragment;
         }
     } else { // 超分场景
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
@@ -220,7 +220,7 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
         MpResult ret;
         if (nodeType == NodeType::BORROW_IN) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by MXE.";
+                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by ubse.";
             return MEM_POOLING_OK;
         }
         if (nodeType == NodeType::BORROW_OUT) {
@@ -248,10 +248,10 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
     }
     std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
-        MpResult resFragMent = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
-        if (resFragMent != MEM_POOLING_OK) {
+        MpResult resFragment = FaultNodeModule::Instance().FragmentHandleFault(nodeId);
+        if (resFragment != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault failed.";
-            return resFragMent;
+            return resFragment;
         }
     } else { // 超分场景
         // 调用节点级重启前置处理函数  成功返回0 失败返回1
@@ -266,7 +266,7 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
         MpResult ret;
         if (nodeType == NodeType::BORROW_IN) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by MXE.";
+                << "[FaultManager] BORROW_IN Fault " << eventId << " is handled by ubse.";
             return MEM_POOLING_OK;
         }
         if (nodeType == NodeType::BORROW_OUT) {

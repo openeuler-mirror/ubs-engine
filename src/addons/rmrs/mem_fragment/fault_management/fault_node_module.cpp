@@ -89,10 +89,10 @@ MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, No
     MpResult ret = MEM_POOLING_OK;
     std::vector<BorrowRecord> fragMentFaultBorrowRecords;
     UbseResult retErrorCode =
-        BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(nodeId, fragMentFaultBorrowRecords);
+        BorrowRecordHelper::Instance().GetFragmentFaultBorrowRecords(nodeId, fragMentFaultBorrowRecords);
     if (retErrorCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] GetFragMentFaultBorrowRecords failed.";
+            << "[FaultManager] GetFragmentFaultBorrowRecords failed.";
         nodeType = NodeType::ABNORMAL;
         return MEM_POOLING_ERROR;
     }
@@ -266,10 +266,10 @@ bool FaultNodeModule::ExecMigrateRemoteNumaToNuma(NumaReplaceReturnMsg rpcMsg, s
 
 MpResult FaultNodeModule::GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords)
 {
-    UbseResult res = BorrowRecordHelper::Instance().GetFragMentFaultBorrowRecords(nodeId, borrowRecords);
+    UbseResult res = BorrowRecordHelper::Instance().GetFragmentFaultBorrowRecords(nodeId, borrowRecords);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [FaultLentNode] GetFragMentFaultBorrowRecords failed, nodeId=" << nodeId;
+            << "[FaultManager] [FaultLentNode] GetFragmentFaultBorrowRecords failed, nodeId=" << nodeId;
         return MEM_POOLING_ERROR;
     }
     return MEM_POOLING_OK;
