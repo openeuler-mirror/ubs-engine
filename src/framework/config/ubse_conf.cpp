@@ -61,4 +61,96 @@ uint32_t UbseGetULong(const std::string& section, const std::string& configKey, 
 {
     return GetConf(section, configKey, configVal);
 }
+
+std::shared_ptr<UbseConfModule> GetConfModule()
+{
+    auto& ctxRef = context::UbseContext::GetInstance();
+    auto cfgPtr = ctxRef.GetModule<UbseConfModule>();
+    if (cfgPtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get configuration module instance, "
+                       << FormatRetCode(UBSE_CONF_ERROR_KEY_OFFSETCONFIG_MODULE_LOAD_FAIL);
+    }
+    return cfgPtr;
+}
+
+bool UbseIsUbFeatureSupported(uint64_t featureMask)
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsUbFeatureSupported(featureMask);
+}
+
+bool UbseIsUrmaSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsUrmaSupported();
+}
+
+bool UbseIsMemBorrowNcSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsMemBorrowNcSupported();
+}
+
+bool UbseIsMemBorrowCcSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsMemBorrowCcSupported();
+}
+
+bool UbseIsMemShareNcSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsMemShareNcSupported();
+}
+
+bool UbseIsMemShareCcSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsMemShareCcSupported();
+}
+
+bool UbseIsMemBorrowSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsMemBorrowSupported();
+}
+
+bool UbseIsMemShareSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsMemShareSupported();
+}
+
+bool UbseIsMemSupported()
+{
+    auto cfgPtr = GetConfModule();
+    if (cfgPtr == nullptr) {
+        return false;
+    }
+    return cfgPtr->IsMemSupported();
+}
 } // namespace ubse::config

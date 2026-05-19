@@ -45,6 +45,9 @@ public:
     ubse::common::def::UbseResult Start() override;
 
     void Stop() override;
+
+private:
+    bool enabled_ = true;
 };
 
 using UbseUrmaRetryTaskHandler = std::function<ubse::common::def::UbseResult()>;

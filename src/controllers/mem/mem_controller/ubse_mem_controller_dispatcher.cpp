@@ -13,6 +13,7 @@
 #include "ubse_mem_controller_dispatcher.h"
 
 #include "ubse_com_op_code.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -46,10 +47,48 @@ using namespace ubse::node::api;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller;
 using namespace ubse::context;
+using namespace ubse::config;
 
 const std::string MEM_FD_PERMISSION = "mem.fd";
 const std::string MEM_NUMA_PERMISSION = "mem.numa";
 const std::string MEM_SHM_PERMISSION = "mem.shm";
+
+bool CheckMemBorrowSupported()
+{
+    if (UbseIsMemBorrowSupported()) {
+        return true;
+    }
+    UBSE_LOG_WARN << "Memory borrow feature is unsupported.";
+    return false;
+}
+
+bool CheckMemShareSupported()
+{
+    if (UbseIsMemShareSupported()) {
+        return true;
+    }
+    UBSE_LOG_WARN << "Memory share feature is unsupported.";
+    return false;
+}
+
+bool CheckMemShareModeSupported(uint16_t cacheableFlag)
+{
+    const bool supported = cacheableFlag == 1 ? UbseIsMemShareCcSupported() : UbseIsMemShareNcSupported();
+    if (!supported) {
+        UBSE_LOG_WARN << "Memory share mode is unsupported, cacheableFlag=" << cacheableFlag;
+    }
+    return supported;
+}
+
+bool CheckMemSupported()
+{
+    if (UbseIsMemSupported()) {
+        return true;
+    }
+    UBSE_LOG_WARN << "Memory borrow and share features are unsupported.";
+    return false;
+}
+
 template <class TReq>
 UbseResult SendToMasterIfNotMaster(std::string& masterNodeId, TReq& requestPtr, uint16_t moduleCode, uint16_t opCode)
 {
@@ -669,6 +708,13 @@ uint32_t UbseMemControllerDispatcher::MemReturnRespDispatcher(UbseMemOperationRe
 uint32_t UbseMemGetMemIdByImportDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context,
                                          const uint32_t& borrowType)
 {
+    if (borrowType == static_cast<uint32_t>(UbseMemBorrowType::SHM_BORROW)) {
+        if (!CheckMemShareSupported()) {
+            return UBSE_ERR_NOT_SUPPORTED;
+        }
+    } else if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (buffer.buffer == nullptr) {
         UBSE_LOG_ERROR << "buffer.buffer is null";
         return UBSE_ERROR_NULLPTR;
@@ -713,6 +759,9 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
                                                              const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm create dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -729,6 +778,9 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
+    }
+    if (!CheckMemShareModeSupported(reqSimpoPtr->GetUbseMemShareBorrowReq().ubseMemPrivData.cacheableFlag)) {
+        return UBSE_ERR_NOT_SUPPORTED;
     }
 
     if (IsHighSafety()) {
@@ -762,6 +814,9 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
                                                                          const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm create with affinity dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -782,6 +837,9 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
 
     // 开启指定CPU平面进行创建
     auto req = reqSimpoPtr->GetUbseMemShareBorrowReq();
+    if (!CheckMemShareModeSupported(req.ubseMemPrivData.cacheableFlag)) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     req.withAffinity.enableCreateWithAffinity = true;
     req.withAffinity.createReqNodeId = localNodeId;
     if (IsHighSafety()) {
@@ -814,6 +872,9 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
                                                                        const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm create with lender dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -833,6 +894,9 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
         return ret;
     }
     fillShmBorrowReqFlag(req, flag);
+    if (!CheckMemShareModeSupported(req.ubseMemPrivData.cacheableFlag)) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     req.requestNodeId = localNodeId;
     SetBaseReqInfo(req, context);
 
@@ -872,6 +936,9 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
                                                              const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm attach dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
 
     // 获取主节点以及当前节点
@@ -910,6 +977,9 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
 uint32_t UbseMemControllerDispatcher::MemShmMemFaultGet(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm mem status get dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
 
     const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
@@ -946,6 +1016,9 @@ uint32_t UbseMemControllerDispatcher::MemShmGetDispatcher(const UbseIpcMessage& 
                                                           const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm get dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -996,6 +1069,9 @@ uint32_t UbseMemControllerDispatcher::MemShmListDispatcher(const UbseIpcMessage&
                                                            const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm list dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -1035,6 +1111,9 @@ uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseI
                                                                      const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm list dispatcher, requestId=" << context.requestId;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -1087,6 +1166,9 @@ uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessag
 {
     UBSE_LOG_INFO << "shm detach dispatcher, requestId=" << context.requestId << ", uid=" << context.clientInfo.uid
                   << ", gid=" << context.clientInfo.gid;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     UbseMemControllerDispatcher dispatcher = GetInstance();
     // 获取主节点以及当前节点
     std::string masterNodeId{};
@@ -1125,6 +1207,9 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
     // 获取主节点以及当前节点
     UBSE_LOG_INFO << "shm delete dispatcher, requestId=" << context.requestId << ", uid=" << context.clientInfo.uid
                   << ", gid=" << context.clientInfo.gid;
+    if (!CheckMemShareSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
@@ -1177,6 +1262,9 @@ UbseResult UbseMemControllerDispatcher::GetMasterAndLocalNodeId(std::string& mas
 
 uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq& req, const UbseRequestContext& context)
 {
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::string masterNodeId{};
     std::string localNodeId{};
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
@@ -1273,6 +1361,9 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdReturnDispatch(const UbseIpcMessa
                                                               const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseMemFdReturnDispatch, requestId=" << context.requestId;
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     UbseMemReturnReq req{};
     UbseRoleInfo masterInfo{};
     if (auto ret = UbseGetMasterInfo(masterInfo); ret != UBSE_OK) {
@@ -1321,6 +1412,9 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdReturnDispatch(const UbseIpcMessa
 uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcMessage& buffer,
                                                                   const UbseRequestContext& context)
 {
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -1388,6 +1482,9 @@ uint32_t GetNodeInfo(const std::string& nodeId, ubse::nodeController::UbseNodeIn
 uint32_t UbseMemControllerDispatcher::UbseMemFdGetDispatch(const UbseIpcMessage& buffer,
                                                            const UbseRequestContext& context)
 {
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::string name{};
     auto ret = UbseMemNameUnpack(buffer, name);
     if (ret != UBSE_OK) {
@@ -1425,6 +1522,9 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdGetDispatch(const UbseIpcMessage&
 uint32_t UbseMemControllerDispatcher::UbseMemFdListDispatch(const UbseIpcMessage& buffer,
                                                             const UbseRequestContext& context)
 {
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::vector<ubse::mem::def::UbseMemFdDesc> fdList{};
     UbseUdsInfo udsInfo = GenUdsInfo(context);
     auto ret = UbseMemFdList(udsInfo, fdList);
@@ -1573,6 +1673,9 @@ uint32_t MemNumaBorrowRpc(const std::string& masterNodeId, const std::string& lo
 
 uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq& req, const UbseRequestContext& context)
 {
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::string masterNodeId{};
     std::string localNodeId{};
     UbseMemControllerDispatcher dispatcher = UbseMemControllerDispatcher::GetInstance();
@@ -1649,6 +1752,9 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaDelete(const UbseIpcMessage& 
                                                           const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseMemNumaDelete, requestId=" << context.requestId;
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -1702,6 +1808,9 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaDelete(const UbseIpcMessage& 
 UbseResult UbseMemControllerDispatcher::UbseMemNumaGetDispatch(const UbseIpcMessage& buffer,
                                                                const UbseRequestContext& context)
 {
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::string name{};
     auto ret = UbseMemNameUnpack(buffer, name);
     if (ret != UBSE_OK) {
@@ -1742,6 +1851,9 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaGetDispatch(const UbseIpcMess
 UbseResult UbseMemControllerDispatcher::UbseMemNumaListDispatch(const UbseIpcMessage& buffer,
                                                                 const UbseRequestContext& context)
 {
+    if (!CheckMemBorrowSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     UbseUdsInfo udsInfo = GenUdsInfo(context);
     std::vector<ubse::mem::def::UbseMemNumaDesc> cMemNumaDescList{};
     uint32_t ret = ubse::mem::controller::UbseMemNumaList(udsInfo, cMemNumaDescList);
@@ -1856,6 +1968,9 @@ uint32_t UbseMemControllerDispatcher::UbseMemNodeBorrowInfoDispatch(const UbseIp
                                                                     const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseMemNodeBorrowInfo, requestId=" << context.requestId;
+    if (!CheckMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::vector<def::UbseNodeBorrowInfo> nodeBorrowInfo{};
     auto ret = UbseMemNodeBorrowInfoQuery(nodeBorrowInfo);
     if (ret != UBSE_OK) {
@@ -1896,6 +2011,9 @@ uint32_t UbseMemControllerDispatcher::UbseMemNodeLendInfoDispatch(const UbseIpcM
                                                                   const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseMemNodeLendInfo, requestId=" << context.requestId;
+    if (!CheckMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::vector<def::UbseNodeBorrowInfo> nodeBorrowInfo{};
     auto ret = UbseMemNodeBorrowInfoQuery(nodeBorrowInfo);
     if (ret != UBSE_OK) {

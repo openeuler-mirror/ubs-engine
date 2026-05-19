@@ -178,14 +178,7 @@ UbseResult GetUBEnable(bool& ubEnable)
         UBSE_LOG_ERROR << "Get config info failed";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        ubEnable = true;
-        return UBSE_OK;
-    }
-    ubEnable = false;
+    ubEnable = UbseIsUrmaSupported();
     return UBSE_OK;
 }
 

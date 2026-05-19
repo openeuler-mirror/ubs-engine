@@ -13,6 +13,7 @@
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_rpc_processor.h"
+#include "ubse_conf.h"
 #include "ubse_timer.h"
 #include "rpc/ubse_mem_controller_rpc_register.h"
 #include "rpc/ubse_mem_get_opt_result_handler.h"
@@ -25,6 +26,7 @@ namespace ubse::mem::controller {
 using namespace ubse::mem::controller::agent;
 using namespace ubse::mem::controller::rpc;
 using namespace ubse::mmi;
+using namespace ubse::config;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
 DYNAMIC_CREATE(UbseMemControllerModule, UbseMmiModule);
@@ -128,6 +130,11 @@ uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo& node)
 
 UbseResult UbseMemControllerModule::Initialize()
 {
+    enabled_ = UbseIsMemSupported();
+    if (!enabled_) {
+        UBSE_LOG_INFO << "Memory borrow and share features are unsupported, skip mem controller background init.";
+        return UBSE_OK;
+    }
     auto ret = CreateTaskExecutor();
     if (ret != UBSE_OK) {
         return ret;
@@ -148,12 +155,18 @@ UbseResult UbseMemControllerModule::Initialize()
 
 void UbseMemControllerModule::UnInitialize()
 {
+    if (!enabled_) {
+        return;
+    }
     ubse::mem::controller::UnInit();
     ubse::timer::UbseTimerHandlerUnregister("handleCheckTimer");
 }
 
 UbseResult UbseMemControllerModule::Start()
 {
+    if (!enabled_) {
+        return UbseMemControllerDispatcher::RegisterSdkDispatcher();
+    }
     ubse::mem::controller::Init();
     if (auto ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to reg mem schedule handler.";
@@ -185,6 +198,9 @@ UbseResult UbseMemControllerModule::Start()
 
 void UbseMemControllerModule::Stop()
 {
+    if (!enabled_) {
+        return;
+    }
     auto ret = UbseMemFaultManager::DeInitMemFaultManager();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to delete mem fault handler.";
