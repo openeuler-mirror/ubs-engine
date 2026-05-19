@@ -257,7 +257,7 @@ MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, 
         RemovePayload tmp{};
         tmp.pid = pids[i];
         if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE &&
-            MpConfiguration::GetInstance().GetMultiNumaScene() == true){
+            MpConfiguration::GetInstance().GetMultiNumaScene() == true) {
             tmp.count = 1;
             tmp.nid[0] = presentNumaId;
         } else {
