@@ -41,7 +41,10 @@ typedef enum {
     UBS_VA_MEM_MIGRATE_EXECUTE = 0x0005,  // Op code for MEM_MIGRATE_EXECUTE
     UBS_VA_MEM_RETURN = 0x0006,           // Op code for MEM_RETURN
     UBS_VA_MEM_ROLLBACK = 0x0007,         // Op code for MEM_ROLLBACK
-    UBS_VA_SYNC_TASK_QUERY = 0x0008,
+    UBS_VA_SYNC_TASK_QUERY = 0x0008,      // Op code for MEM_QUERY_TASK_RESULT
+    UBS_VA_NODE_INFO_LIST = 0x0009,       // Op code for NODE_INFO_LIST
+    UBS_VA_MEM_BORROW = 0x000a,           // Op code for MEM_BORROW
+    UBS_VA_PAGE_SWAP_ENABLE = 0x000b,     // Op code for PAGE_SWAP_ENABLE
 } ubs_virt_agent_mem_fragmentation_op_code_t;
 
 typedef enum {
