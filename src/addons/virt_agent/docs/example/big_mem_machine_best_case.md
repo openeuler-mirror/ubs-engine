@@ -122,6 +122,9 @@ char *task_id = "mem_fragmentation_borrow_1";
 uint32_t task_id_len;
 async_task_info_c *result = null;
 const virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(task_id, 26,  result);
+if (ret != 0) {
+    return ret;
+}
 //获得结果json示例如下:
 //result {
 //    "task_id": "mem_fragmentation_borrow_1",
@@ -166,15 +169,95 @@ NUMA3 -- NUMA7; NUMA3 本地内存 0.75TB; NUMA7 借用内存 0.75T
 
 ### 6、使能冷热页流动
 
-为了提高整体的内存读写性能, 需要调用``开启冷热页流动, 允许本地冷页内存, 流动至远端. 根据当前guest远端内存规划方式
-
-应该构造如下的冷热页流动的使能请求`ubs_virt_agent_page_swap_enable`
+为了提高整体的内存读写性能, 需要调用`ubs_virt_agent_page_swap_enable`开启冷热页流动, 允许本地冷页内存, 流动至远端. 根据当前guest远端内存规划方式 . 应该构造如下的冷热页流动的使能请求
 
 ```c++
 const pid_t pid = 123; // 虚拟机实际进程号
-page_swap_enable_s *page_swap_enable = (page_swap_enable_s *)malloc(sizeof(page_swap_enable));
-page_swap_enable -> 
+page_swap_enable_s *page_swap_enable = (page_swap_enable_s *)malloc(sizeof(page_swap_enable) * page_swap_pairs_len);
+page_swap_enable -> page_swap_pairs_len = 2;
+page_swap_enable -> page_swap_pairs = (page_swap_pair_s *)malloc(sizeof(page_swap_pair_s) * page_swap_enable -> page_swap_pairs_len);
+page_swap_enable -> page_swap_pairs[0] -> local_numa_len = 2;
+page_swap_enable -> page_swap_pairs[0] -> local_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> local_numa_len);
+page_swap_enable -> page_swap_pairs[0] -> local_numas[0].numa_id = 0;
+page_swap_enable -> page_swap_pairs[0] -> local_numas[0].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[0] -> local_numas[1].numa_id = 1;
+page_swap_enable -> page_swap_pairs[0] -> local_numas[1].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[0] -> remote_numa_len = 2;
+page_swap_enable -> page_swap_pairs[0] -> remote_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> remote_numa_len);
+page_swap_enable -> page_swap_pairs[0] -> remote_numas[0].numa_id = 4;
+page_swap_enable -> page_swap_pairs[0] -> remote_numas[0].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[0] -> remote_numas[1].numa_id = 5;
+page_swap_enable -> page_swap_pairs[0] -> remote_numas[1].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[1] -> local_numa_len = 2;
+page_swap_enable -> page_swap_pairs[1] -> local_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> local_numa_len);
+page_swap_enable -> page_swap_pairs[1] -> local_numas[0].numa_id = 2;
+page_swap_enable -> page_swap_pairs[1] -> local_numas[0].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[1] -> local_numas[1].numa_id = 3;
+page_swap_enable -> page_swap_pairs[1] -> local_numas[1].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[1] -> remote_numa_len = 2;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> remote_numa_len);
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[0].numa_id = 7;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[0].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 8;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 786432;
+// 以json格式表示, 入参如下
+//page_swap_enable {
+//    "page_swap_enable": [
+//        {
+//            "local_numas": [
+//                {
+//                    "numa_id": 0,
+//                    "quota": 786432,
+//                },
+//                {
+//                    "numa_id": 1,
+//                    "quota": 786432,
+//                },
+//            ],
+//            "local_numa_len": 2,
+//            "remote_numas": [
+//                {
+//                    "numa_id": 4,
+//                    "quota": 786432,
+//                },
+//                {
+//                    "numa_id": 5,
+//                    "quota": 786432,
+//                },
+//            ],
+//            "remote_numa_len": 2,
+//        },
+//        {
+//            "local_numas": [
+//                {
+//                    "numa_id": 2,
+//                    "quota": 786432,
+//                },
+//                {
+//                    "numa_id": 3,
+//                    "quota": 786432,
+//                },
+//            ],
+//            "local_numa_len": 2,
+//            "remote_numas": [
+//                {
+//                    "numa_id": 7,
+//                    "quota": 786432,
+//                },
+//                {
+//                    "numa_id": 8,
+//                    "quota": 786432,
+//                },
+//            ],
+//            "remote_numa_len": 2,
+//        }
+//    ],
+//    "page_swap_pairs_len" = 2,
+//}
 virt_agent_ret_t ret = ubs_virt_agent_page_swap_enable(pid, page_swap_enable);
+if (ret != 0) {
+    return ret;
+}
 ```
 
 ### 7、虚拟机删除
@@ -185,6 +268,10 @@ virt_agent_ret_t ret = ubs_virt_agent_page_swap_enable(pid, page_swap_enable);
 
 ### 内存借用失败场景
 
-如果出现内存借用失败
+如果出现内存借用失败, 需要手动调用`ubs_virt_agent_mem_return`接口确保借用内存归还成功, 避免出现借用内存残留. 如果出现内存归还失败, 应该进行足够多的可靠性重试, 如果仍然无法归还内存. 则需要人为介入修复.
+
+### 删除虚拟机后, 内存回收失败
+
+在删除虚拟机后, 应该调用`ubs_virt_agent_mem_return`接口归还内存, 如果出现内存归还失败, 应该进行足够多的可靠性重试, 如果仍然无法归还内存. 则需要人为介入修复.
 
 ---
