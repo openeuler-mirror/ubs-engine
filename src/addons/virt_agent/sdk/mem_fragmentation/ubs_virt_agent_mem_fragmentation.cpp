@@ -492,7 +492,8 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s *param, const bool is_async, mem_borrow_result_s *result)
+virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, const bool is_async,
+                                           mem_borrow_result_s* result)
 {
     if (param == nullptr || result == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: param or result is nullptr.";

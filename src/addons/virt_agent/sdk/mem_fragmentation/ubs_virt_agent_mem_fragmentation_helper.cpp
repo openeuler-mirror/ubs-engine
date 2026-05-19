@@ -17,11 +17,15 @@
 #include <vector>
 #include "ubs_virt_agent_mem_fragmentation.h"
 
-void StringToCharArr(const std::string &src, char *dest, const size_t &destSize)
+void StringToCharArr(const std::string& src, char* dest, const size_t& destSize)
 {
-    if (destSize == 0)
+    if (destSize == 0) {
         return;
-    strncpy(dest, src.c_str(), destSize - 1);
+    }
+    if (const auto ret = strncpy_s(dest, destSize, src.c_str(), src.size()); ret != EOK) {
+        IPC_LOG_ERROR << "Failed to copy dest string. Error code: " << ret;
+        return;
+    }
     dest[destSize - 1] = '\0';
 }
 
