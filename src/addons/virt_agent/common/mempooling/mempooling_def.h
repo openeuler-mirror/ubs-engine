@@ -15,7 +15,6 @@
 #define MEMPOOLING_DEF_H
 
 #include <cstdint>
-#include <map>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -132,15 +131,12 @@ struct PidInfo {
     std::string ToString() const
     {
         std::ostringstream oss;
-        oss << "{"
-            << "\"pid\":" << pid << ","
-            << "\"localMemSize\":" << localUsedMem << ","
+        oss << "{" << "\"pid\":" << pid << "," << "\"localMemSize\":" << localUsedMem << ","
             << "\"remoteMemSize\":" << remoteUsedMem << ",";
 
         oss << "\"localNumaIds\":[";
         oss << VectorUtil::VectorToString(localNumaIds, ",");
-        oss << "]"
-            << "}";
+        oss << "]" << "}";
 
         return oss.str();
     }
@@ -359,6 +355,72 @@ struct WaterMark {
         std::ostringstream oss;
         oss << R"({"highWaterMark":)" << highWaterMark << R"(,)";
         oss << R"("lowWaterMark":)" << lowWaterMark << R"(})";
+        return oss.str();
+    }
+};
+
+struct BatchSrcMemoryBorrowParam {
+    BatchSrcMemoryBorrowParam() = default;
+
+    std::string srcNid{};
+    uint16_t srcNumaNum{};
+    std::vector<int16_t> srcNumaId{};
+    uid_t uid{};
+    std::string username{};
+
+    [[nodiscard]] std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << R"({"srcNid":)" << srcNid << R"(,)";
+        oss << R"("srcNumaNum":)" << srcNumaNum << R"(,)";
+        oss << R"("srcNumaId":[)";
+        for (const auto &srcNuma : srcNumaId) {
+            oss << srcNuma << R"(,)";
+        }
+        oss << R"(],)";
+        oss << R"("uid":)" << uid << R"(,)";
+        oss << R"("username":)" << username << R"(})";
+        return oss.str();
+    }
+};
+
+enum class BorrowStrategy : uint8_t {
+    AVERAGE
+};
+
+struct NumaQuota {
+    NumaQuota() = default;
+
+    uint32_t numaId;
+    uint32_t quota; // KB
+
+    [[nodiscard]] std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << R"({"numaId":)" << numaId << R"(,)";
+        oss << R"("quota":)" << quota << R"(})";
+        return oss.str();
+    }
+};
+
+struct PageSwapPair {
+    PageSwapPair() = default;
+
+    std::vector<NumaQuota> localNumas{};
+    std::vector<NumaQuota> remoteNumas{};
+
+    [[nodiscard]] std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << R"({"localNumas":[)";
+        for (auto localNuma : localNumas) {
+            oss << localNuma.ToString() << R"(,)";
+        }
+        oss << R"(],)" << R"("remoteNumas":[)";
+        for (auto remoteNuma : remoteNumas) {
+            oss << remoteNuma.ToString() << R"(,)";
+        }
+        oss << R"(]})";
         return oss.str();
     }
 };
