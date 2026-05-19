@@ -734,3 +734,335 @@ int main(void)
     return 0;
 }
 ```
+
+# 9. ubs_virt_agent_mem_fragmentation_node_info_list
+
+## 库 LIBRARY
+
+virt_agent库 (libubs-virt-agent.so)
+
+## 摘要 SYNOPSIS
+
+```c++
+#include <ubs_virt_agent_mem_fragmentation.h>
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s *node_info_list);
+```
+
+- 数据结构说明
+
+```c++
+typedef struct {
+    uint64_t pageSize{};
+    uint64_t hugePageTotal{};
+    uint64_t hugePageFree{};
+} numa_page_data;
+
+typedef struct {
+    time_t timestamp;
+    char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];
+    char host_name[UBS_VA_HOST_NAME_MAX];
+    int16_t numa_id;
+    int16_t socket_id;  // Socket ID mapped to CPUs bound to this NUMA
+    int16_t is_local;   // Whether this is a local NUMA (0: non-local, 1: local)
+    uint64_t mem_total; // Total memory of this NUMA node (inclusive), collected from system files, in kB
+    uint64_t mem_free;  // Free memory on this NUMA node, collected from system files, in kB
+    numa_page_data* huge_page_data;
+    uint64_t numaPageInfoCount;
+} numa_info_t;
+
+typedef struct {
+    char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];  // 节点名称
+    numa_info_t *numa_infos;  // numa信息
+    uint32_t numa_len; // numa数量
+    bool is_current; // 是否是查询节点
+} node_info_s;
+
+typedef struct {
+    node_info_s *node_infos; // 节点列表
+    uint32_t node_len; // 节点数量
+} node_info_list_s;
+```
+
+## 描述 DESCRIPTION
+
+查询集群内所有节点的内存信息
+
+## 参数 Parameters
+
+| name           | IN/OUT | description |
+|----------------|--------|-------------|
+| node_info_list | OUT    | 节点信息列表      |
+
+## 返回值 RETURN VALUE
+
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+
+## 错误 ERRORS
+
+| Error                        | Description |
+|------------------------------|-------------|
+| VA_ERROR_BASE                | 基本错误类型      |
+| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_NULL_POINTER        | 空指针         |
+| VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
+| VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
+| VA_ERROR_SERIALIZE_FAILED    | 序列化失败       |
+| VA_ERROR_DESERIALIZE_FAILED  | 反序列化失败      |
+| VA_ERROR_TIMEOUT_FAILED      | 超时          |
+
+## 约束 CONSTRAINTS
+
+暂无
+
+## 附注 NOTES
+
+暂无
+
+## 样例 EXAMPLES
+
+以下程序为使用示例。
+
+```c++
+#include <stdio.h>
+#include <ubs_virt_agent_mem_fragmentation.h>
+
+int main(void)
+{
+    node_info_list_s *node_info_list = null;
+    const virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list);
+    if (ret != 0) {
+        return ret;
+    }
+    /* Do your work here... */
+    return 0;
+}
+```
+
+# 10. ubs_virt_agent_mem_borrow
+
+## 库 LIBRARY
+
+virt_agent库 (libubs-virt-agent.so)
+
+## 摘要 SYNOPSIS
+
+```c++
+#include <ubs_virt_agent_mem_fragmentation.h>
+virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s *param, const bool is_async, mem_borrow_result_s *result);
+```
+
+- 数据结构说明
+
+```c++
+typedef struct {
+    int16_t socket_id;  // socketId
+    int16_t numa_id; // numaId
+} numa_meta_info_s;
+
+typedef struct {
+    char src_nid[VIRT_MEM_MAX_NODE_ID_LENGTH];  // nodeId
+    numa_meta_info_s *numa_meta_infos; // numa信息了列表
+    uint32_t numa_len; // numa数量
+    uint64_t borrow_size; // 借用大小, 单位MB
+} mem_borrow_param_s;
+
+typedef struct {
+    char borrow_ids_ptr[MAX_BORROW_ID_COUNT][MAX_BORROW_ID_LENGTH]; // 借用标识符列表
+    uint16_t present_numa_ids_ptr[MAX_BORROW_ID_COUNT]; // 借用内存映射numaId列表
+    uint32_t borrow_ids_size; // 借用标识符列表长度
+    uint32_t present_numa_ids_size; // 映射numaId列表长度
+    char task_id[MEM_TASK_ID_MAX]; // 借用任务
+} mem_borrow_result_c;
+
+typedef struct {
+    mem_borrow_result_c *mem_borrow_result_list; // 内存借用结果列表
+    uint16_t mem_borrow_result_list_len; // 借用结果列表长度
+} mem_borrow_result_s;
+```
+
+## 描述 DESCRIPTION
+
+大规格虚机场景, 按节点借用内存
+
+## 参数 Parameters
+
+| name     | IN/OUT | description    |
+|----------|--------|----------------|
+| param    | IN     | 借用任务入参         |
+| is_async | IN     | 是否异步执行借用任务标识符。 |
+| result   | OUT    | 借用结果信息。        |
+
+## 返回值 RETURN VALUE
+
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+
+## 错误 ERRORS
+
+| Error                        | Description |
+|------------------------------|-------------|
+| VA_ERROR_BASE                | 基本错误类型      |
+| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_NULL_POINTER        | 空指针         |
+| VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
+| VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
+| VA_ERROR_SERIALIZE_FAILED    | 序列化失败       |
+| VA_ERROR_DESERIALIZE_FAILED  | 反序列化失败      |
+| VA_ERROR_TIMEOUT_FAILED      | 超时          |
+
+## 约束 CONSTRAINTS
+
+暂无
+
+## 附注 NOTES
+
+暂无
+
+## 样例 EXAMPLES
+
+以下程序为使用示例。
+
+```c++
+#include <stdio.h>
+#include <ubs_virt_agent_mem_fragmentation.h>
+
+int main(void)
+{
+    mem_borrow_param_s *param = (mem_borrow_param_s *)malloc(sizeof(mem_borrow_param_s));
+    param -> src_nid = "node0";
+    param -> numa_len = 4;
+    param -> borrow_size = 3145728; // 单位MB, 此处借用3TB内存
+    numa_meta_info_s *numa_meta_infos = (numa_meta_info_s *)malloc(sizeof(numa_meta_info_s) * param -> numa_len);
+    
+    // 根据实际情况填写 or 根据ubs_virt_agent_mem_fragmentation_node_info_list查询结果填写
+    // 此处按照如下numa关系配置
+    // NUMA0 - socketId: 0; NUMA1 - socketId: 0; NUMA2 - socketId: 1; NUMA3 - socketId: 1
+    for (int i = 0; i < param -> numa_len; ++i) {
+        numa_meta_infos[i].socket_id = i < 2 ? 0 : 1;
+        numa_meta_infos[i].numa_id = i;
+    }
+    mem_borrow_result_s* result = null;
+    const virt_agent_ret_t ret = ubs_virt_agent_mem_borrow(param, true, result);
+    if (ret != 0) {
+        return ret;
+    }
+    /* Do your work here... */
+    return 0;
+}
+```
+
+# 11. ubs_virt_agent_page_swap_enable
+
+## 库 LIBRARY
+
+virt_agent库 (libubs-virt-agent.so)
+
+## 摘要 SYNOPSIS
+
+```c++
+#include <ubs_virt_agent_mem_fragmentation.h>
+virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s *page_swap_enable);
+```
+
+- 数据结构说明
+
+```c++
+typedef struct {
+    uint32_t numa_id; // numa_id
+    uint32_t quota; // 限额大小, 单位MB
+} numa_quota_s;
+
+typedef struct {
+    numa_quota_s *local_numas; // 本地numaId列表
+    uint8_t local_numa_len; // 本地numaId列表长度
+    numa_quota_s *remote_numas; // 远端映射本地numaId列表
+    uint8_t remote_numa_len; // 远端映射本地numaId列表长度
+} page_swap_pair_s;
+
+typedef struct {
+    page_swap_pair_s *page_swap_pairs; // 本地远端内存映射关系列表
+    uint8_t page_swap_pairs_len; // 本地远端内存映射关系列表长度
+} page_swap_enable_s;
+```
+
+## 描述 DESCRIPTION
+
+大规格虚机场景, 通过配额实现使能冷热页流动
+
+## 参数 Parameters
+
+| name             | IN/OUT | description |
+|------------------|--------|-------------|
+| pid_t            | IN     | 虚拟机进程ID。    |
+| page_swap_enable | IN     | 内存换页使能参数。   |
+
+## 返回值 RETURN VALUE
+
+返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+
+## 错误 ERRORS
+
+| Error                        | Description |
+|------------------------------|-------------|
+| VA_ERROR_BASE                | 基本错误类型      |
+| VA_ERROR_INVALID_PARAM       | 参数不合法       |
+| VA_ERROR_NULL_POINTER        | 空指针         |
+| VA_ERROR_MEM_ALLOCATE_FAILED | 内存分配失败      |
+| VA_ERROR_MEM_COPY_FAILED     | 内存拷贝失败      |
+| VA_ERROR_SERIALIZE_FAILED    | 序列化失败       |
+| VA_ERROR_DESERIALIZE_FAILED  | 反序列化失败      |
+| VA_ERROR_TIMEOUT_FAILED      | 超时          |
+
+## 约束 CONSTRAINTS
+
+暂无
+
+## 附注 NOTES
+
+暂无
+
+## 样例 EXAMPLES
+
+以下程序为使用示例。
+
+```c++
+#include <stdio.h>
+#include <ubs_virt_agent_mem_fragmentation.h>
+
+int main(void)
+{
+    const pid_t pid = 123; // 虚拟机实际进程号
+    page_swap_enable_s *page_swap_enable = (page_swap_enable_s *)malloc(sizeof(page_swap_enable) * page_swap_pairs_len);
+    page_swap_enable -> page_swap_pairs_len = 2;
+    page_swap_enable -> page_swap_pairs = (page_swap_pair_s *)malloc(sizeof(page_swap_pair_s) * page_swap_enable -> page_swap_pairs_len);
+    page_swap_enable -> page_swap_pairs[0] -> local_numa_len = 2;
+    page_swap_enable -> page_swap_pairs[0] -> local_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> local_numa_len);
+    page_swap_enable -> page_swap_pairs[0] -> local_numas[0].numa_id = 0;
+    page_swap_enable -> page_swap_pairs[0] -> local_numas[0].numa_id = 786432;
+    page_swap_enable -> page_swap_pairs[0] -> local_numas[1].numa_id = 1;
+    page_swap_enable -> page_swap_pairs[0] -> local_numas[1].numa_id = 786432;
+    page_swap_enable -> page_swap_pairs[0] -> remote_numa_len = 2;
+    page_swap_enable -> page_swap_pairs[0] -> remote_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> remote_numa_len);
+    page_swap_enable -> page_swap_pairs[0] -> remote_numas[0].numa_id = 4;
+    page_swap_enable -> page_swap_pairs[0] -> remote_numas[0].numa_id = 786432;
+    page_swap_enable -> page_swap_pairs[0] -> remote_numas[1].numa_id = 5;
+    page_swap_enable -> page_swap_pairs[0] -> remote_numas[1].numa_id = 786432;
+    page_swap_enable -> page_swap_pairs[1] -> local_numa_len = 2;
+    page_swap_enable -> page_swap_pairs[1] -> local_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> local_numa_len);
+    page_swap_enable -> page_swap_pairs[1] -> local_numas[0].numa_id = 2;
+    page_swap_enable -> page_swap_pairs[1] -> local_numas[0].numa_id = 786432;
+    page_swap_enable -> page_swap_pairs[1] -> local_numas[1].numa_id = 3;
+    page_swap_enable -> page_swap_pairs[1] -> local_numas[1].numa_id = 786432;
+    page_swap_enable -> page_swap_pairs[1] -> remote_numa_len = 2;
+    page_swap_enable -> page_swap_pairs[1] -> remote_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> remote_numa_len);
+    page_swap_enable -> page_swap_pairs[1] -> remote_numas[0].numa_id = 7;
+    page_swap_enable -> page_swap_pairs[1] -> remote_numas[0].numa_id = 786432;
+    page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 8;
+    page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 786432;
+    virt_agent_ret_t ret = ubs_virt_agent_page_swap_enable(pid, page_swap_enable);
+    if (ret != 0) {
+        return ret;
+    }
+    /* Do your work here... */
+    return 0;
+}
+```

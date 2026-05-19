@@ -54,6 +54,11 @@ using UBSRMRSSmapRemoveProcessTrackingFunc = uint32_t (*)(const std::vector<pid_
 
 using UBSRMRSSmapEnableProcessMigrateFunc = uint32_t (*)(const std::vector<pid_t>&, int, int);
 
+using UBSRMRSBatchBorrowStrategyFunc = uint32_t (*)(const BatchSrcMemoryBorrowParam &, const uint64_t &,
+                                                    std::vector<MemBorrowStrategyResult> &, BorrowStrategy);
+
+using UBSRMRSSmapEnableProcessMigrateGroupedFunc = uint32_t (*)(pid_t, const std::vector<PageSwapPair> &);
+
 class MempoolingModule {
 public:
     static VmResult Init();
@@ -76,6 +81,8 @@ public:
     static UBSRMRSSmapAddProcessTrackingFunc UBSRMRSSmapAddProcessTracking();
     static UBSRMRSSmapRemoveProcessTrackingFunc UBSRMRSSmapRemoveProcessTracking();
     static UBSRMRSSmapEnableProcessMigrateFunc UBSRMRSSmapEnableProcessMigrate();
+    static UBSRMRSBatchBorrowStrategyFunc UBSRMRSBatchBorrowStrategy();
+    static UBSRMRSSmapEnableProcessMigrateGroupedFunc UBSRMRSSmapEnableProcessMigrateGrouped();
 
 private:
     static void* libmempoolingHandler_;
@@ -97,6 +104,8 @@ private:
     static UBSRMRSSmapAddProcessTrackingFunc ubsRMRSSmapAddProcessTrackingFunc_;
     static UBSRMRSSmapRemoveProcessTrackingFunc ubsRMRSSmapRemoveProcessTrackingFunc_;
     static UBSRMRSSmapEnableProcessMigrateFunc ubsRMRSSmapEnableProcessMigrateFunc_;
+    static UBSRMRSBatchBorrowStrategyFunc ubsRMRSBatchBorrowStrategyFunc_;
+    static UBSRMRSSmapEnableProcessMigrateGroupedFunc ubsRMRSSmapEnableProcessMigrateGroupedFunc_;
 };
 
 } // namespace vm::mempooling

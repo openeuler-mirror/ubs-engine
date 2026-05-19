@@ -12,3 +12,4 @@ add_library(ubse_mem_scheduler STATIC
         )
 target_include_directories(ubse_mem_scheduler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/controllers/include ${PROJECT_SOURCE_DIR}/src/controllers/mem/algorithm/strategy)
 target_link_libraries(ubse_mem_scheduler PRIVATE ubse_node_controller ubse_context rm_mem_algo_static ubse_config ubse_election ubse_com)
+add_library(mem_scheduler ALIAS ubse_mem_scheduler)

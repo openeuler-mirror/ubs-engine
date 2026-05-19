@@ -409,7 +409,7 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
 
 MpResult FaultMemIdModule::NotSameNidDeleteUpdate(std::string borrowId, std::string borrowIdNew)
 {
-    auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true);
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true, true);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][MemId] Rack delete resource(not same nid) failed.";
         return MEM_POOLING_ERROR;
@@ -509,16 +509,14 @@ MpResult FaultMemIdModule::MemIdFaultManage(std::string borrowInNid, uint64_t me
     SrcMemoryBorrowParam srcParam;
     srcParam.uid = borrowInNodeData.uid;
     srcParam.username = borrowInNodeData.username;
+    srcParam.srcSocketId = borrowInNodeData.borrowSocketId;
+    srcParam.srcNumaId = borrowInNodeData.borrowNumaId;
+    srcParam.srcNid = borrowInNid;
     std::vector<uint64_t> borrowSizes = {memBorrowIdSize};
     MemBorrowStrategyMultiResult borrowStrategyMultiResult;
     borrowStrategyMultiResult.byNodeFault = byNodeFault;
     bool isSameDestNid = true;
 
-    // 获取当前故障memid对应的本节点相同平面借用的numaId和socketId
-    if (GetSocketIdOfNUMA(borrowInNid, srcParam, destPreNid, destSocketId) != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][MemId] Failed to get socket of same plane borrow.";
-        return MEM_POOLING_ERROR;
-    }
     LOG_DEBUG << "[FaultManager][MemId] Param byNodeFault=" << borrowStrategyMultiResult.byNodeFault << ".";
     MemBorrowStrategyParam param = {destPreNid, destSocketId};
     ret = FaultMemIdStrategy::Instance().ApplyMemBorrowStrategyMultipleUB(srcParam, borrowSizes, param,
@@ -825,7 +823,7 @@ MpResult FaultMemIdCollect::IsBorrowIdOfCurNid(BorrowInNodeData& borrowInNodeDat
     uint64_t memId = borrowInNodeData.memId;
 
     std::vector<BorrowRecord> borrowRecords;
-    MpResult ret = BorrowRecordHelper::Instance().CollectBorrowRecordsWithFault(borrowInNid, borrowRecords);
+    MpResult ret = BorrowRecordHelper::Instance().GetFragmentFaultBorrowRecords(borrowInNid, borrowRecords);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][MemId] Faild to get borrow records.";
     }
@@ -838,6 +836,8 @@ MpResult FaultMemIdCollect::IsBorrowIdOfCurNid(BorrowInNodeData& borrowInNodeDat
             borrowInNodeData.borrowId = borrowRecords[i].name; // 内存描述符
             borrowInNodeData.uid = borrowRecords[i].uid;
             borrowInNodeData.username = borrowRecords[i].username;
+            borrowInNodeData.borrowNumaId = borrowRecords[i].borrowLocalNuma;
+            borrowInNodeData.borrowSocketId = borrowRecords[i].borrowSocketId;
             memBorrowIdSize = borrowRecords[i].size;          // 内存借用大小
             remoteNumaId = borrowRecords[i].borrowRemoteNuma; // 借用内存呈现的远端numa
             destPreNid = borrowRecords[i].lentNode;           // 内存借出节点
