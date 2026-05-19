@@ -44,7 +44,6 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_timer
         ubse_context
         ubse_security
-        ubse_smbios
         ubse_controller
         api_server
         syssentry
@@ -52,12 +51,8 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_node_controller
         ubse_plugin
         ubse_storage
-        virt_agent_sdk_message
-        vm
         ubse_sdk
-        ubs_virt_agent_sdk
-        #        ubse_rpc_client
-        #        ubse_rpc
+        ubse_urma_controller
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
@@ -67,13 +62,14 @@ target_link_libraries(${UT_BINARY} PUBLIC
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
 target_link_options(${UT_BINARY} PRIVATE -rdynamic)
 
-#add_subdirectory(exclusive_executable)
+add_subdirectory(exclusive_executable)
 add_subdirectory(cert)
 add_subdirectory(config)
 add_subdirectory(context)
 add_subdirectory(election)
 add_subdirectory(event)
 add_subdirectory(http)
+add_subdirectory(ipc)
 add_subdirectory(log)
 add_subdirectory(mem_controller)
 add_subdirectory(security)
@@ -90,10 +86,9 @@ add_subdirectory(plugin_mgr)
 add_subdirectory(adapter_plugins/mmi)
 add_subdirectory(adapter_plugins/mti)
 add_subdirectory(adapter_plugins/syssentry)
-add_subdirectory(adapter_plugins/smbios)
 add_subdirectory(storage)
-add_subdirectory(virt_agent)
 add_subdirectory(sdk)
+add_subdirectory(urma_controller)
 
 add_independent_exec_ut(${UT_BINARY})
 
