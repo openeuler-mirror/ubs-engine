@@ -1564,8 +1564,8 @@ bool BorrowRecordHelper::ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtI
     return true;
 }
 
-MpResult BorrowRecordHelper::GetFragmentFaultBorrowRecords(std::string nodeId, 
-                                                           std::vector<BorrowRecord> &fragMentFaultBorrowRecords) 
+MpResult BorrowRecordHelper::GetFragmentFaultBorrowRecords(std::string nodeId,
+                                                           std::vector<BorrowRecord> &fragMentFaultBorrowRecords)
 {
     fragMentFaultBorrowRecords = gBorrowRecordsFragmentFault[nodeId];
     return MEM_POOLING_OK;
