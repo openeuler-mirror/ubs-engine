@@ -256,8 +256,14 @@ MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, 
     for (size_t i = 0; i < static_cast<size_t>(removeMsg.count); ++i) {
         RemovePayload tmp{};
         tmp.pid = pids[i];
-        tmp.count = 1;
-        tmp.nid[0] = presentNumaId;
+        if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE &&
+            MpConfiguration::GetInstance().GetMultiNumaScene() == true){
+            tmp.count = 1;
+            tmp.nid[0] = presentNumaId;
+        } else {
+            tmp.count = 0;
+            tmp.nid[0] = presentNumaId;
+        }
         removeMsg.payload[i] = tmp;
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] removeMsg=" << removeMsg.ToString() << ".";
