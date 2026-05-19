@@ -13,9 +13,12 @@
 #include <malloc.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
+#include "ubse_mem_fault_common.h"
 
 void print_mem_fd_desc(const ubs_mem_fd_desc_t* fd_desc)
 {
@@ -113,6 +116,23 @@ void ubse_mem_fd_delete_example(void)
     }
 }
 
+static int32_t fd_fault_handler(const char *name, uint64_t memid, ubs_mem_fault_type_t type)
+{
+    ubse_print_fault_info("FD", name, memid, type);
+    return 0;
+}
+
+static void ubse_mem_fd_fault_register_example(void)
+{
+    printf("=== ubs_mem_fd_fault_register_example ===\n");
+
+    ubse_setup_signal_handlers();
+
+    printf("[MAIN] Registering fd memory fault handler...\n");
+    int32_t ret = ubs_mem_fd_fault_register(fd_fault_handler);
+    ubse_start_fault_monitoring("fd", ret);
+}
+
 int main(void)
 {
     // 测试创建fd内存
@@ -132,4 +152,7 @@ int main(void)
 
     // 测试删除fd内存
     ubse_mem_fd_delete_example();
+
+    // 测试fd内存故障上报
+    ubse_mem_fd_fault_register_example();
 }

@@ -714,6 +714,86 @@ UbseResult UbseMemValidator::FilterShareNodeList()
     return UBSE_OK;
 }
 
+UbseResult UbseMemValidator::FilterByMemoryRadius()
+{
+    auto ret = FilterByBorrowRadius();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    return FilterByLenderRadius();
+}
+
+UbseResult UbseMemValidator::FilterByBorrowRadius()
+{
+    auto& borrowDebt = UbseMemStrategyHelper::GetInstance().GetBorrowDebt();
+    auto borrowIt = borrowDebt.find(importNodeId_);
+    auto borrowRadius = UbseMemConfiguration::GetInstance().GetBorrowRadius();
+    size_t currentCount = (borrowIt != borrowDebt.end()) ? borrowIt->second.size() : 0;
+    if (currentCount < borrowRadius) {
+        return UBSE_OK;
+    }
+    if (borrowRadius == 0) {
+        UBSE_LOG_ERROR << "All borrower node has reached borrow radius=" << borrowRadius;
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_WARN << "Borrower node=" << importNodeId_ << " has reached borrow radius=" << borrowRadius
+                  << ", importDebt size=" << currentCount;
+    std::set<int16_t> providerSet;
+    if (borrowIt != borrowDebt.end()) {
+        for (const auto &[nodeId, _] : borrowIt->second) {
+            auto hostId = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(nodeId);
+            if (hostId == INVALID_META_ID) {
+                UBSE_LOG_WARN << "NodeIdToIndex failed for nodeId=" << nodeId;
+                continue;
+            }
+            providerSet.insert(hostId);
+        }
+    }
+
+    for (auto &status : ubseStatus_.numaStatus) {
+        if (providerSet.find(status.numa.hostId) == providerSet.end()) {
+            status.memFree = INVALID_VALUE64;
+            status.memTotal = INVALID_VALUE64;
+            status.memUsed = INVALID_VALUE64;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseMemValidator::FilterByLenderRadius()
+{
+    auto lenderRadius = UbseMemConfiguration::GetInstance().GetLenderRadius();
+    if (lenderRadius == 0) {
+        UBSE_LOG_ERROR << "All lender node has reached lender radius=" << lenderRadius
+                          << ", can't lend to borrower=" << importNodeId_;
+        return UBSE_ERROR;
+    }
+    auto& lenderDebt = UbseMemStrategyHelper::GetInstance().GetLenderDebt();
+    if (lenderDebt.empty()) {
+        return UBSE_OK;
+    }
+    std::set<std::string> filteredNodes;
+    for (const auto &[nodeId, exportDebt] : lenderDebt) {
+        if (exportDebt.size() >= lenderRadius && exportDebt.find(importNodeId_) == exportDebt.end()) {
+            UBSE_LOG_WARN << "Lender node=" << nodeId << " has reached lender radius=" << lenderRadius
+                          << ", can't lend to borrower=" << importNodeId_;
+            filteredNodes.insert(nodeId);
+        }
+    }
+    if (filteredNodes.empty()) {
+        return UBSE_OK;
+    }
+    auto numaList = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo("");
+    for (const auto &numa : numaList) {
+        if (filteredNodes.find(numa->mUbseMemNumaLoc.nodeId) != filteredNodes.end()) {
+            ubseStatus_.numaStatus[numa->mGlobalIndex].memFree = INVALID_VALUE64;
+            ubseStatus_.numaStatus[numa->mGlobalIndex].memTotal = INVALID_VALUE64;
+            ubseStatus_.numaStatus[numa->mGlobalIndex].memUsed = INVALID_VALUE64;
+        }
+    }
+    return UBSE_OK;
+}
+
 UbseResult UbseMemValidator::CheckLendNodeIsLender()
 {
     auto nodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetNodeById(exportNodeId_);

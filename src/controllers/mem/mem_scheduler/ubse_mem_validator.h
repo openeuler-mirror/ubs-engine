@@ -37,6 +37,7 @@ constexpr uint64_t FILTER_SHARE_NODE_LIST = 1 << 10;
 constexpr uint64_t FILTER_SOCKET_BORROW_SIZE_LIMIT = 1 << 11;
 constexpr uint64_t FILTER_SHARE_BY_LENDER = 1 << 12;
 constexpr uint64_t FILTER_LINK_PORT_DOWN = 1 << 13;
+constexpr uint64_t FILTER_BY_MEMORY_RADIUS = 1 << 14;
 
 // 指定借出节点
 constexpr uint64_t CHECK_BORROW_SIZE_MEET_LIMIT = 1 << 15;
@@ -91,6 +92,9 @@ private:
     UbseResult FilterByLenderInfo();
     UbseResult FilterShareBySamePlane();
     UbseResult FilterByLinkPortDown();
+    UbseResult FilterByMemoryRadius();
+    UbseResult FilterByBorrowRadius();
+    UbseResult FilterByLenderRadius();
 
     UbseResult CheckMemoryConfigIsValid();
     UbseResult CheckBorrowSizeMeetLimit();
@@ -128,7 +132,9 @@ private:
         {FILTER_NUMA_BY_LEND_SOCKET, &UbseMemValidator::FilterNumaByLendSocket},
         {FILTER_LEND_TIME_OUT, &UbseMemValidator::FilterInvalidSocketLendTimes},
         {FILTER_SHARE_BY_LENDER, &UbseMemValidator::FilterByLenderInfo},
-        {FILTER_LINK_PORT_DOWN, &UbseMemValidator::FilterByLinkPortDown}};
+        {FILTER_LINK_PORT_DOWN, &UbseMemValidator::FilterByLinkPortDown},
+        {FILTER_BY_MEMORY_RADIUS, &UbseMemValidator::FilterByMemoryRadius}
+    };
 };
 } // namespace ubse::mem::strategy
 #endif

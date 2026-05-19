@@ -81,7 +81,8 @@ public:
     UbseMemConfiguration& operator=(const UbseMemConfiguration& other) = delete;
     UbseMemConfiguration& operator=(UbseMemConfiguration&& other) noexcept = delete;
     void SetConfig(const NodeInfoMap& nodeMap);
-    void setPageType();
+    void SetPageType();
+    void SetMemoryRadius();
 
     [[nodiscard]] bool GetManagerVmEnable() const
     {
@@ -95,19 +96,31 @@ public:
     /* 节点最大借用内存总量, 单位M */
     [[nodiscard]] uint64_t GetMaxBorrowSize() const
     {
-        return maxBorrowSize;
+        return maxBorrowSize_;
     }
 
     /* socket上最大导入内存总量,单位M */
     [[nodiscard]] uint64_t GetMaxSocketImportSize() const
     {
-        return maxSocketImportSize;
+        return maxSocketImportSize_;
     }
 
     /* 获取当前环境配置， 4K/64K页环境 */
     [[nodiscard]] PageSizeType GetPageType() const
     {
-        return pageType;
+        return pageType_;
+    }
+
+    /* 获取节点的lender radius配置 */
+    [[nodiscard]] uint16_t GetLenderRadius() const
+    {
+        return lenderRadius_;
+    }
+
+    /* 获取节点的borrow radius配置 */
+    [[nodiscard]] uint16_t GetBorrowRadius() const
+    {
+        return borrowRadius_;
     }
 
     /* 获取节点的pmdMapping配置，单位% */
@@ -126,15 +139,17 @@ public:
     std::optional<UbseAllocator> GetAllocatorFromLenderNode() const;
 
     /* 获取所有节点配置 */
-    std::unordered_map<std::string, NodeConfig> GetAllConfigs() const;
+    const std::unordered_map<std::string, NodeConfig>& GetAllConfigs() const;
 
     bool IsLenderBalance();
 
 private:
-    std::unordered_map<std::string, NodeConfig> nodeConfigs;
-    uint64_t maxBorrowSize{MAX_BORROW_MEM_PER_NODE};
-    uint64_t maxSocketImportSize{MAX_IMPORT_MEM_SIZE_PER_SOCKET * ONE_M};
-    PageSizeType pageType{PageSizeType::Page4K};
+    std::unordered_map<std::string, NodeConfig> nodeConfigs_;
+    uint64_t maxBorrowSize_{MAX_BORROW_MEM_PER_NODE};
+    uint64_t maxSocketImportSize_{MAX_IMPORT_MEM_SIZE_PER_SOCKET * ONE_M};
+    uint16_t lenderRadius_{DEFAULT_LENDER_RADIUS};
+    uint16_t borrowRadius_{DEFAULT_BORROW_RADIUS};
+    PageSizeType pageType_{PageSizeType::Page4K};
     UbseMemConfiguration() = default;
 };
 #undef MODULE_LOG_NAME

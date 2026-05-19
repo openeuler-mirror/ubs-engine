@@ -930,6 +930,9 @@ int32_t ubs_mem_shm_fault_get(const char* name, ubs_mem_memids_fault_t* fault)
 
 int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler)
 {
+    if (handler == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
     uint32_t ret = ubse_long_link_connect();
     if (ret != UBS_SUCCESS) {
         return static_cast<int32_t>(ret);
@@ -937,8 +940,32 @@ int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler)
     return static_cast<int32_t>(ubse_shm_fault_register(handler));
 }
 
-int32_t ubs_mem_get_memid_by_import(const char* name, const uint64_t import_memid, ubs_mem_export_memid_t* mem_info,
-                                    const uint16_t op_code)
+int32_t ubs_mem_fd_fault_register(ubs_mem_fd_fault_handler handler)
+{
+    if (handler == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    uint32_t ret = ubse_long_link_connect();
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    return static_cast<int32_t>(ubse_fd_fault_register(handler));
+}
+
+int32_t ubs_mem_numa_fault_register(ubs_mem_numa_fault_handler handler)
+{
+    if (handler == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    uint32_t ret = ubse_long_link_connect();
+    if (ret != UBS_SUCCESS) {
+        return static_cast<int32_t>(ret);
+    }
+    return static_cast<int32_t>(ubse_numa_fault_register(handler));
+}
+
+int32_t ubs_mem_get_memid_by_import(const char *name, const uint64_t import_memid,
+                                    ubs_mem_export_memid_t *mem_info, const uint16_t op_code)
 {
     // 参数校验
     auto ret = ubse_mem_name_is_valid(name);

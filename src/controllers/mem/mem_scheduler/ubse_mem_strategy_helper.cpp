@@ -592,12 +592,74 @@ UbseResult UbseMemStrategyHelper::GetNumaDebtInfoFromNumaPair(
     return UBSE_OK;
 }
 
+void UbseMemStrategyHelper::AddBorrowDebt(const std::string& importNodeId, const std::string& exportNodeId)
+{
+    ++borrowDebt_[importNodeId][exportNodeId];
+}
+
+void UbseMemStrategyHelper::SubBorrowDebt(const std::string& importNodeId, const std::string& exportNodeId)
+{
+    auto outerIt = borrowDebt_.find(importNodeId);
+    if (outerIt == borrowDebt_.end()) {
+        UBSE_LOG_WARN << "importNodeId=" << importNodeId << " not exists";
+        return;
+    }
+    auto innerIt = outerIt->second.find(exportNodeId);
+    if (innerIt == outerIt->second.end()) {
+        UBSE_LOG_WARN << "exportNodeId=" << exportNodeId << " not exists in importNodeId=" << importNodeId;
+        return;
+    }
+    if (innerIt->second == 0) {
+        UBSE_LOG_WARN << "borrowDebt count is already 0 for importNodeId=" << importNodeId
+                      << " exportNodeId=" << exportNodeId;
+        outerIt->second.erase(innerIt);
+        return;
+    }
+    --innerIt->second;
+    if (innerIt->second == 0) {
+        outerIt->second.erase(innerIt);
+    }
+}
+
+/* importNodeId=borrower, exportNodeId=lender => lenderDebt_[lender][borrower]++ */
+void UbseMemStrategyHelper::AddLenderDebt(const std::string& importNodeId, const std::string& exportNodeId)
+{
+    ++lenderDebt_[exportNodeId][importNodeId];
+}
+
+/* importNodeId=borrower, exportNodeId=lender => lookup lenderDebt_[lender][borrower] */
+void UbseMemStrategyHelper::SubLenderDebt(const std::string& importNodeId, const std::string& exportNodeId)
+{
+    auto outerIt = lenderDebt_.find(exportNodeId);
+    if (outerIt == lenderDebt_.end()) {
+        UBSE_LOG_WARN << "exportNodeId=" << exportNodeId << " not exists";
+        return;
+    }
+    auto innerIt = outerIt->second.find(importNodeId);
+    if (innerIt == outerIt->second.end()) {
+        UBSE_LOG_WARN << "importNodeId=" << importNodeId << " not exists in exportNodeId=" << exportNodeId;
+        return;
+    }
+    if (innerIt->second == 0) {
+        UBSE_LOG_WARN << "lenderDebt count is already 0 for exportNodeId=" << exportNodeId
+                      << " importNodeId=" << importNodeId;
+        outerIt->second.erase(innerIt);
+        return;
+    }
+    --innerIt->second;
+    if (innerIt->second == 0) {
+        outerIt->second.erase(innerIt);
+    }
+}
+
 void UbseMemStrategyHelper::Clear()
 {
     for (int i = 0; i < tc::rs::mem::NUM_TOTAL_NUMA; i++) {
         debtDetail_.numaDebts[i].clear();
     }
     socketCnaSizeCount_.clear();
+    borrowDebt_.clear();
+    lenderDebt_.clear();
 }
 
 } // namespace ubse::mem::strategy

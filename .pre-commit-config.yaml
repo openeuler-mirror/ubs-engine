@@ -3,13 +3,13 @@ repos:
     hooks:
       - id: run-build
         name: Run Release Build
-        entry: bash build.sh
+        entry: bash build.sh --pre-commit
         language: system
         pass_filenames: false
         files: ^(?!test/).*(\.(h|c|cpp|sh|cmake)|CMakeLists\.txt)$
       - id: run-build-test
         name: Run Tests Build
-        entry: bash build.sh ut --skip-run-tests
+        entry: bash build.sh ut --skip-run-tests --pre-commit
         language: system
         pass_filenames: false
         files: ^test/.*\.(h|c|cpp|sh|cmake)$|^test/CMakeLists\.txt$
@@ -23,11 +23,11 @@ repos:
         name: Run clang-tidy check
         entry: clang-tidy
         language: system
-        files: ^(?!test/).*\.(h|c|cpp)$
+        files: ^(?!test|example/).*\.(h|c|cpp)$
         args: [-p=cmake-build-release, -header-filter=.*]
       - id: clang-tidy-test
         name: Run clang-tidy check for test files
         entry: clang-tidy
         language: system
         files: ^test/UT/.*\.(h|c|cpp)$
-        args: [-p=cmake-build-debug]
+        args: [-p=cmake-build-debug, -header-filter=.*]
