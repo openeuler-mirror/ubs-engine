@@ -169,7 +169,8 @@ uint64_t GetCheckMaskCodeByFdReq(const UbseMemFdBorrowReq& fdReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_BORROW_SIZE_MEET_LIMIT | FILTER_LEND_NODE_HAS_BORROWED |
                              CHECK_BORROW_NODE_HAS_LENT | FILTER_NODE_IS_LENDER | FILTER_NODE_BY_GROUP |
-                             FILTER_NODE_IS_DOWN | FILTER_LEND_TIME_OUT | FILTER_LINK_PORT_DOWN;
+                             FILTER_NODE_IS_DOWN | FILTER_LEND_TIME_OUT | FILTER_LINK_PORT_DOWN |
+                             FILTER_BY_MEMORY_RADIUS;
     if (!fdReq.candidateNodeList.empty()) {
         checkMaskCode |= FILTER_CANDIDATE_NODE_LIST;
     }
@@ -181,7 +182,8 @@ uint64_t GetCheckMaskCodeByNumaReq(const UbseMemNumaBorrowReq& numaReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_BORROW_SIZE_MEET_LIMIT | FILTER_LEND_NODE_HAS_BORROWED |
                              CHECK_BORROW_NODE_HAS_LENT | FILTER_NODE_IS_LENDER | FILTER_NODE_BY_GROUP |
-                             FILTER_NODE_IS_DOWN | FILTER_LEND_TIME_OUT | FILTER_LINK_PORT_DOWN;
+                             FILTER_NODE_IS_DOWN | FILTER_LEND_TIME_OUT | FILTER_LINK_PORT_DOWN |
+                             FILTER_BY_MEMORY_RADIUS;
 
     if (numaReq.srcSocket != -1) {
         checkMaskCode |= FILTER_NUMA_BY_SAME_PLANE;
@@ -203,7 +205,7 @@ uint64_t GetCheckMaskCodeByUserReq(const ReqType& userReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_BORROW_SIZE_MEET_LIMIT | CHECK_BORROW_NODE_HAS_LENT |
                              CHECK_LEND_NODE_HAS_BORROWED | CHECK_LEND_NODE_IS_IN_GROUP | CHECK_LEND_NODE_IS_LENDER |
-                             CHECK_NODE_IS_DOWN | CHECK_LEND_NUMA_IS_ENOUGH;
+                             CHECK_NODE_IS_DOWN | CHECK_LEND_NUMA_IS_ENOUGH | FILTER_BY_MEMORY_RADIUS;
 
     if (!userReq.candidateNodeList.empty()) {
         checkMaskCode |= CHECK_LEND_NODE_IS_IN_CANDIDATELIST;

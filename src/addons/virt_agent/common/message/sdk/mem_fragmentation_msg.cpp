@@ -12,6 +12,7 @@
  */
 
 #include "mem_fragmentation_msg.h"
+
 #include <securec.h>
 #include "msg_utils.h"
 #include "vm_serial_util.h"
@@ -825,6 +826,7 @@ VmResult MemFragmentationMemBorrowExecuteOutputMsg::Serialize()
     mOutputRawDataOwned = false;
     return VM_OK;
 }
+
 VmResult MemFragmentationMemBorrowExecuteOutputMsg::Deserialize()
 {
     if (mInputRawData == nullptr) {
@@ -855,6 +857,7 @@ VmResult MemFragmentationMemBorrowExecuteOutputMsg::Deserialize()
     }
     return VM_OK;
 }
+
 MemBorrowExecuteResult MemFragmentationMemBorrowExecuteOutputMsg::GetMemBorrowExecuteOutputMsg()
 {
     return outputMsg_;
@@ -1142,4 +1145,286 @@ VmResult MemFragmentationMemMigrateExecuteInputMsg::Deserialize()
     return VM_OK;
 }
 
+VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Serialize()
+{
+    VmSerialization out;
+    auto nodeInfoListCount = nodeInfoList.size();
+    out << nodeInfoListCount;
+    for (auto &[nodeId, numaInfos, isCurrent] : nodeInfoList) {
+        out << nodeId;
+        auto numaInfosCount = numaInfos.size();
+        out << numaInfosCount;
+        for (auto &[timestamp, metaData] : numaInfos) {
+            out << timestamp;
+            out << metaData.nodeId;
+            out << metaData.hostName;
+            out << metaData.numaId;
+            out << metaData.socketId;
+            out << metaData.isLocal;
+            out << metaData.memTotal;
+            out << metaData.memFree;
+            auto numaPageSize = metaData.numaPageInfo.size();
+            out << numaPageSize;
+            for (auto &[pageSize, numaPageData] : metaData.numaPageInfo) {
+                out << numaPageData.pageSize;
+                out << numaPageData.hugePageTotal;
+                out << numaPageData.hugePageFree;
+            }
+        }
+        out << isCurrent;
+    }
+    if (!out.Check()) {
+        return VM_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = out.GetBuffer(true);
+    mOutputRawDataOwned = false;
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Deserialize()
+{
+    if (mInputRawData == nullptr) {
+        return VM_ERROR_NULLPTR;
+    }
+    VmDeSerialization in(mInputRawData, mInputRawDataSize);
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+
+    size_t nodeInfoListCount{};
+    in >> nodeInfoListCount;
+    nodeInfoList.reserve(nodeInfoListCount);
+    for (size_t i = 0; i < nodeInfoListCount; i++) {
+        NodeInfo nodeInfo{};
+        in >> nodeInfo.nodeId;
+        size_t numaInfosCount{};
+        in >> numaInfosCount;
+        nodeInfo.numaInfos.reserve(numaInfosCount);
+        for (size_t j = 0; j < numaInfosCount; j++) {
+            NumaInfo numaInfo{};
+            in >> numaInfo.timestamp;
+            in >> numaInfo.metaData.nodeId;
+            in >> numaInfo.metaData.hostName;
+            in >> numaInfo.metaData.numaId;
+            in >> numaInfo.metaData.socketId;
+            in >> numaInfo.metaData.isLocal;
+            in >> numaInfo.metaData.memTotal;
+            in >> numaInfo.metaData.memFree;
+            size_t numaPageInfoSize{};
+            in >> numaPageInfoSize;
+            for (size_t k = 0; k < numaPageInfoSize; k++) {
+                NumaPageData numaPageData{};
+                in >> numaPageData.pageSize;
+                in >> numaPageData.hugePageTotal;
+                in >> numaPageData.hugePageFree;
+                numaInfo.metaData.numaPageInfo[numaPageData.pageSize] = numaPageData;
+            }
+            nodeInfo.numaInfos.emplace_back(std::move(numaInfo));
+        }
+        in >> nodeInfo.isCurrent;
+        nodeInfoList.emplace_back(std::move(nodeInfo));
+    }
+
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Serialize()
+{
+    VmSerialization out;
+    out << borrowPram.nodeId;
+    uint32_t numaMetaInfosCount = borrowPram.numaMetaInfos.size();
+    out << numaMetaInfosCount;
+    for (auto &[socketId, numaId] : borrowPram.numaMetaInfos) {
+        out << socketId;
+        out << numaId;
+    }
+    out << borrowPram.borrowSize;
+    out << isAsync;
+    if (!out.Check()) {
+        return VM_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = out.GetBuffer(true);
+    mOutputRawDataOwned = false;
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Deserialize()
+{
+    if (mInputRawData == nullptr) {
+        return VM_ERROR_NULLPTR;
+    }
+    VmDeSerialization in(mInputRawData, mInputRawDataSize);
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+
+    in >> borrowPram.nodeId;
+    uint32_t numaMetaInfosCount{};
+    in >> numaMetaInfosCount;
+    borrowPram.numaMetaInfos.reserve(numaMetaInfosCount);
+    for (size_t j = 0; j < numaMetaInfosCount; j++) {
+        NumaMetaInfo numaMetaInfo{};
+        in >> numaMetaInfo.socketId;
+        in >> numaMetaInfo.numaId;
+        borrowPram.numaMetaInfos.emplace_back(std::move(numaMetaInfo));
+    }
+    in >> borrowPram.borrowSize;
+    in >> isAsync;
+
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationMemBorrowResultMsg::Serialize()
+{
+    VmSerialization out;
+
+    auto memBorrowRstCsSize = memBorrowRstCs.size();
+    out << memBorrowRstCsSize;
+    for (size_t i = 0; i < memBorrowRstCsSize; ++i) {
+        auto [borrow_ids_ptr, present_numa_ids_ptr, borrow_ids_size, present_numa_ids_size, task_id] =
+            memBorrowRstCs[i];
+        out << borrow_ids_size;
+        for (size_t j = 0; j < borrow_ids_size; ++j) {
+            out << borrow_ids_ptr[j];
+        }
+        out << present_numa_ids_size;
+        for (size_t j = 0; j < present_numa_ids_size; ++j) {
+            out << present_numa_ids_ptr[j];
+        }
+        out << task_id;
+    }
+
+    if (!out.Check()) {
+        return VM_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = out.GetBuffer(true);
+    mOutputRawDataOwned = false;
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationMemBorrowResultMsg::Deserialize()
+{
+    if (mInputRawData == nullptr) {
+        return VM_ERROR_NULLPTR;
+    }
+    VmDeSerialization in(mInputRawData, mInputRawDataSize);
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+
+    size_t memBorrowRstCsSize{};
+    in >> memBorrowRstCsSize;
+    memBorrowRstCs.reserve(memBorrowRstCsSize);
+    std::string tmpMsg;
+    VmResult ret{};
+    for (size_t i = 0; i < memBorrowRstCsSize; ++i) {
+        mem_borrow_result_c memBorrowRstC{};
+        in >> memBorrowRstC.borrow_ids_size;
+        for (size_t j = 0; j < memBorrowRstC.borrow_ids_size; ++j) {
+            in >> tmpMsg;
+            ret = StringToC(memBorrowRstC.borrow_ids_ptr[j], tmpMsg, MAX_BORROW_ID_LENGTH);
+            if (ret != VM_OK) {
+                return VM_ERROR;
+            }
+        }
+        in >> memBorrowRstC.present_numa_ids_size;
+        for (size_t j = 0; j < memBorrowRstC.present_numa_ids_size; ++j) {
+            in >> memBorrowRstC.present_numa_ids_ptr[j];
+        }
+        in >> tmpMsg;
+        ret = StringToC(memBorrowRstC.task_id, tmpMsg, MEM_TASK_ID_MAX);
+        if (ret != VM_OK) {
+            return VM_ERROR;
+        }
+        memBorrowRstCs.emplace_back(memBorrowRstC);
+    }
+
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationPageSwapEnableMsg::Serialize()
+{
+    VmSerialization out;
+
+    out << pid;
+    uint32_t pageSwapPairsCount = pageSwapPairs.size();
+    out << pageSwapPairsCount;
+    for (auto &[localNumaQuota, remoteNumaQuota] : pageSwapPairs) {
+        uint32_t localNumaQuotaCount = localNumaQuota.size();
+        out << localNumaQuotaCount;
+        for (auto &[numaId, quota] : localNumaQuota) {
+            out << numaId;
+            out << quota;
+        }
+        uint32_t remoteNumaQuotaCount = remoteNumaQuota.size();
+        out << remoteNumaQuotaCount;
+        for (auto &[numaId, quota] : remoteNumaQuota) {
+            out << numaId;
+            out << quota;
+        }
+    }
+
+    if (!out.Check()) {
+        return VM_ERROR;
+    }
+    mOutputRawDataSize = out.GetLength();
+    mOutputRawData = out.GetBuffer(true);
+    mOutputRawDataOwned = false;
+    return VM_OK;
+}
+
+VmResult mem_fragmentation::MemFragmentationPageSwapEnableMsg::Deserialize()
+{
+    if (mInputRawData == nullptr) {
+        return VM_ERROR_NULLPTR;
+    }
+    VmDeSerialization in(mInputRawData, mInputRawDataSize);
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+
+    in >> pid;
+    uint32_t pageSwapPairsCount = 0;
+    in >> pageSwapPairsCount;
+    pageSwapPairs.reserve(pageSwapPairsCount);
+    for (size_t j = 0; j < pageSwapPairsCount; j++) {
+        PageSwapPair pageSwapPair{};
+        uint32_t localNumaQuotaCount = 0;
+        in >> localNumaQuotaCount;
+        pageSwapPair.localNumaQuotas.reserve(localNumaQuotaCount);
+        for (size_t k = 0; k < localNumaQuotaCount; k++) {
+            NumaQuota numaQuota{};
+            in >> numaQuota.numaId;
+            in >> numaQuota.quota;
+            pageSwapPair.localNumaQuotas.emplace_back(std::move(numaQuota));
+        }
+        uint32_t remoteNumaQuotaCount = 0;
+        in >> remoteNumaQuotaCount;
+        pageSwapPair.remoteNumaQuotas.reserve(remoteNumaQuotaCount);
+        for (size_t k = 0; k < remoteNumaQuotaCount; k++) {
+            NumaQuota numaQuota{};
+            in >> numaQuota.numaId;
+            in >> numaQuota.quota;
+            pageSwapPair.remoteNumaQuotas.emplace_back(std::move(numaQuota));
+        }
+        pageSwapPairs.emplace_back(std::move(pageSwapPair));
+    }
+
+    if (!in.Check()) {
+        return VM_ERROR;
+    }
+    return VM_OK;
+}
 } // namespace vm

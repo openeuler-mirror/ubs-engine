@@ -23,6 +23,7 @@
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_ras.h"
 #include "ubse_serial_util.h"
+#include "ubse_timer.h"
 #include "ubse_mem_controller_fault_handle.cpp"
 
 namespace ubse::mem_controller::ut {
@@ -44,6 +45,7 @@ void TestUbseMemControllerFaultHandle::TearDown()
 {
     UbseMemFaultManager::executorPtr = nullptr;
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    g_pendingBmcFaultEvents.clear();
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -57,6 +59,7 @@ TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_CreateTaskExecutorF
 TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_RegisterAlarmFailed)
 {
     MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
     MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
         .stubs()
         .will(returnValue(UBSE_ERROR));
@@ -66,6 +69,7 @@ TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_RegisterAlarmFailed
 TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_SubEventFailed)
 {
     MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
     MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
         .stubs()
         .will(returnValue(UBSE_OK));
@@ -76,29 +80,48 @@ TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_SubEventFailed)
 TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_Success)
 {
     MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
     MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
         .stubs()
         .will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseSubEvent).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_OK, UbseMemFaultManager::InitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_TimerRegisterFailed)
+{
+    MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
+        .stubs()
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseSubEvent).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_UnRegisterFailed)
 {
+    MOCKER_CPP(ubse::timer::UbseTimerHandlerUnregister).stubs();
     MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::DeInitMemFaultManager());
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_RemoveTaskExecutorFailed)
 {
+    MOCKER_CPP(ubse::timer::UbseTimerHandlerUnregister).stubs();
     MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::event::UbseUnSubEvent).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseMemFaultManager::RemoveTaskExecutor).stubs().will(returnValue(UBSE_ERROR_NULLPTR));
     EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseMemFaultManager::DeInitMemFaultManager());
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_Success)
 {
+    MOCKER_CPP(ubse::timer::UbseTimerHandlerUnregister).stubs();
     MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::event::UbseUnSubEvent).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseMemFaultManager::RemoveTaskExecutor).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_OK, UbseMemFaultManager::DeInitMemFaultManager());
 }
@@ -182,11 +205,11 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_GetNodeIdFai
 {
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
     uint64_t memId = 1;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_NE(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_NE(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInShareImport)
@@ -205,13 +228,14 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInShare
                                                                                            shareImportObj);
 
     uint64_t memId = 100;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_EQ(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_EQ(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
     EXPECT_EQ(memName, "shareTest");
     EXPECT_EQ(memType, "share");
+    EXPECT_EQ(handleId, 100);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInFdImport)
@@ -229,13 +253,14 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInFdImp
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().PutResource("1", "fdTest", fdImportObj);
 
     uint64_t memId = 200;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_EQ(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_EQ(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
     EXPECT_EQ(memName, "fdTest");
     EXPECT_EQ(memType, "fd");
+    EXPECT_EQ(handleId, 200);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_NotFound)
@@ -244,11 +269,11 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_NotFound)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
 
     uint64_t memId = 999;
-    UbMemFaultType type = UB_MEM_ATOMIC_DATA_ERR;
     std::string memName;
     std::string memType;
     UbseUdsInfo udsInfo;
-    EXPECT_NE(FindNameByMemIdInImportObj(memId, type, memName, memType, udsInfo), UBSE_OK);
+    uint64_t handleId = 0;
+    EXPECT_NE(FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId), UBSE_OK);
     EXPECT_EQ(memType, "unknown");
 }
 
@@ -271,5 +296,94 @@ TEST_F(TestUbseMemControllerFaultHandle, MemFaultHandler_FindNameFailed)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
     EXPECT_NE(UbseMemFaultManager::MemFaultHandler(ALARM_MEM_FAULT, R"({"memid": 999, "raw_ubus_mem_err_type": 0})"),
               UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_NotMaster)
+{
+    UbseRoleInfo curNodeInfo("1", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_GetNodeInfoFailed)
+{
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_SuccessWithNodes)
+{
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
+    roleInfos.emplace_back("agent2", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_SendFailed)
+{
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_DuplicateEvent)
+{
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_MultipleNodesPartialSuccess)
+{
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
+    roleInfos.emplace_back("agent2", ELECTION_ROLE_AGENT);
+    roleInfos.emplace_back("agent3", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_NoNodesAvailable)
+{
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_GetAllNodeInfosFailed)
+{
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
 }
 } // namespace ubse::mem_controller::ut

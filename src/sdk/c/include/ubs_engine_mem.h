@@ -628,6 +628,8 @@ typedef struct {
 } ubs_mem_memids_fault_t;
 
 typedef int32_t (*ubs_mem_shm_fault_handler)(const char* name, uint64_t memid, ubs_mem_fault_type_t type);
+typedef int32_t (*ubs_mem_fd_fault_handler)(const char* name, uint64_t memid, ubs_mem_fault_type_t type);
+typedef int32_t (*ubs_mem_numa_fault_handler)(const char* name, uint64_t numaid, ubs_mem_fault_type_t type);
 
 /**
  * @brief 查询指定共享远端内存的状态; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -647,11 +649,25 @@ typedef int32_t (*ubs_mem_shm_fault_handler)(const char* name, uint64_t memid, u
 int32_t ubs_mem_shm_fault_get(const char* name, ubs_mem_memids_fault_t* fault);
 
 /**
- * @brief 客户端订阅共享内存UB Event事件
- * @param[in] registerFunc: 共享内存UB Event事件响应处理函数
+ * @brief 客户端订阅共享内存故障事件
+ * @param[in] registerFunc: 共享内存故障事件响应处理函数
  * @return 成功返回0, 失败返回非0
  */
 int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler);
+
+ /**
+  * @brief 客户端订阅fd内存故障事件
+  * @param[in] registerFunc: fd内存故障事件响应处理函数
+  * @return 成功返回0, 失败返回非0
+  */
+int32_t ubs_mem_fd_fault_register(ubs_mem_fd_fault_handler handler);
+
+/**
+  * @brief 客户端订阅numa内存故障事件
+  * @param[in] registerFunc: numa内存故障事件响应处理函数
+  * @return 成功返回0, 失败返回非0
+  */
+int32_t ubs_mem_numa_fault_register(ubs_mem_numa_fault_handler handler);
 
 typedef struct {
     uint32_t export_slot_id; // 导出节点的id

@@ -60,6 +60,10 @@ UbseResult BorrowAccount::UpdateBorrowDebtDetail(const bool& isAdd)
 
 void BorrowAccount::UpdateBorrowNumaInfo(bool isAdd)
 {
+    if (exportNumaLocs_.empty()) {
+        UBSE_LOG_WARN << "exportNumaLocs_ is empty";
+        return;
+    }
     for (auto& debtNumaInfo : importNumaLocs_) {
         auto numaInfo =
             strategy::UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
@@ -67,11 +71,20 @@ void BorrowAccount::UpdateBorrowNumaInfo(bool isAdd)
             return;
         }
         ubse::mem::strategy::UpdateSizeWithCheckFlow(numaInfo->mMemBorrowed, debtNumaInfo.size, isAdd);
+        if (isAdd) {
+            UbseMemStrategyHelper::GetInstance().AddBorrowDebt(debtNumaInfo.nodeId, exportNumaLocs_[0].nodeId);
+        } else {
+            UbseMemStrategyHelper::GetInstance().SubBorrowDebt(debtNumaInfo.nodeId, exportNumaLocs_[0].nodeId);
+        }
     }
 }
 
 void BorrowAccount::UpdateLendNumaInfo(bool isAdd)
 {
+    if (importNumaLocs_.empty()) {
+        UBSE_LOG_WARN << "importNumaLocs_ is empty";
+        return;
+    }
     for (auto& debtNumaInfo : exportNumaLocs_) {
         auto numaInfo =
             strategy::UbseMemTopologyInfoManager::GetInstance().GetNumaInfo(debtNumaInfo.nodeId, debtNumaInfo.numaId);
@@ -80,6 +93,11 @@ void BorrowAccount::UpdateLendNumaInfo(bool isAdd)
         }
         ubse::mem::strategy::UpdateSizeWithCheckFlow(numaInfo->mMemLent, debtNumaInfo.size, isAdd);
         ubse::mem::strategy::UpdateSizeWithCheckFlow(numaInfo->blocks, debtNumaInfo.size / (blockSize_ * ONE_M), isAdd);
+        if (isAdd) {
+            UbseMemStrategyHelper::GetInstance().AddLenderDebt(importNumaLocs_[0].nodeId, debtNumaInfo.nodeId);
+        } else {
+            UbseMemStrategyHelper::GetInstance().SubLenderDebt(importNumaLocs_[0].nodeId, debtNumaInfo.nodeId);
+        }
     }
 }
 

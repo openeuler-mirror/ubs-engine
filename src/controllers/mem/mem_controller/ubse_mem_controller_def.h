@@ -128,6 +128,12 @@ struct NumaHandleInfo {
     UbseUdsInfo udsInfo{};
 };
 using NumaHandleInfoVec = std::vector<NumaHandleInfo>;
+
+struct DebtHandleInfos {
+    ShareHandleInfoVec &shareVec;
+    NumaHandleInfoVec &numaVec;
+    FdHandleInfoVec &fdVec;
+};
 } // namespace ubse::mem::def
 
 #endif
