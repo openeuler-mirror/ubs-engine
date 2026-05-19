@@ -78,6 +78,8 @@ constexpr uint32_t MB_128M = 128;
 constexpr uint32_t MB_4096M = 4096;
 constexpr uint32_t KB_TO_B = 1024;
 constexpr uint64_t MB_TO_BYTE = 1024 * 1024;
+constexpr uint16_t DEFAULT_BORROW_RADIUS = 7;
+constexpr uint16_t DEFAULT_LENDER_RADIUS = 7;
 const std::string PAGE_SIZE_4K = "4096";
 const std::string PAGE_SIZE_64K = "65536";
 

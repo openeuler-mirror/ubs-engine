@@ -153,6 +153,23 @@ public:
     void GetSocketCnaSize(const std::string& importNodeIdSocketId,
                           std::unordered_map<std::string, uint64_t>& socketCnaSize);
 
+    void AddBorrowDebt(const std::string& importNodeId, const std::string& exportNodeId);
+    void SubBorrowDebt(const std::string& importNodeId, const std::string& exportNodeId);
+
+    const std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>>& GetBorrowDebt() const
+    {
+        return borrowDebt_;
+    }
+
+    /* importNodeId: borrower, exportNodeId: lender */
+    void AddLenderDebt(const std::string &importNodeId, const std::string &exportNodeId);
+    void SubLenderDebt(const std::string &importNodeId, const std::string &exportNodeId);
+
+    const std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>>& GetLenderDebt() const
+    {
+        return lenderDebt_;
+    }
+
     // 更新debt
     UbseResult GetNumaDebtInfoFromNumaPair(const GlobalNumaIndex& brwNumaGlobalIdx,
                                            const ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo& lend, bool add);
@@ -186,6 +203,8 @@ private:
     }
     UbseMemStrategyHelper() = default;
     tc::rs::mem::DebtDetail debtDetail_{};
+    std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> borrowDebt_{};
+    std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> lenderDebt_{};
     std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> socketCnaSizeCount_{};
 };
 #undef MODULE_LOG_NAME
