@@ -578,6 +578,19 @@ void MakeMockWaterNumaObj(const uint32_t& mockNums, NumaParam param,
     }
 }
 
+ubse::common::def::UbseResult FAKE_GetUbseConfForRadius(const std::string &section, const std::string &configKey,
+                                                        std::string &configValue)
+{
+    if (section == "ubse.memory" && configKey == "radius.borrow") {
+        configValue = "4";
+        return UBSE_OK;
+    }
+    if (section == "ubse.memory" && configKey == "radius.lender") {
+        configValue = "4";
+        return UBSE_OK;
+    }
+    return UBSE_ERROR;
+}
 } // namespace
 
 void TestMemScheduler::SetUp()
@@ -1638,6 +1651,7 @@ struct NumaInfoHash {
 TEST_F(TestMemScheduler, TestLentNodeNumaMemory)
 {
     AlgoAccountManger::GetInstance().Clear();
+    strategy::UbseMemConfiguration::GetInstance().Init();
     MOCKER(&strategy::UbseMemConfiguration::IsLenderBalance).stubs().will(returnValue(true));
     MockGetNumValueTopo(8);
     std::vector<ubse::nodeController::UbseNodeInfo> nodeInfos{};
@@ -1655,11 +1669,13 @@ TEST_F(TestMemScheduler, TestLentNodeNumaMemory)
     importObj.req.candidateNodeList.emplace_back("5");
     importObj.status.state = UBSE_MEM_SCHEDULING;
     auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+    ASSERT_EQ(ret, UBSE_OK);
     numaIdSet.insert(importObj.algoResult.exportNumaInfos[0]);
     importObj.req.name = "test4";
     importObj.algoResult.exportNumaInfos.clear();
     importObj.algoResult.importNumaInfos.clear();
     ret |= scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+    ASSERT_EQ(ret, UBSE_OK);
     EXPECT_EQ(numaIdSet.count(importObj.algoResult.exportNumaInfos[0]), 1);
 
     importObj.req.name = "test2";
@@ -1668,6 +1684,7 @@ TEST_F(TestMemScheduler, TestLentNodeNumaMemory)
     importObj.algoResult.exportNumaInfos.clear();
     importObj.algoResult.importNumaInfos.clear();
     ret |= scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+    ASSERT_EQ(ret, UBSE_OK);
     EXPECT_NE(numaIdSet.count(importObj.algoResult.exportNumaInfos[0]), 1);
     numaIdSet.insert(importObj.algoResult.exportNumaInfos[0]);
 
@@ -1677,6 +1694,7 @@ TEST_F(TestMemScheduler, TestLentNodeNumaMemory)
     importObj.algoResult.exportNumaInfos.clear();
     importObj.algoResult.importNumaInfos.clear();
     ret |= scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+    ASSERT_EQ(ret, UBSE_OK);
     EXPECT_NE(numaIdSet.count(importObj.algoResult.exportNumaInfos[0]), 1);
     numaIdSet.insert(importObj.algoResult.exportNumaInfos[0]);
 
@@ -1686,8 +1704,221 @@ TEST_F(TestMemScheduler, TestLentNodeNumaMemory)
     importObj.algoResult.exportNumaInfos.clear();
     importObj.algoResult.importNumaInfos.clear();
     ret |= scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+    ASSERT_EQ(ret, UBSE_OK);
     EXPECT_NE(numaIdSet.count(importObj.algoResult.exportNumaInfos[0]), 1);
     numaIdSet.insert(importObj.algoResult.exportNumaInfos[0]);
+}
+
+/*
+ * 用例描述：
+ * 测试内存借用指定借入半径，MOCK GetUbseConf(UBSE_MEMORY, "radius.borrow", borrowRadiusStr)返回值为4
+ * 测试步骤：
+ * 1. 使用8节点mock数据（一个socket下面有2个numa）
+ * 2. 算法初始化成功
+ * 3. 分别指定节点1向节点2，3，4，5，6，7，8借用内存
+ * 预期结果：
+ * 1. 前四个内存借用成功，后面的借用失败
+ */
+TEST_F(TestMemScheduler, TestBorrowWithRadius)
+{
+    AlgoAccountManger::GetInstance().Clear();
+    MOCKER_CPP(GetUbseConf<std::string>).stubs().will(invoke(FAKE_GetUbseConfForRadius));
+    UbseMemConfiguration::GetInstance().Init();
+
+    MockGetNumValueTopo(8);
+    std::vector<ubse::nodeController::UbseNodeInfo> nodeInfos{};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfoMap{};
+    MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 8);
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.requestNodeId = "1";
+    importObj.req.importNodeId = "1";
+    importObj.req.size = MB_128;
+    importObj.req.udsInfo.gid = 1;
+    importObj.req.udsInfo.pid = 2;
+    importObj.req.udsInfo.uid = 3;
+    importObj.status.state = UBSE_MEM_SCHEDULING;
+
+    for (int i = 2; i <= 5; i++) {
+        std::string name = "test" + std::to_string(i);
+        importObj.req.name = name;
+        importObj.req.candidateNodeList = {std::to_string(i)};
+        importObj.algoResult.exportNumaInfos.clear();
+        importObj.algoResult.importNumaInfos.clear();
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_EQ(ret, UBSE_OK);
+    }
+
+    for (int i = 6; i <= 8; i++) {
+        std::string name = "test" + std::to_string(i);
+        importObj.req.name = name;
+        importObj.req.candidateNodeList = {std::to_string(i)};
+        importObj.algoResult.exportNumaInfos.clear();
+        importObj.algoResult.importNumaInfos.clear();
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_NE(ret, UBSE_OK);
+    }
+}
+
+/*
+ * 用例描述：
+ * 测试内存借用指定借出半径，MOCK GetUbseConf(UBSE_MEMORY, "radius.lender", lenderRadiusStr)返回值为4
+ * 测试步骤：
+ * 1. 使用8节点mock数据（一个socket下面有2个numa）
+ * 2. 算法初始化成功
+ * 3. 分别指定节点1，2，3，4，5，6，7向节点8导出内存
+ * 预期结果：
+ * 1. 前四个内存导出成功，后面的导出失败
+ */
+TEST_F(TestMemScheduler, TestLendWithRadius)
+{
+    AlgoAccountManger::GetInstance().Clear();
+    MOCKER_CPP(GetUbseConf<std::string>).stubs().will(invoke(FAKE_GetUbseConfForRadius));
+    UbseMemConfiguration::GetInstance().Init();
+
+    MockGetNumValueTopo(8);
+    std::vector<ubse::nodeController::UbseNodeInfo> nodeInfos{};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfoMap{};
+    MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 8);
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.size = MB_128;
+    importObj.req.udsInfo.gid = 1;
+    importObj.req.udsInfo.pid = 2;
+    importObj.req.udsInfo.uid = 3;
+    importObj.status.state = UBSE_MEM_SCHEDULING;
+
+    for (int i = 1; i <= 4; i++) {
+        std::string name = "test" + std::to_string(i);
+        importObj.req.name = name;
+        importObj.req.requestNodeId = std::to_string(i);
+        importObj.req.importNodeId = std::to_string(i);
+        importObj.req.candidateNodeList = {"8"};
+        importObj.algoResult.exportNumaInfos.clear();
+        importObj.algoResult.importNumaInfos.clear();
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_EQ(ret, UBSE_OK);
+    }
+
+    for (int i = 5; i <= 7; i++) {
+        std::string name = "test" + std::to_string(i);
+        importObj.req.name = name;
+        importObj.req.requestNodeId = std::to_string(i);
+        importObj.req.importNodeId = std::to_string(i);
+        importObj.req.candidateNodeList = {"8"};
+        importObj.algoResult.exportNumaInfos.clear();
+        importObj.algoResult.importNumaInfos.clear();
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_NE(ret, UBSE_OK);
+    }
+}
+
+namespace {
+ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusZero(const std::string &section, const std::string &configKey,
+                                                             std::string &configValue)
+{
+    if (section == "ubse.memory" && configKey == "radius.borrow") {
+        configValue = "0";
+        return UBSE_OK;
+    }
+    if (section == "ubse.memory" && configKey == "radius.lender") {
+        configValue = "0";
+        return UBSE_OK;
+    }
+    return UBSE_ERROR;
+}
+
+ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusMax(const std::string &section, const std::string &configKey,
+                                                            std::string &configValue)
+{
+    if (section == "ubse.memory" && configKey == "radius.borrow") {
+        configValue = "7";
+        return UBSE_OK;
+    }
+    if (section == "ubse.memory" && configKey == "radius.lender") {
+        configValue = "7";
+        return UBSE_OK;
+    }
+    return UBSE_ERROR;
+}
+} // namespace
+
+/*
+ * 用例描述：
+ * 测试内存借用指定借入半径=0，任何借用都应该失败
+ * 测试步骤：
+ * 1. 使用8节点mock数据
+ * 2. 算法初始化成功
+ * 3. 节点1向节点2借用内存
+ * 预期结果：
+ * 1. 借用失败
+ */
+TEST_F(TestMemScheduler, TestBorrowWithRadiusZero)
+{
+    AlgoAccountManger::GetInstance().Clear();
+    MOCKER_CPP(GetUbseConf<std::string>).stubs().will(invoke(FAKE_GetUbseConfForRadiusZero));
+    UbseMemConfiguration::GetInstance().Init();
+
+    MockGetNumValueTopo(8);
+    std::vector<ubse::nodeController::UbseNodeInfo> nodeInfos{};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfoMap{};
+    MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 8);
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.requestNodeId = "1";
+    importObj.req.importNodeId = "1";
+    importObj.req.size = MB_128;
+    importObj.req.name = "test1";
+    importObj.req.udsInfo.gid = 1;
+    importObj.req.udsInfo.pid = 2;
+    importObj.req.udsInfo.uid = 3;
+    importObj.req.candidateNodeList = {"2"};
+    importObj.status.state = UBSE_MEM_SCHEDULING;
+    auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+/*
+ * 用例描述：
+ * 测试内存借用指定借入半径=7，应允许向最多7个不同节点借用
+ * 测试步骤：
+ * 1. 使用8节点mock数据
+ * 2. 算法初始化成功
+ * 3. 节点1分别向节点2,3,4,5,6,7,8借用内存
+ * 预期结果：
+ * 1. 前7个借用成功，第8个借用失败
+ */
+TEST_F(TestMemScheduler, TestBorrowWithRadiusMax)
+{
+    AlgoAccountManger::GetInstance().Clear();
+    MOCKER_CPP(GetUbseConf<std::string>).stubs().will(invoke(FAKE_GetUbseConfForRadiusMax));
+    UbseMemConfiguration::GetInstance().Init();
+
+    MockGetNumValueTopo(8);
+    std::vector<ubse::nodeController::UbseNodeInfo> nodeInfos{};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfoMap{};
+    MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 8);
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.requestNodeId = "1";
+    importObj.req.importNodeId = "1";
+    importObj.req.size = MB_128;
+    importObj.req.udsInfo.gid = 1;
+    importObj.req.udsInfo.pid = 2;
+    importObj.req.udsInfo.uid = 3;
+    importObj.status.state = UBSE_MEM_SCHEDULING;
+
+    for (int i = 2; i <= 8; i++) {
+        std::string name = "test" + std::to_string(i);
+        importObj.req.name = name;
+        importObj.req.candidateNodeList = {std::to_string(i)};
+        importObj.algoResult.exportNumaInfos.clear();
+        importObj.algoResult.importNumaInfos.clear();
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        if (i <= 8) {
+            EXPECT_EQ(ret, UBSE_OK) << "node 1 borrow from " << i << " should succeed";
+        }
+    }
 }
 
 } // namespace ubse::mem::mem_scheduler::ut
