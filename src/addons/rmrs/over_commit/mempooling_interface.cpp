@@ -629,8 +629,8 @@ std::unordered_set<std::uint16_t> GenBorroIdRemoteNumaSet(const std::vector<Borr
                                                           const std::vector<std::string>& borrowIds)
 {
     std::unordered_set<std::uint16_t> remoteNumaIds;
-    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode,
+                      borrowLocalNuma, borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) == borrowIds.end()) {
             continue;
         }
@@ -645,8 +645,8 @@ std::vector<MemBorrowInfoWithSrc> GenNumaTotalBorrowSizes(const std::vector<Borr
     const auto remoteNumaIds = GenBorroIdRemoteNumaSet(borrowRecords, borrowIds);
     std::unordered_map<std::uint16_t, uint64_t> remoteNumaId2BorrowSizeMap;
     std::vector<MemBorrowInfoWithSrc> result;
-    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (remoteNumaIds.find(borrowRemoteNuma) == remoteNumaIds.end()) {
             continue;
         }
@@ -663,8 +663,8 @@ std::vector<MemBorrowInfo> GenNumaCurBorrowSizes(const std::vector<BorrowRecord>
 {
     std::unordered_map<std::uint16_t, uint64_t> remoteNumaId2BorrowSizeMap;
     std::vector<MemBorrowInfo> result;
-    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) == borrowIds.end()) {
             continue;
         }
@@ -685,8 +685,8 @@ std::unordered_map<std::string, std::uint64_t> GenBorrowId2Size(const std::vecto
                                                                 const std::vector<std::string>& borrowIds)
 {
     std::unordered_map<std::string, std::uint64_t> result;
-    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) != borrowIds.end()) {
             result[name] = size;
         }
@@ -700,8 +700,8 @@ std::unordered_map<std::uint16_t, std::uint64_t> GenBorrowIdNuma2Size(const int1
 {
     const auto remoteNumaIds = GenBorroIdRemoteNumaSet(borrowRecords, borrowIds);
     std::unordered_map<std::uint16_t, std::uint64_t> result;
-    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (remoteNumaIds.find(borrowRemoteNuma) == remoteNumaIds.end() ||
             (srcNumaId != -1 && borrowLocalNuma != srcNumaId)) {
             continue;
@@ -720,8 +720,8 @@ std::unordered_map<std::string, std::uint16_t> GenBorrowId2NumaId(const std::vec
 {
     const auto remoteNumaIds = GenBorroIdRemoteNumaSet(borrowRecords, borrowIds);
     std::unordered_map<std::string, std::uint16_t> result;
-    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
-                      borrowRemoteNuma, borrowMemId, uid, username] : borrowRecords) {
+    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+                      borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (std::find(borrowIds.begin(), borrowIds.end(), name) != borrowIds.end()) {
             result[name] = borrowRemoteNuma;
         }

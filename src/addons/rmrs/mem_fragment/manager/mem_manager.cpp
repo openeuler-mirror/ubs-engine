@@ -1442,11 +1442,12 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1470,6 +1471,106 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
     return MEM_POOLING_OK;
 }
 
+// 更新传入的nodeId以及集群中可见的nodeId的账本信息
+MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault(std::string nodeId)
+{
+    // 目前架构能查到的所有的节点都可以借用 查询所有节点
+    std::vector<std::string> allNodeIdList = MpConfiguration::GetInstance().GetNodeIds();
+    if (allNodeIdList.empty()) {
+        return MEM_POOLING_ERROR;
+    }
+
+    // 查找nodeId是否在列表中，不存在则添加
+    auto iter = std::find(allNodeIdList.begin(), allNodeIdList.end(), nodeId);
+    if (iter == allNodeIdList.end()) {
+        allNodeIdList.push_back(nodeId);
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] NodeId: " << nodeId << " not in cluster node list, add it to update list.";
+    }
+
+    gBorrowRecordsFragmentFault.clear();
+    for (std::string nodeId : allNodeIdList) {
+        std::vector<UbseNumaMemoryDebtInfo> debtInfos;
+        auto ret = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
+        if (ret == UBSE_ERR_INTERNAL) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] UbseGetNumaMemDebtInfoWithNode failed, ret="
+                    << static_cast<uint32_t>(ret)
+                    << ".";
+            return MEM_POOLING_ERROR;
+        }
+        std::vector<BorrowRecord> recordVec;
+        for (auto &debtInfo : debtInfos) {
+            BorrowRecord record;
+            // 最小化修改：调用子函数完成转换
+            if (!ConvertDebtToRecord(debtInfo, record)) {
+                return MEM_POOLING_ERROR;
+            }
+            if (record.borrowRemoteNuma < 0) {
+                continue;
+            }
+            recordVec.push_back(record);
+        }
+        for (auto &record : recordVec) {
+            LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: "
+                      << record.ToString() << ".";
+        }
+        gBorrowRecordsFragmentFault[nodeId] = recordVec;
+    }
+
+    return MEM_POOLING_OK;
+}
+
+bool BorrowRecordHelper::ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtInfo, BorrowRecord& outRecord)
+{
+    outRecord.name = debtInfo.name;
+    outRecord.username = debtInfo.username;
+    outRecord.uid = debtInfo.uid;
+    outRecord.size = debtInfo.size / KB_TO_BYTES;
+    outRecord.lentNode = debtInfo.lentNodeId;
+    outRecord.lentMemId = debtInfo.lentMemId;
+
+    // lentSocketIdList加上空校验
+    if (debtInfo.lentSocketIdList.empty() || debtInfo.borrowSocketIdList.empty()) {
+        LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
+        return false;
+    }
+    outRecord.lentSocketId = debtInfo.lentSocketIdList[0];
+    outRecord.borrowSocketId = debtInfo.borrowSocketIdList[0];
+
+    size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
+    for (size_t i = 0; i < n; ++i) {
+        LentNuma ln;
+        ln.numaId = static_cast<uint16_t>(debtInfo.lentNumaIdList[i]);
+        ln.lentSize = debtInfo.lentNumaSizeList[i];
+        outRecord.lentNuma.push_back(ln);
+    }
+
+    outRecord.borrowNode = debtInfo.borrowNodeId;
+    errno_t res = memcpy_s(&outRecord.borrowLocalNuma, sizeof(outRecord.borrowLocalNuma), debtInfo.usrInfo,
+                           sizeof(outRecord.borrowLocalNuma));
+    if (res != EOK) {
+        LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] memcpy_s failed.";
+        return false;
+    }
+
+    outRecord.borrowRemoteNuma = static_cast<int16_t>(debtInfo.remoteNumaId);
+    outRecord.borrowMemId = debtInfo.borrowMemId;
+
+    // 非法条目日志
+    if (outRecord.borrowRemoteNuma < 0) {
+        LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] BorrowRemoteNuma is invalid, record: "
+                << outRecord.ToString() << ".";
+    }
+    return true;
+}
+
+MpResult BorrowRecordHelper::GetFragmentFaultBorrowRecords(std::string nodeId,
+                                                           std::vector<BorrowRecord> &fragMentFaultBorrowRecords)
+{
+    fragMentFaultBorrowRecords = gBorrowRecordsFragmentFault[nodeId];
+    return MEM_POOLING_OK;
+}
+
 MpResult BorrowRecordHelper::UpdateBorrowRecordsAllWithFault()
 {
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
@@ -1489,11 +1590,12 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsAllWithFault()
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1567,11 +1669,12 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsWithFault(const std::string nod
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;

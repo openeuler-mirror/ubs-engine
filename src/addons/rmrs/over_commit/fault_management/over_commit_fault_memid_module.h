@@ -141,7 +141,7 @@ public:
     MpResult GetPidNumaInfo(outinterface::SrcMemoryBorrowParam oParam,
                             std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList, uint16_t remoteNumaId);
 
-    MpResult ClearFalutBidBorrowedMap()
+    void ClearFalutBidBorrowedMap()
     {
         falutBidBorrowedMap.clear();
     }
