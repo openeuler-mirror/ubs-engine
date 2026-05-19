@@ -13,24 +13,25 @@
 #include "logging_lock_guard.h"
 
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include "ubse_error.h"
 #include "ubse_logger.h"
 
 namespace ubse::mem::controller {
 
-std::unordered_map<std::string, std::shared_ptr<std::mutex>> LoggingLockGuard::mutexMap{};
+std::unordered_map<std::string, std::shared_ptr<std::shared_mutex>> LoggingLockGuard::mutexMap{};
 std::mutex LoggingLockGuard::mapMutex;
 // 当引用数为2时(1个是mutexMap引用 + 1个是当前的LoggingLockGuard实例引用)，意味着只有一个使用方，此时LoggingLockGuard析构，可以清理mutexMap
 const uint32_t USE_COUNT_WHEN_ONLY_ONE_USER = 2;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-std::shared_ptr<std::mutex> LoggingLockGuard::GetObjMutex(const std::string& objId)
+std::shared_ptr<std::shared_mutex> LoggingLockGuard::GetObjMutex(const std::string& objId)
 {
     std::unique_lock<std::mutex> lock(mapMutex);
     if (mutexMap.find(objId) == mutexMap.end()) {
-        mutexMap.emplace(objId, std::make_shared<std::mutex>());
+        mutexMap.emplace(objId, std::make_shared<std::shared_mutex>());
     }
     return mutexMap[objId];
 }
@@ -45,16 +46,27 @@ void LoggingLockGuard::RemoveObjMutex(const std::string& objId)
     }
 }
 
-LoggingLockGuard::LoggingLockGuard(const std::string& name) : mutex_(GetObjMutex(name)), name_(name)
+LoggingLockGuard::LoggingLockGuard(const std::string& name, LockType type)
+    : mutex_(GetObjMutex(name)), name_(name), lockType_(type)
 {
-    (*mutex_).lock();
-    UBSE_LOG_INFO << "Locked name=" << name;
+    if (lockType_ == LockType::READ) {
+        (*mutex_).lock_shared();
+        UBSE_LOG_INFO << "ReadLocked name=" << name;
+    } else {
+        (*mutex_).lock();
+        UBSE_LOG_INFO << "WriteLocked name=" << name;
+    }
 }
 
 LoggingLockGuard::~LoggingLockGuard()
 {
-    (*mutex_).unlock();
-    UBSE_LOG_INFO << "UnLocked name=" << name_;
+    if (lockType_ == LockType::READ) {
+        (*mutex_).unlock_shared();
+        UBSE_LOG_INFO << "ReadUnLocked name=" << name_;
+    } else {
+        (*mutex_).unlock();
+        UBSE_LOG_INFO << "WriteUnLocked name=" << name_;
+    }
     RemoveObjMutex(name_);
 }
 
