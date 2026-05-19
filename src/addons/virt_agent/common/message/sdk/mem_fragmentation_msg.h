@@ -110,7 +110,7 @@ class MemTaskResultQueryMsg : public BaseMessage {
 public:
     MemTaskResultQueryMsg() = default;
 
-    explicit MemTaskResultQueryMsg(async_task_info_c asyncTaskInfoC) : asyncTaskInfoC_(std::move(asyncTaskInfoC)){};
+    explicit MemTaskResultQueryMsg(async_task_info_c asyncTaskInfoC) : asyncTaskInfoC_(std::move(asyncTaskInfoC)) {};
 
     explicit MemTaskResultQueryMsg(uint8_t* rawData, uint32_t size)
     {
@@ -137,7 +137,7 @@ public:
     MemBorrowExecuteResultMsg() = default;
 
     explicit MemBorrowExecuteResultMsg(mem_borrow_result_c memBorrowResultC)
-        : memBorrowResultC_(std::move(memBorrowResultC)){};
+        : memBorrowResultC_(std::move(memBorrowResultC)) {};
 
     explicit MemBorrowExecuteResultMsg(uint8_t* rawData, uint32_t size)
     {
@@ -163,7 +163,7 @@ class MemFragmentationMsg : public BaseMessage {
 public:
     MemFragmentationMsg() = default;
 
-    explicit MemFragmentationMsg(std::vector<NumaInfo> numaInfos) : numaInfos_(std::move(numaInfos)){};
+    explicit MemFragmentationMsg(std::vector<NumaInfo> numaInfos) : numaInfos_(std::move(numaInfos)) {};
 
     explicit MemFragmentationMsg(uint8_t* rawData, uint32_t size)
     {
@@ -190,7 +190,7 @@ public:
     MemFragmentationVmInfoMsg() = default;
 
     explicit MemFragmentationVmInfoMsg(std::vector<mempooling::VmDomainInfo> vmInfoList)
-        : vmInfoList_(std::move(vmInfoList)){};
+        : vmInfoList_(std::move(vmInfoList)) {};
 
     explicit MemFragmentationVmInfoMsg(uint8_t* rawData, uint32_t size)
     {
@@ -471,6 +471,252 @@ private:
     MemMigrateExecuteSrcParam inputMsg{};
 };
 
+namespace mem_fragmentation {
+
+/** ==============big memory virtual machine============== */
+typedef struct {
+    char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];
+    numa_info_t *numa_infos;
+    uint32_t numa_len;
+    bool is_current;
+} node_info_s;
+
+typedef struct {
+    node_info_s *node_infos;
+    uint32_t node_len;
+} node_info_list_s;
+
+struct NodeInfo {
+    NodeInfo() = default;
+
+    std::string nodeId{};
+    std::vector<NumaInfo> numaInfos{};
+    bool isCurrent{};
+};
+
+class MemFragmentationNodeInfoListMsg : public BaseMessage {
+public:
+    MemFragmentationNodeInfoListMsg() = default;
+    ~MemFragmentationNodeInfoListMsg() override = default;
+
+    explicit MemFragmentationNodeInfoListMsg(std::vector<NodeInfo> nodeInfoList) : nodeInfoList(std::move(nodeInfoList))
+    {
+    }
+
+    explicit MemFragmentationNodeInfoListMsg(uint8_t *rawData, uint32_t size)
+    {
+        SetInputRawData(rawData, size);
+    }
+
+    VmResult Serialize() override;
+    VmResult Deserialize() override;
+
+    [[nodiscard]] std::vector<NodeInfo> GetNodeInfoList() const
+    {
+        return nodeInfoList;
+    }
+
+private:
+    std::vector<NodeInfo> nodeInfoList{};
+};
+
+typedef struct {
+    int16_t socket_id;
+    int16_t numa_id;
+} numa_meta_info_s;
+
+typedef struct {
+    char src_nid[VIRT_MEM_MAX_NODE_ID_LENGTH];
+    numa_meta_info_s *numa_meta_infos;
+    uint32_t numa_len;
+    uint64_t borrow_size;
+} mem_borrow_param_s;
+
+struct NumaMetaInfo {
+    NumaMetaInfo() = default;
+
+    int16_t socketId = -1;
+    int16_t numaId = -1;
+
+    [[nodiscard]] std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << numaId << ":" << socketId;
+        return oss.str();
+    }
+};
+
+struct BorrowParam {
+    BorrowParam() = default;
+
+    std::string nodeId{};
+    std::vector<NumaMetaInfo> numaMetaInfos{};
+    uint64_t borrowSize{}; // MB
+
+    [[nodiscard]] std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "nodeId=" << nodeId << ", numaMetaInfos=";
+        for (const auto numaMetaInfo : numaMetaInfos) {
+            oss << numaMetaInfo.ToString() << ",";
+        }
+        oss << " borrowSize=" << borrowSize;
+        return oss.str();
+    }
+};
+
+class MemFragmentationMemBorrowParamMsg : public BaseMessage {
+public:
+    MemFragmentationMemBorrowParamMsg() = default;
+    ~MemFragmentationMemBorrowParamMsg() override = default;
+
+    MemFragmentationMemBorrowParamMsg(BorrowParam param, bool isAsync)
+        : borrowPram(std::move(param)),
+          isAsync(std::move(isAsync))
+    {
+    }
+
+    explicit MemFragmentationMemBorrowParamMsg(uint8_t *rawData, const uint32_t &size)
+    {
+        SetInputRawData(rawData, size);
+    }
+
+    VmResult Serialize() override;
+    VmResult Deserialize() override;
+
+    BorrowParam GetBorrowParam() const
+    {
+        return borrowPram;
+    }
+
+    bool GetIsAsync() const
+    {
+        return isAsync;
+    }
+
+private:
+    BorrowParam borrowPram{};
+    bool isAsync{};
+};
+
+typedef struct {
+    mem_borrow_result_c *mem_borrow_result_list;
+    uint16_t mem_borrow_result_list_len;
+} mem_borrow_result_s;
+
+class MemFragmentationMemBorrowResultMsg : public BaseMessage {
+public:
+    MemFragmentationMemBorrowResultMsg() = default;
+    ~MemFragmentationMemBorrowResultMsg() override = default;
+
+    explicit MemFragmentationMemBorrowResultMsg(std::vector<mem_borrow_result_c> memBorrowRstCs)
+        : memBorrowRstCs(std::move(memBorrowRstCs))
+    {
+    }
+
+    explicit MemFragmentationMemBorrowResultMsg(uint8_t *rawData, const uint32_t &size)
+    {
+        SetInputRawData(rawData, size);
+    }
+
+    VmResult Serialize() override;
+    VmResult Deserialize() override;
+
+    [[nodiscard]] std::vector<mem_borrow_result_c> GetMemBorrowResultList() const
+    {
+        return memBorrowRstCs;
+    }
+
+private:
+    std::vector<mem_borrow_result_c> memBorrowRstCs;
+};
+
+typedef struct {
+    uint32_t numa_id;
+    uint32_t quota;
+} numa_quota_s;
+
+typedef struct {
+    numa_quota_s *local_numas;
+    uint8_t local_numa_len;
+    numa_quota_s *remote_numas;
+    uint8_t remote_numa_len;
+} page_swap_pair_s;
+
+typedef struct {
+    page_swap_pair_s *page_swap_pairs;
+    uint8_t page_swap_pairs_len;
+} page_swap_enable_s;
+
+struct NumaQuota {
+    NumaQuota() = default;
+
+    uint32_t numaId;
+    uint32_t quota;
+
+    [[nodiscard]] std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "numaId=" << numaId << ", quota=" << quota;
+        return oss.str();
+    }
+};
+
+struct PageSwapPair {
+    PageSwapPair() = default;
+
+    std::vector<NumaQuota> localNumaQuotas;
+    std::vector<NumaQuota> remoteNumaQuotas;
+
+    [[nodiscard]] std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "localNumaQuotas=";
+        for (const auto numaQuota : localNumaQuotas) {
+            oss << numaQuota.ToString() << "; ";
+        }
+        oss << "remoteNumaQuotas=";
+        for (const auto numaQuota : remoteNumaQuotas) {
+            oss << numaQuota.ToString() << "; ";
+        }
+        return oss.str();
+    }
+};
+
+class MemFragmentationPageSwapEnableMsg : public BaseMessage {
+public:
+    MemFragmentationPageSwapEnableMsg() = default;
+    ~MemFragmentationPageSwapEnableMsg() override = default;
+
+    explicit MemFragmentationPageSwapEnableMsg(pid_t pid, std::vector<PageSwapPair> pageSwapPairs)
+        : pid(std::move(pid)),
+          pageSwapPairs(std::move(pageSwapPairs))
+    {
+    }
+
+    explicit MemFragmentationPageSwapEnableMsg(uint8_t *rawData, const uint32_t &size)
+    {
+        SetInputRawData(rawData, size);
+    }
+
+    VmResult Serialize() override;
+    VmResult Deserialize() override;
+
+    [[nodiscard]] pid_t GetPid() const
+    {
+        return pid;
+    }
+
+    [[nodiscard]] std::vector<PageSwapPair> GetPageSwapPair() const
+    {
+        return pageSwapPairs;
+    };
+
+private:
+    pid_t pid{};
+    std::vector<PageSwapPair> pageSwapPairs{};
+};
+} // namespace mem_fragmentation
 } // namespace vm
 
 #endif // MEM_FRAGMENTATION_MSG_H
