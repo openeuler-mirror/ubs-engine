@@ -29,6 +29,7 @@
 #include "mempooling_module.h"
 #include "msg_utils.h"
 #include "status_manager.h"
+#include "vm_configuration.h"
 #include "vm_error.h"
 
 using namespace api::server;
@@ -65,6 +66,7 @@ TEST_F(TestMemFragmentationSdkServer, Register_Failed)
     MOCKER(UbseRegRpcService).stubs().will(returnValue(VM_ERROR));
     EXPECT_EQ(VirtMemFragSdk::Register(), VM_ERROR);
     MOCKER(RegisterIpcHandler).reset();
+    MOCKER(UbseRegRpcService).reset();
 }
 
 TEST_F(TestMemFragmentationSdkServer, Register_Success)
@@ -73,6 +75,7 @@ TEST_F(TestMemFragmentationSdkServer, Register_Success)
     MOCKER(UbseRegRpcService).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(VirtMemFragSdk::Register(), VM_OK);
     MOCKER(RegisterIpcHandler).reset();
+    MOCKER(UbseRegRpcService).reset();
 }
 
 TEST_F(TestMemFragmentationSdkServer, GetNodeInfo_ShouldReturnError_WhenMempoolingNotInitialized)
@@ -1357,11 +1360,11 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_ShouldReturnOK_WhenEverythingOK)
     std::vector<uint8_t> buffer(nodeId.begin(), nodeId.end());
     req.buffer = buffer.data();
     req.length = buffer.size();
-    MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeOK));
-    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
+    MOCKER(&VmConfiguration::GetNodeId).stubs().will(returnValue(std::string("1")));
+    MOCKER(VirtMemFragSdk::StartMemReturnAsync).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(VirtMemFragSdk::MemReturn(req, context), VM_OK);
-    MOCKER(MempoolingModule::UBSRMRSMemFree).reset();
-    MOCKER(SendResponse).reset();
+    MOCKER(&VmConfiguration::GetNodeId).reset();
+    MOCKER(VirtMemFragSdk::StartMemReturnAsync).reset();
 }
 
 /**
@@ -1650,15 +1653,11 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_Async_WhenEverythingIsOk)
     UbseIpcMessage req{reinterpret_cast<uint8_t*>(&isAsync), sizeof(bool)};
     UbseRequestContext context{};
 
-    MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeOK));
-    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
-
-    uint32_t ret = VirtMemFragSdk::MemReturn(req, context);
-    EXPECT_EQ(ret, VM_OK);
-
-    GlobalMockObject::verify();
-    MOCKER(MempoolingModule::UBSRMRSMemFree).reset();
-    MOCKER(SendResponse).reset();
+    MOCKER(&VmConfiguration::GetNodeId).stubs().will(returnValue(std::string("1")));
+    MOCKER(VirtMemFragSdk::StartMemReturnAsync).stubs().will(returnValue(VM_OK));
+    EXPECT_EQ(VirtMemFragSdk::MemReturn(req, context), VM_OK);
+    MOCKER(&VmConfiguration::GetNodeId).reset();
+    MOCKER(VirtMemFragSdk::StartMemReturnAsync).reset();
 }
 
 TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_WhenEverythingIsOk)
@@ -1667,15 +1666,11 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_WhenEverythingIsOk)
     UbseIpcMessage req{reinterpret_cast<uint8_t*>(&isAsync), sizeof(bool)};
     UbseRequestContext context{};
 
-    MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeOK));
-    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
-
-    uint32_t ret = VirtMemFragSdk::MemReturn(req, context);
-    EXPECT_EQ(ret, VM_OK);
-
-    GlobalMockObject::verify();
-    MOCKER(MempoolingModule::UBSRMRSMemFree).reset();
-    MOCKER(SendResponse).reset();
+    MOCKER(&VmConfiguration::GetNodeId).stubs().will(returnValue(std::string("1")));
+    MOCKER(VirtMemFragSdk::StartMemReturnSync).stubs().will(returnValue(VM_OK));
+    EXPECT_EQ(VirtMemFragSdk::MemReturn(req, context), VM_OK);
+    MOCKER(&VmConfiguration::GetNodeId).reset();
+    MOCKER(VirtMemFragSdk::StartMemReturnSync).reset();
 }
 
 TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_UBSRMRSMemFreeFailed)
@@ -1684,15 +1679,11 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_Sync_UBSRMRSMemFreeFailed)
     UbseIpcMessage req{reinterpret_cast<uint8_t*>(&isAsync), sizeof(bool)};
     UbseRequestContext context{};
 
-    MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeError));
-    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
-
-    uint32_t ret = VirtMemFragSdk::MemReturn(req, context);
-    EXPECT_EQ(ret, VM_OK);
-
-    GlobalMockObject::verify();
-    MOCKER(MempoolingModule::UBSRMRSMemFree).reset();
-    MOCKER(SendResponse).reset();
+    MOCKER(&VmConfiguration::GetNodeId).stubs().will(returnValue(std::string("1")));
+    MOCKER(VirtMemFragSdk::StartMemReturnSync).stubs().will(returnValue(VM_ERROR));
+    EXPECT_EQ(VirtMemFragSdk::MemReturn(req, context), VM_ERROR);
+    MOCKER(&VmConfiguration::GetNodeId).reset();
+    MOCKER(VirtMemFragSdk::StartMemReturnSync).reset();
 }
 
 TEST_F(TestMemFragmentationSdkServer, BorrowParamDeserializeTest)
@@ -1910,6 +1901,7 @@ TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnOk_WhenEverythin
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
                void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
         .stubs();
+    MOCKER(VirtMemFragSdk::SetSrcNodeHugePage).stubs().will(returnValue(VM_OK));
 
     EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_OK);
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
@@ -1920,6 +1912,7 @@ TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnOk_WhenEverythin
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
                void (ThreadTaskManager::*)(const std::string &, AsyncTaskStatus, uint32_t, const std::string &))
         .reset();
+    MOCKER(VirtMemFragSdk::SetSrcNodeHugePage).reset();
 }
 
 /**
