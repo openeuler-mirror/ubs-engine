@@ -2708,42 +2708,89 @@ int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler);
 
 **描述 DESCRIPTION**
 
-客户端订阅共享内存UB Event事件。
+客户端订阅共享内存故障事件。
 
 **参数 PARAMETERS**
 
-| name    | IN/OUT | description          |
-| ------- | ------ | -------------------- |
-| handler | IN     | 共享内存UB Event事件响应处理函数 |
+| name    | IN/OUT | description             |
+| ------- | ------ | ----------------------- |
+| handler | IN     | 共享内存故障事件响应处理函数，不允许为NULL |
 
-- 数据结构说明
+**注册函数返回值 RETURN VALUE**
+
+成功返回 `0`，失败返回非 `0`。
+
+**回调函数类型**
 
 ```c
 typedef int32_t (*ubs_mem_shm_fault_handler)(const char *name, uint64_t memid, ubs_mem_fault_type_t type);
 ```
 
-**返回值 RETURN VALUE**
+**回调函数参数**
 
-成功返回 `0`，失败返回非 `0`。
+| name  | IN/OUT | description                          |
+| ----- | ------ | ------------------------------------ |
+| name  | IN     | 发生故障的共享内存借用标识                        |
+| memid | IN     | 发生故障的内存块标识信息                         |
+| type  | IN     | 内存块故障类型，详见 `ubs_mem_fault_type_t` 枚举 |
 
-**错误 ERRORS**
+```c
+typedef enum {
+    UB_MEM_ATOMIC_DATA_ERR = 0,
+    UB_MEM_READ_DATA_ERR,
+    UB_MEM_FLOW_POISON,
+    UB_MEM_FLOW_READ_AUTH_POISON,
+    UB_MEM_FLOW_READ_AUTH_RESPERR,
+    UB_MEM_TIMEOUT_POISON,
+    UB_MEM_TIMEOUT_RESPERR,
+    UB_MEM_READ_DATA_POISON,
+    UB_MEM_READ_DATA_RESPERR,
+    MAR_NOPORT_VLD_INT_ERR,
+    MAR_FLUX_INT_ERR,
+    MAR_WITHOUT_CXT_ERR,
+    RSP_BKPRE_OVER_TIMEOUT_ERR,
+    MAR_NEAR_AUTH_FAIL_ERR,
+    MAR_FAR_AUTH_FAIL_ERR,
+    MAR_TIMEOUT_ERR,
+    MAR_ILLEGAL_ACCESS_ERR,
+    REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
+    MEM_EXPORT_FAULT,
+    UB_MEM_HEALTHY = 1000,
+} ubs_mem_fault_type_t;
+```
 
-当前头文件未公开该接口的细粒度错误码列表。
+**回调函数返回值 RETURN VALUE**
+
+回调处理成功请返回`0`，失败返回非 `0`。
 
 **附注 NOTES**
 
 回调函数需要由调用方自行保证线程安全。
 
+故障事件按用户级别上报。建议同一用户仅在一个进程注册；多进程注册时，各进程需自行甄别故障内存是否属于本进程借用。
+
+服务端检测断链事件自动清理注册监听，不再提供注销接口。
+
 **样例 EXAMPLES**
 
 ```c
 #include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
 #include <ubs_engine.h>
 #include <ubs_engine_mem.h>
 
+static volatile int g_running = 1;
+
+static void signal_handler(int sig)
+{
+    (void)sig;
+    g_running = 0;
+}
+
 int32_t shm_fault_handler(const char *name, uint64_t memid, ubs_mem_fault_type_t type)
 {
-    printf("receive fault event, name=%s, memid=%lu, type=%d\n", name, memid, type);
+    printf("receive shm fault event, name=%s, memid=%lu, type=%d\n", name, memid, type);
     return 0;
 }
 
@@ -2762,6 +2809,278 @@ int main(void)
         perror("register shm fault handler failed");
         ubs_engine_client_finalize();
         return -1;
+    }
+
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    printf("shm fault handler registered, waiting for events... (press Ctrl+C to exit)\n");
+    while (g_running) {
+        pause();
+    }
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_mem\_fd\_fault\_register
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_mem.h>
+int32_t ubs_mem_fd_fault_register(ubs_mem_fd_fault_handler handler);
+```
+
+**描述 DESCRIPTION**
+
+客户端订阅Fd内存故障事件。
+
+**参数 PARAMETERS**
+
+| name    | IN/OUT | description              |
+| ------- | ------ | ------------------------ |
+| handler | IN     | fd内存故障事件响应处理函数，不允许为NULL |
+
+**注册函数返回值 RETURN VALUE**
+
+成功返回 `0`，失败返回非 `0`。
+
+**回调函数类型**
+
+```c
+typedef int32_t (*ubs_mem_fd_fault_handler)(const char *name, uint64_t memid, ubs_mem_fault_type_t type);
+```
+
+**回调函数参数**
+
+| name  | IN/OUT | description                          |
+| ----- | ------ | ------------------------------------ |
+| name  | IN     | 发生故障的fd内存借用标识                        |
+| memid | IN     | 发生故障的内存块标识信息                         |
+| type  | IN     | 内存块故障类型，详见 `ubs_mem_fault_type_t` 枚举 |
+
+```c
+typedef enum {
+    UB_MEM_ATOMIC_DATA_ERR = 0,
+    UB_MEM_READ_DATA_ERR,
+    UB_MEM_FLOW_POISON,
+    UB_MEM_FLOW_READ_AUTH_POISON,
+    UB_MEM_FLOW_READ_AUTH_RESPERR,
+    UB_MEM_TIMEOUT_POISON,
+    UB_MEM_TIMEOUT_RESPERR,
+    UB_MEM_READ_DATA_POISON,
+    UB_MEM_READ_DATA_RESPERR,
+    MAR_NOPORT_VLD_INT_ERR,
+    MAR_FLUX_INT_ERR,
+    MAR_WITHOUT_CXT_ERR,
+    RSP_BKPRE_OVER_TIMEOUT_ERR,
+    MAR_NEAR_AUTH_FAIL_ERR,
+    MAR_FAR_AUTH_FAIL_ERR,
+    MAR_TIMEOUT_ERR,
+    MAR_ILLEGAL_ACCESS_ERR,
+    REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
+    MEM_EXPORT_FAULT,
+    UB_MEM_HEALTHY = 1000,
+} ubs_mem_fault_type_t;
+```
+
+**回调函数返回值 RETURN VALUE**
+
+回调处理成功请返回`0`，失败返回非 `0`。
+
+**附注 NOTES**
+
+回调函数需要由调用方自行保证线程安全。
+
+故障事件按用户级别上报。建议同一用户仅在一个进程注册；多进程注册时，各进程需自行甄别故障内存是否属于本进程借用。
+
+服务端检测断链事件自动清理注册监听，不再提供注销接口。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
+#include <ubs_engine.h>
+#include <ubs_engine_mem.h>
+
+static volatile int g_running = 1;
+
+static void signal_handler(int sig)
+{
+    (void)sig;
+    g_running = 0;
+}
+
+int32_t fd_fault_handler(const char *name, uint64_t memid, ubs_mem_fault_type_t type)
+{
+    printf("receive fd fault event, name=%s, memid=%lu, type=%d\n", name, memid, type);
+    return 0;
+}
+
+int main(void)
+{
+    int32_t ret;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (ret != UBS_SUCCESS) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_mem_fd_fault_register(fd_fault_handler);
+    if (ret != 0) {
+        perror("register fd fault handler failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    printf("fd fault handler registered, waiting for events... (press Ctrl+C to exit)\n");
+    while (g_running) {
+        pause();
+    }
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_mem\_numa\_fault\_register
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_mem.h>
+int32_t ubs_mem_numa_fault_register(ubs_mem_numa_fault_handler handler);
+```
+
+**描述 DESCRIPTION**
+
+客户端订阅Numa内存故障事件。
+
+**参数 PARAMETERS**
+
+| name    | IN/OUT | description                |
+| ------- | ------ | -------------------------- |
+| handler | IN     | numa内存故障事件响应处理函数，不允许为NULL |
+
+**注册函数返回值 RETURN VALUE**
+
+成功返回 `0`，失败返回非 `0`。
+
+**回调函数类型**
+
+```c
+typedef int32_t (*ubs_mem_numa_fault_handler)(const char *name, uint64_t numaid, ubs_mem_fault_type_t type);
+```
+
+**回调函数参数**
+
+| name   | IN/OUT | description                          |
+| ------ | ------ | ------------------------------------ |
+| name   | IN     | 发生故障的numa内存借用标识                     |
+| numaid | IN     | 发生故障的远端numa对应的numaid                |
+| type   | IN     | 内存块故障类型，详见 `ubs_mem_fault_type_t` 枚举 |
+
+```c
+typedef enum {
+    UB_MEM_ATOMIC_DATA_ERR = 0,
+    UB_MEM_READ_DATA_ERR,
+    UB_MEM_FLOW_POISON,
+    UB_MEM_FLOW_READ_AUTH_POISON,
+    UB_MEM_FLOW_READ_AUTH_RESPERR,
+    UB_MEM_TIMEOUT_POISON,
+    UB_MEM_TIMEOUT_RESPERR,
+    UB_MEM_READ_DATA_POISON,
+    UB_MEM_READ_DATA_RESPERR,
+    MAR_NOPORT_VLD_INT_ERR,
+    MAR_FLUX_INT_ERR,
+    MAR_WITHOUT_CXT_ERR,
+    RSP_BKPRE_OVER_TIMEOUT_ERR,
+    MAR_NEAR_AUTH_FAIL_ERR,
+    MAR_FAR_AUTH_FAIL_ERR,
+    MAR_TIMEOUT_ERR,
+    MAR_ILLEGAL_ACCESS_ERR,
+    REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
+    MEM_EXPORT_FAULT,
+    UB_MEM_HEALTHY = 1000,
+} ubs_mem_fault_type_t;
+```
+
+**回调函数返回值 RETURN VALUE**
+
+回调处理成功请返回`0`，失败返回非 `0`。
+
+**附注 NOTES**
+
+回调函数需要由调用方自行保证线程安全。
+
+故障事件按用户级别上报。建议同一用户仅在一个进程注册；多进程注册时，各进程需自行甄别故障内存是否属于本进程借用。
+
+已上报故障的numaId对应内存及时删除，该numaId可能被后续借用再次使用。
+
+服务端检测断链事件自动清理注册监听，不再提供注销接口。
+
+**样例 EXAMPLES**
+
+```c
+#include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
+#include <ubs_engine.h>
+#include <ubs_engine_mem.h>
+
+static volatile int g_running = 1;
+
+static void signal_handler(int sig)
+{
+    (void)sig;
+    g_running = 0;
+}
+
+int32_t numa_fault_handler(const char *name, uint64_t numaid, ubs_mem_fault_type_t type)
+{
+    printf("receive numa fault event, name=%s, numaid=%lu, type=%d\n", name, numaid, type);
+    return 0;
+}
+
+int main(void)
+{
+    int32_t ret;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (ret != UBS_SUCCESS) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_mem_numa_fault_register(numa_fault_handler);
+    if (ret != 0) {
+        perror("register numa fault handler failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    printf("numa fault handler registered, waiting for events... (press Ctrl+C to exit)\n");
+    while (g_running) {
+        pause();
     }
 
     ubs_engine_client_finalize();
