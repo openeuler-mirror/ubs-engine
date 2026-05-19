@@ -15,6 +15,7 @@
 #include <ubse_api_server.h>
 #include <ubse_election.h>
 #include <ubse_security.h>
+#include <ubse_com.h>
 #include <mockcpp/mockcpp.hpp>
 #include <vector>
 
@@ -27,14 +28,13 @@
 #include "mempooling_def.h"
 #include "mempooling_module.h"
 #include "msg_utils.h"
-#include "src/addons/virt_agent/common/mempooling/mempooling_module.h"
-#include "src/addons/virt_agent/common/message/sdk/mem_fragmentation_msg.h"
 #include "status_manager.h"
 #include "vm_error.h"
 
 using namespace api::server;
 using namespace ubse::election;
 using namespace ubse::security;
+using namespace ubse::com;
 using namespace vm;
 using namespace vm::mempooling;
 namespace ubse::ut::vm {
@@ -62,6 +62,7 @@ uint64_t globalMemBorrowedSize_MB = 1048576;
 TEST_F(TestMemFragmentationSdkServer, Register_Failed)
 {
     MOCKER(RegisterIpcHandler).stubs().will(returnValue(VM_ERROR));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(VM_ERROR));
     EXPECT_EQ(VirtMemFragSdk::Register(), VM_ERROR);
     MOCKER(RegisterIpcHandler).reset();
 }
@@ -69,6 +70,7 @@ TEST_F(TestMemFragmentationSdkServer, Register_Failed)
 TEST_F(TestMemFragmentationSdkServer, Register_Success)
 {
     MOCKER(RegisterIpcHandler).stubs().will(returnValue(VM_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(VM_OK));
     EXPECT_EQ(VirtMemFragSdk::Register(), VM_OK);
     MOCKER(RegisterIpcHandler).reset();
 }
