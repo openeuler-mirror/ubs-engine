@@ -56,6 +56,7 @@ std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectI
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::mem::def;
 using namespace nodeController;
 using namespace ubse::mem::util;
 using namespace ubse::context;
@@ -1399,6 +1400,368 @@ TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_PartialLinkDown)
     MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
 
     SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, GetDebtTypeName_AllTypes)
+{
+    EXPECT_EQ(GetDebtTypeName(UbseMemBorrowType::FD_BORROW), "fd");
+    EXPECT_EQ(GetDebtTypeName(UbseMemBorrowType::NUMA_BORROW), "numa");
+    EXPECT_EQ(GetDebtTypeName(UbseMemBorrowType::SHM_BORROW), "share");
+    EXPECT_EQ(GetDebtTypeName(static_cast<UbseMemBorrowType>(99)), "unknown");
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_ShareType_Found)
+{
+    std::unordered_map<std::string, UbseMemShareBorrowExportObj> exportObjMap;
+    exportObjMap["testName"] = UbseMemShareBorrowExportObj{};
+
+    UbseMemShareBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_FALSE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_ShareType_NotFound)
+{
+    std::unordered_map<std::string, UbseMemShareBorrowExportObj> exportObjMap;
+    UbseMemShareBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_TRUE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_FdType_Found)
+{
+    std::unordered_map<std::string, UbseMemFdBorrowExportObj> exportObjMap;
+    exportObjMap["testName_1"] = UbseMemFdBorrowExportObj{};
+
+    UbseMemFdBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_FALSE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_NumaType_NotFound)
+{
+    std::unordered_map<std::string, UbseMemNumaBorrowExportObj> exportObjMap;
+    UbseMemNumaBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_TRUE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, CollectSingleImportHandleInfo_ShareType)
+{
+    UbseMemShareBorrowImportObj importObj{};
+    importObj.req.name = "shareTest";
+    importObj.req.udsInfo.uid = 1000;
+    importObj.req.udsInfo.gid = 1000;
+    importObj.req.udsInfo.pid = 1;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 200});
+
+    ubse::mem::def::ShareHandleInfoVec shareVec;
+    ubse::mem::def::NumaHandleInfoVec numaVec;
+    ubse::mem::def::FdHandleInfoVec fdVec;
+    ubse::mem::def::DebtHandleInfos handles{shareVec, numaVec, fdVec};
+    std::string name = "shareTest";
+    CollectSingleImportHandleInfo(importObj, name, handles, UbseMemBorrowType::SHM_BORROW);
+
+    ASSERT_EQ(handles.shareVec.size(), 1);
+    EXPECT_EQ(handles.shareVec[0].name, "shareTest");
+    EXPECT_EQ(handles.shareVec[0].memIds.size(), 2);
+    EXPECT_TRUE(handles.shareVec[0].memIds.count(100) > 0);
+    EXPECT_TRUE(handles.shareVec[0].memIds.count(200) > 0);
+}
+
+TEST_F(TestUbseMemControllerLedger, CollectSingleImportHandleInfo_NumaType)
+{
+    UbseMemNumaBorrowImportObj importObj{};
+    importObj.req.name = "numaTest";
+    importObj.req.udsInfo.uid = 1000;
+    importObj.req.udsInfo.gid = 1000;
+    importObj.req.udsInfo.pid = 1;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100, .numaId = 5});
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 200, .numaId = 10});
+
+    ubse::mem::def::ShareHandleInfoVec shareVec;
+    ubse::mem::def::NumaHandleInfoVec numaVec;
+    ubse::mem::def::FdHandleInfoVec fdVec;
+    ubse::mem::def::DebtHandleInfos handles{shareVec, numaVec, fdVec};
+    std::string name = "numaTest";
+    CollectSingleImportHandleInfo(importObj, name, handles, UbseMemBorrowType::NUMA_BORROW);
+
+    ASSERT_EQ(handles.numaVec.size(), 1);
+    EXPECT_EQ(handles.numaVec[0].name, "numaTest");
+    EXPECT_EQ(handles.numaVec[0].numaIds.size(), 2);
+    EXPECT_TRUE(handles.numaVec[0].numaIds.count(5) > 0);
+    EXPECT_TRUE(handles.numaVec[0].numaIds.count(10) > 0);
+}
+
+TEST_F(TestUbseMemControllerLedger, CollectSingleImportHandleInfo_FdType)
+{
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.udsInfo.uid = 1000;
+    importObj.req.udsInfo.gid = 1000;
+    importObj.req.udsInfo.pid = 1;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 300});
+
+    ubse::mem::def::ShareHandleInfoVec shareVec;
+    ubse::mem::def::NumaHandleInfoVec numaVec;
+    ubse::mem::def::FdHandleInfoVec fdVec;
+    ubse::mem::def::DebtHandleInfos handles{shareVec, numaVec, fdVec};
+    std::string name = "fdTest";
+    CollectSingleImportHandleInfo(importObj, name, handles, UbseMemBorrowType::FD_BORROW);
+
+    ASSERT_EQ(handles.fdVec.size(), 1);
+    EXPECT_EQ(handles.fdVec[0].name, "fdTest");
+    EXPECT_EQ(handles.fdVec[0].memIds.size(), 1);
+    EXPECT_TRUE(handles.fdVec[0].memIds.count(300) > 0);
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_FdType_SingleDebtFound)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    NodeMemDebtInfo exportDebtInfo;
+    UbseMemFdBorrowExportObj exportObj{};
+    exportObj.req.name = "fdTest";
+    exportDebtInfo.fdExportObjMap["fdTest_2"] = exportObj;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV;
+    ubse::mem::def::NumaHandleInfoVec nV;
+    ubse::mem::def::FdHandleInfoVec fV;
+    ubse::mem::def::DebtHandleInfos handles{sV, nV, fV};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles);
+
+    EXPECT_TRUE(handles.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_FdType_NoExportObj_SingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    NodeMemDebtInfo exportDebtInfo;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV2;
+    ubse::mem::def::NumaHandleInfoVec nV2;
+    ubse::mem::def::FdHandleInfoVec fV2;
+    ubse::mem::def::DebtHandleInfos handles2{sV2, nV2, fV2};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles2);
+
+    ASSERT_EQ(handles2.fdVec.size(), 1);
+    EXPECT_EQ(handles2.fdVec[0].name, "fdTest");
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_ShareType_SingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemShareBorrowImportObj importObj{};
+    importObj.req.name = "shareTest";
+    importObj.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.shareImportObjMap["shareTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    NodeMemDebtInfo exportDebtInfo;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV3;
+    ubse::mem::def::NumaHandleInfoVec nV3;
+    ubse::mem::def::FdHandleInfoVec fV3;
+    ubse::mem::def::DebtHandleInfos handles3{sV3, nV3, fV3};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.shareImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.shareExportObjMap; },
+        UbseMemBorrowType::SHM_BORROW, handles3);
+
+    ASSERT_EQ(handles3.shareVec.size(), 1);
+    EXPECT_EQ(handles3.shareVec[0].name, "shareTest");
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_EmptyExportNumaInfos)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.algoResult.exportNumaInfos.clear();
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV4;
+    ubse::mem::def::NumaHandleInfoVec nV4;
+    ubse::mem::def::FdHandleInfoVec fV4;
+    ubse::mem::def::DebtHandleInfos handles4{sV4, nV4, fV4};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles4);
+
+    EXPECT_TRUE(handles4.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_ExportNodeMismatch)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo{"3", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV5;
+    ubse::mem::def::NumaHandleInfoVec nV5;
+    ubse::mem::def::FdHandleInfoVec fV5;
+    ubse::mem::def::DebtHandleInfos handles5{sV5, nV5, fV5};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles5);
+
+    EXPECT_TRUE(handles5.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_ExportNodeNotFound)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo{"99", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV6;
+    ubse::mem::def::NumaHandleInfoVec nV6;
+    ubse::mem::def::FdHandleInfoVec fV6;
+    ubse::mem::def::DebtHandleInfos handles6{sV6, nV6, fV6};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles6);
+
+    EXPECT_TRUE(handles6.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterHandleSingleImportDebtWithExportNode_WithSingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    MOCKER(UbseMemFaultManager::ReportSingleImportDebt).stubs().will(returnValue(UBSE_OK));
+
+    auto ret = MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, "1");
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterHandleSingleImportDebtWithExportNode_EmptyMap)
+{
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    auto ret = MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, "1");
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterHandleSingleImportDebtWithExportNode_NoSingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    NodeMemDebtInfo exportDebtInfo;
+    UbseMemFdBorrowExportObj exportObj{};
+    exportObj.req.name = "fdTest";
+    exportDebtInfo.fdExportObjMap["fdTest_2"] = exportObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    auto ret = MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, "1");
+    EXPECT_EQ(ret, UBSE_OK);
 }
 
 } // namespace ubse::mem_controller::ut
