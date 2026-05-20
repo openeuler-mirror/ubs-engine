@@ -34,6 +34,5 @@ public:
 };
 
 UbseResult SetSysSentryFaultReporter();
-UbseResult SetSysSentryFaultEventOn();
 } // namespace syssentry
 #endif // UBSE_MANAGER_SYS_SENTRY_MODULE_H

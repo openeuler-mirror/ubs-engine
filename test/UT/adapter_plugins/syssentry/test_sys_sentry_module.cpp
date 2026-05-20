@@ -404,20 +404,6 @@ TEST_F(TestSysSentryModule, ProcessEids_RemoteNodeMoreEids)
     EXPECT_EQ(eidGroup[1], "eid3");
 }
 
-TEST_F(TestSysSentryModule, SetSysSentryFaultEventOn_ExecFails)
-{
-    MOCKER_CPP(&ubse::utils::UbseOsUtil::Exec).stubs().will(returnValue(UBSE_ERROR));
-    auto ret = SetSysSentryFaultEventOn();
-    EXPECT_EQ(ret, UBSE_RAS_ERROR_SET_FAULT_EVENT_ON);
-}
-
-TEST_F(TestSysSentryModule, SetSysSentryFaultEventOn_Success)
-{
-    MOCKER_CPP(&ubse::utils::UbseOsUtil::Exec).stubs().will(returnValue(UBSE_OK));
-    auto ret = SetSysSentryFaultEventOn();
-    EXPECT_EQ(ret, UBSE_OK);
-}
-
 static UbseResult StubGetEidsOk(std::string& clientEid, std::string& serverEids)
 {
     clientEid = "client_eid";

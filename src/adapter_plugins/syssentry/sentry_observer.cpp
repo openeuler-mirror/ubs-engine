@@ -294,10 +294,6 @@ UbseResult UbseRasObserver::UbseConfigSysSentry()
         UBSE_LOG_INFO << "SysSentry has been configured";
         return UBSE_OK;
     }
-    if (SetSysSentryFaultEventOn() != UBSE_OK) {
-        UBSE_LOG_DEBUG << "Fail to enable fault event";
-        return UBSE_RAS_ERROR_SET_FAULT_EVENT_ON;
-    }
     if (SetSysSentryFaultReporter() != UBSE_OK) {
         UBSE_LOG_DEBUG << "Fail to set fault reporter";
         return UBSE_RAS_ERROR_SET_SENTRY_REPORTER;
