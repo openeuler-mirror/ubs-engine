@@ -43,9 +43,8 @@ private:
     MpParseGroupProviderConf(const MpParseGroupProviderConf&) = delete;
     MpParseGroupProviderConf& operator=(const MpParseGroupProviderConf&) = delete;
 
-    MpResult BuildBorrowMap();
-    MpResult ParseBorrowConf(UbseMemGroupNodeList& groupList, UbseMemProviderNodeList& providerList);
-    std::map<std::string, std::unordered_set<std::string>> borrowMap;
+    MpResult BuildBorrowMap(std::map<std::string, std::unordered_set<std::string>> &borrowMap);
+    MpResult ParseBorrowConf(UbseMemGroupNodeList &groupList, UbseMemProviderNodeList &providerList);
 };
 
 } // namespace mempooling
