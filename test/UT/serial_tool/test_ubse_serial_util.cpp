@@ -629,4 +629,85 @@ TEST(SerialUtilTest, vector_bool_serial)
     EXPECT_EQ(vectors, vectors2);
 }
 
+TEST(SerialUtilTest, unordered_set_int_serial)
+{
+    std::unordered_set<int> set_s{1, 2, 3, 4, 5};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<int> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_s.size(), set_d.size());
+    for (const auto& val : set_s) {
+        EXPECT_TRUE(set_d.count(val) > 0);
+    }
+}
+
+TEST(SerialUtilTest, unordered_set_uint64_t_serial)
+{
+    std::unordered_set<uint64_t> set_s{100, 200, 300, 400};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<uint64_t> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_s.size(), set_d.size());
+    for (const auto& val : set_s) {
+        EXPECT_TRUE(set_d.count(val) > 0);
+    }
+}
+
+TEST(SerialUtilTest, unordered_set_string_serial)
+{
+    std::unordered_set<std::string> set_s{"hello", "world", "test"};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<std::string> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_s.size(), set_d.size());
+    for (const auto& val : set_s) {
+        EXPECT_TRUE(set_d.count(val) > 0);
+    }
+}
+
+TEST(SerialUtilTest, unordered_set_empty_serial)
+{
+    std::unordered_set<int> set_s;
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<int> set_d;
+    set_d.insert(999);
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_TRUE(set_d.empty());
+}
+
+TEST(SerialUtilTest, unordered_set_single_element_serial)
+{
+    std::unordered_set<int> set_s{42};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<int> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_d.size(), 1);
+    EXPECT_TRUE(set_d.count(42) > 0);
+}
+
 } // namespace ubse::ut::serial
