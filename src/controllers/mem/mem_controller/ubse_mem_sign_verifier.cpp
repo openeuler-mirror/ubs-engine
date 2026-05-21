@@ -12,10 +12,14 @@
 
 #include "ubse_mem_sign_verifier.h"
 
+#include <chrono>
+#include <thread>
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_error.h"
 #include "ubse_json_util.h"
 #include "ubse_logger.h"
+#include "ubse_sign_token_bucket.h"
 #include "ubse_str_util.h"
 #include "src/framework/vscok/ubse_vsock_client.h"
 
@@ -27,8 +31,9 @@ using namespace log;
 constexpr uint32_t REQ_TYPE_SIGN = 0x10;
 constexpr uint32_t REQ_TYPE_VERIFY_AND_SIGN = 0x0012;
 constexpr uint32_t TO_SIGN_DATA_SIZE = 20; // 8 + 8 + 4
-static uint32_t requestId = 0;
-// static vscok::UbseVsockClient client;
+constexpr uint32_t RETRY_INTERVAL_MS = 5;  // 重试间隔
+constexpr uint32_t MAX_RETRY_COUNT = 3;    // 最多重试3次
+static uint32_t g_requestId = 0;
 ReadWriteLock requestIdLock;
 
 class Base64 {
@@ -108,7 +113,7 @@ private:
 UbseResult GetRequestId()
 {
     requestIdLock.LockWrite();
-    const uint32_t id = requestId++;
+    const uint32_t id = g_requestId++;
     requestIdLock.UnLock();
     return id;
 }
@@ -159,29 +164,36 @@ std::string StrToBase64(const std::string_view s)
 
 UbseResult UbseMemSignVerifier::Sign(const std::string& type, std::string& signedData, std::string& trustRingId)
 {
-    // 构造请求
-    Document doc;
-    doc.SetObject();
-    Document::AllocatorType& allocator = doc.GetAllocator();
-    Value toSign(kObjectType);
-    std::string base64Type = StrToBase64(type);
-    toSign.AddMember("data", Value(base64Type.c_str(), allocator), allocator);
-    doc.AddMember("to-sign", toSign, allocator);
-    StringBuffer buffer;
-    Writer writer(buffer);
-    doc.Accept(writer);
-
-    // 发送请求
-    vsock::UbseSignReq signReq{GetRequestId(), REQ_TYPE_SIGN, buffer.GetString()};
-    vsock::UbseSignRsp rsp{};
+    auto token = UbseSignTokenBucket::GetInstance().Acquire();
     vsock::UbseVsockClient client;
-    if (const auto ret = client.UbseVsockSend(signReq, rsp); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MTI_MEM] Send request failed, " << FormatRetCode(ret);
-        return ret;
+    if (!client.Connect()) {
+        return UBSE_ERROR;
     }
+    for (uint32_t retryCount = 0; retryCount <= MAX_RETRY_COUNT; ++retryCount) {
+        Document doc;
+        doc.SetObject();
+        Document::AllocatorType& allocator = doc.GetAllocator();
+        Value toSign(kObjectType);
+        std::string base64Type = StrToBase64(type);
+        toSign.AddMember("data", Value(base64Type.c_str(), allocator), allocator);
+        doc.AddMember("to-sign", toSign, allocator);
+        StringBuffer buffer;
+        Writer writer(buffer);
+        doc.Accept(writer);
 
-    // 解析响应
-    return ParseResponse(rsp.signedData, signedData, trustRingId);
+        vsock::UbseSignReq signReq{GetRequestId(), REQ_TYPE_SIGN, buffer.GetString()};
+        vsock::UbseSignRsp rsp{};
+
+        if (const auto ret = client.UbseVsockSend(signReq, rsp); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MTI_MEM] Send request failed, " << FormatRetCode(ret);
+            std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_INTERVAL_MS));
+            continue;
+        }
+        if (const auto ret = ParseResponse(rsp.signedData, signedData, trustRingId); ret == UBSE_OK) {
+            return UBSE_OK;
+        }
+    }
+    return UBSE_ERR_DAEMON_BUSY;
 }
 
 std::string BuildRawData(const std::string_view type, const UbseMemObmmInfo& exportObmmInfo)
@@ -199,6 +211,11 @@ std::string BuildRawData(const std::string_view type, const UbseMemObmmInfo& exp
 UbseResult UbseMemSignVerifier::SignAndVerify(const UbseExportSignReq& signReq,
                                               std::vector<std::string>& lendSignedDatas)
 {
+    auto token = UbseSignTokenBucket::GetInstance().Acquire();
+    vsock::UbseVsockClient client;
+    if (!client.Connect()) {
+        return UBSE_ERROR;
+    }
     for (const auto exportObmmInfo : signReq.exportObmmInfo) {
         std::string lendSignedData{};
         // 构造请求
@@ -225,19 +242,24 @@ UbseResult UbseMemSignVerifier::SignAndVerify(const UbseExportSignReq& signReq,
 
         // 发送请求
         vsock::UbseSignReq vsockReq{GetRequestId(), REQ_TYPE_VERIFY_AND_SIGN, buffer.GetString()};
-        vsock::UbseSignRsp rsp{};
-        vsock::UbseVsockClient client;
-        if (const auto ret = client.UbseVsockSend(vsockReq, rsp); ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MTI_MEM] Send request failed, " << FormatRetCode(ret);
+        auto ret = UBSE_ERROR;
+        for (uint32_t retryCount = 0; retryCount <= MAX_RETRY_COUNT; ++retryCount) {
+            vsock::UbseSignRsp rsp{};
+            if (ret = client.UbseVsockSend(vsockReq, rsp); ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "[MTI_MEM] Send request failed, " << FormatRetCode(ret);
+                std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_INTERVAL_MS));
+                continue;
+            }
+            std::string trustChainId;
+            if (ret = ParseResponse(rsp.signedData, lendSignedData, trustChainId); ret != UBSE_OK) {
+                continue;
+            }
+            lendSignedDatas.emplace_back(lendSignedData);
+            break;
+        }
+        if (ret != UBSE_OK) {
             return ret;
         }
-
-        // 解析响应
-        std::string trustChainId;
-        if (const auto ret = ParseResponse(rsp.signedData, lendSignedData, trustChainId); ret != UBSE_OK) {
-            return ret;
-        }
-        lendSignedDatas.emplace_back(lendSignedData);
     }
     return UBSE_OK;
 }
