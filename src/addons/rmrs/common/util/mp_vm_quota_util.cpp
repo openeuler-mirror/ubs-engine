@@ -191,6 +191,7 @@ uint32_t MpVmQuotaUtil::CheckQuotaExceedsLimit(const std::vector<mempooling::out
                                                const std::map<int, uint64_t>& numaLimits)
 {
     for (const auto& pair : pageSwapPairs) {
+        // Validate localNumas quota
         for (const auto& local : pair.localNumas) {
             int numaId = static_cast<int>(local.numaId);
             uint64_t quotaKB = local.quota;
@@ -199,13 +200,33 @@ uint32_t MpVmQuotaUtil::CheckQuotaExceedsLimit(const std::vector<mempooling::out
                 uint64_t limitKB = it->second;
                 if (quotaKB > limitKB) {
                     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                        << "[CheckQuota] quota exceeds limit: numaId=" << numaId << ", quota=" << quotaKB
+                        << "[CheckQuota] localNuma quota exceeds limit: numaId=" << numaId << ", quota=" << quotaKB
                         << "KB, limit=" << limitKB << "KB";
                     return MEM_POOLING_ERROR;
                 }
             } else {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[CheckQuota] Not Found Numa " << numaId << " in <numatune>";
+                    << "[CheckQuota] localNuma " << numaId << " not found in <numatune>";
+                return MEM_POOLING_ERROR;
+            }
+        }
+
+        // Validate remoteNumas quota
+        for (const auto& remote : pair.remoteNumas) {
+            int numaId = static_cast<int>(remote.numaId);
+            uint64_t quotaKB = remote.quota;
+            auto it = numaLimits.find(numaId);
+            if (it != numaLimits.end()) {
+                uint64_t limitKB = it->second;
+                if (quotaKB > limitKB) {
+                    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                        << "[CheckQuota] remoteNuma quota exceeds limit: numaId=" << numaId << ", quota=" << quotaKB
+                        << "KB, limit=" << limitKB << "KB";
+                    return MEM_POOLING_ERROR;
+                }
+            } else {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[CheckQuota] remoteNuma " << numaId << " not found in <numatune>";
                 return MEM_POOLING_ERROR;
             }
         }
