@@ -216,31 +216,6 @@ UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
     return UBSE_OK;
 }
 
-UbseResult SetSysSentryFaultEventOn()
-{
-    std::string commandSetPanicReporter = "sentryctl set sentry_remote_reporter --panic=on 2>&1";
-    std::string commandSetKernelRebootReporter = "sentryctl set sentry_remote_reporter --kernel_reboot=on 2>&1";
-    std::string commandSetBmcReporter = "sentryctl set sentry_reporter --power_off=on 2>&1";
-    std::string commandSetMemFaultReporter = "sentryctl set sentry_reporter --ub_mem_fault=on 2>&1";
-    std::string commandSetOomFaultReporter = "sentryctl set sentry_reporter --oom=on 2>&1";
-    using CommandDescList = std::vector<std::pair<std::string, std::string>>;
-    CommandDescList tasks = {{commandSetPanicReporter, "commandSetPanicReporter"},
-                             {commandSetKernelRebootReporter, "commandSetKernelRebootReporter"},
-                             {commandSetBmcReporter, "commandSetBmcReporter"},
-                             {commandSetMemFaultReporter, "commandSetMemFaultReporter"},
-                             {commandSetOomFaultReporter, "commandSetOomFaultReporter"}};
-    std::string commandResult;
-    for (const auto &[command, desc] : tasks) {
-        commandResult = "";
-        auto result = ubse::utils::UbseOsUtil::Exec(command, commandResult);
-        if (result != UBSE_OK) {
-            UBSE_LOG_DEBUG << "Failed to execute: " << desc;
-            return UBSE_RAS_ERROR_SET_FAULT_EVENT_ON;
-        }
-    }
-    return UBSE_OK;
-}
-
 UbseResult SetSysSentryFaultReporter()
 {
     std::string clientEid;

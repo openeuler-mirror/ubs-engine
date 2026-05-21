@@ -221,17 +221,8 @@ TEST_F(TestSentryObserver, UbseConfigSysSentry_AlreadyConfigured)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestSentryObserver, UbseConfigSysSentry_SetEventOnFails)
-{
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_ERROR));
-    auto &observer = UbseRasObserver::GetInstance();
-    auto ret = observer.UbseConfigSysSentry();
-    EXPECT_EQ(ret, UBSE_RAS_ERROR_SET_FAULT_EVENT_ON);
-}
-
 TEST_F(TestSentryObserver, UbseConfigSysSentry_SetReporterFails)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SetSysSentryFaultReporter).stubs().will(returnValue(UBSE_ERROR));
     auto &observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentry();
@@ -240,7 +231,6 @@ TEST_F(TestSentryObserver, UbseConfigSysSentry_SetReporterFails)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentry_Success)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SetSysSentryFaultReporter).stubs().will(returnValue(UBSE_OK));
     auto &observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentry();
@@ -290,7 +280,6 @@ TEST_F(TestSentryObserver, UbseQueryMsgMonitorTimerRun_ExecFails)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryTimerRun_ConfigSuccess)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SetSysSentryFaultReporter).stubs().will(returnValue(UBSE_OK));
     MOCKER(ubse::timer::UbseTimerHandlerUnregister).stubs().will(ignoreReturnValue());
     auto &observer = UbseRasObserver::GetInstance();
@@ -300,8 +289,7 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryTimerRun_ConfigSuccess)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryTimerRun_StopFlag)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_ERROR));
-    auto &observer = UbseRasObserver::GetInstance();
+    auto& observer = UbseRasObserver::GetInstance();
     observer.stopThread = true;
     observer.UbseConfigSysSentryTimerRun();
     EXPECT_FALSE(observer.configSysSentrySuccess);
@@ -309,8 +297,7 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryTimerRun_StopFlag)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryTimerRun_RetryLater)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_ERROR));
-    auto &observer = UbseRasObserver::GetInstance();
+    auto& observer = UbseRasObserver::GetInstance();
     observer.UbseConfigSysSentryTimerRun();
     EXPECT_FALSE(observer.configSysSentrySuccess);
 }
@@ -325,7 +312,6 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_GlobalStop)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_Success)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SetSysSentryFaultReporter).stubs().will(returnValue(UBSE_OK));
     auto &observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentryWithRetry();
@@ -334,7 +320,6 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_Success)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_TimerRegistered)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_ERROR));
     MOCKER(ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_OK));
     auto &observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentryWithRetry();
@@ -343,7 +328,6 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_TimerRegistered)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_TimerRegisterFail)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_ERROR));
     MOCKER(ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_ERROR));
     auto &observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentryWithRetry();
@@ -352,7 +336,6 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_TimerRegisterFail)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_GlobalStopAfterConfigFails)
 {
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_ERROR));
     ubse::context::g_globalStop = true;
     auto &observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentryWithRetry();
@@ -507,8 +490,7 @@ TEST_F(TestSentryObserver, SentryEventListen_RegisterNull)
 TEST_F(TestSentryObserver, SentryEventListen_GetEventError)
 {
     MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_OK));
-    auto &instance = UbseRasObserver::GetInstance();
+    auto& instance = UbseRasObserver::GetInstance();
     instance.xalarmUnRegisterFunc = StubUnreg;
     instance.xalarmRegisterFunc = StubSentryRegAlloc;
     instance.xalarmGetEventFunc = StubSentryGetEventErrAndStop;
@@ -518,7 +500,6 @@ TEST_F(TestSentryObserver, SentryEventListen_GetEventError)
 TEST_F(TestSentryObserver, SentryEventListen_GetEventNotConn)
 {
     MOCKER_CPP(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(SetSysSentryFaultEventOn).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SetSysSentryFaultReporter).stubs().will(returnValue(UBSE_OK));
     auto &instance = UbseRasObserver::GetInstance();
     instance.xalarmUnRegisterFunc = StubUnreg;

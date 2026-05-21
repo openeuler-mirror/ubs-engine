@@ -37,9 +37,8 @@ extern std::vector<std::string> SplitString(const std::string &str, char delimit
 extern UbseResult GetEids(std::string &clientEid, std::string &serverEids);
 extern UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas);
 extern UbseResult SetSysSentryFaultReporter();
-extern UbseResult SetSysSentryFaultEventOn();
-extern void LinkStrings(std::string &result, const std::string linkSymbol, const std::vector<std::string> strings);
-extern std::string ShellEscape(const std::string &str);
+extern void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings);
+extern std::string ShellEscape(const std::string& str);
 extern UbseResult ProcessEids(const std::map<ubse::adapter_plugins::mti::UbseDevName,
                                              ubse::adapter_plugins::mti::UbseUrmaEidInfo> &allSocketComEid,
                               const std::string &nodeId,
