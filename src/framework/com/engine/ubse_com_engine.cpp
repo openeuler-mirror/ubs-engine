@@ -313,17 +313,6 @@ static void AssignServiceOptions(const UbseComEngineInfo& engineInfo, UBSHcomSer
     options.workerThreadPriority = WORKER_THREAD_PRIORITY;
 }
 
-void SetChannelTimeout(const UbseChannelType chType, UBSHcomChannelPtr channelPtr, int16_t timeout,
-                       int16_t heartBeatTimeout)
-{
-    // TCP协议使用rndv开启，URMA协议使用拆包。由于目前HCOM CALL接口在TCP协议下不支持拆包，所以拆包阈值按照URMA配置。
-    // 由于TCP阈值配置大于URMA阈值配置，所以RNDV阈值根据TCP阈值配置，这样URMA就不会使用RNDV
-    UBSHcomTwoSideThreshold th;
-    th.splitThreshold = SEND_RECEIVE_SIZE;
-    channelPtr->SetTwoSideThreshold(th);
-    channelPtr->SetChannelTimeOut(timeout, timeout);
-}
-
 bool GetEnableTlsValue()
 {
     bool enableTlsValue = true;
@@ -334,6 +323,20 @@ bool GetEnableTlsValue()
         enableTlsValue = true;
     }
     return enableTlsValue;
+}
+
+void SetChannelThreshold(UBSHcomChannelPtr channelPtr)
+{
+    UBSHcomTwoSideThreshold th;
+    // hcom拆包阈值，需要预留TLS加密的空间，splitThreshold不能超过maxSendRecvDataSize
+    th.splitThreshold = SEND_RECEIVE_SIZE - NO_1024;
+    channelPtr->SetTwoSideThreshold(th);
+}
+
+void SetChannelTimeout(UBSHcomChannelPtr channelPtr, int16_t timeout)
+{
+    SetChannelThreshold(channelPtr);
+    channelPtr->SetChannelTimeOut(timeout, timeout);
 }
 
 UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo& info, UBSHcomConnectOptions options,
@@ -410,7 +413,7 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseC
         RemoveConnectingNode(info.GetIp(), chType);
         return UBSE_ERROR_NULLPTR;
     }
-    SetChannelTimeout(chType, channelPtr, timeout_, heartBeatTimeout_);
+    SetChannelTimeout(channelPtr, timeout_);
     if (GetRemoteNodeIdByCall(info.GetIp(), channelPtr, remoteNodeId) != UBSE_OK) {
         auto chId = channelPtr->GetId();
         DestroyChannel(channelPtr);
@@ -856,7 +859,7 @@ UbseResult UbseComEngine::NewChannel(const std::string& ipPort, const UBSHcomCha
     }
     connectInfo.SetIp(ip);
     connectInfo.SetPort(port);
-    SetChannelTimeout(payLoadPair.second, ch, timeout_, heartBeatTimeout_);
+    SetChannelTimeout(ch, timeout_);
     UbseComChannelInfo chInfo(true, payLoadPair.second, engineName, ch, connectInfo);
     UpdateNewChannelIdMap(payLoadPair.first, chInfo);
     auto ret = AddConnectingNodeForServer(chInfo);
@@ -947,7 +950,7 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
     connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
     connectInfo.SetRemoteNodeId(payLoadPair.first);
     connectInfo.SetIp(ip);
-    SetChannelTimeout(payLoadPair.second, ch, timeout_, heartBeatTimeout_);
+    SetChannelTimeout(ch, timeout_);
     UbseComChannelInfo chInfo(true, payLoadPair.second, engineInfo_.GetName(), ch, connectInfo);
     auto res = InsertChannelToMap(chInfo);
     RemoveConnectingNode(ip, payLoadPair.second);

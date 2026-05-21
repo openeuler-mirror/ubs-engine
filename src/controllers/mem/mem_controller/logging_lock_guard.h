@@ -14,14 +14,19 @@
 #define LOGGING_LOCK_GUARD_H
 
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 
 namespace ubse::mem::controller {
 
 class LoggingLockGuard {
 public:
-    explicit LoggingLockGuard(const std::string& name);
+    enum class LockType {
+        READ,
+        WRITE
+    };
+
+    explicit LoggingLockGuard(const std::string& name, LockType type = LockType::WRITE);
 
     ~LoggingLockGuard();
 
@@ -30,13 +35,14 @@ public:
     LoggingLockGuard& operator=(const LoggingLockGuard&) = delete;
 
 private:
-    std::shared_ptr<std::mutex> GetObjMutex(const std::string& objId);
+    std::shared_ptr<std::shared_mutex> GetObjMutex(const std::string& objId);
     void RemoveObjMutex(const std::string& objId);
 
-    std::shared_ptr<std::mutex> mutex_;
+    std::shared_ptr<std::shared_mutex> mutex_;
     std::string name_;
+    LockType lockType_;
 
-    static std::unordered_map<std::string, std::shared_ptr<std::mutex>> mutexMap;
+    static std::unordered_map<std::string, std::shared_ptr<std::shared_mutex>> mutexMap;
     static std::mutex mapMutex;
 };
 } // namespace ubse::mem::controller
