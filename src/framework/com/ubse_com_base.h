@@ -29,6 +29,7 @@
 #include "trace_context.h"
 #include "ubse_base_message.h" // for UbseBaseMessage, UbseBaseMessag...
 #include "ubse_com_def.h"      // for UbseComMessageCtx, UbseComMessage
+#include "ubse_com.h"
 #include "ubse_com_op_code.h"
 #include "ubse_common_def.h"      // for UbseResult, UBSE_AGENT_IPC_SERV...
 #include "ubse_error.h"           // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
@@ -309,6 +310,15 @@ public:
         return UbseCommunication::RegUbseComMsgHandler(name_, hdl);
     }
 
+    UbseResult RegMessageHandler(uint16_t moduleCode, uint16_t opCode)
+    {
+        UbseComMsgHandler hdl{};
+        hdl.opCode = opCode;
+        hdl.moduleCode = moduleCode;
+        hdl.handler = [](UbseComMessageCtx &message) { HandleEndpointRequest(message); };
+        return UbseCommunication::RegUbseComMsgHandler(name_, hdl);
+    }
+
     /* *
      * @brief 同步发送消息
      * @param[in] param: 调用参数
@@ -345,6 +355,43 @@ public:
         return ret;
     }
 
+    UbseResult Send(const std::string &targetNodeId, uint16_t moduleCode, uint16_t opCode,
+                    const UbseRpcMessage &request, UbseRpcMessage &response)
+    {
+        std::unique_ptr<uint8_t[]> buffer;
+        uint32_t reqSize = 0;
+        auto ret = request.Serialize(buffer, reqSize);
+        if (ret != UBSE_OK || buffer == nullptr) {
+            UBSE_LOG_ERROR << "UbseComEndpoint sync send serialize failed, moduleCode=" << moduleCode
+                           << ", opCode=" << opCode << FormatRetCode(ret);
+            return ret;
+        }
+
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        if (!reqBuffer || reqBuffer->empty()) {
+            UBSE_LOG_ERROR << "node " << nodeId_ << " encode req msg failed.";
+            return UBSE_ERROR;
+        }
+        UbseChannelType type = UbseChannelType::NORMAL;
+        auto remoteId = targetNodeId;
+        UbseComMessageCtx transMessage{reqBuffer->data(), nodeId_, remoteId, type};
+        UbseComDataDesc retData(nullptr, 0);
+        ret = UbseCommunication::UbseComMsgSend(name_, transMessage, retData);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "node " << nodeId_ << " call " << remoteId << " failed, "
+                           << FormatRetCode(ret);
+            return ret;
+        }
+
+        ret = response.Deserialize(retData.data, retData.len);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "node " << nodeId_ << " deserialize " << remoteId << " response failed, "
+                           << FormatRetCode(ret);
+        }
+        SafeFree(retData.data);
+        return ret;
+    }
+
     /* *
      * @brief 异步发送消息
      * @param[in] param: 调用参数
@@ -365,6 +412,31 @@ public:
         UbseComMessageCtx transMessage{ msg, nodeId_, param.GetRemoteId(), type };
         auto ret = UbseCommunication::UbseComMsgAsyncSend(name_, transMessage, usrCb);
         UbseComMessage::FreeMessage(msg);
+        return ret;
+    }
+
+    UbseResult AsyncSend(const std::string &targetNodeId, uint16_t moduleCode, uint16_t opCode,
+                         const UbseRpcMessage &request, const UbseComCallback &usrCb)
+    {
+        std::unique_ptr<uint8_t[]> buffer;
+        uint32_t reqSize = 0;
+        auto ret = request.Serialize(buffer, reqSize);
+        if (ret != UBSE_OK || buffer == nullptr) {
+            UBSE_LOG_ERROR << "async send serialize failed, moduleCode=" << moduleCode
+                           << ", opCode=" << opCode << FormatRetCode(ret);
+            return ret;
+        }
+
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        if (!reqBuffer || reqBuffer->empty()) {
+            UBSE_LOG_ERROR << "node " << nodeId_ << " encode req msg failed.";
+            return UBSE_ERROR;
+        }
+        UbseChannelType type = UbseChannelType::NORMAL;
+        auto remoteId = targetNodeId;
+        UbseComMessageCtx transMessage{reqBuffer->data(), nodeId_, remoteId, type};
+        ret = UbseCommunication::UbseComMsgAsyncSend(name_, transMessage, usrCb);
+
         return ret;
     }
 
@@ -453,6 +525,96 @@ private:
         SubmitHandlerTask(crc, handler, message, reqPtr, respPtr);
         UBSE_LOG_DEBUG << "module=" << moduleCode << ", opCode=" << opCode << " request end";
         TraceContext::Clear();
+    }
+
+    static void HandleEndpointRequest(UbseComMessageCtx &message)
+    {
+        auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(message.GetMessage()));
+        if (ucMsg == nullptr) {
+            UBSE_LOG_ERROR << "Convert ubse com message ptr failed. ";
+            return;
+        }
+        uint16_t moduleCode = ucMsg->GetMessageHead().GetModuleCode();
+        uint16_t opCode = ucMsg->GetMessageHead().GetOpCode();
+        uint32_t crc = ucMsg->GetMessageHead().GetCrc();
+        auto reqData = ucMsg->GetMessageBody();
+        auto reqSize = ucMsg->GetMessageBodyLen();
+        auto endpointPtr = UbseRpcEndpointFactory::GetRpcEndpoint(moduleCode, opCode);
+        if (!endpointPtr) {
+            UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " endpoint not exists";
+            return;
+        }
+        if (reqData == nullptr || reqSize == 0) {
+            UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " reqData is null";
+            return;
+        }
+
+        auto reqCopy = SafeMakeShared<std::vector<uint8_t>>(reqData, reqData + reqSize);
+        if (!reqCopy) {
+            UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " reqCopy alloc fail";
+            return;
+        }
+        SubmitReceiverTask(crc, *endpointPtr, message, reqCopy, reqSize);
+        UBSE_LOG_DEBUG << "module=" << moduleCode << ", opCode=" << opCode << " request end";
+        TraceContext::Clear();
+    }
+
+    static void SubmitReceiverTask(uint32_t crc, const UbseRpcEndpoint &endpoint, UbseComMessageCtx &message,
+                                  std::shared_ptr<std::vector<uint8_t>> reqData, uint32_t reqSize)
+    {
+        auto moduleCode = endpoint.GetModuleCode();
+        auto opCode = endpoint.GetOpCode();
+        auto handler = endpoint.GetReceiver();
+
+        HandlerExecutor executor;
+        executorType type = executorType::COM;
+        if (message.GetEngineName() == UBSE_AGENT_IPC_SERVER_ENGINE_NAME) {
+            executor = gIpcHandlerExecutor_;
+        } else {
+            executor = gHandlerExecutor_;
+        }
+        if (moduleCode == static_cast<uint16_t>(UbseModuleCode::ELECTION)) {
+            type = executorType::HEARTBEAT;
+        }
+
+        executor(
+            [crc, moduleCode, opCode, handler, reqData, reqSize, message] {
+                TraceContext::SetTraceId(message.GetTraceId());
+                auto ctx = new (std::nothrow)
+                    UbseComBaseMessageHandlerCtx(message.GetEngineName(), message.GetChannelId(),
+                                          message.GetRspCtx(), message.GetDstId());
+                if (ctx == nullptr) {
+                    UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode
+                                   << " new UbseComBaseMessageHandlerCtx fail";
+                    return;
+                }
+                ctx->SetCrc(crc);
+                ctx->SetUdsIdInfo(message.GetUdsInfo());
+                ctx->SetChannelPtr(message.GetChannelPtr());
+                ctx->SetRemoteCall(message.IsRemoteCall());
+                auto resp = std::unique_ptr<UbseRpcMessage>(nullptr);
+                handler(reqData->data(), reqSize, resp);
+                
+                UbseComMessageCtx msgCtx(message.GetEngineName(), message.GetRspCtx(), message.GetChannelId(),
+                                         message.GetDstId());
+                msgCtx.SetChannelPtr(msgCtx.GetChannelPtr());
+                if (ctx->IsRemoteCall()) {
+                    msgCtx.SetRemoteCall();
+                }
+                if (resp != nullptr) {
+                    std::unique_ptr<uint8_t[]> buffer;
+                    uint32_t respSize = 0;
+                    if (auto ret = resp->Serialize(buffer, respSize); ret != UBSE_OK || buffer == nullptr) {
+                        UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode
+                                       << " serialize response failed, " << FormatRetCode(ret);
+                    } else {
+                        UbseComDataDesc respData{buffer.get(), respSize};
+                        ReplyMsg(msgCtx, respData);
+                    }
+                }
+                SafeDelete(ctx);
+            },
+            type);
     }
 
     static void SubmitHandlerTask(uint32_t crc, UbseComBaseMessageHandlerPtr &handler, UbseComMessageCtx &message,
