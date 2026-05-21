@@ -302,13 +302,20 @@ UbseResult CheckReconciliationStatus(const std::set<uint32_t> &staticNodeInfoLis
         auto it = nodeMap.find(tmpNodeId);
         if (it == nodeMap.end()) {
             UBSE_LOG_WARN << "Node=" << tmpNodeId << " does not exist in node controller.";
-            return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不存在
+            return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 集群存在节点故障，账本不完整
+        }
+
+        if (it->second.clusterState == UbseNodeClusterState::UBSE_NODE_INIT ||
+            it->second.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
+            UBSE_LOG_WARN << "Node=" << tmpNodeId
+                          << " is smoothing, clusterState=" << static_cast<uint32_t>(it->second.clusterState);
+            return UBSE_MEMCONTROLLER_ERROR_SMOOTHING; // 对账未完成
         }
 
         if (it->second.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
             UBSE_LOG_WARN << "Node=" << tmpNodeId
                           << " does not working, clusterState=" << static_cast<uint32_t>(it->second.clusterState);
-            return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 2:部分成功，节点不在工作状态
+            return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS; // 集群存在节点故障，账本不完整
         }
     }
     return UBSE_OK;

@@ -82,7 +82,7 @@ struct UbseNumaMemoryDebtInfo {
 * @param debtInfos [out] 借用账本对象集合
 * @return #UBSE_OK 成功
 * @return #UBSE_ERR_INVALID_ARG 无效参数
-* @return #UBSE_PAR_SUCCESS 部分成功
+* @return #UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS 集群存在节点故障，账本不完整
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
 UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
@@ -90,12 +90,12 @@ UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector
 /**
 * @brief 返回当前集群topo中的所有对账完成节点的账本信息。
 * 当前集群topo中所有节点均对账完成则返回成功
-* 否则返回部分成功。
 * @param debtInfos [out] 借用账本对象集合
 * @return #UBSE_OK 成功
 * @return #UBSE_ERR_INVALID_ARG 无效参数
-* @return #UBSE_PAR_SUCCESS 部分成功
+* @return #UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS 集群存在节点故障，账本不完整
 * @return #UBSE_ERR_INTERNAL 内部错误
+* @return #UBSE_MEMCONTROLLER_ERROR_SMOOTHING 对账未完成
 */
 UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
 
@@ -314,7 +314,8 @@ UbseResult UbseMemDebtCircleCheck(const std::string &srcNodeId, const std::strin
 * @param debtInfos [out] 借用账本对象集合
 * @return #UBSE_OK 成功
 * @return #UBSE_ERR_INVALID_ARG 无效参数
-* @return #UBSE_PAR_SUCCESS 部分成功
+ * @return #UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS 集群存在节点故障，账本不完整
+ * @return #UBSE_MEMCONTROLLER_ERROR_SMOOTHING 对账未完成
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
 UbseResult UbseGetAddrMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseMemAddrDesc> &debtInfos);
