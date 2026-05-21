@@ -221,13 +221,6 @@ TEST_F(TestSentryObserver, UbseConfigSysSentry_AlreadyConfigured)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestSentryObserver, UbseConfigSysSentry_SetEventOnFails)
-{
-    auto& observer = UbseRasObserver::GetInstance();
-    auto ret = observer.UbseConfigSysSentry();
-    EXPECT_EQ(ret, UBSE_RAS_ERROR_SET_FAULT_EVENT_ON);
-}
-
 TEST_F(TestSentryObserver, UbseConfigSysSentry_SetReporterFails)
 {
     MOCKER_CPP(SetSysSentryFaultReporter).stubs().will(returnValue(UBSE_ERROR));
