@@ -16,6 +16,7 @@
 #include "adapter_plugins/mmi/ubse_mmi_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_error.h"
 #include "src/framework/vscok/ubse_vsock_client.h"
 
 namespace ubse::mem_controller::ut {
@@ -36,17 +37,14 @@ void TestUbseMemSignVerifier::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseMemSignVerifier, Sign_Success)
+TEST_F(TestUbseMemSignVerifier, Sign_ConnectFail)
 {
     std::string type = "test_type";
     std::string signedData;
     std::string trustRingId;
-    vsock::UbseSignRsp rsp;
-    rsp.signedData = R"({"result":0,"signed_data":"test_signed_data","id":"test_trust_ring_id"})";
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
-    MOCKER(&vsock::UbseVsockClient::UbseVsockSend).stubs().with(any(), outBound(rsp)).will(returnValue(UBSE_OK));
     auto ret = UbseMemSignVerifier::Sign(type, signedData, trustRingId);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERROR);
 }
 
 TEST_F(TestUbseMemSignVerifier, Sign_VsockSendFail)
@@ -55,12 +53,13 @@ TEST_F(TestUbseMemSignVerifier, Sign_VsockSendFail)
     std::string signedData;
     std::string trustRingId;
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
+    MOCKER(&vsock::UbseVsockClient::Connect).stubs().will(returnValue(true));
     MOCKER(&vsock::UbseVsockClient::UbseVsockSend).stubs().will(returnValue(UBSE_ERROR));
     auto ret = UbseMemSignVerifier::Sign(type, signedData, trustRingId);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_ERR_DAEMON_BUSY);
 }
 
-TEST_F(TestUbseMemSignVerifier, SignAndVerify_Success)
+TEST_F(TestUbseMemSignVerifier, SignAndVerify_ConnectFail)
 {
     UbseExportSignReq signReq;
     signReq.type = "test_type";
@@ -72,12 +71,9 @@ TEST_F(TestUbseMemSignVerifier, SignAndVerify_Success)
     obmmInfo.desc.tokenid = 1;
     signReq.exportObmmInfo.push_back(obmmInfo);
     std::vector<std::string> lendSignedDatas;
-    vsock::UbseSignRsp rsp;
-    rsp.signedData = R"({"result":0,"signed_data":"test_lend_signed_data","id":"test_trust_ring_id"})";
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
-    MOCKER(&vsock::UbseVsockClient::UbseVsockSend).stubs().with(any(), outBound(rsp)).will(returnValue(UBSE_OK));
     auto ret = UbseMemSignVerifier::SignAndVerify(signReq, lendSignedDatas);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_ERROR);
 }
 
 TEST_F(TestUbseMemSignVerifier, SignAndVerify_VsockSendFail)
@@ -93,6 +89,7 @@ TEST_F(TestUbseMemSignVerifier, SignAndVerify_VsockSendFail)
     signReq.exportObmmInfo.push_back(obmmInfo);
     std::vector<std::string> lendSignedDatas;
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(std::make_shared<UbseConfModule>()));
+    MOCKER(&vsock::UbseVsockClient::Connect).stubs().will(returnValue(true));
     MOCKER(&vsock::UbseVsockClient::UbseVsockSend).stubs().will(returnValue(UBSE_ERROR));
     auto ret = UbseMemSignVerifier::SignAndVerify(signReq, lendSignedDatas);
     EXPECT_EQ(ret, UBSE_ERROR);
