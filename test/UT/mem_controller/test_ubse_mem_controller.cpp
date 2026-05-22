@@ -157,9 +157,8 @@ TEST_F(TestUbseMemController, UbseQueryResult)
     EXPECT_EQ(UbseQueryResult(name, result, UbseMemBorrowType::NUMA_BORROW), UBSE_OK);
 }
 
-TEST_F(TestUbseMemController, CheckReconciliationStatus)
+TEST_F(TestUbseMemController, CheckReconciliationStatus_TargetNodeId)
 {
-    // 场景 1: targetNodeId 不为空且节点工作正常
     std::set<uint32_t> staticNodeInfoList = {1, 2, 3};
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeMap;
     nodeMap["1"] = ubse::nodeController::UbseNodeInfo{
@@ -168,21 +167,70 @@ TEST_F(TestUbseMemController, CheckReconciliationStatus)
         .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
     nodeMap["3"] = ubse::nodeController::UbseNodeInfo{
         .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
-    std::string targetNodeId = "1";
+
+    // 场景 1: targetNodeId 不为空且节点工作正常
+    EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, "1"), UBSE_OK);
+
+    // 场景 2: targetNodeId 不为空且节点正常 → 提前返回，不检查其他缺失节点
+    nodeMap.erase("2");
+    nodeMap.erase("3");
+    EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, "1"), UBSE_OK);
+
+    // 场景 3: targetNodeId 不为空但节点 FAULT → IsNodeWorking=false → 回退遍历，其余正常
+    nodeMap["1"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_FAULT};
+    nodeMap["2"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    nodeMap["3"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, "1"), UBSE_OK);
+
+    // 场景 4: staticNodeInfoList 为空
+    std::set<uint32_t> emptyList;
+    EXPECT_EQ(CheckReconciliationStatus(emptyList, nodeMap, ""), UBSE_OK);
+}
+
+TEST_F(TestUbseMemController, CheckReconciliationStatus_NodeStates)
+{
+    std::set<uint32_t> staticNodeInfoList = {1, 2, 3};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeMap;
+    nodeMap["1"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    nodeMap["2"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    nodeMap["3"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    std::string targetNodeId = "";
+
+    // 场景 1: targetNodeId 为空，所有节点工作正常
     EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, targetNodeId), UBSE_OK);
 
-    // 场景 2: targetNodeId 为空，且所有节点工作正常
-    targetNodeId = "";
-    EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, targetNodeId), UBSE_OK);
-
-    // 场景 3: targetNodeId 为空，且节点不存在于 nodeMap 中
+    // 场景 2: targetNodeId 为空，节点不存在于 nodeMap
     nodeMap.erase("1");
     EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, targetNodeId),
               UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS);
 
-    // 场景 4: targetNodeId 为空，且节点存在于 nodeMap 中但不在工作状态
+    // 场景 3: targetNodeId 为空，节点 INIT 状态
     nodeMap["1"] =
         ubse::nodeController::UbseNodeInfo{.clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_INIT};
+    EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, targetNodeId),
+              UBSE_MEMCONTROLLER_ERROR_SMOOTHING);
+
+    // 场景 4: targetNodeId 为空，节点 SMOOTHING 状态
+    nodeMap["1"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING};
+    EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, targetNodeId),
+              UBSE_MEMCONTROLLER_ERROR_SMOOTHING);
+
+    // 场景 5: targetNodeId 为空，节点 FAULT 状态（兜底 PAR_SUCCESS 分支）
+    nodeMap["1"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_FAULT};
+    EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, targetNodeId),
+              UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS);
+
+    // 场景 6: targetNodeId 为空，节点 UNKNOWN 状态（兜底 PAR_SUCCESS 分支）
+    nodeMap["1"] = ubse::nodeController::UbseNodeInfo{
+        .clusterState = ubse::nodeController::UbseNodeClusterState::UBSE_NODE_UNKNOWN};
     EXPECT_EQ(CheckReconciliationStatus(staticNodeInfoList, nodeMap, targetNodeId),
               UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS);
 }
