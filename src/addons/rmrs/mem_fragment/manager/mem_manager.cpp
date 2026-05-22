@@ -1380,7 +1380,7 @@ MpResult BorrowRecordHelper::GetValidDebtInfosWithRetry(std::vector<UbseNumaMemo
         bool needRetry = false;
 
         // 内部错误 或者 非内部错误但是账本为空，都需要进行重试
-        if (ret == UBSE_ERR_INTERNAL) {
+        if (ret == UBSE_ERR_INTERNAL  || ret == UBSE_MEMCONTROLLER_ERROR_SMOOTHING) {
             needRetry = true;
         } else if (ret != UBSE_OK && debtInfos.empty()) {
             needRetry = true;
