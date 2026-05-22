@@ -4,6 +4,8 @@
 
 #include "ubse_mem_controller_ledger.h"
 
+#include <unordered_map>
+
 #include <ubse_node.h>
 #include <cstdint>
 #include <string>
@@ -26,6 +28,7 @@
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_def.h"
+#include "ubse_mem_global_ledger_report.h"
 #include "ubse_mem_update_obj_state.simpo.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
@@ -58,6 +61,15 @@ enum class RemoteNumaStatus {
 };
 
 std::mutex mtx_target_ledger_global;
+std::mutex g_globalLedgerEpochMutex;
+std::unordered_map<std::string, uint64_t> g_globalLedgerEpochs;
+
+uint64_t NextGlobalLedgerEpoch(const std::string &nodeId)
+{
+    std::lock_guard<std::mutex> lock(g_globalLedgerEpochMutex);
+    return ++g_globalLedgerEpochs[nodeId];
+}
+
 bool CheckNodeIsMaster()
 {
     auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
@@ -336,6 +348,17 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
     UBSE_LOG_INFO << "nodeId=" << node.nodeId << "start ledger.";
     UbseResult ret = UBSE_OK;
     auto nodeId = node.nodeId;
+    if (!CheckNodeIsMaster()) {
+        UBSE_LOG_INFO << "current node not master, skip ledger.";
+        return UBSE_OK;
+    }
+    const auto ledgerEpoch = NextGlobalLedgerEpoch(nodeId);
+    auto syncRet = ReportGlobalLedgerSyncState(nodeId, UbseGlobalLedgerSyncState::SMOOTHING, ledgerEpoch);
+    if (syncRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "report global ledger smoothing state failed, skip ledger, " << FormatRetCode(syncRet);
+        return syncRet;
+    }
+
     auto masterDebtInfo = GetMasterCtxLedger(nodeId);
     // 获取全量账本
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
@@ -369,6 +392,17 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
             UBSE_LOG_INFO << "Start async thread to notify smap numa status for nodeId=" << nodeId;
             MasterNotifyRemoteNumaStatus(nodeId, localMap);
         });
+        UbseGlobalNodeLedgerSummary summary{};
+        auto summaryRet = QueryGlobalShmNodeLedgerSummary(node.nodeId, summary);
+        if (summaryRet == UBSE_OK) {
+            summary.ledgerEpoch = ledgerEpoch;
+            summaryRet = ReportGlobalLedgerSummary(summary);
+        }
+        if (summaryRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << node.nodeId << ", "
+                           << FormatRetCode(summaryRet);
+            ret |= summaryRet;
+        }
     }
     return ret;
 }

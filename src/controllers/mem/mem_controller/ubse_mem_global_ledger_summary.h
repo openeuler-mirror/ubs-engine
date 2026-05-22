@@ -1,0 +1,57 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#ifndef UBSE_MANAGER_UBSE_MEM_GLOBAL_LEDGER_SUMMARY_H
+#define UBSE_MANAGER_UBSE_MEM_GLOBAL_LEDGER_SUMMARY_H
+
+#include <cstdint>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "ubse_mmi_interface.h"
+
+namespace ubse::mem::controller {
+using namespace ubse::adapter_plugins::mmi;
+
+enum class UbseGlobalLedgerSyncState : uint32_t {
+    SMOOTHING = 0,
+    WORKING = 1
+};
+
+struct UbseGlobalLedgerSummaryItem {
+    std::string name{};                                 // 资源名称，对齐账本对象req.name
+    std::vector<UbseMemDebtNumaInfo> exportNumaInfos{}; // 导出侧关系摘要
+    std::vector<UbseMemDebtNumaInfo> importNumaInfos{}; // 导入侧关系摘要
+    uint32_t blockSize{128};                            // 芯片拆分粒度, 单位MB
+    UbseMemState state{UBSE_MEM_STATE_INIT};            // 账本对象状态
+};
+
+using UbseGlobalLedgerSummaryMap = std::map<std::string, UbseGlobalLedgerSummaryItem>;
+
+struct UbseGlobalLedgerSummary {
+    UbseGlobalLedgerSummaryMap importItems{}; // 该类型导入账本摘要
+    UbseGlobalLedgerSummaryMap exportItems{}; // 该类型导出账本摘要
+};
+
+struct UbseGlobalNodeLedgerSummary {
+    std::string nodeId{};             // 当前上报的目标节点ID
+    std::string sourceMasterNodeId{}; // 上报该摘要的机柜主节点ID
+    uint64_t ledgerEpoch{0};          // 该节点对账epoch
+    uint64_t reportTimestampMs{0};    // 全局主落库时间戳
+    UbseGlobalLedgerSummary shmSummary{}; // 共享内存账本摘要
+};
+
+using UbseGlobalNodeLedgerSummaryTable = std::map<std::string, UbseGlobalNodeLedgerSummary>;
+} // namespace ubse::mem::controller
+
+#endif // UBSE_MANAGER_UBSE_MEM_GLOBAL_LEDGER_SUMMARY_H

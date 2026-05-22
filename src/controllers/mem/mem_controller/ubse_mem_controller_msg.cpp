@@ -27,6 +27,7 @@
 #include "ubse_mem_controller_ledger_filter.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_global_ledger_report.h"
 #include "ubse_mem_opt_req_simpo.h"
 #include "ubse_mem_opt_result_simpo.h"
 #include "ubse_mem_util.h"
@@ -103,6 +104,9 @@ void RegQueryHandlers()
     UbseRegRpcService(getShareExportEndpoint, QueryShareExportHandler);
     UbseRegRpcService(getShareImportEndpoint, QueryShareImportHandler);
     UbseRegRpcService(getNumaStatusEndpoint, NotifyRemoteNumaStatusHandler);
+    if (const auto ret = RegGlobalLedgerReportRpcHandlers(); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "register global ledger report rpc handlers failed, " << FormatRetCode(ret);
+    }
 }
 
 void RegUbseMemControllerHandler()
@@ -1122,7 +1126,6 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     }
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
-
 UbseResult SendInvalidateSingleImportDebtRpc(const std::string &nodeId,
                                              const std::string &debtName, UbseMemBorrowType type)
 {
