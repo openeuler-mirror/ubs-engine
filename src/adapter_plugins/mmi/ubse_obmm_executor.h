@@ -38,6 +38,9 @@ using namespace ubse::context;
 using namespace ubse::security;
 
 constexpr int INVALID_MEM_ID = 0;
+constexpr auto OBMM_OFFLINE_TIMEOUT_CONFIG_KEY = "obmm.memory.offline.timeout";
+constexpr uint64_t MS_PER_SECOND = 1000;
+constexpr uint64_t DEFAULT_UNIMPORT_TIMEOUT_MS = 100 * MS_PER_SECOND;
 using ObmmExportPtr = mem_id (*)(const size_t length[OBMM_MAX_LOCAL_NUMA_NODES], unsigned long flags,
                                  struct obmm_mem_desc *desc);
 using ObmmUnexportPtr = int (*)(mem_id id, unsigned long flags);
@@ -177,6 +180,8 @@ private:
     static constexpr auto OBMM_PATH = "libobmm.so.1";
     bool preOnlineSwitch{false};
     void *handle{nullptr};
+    static uint64_t offlineTimeoutMs_;
+    static bool offlineTimeoutConfigured_;
 
     void RegisterSigusr1Handler();
 
