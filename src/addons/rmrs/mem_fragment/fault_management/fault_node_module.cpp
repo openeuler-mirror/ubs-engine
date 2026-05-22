@@ -13,14 +13,14 @@
 #include "fault_node_module.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
 #include <limits>
 #include <set>
-#include <unordered_map>
-#include <chrono>
 #include <thread>
+#include <unordered_map>
 
 #include "ubse_com.h"
 #include "ubse_error.h"
@@ -84,15 +84,14 @@ MpResult FaultNodeModule::DetermineNodeTypeOverCommit(const std::string nodeId, 
     return ret;
 }
 
-MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, NodeType &nodeType)
+MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, NodeType& nodeType)
 {
     MpResult ret = MEM_POOLING_OK;
     std::vector<BorrowRecord> fragMentFaultBorrowRecords;
     UbseResult retErrorCode =
         BorrowRecordHelper::Instance().GetFragmentFaultBorrowRecords(nodeId, fragMentFaultBorrowRecords);
     if (retErrorCode != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] GetFragmentFaultBorrowRecords failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] GetFragmentFaultBorrowRecords failed.";
         nodeType = NodeType::ABNORMAL;
         return MEM_POOLING_ERROR;
     }
@@ -108,14 +107,13 @@ MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, No
             << "[FaultManager] Node:" << nodeId << " NodeType: BORROW_OUT.";
         nodeType = NodeType::BORROW_OUT;
     } else {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] Node:" << nodeId << " NodeType: BORROW_IN.";
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Node:" << nodeId << " NodeType: BORROW_IN.";
         nodeType = NodeType::BORROW_IN;
     }
     return ret;
 }
 
-MpResult FaultNodeModule::DetermineNodeType(const std::string nodeId, NodeType &nodeType)
+MpResult FaultNodeModule::DetermineNodeType(const std::string nodeId, NodeType& nodeType)
 {
     std::vector<BorrowRecord> borrowRecords;
     auto ret = BorrowRecordHelper::Instance().CollectBorrowRecords(nodeId, borrowRecords);
@@ -729,7 +727,7 @@ bool FaultNodeModule::CheckUBTurboIsAliveRpc(std::string nodeId)
     RmrsOutStream builder;
     builder << nodeId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t *data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
     bool isAlive = false;
     auto ret = UbseRpcSend(endpoint, reqData, &isAlive, CheckUBTurboIsAliveResHandler);
     if (ret != MEM_POOLING_OK) {
@@ -740,7 +738,7 @@ bool FaultNodeModule::CheckUBTurboIsAliveRpc(std::string nodeId)
     return isAlive;
 }
 
-uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAliveHandler start.";
     resp.len = 1;
@@ -750,7 +748,7 @@ uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &r
             << "[FaultManager] Failed to allocate memory, size=" << resp.len << ".";
         return MEM_POOLING_ERROR;
     }
-    resp.freeFunc = [](uint8_t *p) {
+    resp.freeFunc = [](uint8_t* p) {
         if (p != nullptr) {
             delete[] p;
         }
@@ -759,28 +757,26 @@ uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &r
     turbo::rmrs::PidNumaInfoCollectResult pidNumaInfoCollectResult;
     auto ret = MempoolingMessage::rmrsPidNumaInfoCollect(pidNumaInfoCollectParam, pidNumaInfoCollectResult);
     if (ret == IPC_BAD_SOCKET || ret == IPC_BAD_CONNECT) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] UBTurbo is not alive, ret=" << ret << ".";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] UBTurbo is not alive, ret=" << ret << ".";
         resp.data[0] = static_cast<uint8_t>(0);
         return ret;
     } else {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] UBTurbo is alive, ret=" << ret << ".";
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] UBTurbo is alive, ret=" << ret << ".";
         resp.data[0] = static_cast<uint8_t>(1);
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAliveHandler end.";
     return ret;
 }
 
-void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] CheckUBTurboIsAliveResHandler resCode="
-        << resCode;
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultManager] CheckUBTurboIsAliveResHandler resCode=" << resCode;
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Ctx or respData is null.";
         return;
     }
-    auto *result = static_cast<bool *>(ctx);
+    auto* result = static_cast<bool*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.data[0] != 1) {
         *result = false;
         return;
@@ -791,13 +787,12 @@ void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, ui
 MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
 {
     faultHandleCurRound++;
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round "
-                                                      << faultHandleCurRound << " start.";
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultManager] FragmentHandleFault round " << faultHandleCurRound << " start.";
 
     // =========基于不信任原则，获取账本并筛选合法条目===========
     // =========仅处理合法条目，处理完后返回失败，利用UBSE故障重试机制继续处理===========
-    MpResult res =
-        BorrowRecordHelper::Instance().UpdateBorrowRecordsWithFragmentFault(nodeId);
+    MpResult res = BorrowRecordHelper::Instance().UpdateBorrowRecordsWithFragmentFault(nodeId);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] UpdateBorrowRecordsWithFragmentFault failed.";
@@ -807,22 +802,19 @@ MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
     NodeType nodeType = NodeType::ABNORMAL;
     res = FaultNodeModule::Instance().DetermineNodeTypeFragment(nodeId, nodeType);
     if (res != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] DetermineNodeType failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] DetermineNodeType failed.";
         return MEM_POOLING_ERROR;
     }
     if (nodeType == NodeType::BORROW_IN) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] BORROW_IN Fault is handled by ubse.";
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] BORROW_IN Fault is handled by ubse.";
     } else if (nodeType == NodeType::BORROW_OUT) {
         res = FaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId, true);
         if (res != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] Process BORROW_OUT node fault failed.";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Process BORROW_OUT node fault failed.";
         }
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round "
-                                                      << faultHandleCurRound << " end.";
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultManager] FragmentHandleFault round " << faultHandleCurRound << " end.";
     // 处理完后返回失败，利用UBSE故障重试机制继续处理
     return MEM_POOLING_ERROR;
 }

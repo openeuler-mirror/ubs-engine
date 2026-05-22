@@ -70,7 +70,7 @@ constexpr uint64_t KB_TO_BYTES = 1024;
 constexpr uint64_t MB_TO_KBYTES = 1024;
 constexpr uint64_t HUGE_PAGE_FREE_NUM_TO_BYTES = 2 * 1024 * 1024;
 constexpr uint64_t PAGE_64K_BYTES = 64 * 1024;
-constexpr uint64_t HUGE_PAGE_NUM_4K_TO_KB = 2 * 1024; // 4k标准页场景下pmd配置为2M大页可以用于被借出
+constexpr uint64_t HUGE_PAGE_NUM_4K_TO_KB = 2 * 1024;    // 4k标准页场景下pmd配置为2M大页可以用于被借出
 constexpr uint64_t HUGE_PAGE_NUM_64K_TO_KB = 512 * 1024; // 64k标准页场景下pmd配置为512M大页可以用于被借出
 constexpr uint64_t NUM_TO_RATIO = 100;
 constexpr uint16_t TIMEOUT_CYCLES_LIMIT = 300; // 超时周期上限
@@ -1494,12 +1494,11 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault(std::string no
         auto ret = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
         if (ret == UBSE_ERR_INTERNAL) {
             LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] UbseGetNumaMemDebtInfoWithNode failed, ret="
-                    << static_cast<uint32_t>(ret)
-                    << ".";
+                      << static_cast<uint32_t>(ret) << ".";
             return MEM_POOLING_ERROR;
         }
         std::vector<BorrowRecord> recordVec;
-        for (auto &debtInfo : debtInfos) {
+        for (auto& debtInfo : debtInfos) {
             BorrowRecord record;
             // 最小化修改：调用子函数完成转换
             if (!ConvertDebtToRecord(debtInfo, record)) {
@@ -1510,9 +1509,9 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault(std::string no
             }
             recordVec.push_back(record);
         }
-        for (auto &record : recordVec) {
-            LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: "
-                      << record.ToString() << ".";
+        for (auto& record : recordVec) {
+            LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: " << record.ToString()
+                      << ".";
         }
         gBorrowRecordsFragmentFault[nodeId] = recordVec;
     }
@@ -1559,13 +1558,13 @@ bool BorrowRecordHelper::ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtI
     // 非法条目日志
     if (outRecord.borrowRemoteNuma < 0) {
         LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] BorrowRemoteNuma is invalid, record: "
-                << outRecord.ToString() << ".";
+                  << outRecord.ToString() << ".";
     }
     return true;
 }
 
 MpResult BorrowRecordHelper::GetFragmentFaultBorrowRecords(std::string nodeId,
-                                                           std::vector<BorrowRecord> &fragMentFaultBorrowRecords)
+                                                           std::vector<BorrowRecord>& fragMentFaultBorrowRecords)
 {
     fragMentFaultBorrowRecords = gBorrowRecordsFragmentFault[nodeId];
     return MEM_POOLING_OK;

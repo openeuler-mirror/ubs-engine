@@ -1154,7 +1154,7 @@ static uint64_t TryAllocateFromCandidate(const RemoteNumaCandidate& candidate, u
         LOG_ERROR << "[BatchBorrow] BlockSize is zero";
         return 0;
     }
-    uint64_t allocateSize = (rawAllocateSize / blockSizeKB) * blockSizeKB;  // Round down to blockSize multiple
+    uint64_t allocateSize = (rawAllocateSize / blockSizeKB) * blockSizeKB; // Round down to blockSize multiple
     allocateSize = std::min(allocateSize, candidate.availableMem);
     allocateSize = std::min(allocateSize, limitByQuota);
     if (allocateSize == 0) {
@@ -1196,8 +1196,9 @@ static void ApplyAllocationResult(RemoteNumaCandidate& candidate, uint64_t alloc
                  << ", socketTotal=" << ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] << "KB.";
     } else {
         LOG_DEBUG << "[BatchBorrow] Allocate " << allocateSize << "KB (rounded down to blockSize) from "
-                  << candidate.nodeId  << "-" << candidate.socketId << "-" << candidate.numaId << ", remaining="
-                  << remaining << "KB." << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId] << "KB"
+                  << candidate.nodeId << "-" << candidate.socketId << "-" << candidate.numaId
+                  << ", remaining=" << remaining << "KB." << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId]
+                  << "KB"
                   << ", socketTotal=" << ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] << "KB.";
     }
 }

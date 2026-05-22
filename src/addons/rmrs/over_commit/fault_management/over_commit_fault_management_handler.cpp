@@ -121,7 +121,7 @@ uint32_t OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(const UbseByt
     return res;
 }
 
-void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void *ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void* ctx, const UbseByteBuffer& respData,
                                                               uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
@@ -187,7 +187,7 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
     builder >> pids;
     for (auto pid : pids) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-                        << "[OverCommit][FaultManagement] Disable process migrate, pid=" << pid << ".";
+            << "[OverCommit][FaultManagement] Disable process migrate, pid=" << pid << ".";
     }
     int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
     if (MEM_POOLING_OK != static_cast<MpResult>(retSmap)) {
@@ -374,8 +374,8 @@ void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void* ctx, con
 }
 
 // 故障处理：在借入节点上借用内存
-uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const UbseByteBuffer &req,
-                                                                           UbseByteBuffer &resp)
+uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const UbseByteBuffer& req,
+                                                                           UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleMemBorrow] FaultHandleMemBorrowRecvHandler start.";
@@ -396,11 +396,11 @@ uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const
         borrowExecuteResult, true);
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleMemBorrow] MemBorrowExecute Result=" << borrowExecuteResult.ToString() << ".";
-    FaultHandleMemBorrowResult faultHandleMemBorrowResult = {.borrowIds=borrowExecuteResult.borrowIds,
-                                                             .presentNumaId=borrowExecuteResult.presentNumaId};
+    FaultHandleMemBorrowResult faultHandleMemBorrowResult = {.borrowIds = borrowExecuteResult.borrowIds,
+                                                             .presentNumaId = borrowExecuteResult.presentNumaId};
     if (MEM_POOLING_OK != ret || borrowExecuteResult.borrowIds.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultHandleMemBorrow] MemBorrowExecute Failed, ret=" << ret << ".";
+            << "[FaultHandleMemBorrow] MemBorrowExecute Failed, ret=" << ret << ".";
         faultHandleMemBorrowResult.retCode = MEM_POOLING_ERROR;
     } else {
         faultHandleMemBorrowResult.retCode = MEM_POOLING_OK;
@@ -411,23 +411,22 @@ uint32_t OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler(const
     builderOut << faultHandleMemBorrowResult;
     resp.data = builderOut.GetBufferPointer();
     resp.len = builderOut.GetSize();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
-    
+
     return MEM_POOLING_OK;
 }
 
-void OverCommitFaultManagementHandler::FaultHandleMemBorrowResHandler(void* ctx, const UbseByteBuffer &respData,
+void OverCommitFaultManagementHandler::FaultHandleMemBorrowResHandler(void* ctx, const UbseByteBuffer& respData,
                                                                       uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultHandleMemBorrowResHandler] invalid rpc response.";
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleMemBorrowResHandler] invalid rpc response.";
         return;
     }
 
-    auto *faultHandleMemBorrowResult = static_cast<FaultHandleMemBorrowResult *>(ctx);
+    auto* faultHandleMemBorrowResult = static_cast<FaultHandleMemBorrowResult*>(ctx);
     faultHandleMemBorrowResult->retCode = MEM_POOLING_ERROR;
 
     if (resCode != MEM_POOLING_OK) {

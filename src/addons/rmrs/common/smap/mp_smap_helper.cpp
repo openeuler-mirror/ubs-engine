@@ -352,7 +352,7 @@ MpResult MpSmapHelper::AllocateHugePages(std::vector<uint64_t>& remoteNumaIds, s
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::ReleaseHugePages(std::vector<uint64_t> &remoteNumaIds, std::vector<uint64_t> &borrowSizes)
+MpResult MpSmapHelper::ReleaseHugePages(std::vector<uint64_t>& remoteNumaIds, std::vector<uint64_t>& borrowSizes)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Release hugePages start.";
 
@@ -366,20 +366,19 @@ MpResult MpSmapHelper::ReleaseHugePages(std::vector<uint64_t> &remoteNumaIds, st
 
             map[remoteNumaIds[i]] += borrowSizes[i];
         } else {
-            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MpSmapHelper] Add remoteNumaId:" << remoteNumaIds[i]
-                << ", release borrowSize: " << borrowSizes[i] << ".";
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Add remoteNumaId:" << remoteNumaIds[i]
+                                                              << ", release borrowSize: " << borrowSizes[i] << ".";
 
             map[remoteNumaIds[i]] = borrowSizes[i];
         }
     }
 
-    for (const auto &pair : map) {
+    for (const auto& pair : map) {
         MpResult ret = ReleaseHugePagesWithRetry(pair.first, pair.second);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MpSmapHelper] ReleaseHugePagesWithRetry failed for numaId="
-                << pair.first << ", ret=" << ret << ".";
+                << "[MpSmapHelper] ReleaseHugePagesWithRetry failed for numaId=" << pair.first << ", ret=" << ret
+                << ".";
             return MEM_POOLING_ERROR;
         }
     }
@@ -421,25 +420,24 @@ MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borro
     do {
         ret = TryAllocateHugePagesOnce(filePath, targetHugePages);
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] RewriteHugePages failed at retry="
-                << retryCnt << ", numaId=" << numaId << ".";
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] RewriteHugePages failed at retry=" << retryCnt << ", numaId=" << numaId << ".";
             retryCnt++;
             continue;
         }
 
         uint64_t realHugePages = 0;
         ret = GetOriginalHugePages(filePath, realHugePages);
-        if (ret == MEM_POOLING_OK &&
-            realHugePages <= targetHugePages) {
+        if (ret == MEM_POOLING_OK && realHugePages <= targetHugePages) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MpSmapHelper] Release hugepages success, numaId=" << numaId << ", realHugePages="
-                << realHugePages << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
+                << "[MpSmapHelper] Release hugepages success, numaId=" << numaId << ", realHugePages=" << realHugePages
+                << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
             return MEM_POOLING_OK;
         }
 
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MpSmapHelper] HugePages not reached target, numaId=" << numaId << ", realHugePages="
-            << realHugePages << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
+            << "[MpSmapHelper] HugePages not reached target, numaId=" << numaId << ", realHugePages=" << realHugePages
+            << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
         retryCnt++;
     } while (retryCnt < MAX_RETRY);
 
@@ -450,9 +448,8 @@ MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borro
     return MEM_POOLING_ERROR;
 }
 
-void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated,
-                                             std::vector<uint64_t> &remoteNumaIds,
-                                             std::vector<uint64_t> &borrowSizes)
+void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated, std::vector<uint64_t>& remoteNumaIds,
+                                             std::vector<uint64_t>& borrowSizes)
 {
     if (!hugePageAllocated) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Do not need to release.";
@@ -470,7 +467,7 @@ void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated,
         << "[MpSmapHelper] ReleaseHugePages success after VmsMigrate failed.";
 }
 
-MpResult MpSmapHelper::RewriteHugePages(const std::string &realPath, uint64_t targetHugePages)
+MpResult MpSmapHelper::RewriteHugePages(const std::string& realPath, uint64_t targetHugePages)
 {
     // 按2M为计算单位,计算最后分配大页的大小
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)

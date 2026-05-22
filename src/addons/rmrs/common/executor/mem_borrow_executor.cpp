@@ -14,11 +14,11 @@
 
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <random>
 #include <sstream>
-#include <chrono>
 #include <thread>
 
 #include "ubse_error.h"
@@ -190,7 +190,7 @@ MpResult MemBorrowExecutor::RemoveBorrowIdRedirectionRecursively(const std::stri
 
 static __always_inline void GenerateSmapTaskId(uint64_t& taskId)
 {
-    struct timespec ts {};
+    struct timespec ts{};
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Failed to get time errno=" << errno;
@@ -199,7 +199,7 @@ static __always_inline void GenerateSmapTaskId(uint64_t& taskId)
     taskId = static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL + static_cast<uint64_t>(ts.tv_nsec);
 }
 
-MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string &name, BorrowRecord &record, bool isFault)
+MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string& name, BorrowRecord& record, bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] Start to get borrow record, borrow_id=" << name << ", isFault=" << isFault;
@@ -212,7 +212,7 @@ MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string &name
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] CollectBorrowRecords failed.";
         } else {
-            for (auto &recordTmp : borrowRecords) {
+            for (auto& recordTmp : borrowRecords) {
                 if (recordTmp.name == name && recordTmp.borrowMemId.size() > 0) {
                     record = recordTmp;
                     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -221,21 +221,20 @@ MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string &name
                 }
             }
         }
-        
+
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Borrow_id=" << name << " not found in current round, wait 1s to retry...";
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] Not found borrow_id="
-        << name << "in ubse debt after retry " << maxRetry << " times.";
-    
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] Not found borrow_id=" << name
+                                                      << "in ubse debt after retry " << maxRetry << " times.";
+
     return MEM_POOLING_ERROR;
 }
 
-MpResult MemBorrowExecutor::GenerateSmapParams(const std::string &name, MigrateBackMsg &migrateBackMsg,
-                                               EnableNodeMsg &enableMsg, std::string &importNodeId, bool isFault)
+MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name, MigrateBackMsg& migrateBackMsg,
+                                               EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params, borrow_id=" << name << ".";
@@ -258,7 +257,8 @@ MpResult MemBorrowExecutor::GenerateSmapParams(const std::string &name, MigrateB
     }
 
     if (record.borrowMemId.size() > MAX_NR_MIGBACK_MP) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] The borrow_id=" << name
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] The borrow_id=" << name
             << " has too many memid, size=" << record.borrowMemId.size() << ".";
         return MEM_POOLING_ERROR;
     }
@@ -276,8 +276,7 @@ MpResult MemBorrowExecutor::GenerateSmapParams(const std::string &name, MigrateB
     for (int i = 0; i < migrateBackMsg.count; i++) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Index=" << i << ", srcNid=" << migrateBackMsg.payload[i].srcNid
-            << ", dstNid=" << migrateBackMsg.payload[i].destNid
-            << ", memid=" << migrateBackMsg.payload[i].memid;
+            << ", dstNid=" << migrateBackMsg.payload[i].destNid << ", memid=" << migrateBackMsg.payload[i].memid;
     }
     enableMsg.nid = record.borrowRemoteNuma;
     enableMsg.enable = SMAP_ENABLE_NUMA;
@@ -360,7 +359,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const 
         }
         return MEM_POOLING_ERROR;
     }
-    
+
     auto retMemFreeByUbse = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
     if (retMemFreeByUbse != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -421,7 +420,7 @@ MpResult MemBorrowExecutor::HandleTimeoutFree(const std::string& name, const std
     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] RackManager return err code is unknown, code=RUNNING, change to TIMEOUT.";
     // 然后从中过滤出name
-    for (auto &record : borrowRecords) {
+    for (auto& record : borrowRecords) {
         if (record.name == name) {
             BorrowItem item{name,
                             record.borrowNode,
@@ -450,7 +449,7 @@ MpResult MemBorrowExecutor::HandleTimeoutFree(const std::string& name, const std
     return static_cast<uint32_t>(UBSE_ERR_TIMEOUT);
 }
 
-MpResult MemBorrowExecutor::MemFreeWithOps(const std::string &name, bool isForceDelete, bool smapBack, bool isFault)
+MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForceDelete, bool smapBack, bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] MemBorrowExecutor starts to free memory, borrowI_id=" << name << ".";
