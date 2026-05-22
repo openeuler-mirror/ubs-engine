@@ -25,8 +25,8 @@ sudo dnf install -y ubs-engine-client-libs ubs-engine-client-devel
 | ------------------------------ | -------------------------------------------- |
 | `/usr/include/ubse`            | 目录下头文件（`*.h`）权限：`644`             |
 | `/usr/lib64/libubse-client.so` | 软链接，指向`/usr/lib64/libubse-client.so.1` |
-| `/usr/lib64/libubse-client.so.1` | 软链接，指向`libubse-client.so.1.0.0` |
-| `/usr/lib64/libubse-client.so.1.0.0`  | 二进制动态库                          |
+| `/usr/lib64/libubse-client.so.1` | 软链接，指向`libubse-client.so.xx.xx.xx` |
+| `/usr/lib64/libubse-client.so.xx.xx.xx`  | 二进制动态库                          |
 | `/usr/lib64/libubse-client.a`  | 二进制静态库                                 |
 
 ## 2. 使用 ubs engine C API 实现：以 fd 借用为例

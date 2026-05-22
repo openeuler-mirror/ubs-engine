@@ -25,8 +25,8 @@ sudo dnf install -y ubs-engine-client-libs python3-ubs-engine
 | 文件/目录                      | 其它说明                            |
 | ------------------------------ |---------------------------------|
 | `/usr/lib/python3.11/site-packages/ubse/`            | 目录下头文件（`*.py`）权限：`644`          |
-| `/usr/lib64/libubse-client.so.1` | 软链接，指向`libubse-client.so.1.0.0` |
-| `/usr/lib64/libubse-client.so.1.0.0`  | 二进制动态库                          |
+| `/usr/lib64/libubse-client.so.1` | 软链接，指向`libubse-client.so.xx.xx.xx` |
+| `/usr/lib64/libubse-client.so.xx.xx.xx`  | 二进制动态库                          |
 
 ### 1.4 导入 Python 模块
 

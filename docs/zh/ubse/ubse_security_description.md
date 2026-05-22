@@ -61,8 +61,8 @@ ubs-engine-client-libs-\<version>-\<release>.aarch64.rpm安装后的权限如下
 
 | 文件                                 | 类型         | owner       | 权限  | 其它说明                                          |
 | ------------------------------------ | ------------ | ----------- | ----- | ------------------------------------------------- |
-| `/usr/lib64/libubse-client.so.1.0.0` | 动态库二进制 | `root:root` | `755` | 二进制动态库实体                                  |
-| `/usr/lib64/libubse-client.so.1`     | 软链接       | `root:root` | `777` | 软链接，指向 `/usr/lib64/libubse-client.so.1.0.0` |
+| `/usr/lib64/libubse-client.so.xx.xx.xx` | 动态库二进制 | `root:root` | `755` | 二进制动态库实体                                  |
+| `/usr/lib64/libubse-client.so.1`     | 软链接       | `root:root` | `777` | 软链接，指向 `/usr/lib64/libubse-client.so.xx.xx.xx` |
 
 #### 客户端开发包权限设计
 

@@ -13,7 +13,7 @@ PROJECT_ROOT="$SCRIPT_DIR/.."
 DEB_ROOT="$PROJECT_ROOT/deb"
 STAGING="$DEB_ROOT/common"
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 RELEASE="1"
 FULL_VERSION="${VERSION}-${RELEASE}"
 ARCH="arm64"
@@ -70,10 +70,10 @@ install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so.0
 # VirtAgent libs (in /${LIBDIR}/)
 install -Dm755 cmake-build-release/lib/libvirtagent.so "$STAGING/${LIBDIR}/libvirtagent.so"
 install -Dm755 cmake-build-release/lib/libstrategy.so "$STAGING/${LIBDIR}/libstrategy.so"
-install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.0 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.0"
+install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.1 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.1"
 
 # Client libs
-install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.0 "$STAGING/${LIBDIR}/libubse-client.so.1.0.0"
+install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.1 "$STAGING/${LIBDIR}/libubse-client.so.1.0.1"
 install -Dm644 cmake-build-release/lib/libubse-client.a "$STAGING/${LIBDIR}/libubse-client.a"
 
 # Headers
@@ -148,8 +148,8 @@ build_deb() {
             ;;
 
         ubs-engine-client-libs)
-            install -Dm755 "$STAGING/usr/lib64/libubse-client.so.1.0.0" "$pkg_dir/${LIBDIR}/libubse-client.so.1.0.0"
-            ln -sf libubse-client.so.1.0.0 "$pkg_dir/${LIBDIR}/libubse-client.so.1"
+            install -Dm755 "$STAGING/usr/lib64/libubse-client.so.1.0.1" "$pkg_dir/${LIBDIR}/libubse-client.so.1.0.1"
+            ln -sf libubse-client.so.1.0.1 "$pkg_dir/${LIBDIR}/libubse-client.so.1"
             ;;
 
         ubs-engine-client-dev)
@@ -186,8 +186,8 @@ build_deb() {
             # VirtAgent libs
             install -Dm755 "$STAGING/${LIBDIR}/libvirtagent.so" "$pkg_dir/${LIBDIR}/libvirtagent.so"
             install -Dm755 "$STAGING/${LIBDIR}/libstrategy.so" "$pkg_dir/${LIBDIR}/libstrategy.so"
-            install -Dm755 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.0" "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1.0.0"
-            ln -sf libubs-virt-agent.so.1.0.0 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1"
+            install -Dm755 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.1" "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1.0.1"
+            ln -sf libubs-virt-agent.so.1.0.1 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1"
             ln -sf libubs-virt-agent.so.1 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so"
 
             install -Dm644 "$STAGING/etc/ubse/plugins/plugin_virt_agent.conf" "$pkg_dir/etc/ubse/plugins/plugin_virt_agent.conf"

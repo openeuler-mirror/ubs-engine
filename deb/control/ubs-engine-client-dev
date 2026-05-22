@@ -1,7 +1,7 @@
 Package: ubs-engine-client-dev
-Version: 1.0.0-1
+Version: 1.0.1-1
 Architecture: arm64
 Maintainer: UB System Software
-Depends: ubs-engine-client-libs (= 1.0.0-1)
+Depends: ubs-engine-client-libs (= 1.0.1-1)
 Description: Development files for UBSE client
  Header files and static library for developing applications that link against UBSE.
