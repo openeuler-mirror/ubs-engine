@@ -33,7 +33,7 @@ public:
 
     uint8_t GetStandbyStatus() override;
 
-    void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override{};
+    void SetNodeDownStatus(UBSE_ID_TYPE) override{};
 
     RoleType GetRoleType() override
     {

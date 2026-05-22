@@ -511,7 +511,7 @@ UbseResult UbseComEngine::Start()
         UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, " << FormatRetCode(ret)
                       << ", will retry";
         try {
-            std::thread([this]() { DoEngineStart(); }).detach();
+            startRetryThread_ = std::thread([this]() { DoEngineStart(); });
         } catch (const std::exception& e) {
             UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
@@ -520,7 +520,6 @@ UbseResult UbseComEngine::Start()
     }
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     linkManager_.nodeIpIdMap_.insert({engineInfo_.GetIpInfo().first, engineInfo_.GetNodeId()});
-    // 设置uds文件权限
     return UBSE_OK;
 }
 
@@ -528,6 +527,9 @@ void UbseComEngine::Stop()
 {
     deleted_.store(true);
     linkManager_.SetIsStop();
+    if (startRetryThread_.joinable()) {
+        startRetryThread_.join();
+    }
     std::lock_guard<std::mutex> lock(serviceMutex_);
     auto engineName = engineInfo_.GetName();
     if (hcomNetService_ != nullptr) {
@@ -817,49 +819,59 @@ void UbseComEngine::UpdateNewChannelIdMap(const std::string& nodeId, UbseComChan
     NewChannelIdMap_[nodeId] = channelInfo;
 }
 
+bool UbseComEngine::ResolvePeerConnectInfo(const std::string& ipPort,
+                                           const std::pair<std::string, UbseChannelType>& payLoadPair,
+                                           UbseComChannelConnectInfo& connectInfo)
+{
+    connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
+    connectInfo.SetRemoteNodeId(payLoadPair.first);
+    connectInfo.SetIsUds(engineInfo_.IsUds());
+    std::string ip;
+    uint16_t port = TCP_LISTEN_PORT;
+    bool getIpRes = true;
+    if (engineInfo_.GetProtocol() == UbseProtocol::TCP) {
+        getIpRes = SplitIp(ipPort, ip);
+    }
+    if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
+        getIpRes = queryCb_(payLoadPair.first, ip);
+    }
+    if (!getIpRes) {
+        UBSE_LOG_ERROR << "Get peer info fail, from [" << ipPort << "," << payLoadPair.first << "]";
+        return false;
+    }
+    connectInfo.SetIp(ip);
+    connectInfo.SetPort(port);
+    return true;
+}
+
 UbseResult UbseComEngine::NewChannel(const std::string& ipPort, const UBSHcomChannelPtr& ch, const std::string& payload)
 {
-    const auto& engineName = engineInfo_.GetName();
-    UBSE_LOG_INFO << "Engine " << engineName << " get new channel";
+    if (ubse::context::g_globalStop.load(std::memory_order_acquire)) {
+        UBSE_LOG_WARN << "Engine is stopped, reject new channel, ipPort=" << ipPort;
+        return UBSE_COM_ERROR_ENGINE_NOT_INIT;
+    }
     if (ch == nullptr) {
         UBSE_LOG_ERROR << "HcomChannelPtr of NewChannel is nullptr, ipPort=" << ipPort << ", payload=" << payload;
         return UBSE_COM_ERROR_CHANNEL_NULL;
     }
-    std::pair<std::string, UbseChannelType> payLoadPair = SplitPayload(payload);
     UBSE_LOG_INFO << "New channel=" << ch.Get()->GetId() << " receive from " << ipPort << ", payload=" << payload;
-    // payload格式为：nodeId_channelType，首先解析出nodeId和channelType，校验nodeId是否合法且不是自己，如果合法则继续创建channel
+    auto payLoadPair = SplitPayload(payload);
     if (payLoadPair.first == engineInfo_.GetNodeId()) {
         UBSE_LOG_ERROR << "reject self connecting channel, payload =" << payload;
         return UBSE_ERROR;
     }
     UbseComChannelConnectInfo connectInfo;
-    connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
-    connectInfo.SetRemoteNodeId(payLoadPair.first);
-    connectInfo.SetIsUds(engineInfo_.IsUds());
-    std::string ip;
-    uint16_t port;
-    bool getIpRes = true;
-    if (engineInfo_.GetProtocol() == UbseProtocol::TCP) {
-        getIpRes = SplitIp(ipPort, ip);
-        port = TCP_LISTEN_PORT;
-    }
-    if (engineInfo_.GetProtocol() == UbseProtocol::UBC) {
-        getIpRes = queryCb_(payLoadPair.first, ip);
-        port = TCP_LISTEN_PORT;
+    if (!ResolvePeerConnectInfo(ipPort, payLoadPair, connectInfo)) {
+        return UBSE_COM_ERROR_GET_PEER_IP_PORT_FAIL;
     }
     if (engineInfo_.GetNewChannelCb() != nullptr) {
-        if (engineInfo_.GetNewChannelCb()(ip, payLoadPair.first) != UBSE_OK) {
+        if (engineInfo_.GetNewChannelCb()(connectInfo.GetIp(), payLoadPair.first) != UBSE_OK) {
             UBSE_LOG_WARN << "New channel=" << ch.Get()->GetId() << ", payload=" << payload << ", refused by HA";
             return UBSE_ERROR;
         }
     }
-    if (!getIpRes) {
-        UBSE_LOG_ERROR << "Get peer info fail, from [" << ipPort << "," << payload << "]";
-        return UBSE_COM_ERROR_GET_PEER_IP_PORT_FAIL;
-    }
-    connectInfo.SetIp(ip);
-    connectInfo.SetPort(port);
     SetChannelTimeout(ch, timeout_);
+    const auto& engineName = engineInfo_.GetName();
     UbseComChannelInfo chInfo(true, payLoadPair.second, engineName, ch, connectInfo);
     UpdateNewChannelIdMap(payLoadPair.first, chInfo);
     auto ret = AddConnectingNodeForServer(chInfo);
