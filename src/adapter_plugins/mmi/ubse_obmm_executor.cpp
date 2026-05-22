@@ -16,6 +16,7 @@
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_obmm_executor.h"
+#include "ubse_conf_module.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
 
@@ -25,6 +26,11 @@ using namespace ubse::security;
 
 std::vector<__u32> overrideCap = {CAP_DAC_OVERRIDE};
 static const std::string OBMM_LOG_INFO = "#######UB[OBMM]########";
+static constexpr uint64_t OFFLINE_TIMEOUT_MIN_S = 10;
+static constexpr uint64_t OFFLINE_TIMEOUT_MAX_S = 1800;
+
+uint64_t RmObmmExecutor::offlineTimeoutMs_ = DEFAULT_UNIMPORT_TIMEOUT_MS;
+bool RmObmmExecutor::offlineTimeoutConfigured_ = false;
 
 UbseResult RmObmmExecutor::Init()
 {
@@ -37,6 +43,22 @@ UbseResult RmObmmExecutor::Init()
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get obmm funcs failed from libobmm.so.";
         return ret;
+    }
+    uint64_t timeoutMs = DEFAULT_UNIMPORT_TIMEOUT_MS;
+    auto configModule = UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
+    if (configModule != nullptr &&
+        configModule->GetConf("ubse.memory", OBMM_OFFLINE_TIMEOUT_CONFIG_KEY, timeoutMs) == UBSE_OK) {
+        if (timeoutMs >= OFFLINE_TIMEOUT_MIN_S && timeoutMs <= OFFLINE_TIMEOUT_MAX_S) {
+            offlineTimeoutConfigured_ = true;
+            offlineTimeoutMs_ = timeoutMs * MS_PER_SECOND;
+            UBSE_LOG_INFO << MMI_LOG_INFO << "obmm.memory.offline.timeout configured, value=" << timeoutMs << "s";
+        } else {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "obmm.memory.offline.timeout=" << timeoutMs
+                          << " out of range [" << OFFLINE_TIMEOUT_MIN_S << ", " << OFFLINE_TIMEOUT_MAX_S
+                          << "], use original calculation";
+        }
+    } else {
+        UBSE_LOG_INFO << MMI_LOG_INFO << "obmm.memory.offline.timeout not configured, use original calculation";
     }
     RegisterSigusr1Handler();
     return UBSE_OK;
@@ -630,6 +652,9 @@ UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info *preimport
 
 uint64_t RmObmmExecutor::CalculateUnImportTimeout(uint64_t blockSizeMb)
 {
+    if (offlineTimeoutConfigured_) {
+        return offlineTimeoutMs_;
+    }
     static uint64_t minTimeOutMs = 5000;
     return minTimeOutMs + blockSizeMb;
 }

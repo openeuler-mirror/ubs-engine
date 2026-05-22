@@ -124,11 +124,26 @@ TEST_F(TestUbseObmmUnimport, BatchUnImportWithTimeout_PartialTimeout)
     EXPECT_EQ(callCount, 2);
 }
 
-TEST_F(TestUbseObmmUnimport, CalculateUnImportTimeout)
+TEST_F(TestUbseObmmUnimport, CalculateUnImportTimeoutDefault)
 {
+    RmObmmExecutor::offlineTimeoutConfigured_ = false;
     EXPECT_EQ(RmObmmExecutor::CalculateUnImportTimeout(128), 5128);
     EXPECT_EQ(RmObmmExecutor::CalculateUnImportTimeout(4096), 9096);
     EXPECT_EQ(RmObmmExecutor::CalculateUnImportTimeout(0), 5000);
+}
+
+TEST_F(TestUbseObmmUnimport, CalculateUnImportTimeoutConfigured)
+{
+    RmObmmExecutor::offlineTimeoutConfigured_ = true;
+    RmObmmExecutor::offlineTimeoutMs_ = 100000;
+    EXPECT_EQ(RmObmmExecutor::CalculateUnImportTimeout(128), 100000);
+    EXPECT_EQ(RmObmmExecutor::CalculateUnImportTimeout(4096), 100000);
+    EXPECT_EQ(RmObmmExecutor::CalculateUnImportTimeout(0), 100000);
+
+    RmObmmExecutor::offlineTimeoutMs_ = 120000;
+    EXPECT_EQ(RmObmmExecutor::CalculateUnImportTimeout(999), 120000);
+
+    RmObmmExecutor::offlineTimeoutConfigured_ = false;
 }
 
 TEST_F(TestUbseObmmExecutor, Init_Success)
