@@ -54,7 +54,7 @@ TEST_F(TestFaultMemidHelper, FaultMemIdManageHelper1)
 {
     std::string importNodeId = "node1";
     uint64_t importMemId = 1;
-    MOCKER_CPP(&FaultMemIdModule::MemIdFaultManage, MpResult(*)(std::string borrowInNid, uint64_t memId))
+    MOCKER_CPP(&FaultMemIdModule::MemIdFaultManage, MpResult (*)(std::string borrowInNid, uint64_t memId))
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdHelper::Instance().FaultMemIdManageHelper(importNodeId, importMemId, false, false);
@@ -65,7 +65,7 @@ TEST_F(TestFaultMemidHelper, FaultMemIdManageHelper2)
 {
     std::string importNodeId = "node1";
     uint64_t importMemId = 1;
-    MOCKER_CPP(&FaultMemIdModule::MemIdFaultManage, MpResult(*)(std::string borrowInNid, uint64_t memId))
+    MOCKER_CPP(&FaultMemIdModule::MemIdFaultManage, MpResult (*)(std::string borrowInNid, uint64_t memId))
         .stubs()
         .will(returnValue(0));
     auto res = FaultMemIdHelper::Instance().FaultMemIdManageHelper(importNodeId, importMemId, false, false);

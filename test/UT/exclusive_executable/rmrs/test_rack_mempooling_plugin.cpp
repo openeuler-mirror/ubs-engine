@@ -80,15 +80,15 @@ public:
 
 TEST_F(TestRackMempoolingPlugin, UbsePluginInitFailed1)
 {
-    MOCKER_CPP(&MpConfiguration::Initialize, uint32_t(*)(const uint16_t)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpConfiguration::Initialize, uint32_t (*)(const uint16_t)).stubs().will(returnValue(1));
     auto ret = UbsePluginInit(0);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestRackMempoolingPlugin, UbsePluginInitFailed2)
 {
-    MOCKER_CPP(&MpConfiguration::Initialize, uint32_t(*)(const uint16_t)).stubs().will(returnValue(0));
-    MOCKER_CPP(&mempooling::message::MempoolingMessage::Init, uint32_t(*)())
+    MOCKER_CPP(&MpConfiguration::Initialize, uint32_t (*)(const uint16_t)).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::message::MempoolingMessage::Init, uint32_t (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = UbsePluginInit(0);

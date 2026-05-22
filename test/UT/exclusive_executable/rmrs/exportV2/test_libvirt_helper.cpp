@@ -45,12 +45,12 @@ protected:
 TEST_F(TestLibvirtHelper, InitShouldReturnOkWhenAllMethodsReturnOk)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult(*)())
+    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult(*)())
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult result = libvirtHelper.Init();
@@ -60,11 +60,11 @@ TEST_F(TestLibvirtHelper, InitShouldReturnOkWhenAllMethodsReturnOk)
 TEST_F(TestLibvirtHelper, InitShouldReturnOkWhenConnectMethodsReturnError)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult(*)())
+    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, MpResult(*)())
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult result = libvirtHelper.Init();
@@ -74,12 +74,12 @@ TEST_F(TestLibvirtHelper, InitShouldReturnOkWhenConnectMethodsReturnError)
 TEST_F(TestLibvirtHelper, InitShouldReturnOkWhenConnectSetKeepAliveMethodsReturn)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult(*)())
+    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult(*)())
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult result = libvirtHelper.Init();
@@ -89,8 +89,8 @@ TEST_F(TestLibvirtHelper, InitShouldReturnOkWhenConnectSetKeepAliveMethodsReturn
 TEST_F(TestLibvirtHelper, InitShouldReturnErrorWhenRegisterEventDefaultImplMethodsReturnError)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult(*)())
+    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::RegisterEventDefaultImpl, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult result = libvirtHelper.Init();
@@ -100,7 +100,7 @@ TEST_F(TestLibvirtHelper, InitShouldReturnErrorWhenRegisterEventDefaultImplMetho
 TEST_F(TestLibvirtHelper, InitShouldReturnErrorWhenLibvirtModuleInitMethodsReturnError)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::Init, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
     MpResult result = libvirtHelper.Init();
     EXPECT_EQ(result, MEM_POOLING_ERROR);
 }
@@ -118,10 +118,10 @@ VirConnectOpenFunc VirConnectOpenReturnNotNullptrInvokeFunc()
 TEST_F(TestLibvirtHelper, ConnectShouldReturnOkWhenVirConnectOpenReturnNotNullptrAndKeepAliveOk)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirConnectOpen, VirConnectOpenFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirConnectOpen, VirConnectOpenFunc (*)())
         .stubs()
         .will(invoke(VirConnectOpenReturnNotNullptrInvokeFunc));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult(*)())
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     uint32_t result = libvirtHelper.Connect();
@@ -131,10 +131,10 @@ TEST_F(TestLibvirtHelper, ConnectShouldReturnOkWhenVirConnectOpenReturnNotNullpt
 TEST_F(TestLibvirtHelper, ConnectShouldReturnErrorWhenVirConnectOpenReturnNotNullptrButKeepAliveError)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirConnectOpen, VirConnectOpenFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirConnectOpen, VirConnectOpenFunc (*)())
         .stubs()
         .will(invoke(VirConnectOpenReturnNotNullptrInvokeFunc));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult(*)())
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     uint32_t result = libvirtHelper.Connect();
@@ -154,7 +154,7 @@ VirConnectOpenFunc VirConnectOpenReturnNullptrInvokeFunc()
 TEST_F(TestLibvirtHelper, ConnectShouldReturnErrorWhenVirConnectOpenReturnNullptr)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::VirConnectOpen, VirConnectOpenFunc(*)())
+    MOCKER_CPP(&mempooling::libvirt::LibvirtModule::VirConnectOpen, VirConnectOpenFunc (*)())
         .stubs()
         .will(invoke(VirConnectOpenReturnNullptrInvokeFunc));
     uint32_t result = libvirtHelper.Connect();
@@ -183,7 +183,7 @@ TEST_F(TestLibvirtHelper, CloseConnShouldReturnOkWhenVirConnectCorrect)
 {
     LibvirtHelper libvirtHelper;
     libvirtHelper.virConnect = reinterpret_cast<VirConnectPtr>(0x1234);
-    MOCKER_CPP(&LibvirtModule::VirConnectClose, VirConnectCloseFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirConnectClose, VirConnectCloseFunc (*)())
         .stubs()
         .will(invoke(VirConnectCloseInvockFunc));
     uint32_t result = libvirtHelper.CloseConn();
@@ -194,7 +194,7 @@ TEST_F(TestLibvirtHelper, CloseConnShouldReturnErrorWhenVirConnectIsNullptr)
 {
     LibvirtHelper libvirtHelper;
     libvirtHelper.virConnect = nullptr;
-    MOCKER_CPP(&LibvirtModule::VirConnectClose, VirConnectCloseFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirConnectClose, VirConnectCloseFunc (*)())
         .stubs()
         .will(invoke(VirConnectCloseInvockFunc));
     uint32_t result = libvirtHelper.CloseConn();
@@ -214,7 +214,7 @@ VirEventRegisterDefaultImplFunc VirEventRegisterDefaultImplFuncReturnCorrectInvo
 TEST_F(TestLibvirtHelper, RegisterEventDefaultImplReturnCorrectWhenVirEventRegisterDefaultImplCorrect)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirEventRegisterDefaultImpl, VirEventRegisterDefaultImplFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirEventRegisterDefaultImpl, VirEventRegisterDefaultImplFunc (*)())
         .stubs()
         .will(invoke(VirEventRegisterDefaultImplFuncReturnCorrectInvockFunc));
     uint32_t result = libvirtHelper.RegisterEventDefaultImpl();
@@ -234,7 +234,7 @@ VirEventRegisterDefaultImplFunc VirEventRegisterDefaultImplFuncReturnErrorInvock
 TEST_F(TestLibvirtHelper, RegisterEventDefaultImplReturnErrorWhenVirEventRegisterDefaultImplError)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirEventRegisterDefaultImpl, VirEventRegisterDefaultImplFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirEventRegisterDefaultImpl, VirEventRegisterDefaultImplFunc (*)())
         .stubs()
         .will(invoke(VirEventRegisterDefaultImplFuncReturnErrorInvockFunc));
     uint32_t result = libvirtHelper.RegisterEventDefaultImpl();
@@ -252,10 +252,10 @@ TEST_F(TestLibvirtHelper, ReconnectShouldReturnOkWhenVirConnectCorrect)
 {
     LibvirtHelper libvirtHelper;
     libvirtHelper.virConnect = reinterpret_cast<VirConnectPtr>(0x1234);
-    MOCKER_CPP(&LibvirtModule::VirConnectClose, VirConnectCloseFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirConnectClose, VirConnectCloseFunc (*)())
         .stubs()
         .will(invoke(VirConnectCloseInvockFunc));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, uint32_t(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Connect, uint32_t (*)()).stubs().will(returnValue(MEM_POOLING_OK));
     uint32_t result = libvirtHelper.Reconnect();
     EXPECT_EQ(result, MEM_POOLING_OK);
 }
@@ -281,7 +281,7 @@ TEST_F(TestLibvirtHelper, IsConnectAliveShouldReturnTrueWhenVirConnectIsAliveCor
 {
     LibvirtHelper libvirtHelper;
     libvirtHelper.virConnect = reinterpret_cast<VirConnectPtr>(0x1234);
-    MOCKER_CPP(&LibvirtModule::VirConnectIsAlive, VirConnectIsAliveFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirConnectIsAlive, VirConnectIsAliveFunc (*)())
         .stubs()
         .will(invoke(VirConnectIsAliveInvockFunc));
     bool result = libvirtHelper.IsConnectAlive();
@@ -292,7 +292,7 @@ TEST_F(TestLibvirtHelper, IsConnectAliveShouldReturnFalseWhenVirConnectIsNullptr
 {
     LibvirtHelper libvirtHelper;
     libvirtHelper.virConnect = nullptr;
-    MOCKER_CPP(&LibvirtModule::VirConnectIsAlive, VirConnectIsAliveFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirConnectIsAlive, VirConnectIsAliveFunc (*)())
         .stubs()
         .will(invoke(VirConnectIsAliveInvockFunc));
     bool result = libvirtHelper.IsConnectAlive();
@@ -311,7 +311,7 @@ TEST_F(TestLibvirtHelper, CheckConnectAndReconnectReturnOkWhenReconnectCorrect)
 {
     LibvirtHelper libvirtHelper;
     MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::IsConnectAlive, bool (*)()).stubs().will(returnValue(false));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Reconnect, uint32_t(*)())
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Reconnect, uint32_t (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     uint32_t result = libvirtHelper.CheckConnectAndReconnect();
@@ -322,7 +322,7 @@ TEST_F(TestLibvirtHelper, CheckConnectAndReconnectReturnErrorWhenReconnectError)
 {
     LibvirtHelper libvirtHelper;
     MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::IsConnectAlive, bool (*)()).stubs().will(returnValue(false));
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Reconnect, uint32_t(*)())
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Reconnect, uint32_t (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     uint32_t result = libvirtHelper.CheckConnectAndReconnect();
@@ -342,7 +342,7 @@ VirConnectSetKeepAliveFunc VirConnectSetKeepAliveFailedInvokeFunc()
 TEST_F(TestLibvirtHelper, ConnectSetKeepAliveShouldReturnErrorWhenVirConnectSetKeepAliveFailed)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirConnectSetKeepAlive, VirConnectSetKeepAliveFunc(*)(void*, int, unsigned int))
+    MOCKER_CPP(&LibvirtModule::VirConnectSetKeepAlive, VirConnectSetKeepAliveFunc (*)(void*, int, unsigned int))
         .stubs()
         .will(invoke(VirConnectSetKeepAliveFailedInvokeFunc));
     uint32_t result = libvirtHelper.ConnectSetKeepAlive();
@@ -362,7 +362,7 @@ VirConnectSetKeepAliveFunc VirConnectSetKeepAliveSucceedInvokeFunc()
 TEST_F(TestLibvirtHelper, ConnectSetKeepAliveSucceed)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirConnectSetKeepAlive, VirConnectSetKeepAliveFunc(*)(void*, int, unsigned int))
+    MOCKER_CPP(&LibvirtModule::VirConnectSetKeepAlive, VirConnectSetKeepAliveFunc (*)(void*, int, unsigned int))
         .stubs()
         .will(invoke(VirConnectSetKeepAliveSucceedInvokeFunc));
     MOCKER_CPP(&LibvirtHelper::KeepAlive, void (*)()).stubs().will(ignoreReturnValue());
@@ -379,7 +379,7 @@ VirConnectSetKeepAliveFunc VirConnectSetKeepAliveNullprtFailedInvokeFunc()
 TEST_F(TestLibvirtHelper, ConnectSetKeepAliveShouldReturnErrorWhenVirConnectSetKeepAliveNullptr)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirConnectSetKeepAlive, VirConnectSetKeepAliveFunc(*)(void*, int, unsigned int))
+    MOCKER_CPP(&LibvirtModule::VirConnectSetKeepAlive, VirConnectSetKeepAliveFunc (*)(void*, int, unsigned int))
         .stubs()
         .will(invoke(VirConnectSetKeepAliveNullprtFailedInvokeFunc));
     uint32_t result = libvirtHelper.ConnectSetKeepAlive();
@@ -402,7 +402,7 @@ TEST_F(TestLibvirtHelper, GetDomainByNameShouldReturnOKWhenVirDomainLookupByName
     const std::string name = "mempooling-A";
     VirDomainPtr domain;
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainLookupByName, VirDomainLookupByNameFunc(*)(void*, const char*))
+    MOCKER_CPP(&LibvirtModule::VirDomainLookupByName, VirDomainLookupByNameFunc (*)(void*, const char*))
         .stubs()
         .will(invoke(VirDomainLookupByNameSucceedInvokeFunc));
     uint32_t result = libvirtHelper.GetDomainByName(name, domain);
@@ -419,7 +419,7 @@ TEST_F(TestLibvirtHelper, GetDomainByNameShouldReturnErrorWhenVirDomainLookupByN
     const std::string name = "mempooling-A";
     VirDomainPtr domain;
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainLookupByName, VirDomainLookupByNameFunc(*)(void*, const char*))
+    MOCKER_CPP(&LibvirtModule::VirDomainLookupByName, VirDomainLookupByNameFunc (*)(void*, const char*))
         .stubs()
         .will(invoke(VirDomainLookupByNameFailedInvokeFunc));
     uint32_t result = libvirtHelper.GetDomainByName(name, domain);
@@ -442,7 +442,7 @@ TEST_F(TestLibvirtHelper, GetVmUuidByDomainShouldReturnOK)
     std::string uuid;
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainGetUUIDString, VirDomainGetUUIDStringFunc(*)(void*, char*))
+    MOCKER_CPP(&LibvirtModule::VirDomainGetUUIDString, VirDomainGetUUIDStringFunc (*)(void*, char*))
         .stubs()
         .will(invoke(VirDomainGetUUIDStringSucceedInvokeFunc));
     uint32_t result = libvirtHelper.GetVmUuidByDomain(domain, uuid);
@@ -465,7 +465,7 @@ TEST_F(TestLibvirtHelper, GetVmUuidByDomainShouldReturnError)
     std::string uuid;
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainGetUUIDString, VirDomainGetUUIDStringFunc(*)(void*, char*))
+    MOCKER_CPP(&LibvirtModule::VirDomainGetUUIDString, VirDomainGetUUIDStringFunc (*)(void*, char*))
         .stubs()
         .will(invoke(VirDomainGetUUIDStringReturnErrorInvokeFunc));
     uint32_t result = libvirtHelper.GetVmUuidByDomain(domain, uuid);
@@ -491,7 +491,7 @@ TEST_F(TestLibvirtHelper, GetVmUuidByDomainShouldReturnErrorWhenVirDomainGetUUID
     std::string uuid;
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainGetUUIDString, VirDomainGetUUIDStringFunc(*)(void*, char*))
+    MOCKER_CPP(&LibvirtModule::VirDomainGetUUIDString, VirDomainGetUUIDStringFunc (*)(void*, char*))
         .stubs()
         .will(invoke(VirDomainGetUUIDStringReturnNullInvokeFunc));
     uint32_t result = libvirtHelper.GetVmUuidByDomain(domain, uuid);
@@ -513,7 +513,7 @@ TEST_F(TestLibvirtHelper, GetVmStateAndMaxMemByDomainShouldReturnOK)
     VmDomainInfo vmInfo;
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainGetInfo, VirDomainGetInfoFunc(*)(void*, void*))
+    MOCKER_CPP(&LibvirtModule::VirDomainGetInfo, VirDomainGetInfoFunc (*)(void*, void*))
         .stubs()
         .will(invoke(VirDomainGetInfoSucceedFunc));
     uint32_t result = libvirtHelper.GetVmStateAndMaxMemByDomain(domain, vmInfo);
@@ -539,7 +539,7 @@ TEST_F(TestLibvirtHelper, GetVmStateAndMaxMemByDomainShouldReturnErrorWhenVirDom
     VmDomainInfo vmInfo;
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainGetInfo, VirDomainGetInfoFunc(*)(void*, void*))
+    MOCKER_CPP(&LibvirtModule::VirDomainGetInfo, VirDomainGetInfoFunc (*)(void*, void*))
         .stubs()
         .will(invoke(VirDomainGetInfoNullFunc));
     uint32_t result = libvirtHelper.GetVmStateAndMaxMemByDomain(domain, vmInfo);
@@ -561,7 +561,7 @@ TEST_F(TestLibvirtHelper, GetVmStateAndMaxMemByDomainShouldReturnErrorWhenDomain
     VmDomainInfo vmInfo;
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainGetInfo, VirDomainGetInfoFunc(*)(void*, void*))
+    MOCKER_CPP(&LibvirtModule::VirDomainGetInfo, VirDomainGetInfoFunc (*)(void*, void*))
         .stubs()
         .will(invoke(VirDomainGetInfoErrorFunc));
     uint32_t result = libvirtHelper.GetVmStateAndMaxMemByDomain(domain, vmInfo);
@@ -582,7 +582,7 @@ TEST_F(TestLibvirtHelper, FreeDomainShouldReturnOK)
 {
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainFree, VirDomainFreeFunc(*)(void*)).stubs().will(invoke(FreeDomainOkFunc));
+    MOCKER_CPP(&LibvirtModule::VirDomainFree, VirDomainFreeFunc (*)(void*)).stubs().will(invoke(FreeDomainOkFunc));
     libvirtHelper.FreeDomain(domain);
 }
 
@@ -602,7 +602,7 @@ TEST_F(TestLibvirtHelper, FreeDomainShouldReturnWhenVirDomainFreeIsNull)
 {
     VirDomainPtr domain = reinterpret_cast<void*>(0x0012);
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirDomainFree, VirDomainFreeFunc(*)(void*)).stubs().will(invoke(FreeDomainNullFunc));
+    MOCKER_CPP(&LibvirtModule::VirDomainFree, VirDomainFreeFunc (*)(void*)).stubs().will(invoke(FreeDomainNullFunc));
     libvirtHelper.FreeDomain(domain);
 }
 
@@ -614,7 +614,7 @@ VirEventRunDefaultImplFunc VirEventRunDefaultImplFuncReturnNullMockFunc()
 TEST_F(TestLibvirtHelper, KeepAliveShouldReturnWhenVirEventRunDefaultImplIsNull)
 {
     LibvirtHelper libvirtHelper;
-    MOCKER_CPP(&LibvirtModule::VirEventRunDefaultImpl, VirEventRunDefaultImplFunc(*)())
+    MOCKER_CPP(&LibvirtModule::VirEventRunDefaultImpl, VirEventRunDefaultImplFunc (*)())
         .stubs()
         .will(invoke(VirEventRunDefaultImplFuncReturnNullMockFunc));
     libvirtHelper.KeepAlive();

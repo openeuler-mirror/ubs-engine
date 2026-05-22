@@ -44,7 +44,7 @@ protected:
 
 TEST_F(TestMpHeartBeatMonitor, InitSucceed)
 {
-    MOCKER_CPP(UbseGetCurrentNodeInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(0));
+    MOCKER_CPP(UbseGetCurrentNodeInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(0));
     MOCKER_CPP(&MpHeartBeatMonitor::GetHeartBeat, void (*)()).stubs().will(returnValue(0));
 
     auto& monitor = MpHeartBeatMonitor::Instance();
@@ -57,7 +57,7 @@ TEST_F(TestMpHeartBeatMonitor, InitSucceed)
 
 TEST_F(TestMpHeartBeatMonitor, InitFailed1)
 {
-    MOCKER_CPP(UbseGetCurrentNodeInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(1));
+    MOCKER_CPP(UbseGetCurrentNodeInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(1));
 
     auto& monitor = MpHeartBeatMonitor::Instance();
     auto ret = monitor.Init();
@@ -136,7 +136,7 @@ bool RackMemConvertVector2JsonStrForTest(const JSON_VEC& strVec, JSON_STR& jsonS
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultFailed1)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(1));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(1));
     auto& monitor = MpHeartBeatMonitor::Instance();
     monitor.running = false;
     EXPECT_NO_THROW(monitor.CurrentNodeFault());
@@ -144,7 +144,7 @@ TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultFailed1)
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultFailed2)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(0));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(0));
     MOCKER_CPP(JsonUtil::RackMemConvertVector2JsonStr, bool (*)(const JSON_VEC&, JSON_STR&))
         .stubs()
         .will(returnValue(false));
@@ -155,12 +155,12 @@ TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultFailed2)
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultFailed3)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(0));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(0));
     MOCKER_CPP(JsonUtil::RackMemConvertVector2JsonStr, bool (*)(const JSON_VEC&, JSON_STR&))
         .stubs()
         .will(invoke(RackMemConvertVector2JsonStrForTest));
-    MOCKER_CPP(UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                        const UbseComRespHandler& handler))
+    MOCKER_CPP(UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(1));
     auto& monitor = MpHeartBeatMonitor::Instance();
@@ -170,12 +170,12 @@ TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultFailed3)
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultSucceed)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(0));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(0));
     MOCKER_CPP(JsonUtil::RackMemConvertVector2JsonStr, bool (*)(const JSON_VEC&, JSON_STR&))
         .stubs()
         .will(invoke(RackMemConvertVector2JsonStrForTest));
-    MOCKER_CPP(UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                        const UbseComRespHandler& handler))
+    MOCKER_CPP(UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(0));
     auto& monitor = MpHeartBeatMonitor::Instance();
@@ -185,7 +185,7 @@ TEST_F(TestMpHeartBeatMonitor, CurrentNodeFaultSucceed)
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeRecoverFailed1)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(1));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(1));
     auto& monitor = MpHeartBeatMonitor::Instance();
     monitor.running = false;
     EXPECT_NO_THROW(monitor.CurrentNodeRecover());
@@ -193,7 +193,7 @@ TEST_F(TestMpHeartBeatMonitor, CurrentNodeRecoverFailed1)
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeRecoverFailed2)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(0));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(0));
     MOCKER_CPP(JsonUtil::RackMemConvertVector2JsonStr, bool (*)(const JSON_VEC&, JSON_STR&))
         .stubs()
         .will(returnValue(false));
@@ -204,12 +204,12 @@ TEST_F(TestMpHeartBeatMonitor, CurrentNodeRecoverFailed2)
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeRecoverFailed3)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(0));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(0));
     MOCKER_CPP(JsonUtil::RackMemConvertVector2JsonStr, bool (*)(const JSON_VEC&, JSON_STR&))
         .stubs()
         .will(invoke(RackMemConvertVector2JsonStrForTest));
-    MOCKER_CPP(UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                        const UbseComRespHandler& handler))
+    MOCKER_CPP(UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(1));
     auto& monitor = MpHeartBeatMonitor::Instance();
@@ -219,12 +219,12 @@ TEST_F(TestMpHeartBeatMonitor, CurrentNodeRecoverFailed3)
 
 TEST_F(TestMpHeartBeatMonitor, CurrentNodeRecoverSucceed)
 {
-    MOCKER_CPP(UbseGetMasterInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(returnValue(0));
+    MOCKER_CPP(UbseGetMasterInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(returnValue(0));
     MOCKER_CPP(JsonUtil::RackMemConvertVector2JsonStr, bool (*)(const JSON_VEC&, JSON_STR&))
         .stubs()
         .will(invoke(RackMemConvertVector2JsonStrForTest));
-    MOCKER_CPP(UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                        const UbseComRespHandler& handler))
+    MOCKER_CPP(UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(0));
     auto& monitor = MpHeartBeatMonitor::Instance();
@@ -306,7 +306,7 @@ TEST_F(TestMpHeartBeatMonitor, AddFaultNodeRecvHandlerTest)
         .stubs()
         .will(invoke(MockRackMemConvertJsonStr2Vec));
 
-    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::AddFaultNode, MpResult(*)(const std::string& nodeId))
+    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::AddFaultNode, MpResult (*)(const std::string& nodeId))
         .stubs()
         .will(returnValue(0));
 
@@ -326,7 +326,7 @@ TEST_F(TestMpHeartBeatMonitor, AddFaultNodeRecvHandlerTest2)
         .stubs()
         .will(invoke(MockRackMemConvertJsonStr2Vec));
 
-    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::AddFaultNode, MpResult(*)(const std::string& nodeId))
+    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::AddFaultNode, MpResult (*)(const std::string& nodeId))
         .stubs()
         .will(returnValue(0));
 
@@ -375,7 +375,7 @@ TEST_F(TestMpHeartBeatMonitor, DelFaultNodeRecvHandlerTest)
         .stubs()
         .will(invoke(MockRackMemConvertJsonStr2Vec));
 
-    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::DelFaultNode, MpResult(*)(const std::string& nodeId))
+    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::DelFaultNode, MpResult (*)(const std::string& nodeId))
         .stubs()
         .will(returnValue(0));
 
@@ -395,7 +395,7 @@ TEST_F(TestMpHeartBeatMonitor, DelFaultNodeRecvHandlerTest2)
         .stubs()
         .will(invoke(MockRackMemConvertJsonStr2Vec));
 
-    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::DelFaultNode, MpResult(*)(const std::string& nodeId))
+    MOCKER_CPP(&mempooling::heart::MpHeartBeatMonitor::DelFaultNode, MpResult (*)(const std::string& nodeId))
         .stubs()
         .will(returnValue(0));
 
@@ -419,7 +419,7 @@ static const std::string FULL_STRING{"1"};
 
 TEST_F(TestMpHeartBeatMonitor, FaultNodeGetDataFailed1)
 {
-    MOCKER_CPP(&MpHeartBeatMonitor::ToJson, std::string(*)(MpHeartBeatMonitor*))
+    MOCKER_CPP(&MpHeartBeatMonitor::ToJson, std::string (*)(MpHeartBeatMonitor*))
         .stubs()
         .will(returnValue(EMPTY_STRING));
     UbseByteBuffer buffer;
@@ -429,7 +429,9 @@ TEST_F(TestMpHeartBeatMonitor, FaultNodeGetDataFailed1)
 
 TEST_F(TestMpHeartBeatMonitor, FaultNodeGetDataFailed2)
 {
-    MOCKER_CPP(&MpHeartBeatMonitor::ToJson, std::string(*)(MpHeartBeatMonitor*)).stubs().will(returnValue(FULL_STRING));
+    MOCKER_CPP(&MpHeartBeatMonitor::ToJson, std::string (*)(MpHeartBeatMonitor*))
+        .stubs()
+        .will(returnValue(FULL_STRING));
     MOCKER(memcpy_s).stubs().will(returnValue(1));
     UbseByteBuffer buffer;
     auto ret = heart::FaultNodeGetData(buffer);
@@ -438,7 +440,9 @@ TEST_F(TestMpHeartBeatMonitor, FaultNodeGetDataFailed2)
 
 TEST_F(TestMpHeartBeatMonitor, FaultNodeGetDataSucceed)
 {
-    MOCKER_CPP(&MpHeartBeatMonitor::ToJson, std::string(*)(MpHeartBeatMonitor*)).stubs().will(returnValue(FULL_STRING));
+    MOCKER_CPP(&MpHeartBeatMonitor::ToJson, std::string (*)(MpHeartBeatMonitor*))
+        .stubs()
+        .will(returnValue(FULL_STRING));
     UbseByteBuffer buffer;
     auto ret = heart::FaultNodeGetData(buffer);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -454,7 +458,7 @@ TEST_F(TestMpHeartBeatMonitor, SubModuleInitFailed1)
 
 TEST_F(TestMpHeartBeatMonitor, SubModuleInitFailed2)
 {
-    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(1));
     MpHeartBeatSubModule obj;
@@ -464,7 +468,7 @@ TEST_F(TestMpHeartBeatMonitor, SubModuleInitFailed2)
 
 TEST_F(TestMpHeartBeatMonitor, SubModuleInitFailed3)
 {
-    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(0))
         .then(returnValue(1));
@@ -475,10 +479,10 @@ TEST_F(TestMpHeartBeatMonitor, SubModuleInitFailed3)
 
 TEST_F(TestMpHeartBeatMonitor, SubModuleInitFailed4)
 {
-    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MpHeartBeatMonitor::Init, uint32_t(*)(MpHeartBeatMonitor*)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpHeartBeatMonitor::Init, uint32_t (*)(MpHeartBeatMonitor*)).stubs().will(returnValue(1));
     MpHeartBeatSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -486,10 +490,10 @@ TEST_F(TestMpHeartBeatMonitor, SubModuleInitFailed4)
 
 TEST_F(TestMpHeartBeatMonitor, SubModuleInitSucceed)
 {
-    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MpHeartBeatMonitor::Init, uint32_t(*)(MpHeartBeatMonitor*)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpHeartBeatMonitor::Init, uint32_t (*)(MpHeartBeatMonitor*)).stubs().will(returnValue(0));
     MpHeartBeatSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);

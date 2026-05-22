@@ -57,7 +57,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsFailed)
 
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionError)
 {
-    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string& value))
+    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t (*)(const std::string key, std::string& value))
         .stubs()
         .will(returnValue(1));
     std::string name = "test";
@@ -86,7 +86,7 @@ uint32_t TestGetNullBorrowIdRedirectionMock(BorrowIdRedirection* memManager, con
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionNotEquals)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
+               uint32_t (*)(BorrowIdRedirection* memManager, const std::string key, std::string& value))
         .stubs()
         .will(invoke(TestGetBorrowIdRedirectionMock));
     std::string name = "test";
@@ -99,10 +99,10 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionNot
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RemoveBorrowIdRedirectionError)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
+               uint32_t (*)(BorrowIdRedirection* memManager, const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MemBorrowExecutor::RemoveBorrowIdRedirectionRecursively, uint32_t(*)(const std::string& name))
+    MOCKER_CPP(&MemBorrowExecutor::RemoveBorrowIdRedirectionRecursively, uint32_t (*)(const std::string& name))
         .stubs()
         .will(returnValue(1));
     std::string name = "test";
@@ -115,7 +115,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RemoveBorrowIdRedirection
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_Failed)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
+               uint32_t (*)(BorrowIdRedirection* memManager, const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
     std::string name = "mock";
@@ -128,7 +128,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_F
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_Running)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
+               uint32_t (*)(BorrowIdRedirection* memManager, const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
     std::string name = "run";
@@ -140,7 +140,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_R
 
 TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelyFailed1)
 {
-    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string& value))
+    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t (*)(const std::string key, std::string& value))
         .stubs()
         .will(returnValue(1));
     std::string name = "test";
@@ -162,10 +162,10 @@ MpResult QueryMockNoEmpty(BorrowIdRedirection*, const std::string key, std::stri
 
 TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelySuccess)
 {
-    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string& value))
+    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t (*)(const std::string key, std::string& value))
         .stubs()
         .will(invoke(QueryMockEmpty));
-    MOCKER_CPP(&BorrowIdRedirection::Remove, uint32_t(*)(const std::string key, std::string& value))
+    MOCKER_CPP(&BorrowIdRedirection::Remove, uint32_t (*)(const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
     std::string name = "test";
@@ -176,7 +176,7 @@ TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelySuccess)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed1)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
+               uint32_t (*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(1));
 
@@ -190,11 +190,11 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed1)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed2)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
+               uint32_t (*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
+               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(1));
     std::string name = "test";
@@ -207,11 +207,11 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed2)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed3)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
+               uint32_t (*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
+               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(0));
     std::string name = "test";
@@ -224,11 +224,11 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed3)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed4)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
+               uint32_t (*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
+               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(0));
     std::string name = "test";
@@ -241,7 +241,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed4)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsByMemfabricSuccess)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
+               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(0));
     std::string name = "test";
@@ -254,7 +254,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsByMemfabricSuccess)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsByMemfabricFailed)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
+               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(0));
     std::string name = "test";
@@ -288,7 +288,7 @@ MpResult CollectBorrowRecordsAllMock1(BorrowRecordHelper* This, std::vector<Borr
 TEST_F(TestMemBorrowExecutor, GenerateSmapParamsSuccess)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
+               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock1));
     std::string name = "test";
@@ -319,7 +319,7 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_1)
                                              // 对应位置的内存大小（字节）
                                              512 * 1024 * 1024, // 512MB
                                              256 * 1024 * 1024  // 256MB
-                                         }};                    // 需填充具体属性
+                                         }}; // 需填充具体属性
 
     UbseMemBorrower borrower;
     borrower.nodeId = "4";
@@ -368,7 +368,7 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_2)
                                              // 对应位置的内存大小（字节）
                                              512 * 1024 * 1024, // 512MB
                                              256 * 1024 * 1024  // 256MB
-                                         }};                    // 需填充具体属性
+                                         }}; // 需填充具体属性
 
     UbseMemBorrower borrower;
     borrower.nodeId = "node01";
@@ -411,7 +411,7 @@ MpResult BorrowIdsCompletedQueryMockTwo(BorrowIdsCompleted*, std::vector<std::st
 TEST_F(TestMemBorrowExecutor, MemBorrow_GenerateUniqueIdFailed)
 {
     MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
-               MpResult(*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
+               MpResult (*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::string attachNode = "1";
@@ -431,7 +431,7 @@ TEST_F(TestMemBorrowExecutor, MemBorrow_GenerateUniqueIdFailed)
 TEST_F(TestMemBorrowExecutor, MemBorrow_PrepareMemNumaCreateParamsFailed)
 {
     MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
-               MpResult(*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
+               MpResult (*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     std::string attachNode = "1";
@@ -451,13 +451,13 @@ TEST_F(TestMemBorrowExecutor, MemBorrow_PrepareMemNumaCreateParamsFailed)
 TEST_F(TestMemBorrowExecutor, MemBorrow_UbseMemNumaCreateFailed)
 {
     MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
-               MpResult(*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
+               MpResult (*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&BorrowIdsCompleted::Update, MpResult(*)(const std::string)).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Update, MpResult (*)(const std::string)).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&UbseMemNumaCreateWithLender,
-               UbseResult(*)(const std::string&, const UbseMemBorrower&, const std::vector<UbseMemNumaLender>&,
-                             const uint8_t*, UbseMemNumaDesc&))
+               UbseResult (*)(const std::string&, const UbseMemBorrower&, const std::vector<UbseMemNumaLender>&,
+                              const uint8_t*, UbseMemNumaDesc&))
         .stubs()
         .will(returnValue(UBSE_ERR_INTERNAL));
     std::string attachNode = "1";
@@ -476,7 +476,7 @@ TEST_F(TestMemBorrowExecutor, MemBorrow_UbseMemNumaCreateFailed)
 
 TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_QueryFailed)
 {
-    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult (*)(std::vector<std::string>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpMemBorrowExecutorModule module;
@@ -486,7 +486,7 @@ TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_QueryFailed)
 
 TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_EmptyList)
 {
-    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult (*)(std::vector<std::string>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpMemBorrowExecutorModule module;
@@ -496,11 +496,11 @@ TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_EmptyList)
 
 TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_MemFreeFailed)
 {
-    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult (*)(std::vector<std::string>&))
         .stubs()
         .will(invoke(BorrowIdsCompletedQueryMockOne));
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+               MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpMemBorrowExecutorModule module;
@@ -510,14 +510,14 @@ TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_MemFreeFailed)
 
 TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_RemoveFailed)
 {
-    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult (*)(std::vector<std::string>&))
         .stubs()
         .will(invoke(BorrowIdsCompletedQueryMockOne));
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+               MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult(*)(const std::string))
+    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult (*)(const std::string))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpMemBorrowExecutorModule module;
@@ -527,14 +527,14 @@ TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_RemoveFailed)
 
 TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_Success)
 {
-    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult (*)(std::vector<std::string>&))
         .stubs()
         .will(invoke(BorrowIdsCompletedQueryMockTwo));
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+               MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult(*)(const std::string)).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult (*)(const std::string)).stubs().will(returnValue(MEM_POOLING_OK));
     MpMemBorrowExecutorModule module;
     auto ret = module.DeleteFailedBorrowIds();
     EXPECT_EQ(ret, MEM_POOLING_OK);

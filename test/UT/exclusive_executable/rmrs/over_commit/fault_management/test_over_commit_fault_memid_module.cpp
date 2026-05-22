@@ -76,7 +76,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaTotalBorrowSizeSu
     const std::string localNodeId = "node0";
     uint16_t localNumaId = 0;
     uint16_t remoteNumaId = 1;
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult(*)(const std::string&, std::vector<BorrowRecord>&))
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult (*)(const std::string&, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     uint64_t ret =
@@ -91,7 +91,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaTotalBorrowSizeFa
     uint16_t localNumaId = 0;
     uint16_t remoteNumaId = 0;
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult(*)(const std::string&, std::vector<BorrowRecord>&))
+               MpResult (*)(const std::string&, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     const auto ret =
@@ -184,7 +184,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalBorrowNumaIdOfMemIdSuccess)
     uint16_t memId = 0;
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult(*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult (*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(MockCollectBorrowRecordsNode0));
     const auto ret = GetLocalBorrowNumaIdOfMemId(localNodeId, localNumaId, memId);
@@ -199,7 +199,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalBorrowNumaIdOfMemIdFail)
     uint16_t memId = 0;
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult(*)(const std::string&, std::vector<BorrowRecord>&))
+               MpResult (*)(const std::string&, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     const auto ret = GetLocalBorrowNumaIdOfMemId(localNodeId, localNumaId, memId);
@@ -214,7 +214,7 @@ MpResult MockGetNumaBindType(OverCommitStorage* This, const std::string& nodeId,
 }
 
 uint32_t MockRackRpcSendReturnOk(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                         const UbseComRespHandler& handler)
+                                 const UbseComRespHandler& handler)
 {
     FaultHandleMemBorrowResult result;
     result.retCode = MEM_POOLING_OK;
@@ -230,14 +230,14 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteSuccess)
     borrowExecuteResult.borrowIds.push_back("1");
     borrowExecuteResult.presentNumaId.push_back(1);
     MOCKER_CPP(&OverCommitStorage::GetNumaBindType,
-               MpResult(*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
+               MpResult (*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
         .stubs()
         .will(invoke(MockGetNumaBindType));
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(MockRackRpcSendReturnOk));
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult (*)(const std::string& nodeId, const int& numaId, int& socketId))
         .stubs()
         .will(returnValue(0));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
@@ -251,11 +251,11 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFailed)
     borrowExecuteResult.borrowIds.push_back("1");
     borrowExecuteResult.presentNumaId.push_back(1);
     MOCKER_CPP(&OverCommitStorage::GetNumaBindType,
-               MpResult(*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
+               MpResult (*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
         .stubs()
         .will(invoke(MockGetNumaBindType));
 
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult (*)(const std::string& nodeId, const int& numaId, int& socketId))
         .stubs()
         .will(returnValue(1));
 
@@ -270,8 +270,8 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail1)
     borrowExecuteResult.borrowIds.push_back("1");
     borrowExecuteResult.presentNumaId.push_back(1);
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                           MemBorrowExecuteResult&))
+               MpResult (*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
+                            MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
@@ -283,8 +283,8 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail2)
 {
     MemBorrowExecuteResult borrowExecuteResult;
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                           MemBorrowExecuteResult&))
+               MpResult (*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
+                            MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
@@ -300,7 +300,7 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
     mempooling::WaterMark waterMark;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult(*)(const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult (*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -317,11 +317,11 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed1)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
     mempooling::WaterMark waterMark;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult(*)(const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult (*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult(*)(const std::string&, int16_t&, uint16_t))
+    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult (*)(const std::string&, int16_t&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -338,16 +338,16 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed2)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
     mempooling::WaterMark waterMark;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult(*)(const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult (*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult(*)(const std::string&, int16_t&, uint16_t))
+    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult (*)(const std::string&, int16_t&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetPidNumaInfo,
-               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
+               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -364,20 +364,20 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed3)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
     mempooling::WaterMark waterMark;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult(*)(const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult (*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult(*)(const std::string&, int16_t&, uint16_t))
+    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult (*)(const std::string&, int16_t&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetPidNumaInfo,
-               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
+               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(struct WaterMark&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult (*)(struct WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -394,20 +394,20 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemSuccess)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
     mempooling::WaterMark waterMark;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult(*)(const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult (*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult(*)(const std::string&, int16_t&, uint16_t))
+    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult (*)(const std::string&, int16_t&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetPidNumaInfo,
-               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
+               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(struct WaterMark&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult (*)(struct WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -424,20 +424,20 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemSuccess1)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
     mempooling::WaterMark waterMark;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult(*)(const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult (*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult(*)(const std::string&, int16_t&, uint16_t))
+    MOCKER_CPP(GetLocalBorrowNumaIdOfMemId, MpResult (*)(const std::string&, int16_t&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetPidNumaInfo,
-               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
+               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(struct WaterMark&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult (*)(struct WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     OverCommitFaultMemIdModule::Instance().mBindType = NumaBindType::BIND_SINGLE;
@@ -454,21 +454,21 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemSuccess2)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
     mempooling::WaterMark waterMark;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult(*)(const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetOverCommitScene, MpResult (*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&ResourceQuery::HelpGetNumaMemInfoCollect,
-               MpResult(*)(const std::string&, const int&, mempooling::NumaMetaData&))
+               MpResult (*)(const std::string&, const int&, mempooling::NumaMetaData&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetPidNumaInfo,
-               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
+               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::vector<VmNumaInfoWithSocket>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(struct WaterMark&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult (*)(struct WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     OverCommitFaultMemIdModule::Instance().mBindType = NumaBindType::BIND_MULTIPLE;
@@ -495,7 +495,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaSizeSuccess2)
     uint64_t preRemoteTotalSize = 512;
     bool isDiffRemoteNuma = false;
     GetNumaSizePara param = {.borrowInNid = "1", .srcNumaId = 1, .remoteNumaId = 1, .preRemoteNumaId = 1};
-    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, MpResult(*)(const std::string&, uint16_t, uint16_t))
+    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, MpResult (*)(const std::string&, uint16_t, uint16_t))
         .stubs()
         .will(returnValue(512));
 
@@ -510,7 +510,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaSizeFail1)
     uint64_t preRemoteTotalSize = 512;
     bool isDiffRemoteNuma = true;
     GetNumaSizePara param = {.borrowInNid = "1", .srcNumaId = 1, .remoteNumaId = 1, .preRemoteNumaId = 1};
-    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, MpResult(*)(const std::string&, uint16_t, uint16_t))
+    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, MpResult (*)(const std::string&, uint16_t, uint16_t))
         .stubs()
         .will(returnValue(0));
 
@@ -525,7 +525,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaSizeFail2)
     uint64_t preRemoteTotalSize = 512;
     bool isDiffRemoteNuma = true;
     GetNumaSizePara param = {.borrowInNid = "1", .srcNumaId = 1, .remoteNumaId = 1, .preRemoteNumaId = 1};
-    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, MpResult(*)(const std::string&, uint16_t, uint16_t))
+    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, MpResult (*)(const std::string&, uint16_t, uint16_t))
         .stubs()
         .will(returnValue(0));
 
@@ -543,7 +543,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetSelectPidsSuccess)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
 
     MOCKER_CPP(&FaultMemIdModule::FindClosestVmForMemAlloc,
-               MpResult(*)(std::vector<VmNumaInfo>&, uint64_t, std::vector<pid_t>&, uint64_t&))
+               MpResult (*)(std::vector<VmNumaInfo>&, uint64_t, std::vector<pid_t>&, uint64_t&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -562,7 +562,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetSelectPidsFail)
     std::vector<VmNumaInfo> allVmNumaInfoOnBoth;
 
     MOCKER_CPP(&FaultMemIdModule::FindClosestVmForMemAlloc,
-               MpResult(*)(std::vector<VmNumaInfo>&, uint64_t, std::vector<pid_t>&, uint64_t&))
+               MpResult (*)(std::vector<VmNumaInfo>&, uint64_t, std::vector<pid_t>&, uint64_t&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -580,7 +580,7 @@ TEST_F(TestOverCommitFaultMemIdModule, ExecEmptySuccess)
     uint64_t faultMemSize = 1024; // 借用的内存
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::ReturnFaultMem,
-               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::string, uint16_t, uint64_t, uint64_t))
+               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::string, uint16_t, uint64_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -597,7 +597,7 @@ TEST_F(TestOverCommitFaultMemIdModule, ExecEmptyFail)
     uint64_t faultMemSize = 1024; // 借用的内存
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::ReturnFaultMem,
-               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::string, uint16_t, uint64_t, uint64_t))
+               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::string, uint16_t, uint64_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -614,7 +614,7 @@ TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitFail1)
     uid_t uid = 123;
     std::string username = "root";
 
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult(*)(const std::string&, std::vector<BorrowRecord>&))
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult (*)(const std::string&, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -632,7 +632,7 @@ TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitFail2)
     uid_t uid = 123;
     std::string username = "root";
 
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult(*)(const std::string&, std::vector<BorrowRecord>&))
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult (*)(const std::string&, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -648,13 +648,13 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk4)
     uint64_t memId = 1024;
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult(*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
+               MpResult (*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(
         &OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-        MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
+        MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -669,7 +669,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail1)
     uint64_t memId = 1024;
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult(*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
+               MpResult (*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -684,13 +684,13 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail2)
     uint64_t memId = 1024;
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult(*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
+               MpResult (*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(
         &OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-        MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
+        MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -705,18 +705,18 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk3)
     uint64_t memId = 1024;
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult(*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
+               MpResult (*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(
         &OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-        MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
+        MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetSelectPids,
-               MpResult(*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
+               MpResult (*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -731,21 +731,21 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk5)
     uint64_t memId = 1024;
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult(*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
+               MpResult (*)(BorrowInNodeData&, uint64_t&, uint64_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(
         &OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-        MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
+        MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&, WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetSelectPids,
-               MpResult(*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
+               MpResult (*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&MemBorrowExecute, MpResult(*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
+    MOCKER_CPP(&MemBorrowExecute, MpResult (*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -760,7 +760,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceSuccess)
     outinterface::SrcMemoryBorrowParam srcParam;
     std::vector<MemBorrowInfo> memBorrowInfos = {{1, 1024}};
     uint64_t faultMemSize = 1024;
-    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool))
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -777,7 +777,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail1)
     std::vector<MemBorrowInfo> memBorrowInfos = {{1, 1024}};
     uint64_t faultMemSize = 1024;
 
-    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::SendMsg, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::SendMsg, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret =
         OverCommitFaultMemIdModule::Instance().SetAndDeleteResource(borrowId, srcParam, memBorrowInfos, faultMemSize);
@@ -792,7 +792,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail2)
     std::vector<MemBorrowInfo> memBorrowInfos = {{1, 1024}};
     uint64_t faultMemSize = 1024;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemFreeExecuteRpc, MpResult(*)(const std::string&, const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemFreeExecuteRpc, MpResult (*)(const std::string&, const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -809,11 +809,11 @@ TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail3)
     std::vector<MemBorrowInfo> memBorrowInfos = {{1, 1024}};
     uint64_t faultMemSize = 1024;
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemFreeExecuteRpc, MpResult(*)(const std::string&, const std::string&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemFreeExecuteRpc, MpResult (*)(const std::string&, const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
-    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::SendMsg, MpResult(*)())
+    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::SendMsg, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
@@ -830,12 +830,12 @@ TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemSuccess)
     uint16_t preRemoteNumaId = 1024;
     uint64_t faultMemSize = 1024;
 
-    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, uint64_t(*)(const std::string&, uint16_t, uint16_t))
+    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, uint64_t (*)(const std::string&, uint16_t, uint16_t))
         .stubs()
         .will(returnValue(1));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::SetAndDeleteResource,
-               MpResult(*)(std::string, outinterface::SrcMemoryBorrowParam, std::vector<MemBorrowInfo>, uint64_t))
+               MpResult (*)(std::string, outinterface::SrcMemoryBorrowParam, std::vector<MemBorrowInfo>, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -853,7 +853,7 @@ TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemFail1)
     uint64_t faultMemSize = 1024;
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::SetAndDeleteResource,
-               MpResult(*)(std::string, outinterface::SrcMemoryBorrowParam, std::vector<MemBorrowInfo>, uint64_t))
+               MpResult (*)(std::string, outinterface::SrcMemoryBorrowParam, std::vector<MemBorrowInfo>, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -870,12 +870,12 @@ TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemFail2)
     uint16_t preRemoteNumaId = 1024;
     uint64_t faultMemSize = 1024;
 
-    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, uint64_t(*)(const std::string&, uint16_t, uint16_t))
+    MOCKER_CPP(GetLocalNumaOnRemoteNumaBorrowSize, uint64_t (*)(const std::string&, uint16_t, uint16_t))
         .stubs()
         .will(returnValue(static_cast<unsigned long>(1)));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::SetAndDeleteResource,
-               MpResult(*)(std::string, outinterface::SrcMemoryBorrowParam, std::vector<MemBorrowInfo>, uint64_t))
+               MpResult (*)(std::string, outinterface::SrcMemoryBorrowParam, std::vector<MemBorrowInfo>, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -936,7 +936,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdExecuteRpcFail)
     std::string importNodeId = "1";
 
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(TestRackRpcSend));
 
@@ -952,7 +952,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetSmapRemoteNumaInfoExecSuccess)
     uint64_t borrowSize = 1024;
 
     MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo,
-               MpResult(*)(const uint16_t&, const std::vector<over_commit::MemBorrowInfoWithSrc>&))
+               MpResult (*)(const uint16_t&, const std::vector<over_commit::MemBorrowInfoWithSrc>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -968,7 +968,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetSmapRemoteNumaInfoExecFail)
     uint64_t borrowSize = 1024;
 
     MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo,
-               MpResult(*)(const uint16_t&, const std::vector<over_commit::MemBorrowInfoWithSrc>&))
+               MpResult (*)(const uint16_t&, const std::vector<over_commit::MemBorrowInfoWithSrc>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -989,12 +989,12 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdExecuteSuccess)
     mockParam.preRemoteNumaTotalSize = 2048; // 示例的之前的远程 NUMA 总内存
     mockParam.isDiffRemoteNuma = true;       // 是否为不同的远程 NUMA
 
-    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult(*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
+    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult (*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma,
-               MpResult(*)(std::vector<pid_t>&, uint16_t, uint16_t, int16_t, uint64_t))
+               MpResult (*)(std::vector<pid_t>&, uint16_t, uint16_t, int16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -1007,7 +1007,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdExecuteSuccess2)
     // 准备模拟数据
     OverCommitFaultMemIdExecuteParam mockParam;
 
-    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult(*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
+    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult (*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1028,12 +1028,12 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdExecuteFail2)
     mockParam.preRemoteNumaTotalSize = 2048; // 示例的之前的远程 NUMA 总内存
     mockParam.isDiffRemoteNuma = true;       // 是否为不同的远程 NUMA
 
-    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult(*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
+    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult (*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma,
-               MpResult(*)(std::vector<pid_t>&, uint16_t, uint16_t, int16_t, uint64_t))
+               MpResult (*)(std::vector<pid_t>&, uint16_t, uint16_t, int16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1050,16 +1050,16 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaSuccess)
     uint16_t localNumaId = 1;
     uint64_t remoteNumaTotalSize = 1024;
 
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult(*)(uint16_t, uint16_t, uint64_t))
+    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult (*)(uint16_t, uint16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -1077,7 +1077,7 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail1)
     uint16_t localNumaId = 1;
     uint64_t remoteNumaTotalSize = 1024;
 
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR))
         .then(returnValue(MEM_POOLING_OK));
@@ -1096,12 +1096,12 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail2)
     uint16_t localNumaId = 1;
     uint64_t remoteNumaTotalSize = 1024;
 
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1118,16 +1118,16 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail3)
     uint16_t remoteNumaId = 1;
     uint16_t localNumaId = 1;
     uint64_t remoteNumaTotalSize = 1024;
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult(*)(uint16_t, uint16_t, uint64_t))
+    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult (*)(uint16_t, uint16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1145,16 +1145,16 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail4)
     uint16_t localNumaId = 1;
     uint64_t remoteNumaTotalSize = 1024;
 
-    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult(*)(pid_t*, int, int, int))
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult (*)(pid_t*, int, int, int))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult(*)(uint16_t, uint16_t, uint64_t))
+    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult (*)(uint16_t, uint16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -1170,7 +1170,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsSuccess1)
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
 
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -1185,7 +1185,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFail1)
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
 
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1214,13 +1214,13 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFail2)
     std::vector<mempooling::exportV2::VmDomainInfo> mockVmDomainInfoList = {mockVmDomainInfo};
 
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .with(outBound(mockVmDomainInfoList))
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo>&))
+               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1249,12 +1249,12 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsSuccess2)
     std::vector<mempooling::exportV2::VmDomainInfo> mockVmDomainInfoList = {mockVmDomainInfo};
 
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .with(outBound(mockVmDomainInfoList))
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately, MpResult(*)(std::vector<NumaInfo>&))
+    MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately, MpResult (*)(std::vector<NumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -1283,7 +1283,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFailedWithNoNumas)
     std::vector<mempooling::exportV2::VmDomainInfo> mockVmDomainInfoList = {mockVmDomainInfo};
 
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .with(outBound(mockVmDomainInfoList))
         .will(returnValue(MEM_POOLING_OK));
@@ -1294,7 +1294,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFailedWithNoNumas)
     std::vector<mempooling::exportV2::NumaInfo> mockNumaInfoList = {numaInfo};
 
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo>&))
+               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .with(outBound(mockNumaInfoList))
         .will(returnValue(MEM_POOLING_OK));
@@ -1330,10 +1330,10 @@ TEST_F(TestOverCommitFaultMemIdModule, GetBothVmNumaInfoSuccess)
 TEST_F(TestOverCommitFaultMemIdModule, GetOverCommitSceneFailed)
 {
     std::string nodeId = "node1";
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)())
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)())
         .stubs()
         .will(returnValue(MpSceneType::CONTAINER_SCENE));
-    MOCKER_CPP(&OverCommitStorage::GetNumaBindType, MpResult(*)(const std::string& nodeId, NumaBindType& value))
+    MOCKER_CPP(&OverCommitStorage::GetNumaBindType, MpResult (*)(const std::string& nodeId, NumaBindType& value))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = OverCommitFaultMemIdModule::Instance().GetOverCommitScene(nodeId);
@@ -1343,10 +1343,10 @@ TEST_F(TestOverCommitFaultMemIdModule, GetOverCommitSceneFailed)
 TEST_F(TestOverCommitFaultMemIdModule, GetOverCommitSceneSuccess1)
 {
     std::string nodeId = "node1";
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)())
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)())
         .stubs()
         .will(returnValue(MpSceneType::CONTAINER_SCENE));
-    MOCKER_CPP(&OverCommitStorage::GetNumaBindType, MpResult(*)(const std::string& nodeId, NumaBindType& value))
+    MOCKER_CPP(&OverCommitStorage::GetNumaBindType, MpResult (*)(const std::string& nodeId, NumaBindType& value))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto ret = OverCommitFaultMemIdModule::Instance().GetOverCommitScene(nodeId);
@@ -1364,8 +1364,8 @@ TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListFailed1)
     pidMap.insert({remoteNumaId, pidList});
 
     MOCKER_CPP(&CollectUtil::GetRemoteVmPids,
-               MpResult(*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
-                           std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
+               MpResult (*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
+                            std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = GetContainerNumaInfoList(outSrcParam, vmNumaInfoWithSocketList, remoteNumaId, bindType);
@@ -1383,13 +1383,13 @@ TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListFailed2)
     pidMap.insert({remoteNumaId, pidList});
 
     MOCKER_CPP(&CollectUtil::GetRemoteVmPids,
-               MpResult(*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
-                           std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
+               MpResult (*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
+                            std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(
         &ResourceQuery::HelpGetContainerPidNumaInfo,
-        MpResult(*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
+        MpResult (*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = GetContainerNumaInfoList(outSrcParam, vmNumaInfoWithSocketList, remoteNumaId, bindType);
@@ -1417,13 +1417,13 @@ TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListSuccess1)
     pidInfos.emplace_back(p1);
 
     MOCKER_CPP(&CollectUtil::GetRemoteVmPids,
-               MpResult(*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
-                           std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
+               MpResult (*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
+                            std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(
         &ResourceQuery::HelpGetContainerPidNumaInfo,
-        MpResult(*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
+        MpResult (*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
         .stubs()
         .with(any(), any(), outBound(pidInfos))
         .will(returnValue(MEM_POOLING_OK));
@@ -1452,13 +1452,13 @@ TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListSuccess2)
     pidInfos.emplace_back(p1);
 
     MOCKER_CPP(&CollectUtil::GetRemoteVmPids,
-               MpResult(*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
-                           std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
+               MpResult (*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
+                            std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(
         &ResourceQuery::HelpGetContainerPidNumaInfo,
-        MpResult(*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
+        MpResult (*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
         .stubs()
         .with(any(), any(), outBound(pidInfos))
         .will(returnValue(MEM_POOLING_OK));
@@ -1487,13 +1487,13 @@ TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListSuccess3)
     pidInfos.emplace_back(p1);
 
     MOCKER_CPP(&CollectUtil::GetRemoteVmPids,
-               MpResult(*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
-                           std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
+               MpResult (*)(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
+                            std::unordered_map<std::uint16_t, std::vector<pid_t>>& res))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(
         &ResourceQuery::HelpGetContainerPidNumaInfo,
-        MpResult(*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
+        MpResult (*)(const std::string& srcNid, const std::vector<pid_t>& pidList, std::vector<RmrsPidInfo>& pidInfos))
         .stubs()
         .with(any(), any(), outBound(pidInfos))
         .will(returnValue(MEM_POOLING_OK));
@@ -1508,7 +1508,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetPidNumaInfoSuccess1)
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     uint16_t remoteNumaId = 4;
 
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)())
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)())
         .stubs()
         .will(returnValue(MpSceneType::CONTAINER_SCENE));
 
@@ -1526,9 +1526,9 @@ TEST_F(TestOverCommitFaultMemIdModule, GetPidNumaInfoFailed)
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     uint16_t remoteNumaId = 4;
 
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(2));
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(2));
 
-    MOCKER_CPP(&OverCommitStorage::GetNumaBindType, MpResult(*)(const std::string& nodeId, NumaBindType& value))
+    MOCKER_CPP(&OverCommitStorage::GetNumaBindType, MpResult (*)(const std::string& nodeId, NumaBindType& value))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     OverCommitFaultMemIdModule::Instance().GetOverCommitScene(nodeId);
@@ -1545,7 +1545,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaBorrowSizeSingle)
     uint16_t remoteNumaId2 = 5;
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult(*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult (*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(MockCollectBorrowRecordsNode0));
     NumaBindType bindType = NumaBindType::BIND_SINGLE;
@@ -1556,7 +1556,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaBorrowSizeSingle)
 TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaBorrowSizeMulit)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult(*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult (*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(MockCollectBorrowRecordsNode0));
     NumaBindType bindType = NumaBindType::BIND_MULTIPLE;
@@ -1567,7 +1567,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaBorrowSizeMulit)
 TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitSuccess)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult(*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult (*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(MockCollectBorrowRecordsNode0WithFault));
     BorrowInNodeData borrowInNodeData = {.borrowInNid = "node0", .memId = 0, .borrowId = ""};
@@ -1607,7 +1607,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetBothVmNumaInfoMultiSceneSuccess)
 TEST_F(TestOverCommitFaultMemIdModule, GetWaterMark)
 {
     WaterMark waterMark;
-    MOCKER_CPP(&OverCommitStorage::GetWaterMark, MpResult(*)(uint16_t&, uint16_t&))
+    MOCKER_CPP(&OverCommitStorage::GetWaterMark, MpResult (*)(uint16_t&, uint16_t&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = OverCommitFaultMemIdModule::Instance().GetWaterMark(waterMark);

@@ -46,7 +46,7 @@ public:
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRecvHandlerSuccess)
 {
-    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult(*)(uint16_t, std::vector<VmNumaInfoWithSocket>&))
+    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult (*)(uint16_t, std::vector<VmNumaInfoWithSocket>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     OverCommitMsg overCommitMsg;
@@ -62,7 +62,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRecvHandlerSuccess)
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRecvHandlerFail)
 {
-    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult(*)(uint16_t, std::vector<VmNumaInfoWithSocket>&))
+    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult (*)(uint16_t, std::vector<VmNumaInfoWithSocket>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     OverCommitMsg overCommitMsg;
@@ -101,11 +101,11 @@ TEST_F(TestOverCommitMsg, GetLocalNumaVmsSuccess)
     OverCommitMsg overCommitMsg;
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos))
         .stubs()
         .will(invoke(MockGetVmInfoImmediately));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
         .stubs()
         .will(invoke(MockGetNumaInfoImmediately));
     auto ret = overCommitMsg.GetLocalNumaVms(0, vmNumaInfoWithSocketList);
@@ -117,11 +117,11 @@ TEST_F(TestOverCommitMsg, GetLocalNumaVmsFailWhenGetVMERROR)
     OverCommitMsg overCommitMsg;
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
         .stubs()
         .will(invoke(MockGetNumaInfoImmediately));
     auto ret = overCommitMsg.GetLocalNumaVms(0, vmNumaInfoWithSocketList);
@@ -133,11 +133,11 @@ TEST_F(TestOverCommitMsg, GetLocalNumaVmsFailWhenGetVMEmpty)
     OverCommitMsg overCommitMsg;
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
         .stubs()
         .will(invoke(MockGetNumaInfoImmediately));
     auto ret = overCommitMsg.GetLocalNumaVms(0, vmNumaInfoWithSocketList);
@@ -149,11 +149,11 @@ TEST_F(TestOverCommitMsg, GetLocalNumaVmsFailWhenGetNumaEmpty)
     OverCommitMsg overCommitMsg;
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos))
         .stubs()
         .will(invoke(MockGetVmInfoImmediately));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto ret = overCommitMsg.GetLocalNumaVms(0, vmNumaInfoWithSocketList);
@@ -165,11 +165,11 @@ TEST_F(TestOverCommitMsg, GetLocalNumaVmsFailWhenGetNumaERR)
     OverCommitMsg overCommitMsg;
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos))
         .stubs()
         .will(invoke(MockGetVmInfoImmediately));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
+               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = overCommitMsg.GetLocalNumaVms(0, vmNumaInfoWithSocketList);
@@ -251,7 +251,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpcFail)
     std::string importNodeId = "1";
 
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(TestRackRpcSend1));
 

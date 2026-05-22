@@ -67,7 +67,7 @@ TEST_F(TestMemManager, MemManagerInitSucceed)
 {
     // Mock测试
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
-    MOCKER_CPP(&mempooling::BorrowRecordHelper::UpdateBorrowRecords, MpResult(*)())
+    MOCKER_CPP(&mempooling::BorrowRecordHelper::UpdateBorrowRecords, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     BorrowRecord record;
@@ -95,7 +95,7 @@ TEST_F(TestMemManager, MemManagerInitFailed)
 
 TEST_F(TestMemManager, GetNodeMemInfoFailed)
 {
-    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
     NodeMemInfo nodeMemInfo;
     MemManager::Instance().nodeMemMap.insert({{"node1", nodeMemInfo}});
     NodeMemInfo outInfo;
@@ -105,7 +105,7 @@ TEST_F(TestMemManager, GetNodeMemInfoFailed)
 
 TEST_F(TestMemManager, GetNodeMemInfoSuccess)
 {
-    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
     NodeMemInfo nodeMemInfo;
     MemManager::Instance().nodeMemMap.insert({{"node1", nodeMemInfo}});
     NodeMemInfo outInfo;
@@ -142,7 +142,7 @@ uint32_t RackStorageQueryDataForTest(const std::string& keyPrefix, const std::st
 TEST_F(TestMemManager, Name2VmInfoUpdate)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     Name2VmInfo obj;
@@ -155,7 +155,7 @@ TEST_F(TestMemManager, Name2VmInfoUpdate)
 TEST_F(TestMemManager, Name2VmInfoUpdateDeleteOperation)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     Name2VmInfo obj;
@@ -190,11 +190,11 @@ TEST_F(TestMemManager, GetAntiNodeSucceed3)
 {
     std::string srcNid = "Node0";
     std::vector<std::string> antiNodeMemVec = {"Node0"};
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(TestRackStorageQueryData));
-    MOCKER_CPP(&AntiDataReload, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&AntiDataReload, uint32_t (*)()).stubs().will(returnValue(0));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
     MpResult res = obj.Query(srcNid, antiNodeMemVec);
     EXPECT_EQ(res, MEM_POOLING_OK);
@@ -241,7 +241,7 @@ uint32_t RackStorageQueryDataForGetAntiNodeCompleted(const std::string& keyPrefi
 TEST_F(TestMemManager, GetAntiNodeEmpty)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               MpResult(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
+               MpResult (*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(returnValue(0));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -253,7 +253,7 @@ TEST_F(TestMemManager, GetAntiNodeEmpty)
 TEST_F(TestMemManager, GetAntiNodeFailed1)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               MpResult(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
+               MpResult (*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(returnValue(1));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -265,7 +265,7 @@ TEST_F(TestMemManager, GetAntiNodeFailed1)
 TEST_F(TestMemManager, GetAntiNodeFailed2)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               MpResult(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
+               MpResult (*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(invoke(RackStorageQueryDataForGetAntiNodeCompleted));
     MOCKER_CPP(&MpUpdateAntiNodeParam::FromJson, bool (*)(const std::string&)).stubs().will(returnValue(false));
@@ -278,7 +278,7 @@ TEST_F(TestMemManager, GetAntiNodeFailed2)
 TEST_F(TestMemManager, GetAntiNodeCompleted1)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               MpResult(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
+               MpResult (*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(invoke(RackStorageQueryDataForGetAntiNodeCompleted));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -290,7 +290,7 @@ TEST_F(TestMemManager, GetAntiNodeCompleted1)
 TEST_F(TestMemManager, GetAntiNodeCompleted2)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               MpResult(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
+               MpResult (*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(invoke(RackStorageQueryDataForGetAntiNodeCompleted));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -301,7 +301,7 @@ TEST_F(TestMemManager, GetAntiNodeCompleted2)
 
 TEST_F(TestMemManager, UpdateAntiNodeFailed2)
 {
-    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+    MOCKER_CPP(UbseStoragePutData, uint32_t (*)(const std::string&, const std::string&, UbseByteBuffer*))
         .stubs()
         .will(returnValue(1));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -313,7 +313,7 @@ TEST_F(TestMemManager, UpdateAntiNodeFailed2)
 TEST_F(TestMemManager, GetAntiNodeRawDataSucceed)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               MpResult(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
+               MpResult (*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(invoke(RackStorageQueryDataForGetAntiNodeCompleted));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -325,7 +325,7 @@ TEST_F(TestMemManager, GetAntiNodeRawDataSucceed)
 TEST_F(TestMemManager, GetAntiNodeRawDataFailed1)
 {
     MOCKER_CPP(UbseStorageQueryData,
-               MpResult(*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
+               MpResult (*)(const std::string&, const std::string&, void* ctx, UbseStorageDealDataFunc))
         .stubs()
         .will(returnValue(1));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -337,7 +337,7 @@ TEST_F(TestMemManager, GetAntiNodeRawDataFailed1)
 TEST_F(TestMemManager, PutAntiNodeRawDataSucceed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -349,7 +349,7 @@ TEST_F(TestMemManager, PutAntiNodeRawDataSucceed)
 TEST_F(TestMemManager, PutAntiNodeRawDataFailed1)
 {
     MOCKER_CPP(UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(1));
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
@@ -361,7 +361,7 @@ TEST_F(TestMemManager, PutAntiNodeRawDataFailed1)
 TEST_F(TestMemManager, UpdateBorrowIdRedirectionSucceed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
     mempooling::BorrowIdRedirection& obj = mempooling::BorrowIdRedirection::Instance();
@@ -372,7 +372,7 @@ TEST_F(TestMemManager, UpdateBorrowIdRedirectionSucceed)
 TEST_F(TestMemManager, UpdateBorrowIdRedirectionFailed1)
 {
     MOCKER_CPP(UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(1));
     mempooling::BorrowIdRedirection& obj = mempooling::BorrowIdRedirection::Instance();
@@ -391,7 +391,7 @@ TEST_F(TestMemManager, GetBorrowIdRedirectionSucceed)
 
 TEST_F(TestMemManager, PutBorrowIdRedirectionRawDataSucceed)
 {
-    MOCKER_CPP(UbseStoragePutData, MpResult(*)(const std::string&, const std::string&, UbseByteBuffer*))
+    MOCKER_CPP(UbseStoragePutData, MpResult (*)(const std::string&, const std::string&, UbseByteBuffer*))
         .stubs()
         .will(returnValue(0));
     mempooling::BorrowIdRedirection& obj = mempooling::BorrowIdRedirection::Instance();
@@ -403,7 +403,7 @@ TEST_F(TestMemManager, PutBorrowIdRedirectionRawDataSucceed)
 
 TEST_F(TestMemManager, PutBorrowIdRedirectionRawDataFailed1)
 {
-    MOCKER_CPP(UbseStoragePutData, MpResult(*)(const std::string&, const std::string&, UbseByteBuffer*))
+    MOCKER_CPP(UbseStoragePutData, MpResult (*)(const std::string&, const std::string&, UbseByteBuffer*))
         .stubs()
         .will(returnValue(1));
     mempooling::BorrowIdRedirection& obj = mempooling::BorrowIdRedirection::Instance();
@@ -431,7 +431,7 @@ TEST_F(TestMemManager, RemoveBorrowIdRedirection_succeed)
 
 TEST_F(TestMemManager, CollectBorrowRecordsSucceed)
 {
-    MOCKER_CPP(&BorrowRecordHelper::UpdateBorrowRecords, MpResult(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&BorrowRecordHelper::UpdateBorrowRecords, MpResult (*)()).stubs().will(returnValue(0));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
     std::vector<mempooling::BorrowRecord> vec;
     auto ret = obj.CollectBorrowRecords("ab", vec);
@@ -440,7 +440,7 @@ TEST_F(TestMemManager, CollectBorrowRecordsSucceed)
 
 TEST_F(TestMemManager, GetBorrowIdByNumaIdSucceed)
 {
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult(*)(const std::string, std::vector<BorrowRecord>&))
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult (*)(const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(0));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
@@ -499,7 +499,7 @@ TEST_F(TestMemManager, Name2VmInfoGetName2VmInfoRawDataSucceed)
 
 TEST_F(TestMemManager, Name2VmInfoPutName2VmInfoRawDataSucceed)
 {
-    MOCKER_CPP(UbseStoragePutData, MpResult(*)(const std::string&, const std::string&, UbseByteBuffer*))
+    MOCKER_CPP(UbseStoragePutData, MpResult (*)(const std::string&, const std::string&, UbseByteBuffer*))
         .stubs()
         .will(returnValue(0));
     std::vector<std::string> vec;
@@ -626,7 +626,7 @@ TEST_F(TestMemManager, CollectBorrowableInfoSuccess)
 TEST_F(TestMemManager, CollectBorrowableInfoListSucceed)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult(*)(const std::string&, NodeMemoryInfoWithReservedMem&))
+               MpResult (*)(const std::string&, NodeMemoryInfoWithReservedMem&))
         .stubs()
         .will(returnValue(0));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
@@ -640,7 +640,7 @@ TEST_F(TestMemManager, CollectBorrowableInfoListSucceed)
 TEST_F(TestMemManager, CollectBorrowableInfoListFailed1)
 {
     MOCKER_CPP(&mempooling::BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult(*)(const std::string&, NodeMemoryInfoWithReservedMem&))
+               MpResult (*)(const std::string&, NodeMemoryInfoWithReservedMem&))
         .stubs()
         .will(returnValue(1));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
@@ -819,7 +819,7 @@ uint32_t RackMemGetTopologyInfoMock2(std::unordered_map<std::string, std::vector
 TEST_F(TestMemManager, GenerateNumaSocketMap_success)
 {
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
+               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
         .stubs()
         .will(invoke(RackMemGetTopologyInfoMock2));
     std::map<std::string, std::map<int, uint16_t>> numaSocketMap;
@@ -830,7 +830,7 @@ TEST_F(TestMemManager, GenerateNumaSocketMap_success)
 TEST_F(TestMemManager, GenerateNumaSocketMap_failed1)
 {
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
+               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
         .stubs()
         .will(returnValue(1));
     std::map<std::string, std::map<int, uint16_t>> numaSocketMap;
@@ -841,12 +841,12 @@ TEST_F(TestMemManager, GenerateNumaSocketMap_failed1)
 TEST_F(TestMemManager, GenerateNumaSocketMap_failed2)
 {
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
+               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
         .stubs()
         .will(invoke(RackMemGetTopologyInfoMock2));
     MOCKER_CPP(&GeneratePerNodeNumaSocketMap,
-               uint32_t(*)(const std::vector<MemNodeData>& memNodeDataVec,
-                           std::map<std::string, std::map<int, uint16_t>>& numaSocketMap))
+               uint32_t (*)(const std::vector<MemNodeData>& memNodeDataVec,
+                            std::map<std::string, std::map<int, uint16_t>>& numaSocketMap))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::map<std::string, std::map<int, uint16_t>> numaSocketMap;
@@ -887,7 +887,7 @@ TEST_F(TestMemManager, BorrowRecordToJson)
 TEST_F(TestMemManager, GetBorrowIdByNumaIdSucceedWithNormalData)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult(*)(BorrowRecordHelper * This, const std::string, std::vector<BorrowRecord>&))
+               MpResult (*)(BorrowRecordHelper* This, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(invoke(CollectBorrowRecordsMock));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
@@ -915,7 +915,7 @@ TEST_F(TestMemManager, TestGetCanBorrowMemFromUbSuccess)
 
 TEST_F(TestMemManager, TestResolveUbBorrowableInfoListFail)
 {
-    MOCKER_CPP(&MemManager::GetCanBorrowMemFromUb, MpResult(*)(RackNumaMemInfo numaMemInfo, uint64_t & canBorrowMem))
+    MOCKER_CPP(&MemManager::GetCanBorrowMemFromUb, MpResult (*)(RackNumaMemInfo numaMemInfo, uint64_t& canBorrowMem))
         .stubs()
         .will(returnValue(1));
     NodeMemoryInfoWithReservedMem nodeMemoryInfoWithReservedMem;
@@ -927,7 +927,7 @@ TEST_F(TestMemManager, TestResolveUbBorrowableInfoListFail)
 
 TEST_F(TestMemManager, TestResolveUbBorrowableInfoListSuccess)
 {
-    MOCKER_CPP(&MemManager::GetCanBorrowMemFromUb, MpResult(*)(RackNumaMemInfo numaMemInfo, uint64_t & canBorrowMem))
+    MOCKER_CPP(&MemManager::GetCanBorrowMemFromUb, MpResult (*)(RackNumaMemInfo numaMemInfo, uint64_t& canBorrowMem))
         .stubs()
         .will(returnValue(0));
     NodeMemoryInfoWithReservedMem nodeMemoryInfoWithReservedMem;
@@ -939,7 +939,7 @@ TEST_F(TestMemManager, TestResolveUbBorrowableInfoListSuccess)
 }
 TEST_F(TestMemManager, GetNodeMemMap_succeed)
 {
-    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
 
     mempooling::MemManager& obj = mempooling::MemManager::Instance();
     std::unordered_map<std::string, NodeMemInfo> outMap;
@@ -950,7 +950,7 @@ TEST_F(TestMemManager, GetNodeMemMap_succeed)
 
 TEST_F(TestMemManager, GetNodeMemMap_init_info_failed)
 {
-    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&MemManager::InitBorrowableInfo, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
     mempooling::MemManager& obj = mempooling::MemManager::Instance();
     std::unordered_map<std::string, NodeMemInfo> outMap;
     MpResult ret = obj.GetNodeMemMap(outMap);
@@ -1009,7 +1009,7 @@ TEST_F(TestMemManager, RemoveBorrowIdsCompleted_succeed)
 TEST_F(TestMemManager, RemoveBorrowIdsCompleted_rack_put_info_failed)
 {
     MOCKER_CPP(&UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::BorrowIdsCompleted& obj = mempooling::BorrowIdsCompleted::Instance();
@@ -1031,7 +1031,7 @@ TEST_F(TestMemManager, UpdateVmInfosCompleted_succeed)
 TEST_F(TestMemManager, UpdateVmInfosCompleted_rack_storage_info_failed)
 {
     MOCKER_CPP(&UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::VmInfosCompleted& obj = mempooling::VmInfosCompleted::Instance();
@@ -1054,7 +1054,7 @@ TEST_F(TestMemManager, RemoveVmInfosCompleted_succeed)
 TEST_F(TestMemManager, RemoveVmInfosCompleted_rack_put_info_failed)
 {
     MOCKER_CPP(&UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::VmInfosCompleted& obj = mempooling::VmInfosCompleted::Instance();
@@ -1065,7 +1065,7 @@ TEST_F(TestMemManager, RemoveVmInfosCompleted_rack_put_info_failed)
 
 TEST_F(TestMemManager, RemoveVmInfosCompleted_rack_storage_info_succeed)
 {
-    MOCKER_CPP(&UbseStorageDeleteData, MpResult(*)(const std::string&, const std::string&))
+    MOCKER_CPP(&UbseStorageDeleteData, MpResult (*)(const std::string&, const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     mempooling::VmInfosCompleted& obj = mempooling::VmInfosCompleted::Instance();
@@ -1084,8 +1084,8 @@ TEST_F(TestMemManager, GetVmInfosCompletedMap_succeed)
 
 TEST_F(TestMemManager, GetVmInfosCompletedMap_rack_query_all_info_failed)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                 UbseStorageDealDataFunc func))
+    MOCKER_CPP(UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1116,7 +1116,7 @@ TEST_F(TestMemManager, PutBorrowIdsCompletedRawData_succeed)
 TEST_F(TestMemManager, PutBorrowIdsCompletedRawData_rack_query_all_info_failed)
 {
     MOCKER_CPP(&UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::BorrowIdsCompleted& obj = mempooling::BorrowIdsCompleted::Instance();
@@ -1128,7 +1128,7 @@ TEST_F(TestMemManager, PutBorrowIdsCompletedRawData_rack_query_all_info_failed)
 TEST_F(TestMemManager, PutBorrowIdsCompletedRawData_rack_delete_info_failed)
 {
     MOCKER_CPP(&UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::BorrowIdsCompleted& obj = mempooling::BorrowIdsCompleted::Instance();
@@ -1139,8 +1139,8 @@ TEST_F(TestMemManager, PutBorrowIdsCompletedRawData_rack_delete_info_failed)
 
 TEST_F(TestMemManager, GetBorrowIdsCompletedRawDataFailed1)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                 UbseStorageDealDataFunc func))
+    MOCKER_CPP(UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::BorrowIdsCompleted& obj = mempooling::BorrowIdsCompleted::Instance();
@@ -1169,7 +1169,7 @@ TEST_F(TestMemManager, PutVmInfosCompletedRawData_succeed)
 TEST_F(TestMemManager, PutVmInfosCompletedRawData_rack_query_all_info_failed)
 {
     MOCKER_CPP(&UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::VmInfosCompleted& obj = mempooling::VmInfosCompleted::Instance();
@@ -1181,7 +1181,7 @@ TEST_F(TestMemManager, PutVmInfosCompletedRawData_rack_query_all_info_failed)
 TEST_F(TestMemManager, PutVmInfosCompletedRawData_rack_delete_info_failed)
 {
     MOCKER_CPP(&UbseStoragePutData,
-               MpResult(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               MpResult (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::VmInfosCompleted& obj = mempooling::VmInfosCompleted::Instance();
@@ -1200,7 +1200,7 @@ TEST_F(TestMemManager, GetVmInfosCompletedRawData_empty_succeed)
 
 TEST_F(TestMemManager, CollectBorrowRecordsAllFailed)
 {
-    MOCKER_CPP(&mempooling::BorrowRecordHelper::CollectBorrowRecordsAll, MpResult(*)())
+    MOCKER_CPP(&mempooling::BorrowRecordHelper::CollectBorrowRecordsAll, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
@@ -1211,7 +1211,7 @@ TEST_F(TestMemManager, CollectBorrowRecordsAllFailed)
 
 TEST_F(TestMemManager, CollectBorrowRecordsAllSucceed)
 {
-    MOCKER_CPP(&mempooling::BorrowRecordHelper::CollectBorrowRecordsAll, MpResult(*)())
+    MOCKER_CPP(&mempooling::BorrowRecordHelper::CollectBorrowRecordsAll, MpResult (*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
@@ -1225,10 +1225,10 @@ TEST_F(TestMemManager, CollectBorrowRecordsAllSucceed)
 TEST_F(TestMemManager, UpdateBorrowIdsCompletedShouldSucceedWhenAllMethodsPass)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&mempooling::BorrowIdsCompleted::GetRawData, MpResult(*)(UbseByteBuffer & data, bool needLock))
+    MOCKER_CPP(&mempooling::BorrowIdsCompleted::GetRawData, MpResult (*)(UbseByteBuffer& data, bool needLock))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     mempooling::BorrowIdsCompleted& obj = mempooling::BorrowIdsCompleted::Instance();
@@ -1240,10 +1240,10 @@ TEST_F(TestMemManager, UpdateBorrowIdsCompletedShouldSucceedWhenAllMethodsPass)
 TEST_F(TestMemManager, UpdateBorrowIdsCompletedShouldFailedWhenRackStoragePutDataFailed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&mempooling::BorrowIdsCompleted::GetRawData, MpResult(*)(UbseByteBuffer & data, bool needLock))
+    MOCKER_CPP(&mempooling::BorrowIdsCompleted::GetRawData, MpResult (*)(UbseByteBuffer& data, bool needLock))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     mempooling::BorrowIdsCompleted& obj = mempooling::BorrowIdsCompleted::Instance();
@@ -1306,8 +1306,8 @@ TEST_F(TestMemManager, LoadDataBaseFailed)
 
 TEST_F(TestMemManager, AntiDataReloadFailed1)
 {
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(1));
     auto ret = mempooling::AntiDataReload();
@@ -1316,8 +1316,8 @@ TEST_F(TestMemManager, AntiDataReloadFailed1)
 
 TEST_F(TestMemManager, AntiDataReloadFailed2)
 {
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(TestRackStorageQueryData));
     MOCKER_CPP(&MpUpdateAntiNodeParam::FromJson, bool (*)(MpUpdateAntiNodeParam*, const std::string& jsonString))
@@ -1329,8 +1329,8 @@ TEST_F(TestMemManager, AntiDataReloadFailed2)
 
 TEST_F(TestMemManager, AntiDataReloadSucceed1)
 {
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(0));
     auto ret = mempooling::AntiDataReload();
@@ -1339,8 +1339,8 @@ TEST_F(TestMemManager, AntiDataReloadSucceed1)
 
 TEST_F(TestMemManager, AntiDataReloadSucceed2)
 {
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(TestRackStorageQueryData));
     MOCKER_CPP(&MpUpdateAntiNodeParam::FromJson, bool (*)(MpUpdateAntiNodeParam*, const std::string& jsonString))
@@ -1352,9 +1352,9 @@ TEST_F(TestMemManager, AntiDataReloadSucceed2)
 
 TEST_F(TestMemManager, DataReloadInitFailed2)
 {
-    MOCKER_CPP(&AntiDataReload, uint32_t(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&AntiDataReload, uint32_t (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(1));
     auto ret = mempooling::DataReloadInit();
@@ -1363,38 +1363,38 @@ TEST_F(TestMemManager, DataReloadInitFailed2)
 
 TEST_F(TestMemManager, DataReloadInitFailed3)
 {
-    MOCKER_CPP(&AntiDataReload, uint32_t(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&AntiDataReload, uint32_t (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t(*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(1));
+    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t (*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(1));
     auto ret = mempooling::DataReloadInit();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestMemManager, DataReloadInitFailed4)
 {
-    MOCKER_CPP(&AntiDataReload, uint32_t(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&AntiDataReload, uint32_t (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(0))
         .then(returnValue(1));
-    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t(*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(1));
+    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t (*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(1));
     auto ret = mempooling::DataReloadInit();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestMemManager, DataReloadInitFailed5)
 {
-    MOCKER_CPP(&AntiDataReload, uint32_t(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&AntiDataReload, uint32_t (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t(*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(0));
-    MOCKER_CPP(&BorrowIdRedirection::PutRawData, uint32_t(*)(BorrowIdRedirection*, UbseByteBuffer&))
+    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t (*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(0));
+    MOCKER_CPP(&BorrowIdRedirection::PutRawData, uint32_t (*)(BorrowIdRedirection*, UbseByteBuffer&))
         .stubs()
         .will(returnValue(1));
     auto ret = mempooling::DataReloadInit();
@@ -1404,13 +1404,13 @@ TEST_F(TestMemManager, DataReloadInitFailed5)
 TEST_F(TestMemManager, DataReloadInitFailed)
 {
     GTEST_SKIP();
-    MOCKER_CPP(&AntiDataReload, uint32_t(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(&AntiDataReload, uint32_t (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                   UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t(*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(0));
-    MOCKER_CPP(&BorrowIdRedirection::PutRawData, uint32_t(*)(BorrowIdRedirection*, UbseByteBuffer&))
+    MOCKER_CPP(&Name2VmInfo::PutRawData, uint32_t (*)(Name2VmInfo*, UbseByteBuffer&)).stubs().will(returnValue(0));
+    MOCKER_CPP(&BorrowIdRedirection::PutRawData, uint32_t (*)(BorrowIdRedirection*, UbseByteBuffer&))
         .stubs()
         .will(returnValue(0));
     auto ret = mempooling::DataReloadInit();
@@ -1430,7 +1430,7 @@ TEST_F(TestMemManager, MemReturnManager_put_failed)
     mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     obj.borrowCache = {{"borrow_0", {"borrow_0", "srcNid_4", 5, "dstNid_2", 3, 125}}};
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(1));
     auto ret = obj.Remove("borrow_0");
@@ -1442,7 +1442,7 @@ TEST_F(TestMemManager, MemReturnManager_sync_succeed)
     mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     obj.borrowCache = {{"borrow_0", {"borrow_0", "srcNid_4", 5, "dstNid_2", 3, 125}}};
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
 
@@ -1455,7 +1455,7 @@ TEST_F(TestMemManager, MemReturnManager_success)
     mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     obj.borrowCache = {{"borrow_0", {"borrow_0", "srcNid_4", 5, "dstNid_2", 3, 125}}};
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
 
@@ -1510,7 +1510,7 @@ TEST_F(TestMemManager, MemReturnManager_all_not_Returned)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(1));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(1));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1518,7 +1518,7 @@ TEST_F(TestMemManager, MpManagerSubModuleInit)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit1)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(0));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1526,7 +1526,7 @@ TEST_F(TestMemManager, MpManagerSubModuleInit1)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit2)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(0));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1534,7 +1534,7 @@ TEST_F(TestMemManager, MpManagerSubModuleInit2)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit3)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(0));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1542,7 +1542,7 @@ TEST_F(TestMemManager, MpManagerSubModuleInit3)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit4)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(0));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1550,7 +1550,7 @@ TEST_F(TestMemManager, MpManagerSubModuleInit4)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit5)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(0));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1558,7 +1558,7 @@ TEST_F(TestMemManager, MpManagerSubModuleInit5)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit6)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(0));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1566,7 +1566,7 @@ TEST_F(TestMemManager, MpManagerSubModuleInit6)
 
 TEST_F(TestMemManager, MpManagerSubModuleInit7)
 {
-    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&mempooling::DataReloadInit, uint32_t (*)()).stubs().will(returnValue(0));
     MpManagerSubModule module;
     auto ret = module.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1581,7 +1581,7 @@ UbseResult UbseGetNumaMemDebtInfoMock(std::vector<UbseNumaMemoryDebtInfo>& debtI
 TEST_F(TestMemManager, GetDebtInfosWithRetryTest_InRetry)
 {
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
-    MOCKER_CPP(&UbseGetNumaMemDebtInfo, UbseResult(*)(std::vector<UbseNumaMemoryDebtInfo>&))
+    MOCKER_CPP(&UbseGetNumaMemDebtInfo, UbseResult (*)(std::vector<UbseNumaMemoryDebtInfo>&))
         // .stubs()
         .expects(atLeast(1))
         .will(invoke(UbseGetNumaMemDebtInfoMock)); // 验证确实retry;
@@ -1615,7 +1615,7 @@ UbseResult UbseGetNumaMemDebtInfoMockWithInvalidRes(std::vector<UbseNumaMemoryDe
 TEST_F(TestMemManager, GetDebtInfosWithRetryTest_Invalid_InRetry)
 {
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
-    MOCKER_CPP(&UbseGetNumaMemDebtInfo, UbseResult(*)(std::vector<UbseNumaMemoryDebtInfo>&))
+    MOCKER_CPP(&UbseGetNumaMemDebtInfo, UbseResult (*)(std::vector<UbseNumaMemoryDebtInfo>&))
         // .stubs()
         .expects(atLeast(1))
         .will(invoke(UbseGetNumaMemDebtInfoMock)); // 验证确实retry;
