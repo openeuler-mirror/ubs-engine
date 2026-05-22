@@ -175,6 +175,9 @@ uint32_t UbseMemFdBorrow(const UbseMemFdBorrowReq& req, UbseMemOperationResp& re
                   << ", requestId=" << req.requestId;
     auto lock = LoggingLockGuard(GenerateExportObjKey(req.name, req.importNodeId));
     resp.requestId = req.requestId;
+    if (!IsMemBorrowFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::FD_BORROW);
+    }
 
     auto errCode = CheckFdResourceState(req.name, req.importNodeId);
     if (errCode != UBSE_ERR_NOT_EXIST) {
@@ -285,6 +288,9 @@ uint32_t UbseMemFdPermission(const UbseMemFdPermissionReq& req, const std::strin
     auto exportKey = GenerateExportObjKey(req.name, req.requestNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemFdBorrowImportObj importObj{};
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
 
     if (!FindFdBorrowObjByName(req, importObj)) {
         UBSE_LOG_ERROR << "name=" << req.name << " not exist successfully borrow";
@@ -1214,6 +1220,10 @@ uint32_t UbseMemFdReturn(const UbseMemReturnReq& req, UbseMemOperationResp& resp
 {
     UBSE_LOG_INFO << "Start to fd return, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId << ", realRequestNodeId=" << realRequestNodeId;
+    InitializeResponse(req, resp);
+    if (!IsMemBorrowFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::FD_RETURN);
+    }
     BorrowObjResult result{};
     if (auto ret = ValidateBorrowResource(req, resp, realRequestNodeId, result); ret != UBSE_OK) {
         return result.comErrorCode;

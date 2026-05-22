@@ -131,13 +131,13 @@ uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo& node)
 UbseResult UbseMemControllerModule::Initialize()
 {
     enabled_ = UbseIsMemSupported();
-    if (!enabled_) {
-        UBSE_LOG_INFO << "Memory borrow and share features are unsupported, skip mem controller background init.";
-        return UBSE_OK;
-    }
     auto ret = CreateTaskExecutor();
     if (ret != UBSE_OK) {
         return ret;
+    }
+    if (!enabled_) {
+        UBSE_LOG_INFO << "Memory borrow and share features are unsupported, keep mem executor and skip background init.";
+        return UBSE_OK;
     }
     RegisterNodeCtlNotify();
     UbseNodeController::GetInstance().RegLocalStateNotifyHandler(EnableCycleCheck);
@@ -165,7 +165,19 @@ void UbseMemControllerModule::UnInitialize()
 UbseResult UbseMemControllerModule::Start()
 {
     if (!enabled_) {
-        return UbseMemControllerDispatcher::RegisterSdkDispatcher();
+        if (auto ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to reg mem schedule handler when mem feature is unsupported.";
+            return ret;
+        }
+        if (auto ret = RegMemControllerHandler(); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to reg MemControllerHandler when mem feature is unsupported.";
+            return ret;
+        }
+        if (auto ret = UbseMemControllerDispatcher::RegisterSdkDispatcher(); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to reg UbseMemControllerDispatcher when mem feature is unsupported.";
+            return ret;
+        }
+        return ubse::mem::controller::agent::Init();
     }
     ubse::mem::controller::Init();
     if (auto ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {

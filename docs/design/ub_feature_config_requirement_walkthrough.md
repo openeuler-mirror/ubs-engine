@@ -79,6 +79,17 @@ UBS_ERR_NOT_SUPPORTED
 - SHM 共享默认是 NC/non-cacheable。
 - SHM 带 `UBS_MEM_FLAG_CACHEABLE` 时是 CC/cacheable。
 
+能力判断位置需要放在 mem controller API 层：
+
+- FD/NUMA/ADDR 借用和归还在 `api/ubse_mem_controller_fd_api.cpp`、
+  `api/ubse_mem_controller_numa_api.cpp`、`api/ubse_mem_controller_addr_api.cpp`
+  入口兜底判断。
+- SHM 创建、Attach、Detach、Return 在 `api/ubse_mem_controller_share_api.cpp` 入口兜底判断。
+- SDK、CLI、内部调用和内部 RPC 最终都会进入这些 API 入口；dispatch 层只能覆盖 SDK/IPC 的一部分
+  入口，不能作为唯一拦截点。
+- 全关闭时仍保留 mem executor 和内部 RPC 注册，agent API 不需要单独做能力判断，请求会进入 API
+  层统一返回不支持错误码。
+
 ## Feature Bit 范围
 
 内存能力 bit：
@@ -162,10 +173,13 @@ URMA 不支持时不加载 `libtpsa.so`，避免 TCP 场景被 URMA 依赖库影
 借用和共享四个 bit 全部不支持时：
 
 - 仍注册北向 IPC handler。
-- 不创建 `ubseMemController` executor。
+- 仍创建 `ubseMemController` executor。
+- 仍注册 mem 内部 RPC handler，保证 SDK、CLI、内部 RPC 请求可以到达 API 层统一返回
+  `UBSE_ERR_NOT_SUPPORTED`。
 - 不注册 node controller 回调。
 - 不注册后台 timer。
-- 不初始化 scheduler、内部 RPC、fault manager、agent。
+- 不初始化 scheduler、fault manager 和 agent 后台任务。
+- 只初始化 agent 响应 handler 和超时配置。
 - 对外内存相关接口返回 `UBSE_ERR_NOT_SUPPORTED`。
 
 ## 错误码约定
@@ -222,7 +236,9 @@ UBS_ERR_NOT_SUPPORTED
 
 - 借用能力全关闭时，FD/NUMA/ADDR 借用创建类接口返回 `UBSE_ERR_NOT_SUPPORTED`。
 - 共享能力全关闭时，SHM 创建、Attach、查询、删除等共享接口返回 `UBSE_ERR_NOT_SUPPORTED`。
-- 借用和共享全关闭时，mem controller 后台 executor、timer、scheduler、RPC、fault manager、agent 均不运行。
+- mem 能力判断以 `api/ubse_mem_controller_*_api.cpp` 为兜底层，保证 SDK、CLI、内部调用路径一致。
+- 借用和共享全关闭时，mem controller 保留 executor 和内部 RPC；timer、scheduler、fault manager、
+  agent 后台任务均不运行。
 - 普通借用未指定 NC/CC 时，只支持单一模式的环境自动选择唯一可用模式。
 
 ## 风险和注意事项

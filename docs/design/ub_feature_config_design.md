@@ -122,8 +122,12 @@ bool UbseIsMemSupported();
 
 借用接口行为：
 
-- FD、NUMA、ADDR 等借用创建类接口在入口解析请求后，先按上述规则确定实际借用模式，再检查
-  对应借用能力。
+- FD、NUMA、ADDR 等借用创建类接口在 `api/ubse_mem_controller_fd_api.cpp`、
+  `api/ubse_mem_controller_numa_api.cpp`、`api/ubse_mem_controller_addr_api.cpp`
+  的 API 入口处进行能力兜底检查。SDK、CLI 和内部 RPC 最终都会进入这些 API 入口，因此
+  能力判断不能只放在 dispatch 层。
+- 普通借用请求在 API 入口先检查借用聚合能力；实际 NC/CC 解码模式继续由 decoder 工具按
+  能力自动选择。
 - 对应模式不支持时，不进入调度、账本、导出、导入流程，直接返回：
 
 ```cpp
@@ -138,11 +142,22 @@ UBS_ERR_NOT_SUPPORTED
 
 共享接口行为：
 
-- SHM 创建、指定亲和创建、指定出借节点创建、Attach 等共享能力相关接口在入口解析请求后，
-  根据请求的 `cacheableFlag` 检查对应共享能力。
+- SHM 创建、指定亲和创建、指定出借节点创建、Attach、Detach、Return 等共享能力相关接口在
+  `api/ubse_mem_controller_share_api.cpp` 的 API 入口处进行能力兜底检查。
+- SHM 创建根据请求的 `cacheableFlag` 检查对应共享能力；Attach 在找到共享对象后，按共享对象
+  记录的 `cacheableFlag` 再检查对应模式能力。
 - 对应模式不支持时，不进入调度、账本、导出、导入流程，直接返回 `UBSE_ERR_NOT_SUPPORTED`。
 - 查询、列表、删除、Detach 等对外接口也按所属能力组检查；借用或共享能力组关闭时统一返回
   `UBSE_ERR_NOT_SUPPORTED`，避免 feature 关闭后继续暴露相关能力面。
+
+入口分层约定：
+
+- `api/ubse_mem_controller_*_api.cpp` 是能力判断的权威兜底层，保证 SDK、CLI、内部调用和内部
+  RPC 路径行为一致。
+- `ubse_mem_controller_api_agent.cpp` 不做能力判断，只负责发起请求并等待响应；全关闭场景仍保留
+  executor 和内部 RPC，确保请求可以进入 API 层返回明确错误码。
+- `ubse_mem_controller_dispatcher.cpp` 只作为 SDK/IPC 入口的快速失败和参数解析层，不作为唯一能力
+  拦截点。
 
 需要覆盖的借用类北向 op code：
 
@@ -184,7 +199,7 @@ mem controller 需要区分“接口注册”和“后台任务运行”。
 
 - 始终保证内存北向 IPC handler 最终可注册，避免调用方收到 no handler。
 - 借用和共享均不支持时：
-  - 不创建 `ubseMemController` executor。
+  - 仍创建 `ubseMemController` executor，用于承载内部 RPC handler 到 API 层的失败响应路径。
   - 不注册 node controller 本地状态、集群状态通知回调。
   - 不订阅 `UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE`。
   - 不注册 `handleCheckTimer`。
@@ -196,10 +211,11 @@ mem controller 需要区分“接口注册”和“后台任务运行”。
 
 - 借用和共享均不支持时：
   - 只注册 SDK/CLI dispatcher 和北向 IPC handler。
+  - 注册 mem 内部 RPC handler，使 agent、CLI 和内部 RPC 请求仍可进入
+    `api/ubse_mem_controller_*_api.cpp` 统一返回 `UBSE_ERR_NOT_SUPPORTED`。
   - 不初始化 scheduler。
-  - 不注册内部 RPC handler。
   - 不初始化 fault manager。
-  - 不初始化 agent 后台流程。
+  - 只初始化 agent 响应 handler 和超时配置，不启动 agent 后台任务。
   - 返回 `UBSE_OK`。
 - 任一借用或共享能力支持时，保持现有 `Init()`、`RegMemControllerHandler()`、
   `RegisterSdkDispatcher()`、fault manager、agent 初始化流程。
@@ -207,7 +223,7 @@ mem controller 需要区分“接口注册”和“后台任务运行”。
 `UbseMemControllerModule::Stop()` 行为：
 
 - 借用和共享均不支持时，只执行必要的 handler/dispatcher 级清理；不注销未注册的 timer/event，
-  不销毁未创建的 executor。
+  不注销未注册的 timer/event。
 - 任一借用或共享能力支持时，保持现有清理流程。
 
 建议模块内缓存：
