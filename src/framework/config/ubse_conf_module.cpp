@@ -113,7 +113,7 @@ UbseResult UbseConfModule::GetAllConfigWithPrefix(const std::string& sectionPref
 
 void UbseConfModule::LoadUbFeature()
 {
-    ubFeature_ = UB_FEATURE_ALL_MASK;
+    ubFeature_.store(UB_FEATURE_ALL_MASK);
     std::ifstream featureFile(UB_FEATURE_PATH);
     if (!featureFile.is_open()) {
         UBSE_LOG_WARN << "Unable to open " << UB_FEATURE_PATH << ", use default all ub features.";
@@ -134,8 +134,8 @@ void UbseConfModule::LoadUbFeature()
             UBSE_LOG_WARN << "Invalid ub feature value=" << featureValue << ", use default all ub features.";
             return;
         }
-        ubFeature_ = value;
-        UBSE_LOG_INFO << "Load ub feature success, value=" << ubFeature_;
+        ubFeature_.store(value);
+        UBSE_LOG_INFO << "Load ub feature success, value=" << value;
     } catch (const std::invalid_argument&) {
         UBSE_LOG_WARN << "Invalid ub feature value=" << featureValue << ", use default all ub features.";
     } catch (const std::out_of_range&) {
@@ -145,12 +145,14 @@ void UbseConfModule::LoadUbFeature()
 
 bool UbseConfModule::IsUbFeatureSupported(uint64_t featureMask) const
 {
-    return (ubFeature_ & featureMask) == featureMask;
+    const auto ubFeature = ubFeature_.load();
+    return (ubFeature & featureMask) == featureMask;
 }
 
 bool UbseConfModule::IsUrmaSupported() const
 {
-    return (ubFeature_ & UB_URMA_ALL_MASK) != 0;
+    const auto ubFeature = ubFeature_.load();
+    return (ubFeature & UB_URMA_ALL_MASK) != 0;
 }
 
 bool UbseConfModule::IsMemBorrowNcSupported() const

@@ -12,6 +12,7 @@
 
 #ifndef UBSE_CONF_MODULE_H
 #define UBSE_CONF_MODULE_H
+#include <atomic>
 #include <cstdint> // for uint32_t, uint64_t, UINT32_MAX, UINT64_MAX
 #include <functional>
 #include <map> // for map
@@ -109,7 +110,7 @@ private:
 
     std::string configDefaultDir_;
     std::string confCliDir_;
-    uint64_t ubFeature_ = UB_FEATURE_ALL_MASK;
+    std::atomic<uint64_t> ubFeature_{UB_FEATURE_ALL_MASK};
 };
 
 bool IsValidNumber(const std::string& str, bool allowFloating = false);
