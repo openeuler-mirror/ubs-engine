@@ -18,7 +18,7 @@ URMA、内存借用、内存共享能力都存在，带来几个问题：
 
 - 不支持 URMA 的环境仍会尝试加载 URMA 相关库、创建 URMA 后台任务、走 URMA 建链。
 - 不支持内存借用或共享的环境仍暴露相关接口，调用后可能在后续调度、账本、导入导出流程中失败。
-- `cluster.ipList` 被复用成 URMA/TCP 模式判断条件，语义不清晰。
+- 未配置 `cluster.ipList` 且 URMA 不支持时，缺少明确启动失败路径。
 - 能力缺失时没有统一错误码，调用方难以区分“不支持”和“运行失败”。
 
 本需求的核心是让 UBS-Engine 从“默认全能力运行”变成“按环境能力运行”。
@@ -27,7 +27,8 @@ URMA、内存借用、内存共享能力都存在，带来几个问题：
 
 ### URMA 通信
 
-默认仍使用 URMA 通信。只有当 `ub_feature` 中没有任何 URMA 相关 bit 时，才切换到 TCP 通信。
+通信方式由 `ubse.rpc.cluster.ipList` 决定：配置了 `cluster.ipList` 就使用 TCP 通信；
+未配置 `cluster.ipList` 时使用 URMA 通信。
 
 TCP 通信依赖配置项：
 
@@ -35,10 +36,10 @@ TCP 通信依赖配置项：
 ubse.rpc.cluster.ipList
 ```
 
-如果 URMA 不支持，同时 `cluster.ipList` 缺失或为空，通信初始化失败，并打印明确日志：
+如果 `cluster.ipList` 缺失或为空，同时 URMA feature 不支持，通信初始化失败，并打印明确日志：
 
 ```text
-URMA is unsupported and cluster.ipList is required for TCP communication.
+cluster.ipList is not configured and URMA is unsupported, communication cannot start.
 ```
 
 ### URMA 对外接口
@@ -84,7 +85,10 @@ UBS_ERR_NOT_SUPPORTED
 - FD/NUMA/ADDR 借用和归还在 `api/ubse_mem_controller_fd_api.cpp`、
   `api/ubse_mem_controller_numa_api.cpp`、`api/ubse_mem_controller_addr_api.cpp`
   入口兜底判断。
+- FD/NUMA/ADDR 借用查询、列表查询、node borrow info 查询在
+  `ubse_mem_controller_query_api.cpp` 入口兜底判断。
 - SHM 创建、Attach、Detach、Return 在 `api/ubse_mem_controller_share_api.cpp` 入口兜底判断。
+- SHM 查询、列表查询、状态查询在 `ubse_mem_controller_query_api.cpp` 入口兜底判断。
 - SDK、CLI、内部调用和内部 RPC 最终都会进入这些 API 入口；dispatch 层只能覆盖 SDK/IPC 的一部分
   入口，不能作为唯一拦截点。
 - 全关闭时仍保留 mem executor 和内部 RPC 注册，agent API 不需要单独做能力判断，请求会进入 API
@@ -138,12 +142,14 @@ conf 模块负责读取和缓存 `ub_feature`。
 
 ### com/election 模块
 
-通信模式不再由 `cluster.ipList` 是否存在决定，而是由 `UbseIsUrmaSupported()` 决定。
+通信模式由 `cluster.ipList` 是否存在决定，URMA feature 用于校验无 `cluster.ipList` 时
+URMA 路径是否可用。
 
-- URMA 支持：使用 UBC/URMA 协议。
-- URMA 不支持：使用 TCP 协议。
+- `cluster.ipList` 已配置且非空：使用 TCP 协议。
+- `cluster.ipList` 未配置或为空，且 URMA 支持：使用 UBC/URMA 协议。
+- `cluster.ipList` 未配置或为空，且 URMA 不支持：通信初始化失败。
 
-TCP 模式下，`cluster.ipList` 是必需配置项，只负责提供 IP 列表。
+TCP 模式下，`cluster.ipList` 提供 IP 列表。
 
 ### URMA controller
 
@@ -221,9 +227,9 @@ UBS_ERR_NOT_SUPPORTED
 
 ### 通信建链
 
-- URMA 支持时，通信协议选择 UBC。
-- URMA 不支持且 `cluster.ipList` 合法时，通信协议选择 TCP。
-- URMA 不支持且 `cluster.ipList` 缺失时，启动或建链失败并打印明确日志。
+- `cluster.ipList` 合法时，通信协议选择 TCP。
+- `cluster.ipList` 缺失且 URMA 支持时，通信协议选择 UBC。
+- `cluster.ipList` 缺失且 URMA 不支持时，启动或建链失败并打印明确日志。
 
 ### URMA 能力关闭
 
@@ -235,6 +241,8 @@ UBS_ERR_NOT_SUPPORTED
 ### 内存能力关闭
 
 - 借用能力全关闭时，FD/NUMA/ADDR 借用创建类接口返回 `UBSE_ERR_NOT_SUPPORTED`。
+- 借用能力全关闭时，FD/NUMA/ADDR 借用查询和 node borrow info 查询返回
+  `UBSE_ERR_NOT_SUPPORTED`。
 - 共享能力全关闭时，SHM 创建、Attach、查询、删除等共享接口返回 `UBSE_ERR_NOT_SUPPORTED`。
 - mem 能力判断以 `api/ubse_mem_controller_*_api.cpp` 为兜底层，保证 SDK、CLI、内部调用路径一致。
 - 借用和共享全关闭时，mem controller 保留 executor 和内部 RPC；timer、scheduler、fault manager、
@@ -244,7 +252,7 @@ UBS_ERR_NOT_SUPPORTED
 ## 风险和注意事项
 
 - 如果生产环境缺少 `/sys/bus/ub/ub_feature`，系统会按兼容策略默认全支持，行为与历史版本一致。
-- TCP 模式强依赖 `cluster.ipList`，部署不完整时会更早失败，这是预期行为。
+- 未配置 `cluster.ipList` 时强依赖 URMA 能力；如果 URMA 不支持会更早失败，这是预期行为。
 - 北向接口保留注册，调用方会收到“不支持”错误码，不应再把该场景理解为 daemon 不可达。
 - feature 值只在启动时读取一次，运行时修改 sysfs 不会立即生效，需要重启 UBS-Engine。
 
@@ -252,8 +260,8 @@ UBS_ERR_NOT_SUPPORTED
 
 本需求把 UB 能力从“隐式假设”变成“显式配置”，让 UBS-Engine 能在不同硬件/驱动能力环境下自动选择合适路径：
 
-- 支持 URMA 时继续走高性能 URMA 通信。
-- 不支持 URMA 时明确降级 TCP，并要求配置 IP 列表。
+- 配置 `cluster.ipList` 时走 TCP 通信。
+- 未配置 `cluster.ipList` 时走 URMA 通信；若 URMA 不支持则启动失败。
 - 不支持内存借用或共享时，对外返回统一错误码。
 - 能力全关闭时，相关后台任务不再运行，减少无效资源占用和误报。
 

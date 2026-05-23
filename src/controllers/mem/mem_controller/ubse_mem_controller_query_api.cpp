@@ -11,6 +11,7 @@
  */
 #include "ubse_mem_controller_query_api.h"
 
+#include "api/ubse_mem_controller_api_common.h"
 #include "ubse_com_module.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -40,6 +41,22 @@ using namespace ubse::mem::controller::message;
 using namespace ubse::mem::controller;
 using namespace ubse::mem::util;
 using namespace ubse::mem::strategy;
+
+bool IsMemIdQueryFeatureSupported(uint32_t borrowType)
+{
+    switch (static_cast<UbseMemBorrowType>(borrowType)) {
+        case UbseMemBorrowType::FD_BORROW:
+        case UbseMemBorrowType::NUMA_BORROW:
+        case UbseMemBorrowType::ADDR_BORROW:
+            return IsMemBorrowFeatureSupported();
+        case UbseMemBorrowType::SHM_BORROW:
+        case UbseMemBorrowType::SHM_ATTACH:
+            return IsMemShareFeatureSupported();
+        default:
+            UBSE_LOG_WARN << "Unknown mem borrow type, borrowType=" << borrowType;
+            return true;
+    }
+}
 
 template <class TSimpo, class TPtr>
 uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest& request, std::string& masterNodeId, uint16_t opCode,
@@ -120,6 +137,9 @@ UbseResult GetMasterAndLocalNodeId(std::string& masterNodeId, std::string& local
 }
 uint32_t UbseMemFdGet(const std::string& name, def::UbseMemFdDesc& fdDesc, const def::UbseUdsInfo* udsInfo)
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -159,6 +179,9 @@ uint32_t UbseMemFdGet(const std::string& name, def::UbseMemFdDesc& fdDesc, const
 uint32_t UbseMemFdList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseMemFdDesc>& fdDescs)
 {
     fdDescs.clear();
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -192,6 +215,9 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseMem
 
 uint32_t UbseMemShmStatusGet(const std::string& name, def::UbseMemShmMemStatusDesc& shmStatusDesc)
 {
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -226,6 +252,9 @@ uint32_t UbseMemShmStatusGet(const std::string& name, def::UbseMemShmMemStatusDe
 
 uint32_t UbseMemNumaGet(const std::string& name, def::UbseMemNumaDesc& numaDesc, const UbseUdsInfo* udsInfo)
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -264,6 +293,9 @@ uint32_t UbseMemNumaGet(const std::string& name, def::UbseMemNumaDesc& numaDesc,
 uint32_t UbseMemNumaList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseMemNumaDesc>& numaDescs)
 {
     numaDescs.clear();
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -298,6 +330,9 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseM
 
 uint32_t UbseMemShmGet(const std::string& name, def::UbseMemShmDesc& shmDesc, const def::UbseUdsInfo* udsInfo)
 {
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -336,6 +371,9 @@ uint32_t UbseMemShmGet(const std::string& name, def::UbseMemShmDesc& shmDesc, co
 
 uint32_t UbseMemShmGetByNodeId(const std::string& name, def::UbseMemShmDesc& shmDesc, std::string& srcNodeId)
 {
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -370,6 +408,9 @@ uint32_t UbseMemShmGetByNodeId(const std::string& name, def::UbseMemShmDesc& shm
 uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest& request, std::vector<def::UbseMemShmDesc>& shmDescs)
 {
     shmDescs.clear();
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -427,6 +468,9 @@ uint32_t UbseNodeInfoGet(const std::string& nodeId, ubse::adapter_plugins::mmi::
 
 int32_t UbseMemAddrGet(const std::string& name, const std::string& importNodeId, UbseMemAddrDesc& desc)
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -462,6 +506,9 @@ int32_t UbseMemAddrGet(const std::string& name, const std::string& importNodeId,
 int32_t UbseMemNumaGetWithImportNode(const std::string& name, const std::string& importNodeId,
                                      UbseMemNumaDesc& numaDesc)
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -570,6 +617,9 @@ uint32_t GetDebtInfoMapByNodeId(const std::string& nodeId, NodeMemDebtInfoMap& m
 
 uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo>& nodeBorrowInfo)
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -617,6 +667,9 @@ uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo>& nodeBo
 
 uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest& request, def::UbseExportMemDesc& exportMemDesc)
 {
+    if (!IsMemIdQueryFeatureSupported(request.borrowType)) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     UbseRoleInfo masterInfo{};
     if (const auto ret = UbseGetMasterInfo(masterInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get master info, " << FormatRetCode(ret);

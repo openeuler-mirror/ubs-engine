@@ -178,13 +178,27 @@ UbseResult GetUBEnable(bool& ubEnable)
         UBSE_LOG_ERROR << "Get config info failed";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    ubEnable = UbseIsUrmaSupported();
+    std::string ipList;
+    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
+    if (ret == UBSE_OK && !ubse::utils::Trim(ipList).empty()) {
+        ubEnable = false;
+        return UBSE_OK;
+    }
+    if (!UbseIsUrmaSupported()) {
+        UBSE_LOG_ERROR << "cluster.ipList is not configured and URMA is unsupported, communication cannot start, "
+                       << FormatRetCode(ret);
+        return UBSE_ERROR_CONF_INVALID;
+    }
+    ubEnable = true;
     return UBSE_OK;
 }
 
 QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string& eid) {
     bool ubEnable;
-    GetUBEnable(ubEnable);
+    if (GetUBEnable(ubEnable) != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to get communication mode.";
+        return false;
+    }
     if (ubEnable) {
         if (GetBondingEidByNodeId(eid, nodeId) != UBSE_OK) {
             UBSE_LOG_WARN << "Query eid failed";
@@ -319,7 +333,10 @@ bool UbseComModule::IsCurrentNode(const std::string& nodeId)
 UbseResult GetNodeInfoFromMti(IpAddress& address, std::string& nodeId)
 {
     bool ubEnable;
-    GetUBEnable(ubEnable);
+    if (GetUBEnable(ubEnable) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get communication mode.";
+        return UBSE_ERROR_CONF_INVALID;
+    }
     adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo;
     auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
     if (ret != UBSE_OK) {

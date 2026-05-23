@@ -149,6 +149,9 @@ UBS_ERR_NOT_SUPPORTED
 - 对应模式不支持时，不进入调度、账本、导出、导入流程，直接返回 `UBSE_ERR_NOT_SUPPORTED`。
 - 查询、列表、删除、Detach 等对外接口也按所属能力组检查；借用或共享能力组关闭时统一返回
   `UBSE_ERR_NOT_SUPPORTED`，避免 feature 关闭后继续暴露相关能力面。
+- FD、NUMA、ADDR 借用查询和 node borrow info 查询在 `ubse_mem_controller_query_api.cpp`
+  入口检查借用聚合能力；SHM 查询和状态查询检查共享聚合能力；按 memId 查询根据请求的
+  borrow type 分别检查借用或共享能力。
 
 入口分层约定：
 
@@ -234,27 +237,22 @@ bool memFeatureEnabled_{true};
 
 ## 通信模式选择
 
-UBS-Engine 根据 `IsUrmaSupported()` 决定跨节点通信建链方式。
+UBS-Engine 根据 `ubse.rpc.cluster.ipList` 决定跨节点通信建链方式。
 
-- `IsUrmaSupported() == true`：默认使用 URMA/UBC 通信。
-- `IsUrmaSupported() == false`：降级使用 TCP 通信。
+- `cluster.ipList` 已配置且非空：使用 TCP 通信。
+- `cluster.ipList` 未配置或为空：使用 URMA/UBC 通信。
 
-`ubse.rpc.cluster.ipList` 不再作为 URMA/TCP 模式开关。是否进入 TCP 模式只由 UB
-feature 中的 URMA 能力决定。
+URMA feature 用于校验无 `cluster.ipList` 时 URMA 路径是否可用：
 
-`cluster.ipList` 的新语义：
-
-- URMA/UBC 模式下不依赖 `cluster.ipList`。
-- TCP 模式下，`cluster.ipList` 是必需配置项，用于提供集群节点 IP 列表。
-- 当 URMA 不支持且 `cluster.ipList` 缺失、为空或解析失败时，TCP 通信初始化或建链失败，
-  不再回退到 URMA。
+- `cluster.ipList` 未配置或为空，且 `IsUrmaSupported() == true`：使用 URMA/UBC 通信。
+- `cluster.ipList` 未配置或为空，且 `IsUrmaSupported() == false`：通信初始化失败，进程启动失败。
 
 通信模块改造点：
 
-- 替换当前基于 `ubse.rpc.cluster.ipList` 是否存在来判断 UB/URMA 通信是否启用的逻辑。
-- `UbseRpcServer::Start()` 通过 `UbseIsUrmaSupported()` 选择协议：
-  - 支持 URMA：`UbseProtocol::UBC`。
-  - 不支持 URMA：`UbseProtocol::TCP`。
+- `UbseRpcServer::Start()` 先读取 `ubse.rpc.cluster.ipList`：
+  - 已配置且非空：`UbseProtocol::TCP`。
+  - 未配置或为空且 URMA 支持：`UbseProtocol::UBC`。
+  - 未配置或为空且 URMA 不支持：返回配置错误。
 - `ConnectWithOption()` 继续将通信模式传给 `UbseComRpcConnect()`：
   - URMA 模式调用 `CreateUbChannel()`。
   - TCP 模式调用 `CreateChannel()`。
@@ -262,10 +260,10 @@ feature 中的 URMA 能力决定。
   - URMA 模式按 nodeId 查询 bonding EID。
   - TCP 模式按 nodeId 查询 IP，依赖 `cluster.ipList` 或由其建立的 nodeId/IP 映射。
 
-当 TCP 模式缺少必要配置时，日志需要明确提示：
+当未配置 `cluster.ipList` 且 URMA 不支持时，日志需要明确提示：
 
 ```text
-URMA is unsupported and cluster.ipList is required for TCP communication.
+cluster.ipList is not configured and URMA is unsupported, communication cannot start.
 ```
 
 ## URMA Controller 禁用行为
@@ -349,10 +347,9 @@ UBS_ERR_NOT_SUPPORTED
 - 文件不存在时，默认所有已知 feature 支持。
 - 内容为空、非法字符串、超过 `uint64_t` 范围时，默认所有已知 feature 支持。
 - 无法获取 `UbseConfModule` 时，free function 包装接口返回 `false`。
-- URMA 支持时，通信模块选择 `UbseProtocol::UBC`，URMA controller 正常创建 executor、
-  注册内部 RPC、订阅事件。
-- URMA 不支持且 `cluster.ipList` 合法时，通信模块选择 `UbseProtocol::TCP` 并走 TCP 建链。
-- URMA 不支持且 `cluster.ipList` 缺失或非法时，TCP 通信初始化或建链失败。
+- `cluster.ipList` 合法时，通信模块选择 `UbseProtocol::TCP` 并走 TCP 建链。
+- `cluster.ipList` 未配置且 URMA 支持时，通信模块选择 `UbseProtocol::UBC`。
+- `cluster.ipList` 未配置且 URMA 不支持时，通信初始化失败。
 - URMA 不支持时，URMA controller 不创建 `UrmaExecutor`，不注册内部 RPC，不订阅事件。
 - URMA 不支持时，URMA UVS 模块不 `dlopen("libtpsa.so")`。
 - URMA 不支持时，所有 URMA 北向 IPC handler 返回 `UBSE_ERR_NOT_SUPPORTED`。
