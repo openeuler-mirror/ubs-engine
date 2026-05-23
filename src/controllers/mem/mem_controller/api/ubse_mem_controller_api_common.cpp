@@ -11,7 +11,9 @@
  */
 
 #include "ubse_mem_controller_api_common.h"
+
 #include <cstdint>
+#include <optional>
 #include <shared_mutex>
 
 #include "ubse_com_module.h"
@@ -21,7 +23,9 @@
 #include "ubse_logger.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_pre_online.h"
+#include "ubse_mem_sign_verifier.h"
 #include "ubse_mmi_interface.h"
+#include "ubse_sign_token_bucket.h"
 #include "../message/node_mem_debtInfo_query_req_simpo.h"
 #include "../message/ubse_mem_operation_resp_simpo.h"
 #include "../ubse_mem_account.h"
@@ -261,6 +265,10 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
     }
     bool usePreOnline = IsPreOnLineEnable();
     for (int i = 0; i < exportObmmInfo.size(); i++) {
+        std::optional<UbseSignTokenBucket::TokenGuard> token;
+        if (IsHighSafety()) {
+            token.emplace(UbseSignTokenBucket::GetInstance().Acquire());
+        }
         SetMamiImportInfoByExportInfo(exportObmmInfo[i], mamiImportInfo);
         UbseMamiMemImportResult importResult{};
         if (usePreOnline) {

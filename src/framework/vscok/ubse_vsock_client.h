@@ -55,10 +55,12 @@ public:
     */
     uint32_t UbseVsockSend(UbseSignReq& req, UbseSignRsp& rsp);
 
-private:
     bool Connect();
+
+private:
+    bool DoConnect();
     void Disconnect();
-    SSL_CTX* InitSslCtx();
+    static SSL_CTX* GetSharedSslCtx();
     bool SendMessage(uint32_t id, uint32_t type, const void* data, uint32_t data_len);
     bool RecvMessage(UbseSignRsp& rsp);
 
