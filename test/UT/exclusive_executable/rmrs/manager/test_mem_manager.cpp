@@ -1602,6 +1602,12 @@ UbseResult UbseGetNumaMemDebtInfoMock(std::vector<UbseNumaMemoryDebtInfo> &debtI
     return (UbseResult)1003;
 }
 
+UbseResult UbseGetNumaMemDebtInfoReturnSmoothingMock(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+{
+    debtInfos.clear();
+    return (UbseResult)1004;
+}
+
 TEST_F(TestMemManager, GetDebtInfosWithRetryTest_InRetry)
 {
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
@@ -1645,6 +1651,20 @@ TEST_F(TestMemManager, GetDebtInfosWithRetryTest_Invalid_InRetry)
         // .stubs()
         .expects(atLeast(1))
         .will(invoke(UbseGetNumaMemDebtInfoMock));   // 验证确实retry;
+
+    auto &obj = mempooling::BorrowRecordHelper::Instance();
+    auto ret = obj.GetValidDebtInfosWithRetry(debtInfos);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestMemManager, GetDebtInfosWithRetryTest_with_UbseGetNumaMemDebtInfo_Returning_Smoothing)
+{
+    std::vector<UbseNumaMemoryDebtInfo> debtInfos;
+    MOCKER_CPP(&UbseGetNumaMemDebtInfo,
+               UbseResult(*)(std::vector<UbseNumaMemoryDebtInfo> &))
+        // .stubs()
+        .expects(atLeast(1))
+        .will(invoke(UbseGetNumaMemDebtInfoReturnSmoothingMock));   // 验证确实retry;
 
     auto &obj = mempooling::BorrowRecordHelper::Instance();
     auto ret = obj.GetValidDebtInfosWithRetry(debtInfos);
