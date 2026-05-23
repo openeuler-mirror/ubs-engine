@@ -64,6 +64,8 @@ public:
     {
         if (errorCode_ == UBSE_ERR_NOT_EXIST) {
             return UbseCliRegModule::UbseCliStringPromptReply(memory::error::MEM_QUERY_NOT_EXIST_IN_CREATING);
+        } else if (errorCode_ == UBSE_ERR_NOT_SUPPORTED) {
+            return UbseCliRegModule::UbseCliStringPromptReply(GetErrorMessage(errorCode_));
         } else {
             return UbseCliRegModule::UbseCliStringPromptReply(errorMsg_ +
                                                               " The failure occurred during the query process.");
@@ -209,6 +211,8 @@ public:
                 // 处理获取失败
                 if (errorCode_ == UBSE_ERR_NOT_EXIST) {
                     return UbseCliRegModule::UbseCliStringPromptReply(memory::error::MEM_QUERY_NOT_EXIST_IN_CREATING);
+                } else if (errorCode_ == UBSE_ERR_NOT_SUPPORTED) {
+                    return UbseCliRegModule::UbseCliStringPromptReply(GetErrorMessage(errorCode_));
                 } else {
                     return UbseCliRegModule::UbseCliStringPromptReply(
                         errorMsg_ + " The failure occurred during the query process.");

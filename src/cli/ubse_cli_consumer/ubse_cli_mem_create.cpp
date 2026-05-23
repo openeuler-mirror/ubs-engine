@@ -59,6 +59,11 @@ public:
             errorMsg_ = data::error::RES_INFO_DESER_FAILED;
             return false;
         }
+        if (container.errorCode != UBSE_OK) {
+            callErrorCode_ = container.errorCode;
+            errorMsg_ = container.errMsg;
+            return false;
+        }
         return true;
     }
 
@@ -69,7 +74,14 @@ public:
         UbseCliMemOperationResp resp{};
         UbseCliWaitIndicator waitIndicator("Creating memory");
         auto ret = UbseCliMemCreateRequest<UbseCliMemOperationResp, ModuleCode, Opcode>(ubse_req_serial, resp);
-        if (ret || this->callErrorCode_ == UBSE_ERR_TIMED_OUT) {
+        if (ret) {
+            auto it = queryFuncMap_.find(Opcode);
+            if (it != queryFuncMap_.end()) {
+                return it->second(name, UbseCliMemQuery::WaitType::WAIT_CREATING);
+            } else {
+                return UbseCliRegModule::UbseCliStringPromptReply("ERROR: Unsupported opcode.");
+            }
+        } else if (this->callErrorCode_ == UBSE_ERR_TIMED_OUT) {
             auto it = queryFuncMap_.find(Opcode);
             if (it != queryFuncMap_.end()) {
                 return it->second(name, UbseCliMemQuery::WaitType::WAIT_CREATING);
