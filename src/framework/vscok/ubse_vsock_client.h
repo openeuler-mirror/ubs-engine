@@ -54,11 +54,13 @@ public:
     * @return uint32_t 返回结果，表示这次请求结果
     */
     uint32_t UbseVsockSend(UbseSignReq &req, UbseSignRsp &rsp);
+    
+    bool Connect();
 
 private:
-    bool Connect();
+    bool DoConnect();
     void Disconnect();
-    SSL_CTX *InitSslCtx();
+    static SSL_CTX *GetSharedSslCtx();
     bool SendMessage(uint32_t id, uint32_t type, const void *data, uint32_t data_len);
     bool RecvMessage(UbseSignRsp &rsp);
 
