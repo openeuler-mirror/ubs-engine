@@ -14,41 +14,15 @@
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
-#include "ubse_str_util.h"
 namespace ubse::com {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
 using namespace ubse::context;
-using namespace ubse::utils;
 const std::string WorkGroup = "server";
-const std::string RPC_SECTION = "ubse.rpc";
-const std::string CLUSTER_IP_LIST_KEY = "cluster.ipList";
-
-UbseResult GetUBEnableForRpc(bool& ubEnable)
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>(RPC_SECTION, CLUSTER_IP_LIST_KEY, ipList);
-    if (ret == UBSE_OK && !Trim(ipList).empty()) {
-        ubEnable = false;
-        return UBSE_OK;
-    }
-    if (!UbseIsUrmaSupported()) {
-        UBSE_LOG_ERROR << "cluster.ipList is not configured and URMA is unsupported, communication cannot start, "
-                       << FormatRetCode(ret);
-        return UBSE_ERROR_CONF_INVALID;
-    }
-    ubEnable = true;
-    return UBSE_OK;
-}
 
 UbseResult UbseRpcServer::Start()
 {
-    auto ret = GetUBEnableForRpc(ubEnable_);
+    auto ret = UbseGetUBEnable(ubEnable_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get config ubEnable";
         return UBSE_ERROR_CONF_INVALID;

@@ -16,7 +16,6 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
-#include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
@@ -34,28 +33,6 @@ UbseElectionNodeMgr& UbseElectionNodeMgr::GetInstance()
 {
     static UbseElectionNodeMgr instance;
     return instance;
-}
-
-UbseResult GetUBEnable(bool& ubEnable)
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret == UBSE_OK && !Trim(ipList).empty()) {
-        ubEnable = false;
-        return UBSE_OK;
-    }
-    if (!UbseIsUrmaSupported()) {
-        UBSE_LOG_ERROR << "cluster.ipList is not configured and URMA is unsupported, communication cannot start, "
-                       << FormatRetCode(ret);
-        return UBSE_ERROR_CONF_INVALID;
-    }
-    ubEnable = true;
-    return UBSE_OK;
 }
 
 UbseElectionNodeMgr::UbseElectionNodeMgr()
@@ -181,7 +158,7 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     bool ubEnable = true;
-    if (GetUBEnable(ubEnable) != UBSE_OK) {
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to get communication mode.";
         return;
     }
@@ -231,7 +208,7 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
         return UBSE_ERROR;
     }
     bool ubEnable = true;
-    if (GetUBEnable(ubEnable) != UBSE_OK) {
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to get communication mode.";
         return UBSE_ERROR;
     }

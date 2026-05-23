@@ -24,7 +24,6 @@
 #include "ubse_event_module.h"
 #include "ubse_file_util.h"
 #include "ubse_logger_module.h"
-#include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
 #include "rpc/ubse_rpc_server.h"
 
@@ -171,31 +170,9 @@ UbseResult GetBondingEidByNodeId(std::string& bondingEid, const std::string& nod
     }
     return UBSE_ERROR;
 }
-UbseResult GetUBEnable(bool& ubEnable)
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret == UBSE_OK && !ubse::utils::Trim(ipList).empty()) {
-        ubEnable = false;
-        return UBSE_OK;
-    }
-    if (!UbseIsUrmaSupported()) {
-        UBSE_LOG_ERROR << "cluster.ipList is not configured and URMA is unsupported, communication cannot start, "
-                       << FormatRetCode(ret);
-        return UBSE_ERROR_CONF_INVALID;
-    }
-    ubEnable = true;
-    return UBSE_OK;
-}
-
 QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string& eid) {
     bool ubEnable;
-    if (GetUBEnable(ubEnable) != UBSE_OK) {
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to get communication mode.";
         return false;
     }
@@ -333,7 +310,7 @@ bool UbseComModule::IsCurrentNode(const std::string& nodeId)
 UbseResult GetNodeInfoFromMti(IpAddress& address, std::string& nodeId)
 {
     bool ubEnable;
-    if (GetUBEnable(ubEnable) != UBSE_OK) {
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get communication mode.";
         return UBSE_ERROR_CONF_INVALID;
     }
