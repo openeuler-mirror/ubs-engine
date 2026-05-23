@@ -1599,13 +1599,13 @@ TEST_F(TestMemManager, MpManagerSubModuleInit7)
 UbseResult UbseGetNumaMemDebtInfoMock(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
 {
     debtInfos.clear();
-    return (UbseResult)1003;
+    return (UbseResult)UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS;
 }
 
 UbseResult UbseGetNumaMemDebtInfoReturnSmoothingMock(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
 {
     debtInfos.clear();
-    return (UbseResult)1004;
+    return (UbseResult)UBSE_MEMCONTROLLER_ERROR_SMOOTHING;
 }
 
 TEST_F(TestMemManager, GetDebtInfosWithRetryTest_InRetry)
@@ -1663,7 +1663,7 @@ TEST_F(TestMemManager, GetDebtInfosWithRetryTest_with_UbseGetNumaMemDebtInfo_Ret
     MOCKER_CPP(&UbseGetNumaMemDebtInfo,
                UbseResult(*)(std::vector<UbseNumaMemoryDebtInfo> &))
         // .stubs()
-        .expects(atLeast(1))
+        .expects(atLeast(2))
         .will(invoke(UbseGetNumaMemDebtInfoReturnSmoothingMock));   // 验证确实retry;
 
     auto &obj = mempooling::BorrowRecordHelper::Instance();
