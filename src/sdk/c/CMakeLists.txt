@@ -15,7 +15,7 @@ target_link_libraries(ubse_sdk PRIVATE ubse_ipc_client boundscheck)
 # 设置版本和 soname
 set_target_properties(ubse_sdk PROPERTIES
         OUTPUT_NAME "ubse-client"       # 输出文件名为 libubse-client.so.x.x.x
-        VERSION "1.0.0"                 # 完整版本
+        VERSION "1.0.1"                 # 完整版本
         SOVERSION "1"                   # ABI 版本 → 生成 -Wl,-soname,libubse-client.so.1
 )
 

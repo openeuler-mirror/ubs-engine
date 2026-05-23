@@ -23,8 +23,8 @@ sudo dnf install -y ubs-engine-client-libs ubs-engine-client-devel
 | ------------------------------ | -------------------------------------------- |
 | `/usr/include/ubse`            | Permission on the header file (`*.h`) in the directory: `644`            |
 | `/usr/lib64/libubse-client.so` | Soft link, pointing to `/usr/lib64/libubse-client.so.1`|
-| `/usr/lib64/libubse-client.so.1` | Soft link, pointing to `libubse-client.so.1.0.0`|
-| `/usr/lib64/libubse-client.so.1.0.0`  | Binary dynamic library                         |
+| `/usr/lib64/libubse-client.so.1` | Soft link, pointing to `libubse-client.so.xx.xx.xx`|
+| `/usr/lib64/libubse-client.so.xx.xx.xx`  | Binary dynamic library                         |
 | `/usr/lib64/libubse-client.a`  | Binary static library                                |
 
 ## 2. Using the UBS Engine C API: FD Borrowing as an Example

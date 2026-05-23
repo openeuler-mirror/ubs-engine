@@ -364,9 +364,6 @@ function build_cmake() {
         -DCMAKE_BUILD_TYPE=${build_type} \
         -DCMAKE_CXX_STANDARD="${std}" \
         -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
-        -DCMAKE_RPM_INSTALL_PREFIX=/usr/local/softbus \
-        -DRPM_PACKAGE_VERSION="1.0.0" \
-        -DRPM_PACKAGE_RELEASE=1 \
         -DBUILD_TESTS=${enable_test} \
         -DENABLE_COVERAGE=${enable_coverage} \
         -DSOURCE_COMPILING=${enable_source_compiling} \

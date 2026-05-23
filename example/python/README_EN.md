@@ -23,8 +23,8 @@ sudo dnf install -y ubs-engine-client-libs python3-ubs-engine
 | File/Directory                     | Other Information                           |
 | ------------------------------ |---------------------------------|
 | `/usr/lib/python3.11/site-packages/ubse/`            | Permission on the header file (`*.py`) in the directory: `644`         |
-| `/usr/lib64/libubse-client.so.1` | Soft link, pointing to `libubse-client.so.1.0.0`|
-| `/usr/lib64/libubse-client.so.1.0.0`  | Binary dynamic library                         |
+| `/usr/lib64/libubse-client.so.1` | Soft link, pointing to `libubse-client.so.xx.xx.xx`|
+| `/usr/lib64/libubse-client.so.xx.xx.xx`  | Binary dynamic library                         |
 
 ### 1.4 Importing Python Modules
 
