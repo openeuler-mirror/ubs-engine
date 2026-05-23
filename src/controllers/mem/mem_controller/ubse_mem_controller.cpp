@@ -16,7 +16,6 @@
 #include <unordered_map>
 #include <vector>
 #include "ubse_com_module.h"
-#include "ubse_conf.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
@@ -40,16 +39,6 @@ using namespace ubse::mem::account;
 using namespace ubse::election;
 using namespace com;
 using namespace ubse::mem::controller::message;
-using namespace ubse::config;
-
-bool CheckPublicMemBorrowSupported()
-{
-    if (UbseIsMemBorrowSupported()) {
-        return true;
-    }
-    UBSE_LOG_WARN << "Memory borrow feature is unsupported.";
-    return false;
-}
 
 uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType)
 {
@@ -475,9 +464,6 @@ UbseResult UbseMemNumaCreateWithLender(const std::string& name, const UbseMemBor
                                        const std::vector<UbseMemNumaLender>& lenders,
                                        uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc& desc)
 {
-    if (!CheckPublicMemBorrowSupported()) {
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
     // 参数校验
     auto ret = UbseMemCreateWithLenderReqIsValid(name, borrower, lenders);
     if (ret != UBSE_OK) {
@@ -506,9 +492,6 @@ UbseResult UbseMemNumaCreateWithLender(const std::string& name, const UbseMemBor
 UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& borrower, const UbseMemNumaCreateOpt& opt,
                              UbseMemNumaDesc& desc)
 {
-    if (!CheckPublicMemBorrowSupported()) {
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
     // 参数校验
     auto ret = UbseMemCreateReqIsValid(name, borrower, opt);
     if (ret != UBSE_OK) {
@@ -537,9 +520,6 @@ UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& bor
 UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMemBorrower& borrower,
                                           const UbseMemNumaCandidateOpt& opt, UbseMemNumaDesc& desc)
 {
-    if (!CheckPublicMemBorrowSupported()) {
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
     // 参数校验
     auto ret = UbseMemCreateWithCandidateReqIsValid(name, borrower, opt);
     if (ret != UBSE_OK) {
@@ -567,9 +547,6 @@ UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMem
 
 UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& borrower)
 {
-    if (!CheckPublicMemBorrowSupported()) {
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
     // 参数校验
     auto ret = UbseMemDeleteReqIsValid(name, borrower);
     if (ret != UBSE_OK) {
@@ -591,9 +568,6 @@ UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& bor
 UbseResult UbseMemAddrCreate(const std::string& name, const UbseMemBorrower& borrower,
                              const UbseMemProcessLender& lender, uint32_t flag, UbseMemAddrDesc& desc)
 {
-    if (!CheckPublicMemBorrowSupported()) {
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
     // 参数校验
     auto ret = UbseMemAddrCreateReqIsValid(name, borrower, lender);
     if (ret != UBSE_OK) {
@@ -618,9 +592,6 @@ UbseResult UbseMemAddrCreate(const std::string& name, const UbseMemBorrower& bor
 
 UbseResult UbseMemAddrDelete(const std::string& name, const UbseMemBorrower& borrower)
 {
-    if (!CheckPublicMemBorrowSupported()) {
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
     // 参数校验
     auto ret = UbseMemDeleteReqIsValid(name, borrower);
     if (ret != UBSE_OK) {
