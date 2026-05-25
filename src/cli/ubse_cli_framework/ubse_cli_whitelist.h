@@ -14,6 +14,7 @@
 #define UBSE_CLI_WHITELIST
 
 #include <string>
+#include <vector>
 
 namespace ubse::cli::framework {
 constexpr size_t UBSE_CLI_ASCII_NUMS = 256;

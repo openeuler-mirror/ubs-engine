@@ -12,8 +12,6 @@
 
 #ifndef UBSE_MANAGER_UBSE_MEM_BUFFER_CONVERT_H
 #define UBSE_MANAGER_UBSE_MEM_BUFFER_CONVERT_H
-#include "ubse_com_def.h"
-#include "ubse_ipc_server.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_api_convert.h"

@@ -12,6 +12,9 @@
 
 #ifndef UBSE_MEM_DEF_H
 #define UBSE_MEM_DEF_H
+
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

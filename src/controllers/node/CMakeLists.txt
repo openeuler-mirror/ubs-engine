@@ -32,9 +32,10 @@ target_link_libraries(ubse_node_controller PRIVATE
         ubse_config
         mem_controller
         ubse_urma_uvs
-        ubse_security)
+        ubse_security
+        ubse_controller_includes)
 
 
 
 add_library(ubse_node_controller_register_config OBJECT ubse_node_controller_register_config.cpp)
-target_link_libraries(ubse_node_controller_register_config PRIVATE ubse_config)
+target_link_libraries(ubse_node_controller_register_config PRIVATE ubse_config ubse_utils ubse_controller_includes)

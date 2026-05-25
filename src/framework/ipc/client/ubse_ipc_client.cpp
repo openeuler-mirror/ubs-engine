@@ -230,7 +230,7 @@ uint32_t ubse_fd_fault_register(ubs_mem_fd_fault_handler handler)
         return ret;
     }
     std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
-    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage &msg) -> uint32_t {
+    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage& msg) -> uint32_t {
         UbseMemFault fault{};
         auto ret = DeSerializeMemFault(fault, msg.body, size_t(msg.header.bodyLen));
         if (ret != UBSE_OK) {
@@ -252,7 +252,7 @@ uint32_t ubse_numa_fault_register(ubs_mem_numa_fault_handler handler)
         return ret;
     }
     std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
-    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage &msg) -> uint32_t {
+    UbseClientIpcHandler ipcHandler = [handler](const UbseRequestMessage& msg) -> uint32_t {
         UbseMemFault fault{};
         auto ret = DeSerializeMemFault(fault, msg.body, size_t(msg.header.bodyLen));
         if (ret != UBSE_OK) {

@@ -13,6 +13,8 @@
 #ifndef MP_MODULE_H
 #define MP_MODULE_H
 
+#include <string>
+
 #include "mp_error.h"
 
 namespace mempooling {

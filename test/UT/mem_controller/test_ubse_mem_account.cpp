@@ -61,9 +61,22 @@ ubse::nodeController::UbseNumaInfo MockNumaInfo(nodeController::UbseNumaLocation
     for (int i = 0; i < CPU_NUM; ++i) {
         cores.emplace_back(i + socketId);
     }
-    return ubse::nodeController::UbseNumaInfo{
-        std::move(numaLocation), socketId,     cores,    (socketId + 1) * MEM_SIZE,
-        socketId * MEM_SIZE,     socketId * 2, socketId, TIME_STAMP + socketId};
+    return ubse::nodeController::UbseNumaInfo{std::move(numaLocation),
+                                              static_cast<uint32_t>(socketId),
+                                              cores,
+                                              static_cast<uint64_t>((socketId + 1) * MEM_SIZE),
+                                              static_cast<uint64_t>(socketId * MEM_SIZE),
+                                              static_cast<uint32_t>(socketId * 2),
+                                              static_cast<uint32_t>(socketId),
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              static_cast<uint64_t>(TIME_STAMP + socketId)};
 }
 
 std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> MockGetAllNodes()

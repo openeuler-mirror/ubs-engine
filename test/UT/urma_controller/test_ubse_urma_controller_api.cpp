@@ -289,7 +289,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_NameTooLong)
     std::string longName(33, 'x');
     auto buffer = new uint8_t[longName.size() + 1];
     memcpy(buffer, longName.c_str(), longName.size() + 1);
-    UbseIpcMessage req = {buffer, longName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(longName.size() + 1)};
     UbseRequestContext ctx = {};
 
     auto ret = UbseUrmaControllerApi::UbseUrmaDevFree(req, ctx);
@@ -302,7 +302,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_FreeDevFails)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
 
     MOCKER_CPP(&UrmaController::UbseFreeUrmaDev).stubs().will(returnValue(UBSE_ERROR));
@@ -316,7 +316,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_NullApiServerModule)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
 
     MOCKER_CPP(&UrmaController::UbseFreeUrmaDev).stubs().will(returnValue(UBSE_OK));
@@ -332,7 +332,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_Success)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
     ctx.requestId = 42;
 
@@ -358,7 +358,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_NameTooLong)
     std::string longName(33, 'x');
     auto buffer = new uint8_t[longName.size() + 1];
     memcpy(buffer, longName.c_str(), longName.size() + 1);
-    UbseIpcMessage req = {buffer, longName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(longName.size() + 1)};
     UbseRequestContext ctx = {};
 
     auto ret = UbseUrmaControllerApi::UbseUrmaDevAlloc(req, ctx);
@@ -371,7 +371,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_AllocDevFails)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
 
     MOCKER_CPP(&UrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_ERROR));
@@ -385,7 +385,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_AllocRspPackFails)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
 
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
@@ -402,7 +402,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_NullApiServerModule)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
 
     MOCKER_CPP(&UrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
@@ -419,7 +419,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_SendResponseFails)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
     ctx.requestId = 42;
 
@@ -438,7 +438,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_Success)
     std::string devName("test_dev");
     auto buffer = new uint8_t[devName.size() + 1];
     memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, devName.size() + 1};
+    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
     ctx.requestId = 42;
 

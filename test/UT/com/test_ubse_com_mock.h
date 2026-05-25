@@ -16,7 +16,7 @@
 #include "hcom/hcom_service.h"
 
 namespace ubse::ut::com {
-using namespace ubse::com;
+using namespace ock::hcom;
 class TestChannel : public UBSHcomChannel {
 public:
     TestChannel() {}

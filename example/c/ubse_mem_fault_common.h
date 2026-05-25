@@ -20,17 +20,17 @@
 extern "C" {
 #endif
 
-    extern volatile int g_ubse_running;
+extern volatile int g_ubse_running;
 
-    const char *ubse_fault_type_to_string(ubs_mem_fault_type_t type);
+const char* ubse_fault_type_to_string(ubs_mem_fault_type_t type);
 
-    void ubse_signal_handler(int sig);
+void ubse_signal_handler(int sig);
 
-    void ubse_setup_signal_handlers(void);
+void ubse_setup_signal_handlers(void);
 
-    void ubse_print_fault_info(const char *memory_type, const char *name, uint64_t memid, ubs_mem_fault_type_t type);
+void ubse_print_fault_info(const char* memory_type, const char* name, uint64_t memid, ubs_mem_fault_type_t type);
 
-    void ubse_start_fault_monitoring(const char *memory_type, int32_t register_result);
+void ubse_start_fault_monitoring(const char* memory_type, int32_t register_result);
 
 #ifdef __cplusplus
 }

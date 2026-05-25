@@ -180,8 +180,8 @@ NodeMemDebtInfo GetMasterCtxLedger(const std::string& nodeId)
 }
 
 template <typename ImportObj, typename ExportObjMap>
-bool IsSingleImportDebt(const ImportObj &importObj, const ExportObjMap &exportObjMap, const std::string &name,
-                        const std::string &nodeId)
+bool IsSingleImportDebt(const ImportObj& importObj, const ExportObjMap& exportObjMap, const std::string& name,
+                        const std::string& nodeId)
 {
     std::string exportDebtName;
     if constexpr (std::is_same_v<std::decay_t<decltype(importObj)>, UbseMemShareBorrowImportObj>) {
@@ -242,32 +242,32 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj& importObj, const Export
 }
 
 template <typename ImportObj>
-void CollectSingleImportHandleInfo(const ImportObj &importObj, const std::string &name,
-                                   def::DebtHandleInfos &handles, UbseMemBorrowType borrowType)
+void CollectSingleImportHandleInfo(const ImportObj& importObj, const std::string& name, def::DebtHandleInfos& handles,
+                                   UbseMemBorrowType borrowType)
 {
     if constexpr (std::is_same_v<std::decay_t<ImportObj>, UbseMemShareBorrowImportObj>) {
         std::unordered_set<uint64_t> memIds;
-        for (const auto &[memId, numaId] : importObj.status.importResults) {
+        for (const auto& [memId, numaId] : importObj.status.importResults) {
             memIds.insert(memId);
         }
         UBSE_LOG_INFO << "CollectSingleImportHandleInfo: share type, name=" << name << ", memIdsSize=" << memIds.size()
-                       << ", borrowType=" << int(borrowType);
+                      << ", borrowType=" << int(borrowType);
         handles.shareVec.push_back({name, std::move(memIds), importObj.req.udsInfo});
     } else if constexpr (std::is_same_v<std::decay_t<ImportObj>, UbseMemNumaBorrowImportObj>) {
         std::unordered_set<int64_t> numaIds;
-        for (const auto &[memId, numaId] : importObj.status.importResults) {
+        for (const auto& [memId, numaId] : importObj.status.importResults) {
             numaIds.insert(numaId);
         }
-        UBSE_LOG_INFO << "CollectSingleImportHandleInfo: numa type, name=" << name
-                       << ", numaIdsSize=" << numaIds.size() << ", borrowType=" << int(borrowType);
+        UBSE_LOG_INFO << "CollectSingleImportHandleInfo: numa type, name=" << name << ", numaIdsSize=" << numaIds.size()
+                      << ", borrowType=" << int(borrowType);
         handles.numaVec.push_back({name, std::move(numaIds), importObj.req.udsInfo});
     } else if constexpr (std::is_same_v<std::decay_t<ImportObj>, UbseMemFdBorrowImportObj>) {
         std::unordered_set<uint64_t> memIds;
-        for (const auto &[memId, numaId] : importObj.status.importResults) {
+        for (const auto& [memId, numaId] : importObj.status.importResults) {
             memIds.insert(memId);
         }
         UBSE_LOG_INFO << "CollectSingleImportHandleInfo: fd type, name=" << name << ", memIdsSize=" << memIds.size()
-                       << ", borrowType=" << int(borrowType);
+                      << ", borrowType=" << int(borrowType);
         handles.fdVec.push_back({name, std::move(memIds), importObj.req.udsInfo});
     }
 }
@@ -281,9 +281,10 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
     FdHandleInfoVec fdHandleInfoVec;
     def::DebtHandleInfos handles{shareHandleInfoVec, numaHandleInfoVec, fdHandleInfoVec};
 
-    auto processDebt = [&allDebtInfoMap, &ret, &targetNodeId, &handles](const auto &importMap, const auto &getExportMap,
-                                           const auto &getImportNode, UbseMemBorrowType borrowType) {
-        for (const auto &[name, importObj] : importMap) {
+    auto processDebt = [&allDebtInfoMap, &ret, &targetNodeId, &handles](const auto& importMap, const auto& getExportMap,
+                                                                        const auto& getImportNode,
+                                                                        UbseMemBorrowType borrowType) {
+        for (const auto& [name, importObj] : importMap) {
             if (importObj.algoResult.exportNumaInfos.empty()) {
                 UBSE_LOG_ERROR << "exportNumaInfos is empty, skip debt: " << name;
                 continue;
@@ -310,21 +311,21 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
         }
     };
 
-    for (const auto &[_, debtInfo] : allDebtInfoMap) {
+    for (const auto& [_, debtInfo] : allDebtInfoMap) {
         processDebt(
-            debtInfo.fdImportObjMap, [](const auto &exportDebtInfo) { return exportDebtInfo.fdExportObjMap; },
-            [](const auto &importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::FD_BORROW);
+            debtInfo.fdImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.fdExportObjMap; },
+            [](const auto& importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::FD_BORROW);
 
         processDebt(
-            debtInfo.numaImportObjMap, [](const auto &exportDebtInfo) { return exportDebtInfo.numaExportObjMap; },
-            [](const auto &importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::NUMA_BORROW);
+            debtInfo.numaImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.numaExportObjMap; },
+            [](const auto& importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::NUMA_BORROW);
         processDebt(
-            debtInfo.addrImportObjMap, [](const auto &exportDebtInfo) { return exportDebtInfo.addrExportObjMap; },
-            [](const auto &importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::ADDR_BORROW);
+            debtInfo.addrImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.addrExportObjMap; },
+            [](const auto& importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::ADDR_BORROW);
 
         processDebt(
-            debtInfo.shareImportObjMap, [](const auto &exportDebtInfo) { return exportDebtInfo.shareExportObjMap; },
-            [](const auto &importObj) { return importObj.importNodeId; }, UbseMemBorrowType::SHM_BORROW);
+            debtInfo.shareImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.shareExportObjMap; },
+            [](const auto& importObj) { return importObj.importNodeId; }, UbseMemBorrowType::SHM_BORROW);
     }
 
     ret |= UbseMemFaultManager::ReportSingleImportDebt(targetNodeId, shareHandleInfoVec, numaHandleInfoVec,
@@ -334,9 +335,9 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
 }
 
 struct DebtProcessContext {
-    const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap;
-    const std::string &exportNodeId;
-    const std::string &importNodeId;
+    const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap;
+    const std::string& exportNodeId;
+    const std::string& importNodeId;
 };
 
 inline std::string GetDebtTypeName(UbseMemBorrowType borrowType)
@@ -354,11 +355,11 @@ inline std::string GetDebtTypeName(UbseMemBorrowType borrowType)
 }
 
 template <typename ImportObjMap, typename GetExportMapFunc>
-void ProcessSingleImportDebtWithType(const ImportObjMap &importMap, const DebtProcessContext &ctx,
+void ProcessSingleImportDebtWithType(const ImportObjMap& importMap, const DebtProcessContext& ctx,
                                      GetExportMapFunc getExportMap, UbseMemBorrowType borrowType,
-                                     DebtHandleInfos &handles)
+                                     DebtHandleInfos& handles)
 {
-    for (const auto &[name, importObj] : importMap) {
+    for (const auto& [name, importObj] : importMap) {
         if (importObj.algoResult.exportNumaInfos.empty()) {
             UBSE_LOG_WARN << "[MEM_CONTROLLER] exportNumaInfos is empty, skip " << GetDebtTypeName(borrowType)
                           << " debt, name=" << name;
@@ -373,7 +374,7 @@ void ProcessSingleImportDebtWithType(const ImportObjMap &importMap, const DebtPr
                           << ", name=" << name;
             continue;
         }
-        if (const auto &exportObjMap = getExportMap(ctx.allDebtInfoMap.at(exportNode));
+        if (const auto& exportObjMap = getExportMap(ctx.allDebtInfoMap.at(exportNode));
             IsSingleImportDebt(importObj, exportObjMap, name, ctx.importNodeId)) {
             UBSE_LOG_INFO << "[MEM_CONTROLLER] Found single import " << GetDebtTypeName(borrowType)
                           << " debt, name=" << name << ", importNode=" << ctx.importNodeId
@@ -384,12 +385,12 @@ void ProcessSingleImportDebtWithType(const ImportObjMap &importMap, const DebtPr
 }
 
 UbseResult MasterHandleSingleImportDebtWithExportNode(
-    const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap, const std::string &exportNodeId)
+    const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap, const std::string& exportNodeId)
 {
     auto ret = UBSE_OK;
     UBSE_LOG_INFO << "[MEM_CONTROLLER] MasterHandleSingleImportDebtWithExportNode start, exportNodeId=" << exportNodeId;
 
-    for (const auto &[importNodeId, debtInfo] : allDebtInfoMap) {
+    for (const auto& [importNodeId, debtInfo] : allDebtInfoMap) {
         ShareHandleInfoVec shareHandleInfoVec;
         NumaHandleInfoVec numaHandleInfoVec;
         FdHandleInfoVec fdHandleInfoVec;

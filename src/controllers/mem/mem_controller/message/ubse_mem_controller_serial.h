@@ -200,13 +200,13 @@ bool UbseMemOperationRespSerialize(UbseSerialization& out, UbseMemOperationResp&
 
 bool UbseMemOperationRespDeserialize(UbseDeSerialization& in, UbseMemOperationResp& data);
 
-bool ShareHandleInfoVecSerialize(UbseSerialization &out, const def::ShareHandleInfoVec &data);
+bool ShareHandleInfoVecSerialize(UbseSerialization& out, const def::ShareHandleInfoVec& data);
 
-bool ShareHandleInfoVecDeserialize(UbseDeSerialization &in, def::ShareHandleInfoVec &data);
+bool ShareHandleInfoVecDeserialize(UbseDeSerialization& in, def::ShareHandleInfoVec& data);
 
-bool NumaHandleInfoVecSerialize(UbseSerialization &out, const def::NumaHandleInfoVec &data);
+bool NumaHandleInfoVecSerialize(UbseSerialization& out, const def::NumaHandleInfoVec& data);
 
-bool NumaHandleInfoVecDeserialize(UbseDeSerialization &in, def::NumaHandleInfoVec &data);
+bool NumaHandleInfoVecDeserialize(UbseDeSerialization& in, def::NumaHandleInfoVec& data);
 } // namespace ubse::mem::serial
 
 #endif // UBSE_MANAGER_UBSE_MEM_CONTROLLER_SERIAL_H
