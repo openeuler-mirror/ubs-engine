@@ -25,7 +25,8 @@ extern "C" {
 #define SDK_NO_256 256
 #define SDK_NO_2048 2048
 
-typedef enum {
+typedef enum
+{
     VA_SUCCESS = 0,
     VA_ERROR_BASE = 2000,                             // Basic value of the virt agent error code.
     VA_ERROR_INVALID_PARAM = VA_ERROR_BASE + 1,       // Invalid param.

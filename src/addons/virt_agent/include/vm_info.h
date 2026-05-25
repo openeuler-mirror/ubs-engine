@@ -22,7 +22,8 @@
 #include "mempooling_def.h"
 
 namespace vm {
-enum class VmEventType {
+enum class VmEventType
+{
     UNKNOWN = 1,
     START,
     SHUTDOWN,

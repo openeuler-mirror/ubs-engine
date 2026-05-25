@@ -7,7 +7,8 @@
 
 namespace ubse::ut::vm {
 /** dlfcn相关用例使用 */
-struct TestLibrary {};
+struct TestLibrary {
+};
 inline void MockDlsys() {}
 
 } // namespace ubse::ut::vm
