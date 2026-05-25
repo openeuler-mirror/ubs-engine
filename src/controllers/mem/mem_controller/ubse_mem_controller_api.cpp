@@ -111,13 +111,7 @@ uint32_t Init()
         UBSE_LOG_ERROR << "Failed to init scheduler, " << FormatRetCode(ret);
         return ret;
     }
-    RegUbseMemControllerHandler();
     UbseMemControllerMasterOnlineHandler::Initial();
-    ret = usbe::mem::api::UbseMemApi::Register();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Register UbseMem IPC-API failed," << FormatRetCode(ret);
-        return ret;
-    }
     return UBSE_OK;
 }
 

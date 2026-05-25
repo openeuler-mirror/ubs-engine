@@ -7,10 +7,12 @@
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
 #include "ubse_conf.h"
+#include "ubse_mem_api.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_mem_controller_fault_handle.h"
+#include "ubse_mem_controller_msg.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_rpc_processor.h"
@@ -166,6 +168,12 @@ void UbseMemControllerModule::UnInitialize()
 UbseResult UbseMemControllerModule::Start()
 {
     UbseResult ret = UBSE_OK;
+    RegUbseMemControllerHandler();
+    ret = usbe::mem::api::UbseMemApi::Register();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register UbseMem IPC-API failed," << FormatRetCode(ret);
+        return ret;
+    }
     if (ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to reg mem schedule handler.";
         return ret;
@@ -187,6 +195,11 @@ UbseResult UbseMemControllerModule::Start()
     }
 
     if (enabled_) {
+        ret = ubse::mem::controller::Init();
+        if (ret != UBSE_OK) {
+            return ret;
+        }
+
         ret = UbseMemFaultManager::InitMemFaultManager();
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to initialize mem fault handler.";
