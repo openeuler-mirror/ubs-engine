@@ -72,6 +72,7 @@ typedef struct {
  * @param numa_mem_cnt [OUT] 节点numa信息个数, 范围 [0, UBS_TOPO_NUMA_NUM]
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_NOT_SUPPORTED:内存特性不支持;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
