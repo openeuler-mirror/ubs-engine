@@ -380,6 +380,9 @@ uint32_t UbseMemApi::UbseCheckMemoryStatus(const UbseIpcMessage& req, const Ubse
 
 uint32_t UbseMemApi::UbseNodeMemConfigHandle(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Node mem config IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -428,6 +431,9 @@ inline uint32_t UbseConvertBytesToMegabytes(uint64_t bytes)
 uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
     auto ret = UbseAllNumaInfo(numaInfoList);
     if (ret != UBSE_OK) {
