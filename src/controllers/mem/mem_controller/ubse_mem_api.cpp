@@ -25,6 +25,7 @@
 #include "ubse_mem_advice.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_agent.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_def_serial.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_query_api.h"
@@ -54,6 +55,23 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 const double BYTES_PER_MB = 1024 * 1024; // 1MB = 1,048,576字节
 const int BASE_10 = 10;
+
+bool IsDebtFetchFeatureSupported(AccountType borrowType)
+{
+    switch (borrowType) {
+        case AccountType::NUMA:
+        case AccountType::FD:
+        case AccountType::ADDR:
+            return IsMemBorrowFeatureSupported();
+        case AccountType::SHM:
+            return IsMemShareFeatureSupported();
+        case AccountType::INIT:
+            return IsMemBorrowFeatureSupported() && IsMemShareFeatureSupported();
+        default:
+            UBSE_LOG_WARN << "Unknown debt fetch borrow type, borrowType=" << static_cast<uint32_t>(borrowType);
+            return true;
+    }
+}
 
 UbseResult UbseMemApi::UbseRegisterShmCliInterface(const std::shared_ptr<UbseApiServerModule>& apiServerModule)
 {
@@ -205,6 +223,10 @@ uint32_t UbseMemApi::UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage& req,
     auto [ubseRequestPtr, ubseResponsePtr] = UbseBorrowDetailsPrepareRequest(req);
     if (ubseRequestPtr == nullptr || ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
+    }
+    const auto debtFetchInfo = ubseRequestPtr->GetUbseMemDebtFetchInfo();
+    if (!IsDebtFetchFeatureSupported(debtFetchInfo.borrowType)) {
+        return UBSE_ERR_NOT_SUPPORTED;
     }
 
     ubse::election::UbseRoleInfo masterInfo{};

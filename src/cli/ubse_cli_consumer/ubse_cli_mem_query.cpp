@@ -361,7 +361,7 @@ public:
                                         &ubse_req_account_buffer, &ubse_res_account_buffer);
             UbseCliBufferGuard ubseCliBufferGuardForAccount(ubse_res_account_buffer);
             if (ret != UBSE_OK) {
-                errorMsg_ = std::string("ERROR: Internal error with error code " + std::to_string(ret));
+                errorMsg_ = GetErrorMessage(ret);
                 return false;
             }
             UbseDeSerialization ubse_account_res_serial(ubse_res_account_buffer.buffer, ubse_res_account_buffer.length);
