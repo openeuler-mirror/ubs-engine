@@ -1,0 +1,9 @@
+add_ut(ubse_smbios)
+target_link_libraries(ubs-engine_ubse_smbios_ut
+    PRIVATE
+    ubse_smbios
+    ubse_utils
+    ubse_security
+    ubse_log
+    ubse_context
+)
