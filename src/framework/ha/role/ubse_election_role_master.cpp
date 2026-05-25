@@ -299,7 +299,6 @@ void AsyncDealReply(void* ctx, void* recv, uint32_t len, int32_t result)
     auto& stopping = *context->stopping;
     auto& activeCount = *context->activeCount;
     const auto& nodeId = context->destId;
-    activeCount.fetch_add(1);
     if (stopping.load()) {
         UBSE_LOG_INFO << "[ELECTION] Master has stopped, skipping callback; nodeId=" << nodeId;
         activeCount.fetch_sub(1);
@@ -334,12 +333,18 @@ uint32_t Master::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt)
         return UBSE_ERROR_NULLPTR;
     }
     std::unique_lock<std::mutex> lock(mtx_);
+    if (stopping_.load()) {
+        UBSE_LOG_WARN << "[ELECTION] Master is stopping, skip heartbeat to nodeId=" << destID;
+        SafeDelete(context);
+        return UBSE_ERROR;
+    }
     context->broadcast = &broadcast_;
     context->destId = destID;
     context->standbyStatus = &standbyStatus_;
     context->mtx = &mtx_;
     context->stopping = &stopping_;
     context->activeCount = &activeCount_;
+    activeCount_.fetch_add(1);
     ubse::com::UbseComCallback callback;
     callback.cb = AsyncDealReply;
     callback.cbCtx = reinterpret_cast<void *>(context);
@@ -347,6 +352,7 @@ uint32_t Master::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt)
     auto retCode = rackComModule->RpcAsyncSend(sendParam, electionSimpoPtr, callback);
     if (retCode != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] RpcSend dispatch failed : " << destID;
+        activeCount_.fetch_sub(1);
         SafeDelete(context);
         return retCode;
     }

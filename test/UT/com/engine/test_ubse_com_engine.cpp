@@ -290,6 +290,7 @@ TEST_F(TestUbseComEngine, TestStart)
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     EXPECT_EQ(UBSE_OK, mockengine.Start());
+    mockengine.Stop();
 }
 
 bool QueryEid(std::string nodeId, std::string &eid)
