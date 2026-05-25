@@ -153,13 +153,13 @@ NUMA1 -- NUMA5; NUMA1 本地内存 0.75TB; NUMA5 借用内存 0.75T
 NUMA2 -- NUMA6; NUMA2 本地内存 0.75TB; NUMA6 借用内存 0.75T
 NUMA3 -- NUMA7; NUMA3 本地内存 0.75TB; NUMA7 借用内存 0.75T
 
-此时, 规划虚拟机内存的xml配置: 要求将包含借用关系的numa内存, 配置于同一个guest numa中; 例如
+此时, 规划虚拟机内存的xml配置; 为了提升读写性能, 建议优先使用本地内存; 例如: 在guest OS中Redis使用场景下, 优先使用guest NUMA序号较小的内存. 
 
 ```xml
 <!-- 当前规划2个guest numa -->
 <numatune>
-  <memnode cellid='0' mode='preferred' proportion='786432-node0;786432-node4;786432-node1;786432-node5'/>
-  <memnode cellid='1' mode='preferred' proportion='786432-node2;786432-node6;786432-node3;786432-node7'/>
+  <memnode cellid='0' mode='preferred' proportion='786432-node0;786432-node1;786432-node2;786432-node3'/>
+  <memnode cellid='1' mode='preferred' proportion='786432-node4;786432-node5;786432-node6;786432-node7'/>
 </numatune>
 ```
 
@@ -176,30 +176,30 @@ const pid_t pid = 123; // 虚拟机实际进程号
 page_swap_enable_s *page_swap_enable = (page_swap_enable_s *)malloc(sizeof(page_swap_enable) * page_swap_pairs_len);
 page_swap_enable -> page_swap_pairs_len = 2;
 page_swap_enable -> page_swap_pairs = (page_swap_pair_s *)malloc(sizeof(page_swap_pair_s) * page_swap_enable -> page_swap_pairs_len);
-page_swap_enable -> page_swap_pairs[0] -> local_numa_len = 2;
+page_swap_enable -> page_swap_pairs[0] -> local_numa_len = 4;
 page_swap_enable -> page_swap_pairs[0] -> local_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> local_numa_len);
 page_swap_enable -> page_swap_pairs[0] -> local_numas[0].numa_id = 0;
 page_swap_enable -> page_swap_pairs[0] -> local_numas[0].numa_id = 786432;
 page_swap_enable -> page_swap_pairs[0] -> local_numas[1].numa_id = 1;
 page_swap_enable -> page_swap_pairs[0] -> local_numas[1].numa_id = 786432;
-page_swap_enable -> page_swap_pairs[0] -> remote_numa_len = 2;
-page_swap_enable -> page_swap_pairs[0] -> remote_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> remote_numa_len);
+page_swap_enable -> page_swap_pairs[1] -> local_numas[2].numa_id = 2;
+page_swap_enable -> page_swap_pairs[1] -> local_numas[2].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[1] -> local_numas[3].numa_id = 3;
+page_swap_enable -> page_swap_pairs[1] -> local_numas[3].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[0] -> remote_numa_len = 0;
+page_swap_enable -> page_swap_pairs[0] -> remote_numas = nullptr;
+page_swap_enable -> page_swap_pairs[1] -> local_numa_len = 0;
+page_swap_enable -> page_swap_pairs[1] -> local_numas = nullptr;
+page_swap_enable -> page_swap_pairs[1] -> remote_numa_len = 4;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> remote_numa_len);
 page_swap_enable -> page_swap_pairs[0] -> remote_numas[0].numa_id = 4;
 page_swap_enable -> page_swap_pairs[0] -> remote_numas[0].numa_id = 786432;
 page_swap_enable -> page_swap_pairs[0] -> remote_numas[1].numa_id = 5;
 page_swap_enable -> page_swap_pairs[0] -> remote_numas[1].numa_id = 786432;
-page_swap_enable -> page_swap_pairs[1] -> local_numa_len = 2;
-page_swap_enable -> page_swap_pairs[1] -> local_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> local_numa_len);
-page_swap_enable -> page_swap_pairs[1] -> local_numas[0].numa_id = 2;
-page_swap_enable -> page_swap_pairs[1] -> local_numas[0].numa_id = 786432;
-page_swap_enable -> page_swap_pairs[1] -> local_numas[1].numa_id = 3;
-page_swap_enable -> page_swap_pairs[1] -> local_numas[1].numa_id = 786432;
-page_swap_enable -> page_swap_pairs[1] -> remote_numa_len = 2;
-page_swap_enable -> page_swap_pairs[1] -> remote_numas = (numa_quota_s *)malloc(sizeof(numa_quota_s) * page_swap_enable -> remote_numa_len);
-page_swap_enable -> page_swap_pairs[1] -> remote_numas[0].numa_id = 7;
-page_swap_enable -> page_swap_pairs[1] -> remote_numas[0].numa_id = 786432;
-page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 8;
-page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[2].numa_id = 6;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[2].numa_id = 786432;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[3].numa_id = 7;
+page_swap_enable -> page_swap_pairs[1] -> remote_numas[3].numa_id = 786432;
 // 以json格式表示, 入参如下
 //page_swap_enable {
 //    "page_swap_enable": [
@@ -213,22 +213,6 @@ page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 786432;
 //                    "numa_id": 1,
 //                    "quota": 786432,
 //                },
-//            ],
-//            "local_numa_len": 2,
-//            "remote_numas": [
-//                {
-//                    "numa_id": 4,
-//                    "quota": 786432,
-//                },
-//                {
-//                    "numa_id": 5,
-//                    "quota": 786432,
-//                },
-//            ],
-//            "remote_numa_len": 2,
-//        },
-//        {
-//            "local_numas": [
 //                {
 //                    "numa_id": 2,
 //                    "quota": 786432,
@@ -239,13 +223,27 @@ page_swap_enable -> page_swap_pairs[1] -> remote_numas[1].numa_id = 786432;
 //                },
 //            ],
 //            "local_numa_len": 2,
+//            "remote_numas": [],
+//            "remote_numa_len": 0,
+//        },
+//        {
+//            "local_numas": [],
+//            "local_numa_len": 0,
 //            "remote_numas": [
 //                {
-//                    "numa_id": 7,
+//                    "numa_id": 4,
 //                    "quota": 786432,
 //                },
 //                {
-//                    "numa_id": 8,
+//                    "numa_id": 5,
+//                    "quota": 786432,
+//                },
+//                {
+//                    "numa_id": 6,
+//                    "quota": 786432,
+//                },
+//                {
+//                    "numa_id": 7,
 //                    "quota": 786432,
 //                },
 //            ],
