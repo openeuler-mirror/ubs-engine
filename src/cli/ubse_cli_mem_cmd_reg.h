@@ -16,6 +16,7 @@
 #include "ubse_cli_reg.h"
 #include "ubse_cli_reg_builder.h"
 #include "ubse_serial_util.h"
+#include "src/addons/process_mem/process_mem_pid_manager_def.h"
 namespace ubse::cli::reg {
 using namespace ubse::cli::framework;
 using namespace ubse::serial;
@@ -48,6 +49,10 @@ private:
 
     UbseCliCommandInfo ShmMemoryAttach();
 
+    UbseCliCommandInfo ChangeMemory();
+
+    UbseCliCommandInfo RemoveMemory();
+
     static std::shared_ptr<UbseCliResultEcho> DeleteMemoryFunc(const std::map<std::string, std::string>& params);
 
     static std::shared_ptr<UbseCliResultEcho> ShmMemoryAttachFunc(const std::map<std::string, std::string>& params);
@@ -55,6 +60,10 @@ private:
     static std::shared_ptr<UbseCliResultEcho> ShmMemoryDetachFunc(const std::map<std::string, std::string>& params);
 
     static std::shared_ptr<UbseCliResultEcho> CreateMemoryFunc(const std::map<std::string, std::string>& params);
+
+    static std::shared_ptr<UbseCliResultEcho> PidSetThresholdFunc(const std::map<std::string, std::string>& params);
+
+    static std::shared_ptr<UbseCliResultEcho> PidUnSetFunc(const std::map<std::string, std::string>& params);
 };
 bool CheckName(const std::string& name);
 } // namespace ubse::cli::reg
