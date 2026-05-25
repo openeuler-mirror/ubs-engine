@@ -15,6 +15,8 @@
 #include <fstream>
 #include <regex>
 #include <variant>
+#include "message/ubse_ras_oom_message.h"
+#include "src/framework/security/ubse_security_module.h"
 #include "ubse_com_module.h"
 #include "ubse_conf.h"
 #include "ubse_context.h"
@@ -24,8 +26,6 @@
 #include "ubse_ras.h"
 #include "ubse_ras_com_handler.h"
 #include "ubse_str_util.h"
-#include "message/ubse_ras_oom_message.h"
-#include "src/framework/security/ubse_security_module.h"
 
 using namespace ubse::election;
 using namespace ubse::common;
@@ -49,13 +49,10 @@ const int FREQ_LIMIT = 10;
 const uint32_t URGENT_SIZE = 128 * 1024 * 1024;
 const uint32_t KB_SIZE = 1024;
 const uint64_t TWO_MB_HUGE_PAGE = static_cast<uint64_t>(2048) * 1024;
-const uint64_t LEAST_NEED_HUGE_PAGE = 512;
-const uint64_t READ_FILE_SLEEP_TIME = 1;
 const uint16_t HUGEPAGE_OOM = 2;
 constexpr auto UBSE_ADMISSION_CONFIG_SECTION_NAME = "ubse_plugin_admission";
 constexpr auto OCK_VM_ENABLE = "virt_agent";
-using LibPtr = void*;
-constexpr int MAX_OOM_TIMEOUT_MS = 3600000;
+using LibPtr = void *;
 
 std::vector<int> SplitNids(const std::string& nid_str)
 {
@@ -145,8 +142,8 @@ UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, i
     return UBSE_OK;
 }
 
-uint32_t ProcessSmallpageOom(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
-                             uint64_t& nrFree)
+uint32_t ProcessSmallpageOom(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
+                             [[maybe_unused]] uint64_t &nrFree)
 {
     // 小页场景是为了以后预埋，目前就打日志
     UBSE_LOG_INFO << "Smallpage case is for future, just need ack.";
@@ -408,43 +405,6 @@ uint64_t InitOomWaitTime()
     return oomWaitTime;
 }
 
-bool IsNumaMemFreeEnough(NumaId numaId, uint64_t startTime, uint64_t memNeed, uint64_t& memFree, int timeOut)
-{
-    auto currentTime = GetMillisecondsTime();
-    UBSE_LOG_DEBUG << "[OOM] startTime=" << startTime << "ms, currentTime=" << currentTime
-                   << "ms, oomWaitTime=" << timeOut << "ms.";
-    if (startTime > currentTime || timeOut > MAX_OOM_TIMEOUT_MS) {
-        UBSE_LOG_ERROR << "Invalid time parameters, startTime=" << startTime << "ms, currentTime=" << currentTime
-                       << "ms, timeOut=" << timeOut << "ms.";
-        return false;
-    }
-    while (currentTime - startTime <= timeOut) {
-        UbseResult ret = UBSE_OK;
-        std::string vmCode;
-        if ((UbseGetStr(UBSE_ADMISSION_CONFIG_SECTION_NAME, OCK_VM_ENABLE, vmCode) == UBSE_OK)) {
-            ret = GetFreeHugepages(numaId, memFree);
-            memFree = memFree * TWO_MB_HUGE_PAGE;
-        } else {
-            // 未开启VM插件，不用轮询
-            ret = GetFreeMemInfo(numaId, memFree);
-            memFree = memFree * KB_SIZE;
-            return ret;
-        }
-        if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Get mem free info failed, numaid=" << numaId << ", erroCode=" << ret;
-            return false;
-        }
-        UBSE_LOG_DEBUG << "The memFree of numa=" << numaId << ", memFree=" << memFree << ", memNeed=" << memNeed;
-        if (memFree > memNeed) {
-            return true;
-        }
-        UBSE_LOG_INFO << "Mem is not enough, wait for 1s, memFree=" << memFree << ", memNeed=" << memNeed;
-        currentTime = GetMillisecondsTime();
-        sleep(READ_FILE_SLEEP_TIME);
-    }
-    return false;
-}
-
 UbseResult SmapUrgentMigrateOut(uint64_t memNeed)
 {
     std::string vmCode;
@@ -483,7 +443,8 @@ UbseResult GetOomNumaId(const std::map<std::string, std::variant<uint64_t, long,
 }
 
 uint32_t ProcessHugepageOom(
-    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue, uint64_t& nrFree)
+    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
+    [[maybe_unused]] uint64_t &nrFree)
 {
     auto ret = CheckHugePageOomParam(messageValue);
     if (ret != UBSE_OK) {
@@ -502,34 +463,15 @@ uint32_t ProcessHugepageOom(
         UBSE_LOG_ERROR << "Get remote free hugePages failed, oom numaid=" << oomNumaId;
         return ret;
     }
-    UBSE_LOG_DEBUG << "The remote 2M memFreeHugePages=" << memFreeHugePages;
-    if (memFreeHugePages < LEAST_NEED_HUGE_PAGE) {
-        ret = ForwardOomEventToManager(memNeed, oomNumaId);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Forward oom event to manager failed, erroCode=" << ret << ", oom_numaid=" << oomNumaId;
-            return ret;
-        }
+    UBSE_LOG_INFO << "The remote 2M memFreeHugePages=" << memFreeHugePages;
+    ret = ForwardOomEventToManager(memNeed, oomNumaId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Forward oom event to manager failed, errorCode=" << ret << ", oom_numaid=" << oomNumaId;
+        return ret;
     }
     ret = SmapUrgentMigrateOut(URGENT_SIZE);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Urgent smap out failed, migrate_size=" << URGENT_SIZE << ", errorCode=" << ret;
-    }
-    // 4、扫描内存的剩余量
-    uint64_t memFree = 0;
-    bool isEnough = false;
-    try {
-        auto timeOut = std::get<int>(messageValue.at("timeout"));
-        auto timeSec = std::get<long>(messageValue.at("timesec"));
-        auto timeUsec = std::get<long>(messageValue.at("timeusec"));
-        uint64_t startTime = static_cast<uint64_t>(timeSec) * NO_1000 + timeUsec / NO_1000;
-        isEnough = IsNumaMemFreeEnough(oomNumaId, startTime, memNeed, memFree, timeOut);
-    } catch (const std::exception& e) {
-        UBSE_LOG_ERROR << "Caught exception=" << e.what();
-        return UBSE_OK; // 已经成功给virt发布事件，返回成功
-    }
-    if (isEnough) {
-        nrFree = memFree / TWO_MB_HUGE_PAGE;
-        UBSE_LOG_INFO << "memFree=" << memFree << " bytes, 2M hugePages=" << nrFree;
     }
     UBSE_LOG_INFO << "Process oom event success.";
     return UBSE_OK;
