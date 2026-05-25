@@ -13,7 +13,6 @@
 #include "ubse_urma_uvs_module.h"
 
 #include <dlfcn.h>
-#include "ubse_conf.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -22,7 +21,6 @@
 namespace ubse::urma {
 using namespace ubse::log;
 using namespace ubse::common::def;
-using namespace ubse::config;
 
 DYNAMIC_CREATE(UbseUrmaUvsModule);
 
@@ -31,10 +29,6 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseUrmaUvsModule::Initialize()
 {
     Cleanup();
-    if (!UbseIsUrmaSupported()) {
-        UBSE_LOG_INFO << "URMA feature is unsupported, skip loading libtpsa.so.";
-        return UBSE_OK;
-    }
     handle = dlopen("libtpsa.so", RTLD_LAZY);
     if (handle == nullptr) {
         UBSE_LOG_ERROR << "dlopen libtpsa.so failed";
