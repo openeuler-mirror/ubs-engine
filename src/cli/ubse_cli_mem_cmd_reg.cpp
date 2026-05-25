@@ -20,6 +20,7 @@
 #include "ubse_cli_mem_attach.h"
 #include "ubse_cli_mem_create.h"
 #include "ubse_cli_mem_detach.h"
+#include "ubse_cli_mem_pid.h"
 #include "ubse_cli_mem_query.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
@@ -66,13 +67,27 @@ static const std::string DISPLAY_MEM_NAME_OPTION_TIP =
 // display memory option input error
 static const std::string DISPLAY_MEM_TYPE_OPTION_REQUIRED =
     "ERROR: The request option -t or --type is required, and the supported param is as follows: node_borrow, "
-    "borrow_detail, node_lend, numa_status, config.";
+    "borrow_detail, node_lend, numa_status, config, pidInfo.";
 static const std::string DISPLAY_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: node_borrow, "
-    "borrow_detail, node_lend, numa_status, config.";
+    "borrow_detail, node_lend, numa_status, config, pidInfo.";
 static const std::string DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID =
     "ERROR: Invalid borrow-type. The supported param is as follows: numa, fd, share.";
 static const std::string DISPLAY_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+
+const std::string PID_OPTION = "pid";
+const std::string PID_OPTION_TIP = "Input the pid.";
+const std::string EVICT_THRESHOLD_OPTION = "evict-thresh";
+const std::string TARGET_EVICT_THRESHOLD_OPTION = "target-evict-thresh";
+const std::string RECLAIM_THRESHOLD_OPTION = "reclaim-thresh";
+const std::string THRESHOLD_OPTION_TIP = "Input the threshold";
+const std::string SRC_NUMAID_OPTION = "src-numa";
+const std::string SRC_NUMAID_OPTION_TIP = "Input the src-numa";
+const std::string SIZE_OPTION = "size";
+const std::string SIZE_OPTION_TIP = "Specify the size. The rang is from 128M to 256G. "
+                                    "The example is : 1G or 1024M";
+const std::string INVALID_SIZE_OPTION_TIP = "ERROR: Invalid size param. Please check the form.";
+
 static const std::string DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
     "ERROR: The -n or --name option only supports when the -t or --type parameter is borrow_detail.";
 static const std::string DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
@@ -410,6 +425,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
             return UbseCliQueryNumaStatus();
         } else if (kind == "config") {
             return QueryMemConfig();
+        } else if (kind == "pidInfo") {
+            UbseCliMemPid memPid{};
+            return memPid.UbseCliPrintPidInfo();
         }
     }
     return UbseCliStringPromptReply(DISPLAY_MEM_TYPE_PARAM_INVALID);
@@ -787,6 +805,48 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
     }
 }
 
+UbseCliCommandInfo UbseCliRegMemModule::ChangeMemory()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("change")
+        .UbseCliSetType("memory")
+        .UbseCliAddOption("p", PID_OPTION, PID_OPTION_TIP)
+        .UbseCliAddOption("e", EVICT_THRESHOLD_OPTION, THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("t", TARGET_EVICT_THRESHOLD_OPTION, THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("r", RECLAIM_THRESHOLD_OPTION, THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("s", SIZE_OPTION, SIZE_OPTION_TIP)
+        .UbseCliAddOption("sn", SRC_NUMAID_OPTION, SRC_NUMAID_OPTION_TIP)
+        .UbseCliSetFunc(PidSetThresholdFunc);
+    return builder.UbseCliBuild();
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidUnSetFunc(const std::map<std::string, std::string>& params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto pid = params.find(PID_OPTION);
+    if (pid == params.end()) {
+        return UbseCliStringPromptReply("Invalid PID");
+    }
+    pid_t tmpPid = 0;
+    if (utils::ConvertStrToInt(pid->second, tmpPid) != UBSE_OK) {
+        return UbseCliStringPromptReply("Invalid PID");
+    }
+    UbseCliMemPid memPid{};
+    return memPid.UbseCliUnsetPid(tmpPid);
+}
+
+UbseCliCommandInfo UbseCliRegMemModule::RemoveMemory()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("remove")
+        .UbseCliSetType("memory")
+        .UbseCliAddOption("p", PID_OPTION, PID_OPTION_TIP)
+        .UbseCliSetFunc(PidUnSetFunc);
+    return builder.UbseCliBuild();
+}
+
 bool CheckDeleteType(const std::string& type)
 {
     return type == "fd" || type == "numa" || type == "addr" || type == "share";
@@ -875,6 +935,8 @@ void UbseCliRegMemModule::UbseCliSignUp()
     this->cmd_.emplace_back(DeleteMemory());
     this->cmd_.emplace_back(ShmMemoryAttach());
     this->cmd_.emplace_back(ShmMemoryDetach());
+    this->cmd_.emplace_back(ChangeMemory());
+    this->cmd_.emplace_back(RemoveMemory());
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryAttachFunc(
@@ -930,4 +992,223 @@ UbseCliCommandInfo UbseCliRegMemModule::ShmMemoryDetach()
         .UbseCliSetFunc(ShmMemoryDetachFunc);
     return builder.UbseCliBuild();
 }
+
+// Threshold limits
+static constexpr int THRESHOLD_PERCENT_MAX = 100;
+static constexpr int PID_VALUE_MAX = 4194304;
+static constexpr int MIN_EVICT_RECLAIM_DELTA = 5;
+
+// Size conversion constants
+static constexpr uint64_t BYTES_PER_KIB = 1024ULL;
+static constexpr uint64_t BYTES_PER_MIB = BYTES_PER_KIB * BYTES_PER_KIB;
+static constexpr uint64_t BYTES_PER_GIB = BYTES_PER_KIB * BYTES_PER_KIB * BYTES_PER_KIB;
+static constexpr int DECIMAL_BASE = 10;
+static constexpr int DECIMAL_DIGITS_GROUP = 3;
+
+bool IsNonNegativeInteger(const std::string& s)
+{
+    if (s.empty()) {
+        return false;
+    }
+    if (s[0] == '0' && s.size() > 1) {
+        return false; // 禁止前导零（如 "01"）
+    }
+    for (char c : s) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    return true;
+};
+
+bool CheckThreshold(const std::string& threshold)
+{
+    // 检查 threshold 是否为有效非负整数
+    // 将 threshold 转为整数（使用 strtol 避免异常）
+    if (!IsNonNegativeInteger(threshold)) {
+        return false;
+    }
+    int val = 0;
+    if (utils::ConvertStrToInt(threshold, val) != UBSE_OK) {
+        return false;
+    }
+    if (val <= 0 || val > THRESHOLD_PERCENT_MAX) {
+        return false;
+    }
+    return true;
+}
+
+bool SetPidThresholdParamCheck(const std::string& pid, const std::string& evictThreshold,
+                               const std::string& targetEvictThreshold, const std::string& reclaimThreshold)
+{
+    if (!IsNonNegativeInteger(pid)) {
+        return false;
+    }
+    int pidVal = 0;
+    if (utils::ConvertStrToInt(pid, pidVal) != UBSE_OK) {
+        return false;
+    }
+    if (pidVal <= 0 || pidVal > PID_VALUE_MAX) {
+        return false;
+    }
+    return CheckThreshold(evictThreshold) && CheckThreshold(targetEvictThreshold) && CheckThreshold(reclaimThreshold);
+}
+
+static bool CheckEvictReclaimDelta(const std::string& evictThreshold, const std::string& reclaimThreshold)
+{
+    int evict = 0;
+    int reclaim = 0;
+    if (utils::ConvertStrToInt(evictThreshold, evict) != UBSE_OK ||
+        utils::ConvertStrToInt(reclaimThreshold, reclaim) != UBSE_OK) {
+        return false;
+    }
+    return (evict - reclaim) >= MIN_EVICT_RECLAIM_DELTA;
+}
+
+static bool ConvertIntegerPart(uint64_t intPart, uint64_t unitMultiplier, uint64_t& size)
+{
+    if (unitMultiplier == 0) {
+        return false;
+    }
+    if (intPart > SIZE_MAX / unitMultiplier) {
+        return false;
+    }
+    size = intPart * unitMultiplier;
+    return true;
+}
+
+static bool ConvertDecimalPart(uint64_t intPart, const std::sub_match<std::string::const_iterator>& decMatch,
+                               uint64_t unitMultiplier, uint64_t& size)
+{
+    if (unitMultiplier == 0) {
+        return false;
+    }
+    uint64_t decPart{0};
+    if (ubse::utils::ConvertStrToUint64(decMatch, decPart) != UBSE_OK) {
+        return false;
+    }
+    auto decPlaces = static_cast<int>(decMatch.length());
+
+    uint64_t power10 = 1;
+    for (int i = 0; i < decPlaces; ++i) {
+        power10 *= DECIMAL_BASE;
+    }
+
+    if (intPart > SIZE_MAX / unitMultiplier) {
+        return false;
+    }
+    uint64_t intBytes = intPart * unitMultiplier;
+
+    if (decPart > SIZE_MAX / unitMultiplier) {
+        return false;
+    }
+    uint64_t decBytes = decPart * unitMultiplier / power10;
+
+    if (intBytes > SIZE_MAX - decBytes) {
+        return false;
+    }
+    size = intBytes + decBytes;
+    return true;
+}
+
+bool SizeConversion(const std::string& str, uint64_t& size)
+{
+    // 支持整数 (128M, 1G) 和小数 (1.5G, 0.25M)，小数最多2位
+    std::regex pattern(R"(^(\d+)(\.(\d{1,2}))?([BKMG])$)");
+    std::smatch match;
+    if (!std::regex_match(str, match, pattern)) {
+        return false;
+    }
+
+    uint64_t intPart{0};
+    if (ubse::utils::ConvertStrToUint64(match[1], intPart) != UBSE_OK) {
+        return false;
+    }
+    std::string unit = match[4];
+
+    uint64_t unitMultiplier = 0;
+    if (unit == "B") {
+        unitMultiplier = 1;
+    } else if (unit == "K") {
+        unitMultiplier = BYTES_PER_KIB;
+    } else if (unit == "M") {
+        unitMultiplier = BYTES_PER_MIB;
+    } else if (unit == "G") {
+        unitMultiplier = BYTES_PER_GIB;
+    } else {
+        return false;
+    }
+
+    if (!match[DECIMAL_DIGITS_GROUP].matched) {
+        return ConvertIntegerPart(intPart, unitMultiplier, size);
+    }
+    return ConvertDecimalPart(intPart, match[DECIMAL_DIGITS_GROUP], unitMultiplier, size);
+}
+
+process_mem::def::ProcessMemPidInfo SetPidManagerInfo(const std::string& pidStr, const std::string& evictThresholdStr,
+                                                      const std::string& targetEvictThresholdStr,
+                                                      const std::string& reclaimThresholdStr, uint64_t size)
+{
+    process_mem::def::ProcessMemPidInfo tmpInfo{};
+    tmpInfo.configInfo.expectedMemoryUsage = size;
+    if (utils::ConvertStrToInt(pidStr, tmpInfo.configInfo.pid) != UBSE_OK ||
+        utils::ConvertStrToInt(evictThresholdStr, tmpInfo.configInfo.evictThreshold) != UBSE_OK ||
+        utils::ConvertStrToInt(targetEvictThresholdStr, tmpInfo.configInfo.targetEvictThreshold) != UBSE_OK ||
+        utils::ConvertStrToInt(reclaimThresholdStr, tmpInfo.configInfo.reclaimThreshold) != UBSE_OK) {
+        tmpInfo.configInfo.pid = -1;
+    }
+    return tmpInfo;
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidSetThresholdFunc(
+    const std::map<std::string, std::string>& params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto pid = params.find(PID_OPTION);
+    if (pid == params.end()) {
+        return UbseCliStringPromptReply("Invalid PID, the length must be lower than 10");
+    }
+    auto evictThreshold = params.find(EVICT_THRESHOLD_OPTION);
+    auto targetEvictThreshold = params.find(TARGET_EVICT_THRESHOLD_OPTION);
+    auto reclaimThreshold = params.find(RECLAIM_THRESHOLD_OPTION);
+    auto srcNumaIdParam = params.find(SRC_NUMAID_OPTION);
+    if (evictThreshold == params.end() || targetEvictThreshold == params.end() || reclaimThreshold == params.end()) {
+        return UbseCliStringPromptReply("Invalid threshold");
+    }
+
+    if (!SetPidThresholdParamCheck(pid->second, evictThreshold->second, targetEvictThreshold->second,
+                                   reclaimThreshold->second)) {
+        return UbseCliStringPromptReply("Invalid threshold");
+    }
+
+    if (!CheckEvictReclaimDelta(evictThreshold->second, reclaimThreshold->second)) {
+        return UbseCliStringPromptReply(
+            "evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation");
+    }
+
+    auto sizeParam = params.find(SIZE_OPTION);
+    uint64_t size{};
+    if (sizeParam == params.end() || !SizeConversion(sizeParam->second, size)) {
+        return UbseCliStringPromptReply(INVALID_SIZE_OPTION_TIP);
+    }
+
+    auto pidInfo = SetPidManagerInfo(pid->second, evictThreshold->second, targetEvictThreshold->second,
+                                     reclaimThreshold->second, size);
+    if (pidInfo.configInfo.pid == -1) {
+        return UbseCliStringPromptReply("Internal error");
+    }
+
+    if (srcNumaIdParam != params.end()) {
+        uint64_t srcNumaId;
+        if (utils::ConvertStrToUint64(srcNumaIdParam->second, srcNumaId) != UBSE_OK) {
+            return UbseCliStringPromptReply("Invalid --src-numa value");
+        }
+        pidInfo.configInfo.srcNumaId = srcNumaId;
+    }
+    UbseCliMemPid memPid{};
+    return memPid.UbseCliSetPidThreshold(pidInfo);
+}
+
 } // namespace ubse::cli::reg
