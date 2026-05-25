@@ -184,46 +184,46 @@ TEST_F(TestMempoolingModule, UBSRMRSSetWaterMark)
 
 TEST_F(TestMempoolingModule, UBSRMRSSmapAddProcessTracking)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSSmapAddProcessTracking(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSSmapAddProcessTracking(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSSmapRemoveProcessTracking)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSSmapRemoveProcessTracking(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSSmapRemoveProcessTracking(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSSmapEnableProcessMigrate)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSSmapEnableProcessMigrate(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSSmapEnableProcessMigrate(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSBatchBorrowStrategy)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSBatchBorrowStrategy(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSBatchBorrowStrategy(), nullptr);
 }
 
 TEST_F(TestMempoolingModule, UBSRMRSSmapEnableProcessMigrateGrouped)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
     EXPECT_NE(MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped(), nullptr);
 }
 
@@ -231,7 +231,7 @@ TEST_F(TestMempoolingModule, DeInitSuccess)
 {
     MempoolingModule module;
     auto MockLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&MockLibrary)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&MockLibrary)));
     MOCKER(dlclose).stubs().will(returnValue(0));
 
     const auto initRet = module.Init();
@@ -247,7 +247,7 @@ TEST_F(TestMempoolingModule, DeInitFailure)
 {
     MempoolingModule module;
     auto MockLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&MockLibrary)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&MockLibrary)));
     MOCKER(dlclose).stubs().will(returnValue(-1));
 
     const auto initRet = module.Init();
@@ -261,7 +261,7 @@ TEST_F(TestMempoolingModule, DeInitFailure)
 
 TEST_F(TestMempoolingModule, CachedFunctionPointers)
 {
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockDlsys)));
 
     auto func1 = MempoolingModule::UBSRMRSUpdateAntiNode();
     EXPECT_NE(func1, nullptr);

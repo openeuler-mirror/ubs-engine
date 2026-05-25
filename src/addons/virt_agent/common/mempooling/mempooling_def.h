@@ -131,12 +131,15 @@ struct PidInfo {
     std::string ToString() const
     {
         std::ostringstream oss;
-        oss << "{" << "\"pid\":" << pid << "," << "\"localMemSize\":" << localUsedMem << ","
+        oss << "{"
+            << "\"pid\":" << pid << ","
+            << "\"localMemSize\":" << localUsedMem << ","
             << "\"remoteMemSize\":" << remoteUsedMem << ",";
 
         oss << "\"localNumaIds\":[";
         oss << VectorUtil::VectorToString(localNumaIds, ",");
-        oss << "]" << "}";
+        oss << "]"
+            << "}";
 
         return oss.str();
     }
@@ -374,7 +377,7 @@ struct BatchSrcMemoryBorrowParam {
         oss << R"({"srcNid":)" << srcNid << R"(,)";
         oss << R"("srcNumaNum":)" << srcNumaNum << R"(,)";
         oss << R"("srcNumaId":[)";
-        for (const auto &srcNuma : srcNumaId) {
+        for (const auto& srcNuma : srcNumaId) {
             oss << srcNuma << R"(,)";
         }
         oss << R"(],)";
@@ -416,7 +419,8 @@ struct PageSwapPair {
         for (auto localNuma : localNumas) {
             oss << localNuma.ToString() << R"(,)";
         }
-        oss << R"(],)" << R"("remoteNumas":[)";
+        oss << R"(],)"
+            << R"("remoteNumas":[)";
         for (auto remoteNuma : remoteNumas) {
             oss << remoteNuma.ToString() << R"(,)";
         }

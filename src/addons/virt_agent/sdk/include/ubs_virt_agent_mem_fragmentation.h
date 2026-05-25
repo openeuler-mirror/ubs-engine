@@ -145,12 +145,12 @@ virt_agent_ret_t ubs_virt_agent_sync_task_query(char* task_id, uint32_t task_id_
 virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam);
 
 /** ==============big memory virtual machine============== */
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s *node_info_list);
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s* node_info_list);
 
-virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s *param, const bool is_async,
-                                           mem_borrow_result_s *result);
+virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, const bool is_async,
+                                           mem_borrow_result_s* result);
 
-virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s *page_swap_enable);
+virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s* page_swap_enable);
 #ifdef __cplusplus
 }
 #endif

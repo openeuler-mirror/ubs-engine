@@ -110,7 +110,7 @@ class MemTaskResultQueryMsg : public BaseMessage {
 public:
     MemTaskResultQueryMsg() = default;
 
-    explicit MemTaskResultQueryMsg(async_task_info_c asyncTaskInfoC) : asyncTaskInfoC_(std::move(asyncTaskInfoC)) {};
+    explicit MemTaskResultQueryMsg(async_task_info_c asyncTaskInfoC) : asyncTaskInfoC_(std::move(asyncTaskInfoC)){};
 
     explicit MemTaskResultQueryMsg(uint8_t* rawData, uint32_t size)
     {
@@ -137,7 +137,7 @@ public:
     MemBorrowExecuteResultMsg() = default;
 
     explicit MemBorrowExecuteResultMsg(mem_borrow_result_c memBorrowResultC)
-        : memBorrowResultC_(std::move(memBorrowResultC)) {};
+        : memBorrowResultC_(std::move(memBorrowResultC)){};
 
     explicit MemBorrowExecuteResultMsg(uint8_t* rawData, uint32_t size)
     {
@@ -163,7 +163,7 @@ class MemFragmentationMsg : public BaseMessage {
 public:
     MemFragmentationMsg() = default;
 
-    explicit MemFragmentationMsg(std::vector<NumaInfo> numaInfos) : numaInfos_(std::move(numaInfos)) {};
+    explicit MemFragmentationMsg(std::vector<NumaInfo> numaInfos) : numaInfos_(std::move(numaInfos)){};
 
     explicit MemFragmentationMsg(uint8_t* rawData, uint32_t size)
     {
@@ -190,7 +190,7 @@ public:
     MemFragmentationVmInfoMsg() = default;
 
     explicit MemFragmentationVmInfoMsg(std::vector<mempooling::VmDomainInfo> vmInfoList)
-        : vmInfoList_(std::move(vmInfoList)) {};
+        : vmInfoList_(std::move(vmInfoList)){};
 
     explicit MemFragmentationVmInfoMsg(uint8_t* rawData, uint32_t size)
     {
@@ -476,13 +476,13 @@ namespace mem_fragmentation {
 /** ==============big memory virtual machine============== */
 typedef struct {
     char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];
-    numa_info_t *numa_infos;
+    numa_info_t* numa_infos;
     uint32_t numa_len;
     bool is_current;
 } node_info_s;
 
 typedef struct {
-    node_info_s *node_infos;
+    node_info_s* node_infos;
     uint32_t node_len;
 } node_info_list_s;
 
@@ -503,7 +503,7 @@ public:
     {
     }
 
-    explicit MemFragmentationNodeInfoListMsg(uint8_t *rawData, uint32_t size)
+    explicit MemFragmentationNodeInfoListMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -527,7 +527,7 @@ typedef struct {
 
 typedef struct {
     char src_nid[VIRT_MEM_MAX_NODE_ID_LENGTH];
-    numa_meta_info_s *numa_meta_infos;
+    numa_meta_info_s* numa_meta_infos;
     uint32_t numa_len;
     uint64_t borrow_size;
 } mem_borrow_param_s;
@@ -576,7 +576,7 @@ public:
     {
     }
 
-    explicit MemFragmentationMemBorrowParamMsg(uint8_t *rawData, const uint32_t &size)
+    explicit MemFragmentationMemBorrowParamMsg(uint8_t* rawData, const uint32_t& size)
     {
         SetInputRawData(rawData, size);
     }
@@ -600,7 +600,7 @@ private:
 };
 
 typedef struct {
-    mem_borrow_result_c *mem_borrow_result_list;
+    mem_borrow_result_c* mem_borrow_result_list;
     uint16_t mem_borrow_result_list_len;
 } mem_borrow_result_s;
 
@@ -614,7 +614,7 @@ public:
     {
     }
 
-    explicit MemFragmentationMemBorrowResultMsg(uint8_t *rawData, const uint32_t &size)
+    explicit MemFragmentationMemBorrowResultMsg(uint8_t* rawData, const uint32_t& size)
     {
         SetInputRawData(rawData, size);
     }
@@ -637,14 +637,14 @@ typedef struct {
 } numa_quota_s;
 
 typedef struct {
-    numa_quota_s *local_numas;
+    numa_quota_s* local_numas;
     uint8_t local_numa_len;
-    numa_quota_s *remote_numas;
+    numa_quota_s* remote_numas;
     uint8_t remote_numa_len;
 } page_swap_pair_s;
 
 typedef struct {
-    page_swap_pair_s *page_swap_pairs;
+    page_swap_pair_s* page_swap_pairs;
     uint8_t page_swap_pairs_len;
 } page_swap_enable_s;
 
@@ -694,7 +694,7 @@ public:
     {
     }
 
-    explicit MemFragmentationPageSwapEnableMsg(uint8_t *rawData, const uint32_t &size)
+    explicit MemFragmentationPageSwapEnableMsg(uint8_t* rawData, const uint32_t& size)
     {
         SetInputRawData(rawData, size);
     }

@@ -347,7 +347,7 @@ TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_Serialize_Deserialize2)
 TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deserialize)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     std::vector<NodeInfo> nodeInfoList;
     NodeInfo node1;
     node1.nodeId = "node1";
@@ -384,11 +384,11 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deseri
     MemFragmentationNodeInfoListMsg msg{nodeInfoList};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationNodeInfoListMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     auto result = dmsg.GetNodeInfoList();
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0].nodeId, "node1");
@@ -400,16 +400,16 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deseri
 TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Empty_List)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     std::vector<NodeInfo> nodeInfoList;
     MemFragmentationNodeInfoListMsg msg{nodeInfoList};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationNodeInfoListMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     auto result = dmsg.GetNodeInfoList();
     EXPECT_EQ(result.size(), 0);
 }
@@ -418,16 +418,16 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Empty_List)
 TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Deserialize)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     BorrowParam param;
     param.nodeId = "node1";
     param.borrowSize = 1024; // 1GB
-    
+
     NumaMetaInfo numaMeta1;
     numaMeta1.socketId = 0;
     numaMeta1.numaId = 0;
     param.numaMetaInfos.push_back(numaMeta1);
-    
+
     NumaMetaInfo numaMeta2;
     numaMeta2.socketId = 1;
     numaMeta2.numaId = 1;
@@ -436,11 +436,11 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Dese
     MemFragmentationMemBorrowParamMsg msg{param, true};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationMemBorrowParamMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     auto resultParam = dmsg.GetBorrowParam();
     EXPECT_EQ(resultParam.nodeId, "node1");
     EXPECT_EQ(resultParam.borrowSize, 1024);
@@ -451,15 +451,15 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Dese
 TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Sync_Mode)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     BorrowParam param;
     param.nodeId = "node2";
     param.borrowSize = 2048;
-    
+
     MemFragmentationMemBorrowParamMsg msg{param, false};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationMemBorrowParamMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
@@ -469,19 +469,19 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Sync_Mode)
 TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Empty_NumaMetaInfos)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     BorrowParam param;
     param.nodeId = "node3";
     param.borrowSize = 512;
-    
+
     MemFragmentationMemBorrowParamMsg msg{param, true};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationMemBorrowParamMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     auto resultParam = dmsg.GetBorrowParam();
     EXPECT_EQ(resultParam.numaMetaInfos.size(), 0);
 }
@@ -490,7 +490,7 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Empty_NumaMeta
 TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Serialize_Deserialize)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     std::vector<mem_borrow_result_c> results;
     mem_borrow_result_c result1;
     result1.task_id[0] = '\0';
@@ -505,7 +505,7 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Serialize_Des
     MemFragmentationMemBorrowResultMsg msg{results};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationMemBorrowResultMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
@@ -514,12 +514,12 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Serialize_Des
 TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Empty_Result)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     std::vector<mem_borrow_result_c> results;
     MemFragmentationMemBorrowResultMsg msg{results};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationMemBorrowResultMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
@@ -529,16 +529,16 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Empty_Result)
 TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Serialize_Deserialize)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     pid_t pid = 12345;
     std::vector<::mem_fragmentation::PageSwapPair> pageSwapPairs;
-    
+
     ::mem_fragmentation::PageSwapPair pair1;
     ::mem_fragmentation::NumaQuota localQuota1;
     localQuota1.numaId = 0;
     localQuota1.quota = 1024;
     pair1.localNumaQuotas.push_back(localQuota1);
-    
+
     ::mem_fragmentation::NumaQuota remoteQuota1;
     remoteQuota1.numaId = 1;
     remoteQuota1.quota = 2048;
@@ -550,7 +550,7 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Serialize_Dese
     localQuota2.numaId = 2;
     localQuota2.quota = 4096;
     pair2.localNumaQuotas.push_back(localQuota2);
-    
+
     ::mem_fragmentation::NumaQuota remoteQuota2;
     remoteQuota2.numaId = 3;
     remoteQuota2.quota = 8192;
@@ -560,11 +560,11 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Serialize_Dese
     MemFragmentationPageSwapEnableMsg msg{pid, pageSwapPairs};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationPageSwapEnableMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     EXPECT_EQ(dmsg.GetPid(), pid);
     auto resultPairs = dmsg.GetPageSwapPair();
     EXPECT_EQ(resultPairs.size(), 2);
@@ -573,18 +573,18 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Serialize_Dese
 TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Empty_Pairs)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     pid_t pid = 67890;
     std::vector<::mem_fragmentation::PageSwapPair> pageSwapPairs;
 
     MemFragmentationPageSwapEnableMsg msg{pid, pageSwapPairs};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationPageSwapEnableMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     EXPECT_EQ(dmsg.GetPid(), pid);
     EXPECT_EQ(dmsg.GetPageSwapPair().size(), 0);
 }
@@ -592,10 +592,10 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Empty_Pairs)
 TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Multiple_Quotas_Per_Pair)
 {
     using namespace ::vm::mem_fragmentation;
-    
+
     pid_t pid = 11111;
     std::vector<::mem_fragmentation::PageSwapPair> pageSwapPairs;
-    
+
     ::mem_fragmentation::PageSwapPair pair1;
     // Multiple local quotas
     for (uint32_t i = 0; i < 3; i++) {
@@ -604,7 +604,7 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Multiple_Quota
         localQuota.quota = 1024 * (i + 1);
         pair1.localNumaQuotas.push_back(localQuota);
     }
-    
+
     // Multiple remote quotas
     for (uint32_t i = 0; i < 2; i++) {
         ::mem_fragmentation::NumaQuota remoteQuota;
@@ -617,11 +617,11 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Multiple_Quota
     MemFragmentationPageSwapEnableMsg msg{pid, pageSwapPairs};
     auto ret = msg.Serialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     MemFragmentationPageSwapEnableMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_OK);
-    
+
     auto resultPairs = dmsg.GetPageSwapPair();
     EXPECT_EQ(resultPairs.size(), 1);
     EXPECT_EQ(resultPairs[0].localNumaQuotas.size(), 3);
