@@ -103,7 +103,7 @@ private:
                            adapter_plugins::mti::UbseDevNameHash>
             peerDevMapOld,
         std::string& eventMessage);
-    UbseResult PubUbseTopoChangeEvent(std::string& eventMessage) const;
+    UbseResult PubPortUpDownEvent(const std::string& linkUpDown, const std::string& interfaceName);
     void AddPortCnaInfo(
         const LcneNodeCnaInfo& lcneCnaInfo, const adapter_plugins::mti::UbseDevName& localDevName,
         std::unordered_map<adapter_plugins::mti::UbseDevPortName, adapter_plugins::mti::UbseMtiCpuTopoPortInfo,

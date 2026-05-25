@@ -137,4 +137,72 @@ TEST_F(TestUbseLcneLinkInfo, ParseMonitorData_RspInvalidResult)
     UbseResult ret = UbseLcneLinkInfo::GetInstance().ParseMonitorData(resBody);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
+
+TEST_F(TestUbseLcneLinkInfo, ParseLinkUpDownReq_LinkUpSuccess)
+{
+    std::string reqBody = R"(<notification>
+    <eventTime>2025-01-01T00:00:00Z</eventTime>
+    <link-up xmlns="urn:ietf:params:xml:ns:netconf:notification:1.0">
+    <index>0</index>
+    <admin-status>UP</admin-status>
+    <oper-status>UP</oper-status>
+    <name>400GUB1/1/1</name>
+    <main-if-name>400GUB1/1/1</main-if-name>
+    </link-up>
+    </notification>)";
+    std::string linkUpDown;
+    std::string interfaceName;
+    UbseResult ret = UbseLcneLinkInfo::GetInstance().ParseLinkUpDownReq(reqBody, linkUpDown, interfaceName);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(linkUpDown, "link-up");
+    EXPECT_EQ(interfaceName, "400GUB1/1/1");
+}
+
+TEST_F(TestUbseLcneLinkInfo, ParseLinkUpDownReq_LinkDownSuccess)
+{
+    std::string reqBody = R"(<notification>
+    <eventTime>2025-01-01T00:00:00Z</eventTime>
+    <link-down xmlns="urn:ietf:params:xml:ns:netconf:notification:1.0">
+    <index>0</index>
+    <admin-status>DOWN</admin-status>
+    <oper-status>DOWN</oper-status>
+    <name>400GUB1/1/1</name>
+    <main-if-name>400GUB1/1/1</main-if-name>
+    </link-down>
+    </notification>)";
+    std::string linkUpDown;
+    std::string interfaceName;
+    UbseResult ret = UbseLcneLinkInfo::GetInstance().ParseLinkUpDownReq(reqBody, linkUpDown, interfaceName);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(linkUpDown, "link-down");
+    EXPECT_EQ(interfaceName, "400GUB1/1/1");
+}
+
+TEST_F(TestUbseLcneLinkInfo, ParseLinkUpDownReq_RspEmpty)
+{
+    std::string reqBody{};
+    std::string linkUpDown;
+    std::string interfaceName;
+    UbseResult ret = UbseLcneLinkInfo::GetInstance().ParseLinkUpDownReq(reqBody, linkUpDown, interfaceName);
+    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(linkUpDown, "");
+    EXPECT_EQ(interfaceName, "");
+}
+
+TEST_F(TestUbseLcneLinkInfo, ParseLinkUpDownReq_RspInvalid)
+{
+    std::string reqBody = R"(<notification>
+    <eventTime>2025-01-01T00:00:00Z</eventTime>
+    <netconf xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <UserName>admin</UserName>
+    <session-id>123456</session-id>
+    </netconf>
+    </notification>)";
+    std::string linkUpDown;
+    std::string interfaceName;
+    UbseResult ret = UbseLcneLinkInfo::GetInstance().ParseLinkUpDownReq(reqBody, linkUpDown, interfaceName);
+    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(linkUpDown, "");
+    EXPECT_EQ(interfaceName, "");
+}
 } // namespace ubse::lcne
