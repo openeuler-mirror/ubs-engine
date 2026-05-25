@@ -27,7 +27,7 @@ public:
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
     uint8_t GetMasterStatus() override;
     uint8_t GetStandbyStatus() override;
-    void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override{};
+    void SetNodeDownStatus(UBSE_ID_TYPE) override{};
 
     RoleType GetRoleType() override
     {

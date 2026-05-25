@@ -273,6 +273,9 @@ protected:
     UbseResult AddConnectingNodeForServer(UbseComChannelInfo& chInfo);
     void UpdateNewChannelIdMap(const std::string& nodeId, UbseComChannelInfo& channelInfo);
     bool SplitIp(const std::string ipPortStr, std::string& ip);
+    bool ResolvePeerConnectInfo(const std::string& ipPort,
+                                const std::pair<std::string, UbseChannelType>& payLoadPair,
+                                UbseComChannelConnectInfo& connectInfo);
     bool VerifyMsg(UbseComMessageCtx& msgCtx);
     void HandleGetLocalNodeId(const UBSHcomServiceContext& context);
     void DoEngineStart();
@@ -295,6 +298,7 @@ protected:
     int16_t heartBeatTimeout_;
     ShouldDoReconnectCb shouldReconnect_ = nullptr;
     QueryEidByNodeIdCb queryCb_ = nullptr;
+    std::thread startRetryThread_;     // 启动HCOM Server重试线程
 };
 
 class UbseComEngineManager {
