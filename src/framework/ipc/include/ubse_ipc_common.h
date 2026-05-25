@@ -73,15 +73,18 @@ typedef enum {
     // todo 删除,创建和查询过程不同，各类型查询结构体和接口不同，需拆分
     UBSE_MEM_CLI_NUMA_STATE_QUERY = 0x0038,
 
-    UBSE_MEM_CLI_NUMA_CREATE = 0x0039,               // NUMA创建(CLI)
-    UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME = 0x0040,     // NUMA借用关系查询(CLI)
-    UBSE_MEM_CLI_FD_CREATE = 0x0041,                 // FD创建(CLI)
-    UBSE_MEM_CLI_FD_INFO_GET_BY_NAME = 0x0042,       // FD借用关系查询(CLI)
-    UBSE_MEM_CLI_SHM_CREATE = 0x0043,                // SHM创建(CLI)
-    UBSE_MEM_CLI_SHM_INFO_GET_BY_NAME = 0x0044,      // SHM借用关系查询(CLI)
-    UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                // SHM链接(CLI)
-    UBSE_MEM_CLI_SHM_DETACH = 0x0046,                // SHM释放(CLI)
-    UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047 // 内存删除(聚合接口)(CLI)
+    UBSE_MEM_CLI_NUMA_CREATE = 0x0039,                // NUMA创建(CLI)
+    UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME = 0x0040,      // NUMA借用关系查询(CLI)
+    UBSE_MEM_CLI_FD_CREATE = 0x0041,                  // FD创建(CLI)
+    UBSE_MEM_CLI_FD_INFO_GET_BY_NAME = 0x0042,        // FD借用关系查询(CLI)
+    UBSE_MEM_CLI_SHM_CREATE = 0x0043,                 // SHM创建(CLI)
+    UBSE_MEM_CLI_SHM_INFO_GET_BY_NAME = 0x0044,       // SHM借用关系查询(CLI)
+    UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                 // SHM链接(CLI)
+    UBSE_MEM_CLI_SHM_DETACH = 0x0046,                 // SHM释放(CLI)
+    UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047, // 内存删除(聚合接口)(CLI)
+    UBSE_MEM_CLI_PID_SET_THRESHOLD = 0x0048, // PID阈值设置(CLI)
+    UBSE_MEM_CLI_PRINT_PID_INFO = 0x0049,    // PID信息查询(CLI)
+    UBSE_MEM_CLI_PID_UNSET = 0x0050,         // PID配置删除(CLI)
 } ubse_ipc_mem_op_code_t;
 
 typedef enum {
