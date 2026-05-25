@@ -917,7 +917,7 @@ uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
-        UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
+        UBSE_LOG_ERROR << "requestId=" << req.requestId << "RpcSend dispatch failed";
         return ret;
     }
     UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
