@@ -17,7 +17,7 @@
 
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
-#include "ubse_event_module.h"
+#include "ubse_event.h"
 #include "ubse_http_module.h"
 #include "ubse_logger.h"
 #include "lcne/ubse_lcne_sub_topo_change_info.h"
@@ -30,11 +30,13 @@ using namespace ubse::context;
 using namespace ubse::http;
 using namespace ubse::config;
 using namespace ubse::lcne;
+using namespace ubse::event;
 using namespace ubse::adapter_plugins::mti;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 std::string UbseLcneTopology::urlLinkUpAndDown{"/topolink/change/"};
+std::string g_ubseEventPortUpDown = "topology.port.linkupdown";
 
 UbseResult UbseLcneTopology::Start()
 {
@@ -50,17 +52,47 @@ UbseResult UbseLcneTopology::Start()
     return UBSE_OK;
 }
 
-UbseResult UbseLcneTopology::PubUbseTopoChangeEvent(std::string& eventMessage) const
+UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown,
+                                                const std::string& interfaceName)
 {
-    auto& ctxRef = UbseContext::GetInstance();
-    auto eventPtr = ctxRef.GetModule<ubse::event::UbseEventModule>();
-    if (eventPtr == nullptr) {
-        UBSE_LOG_WARN << "Can not get event module";
+    if (interfaceName.empty()) {
+        UBSE_LOG_WARN << "[MTI] interfaceName is empty.";
         return UBSE_ERROR;
     }
-    auto ret = eventPtr->UbsePubEvent(UBSE_EVENT_TOPOLOGY_CHANGE, eventMessage);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "pub event UbseTopologyChangeEvent is failed";
+    std::string slotId;
+    std::string chipId;
+    std::string portId;
+    bool found = false;
+    UbseDevTopology devTopology;
+    if (UbseGetDevTopology(devTopology) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to get devTopology.";
+        return UBSE_ERROR;
+    }
+    for (auto& devTopo : devTopology) {
+        auto& [deviceInfo, portMap] = devTopo.second;
+        for (auto& [portName, portInfo] : portMap) {
+            if (portInfo.ifName == interfaceName) {
+                slotId = deviceInfo.slotId;
+                chipId = deviceInfo.chipId;
+                portId = portInfo.portId;
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
+    }
+    if (!found || slotId.empty() || chipId.empty() || portId.empty()) {
+        UBSE_LOG_WARN << "[MTI] Topology information corresponding to interface=" << interfaceName << " not found.";
+        return UBSE_ERROR;
+    }
+    const std::string status = (linkUpDown == "link-down") ? "DOWN" : "UP";
+    std::string eventMessage = status + ";" + slotId + ":" + chipId + ":" + portId + ":" + interfaceName;
+    
+    UBSE_LOG_INFO << "[MTI] Pub event=" << g_ubseEventPortUpDown << ", eventMessage=" << eventMessage;
+    
+    if (UbsePubEvent(g_ubseEventPortUpDown, eventMessage) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to pub event=" << g_ubseEventPortUpDown
+        << ", interfaceName=" << interfaceName << ", status=" << status;
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -117,7 +149,15 @@ void UbseLcneTopology::IdentifyTopoChange(
 
 uint32_t UbseLcneTopology::PortUpDownFunc(const UbseHttpRequest& req, UbseHttpResponse& resp)
 {
-    UBSE_LOG_INFO << "[MTI] Received topology change message reported by lcne";
+    UBSE_LOG_INFO << "[MTI] Received notification message reported by lcne";
+    std::string linkUpDown{};
+    std::string interfaceName{};
+    if (UbseLcneLinkInfo::GetInstance().ParseLinkUpDownReq(req.body, linkUpDown, interfaceName) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to parse notification request, skip this request.";
+        resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
+        return UBSE_OK;
+    }
+
     std::string eventMessage{};
     // 必须重新获取拓扑，避免连线对端变化的情况，然后识别存在的变化并发事件
     std::unordered_map<UbseDevName, std::unordered_set<UbseDevName, UbseDevNameHash>, UbseDevNameHash> peerDevMapOld;
@@ -129,8 +169,12 @@ uint32_t UbseLcneTopology::PortUpDownFunc(const UbseHttpRequest& req, UbseHttpRe
     IdentifyTopoChange(peerDevMapOld, eventMessage);
     UBSE_LOG_INFO << "[MTI] Topo Change eventMessage is " << eventMessage << " .";
 
-    if (PubUbseTopoChangeEvent(eventMessage) != UBSE_OK) {
+    if (UbsePubEvent(UBSE_EVENT_TOPOLOGY_CHANGE, eventMessage) != UBSE_OK) {
         UBSE_LOG_WARN << "[MTI] pub event UbseTopologyChangeEvent is failed! eventMessage is " << eventMessage;
+    }
+    if (PubPortUpDownEvent(linkUpDown, interfaceName) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to pub event, interfaceName="
+                      << interfaceName << ", status=" << linkUpDown;
     }
 
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

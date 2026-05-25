@@ -29,6 +29,7 @@ public:
 
     // 初始化时订阅拓扑信息
     uint32_t SubLcneLinkInfo();
+    uint32_t ParseLinkUpDownReq(const std::string &reqBody, std::string &linkUpDown, std::string &interfaceName);
 
 private:
     UbseLcneLinkInfo(const std::string& host, int port) : host(host), port(port) {}
