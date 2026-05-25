@@ -19,6 +19,7 @@
 #include "ubse_conf_module.h"  // for UbseConfModule
 #include "ubse_context.h"      // for UbseContext
 #include "ubse_logger.h"       // for UBSE_DEFINE_THIS_MODULE
+#include "ubse_str_util.h"
 
 namespace ubse::config {
 using namespace ubse::log;
@@ -60,5 +61,22 @@ uint32_t UbseGetBool(const std::string& section, const std::string& configKey, b
 uint32_t UbseGetULong(const std::string& section, const std::string& configKey, uint64_t& configVal)
 {
     return GetConf(section, configKey, configVal);
+}
+
+uint32_t UbseGetUBEnable(bool& ubEnable)
+{
+    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
+    if (ubseConfModule == nullptr) {
+        UBSE_LOG_ERROR << "Get config info failed";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    std::string ipList;
+    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
+    if (ret == UBSE_OK && !ubse::utils::Trim(ipList).empty()) {
+        ubEnable = false;
+        return UBSE_OK;
+    }
+    ubEnable = true;
+    return UBSE_OK;
 }
 }  // namespace ubse::config

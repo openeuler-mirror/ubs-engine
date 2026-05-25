@@ -97,11 +97,6 @@ UbseResult UbseUrmaControllerModule::Initialize()
         UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
         return ret;
     }
-    enabled_ = UbseIsUrmaSupported();
-    if (!enabled_) {
-        UBSE_LOG_INFO << "Urma is not supported in current environment, skip initialize UrmaControllerModule.";
-        return UBSE_OK;
-    }
     // 注册消息处理函数,监听 topo变化事件
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
@@ -159,10 +154,6 @@ UbseResult UbseUrmaControllerModule::Start()
 
 void UbseUrmaControllerModule::Stop()
 {
-    if (!enabled_) {
-        UBSE_LOG_INFO << "Urma is not supported in current environment, skip stop UrmaControllerModule.";
-        return;
-    }
     std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
     auto ret = ubse::event::UbseUnSubEvent(nodeJoinEventId,
                                            ubse::urmaController::UbseUrmaController::GetInstance().UbseNodeJoinHandler);

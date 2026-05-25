@@ -32,7 +32,6 @@ using namespace ubse::config;
 using namespace ubse::lcne;
 using namespace ubse::event;
 using namespace ubse::adapter_plugins::mti;
-using namespace ubse::common::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -53,7 +52,8 @@ UbseResult UbseLcneTopology::Start()
     return UBSE_OK;
 }
 
-UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown, const std::string& interfaceName)
+UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown,
+                                                const std::string& interfaceName)
 {
     if (interfaceName.empty()) {
         UBSE_LOG_WARN << "[MTI] interfaceName is empty.";
@@ -79,8 +79,7 @@ UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown, c
                 break;
             }
         }
-        if (found)
-            break;
+        if (found) break;
     }
     if (!found || slotId.empty() || chipId.empty() || portId.empty()) {
         UBSE_LOG_WARN << "[MTI] Topology information corresponding to interface=" << interfaceName << " not found.";
@@ -88,12 +87,12 @@ UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown, c
     }
     const std::string status = (linkUpDown == "link-down") ? "DOWN" : "UP";
     std::string eventMessage = status + ";" + slotId + ":" + chipId + ":" + portId + ":" + interfaceName;
-
+    
     UBSE_LOG_INFO << "[MTI] Pub event=" << g_ubseEventPortUpDown << ", eventMessage=" << eventMessage;
-
+    
     if (UbsePubEvent(g_ubseEventPortUpDown, eventMessage) != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] Failed to pub event=" << g_ubseEventPortUpDown << ", interfaceName=" << interfaceName
-                      << ", status=" << status;
+        UBSE_LOG_WARN << "[MTI] Failed to pub event=" << g_ubseEventPortUpDown
+        << ", interfaceName=" << interfaceName << ", status=" << status;
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -174,7 +173,8 @@ uint32_t UbseLcneTopology::PortUpDownFunc(const UbseHttpRequest& req, UbseHttpRe
         UBSE_LOG_WARN << "[MTI] pub event UbseTopologyChangeEvent is failed! eventMessage is " << eventMessage;
     }
     if (PubPortUpDownEvent(linkUpDown, interfaceName) != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] Failed to pub event, interfaceName=" << interfaceName << ", status=" << linkUpDown;
+        UBSE_LOG_WARN << "[MTI] Failed to pub event, interfaceName="
+                      << interfaceName << ", status=" << linkUpDown;
     }
 
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

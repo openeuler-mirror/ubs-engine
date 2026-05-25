@@ -66,6 +66,7 @@ uint32_t UbseGetBool(const std::string &section, const std::string &configKey, b
  */
 uint32_t UbseGetULong(const std::string &section, const std::string &configKey, uint64_t &configVal);
 
+uint32_t UbseGetUBEnable(bool& ubEnable);
 }
 
 #endif // UBSE_CONF_H

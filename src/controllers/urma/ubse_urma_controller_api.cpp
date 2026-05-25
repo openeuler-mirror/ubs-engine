@@ -44,11 +44,7 @@ const size_t MAX_BUFFER_SIZE = 10 * 1024;      // 10 KB
 
 bool IsUrmaApiSupported()
 {
-    if (UbseIsUrmaSupported()) {
-        return true;
-    }
-    UBSE_LOG_WARN << "URMA feature is unsupported.";
-    return false;
+    return true;
 }
 
 size_t UbseStringCalcSize(const std::string& str, size_t maxLen)
