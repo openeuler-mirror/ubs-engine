@@ -64,7 +64,7 @@ uint32_t ProcessMemPidBridge::MemoryBorrow(def::ProcessMemPidInfo& pidInfo,
         candidateOpt.slotIds.push_back(std::to_string(pidInfo.memBorrowInfo.exportSlotId));
         auto errCode = UbseMemNumaCreateWithCandidate(request.name, borrower, candidateOpt, borrowInfo);
         if (errCode != UBSE_OK) {
-            UBSE_LOG_ERROR << "UbseMemNumaCreateWithLender failed";
+            UBSE_LOG_ERROR << "UbseMemNumaCreateWithCandidate failed";
             return errCode;
         }
     }
@@ -77,7 +77,7 @@ uint32_t ProcessMemPidBridge::MemoryReturn(const std::string& name)
     ubse::mem::controller::UbseMemBorrower borrower{};
     borrower.nodeId = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
     if (borrower.nodeId.empty()) {
-        UBSE_LOG_ERROR << "UbseMemNumaCreate failed";
+        UBSE_LOG_ERROR << "GetCurrentNodeId failed";
         return UBSE_ERROR;
     }
     auto errCode = UbseMemNumaDelete(name, borrower);
