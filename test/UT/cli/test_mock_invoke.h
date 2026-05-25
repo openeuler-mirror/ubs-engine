@@ -99,4 +99,21 @@ uint32_t mock_urma_qos_invoke_call_deserialize_failed(uint16_t module_code, uint
 uint32_t mock_urma_qos_invoke_call_normal(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
                                           ubse_api_buffer_t* response_data);
 
+uint32_t mock_numa_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                           const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data);
+
+uint32_t mock_fd_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                         const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data);
+
+uint32_t mock_shm_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                          const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data);
+
+uint32_t mock_mem_operation_resp_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                        const ubse_api_buffer_t* request_data,
+                                                        ubse_api_buffer_t* response_data);
+
+uint32_t mock_shm_detach_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                  const ubse_api_buffer_t* request_data,
+                                                  ubse_api_buffer_t* response_data);
+
 #endif
