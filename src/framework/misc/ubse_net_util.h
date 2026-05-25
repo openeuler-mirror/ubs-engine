@@ -20,6 +20,16 @@ namespace ubse::utils {
 using namespace ubse::common::def;
 class UbseNetUtil {
 public:
+    static std::vector<std::string> ParseIpList(const std::string &ipList);
+
+    /**
+     * 获取当前节点上与给定远端地址地址处于同一网络平面地址
+     * @param remoteIp [in] 给定远端地址
+     * @param localIp [out] 本节点上与给定远端地址处于同一网络平面的地址
+     * @return
+     */
+    static uint32_t FindLocalIpByRemote(const std::string &remoteIp, std::string &localIp);
+
     static bool IsPortVaLid(const uint32_t port);
 
     static bool ValidIpv4Addr(const std::string &ip);
@@ -28,7 +38,7 @@ public:
 
     static uint32_t IpV4ToInt(const std::string &ip, uint32_t &intIp);
 
-    static std::string IntToIpV4(uint32_t ip_int);
+    static std::string IntToIpV4(uint32_t ipInt);
 
     static void ParseIpRangeToList(const std::string &range, std::vector<std::string> &ips);
 

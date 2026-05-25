@@ -55,6 +55,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_sdk
         ubse_urma_controller
         ubse_urma_uvs
+        ubse_node_discovery
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
@@ -93,6 +94,7 @@ add_subdirectory(storage)
 add_subdirectory(sdk)
 add_subdirectory(urma_controller)
 add_subdirectory(adapter_plugins/urma_uvs)
+add_subdirectory(node_discovery)
 
 add_independent_exec_ut(${UT_BINARY})
 
