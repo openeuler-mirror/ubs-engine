@@ -193,15 +193,11 @@ uint32_t PidInfoPrint(const api::server::UbseIpcMessage& request, const api::ser
     api::server::UbseIpcMessage response;
     ubse::serial::UbseSerialization serializer;
     serializer << (ubse::serial::right_v<size_t>(queryInfo.size()));
-    for (auto info : queryInfo) {
+    for (const auto& info : queryInfo) {
         auto ret = info.configInfo.SerializeConfigInfo(serializer);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "SerialPidDefInfo failed, " << ubse::log::FormatRetCode(ret);
-            auto ret = SendResponse(UBSE_OK, context.requestId, response);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Send response failed, " << ubse::log::FormatRetCode(ret);
-                return ret;
-            }
+            return ret;
         }
     }
 
