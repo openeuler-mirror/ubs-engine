@@ -205,9 +205,8 @@ void FillMemMigrateResult(const std::vector<VMResult>& vmResults, std::vector<Me
     }
 }
 
-uint32_t FilterVmPresetParamsByFault(const std::string &srcNid,
-                                     const std::vector<VMPresetParam> &vmPresetParams,
-                                     std::vector<VMPresetParam> &workingVmPresetParams)
+uint32_t FilterVmPresetParamsByFault(const std::string& srcNid, const std::vector<VMPresetParam>& vmPresetParams,
+                                     std::vector<VMPresetParam>& workingVmPresetParams)
 {
     std::vector<uint32_t> remoteNumaIds;
     if (!FaultNuma::Instance().GetFaultNumaList(srcNid, remoteNumaIds)) {
@@ -224,12 +223,12 @@ uint32_t FilterVmPresetParamsByFault(const std::string &srcNid,
     }
 
     std::unordered_set<pid_t> faultPids;
-    for (const auto &kv : numaIdVmPidsMap) {
+    for (const auto& kv : numaIdVmPidsMap) {
         faultPids.insert(kv.second.begin(), kv.second.end());
     }
 
     workingVmPresetParams.clear();
-    for (const auto &vmParam : vmPresetParams) {
+    for (const auto& vmParam : vmPresetParams) {
         if (faultPids.count(vmParam.pid) == 0) {
             workingVmPresetParams.push_back(vmParam);
         } else {
@@ -240,22 +239,23 @@ uint32_t FilterVmPresetParamsByFault(const std::string &srcNid,
 
     if (workingVmPresetParams.empty()) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][FilterVmPresetParamsByFault] After filter,"
-            << "workingVmPresetParams is empty, no need to migrate.";
+                                                         << "workingVmPresetParams is empty, no need to migrate.";
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &param : workingVmPresetParams) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][FilterVmPresetParamsByFault] After filter,"
+    for (const auto& param : workingVmPresetParams) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemMigrate][FilterVmPresetParamsByFault] After filter,"
             << "vm.pid=" << param.pid << ", vm.ratio=" << param.ratio << ".";
     }
 
     return MEM_POOLING_OK;
 }
 
-uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam &srcParasssm, const std::vector<VMPresetParam> &vmParams,
-                                   const std::vector<MemBorrowInfo> &memBorrowInfo,
-                                   const std::vector<BorrowRecord> &borrowRecord,
-                                   std::vector<MemMigrateResult> &memMigrateResult)
+uint32_t ProcessMemMigrateRemoteId(const SrcMemoryBorrowParam& srcParasssm, const std::vector<VMPresetParam>& vmParams,
+                                   const std::vector<MemBorrowInfo>& memBorrowInfo,
+                                   const std::vector<BorrowRecord>& borrowRecord,
+                                   std::vector<MemMigrateResult>& memMigrateResult)
 {
     // 拿到所有vm信息
     std::unordered_map<pid_t, VMInfo> vmInfos;
@@ -718,8 +718,8 @@ std::vector<std::pair<pid_t, uint64_t>> VMMemMigrateStrategy::FilterUnborrowedVm
     for (const auto& pair : vmInfos) {
         if (pair.second.totalRemoteUsedMem == 0 && pair.second.remoteNumaId == 0) {
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] Pid="
-                << pair.first << ", info=" << pair.second.ToString();
+                << "[VMMemMigrateStrategy][AllocateMemoryToRemoteNoUsedVm] Pid=" << pair.first
+                << ", info=" << pair.second.ToString();
             result.push_back(std::make_pair(pair.first, CalculateRemainingQuota(pair.second)));
         }
     }
@@ -1277,7 +1277,7 @@ void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t>& remoteNuma,
                              std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs,
                              std::vector<BorrowRecord>& borrowRecord)
 {
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecord) {
         if (srcNumaId != -1 && srcNumaId != borrowLocalNuma) {
             continue;
@@ -1290,7 +1290,7 @@ void CollectBorrowMemoryInfo(int16_t srcNumaId, std::set<uint16_t>& remoteNuma,
         }
     }
 
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecord) {
         if (remoteNuma.find(borrowRemoteNuma) == remoteNuma.end()) {
             continue;

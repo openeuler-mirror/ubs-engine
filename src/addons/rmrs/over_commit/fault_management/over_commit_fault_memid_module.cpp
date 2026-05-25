@@ -38,14 +38,14 @@ constexpr auto NUM_TWO = 2;
 constexpr auto TAG = "[OverCommit][FaultManagement][MemIdFault] ";
 
 // 内存偏移调整相关常量定义
-static constexpr uint64_t BIAS_LIMIT_MAX = 4 * 1024 * 1024;          // 偏移上限，超过则失败（KB）
-static constexpr uint64_t BIAS_THRESHOLD_MID = 2 * 1024 * 1024;      // 中等偏移阈值 (KB)
-static constexpr uint64_t BIAS_THRESHOLD_SMALL = 1 * 1024 * 1024;    // 小偏移阈值 (KB)
+static constexpr uint64_t BIAS_LIMIT_MAX = 4 * 1024 * 1024;       // 偏移上限，超过则失败（KB）
+static constexpr uint64_t BIAS_THRESHOLD_MID = 2 * 1024 * 1024;   // 中等偏移阈值 (KB)
+static constexpr uint64_t BIAS_THRESHOLD_SMALL = 1 * 1024 * 1024; // 小偏移阈值 (KB)
 
-static constexpr uint64_t ADJUST_SIZE_LARGE = 4;       // 大偏移调整大小 (GB)
-static constexpr uint64_t ADJUST_SIZE_MID = 2;         // 中等偏移调整大小 (GB)
-static constexpr uint64_t ADJUST_SIZE_SMALL = 1;       // 小偏移调整大小 (GB)
-static constexpr uint64_t ADJUST_SIZE_NONE = 0;        // 无需调整
+static constexpr uint64_t ADJUST_SIZE_LARGE = 4; // 大偏移调整大小 (GB)
+static constexpr uint64_t ADJUST_SIZE_MID = 2;   // 中等偏移调整大小 (GB)
+static constexpr uint64_t ADJUST_SIZE_SMALL = 1; // 小偏移调整大小 (GB)
+static constexpr uint64_t ADJUST_SIZE_NONE = 0;  // 无需调整
 
 using namespace mempooling::smap;
 using namespace ubse::com;
@@ -185,7 +185,7 @@ uint64_t GetLocalNumaOnRemoteNumaBorrowSize(const std::string& localNodeId, uint
         return MEM_POOLING_ERROR;
     }
     uint64_t borrowSize{0};
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         if (bindType == NumaBindType::BIND_SINGLE) {
             if ((borrowLocalNuma == localNumaId) && (borrowRemoteNuma == remoteNumaId)) {
@@ -214,7 +214,7 @@ MpResult GetLocalBorrowNumaIdOfMemId(const std::string& localNodeId, int16_t& lo
             << TAG << "Query borrow record failed. localNodeId=" << localNodeId << ", memId=" << memId << ".";
         return MEM_POOLING_ERROR;
     }
-    for (const auto &[name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
+    for (const auto& [name, size, lentNode, lentMemId, lentSocketId, lentNuma, borrowNode, borrowLocalNuma,
                       borrowRemoteNuma, borrowMemId, uid, username, borrowSocketId] : borrowRecords) {
         auto it = std::find(borrowMemId.begin(), borrowMemId.end(), memId);
         if (it != borrowMemId.end()) {
@@ -246,8 +246,10 @@ MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, Wa
     }
     srcParam.srcSocketId = static_cast<int16_t>(socketId);
     std::vector<uint64_t> borrowSizes{borrowSize * KB}; // KBbyte
-    MemBorrowExecuteParam param = {.srcParam=srcParam, .borrowSizes=borrowSizes,
-        .highWaterMark=water.highWaterMark, .lowWaterMark=water.lowWaterMark};
+    MemBorrowExecuteParam param = {.srcParam = srcParam,
+                                   .borrowSizes = borrowSizes,
+                                   .highWaterMark = water.highWaterMark,
+                                   .lowWaterMark = water.lowWaterMark};
     LOG_WARN << "Begin rpc to node" << srcParam.srcNid << " to process fault.";
     ubse::com::UbseComEndpoint endpoint_ms = {.moduleId = MP_MODULE_CODE,
                                               .serviceId = message::OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW,
@@ -604,7 +606,7 @@ MpResult OverCommitFaultMemIdModule::SetAndDeleteResource(std::string borrowId,
     }
     if (memBorrowInfos[0].borrowSize == 0) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "FaultNuma remove, nodeId=" << srcParam.srcNid
-            << ", numaId=" << memBorrowInfos[0].presentNumaId << ".";
+                                                          << ", numaId=" << memBorrowInfos[0].presentNumaId << ".";
         FaultNuma::Instance().RemoveFaultNuma(srcParam.srcNid, memBorrowInfos[0].presentNumaId);
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "UbseDeleteResource Success. name=" << borrowId
@@ -642,9 +644,7 @@ MpResult OverCommitFaultMemIdModule::GetVmNumaInfoMapRpc(std::string importNodeI
     RmrsOutStream builder;
     builder << vmNumaInfoParam;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
-            delete[] data;
-        }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
     uint32_t ret = UbseRpcSend(endpoint_get_vm_info, reqData, &vmNumaInfoWithSocketList,
                                OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler);
     if (ret != MEM_POOLING_OK) {
@@ -669,9 +669,7 @@ MpResult OverCommitFaultMemIdModule::MemFreeExecuteRpc(std::string borrowId, std
     RmrsOutStream builder;
     builder << borrowId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
-            delete[] data;
-        }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
     uint32_t ret = 0;
     UbseRpcSend(endpoint_fm_memfree_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler);
@@ -691,9 +689,7 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
     RmrsOutStream builder;
     builder << pids;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
-            delete[] data;
-        }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
     uint32_t ret = 0;
     UbseRpcSend(endpoint_fm_disable_pid, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler);
@@ -706,13 +702,12 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
 }
 
 MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(outinterface::SrcMemoryBorrowParam oSrcParam,
-                                                               uint16_t preRemoteNumaId,
-                                                               std::string borrowId)
+                                                               uint16_t preRemoteNumaId, std::string borrowId)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Master to invoke the slave MemFreeDirectlyExecuteRpc.";
     // 直接归还说明远端numa上没有虚机使用，直接setRemoteNumaInfo为0即可
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemFreeDirectly means remoteNuma has no used mem,"
-        << "set remoteNuma=" << preRemoteNumaId << "size to zero.";
+                                                      << "set remoteNuma=" << preRemoteNumaId << "size to zero.";
     std::vector<MemBorrowInfo> memBorrowInfos = {{.presentNumaId = preRemoteNumaId, .borrowSize = 0}};
     auto setSmapRemoteNumaInfoSend = SetSmapRemoteNumaInfoSend(oSrcParam, memBorrowInfos);
     auto ret = setSmapRemoteNumaInfoSend.SendMsg();
@@ -722,7 +717,7 @@ MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(outinterface::Src
         return MEM_POOLING_ERROR;
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "FaultNuma remove, nodeId=" << oSrcParam.srcNid
-            << ", numaId=" << memBorrowInfos[0].presentNumaId << ".";
+                                                      << ", numaId=" << memBorrowInfos[0].presentNumaId << ".";
     FaultNuma::Instance().RemoveFaultNuma(oSrcParam.srcNid, preRemoteNumaId);
 
     UbseComEndpoint endpoint_fm_memfree_execute = {
@@ -732,9 +727,7 @@ MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(outinterface::Src
     RmrsOutStream builder;
     builder << borrowId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
-            delete[] data;
-        }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
     ret = 0;
     UbseRpcSend(endpoint_fm_memfree_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler);
@@ -759,9 +752,7 @@ MpResult OverCommitFaultMemIdModule::MemIdExecuteRpc(OverCommitFaultMemIdExecute
     RmrsOutStream builder;
     builder << param;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
-            delete[] data;
-        }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
     uint32_t ret;
     UbseRpcSend(endpoint_fm_memid_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdExecuteResHandler);
@@ -791,7 +782,7 @@ MpResult SetSmapRemoteNumaInfoExec(int16_t localNumaId, uint16_t remoteNumaId, u
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize(OverCommitFaultMemIdExecuteParam &param,
+MpResult OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize(OverCommitFaultMemIdExecuteParam& param,
                                                                       const uint64_t adjustSize)
 {
     // 1. 基础校验
@@ -814,8 +805,8 @@ MpResult OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize(OverCommit
 
     // 3. 执行内存借用
     UbseMemNumaDesc memDesc;
-    ret = ExecuteMemBorrow(targetRecord, adjustSize, MpConfiguration::GetInstance().GetNodeId(),
-                           param.remoteNumaId, memDesc);
+    ret = ExecuteMemBorrow(targetRecord, adjustSize, MpConfiguration::GetInstance().GetNodeId(), param.remoteNumaId,
+                           memDesc);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "ExecuteMemBorrow failed.";
         return ret;
@@ -879,18 +870,19 @@ MpResult OverCommitFaultMemIdModule::ExecuteMemBorrow(const BorrowRecord& record
     for (const auto& lentNuma : record.lentNuma) {
         std::vector<UbseMemNumaLender> lenders{{slotId, record.lentSocketId, lentNuma.numaId, adjustSize * GB_TO_BYTE}};
         UbseResult errCode = UbseMemNumaCreateWithLender(uniqueName, borrower, lenders, usrInfo, outMemDesc);
-        if (errCode == UBSE_OK && outMemDesc.numaId == targetNuma) return MEM_POOLING_OK;
+        if (errCode == UBSE_OK && outMemDesc.numaId == targetNuma)
+            return MEM_POOLING_OK;
     }
 
     UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Cannot borrow new mem for target numa.";
     return MEM_POOLING_ERROR;
 }
 
-uint64_t CalculateRemoteUsedMemSum(const std::vector<pid_t> &pids, const std::vector<VmNumaInfoWithSocket> &infos)
+uint64_t CalculateRemoteUsedMemSum(const std::vector<pid_t>& pids, const std::vector<VmNumaInfoWithSocket>& infos)
 {
     // 1. 快速查找表
-    std::unordered_map<pid_t, const VmNumaInfoWithSocket *> pidMap;
-    for (const auto &info : infos) {
+    std::unordered_map<pid_t, const VmNumaInfoWithSocket*> pidMap;
+    for (const auto& info : infos) {
         pidMap[info.pid] = &info;
     }
 
@@ -907,7 +899,7 @@ uint64_t CalculateRemoteUsedMemSum(const std::vector<pid_t> &pids, const std::ve
             return 0;
         }
 
-        const auto &info = *it->second;
+        const auto& info = *it->second;
         // 第一次设置基准
         if (!targetRemoteNumaId) {
             targetRemoteNumaId = info.remoteNumaId;
@@ -935,7 +927,7 @@ uint64_t CalculateRemoteUsedMemSum(const std::vector<pid_t> &pids, const std::ve
  * 返回 OK 且 adjustSize > 0：虚机场景内存不足，需要调整
  */
 MpResult OverCommitFaultMemIdModule::CheckBorrowedMemSizeForPidMigrate(OverCommitFaultMemIdExecuteParam param,
-                                                                       uint64_t &adjustSize)
+                                                                       uint64_t& adjustSize)
 {
     // 初始化输出参数
     adjustSize = ADJUST_SIZE_NONE;
@@ -953,8 +945,8 @@ MpResult OverCommitFaultMemIdModule::CheckBorrowedMemSizeForPidMigrate(OverCommi
 
     // ===== 虚机场景：计算远端NUMA实际占用内存 =====
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
-    MpResult ret = OverCommitFaultMemIdModule::Instance().GetRemoteNumaVms(
-        param.preRemoteNumaId, vmNumaInfoWithSocketList);
+    MpResult ret =
+        OverCommitFaultMemIdModule::Instance().GetRemoteNumaVms(param.preRemoteNumaId, vmNumaInfoWithSocketList);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Failed to GetRemoteNumaVms.";
         return MEM_POOLING_ERROR;
@@ -966,10 +958,8 @@ MpResult OverCommitFaultMemIdModule::CheckBorrowedMemSizeForPidMigrate(OverCommi
     // 计算偏移：实际使用 - 借用大小（KB）
     uint64_t bias = (totalRemoteUsedMem > param.borrowSize) ? (totalRemoteUsedMem - param.borrowSize) : 0;
 
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << TAG << "totalRemoteUsedMem = " << totalRemoteUsedMem
-        << ", borrowSize = " << param.borrowSize
-        << ", bias = " << bias;
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "totalRemoteUsedMem = " << totalRemoteUsedMem
+                                                      << ", borrowSize = " << param.borrowSize << ", bias = " << bias;
 
     // ===== 根据偏移量确定调整大小 =====
     if (bias >= BIAS_LIMIT_MAX) {

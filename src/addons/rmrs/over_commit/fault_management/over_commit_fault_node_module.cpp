@@ -68,11 +68,10 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultByMemId(const std::
         return res;
     }
 
-    for (const auto &debt : debtInfos) {
+    for (const auto& debt : debtInfos) {
         //  检查remoteNumaId是否有效
         if (debt.remoteNumaId <= 0) {
-            LOG_WARN << "Invalid remoteNumaId=" << debt.remoteNumaId
-                     << ", skipping for fault node=" << nodeId
+            LOG_WARN << "Invalid remoteNumaId=" << debt.remoteNumaId << ", skipping for fault node=" << nodeId
                      << ", borrowNodeId=" << debt.borrowNodeId << ".";
             continue;
         }

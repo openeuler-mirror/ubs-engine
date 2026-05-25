@@ -56,9 +56,9 @@ struct BorrowRecord {
     int16_t borrowLocalNuma{0};          //  借入numa, app 借用时有效，否则为-1
     int16_t borrowRemoteNuma{0};         //  借入numa, remote 借用时有效，否则为-1
     std::vector<uint64_t> borrowMemId{}; //  借入memId
-    uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
-    std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
-    uint16_t borrowSocketId{0};            //  借入内存socketId
+    uid_t uid{0};                        // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
+    std::string username{};              // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uint16_t borrowSocketId{0};          //  借入内存socketId
 
     std::string ToString() const
     {
@@ -206,13 +206,13 @@ private:
 
 class FaultNuma {
 public:
-    static FaultNuma &Instance()
+    static FaultNuma& Instance()
     {
         static FaultNuma instance;
         return instance;
     }
 
-    bool GetFaultNumaList(const std::string &nodeId, std::vector<uint32_t> &numaIdList)
+    bool GetFaultNumaList(const std::string& nodeId, std::vector<uint32_t>& numaIdList)
     {
         std::lock_guard<std::mutex> lk(mutex_);
 
@@ -226,11 +226,11 @@ public:
         return true;
     }
 
-    void AddFaultNuma(const std::string &nodeId, uint32_t numaId)
+    void AddFaultNuma(const std::string& nodeId, uint32_t numaId)
     {
         std::lock_guard<std::mutex> lk(mutex_);
 
-        auto &numaList = faultNumaMap_[nodeId];
+        auto& numaList = faultNumaMap_[nodeId];
 
         auto it = std::find(numaList.begin(), numaList.end(), numaId);
         if (it == numaList.end()) {
@@ -238,7 +238,7 @@ public:
         }
     }
 
-    void RemoveFaultNuma(const std::string &nodeId, uint32_t numaId)
+    void RemoveFaultNuma(const std::string& nodeId, uint32_t numaId)
     {
         std::lock_guard<std::mutex> lk(mutex_);
 
@@ -247,18 +247,16 @@ public:
             return;
         }
 
-        auto &numaList = it->second;
+        auto& numaList = it->second;
 
-        numaList.erase(
-            std::remove(numaList.begin(), numaList.end(), numaId),
-            numaList.end());
+        numaList.erase(std::remove(numaList.begin(), numaList.end(), numaId), numaList.end());
 
         if (numaList.empty()) {
             faultNumaMap_.erase(it);
         }
     }
 
-    bool IsFaultNuma(const std::string &nodeId, uint32_t numaId)
+    bool IsFaultNuma(const std::string& nodeId, uint32_t numaId)
     {
         std::lock_guard<std::mutex> lk(mutex_);
 
@@ -267,11 +265,9 @@ public:
             return false;
         }
 
-        auto &numaList = it->second;
+        auto& numaList = it->second;
 
-        return std::find(numaList.begin(),
-                         numaList.end(),
-                         numaId) != numaList.end();
+        return std::find(numaList.begin(), numaList.end(), numaId) != numaList.end();
     }
 
     void PrintFaultNuma()
@@ -281,9 +277,9 @@ public:
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultNuma] Dump begin, FaultNumaMap.size=" << faultNumaMap_.size() << ".";
 
-        for (const auto &kv : faultNumaMap_) {
-            const std::string &nodeId = kv.first;
-            const auto &numaList = kv.second;
+        for (const auto& kv : faultNumaMap_) {
+            const std::string& nodeId = kv.first;
+            const auto& numaList = kv.second;
 
             std::ostringstream oss;
             oss << "[FaultNuma] nodeId=" << nodeId << ", numaList=[";
@@ -305,9 +301,9 @@ private:
 
     ~FaultNuma() = default;
 
-    FaultNuma(const FaultNuma &) = delete;
+    FaultNuma(const FaultNuma&) = delete;
 
-    FaultNuma &operator=(const FaultNuma &) = delete;
+    FaultNuma& operator=(const FaultNuma&) = delete;
 
 private:
     std::unordered_map<std::string, std::vector<uint32_t>> faultNumaMap_;
@@ -432,18 +428,18 @@ public:
     // isFilter标志位，表示是否为filter函数调用账本采集，默认值为false
     MpResult UpdateBorrowRecords(bool isFilter = false);
     MpResult UpdateBorrowRecordsAllWithFault();
-    MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+    MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     MpResult UpdateBorrowRecordsWithFragmentFault(std::string nodeId);
     bool ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtInfo, BorrowRecord& outRecord);
-    MpResult CollectBorrowableInfo(const std::string &nodeId,
-                                   NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
-    MpResult CollectBorrowableInfoList(const std::vector<std::string> &nodeId,
-                                       std::vector<NodeMemoryInfoWithReservedMem> &nodeMemoryInfoList);
+    MpResult CollectBorrowableInfo(const std::string& nodeId,
+                                   NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem);
+    MpResult CollectBorrowableInfoList(const std::vector<std::string>& nodeId,
+                                       std::vector<NodeMemoryInfoWithReservedMem>& nodeMemoryInfoList);
     // 根据借入呈现numaId，获取全量borrowId/name
-    MpResult GetBorrowIdByNumaId(std::vector<std::string> &borrowIds, const uint16_t numaId, const std::string nodeId);
-    MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
-    MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
-    MpResult GetFragmentFaultBorrowRecords(std::string nodeId, std::vector<BorrowRecord> &fragMentFaultBorrowRecords);
+    MpResult GetBorrowIdByNumaId(std::vector<std::string>& borrowIds, const uint16_t numaId, const std::string nodeId);
+    MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    MpResult GetFragmentFaultBorrowRecords(std::string nodeId, std::vector<BorrowRecord>& fragMentFaultBorrowRecords);
 
 private:
     MpResult GenBorrowRecords(const rapidjson::Value& doc, std::vector<BorrowRecord>& borrowRecords);

@@ -143,11 +143,11 @@ public:
     }
 
     MpResult Init();
-    MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType &nodeType);
-    MpResult DetermineNodeTypeFragment(const std::string nodeId, NodeType &nodeType);
+    MpResult DetermineNodeTypeOverCommit(const std::string nodeId, NodeType& nodeType);
+    MpResult DetermineNodeTypeFragment(const std::string nodeId, NodeType& nodeType);
     MpResult FragmentHandleFault(std::string nodeId);
     bool CheckUBTurboIsAliveRpc(std::string nodeId);
-    MpResult DetermineNodeType(const std::string nodeId, NodeType &nodeType);
+    MpResult DetermineNodeType(const std::string nodeId, NodeType& nodeType);
     MpResult ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem);
 
     MpResult GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
@@ -188,18 +188,18 @@ public:
 private:
     FaultNodeModule() = default;
     ~FaultNodeModule() = default;
-    FaultNodeModule(const FaultNodeModule &) = delete;
-    FaultNodeModule &operator=(const FaultNodeModule &) = delete;
+    FaultNodeModule(const FaultNodeModule&) = delete;
+    FaultNodeModule& operator=(const FaultNodeModule&) = delete;
     uint16_t faultHandleCurRound = 0;
 };
 
 // RPC Handler
-uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void NodeNumaReplaceReturnResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg &rpcMsg, std::vector<pid_t> &destPidList,
-                                  uint64_t &hugePageMemSize);
+uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+void NodeNumaReplaceReturnHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void NodeNumaReplaceReturnResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
+                                  uint64_t& hugePageMemSize);
 
 class MpFaultNodeSubModule : public MpSubModule {
 public:
@@ -218,8 +218,8 @@ public:
         endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
         ret = UbseRegRpcService(endpoint, CheckUBTurboIsAliveHandler);
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) <<
-                "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";
             return ret;
         }
 
