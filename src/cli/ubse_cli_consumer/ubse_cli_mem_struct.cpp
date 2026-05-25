@@ -145,7 +145,7 @@ std::string GetErrorMessage(uint32_t errorCode)
         case UBS_ENGINE_ERR_SHM_NO_ATTACH:
             return "ERROR: No shared memory attached.";
         case UBSE_ERR_NOT_SUPPORTED:
-            return "ERROR: Memory feature is not supported on this node.";
+            return "ERROR: Memory feature is not supported.";
         default:
             return "ERROR: Internal error with error code " + std::to_string(errorCode) + ".";
     }

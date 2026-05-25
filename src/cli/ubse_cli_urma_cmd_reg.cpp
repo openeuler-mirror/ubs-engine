@@ -34,7 +34,7 @@ static const std::string URMA_NODE_STATE_ERROR = "ERROR: Node state is abnormal,
 static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
-static const std::string URMA_NOT_SUPPORTED_ERROR = "ERROR: URMA feature is not supported on this node.";
+static const std::string URMA_NOT_SUPPORTED_ERROR = "ERROR: URMA feature is not supported.";
 static const std::string URMA_ACTIVATE_OPTION_DES =
     "Query urma information for a specific node. Parameter 'node' between 1 and the maximum node ID.";
 static const std::string URMA_QUERY_OPTION_DES_NODE =
