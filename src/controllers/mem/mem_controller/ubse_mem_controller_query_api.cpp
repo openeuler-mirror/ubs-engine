@@ -13,6 +13,7 @@
 
 #include "api/ubse_mem_controller_api_common.h"
 #include "ubse_com_module.h"
+#include "ubse_conf.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
@@ -617,7 +618,7 @@ uint32_t GetDebtInfoMapByNodeId(const std::string& nodeId, NodeMemDebtInfoMap& m
 
 uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo>& nodeBorrowInfo)
 {
-    if (!IsMemBorrowFeatureSupported()) {
+    if (!ubse::config::UbseIsMemSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     // 获取主节点以及当前节点

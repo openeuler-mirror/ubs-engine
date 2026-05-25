@@ -20,6 +20,7 @@
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_conf.h"
 #include "ubse_logger.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_advice.h"
@@ -62,11 +63,9 @@ bool IsDebtFetchFeatureSupported(AccountType borrowType)
         case AccountType::NUMA:
         case AccountType::FD:
         case AccountType::ADDR:
-            return IsMemBorrowFeatureSupported();
         case AccountType::SHM:
-            return IsMemShareFeatureSupported();
         case AccountType::INIT:
-            return IsMemBorrowFeatureSupported() && IsMemShareFeatureSupported();
+            return ubse::config::UbseIsMemSupported();
         default:
             UBSE_LOG_WARN << "Unknown debt fetch borrow type, borrowType=" << static_cast<uint32_t>(borrowType);
             return true;
@@ -380,7 +379,7 @@ uint32_t UbseMemApi::UbseCheckMemoryStatus(const UbseIpcMessage& req, const Ubse
 
 uint32_t UbseMemApi::UbseNodeMemConfigHandle(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
-    if (!IsMemBorrowFeatureSupported()) {
+    if (!ubse::config::UbseIsMemSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     if (req.buffer == nullptr) {
@@ -431,7 +430,7 @@ inline uint32_t UbseConvertBytesToMegabytes(uint64_t bytes)
 uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 
 {
-    if (!IsMemBorrowFeatureSupported()) {
+    if (!ubse::config::UbseIsMemSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
@@ -568,6 +567,19 @@ uint32_t DeserializeAndValidateName(const UbseIpcMessage& buffer, std::string& n
     return UBSE_OK;
 }
 
+UbseResult SetCliShareCacheableFlag(UbseMemShareBorrowReq& req)
+{
+    if (ubse::config::UbseIsMemShareNcSupported()) {
+        req.ubseMemPrivData.cacheableFlag = 0;
+        return UBSE_OK;
+    }
+    if (ubse::config::UbseIsMemShareCcSupported()) {
+        req.ubseMemPrivData.cacheableFlag = 1;
+        return UBSE_OK;
+    }
+    return UBSE_ERR_NOT_SUPPORTED;
+}
+
 UbseResult BuildMemShareCreateReq(const UbseIpcMessage& buffer, const UbseRequestContext& context,
                                   UbseMemShareBorrowReq& req)
 {
@@ -610,7 +622,10 @@ UbseResult BuildMemShareCreateReq(const UbseIpcMessage& buffer, const UbseReques
     req.ubseMemPrivData.cmoDelayComp = 0;
     req.ubseMemPrivData.so = 0;
     req.ubseMemPrivData.adTrOchip = 1;
-    req.ubseMemPrivData.cacheableFlag = 0;
+    auto ret = SetCliShareCacheableFlag(req);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
     req.shmAnonymous = false;
     return UBSE_OK;
 }
