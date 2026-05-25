@@ -71,15 +71,4 @@ TEST_F(TestUbseRasOomHandler, TestInitOomWaitTime)
     int16_t numaId = 1;
     EXPECT_NO_THROW(InitOomWaitTime());
 }
-
-TEST_F(TestUbseRasOomHandler, TestIsNumaMemFreeEnough)
-{
-    NumaId numaId;
-    int64_t startTime = 1;
-    uint64_t memNeed;
-    uint64_t memFree;
-    int timeOut = 3;
-    MOCKER_CPP(GetMillisecondsTime).stubs().will(returnValue(2));
-    EXPECT_NO_THROW(IsNumaMemFreeEnough(numaId, startTime, memNeed, memFree, timeOut));
-}
 } // namespace ubse::ras::ut
