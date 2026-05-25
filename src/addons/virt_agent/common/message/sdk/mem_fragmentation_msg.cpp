@@ -1150,11 +1150,11 @@ VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Serialize()
     VmSerialization out;
     auto nodeInfoListCount = nodeInfoList.size();
     out << nodeInfoListCount;
-    for (auto &[nodeId, numaInfos, isCurrent] : nodeInfoList) {
+    for (auto& [nodeId, numaInfos, isCurrent] : nodeInfoList) {
         out << nodeId;
         auto numaInfosCount = numaInfos.size();
         out << numaInfosCount;
-        for (auto &[timestamp, metaData] : numaInfos) {
+        for (auto& [timestamp, metaData] : numaInfos) {
             out << timestamp;
             out << metaData.nodeId;
             out << metaData.hostName;
@@ -1165,7 +1165,7 @@ VmResult mem_fragmentation::MemFragmentationNodeInfoListMsg::Serialize()
             out << metaData.memFree;
             auto numaPageSize = metaData.numaPageInfo.size();
             out << numaPageSize;
-            for (auto &[pageSize, numaPageData] : metaData.numaPageInfo) {
+            for (auto& [pageSize, numaPageData] : metaData.numaPageInfo) {
                 out << numaPageData.pageSize;
                 out << numaPageData.hugePageTotal;
                 out << numaPageData.hugePageFree;
@@ -1238,7 +1238,7 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Serialize()
     out << borrowPram.nodeId;
     uint32_t numaMetaInfosCount = borrowPram.numaMetaInfos.size();
     out << numaMetaInfosCount;
-    for (auto &[socketId, numaId] : borrowPram.numaMetaInfos) {
+    for (auto& [socketId, numaId] : borrowPram.numaMetaInfos) {
         out << socketId;
         out << numaId;
     }
@@ -1361,16 +1361,16 @@ VmResult mem_fragmentation::MemFragmentationPageSwapEnableMsg::Serialize()
     out << pid;
     uint32_t pageSwapPairsCount = pageSwapPairs.size();
     out << pageSwapPairsCount;
-    for (auto &[localNumaQuota, remoteNumaQuota] : pageSwapPairs) {
+    for (auto& [localNumaQuota, remoteNumaQuota] : pageSwapPairs) {
         uint32_t localNumaQuotaCount = localNumaQuota.size();
         out << localNumaQuotaCount;
-        for (auto &[numaId, quota] : localNumaQuota) {
+        for (auto& [numaId, quota] : localNumaQuota) {
             out << numaId;
             out << quota;
         }
         uint32_t remoteNumaQuotaCount = remoteNumaQuota.size();
         out << remoteNumaQuotaCount;
-        for (auto &[numaId, quota] : remoteNumaQuota) {
+        for (auto& [numaId, quota] : remoteNumaQuota) {
             out << numaId;
             out << quota;
         }

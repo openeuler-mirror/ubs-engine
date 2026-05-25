@@ -54,10 +54,10 @@ using UBSRMRSSmapRemoveProcessTrackingFunc = uint32_t (*)(const std::vector<pid_
 
 using UBSRMRSSmapEnableProcessMigrateFunc = uint32_t (*)(const std::vector<pid_t>&, int, int);
 
-using UBSRMRSBatchBorrowStrategyFunc = uint32_t (*)(const BatchSrcMemoryBorrowParam &, const uint64_t &,
-                                                    std::vector<MemBorrowStrategyResult> &, BorrowStrategy);
+using UBSRMRSBatchBorrowStrategyFunc = uint32_t (*)(const BatchSrcMemoryBorrowParam&, const uint64_t&,
+                                                    std::vector<MemBorrowStrategyResult>&, BorrowStrategy);
 
-using UBSRMRSSmapEnableProcessMigrateGroupedFunc = uint32_t (*)(pid_t, const std::vector<PageSwapPair> &);
+using UBSRMRSSmapEnableProcessMigrateGroupedFunc = uint32_t (*)(pid_t, const std::vector<PageSwapPair>&);
 
 class MempoolingModule {
 public:

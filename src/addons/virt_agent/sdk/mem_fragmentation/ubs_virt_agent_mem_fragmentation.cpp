@@ -461,7 +461,7 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam)
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s *node_info_list)
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s* node_info_list)
 {
     if (node_info_list == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: node_info_list is nullptr.";
@@ -543,7 +543,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, cons
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s *page_swap_enable)
+virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s* page_swap_enable)
 {
     std::vector<mem_fragmentation::PageSwapPair> pageSwapPairs;
     auto ret = PageSwapEnableFromCStyle(page_swap_enable, pageSwapPairs);
