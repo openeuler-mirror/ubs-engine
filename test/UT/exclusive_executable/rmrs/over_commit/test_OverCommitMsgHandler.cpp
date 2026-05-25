@@ -130,7 +130,7 @@ TEST_F(TestOverCommitMsgHandler, SetSmapRemoteNumaHandlerFail1)
     UbseByteBuffer req;
     MakeSetSmapRemoteNumaHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSetSmapRemoteNumaInfo, SetSmapRemoteNumaInfoFunc(*)())
+    MOCKER_CPP(SmapModule::GetSetSmapRemoteNumaInfo, SetSmapRemoteNumaInfoFunc (*)())
         .stubs()
         .will(invoke(MockGetSetSmapRemoteNumaInfo));
     ASSERT_EQ(overCommitMsgHandler.SetSmapRemoteNumaHandler(req, resp), MEM_POOLING_ERROR);
@@ -142,7 +142,7 @@ TEST_F(TestOverCommitMsgHandler, SetSmapRemoteNumaHandlerFail2)
     UbseByteBuffer req;
     MakeSetSmapRemoteNumaHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSetSmapRemoteNumaInfo, SetSmapRemoteNumaInfoFunc(*)())
+    MOCKER_CPP(SmapModule::GetSetSmapRemoteNumaInfo, SetSmapRemoteNumaInfoFunc (*)())
         .stubs()
         .will(invoke(MockGetSetSmapRemoteNumaInfoFail));
     ASSERT_EQ(overCommitMsgHandler.SetSmapRemoteNumaHandler(req, resp), MEM_POOLING_ERROR);
@@ -154,7 +154,7 @@ TEST_F(TestOverCommitMsgHandler, SetSmapRemoteNumaHandlerSuccess)
     UbseByteBuffer req;
     MakeSetSmapRemoteNumaHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSetSmapRemoteNumaInfo, SetSmapRemoteNumaInfoFunc(*)())
+    MOCKER_CPP(SmapModule::GetSetSmapRemoteNumaInfo, SetSmapRemoteNumaInfoFunc (*)())
         .stubs()
         .will(invoke(MockGetSetSmapRemoteNumaInfoOk));
     ASSERT_EQ(overCommitMsgHandler.SetSmapRemoteNumaHandler(req, resp), MEM_POOLING_OK);
@@ -201,7 +201,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveHandlerFail1)
     UbseByteBuffer req;
     MakeRemoveHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSmapRemoveFunc, SmapRemoveFunc(*)()).stubs().will(invoke(MockGetSmapRemoveFunc));
+    MOCKER_CPP(SmapModule::GetSmapRemoveFunc, SmapRemoveFunc (*)()).stubs().will(invoke(MockGetSmapRemoveFunc));
     ASSERT_EQ(overCommitMsgHandler.RemoveHandler(req, resp), MEM_POOLING_ERROR);
 }
 
@@ -211,7 +211,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveHandlerFail2)
     UbseByteBuffer req;
     MakeRemoveHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSmapRemoveFunc, SmapRemoveFunc(*)()).stubs().will(invoke(MockGetSmapRemoveFuncFail));
+    MOCKER_CPP(SmapModule::GetSmapRemoveFunc, SmapRemoveFunc (*)()).stubs().will(invoke(MockGetSmapRemoveFuncFail));
     ASSERT_EQ(overCommitMsgHandler.RemoveHandler(req, resp), MEM_POOLING_OK);
 }
 
@@ -221,7 +221,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveHandlerSuccess)
     UbseByteBuffer req;
     MakeRemoveHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSmapRemoveFunc, SmapRemoveFunc(*)()).stubs().will(invoke(MockGetSmapRemoveFuncOk));
+    MOCKER_CPP(SmapModule::GetSmapRemoveFunc, SmapRemoveFunc (*)()).stubs().will(invoke(MockGetSmapRemoveFuncOk));
     ASSERT_EQ(overCommitMsgHandler.RemoveHandler(req, resp), MEM_POOLING_OK);
 }
 
@@ -266,7 +266,7 @@ TEST_F(TestOverCommitMsgHandler, ProcessQueryHandlerSuccess)
     UbseByteBuffer req;
     ProcessQueryHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
+    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc (*)())
         .stubs()
         .will(invoke(MockGetSmapQuryFuncOk));
     auto ret = overCommitMsgHandler.ProcessQueryHandler(req, resp);
@@ -279,7 +279,7 @@ TEST_F(TestOverCommitMsgHandler, ProcessQueryHandlerFailed)
     UbseByteBuffer req;
     ProcessQueryHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
+    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc (*)())
         .stubs()
         .will(returnValue((SmapGetRemotePidsFunc) nullptr));
     auto ret = overCommitMsgHandler.ProcessQueryHandler(req, resp);
@@ -292,7 +292,7 @@ TEST_F(TestOverCommitMsgHandler, ProcessQueryHandlerSuccess1)
     UbseByteBuffer req;
     ProcessQueryHandlerRequest(req);
     UbseByteBuffer resp;
-    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
+    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc (*)())
         .stubs()
         .will(invoke(MockGetSmapQuryFuncERR));
     auto ret = overCommitMsgHandler.ProcessQueryHandler(req, resp);
@@ -302,7 +302,7 @@ TEST_F(TestOverCommitMsgHandler, ProcessQueryHandlerSuccess1)
 TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+               uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult res = InitUCacheOverCommitReg();
@@ -310,7 +310,7 @@ TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
     GlobalMockObject::verify();
 
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+               uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
@@ -321,7 +321,7 @@ TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+               uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -332,7 +332,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest1)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+               uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
@@ -344,7 +344,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest1)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest2)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+               uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
@@ -356,7 +356,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest2)
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest3)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+               uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_OK));

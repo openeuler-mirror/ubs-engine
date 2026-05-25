@@ -53,7 +53,7 @@ TEST_F(ExporterTest, TestInit_01)
 {
     Exporter::Options opt;
 
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Init, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
 
     Exporter::inited_.store(true, std::memory_order_release);
     MpResult ret = Exporter::Init(opt);
@@ -64,7 +64,7 @@ TEST_F(ExporterTest, TestInit_02)
 {
     Exporter::Options opt;
 
-    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Init, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
     Exporter::inited_.store(false, std::memory_order_release);
     MpResult ret = Exporter::Init(opt);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -78,13 +78,13 @@ TEST_F(ExporterTest, genVmDomainInfo_1)
     MOCKER(OsHelper::GetProcessStartTimeByPid).stubs().will(returnValue(MEM_POOLING_ERROR));
     MOCKER(OsHelper::GetVmNumaInfoByPid).stubs().will(returnValue(MEM_POOLING_ERROR));
     MOCKER(OsHelper::GetSocketIdByNumaId).stubs().will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&LibvirtHelper::GetDomainByName, MpResult(*)(std::string & hostName))
+    MOCKER_CPP(&LibvirtHelper::GetDomainByName, MpResult (*)(std::string& hostName))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&LibvirtHelper::GetVmUuidByDomain, MpResult(*)(VirDomainPtr domain, std::string & uuidStr))
+    MOCKER_CPP(&LibvirtHelper::GetVmUuidByDomain, MpResult (*)(VirDomainPtr domain, std::string& uuidStr))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&LibvirtHelper::GetVmStateAndMaxMemByDomain, MpResult(*)(VirDomainPtr domain, VmDomainInfo & vmInfo))
+    MOCKER_CPP(&LibvirtHelper::GetVmStateAndMaxMemByDomain, MpResult (*)(VirDomainPtr domain, VmDomainInfo& vmInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -100,13 +100,13 @@ TEST_F(ExporterTest, genVmDomainInfo_2)
     MOCKER(OsHelper::GetProcessStartTimeByPid).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(OsHelper::GetVmNumaInfoByPid).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(OsHelper::GetSocketIdByNumaId).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&LibvirtHelper::GetDomainByName, MpResult(*)(std::string & hostName))
+    MOCKER_CPP(&LibvirtHelper::GetDomainByName, MpResult (*)(std::string& hostName))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&LibvirtHelper::GetVmUuidByDomain, MpResult(*)(VirDomainPtr domain, std::string & uuidStr))
+    MOCKER_CPP(&LibvirtHelper::GetVmUuidByDomain, MpResult (*)(VirDomainPtr domain, std::string& uuidStr))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&LibvirtHelper::GetVmStateAndMaxMemByDomain, MpResult(*)(VirDomainPtr domain, VmDomainInfo & vmInfo))
+    MOCKER_CPP(&LibvirtHelper::GetVmStateAndMaxMemByDomain, MpResult (*)(VirDomainPtr domain, VmDomainInfo& vmInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -122,13 +122,13 @@ TEST_F(ExporterTest, genVmDomainInfo_3)
     MOCKER(OsHelper::GetProcessStartTimeByPid).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(OsHelper::GetVmNumaInfoByPid).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(OsHelper::GetSocketIdByNumaId).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&LibvirtHelper::GetDomainByName, MpResult(*)(std::string & hostName))
+    MOCKER_CPP(&LibvirtHelper::GetDomainByName, MpResult (*)(std::string& hostName))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&LibvirtHelper::GetVmUuidByDomain, MpResult(*)(VirDomainPtr domain, std::string & uuidStr))
+    MOCKER_CPP(&LibvirtHelper::GetVmUuidByDomain, MpResult (*)(VirDomainPtr domain, std::string& uuidStr))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&LibvirtHelper::GetVmStateAndMaxMemByDomain, MpResult(*)(VirDomainPtr domain, VmDomainInfo & vmInfo))
+    MOCKER_CPP(&LibvirtHelper::GetVmStateAndMaxMemByDomain, MpResult (*)(VirDomainPtr domain, VmDomainInfo& vmInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -191,7 +191,7 @@ TEST_F(ExporterTest, GetNumaInfoImmediately_throw_std_exception_in_subprocess)
             std::vector<NumaInfo> numaInfos;
             Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult(*)(std::vector<std::uint16_t>&))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult (*)(std::vector<std::uint16_t>&))
                 .stubs()
                 .will(invoke(ThrowGetNumaSetStd));
 
@@ -208,7 +208,7 @@ TEST_F(ExporterTest, GetNumaInfoImmediately_throw_unknown_exception_in_subproces
             std::vector<NumaInfo> numaInfos;
             Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult(*)(std::vector<std::uint16_t>&))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult (*)(std::vector<std::uint16_t>&))
                 .stubs()
                 .will(invoke(ThrowGetNumaSetUnknown));
 
@@ -236,7 +236,7 @@ TEST_F(ExporterTest, GetVmInfoImmediately_throw_std_exception_in_subprocess)
             std::vector<mempooling::exportV2::VmDomainInfo> vmInfos;
             mempooling::exportV2::Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string>&))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult (*)(std::vector<std::string>&))
                 .stubs()
                 .will(invoke(ThrowGetVmNameSetStd));
 
@@ -253,7 +253,7 @@ TEST_F(ExporterTest, GetVmInfoImmediately_throw_unknown_exception_in_subprocess)
             std::vector<mempooling::exportV2::VmDomainInfo> vmInfos;
             mempooling::exportV2::Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string>&))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult (*)(std::vector<std::string>&))
                 .stubs()
                 .will(invoke(ThrowGetVmNameSetUnknown));
 
@@ -298,7 +298,7 @@ TEST_F(ExporterTest, GetVmInfoImmediately_bad_alloc_in_parallel_collect_in_subpr
             Exporter::Options opt;
             opt.threads = 1;
 
-            MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Init, MpResult(*)())
+            MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Init, MpResult (*)())
                 .stubs()
                 .will(returnValue(MEM_POOLING_OK));
 
@@ -307,12 +307,12 @@ TEST_F(ExporterTest, GetVmInfoImmediately_bad_alloc_in_parallel_collect_in_subpr
                 std::exit(2);
 
             // GetVmNameSet：小集合 + 在返回前“挤爆/限死”内存
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string>&))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult (*)(std::vector<std::string>&))
                 .stubs()
                 .will(invoke(StubGetVmNameSet_AndClampMem));
 
             // 避免在这里分配导致提前失败：直接返回 OK
-            MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::CheckConnectAndReconnect, MpResult(*)())
+            MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::CheckConnectAndReconnect, MpResult (*)())
                 .stubs()
                 .will(returnValue(MEM_POOLING_OK));
 

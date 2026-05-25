@@ -98,7 +98,7 @@ TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectHandler_Error)
 
 TEST_F(TestOverCommitMsgHandler, InitOverCommitReg_Success)
 {
-    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint&, UbseRpcServiceHandler))
+    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint&, UbseRpcServiceHandler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto ret = InitOverCommitReg();
@@ -107,7 +107,7 @@ TEST_F(TestOverCommitMsgHandler, InitOverCommitReg_Success)
 
 TEST_F(TestOverCommitMsgHandler, InitOverCommitReg_RegFailed)
 {
-    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint&, UbseRpcServiceHandler))
+    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint&, UbseRpcServiceHandler))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = InitOverCommitReg();
@@ -141,7 +141,7 @@ SmapRemoveFunc GetSmapRemoveFuncMockNull()
 
 TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_GetFuncNull)
 {
-    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc(*)()).stubs().will(invoke(GetSmapRemoveFuncMockNull));
+    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc (*)()).stubs().will(invoke(GetSmapRemoveFuncMockNull));
     uint16_t presentNumaId = 1;
     std::vector<pid_t> pids = {1234, 5678};
     auto ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
@@ -150,7 +150,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_GetFuncNull)
 
 TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_PidsTooMany)
 {
-    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc(*)()).stubs().will(invoke(GetSmapRemoveFuncMockSuccess));
+    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc (*)()).stubs().will(invoke(GetSmapRemoveFuncMockSuccess));
     uint16_t presentNumaId = 1;
     std::vector<pid_t> pids;
     for (int i = 0; i < MAX_NR_REMOVE_MP + 10; i++) {
@@ -162,7 +162,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_PidsTooMany)
 
 TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_Success)
 {
-    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc(*)()).stubs().will(invoke(GetSmapRemoveFuncMockSuccess));
+    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc (*)()).stubs().will(invoke(GetSmapRemoveFuncMockSuccess));
     uint16_t presentNumaId = 1;
     std::vector<pid_t> pids = {1234, 5678};
     auto ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
@@ -171,7 +171,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_Success)
 
 TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_SmapRemoveFailed)
 {
-    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc(*)()).stubs().will(invoke(GetSmapRemoveFuncMockFailed));
+    MOCKER_CPP(&SmapModule::GetSmapRemoveFunc, SmapRemoveFunc (*)()).stubs().will(invoke(GetSmapRemoveFuncMockFailed));
     uint16_t presentNumaId = 1;
     std::vector<pid_t> pids = {1234, 5678};
     auto ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
@@ -180,7 +180,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_SmapRemoveFailed)
 
 TEST_F(TestOverCommitMsgHandler, NormMigrate_SetSmapRemoteNumaInfoFailed)
 {
-    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult(*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
+    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult (*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::vector<MemMigrateResult> memMigrateResults;
@@ -203,10 +203,10 @@ TEST_F(TestOverCommitMsgHandler, NormMigrate_SetSmapRemoteNumaInfoFailed)
 
 TEST_F(TestOverCommitMsgHandler, NormMigrate_MigrateOutFailed)
 {
-    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult(*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
+    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult (*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&MpSmapHelper::MigrateOutInOverCommit, MpResult(*)(const std::vector<MemMigrateResult>&, uint16_t))
+    MOCKER_CPP(&MpSmapHelper::MigrateOutInOverCommit, MpResult (*)(const std::vector<MemMigrateResult>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::vector<MemMigrateResult> memMigrateResults;
@@ -229,10 +229,10 @@ TEST_F(TestOverCommitMsgHandler, NormMigrate_MigrateOutFailed)
 
 TEST_F(TestOverCommitMsgHandler, NormMigrate_Success)
 {
-    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult(*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
+    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult (*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&MpSmapHelper::MigrateOutInOverCommit, MpResult(*)(const std::vector<MemMigrateResult>&, uint16_t))
+    MOCKER_CPP(&MpSmapHelper::MigrateOutInOverCommit, MpResult (*)(const std::vector<MemMigrateResult>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     std::vector<MemMigrateResult> memMigrateResults;
@@ -290,7 +290,7 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_RebalanceFailed)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&VMMemMigrateStrategy::Rebalance,
-               MpResult(*)(VMMemMigrateStrategy*, const std::string&, int16_t, const std::vector<pid_t>&, uint16_t))
+               MpResult (*)(VMMemMigrateStrategy*, const std::string&, int16_t, const std::vector<pid_t>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     outinterface::SrcMemoryBorrowParam srcParam;
@@ -314,7 +314,7 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_Success)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&VMMemMigrateStrategy::Rebalance,
-               MpResult(*)(VMMemMigrateStrategy*, const std::string&, int16_t, const std::vector<pid_t>&, uint16_t))
+               MpResult (*)(VMMemMigrateStrategy*, const std::string&, int16_t, const std::vector<pid_t>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     outinterface::SrcMemoryBorrowParam srcParam;
@@ -334,7 +334,7 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_Success)
 
 TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_NormMigrateFailed)
 {
-    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult(*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
+    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult (*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     outinterface::SrcMemoryBorrowParam srcParam;
@@ -359,10 +359,10 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_NormMigrateFailed)
 
 TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_NormMigrateSuccess)
 {
-    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult(*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
+    MOCKER_CPP(&MpSmapHelper::SetSmapRemoteNumaInfo, MpResult (*)(int16_t, const std::vector<MemBorrowInfoWithSrc>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&MpSmapHelper::MigrateOutInOverCommit, MpResult(*)(const std::vector<MemMigrateResult>&, uint16_t))
+    MOCKER_CPP(&MpSmapHelper::MigrateOutInOverCommit, MpResult (*)(const std::vector<MemMigrateResult>&, uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     outinterface::SrcMemoryBorrowParam srcParam;

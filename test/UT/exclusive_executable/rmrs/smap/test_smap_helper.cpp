@@ -100,7 +100,7 @@ TEST_F(TestSmapHelper, AllocateHugePages_Fail_01)
     std::vector<uint64_t> remoteNumaIds = {5};
     std::vector<uint64_t> borrowSizes = {1024};
 
-    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult (*)()).stubs().will(returnValue(1));
     MpResult ret = MpSmapHelper::GetInstance().AllocateHugePages(remoteNumaIds, borrowSizes);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
@@ -110,8 +110,8 @@ TEST_F(TestSmapHelper, AllocateHugePages_Fail_02)
     std::vector<uint64_t> remoteNumaIds = {5};
     std::vector<uint64_t> borrowSizes = {1024};
 
-    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult(*)()).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult (*)()).stubs().will(returnValue(1));
     MpResult ret = MpSmapHelper::GetInstance().AllocateHugePages(remoteNumaIds, borrowSizes);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
@@ -121,9 +121,9 @@ TEST_F(TestSmapHelper, AllocateHugePages_Fail_03)
     std::vector<uint64_t> remoteNumaIds = {5};
     std::vector<uint64_t> borrowSizes = {1024};
 
-    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&MpSmapHelper::RewriteHugePages, MpResult(*)()).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::RewriteHugePages, MpResult (*)()).stubs().will(returnValue(1));
     MpResult ret = MpSmapHelper::GetInstance().MpSmapHelper::AllocateHugePages(remoteNumaIds, borrowSizes);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
@@ -133,9 +133,9 @@ TEST_F(TestSmapHelper, AllocateHugePages_Success)
     std::vector<uint64_t> remoteNumaIds = {5};
     std::vector<uint64_t> borrowSizes = {1024};
 
-    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&MpSmapHelper::RewriteHugePages, MpResult(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::RewriteHugePages, MpResult (*)()).stubs().will(returnValue(0));
     MpResult ret = MpSmapHelper::GetInstance().AllocateHugePages(remoteNumaIds, borrowSizes);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
@@ -1174,12 +1174,12 @@ uint32_t RackStorageQueryDataForTest01(const std::string& keyPrefix, const std::
 
 TEST_F(TestSmapHelper, ReadAndSetRunMode_Fail_02)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                 UbseStorageDealDataFunc func))
+    MOCKER_CPP(UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataForTest01));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::ReadAndSetRunMode();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1187,12 +1187,12 @@ TEST_F(TestSmapHelper, ReadAndSetRunMode_Fail_02)
 
 TEST_F(TestSmapHelper, ReadAndSetRunMode_Success_01)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                                                 UbseStorageDealDataFunc func))
+    MOCKER_CPP(UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataForTest01));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(0));
 
     MpResult ret = MpSmapHelper::ReadAndSetRunMode();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1200,7 +1200,7 @@ TEST_F(TestSmapHelper, ReadAndSetRunMode_Success_01)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_01)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::SetRunModeAndWrite(0);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1208,7 +1208,7 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_01)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_02)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::SetRunModeAndWrite(1);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1216,10 +1216,10 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_02)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_03)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(0));
 
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(1));
 
@@ -1229,10 +1229,10 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_03)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Success_01)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(0));
 
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
+               uint32_t (*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
 
@@ -1317,7 +1317,7 @@ TEST_F(TestSmapHelper, SmapRemoveProcessTrackingHelper_Nullptr)
 
 TEST_F(TestSmapHelper, SubModuleInitFailed0)
 {
-    MOCKER_CPP(&MpSmapHelper::Init, uint32_t(*)()).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::Init, uint32_t (*)()).stubs().will(returnValue(1));
     MpSmapSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1325,8 +1325,8 @@ TEST_F(TestSmapHelper, SubModuleInitFailed0)
 
 TEST_F(TestSmapHelper, SubModuleInitSucceed)
 {
-    MOCKER_CPP(&MpSmapHelper::Init, uint32_t(*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
+    MOCKER_CPP(&MpSmapHelper::Init, uint32_t (*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(0));
     MpSmapSubModule obj;
@@ -1356,7 +1356,7 @@ MpResult MockSmapGetBackResultSmapGetBackResultReturnsError(uint64_t taskId, uin
 TEST_F(TestSmapHelper, ShouldReturnMemPoolingOk_WhenSmapGetBackResultReturnsOkAndSmapBackRetIsTaskDone)
 {
     uint64_t taskId = 12345;
-    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t&))
+    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult (*)(uint64_t, uint16_t&))
         .stubs()
         .will(invoke(MockSmapGetBackResultSmapBackRetIsTaskDone));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
@@ -1368,7 +1368,7 @@ TEST_F(TestSmapHelper, ShouldReturnMemPoolingOk_WhenSmapGetBackResultReturnsOkAn
 TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsOkAndSmapBackRetIsTaskWaiting)
 {
     uint64_t taskId = 12345;
-    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t&))
+    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult (*)(uint64_t, uint16_t&))
         .stubs()
         .will(invoke(MockSmapGetBackResultSmapBackRetIsTaskWaiting));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
@@ -1380,7 +1380,7 @@ TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsO
 TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsError)
 {
     uint64_t taskId = 12345;
-    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t&))
+    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult (*)(uint64_t, uint16_t&))
         .stubs()
         .will(invoke(MockSmapGetBackResultSmapGetBackResultReturnsError));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
@@ -1393,7 +1393,7 @@ TEST_F(TestSmapHelper, ShouldReturnOk_WhenFileIsOpenedAndReadFails)
 {
     uint16_t ret;
 
-    MOCKER_CPP((bool(std::ifstream::*)())(&std::ifstream::is_open), bool (*)(std::ifstream*))
+    MOCKER_CPP((bool (std::ifstream::*)())(&std::ifstream::is_open), bool (*)(std::ifstream*))
         .stubs()
         .will(returnValue(false));
 

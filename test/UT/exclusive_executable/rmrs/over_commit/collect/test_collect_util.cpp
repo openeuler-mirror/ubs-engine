@@ -43,7 +43,7 @@ protected:
 TEST_F(TestCollectUtil, GetNumaMemInfosSuccess)
 {
     MOCKER_CPP(&ResourceQuery::HelpGetNumaMemInfoCollect,
-               uint32_t(*)(const std::string& srcNid, const int& numaId, mempooling::NumaMetaData& numaInfo))
+               uint32_t (*)(const std::string& srcNid, const int& numaId, mempooling::NumaMetaData& numaInfo))
         .stubs()
         .will(returnValue(0));
     std::set<int16_t> numaIds{1};
@@ -55,7 +55,7 @@ TEST_F(TestCollectUtil, GetNumaMemInfosSuccess)
 TEST_F(TestCollectUtil, GetNumaMemInfosFail)
 {
     MOCKER_CPP(&ResourceQuery::HelpGetNumaMemInfoCollect,
-               uint32_t(*)(const std::string& srcNid, const int& numaId, mempooling::NumaMetaData& numaInfo))
+               uint32_t (*)(const std::string& srcNid, const int& numaId, mempooling::NumaMetaData& numaInfo))
         .stubs()
         .will(returnValue(1));
     std::set<int16_t> numaIds{1};

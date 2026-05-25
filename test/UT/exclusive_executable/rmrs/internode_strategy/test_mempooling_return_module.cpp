@@ -83,12 +83,12 @@ MpResult MockUpdate1(MemReturnManager* obj, const std::string& borrowId, BorrowI
 TEST_F(TestMemReturnScanner, run_add)
 {
     MOCKER_CPP(&ubse::mem::controller::UbseQueryResult,
-               uint32_t(*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
+               uint32_t (*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
         .stubs()
         .will(invoke(MockUbseQueryResult));
     MemReturnManager::Instance().borrowCache = {{"borrow_0", {"borrow_0", "srcNid_4", 5, "dstNid_2", 3, 125}}};
     MOCKER_CPP(&MemReturnManager::Update,
-               MpResult(*)(MemReturnManager * This, const std::string& borrowId, BorrowItem& value))
+               MpResult (*)(MemReturnManager* This, const std::string& borrowId, BorrowItem& value))
         .stubs()
         .will(invoke(MockUpdate));
     MemReturnScanner::Instance().run();
@@ -97,12 +97,12 @@ TEST_F(TestMemReturnScanner, run_add)
 TEST_F(TestMemReturnScanner, run_add1)
 {
     MOCKER_CPP(&ubse::mem::controller::UbseQueryResult,
-               uint32_t(*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
+               uint32_t (*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
         .stubs()
         .will(invoke(MockUbseQueryResult));
     MemReturnManager::Instance().borrowCache = {{"borrow_0", {"borrow_0", "srcNid_4", 5, "dstNid_2", 3, 125}}};
     MOCKER_CPP(&MemReturnManager::Update,
-               MpResult(*)(MemReturnManager * This, const std::string& borrowId, BorrowItem& value))
+               MpResult (*)(MemReturnManager* This, const std::string& borrowId, BorrowItem& value))
         .stubs()
         .will(invoke(MockUpdate1));
     MemReturnScanner::Instance().run();
@@ -123,11 +123,11 @@ MpResult MockRemove1(MemReturnManager* obj, const std::string& borrowId)
 TEST_F(TestMemReturnScanner, run_sub)
 {
     MOCKER_CPP(&ubse::mem::controller::UbseQueryResult,
-               uint32_t(*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
+               uint32_t (*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
         .stubs()
         .will(invoke(MockUbseQueryResult1));
     MemReturnManager::Instance().borrowCache = {{"borrow_0", {"borrow_0", "srcNid_4", 5, "dstNid_2", 3, 125}}};
-    MOCKER_CPP(&MemReturnManager::Remove, MpResult(*)(MemReturnManager * This, const std::string& borrowId))
+    MOCKER_CPP(&MemReturnManager::Remove, MpResult (*)(MemReturnManager* This, const std::string& borrowId))
         .stubs()
         .will(invoke(MockRemove));
     MOCKER_CPP(&MemReturnManager::IsAllReturned, bool (*)(const std::string& srcNid, const uint16_t& srcRemoteNumaId))
@@ -139,11 +139,11 @@ TEST_F(TestMemReturnScanner, run_sub)
 TEST_F(TestMemReturnScanner, run_sub1)
 {
     MOCKER_CPP(&ubse::mem::controller::UbseQueryResult,
-               uint32_t(*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
+               uint32_t (*)(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType))
         .stubs()
         .will(invoke(MockUbseQueryResult1));
     MemReturnManager::Instance().borrowCache = {{"borrow_0", {"borrow_0", "srcNid_4", 5, "dstNid_2", 3, 125}}};
-    MOCKER_CPP(&MemReturnManager::Remove, MpResult(*)(MemReturnManager * This, const std::string& borrowId))
+    MOCKER_CPP(&MemReturnManager::Remove, MpResult (*)(MemReturnManager* This, const std::string& borrowId))
         .stubs()
         .will(invoke(MockRemove1));
     MemReturnScanner::Instance().run();

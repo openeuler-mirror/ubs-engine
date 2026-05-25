@@ -231,7 +231,7 @@ TEST(VMMemMigrateStrategyTest, ExecuteRebalanceERRWhenCollectBorrowRecords)
 {
     // 调用 execute 函数
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+               MpResult (*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     VMMemMigrateStrategy strategy;
@@ -390,7 +390,7 @@ TEST(MockVMMemMigrateStrategy, UpdateContainerInfoInnode_Failed)
     std::vector<pid_t> pids{};
     std::unordered_map<pid_t, VMInfo> vmInfos{};
 
-    MOCKER_CPP(&PidNumaInfoCollectRecvHandler, MpResult(*)(UbseByteBuffer, UbseByteBuffer&))
+    MOCKER_CPP(&PidNumaInfoCollectRecvHandler, MpResult (*)(UbseByteBuffer, UbseByteBuffer&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
