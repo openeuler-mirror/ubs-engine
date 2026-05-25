@@ -83,6 +83,25 @@ function generate_coverage_report() {
 }
 
 ##
+# Print coverage summary to console
+# Arguments:
+#   $1 - path to coverage info file
+#   $2 - path to .lcovrc configuration file
+##
+function print_coverage_summary() {
+    local info_file="$1"
+    local lcovrc_file="$2"
+    local lcov_path="$(command -v lcov)" || error_exit "lcov not found in PATH"
+
+    echo ""
+    echo "=========================================="
+    echo "         Coverage Summary Report"
+    echo "=========================================="
+    "${lcov_path}" --summary --config-file "${lcovrc_file}" "${info_file}" 2>&1 | grep -E "(lines|functions|branches)" || true
+    echo "=========================================="
+}
+
+##
 # Display error message and exit
 # Arguments:
 #   $1 - error message
@@ -126,6 +145,8 @@ function main() {
     parse_lcov_filters "${lcovrc_file}"
     generate_coverage_report "${coverage_dir}" "${lcovrc_file}"
 
+    print_coverage_summary "${coverage_dir}/fastcov.info" "${lcovrc_file}"
+    echo ""
     echo "Coverage report generated at: ${coverage_dir}/index.html"
 }
 
