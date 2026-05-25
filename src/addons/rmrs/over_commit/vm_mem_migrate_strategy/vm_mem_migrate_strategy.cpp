@@ -736,7 +736,7 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered
                                                             const std::pair<pid_t, std::uint64_t> &vm,
                                                             std::vector<VMResult> &vmResults)
 {
-    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] "
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] "
                                                         "AllocateMemoryToRemoteUsedVm start.";
     uint32_t borrowedSize = vmInfos.at(vm.first).totalRemoteUsedMem;
     VMResult result;
@@ -746,7 +746,7 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered
             result.remoteNumaId = remoteNUMA.remoteNumaId;
             result.maxRatio = vmInfos.at(vm.first).ratio;
             if (remoteNUMA.borrowSize >= vm.second) {
-                UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] Remote NUMA has enough borrowed mem ,NUMA="
                     << remoteNUMA.remoteNumaId << ", remoteNuma.borrowSize=" << remoteNUMA.borrowSize
                     << "Byte, vm.migrateSize=" << vm.second << "Byte.";
@@ -758,13 +758,13 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered
                 remoteNUMA.borrowSize = 0;
                 allocatedMem += result.size;
                 vmResults.push_back(result);
-                UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] Remote NUMA has no enough borrowed "
                        "mem. NUMA="
                     << remoteNUMA.remoteNumaId << ".";
                 return MEM_POOLING_OK;
             } else {
-                UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] Remote NUMA has no borrowed mem. "
                        "NUMA="
                     << remoteNUMA.remoteNumaId << ".";
