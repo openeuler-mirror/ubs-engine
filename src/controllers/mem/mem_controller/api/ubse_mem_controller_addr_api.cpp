@@ -206,6 +206,10 @@ uint32_t DoUbseMemAddrBorrow(const std::string& exportKey, const UbseMemAddrBorr
 uint32_t UbseMemAddrBorrow(const UbseMemAddrBorrowReq& req, UbseMemOperationResp& resp)
 {
     UBSE_LOG_INFO << "[MMC] Addr borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
+    resp.requestId = req.requestId;
+    if (!IsMemBorrowFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::ADDR_BORROW);
+    }
     // 根据pid获取sockectId, numaId
     uint32_t dstNuma{};
     uint32_t dstSocket{};
@@ -1037,6 +1041,10 @@ uint32_t UbseMemAddrReturn(const UbseMemReturnReq& req, UbseMemOperationResp& re
                   << ", realRequestNodeId=" << realRequestNodeId;
     auto exportKey = GenerateExportObjKey(req.name, req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
+    InitializeResponse(req, resp);
+    if (!IsMemBorrowFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::ADDR_RETURN);
+    }
     UbseMemAddrBorrowExportObj exportObj{};
     UbseMemAddrBorrowImportObj importObj{};
     UbseMemBorrowStatus status{};

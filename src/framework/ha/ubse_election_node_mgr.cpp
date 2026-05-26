@@ -12,6 +12,7 @@
 
 #include "ubse_election_node_mgr.h"
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
@@ -32,24 +33,6 @@ UbseElectionNodeMgr& UbseElectionNodeMgr::GetInstance()
 {
     static UbseElectionNodeMgr instance;
     return instance;
-}
-
-UbseResult GetUBEnable(bool& ubEnable)
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        ubEnable = true;
-        return UBSE_OK;
-    }
-    ubEnable = false;
-    return UBSE_OK;
 }
 
 UbseElectionNodeMgr::UbseElectionNodeMgr()
@@ -175,7 +158,10 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     bool ubEnable = true;
-    GetUBEnable(ubEnable);
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get communication mode.";
+        return;
+    }
     const uint16_t port = TCP_LISTEN_PORT;
     std::unique_lock<std::shared_mutex> lock(mtx_);
     if (ubEnable) {
@@ -222,7 +208,10 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
         return UBSE_ERROR;
     }
     bool ubEnable = true;
-    GetUBEnable(ubEnable);
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get communication mode.";
+        return UBSE_ERROR;
+    }
     if (ubEnable) {
         currentNode_.ip = std::string(ubseNodeInfo.bondingEid);
     } else {

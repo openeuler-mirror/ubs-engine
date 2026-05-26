@@ -164,7 +164,6 @@ static const std::string BORROW_DETAIL_EMPTY = "INFO: The borrow detail informat
 
 static const std::string SERIALIZATION_ERROR = "ERROR: Serialization failed.";
 static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed.";
-static const std::string MEMORY_INTERNAL_ERROR = "ERROR: Internal error with error code ";
 static const std::string MEMORY_EMPTY_ERROR = "ERROR: Failed to obtain memory information";
 static const std::string SET_TIMER_ERROR = "ERROR: Set timer failed. ";
 
@@ -191,7 +190,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowIn
     uint32_t ret = ubse_invoke_call(MEM_MODULE_CODE, MEM_NODE_BORROW_OP_CODE, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t node_borrow_account_size{};
@@ -236,7 +235,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeLendInfo
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NODE_LEND, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t node_borrow_account_size{};
@@ -322,7 +321,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NUMA_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t numaInfoSize{};
@@ -344,7 +343,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::QueryMemConfig()
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CONFIG, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t node_size;
@@ -442,7 +441,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatus
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CHECK_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(MEMORY_INTERNAL_ERROR + std::to_string(ret));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t size = 0;
@@ -562,7 +561,7 @@ static std::string FormatMemoryInfoReply(const std::string& name, int64_t numaId
 
 static std::string MakeInternalErrorString(uint32_t errorCode)
 {
-    return std::string("ERROR: Internal error with error code ") + std::to_string(errorCode);
+    return GetErrorMessage(errorCode);
 }
 
 struct ParsedResponse {
@@ -888,7 +887,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
         return HandleTimeoutRetry(name->second);
     }
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
     // 成功回显
@@ -899,6 +898,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
         return UbseCliStringPromptReply("Delete successfully");
     }
     // 失败回显
+    if (deserial.Check() && errorCode == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(GetErrorMessage(errorCode));
+    }
     return UbseCliStringPromptReply("ERROR: " + errMsg);
 }
 

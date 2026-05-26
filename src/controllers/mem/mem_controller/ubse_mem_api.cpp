@@ -20,11 +20,13 @@
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_conf.h"
 #include "ubse_logger.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_advice.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_agent.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_def_serial.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_query_api.h"
@@ -54,6 +56,21 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 const double BYTES_PER_MB = 1024 * 1024; // 1MB = 1,048,576字节
 const int BASE_10 = 10;
+
+bool IsDebtFetchFeatureSupported(AccountType borrowType)
+{
+    switch (borrowType) {
+        case AccountType::NUMA:
+        case AccountType::FD:
+        case AccountType::ADDR:
+        case AccountType::SHM:
+        case AccountType::INIT:
+            return ubse::config::UbseIsMemSupported();
+        default:
+            UBSE_LOG_WARN << "Unknown debt fetch borrow type, borrowType=" << static_cast<uint32_t>(borrowType);
+            return true;
+    }
+}
 
 UbseResult UbseMemApi::UbseRegisterShmCliInterface(const std::shared_ptr<UbseApiServerModule>& apiServerModule)
 {
@@ -205,6 +222,10 @@ uint32_t UbseMemApi::UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage& req,
     auto [ubseRequestPtr, ubseResponsePtr] = UbseBorrowDetailsPrepareRequest(req);
     if (ubseRequestPtr == nullptr || ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
+    }
+    const auto debtFetchInfo = ubseRequestPtr->GetUbseMemDebtFetchInfo();
+    if (!IsDebtFetchFeatureSupported(debtFetchInfo.borrowType)) {
+        return UBSE_ERR_NOT_SUPPORTED;
     }
 
     ubse::election::UbseRoleInfo masterInfo{};
@@ -358,6 +379,9 @@ uint32_t UbseMemApi::UbseCheckMemoryStatus(const UbseIpcMessage& req, const Ubse
 
 uint32_t UbseMemApi::UbseNodeMemConfigHandle(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Node mem config IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -406,6 +430,9 @@ inline uint32_t UbseConvertBytesToMegabytes(uint64_t bytes)
 uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 
 {
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
     auto ret = UbseAllNumaInfo(numaInfoList);
     if (ret != UBSE_OK) {
@@ -540,6 +567,19 @@ uint32_t DeserializeAndValidateName(const UbseIpcMessage& buffer, std::string& n
     return UBSE_OK;
 }
 
+UbseResult SetCliShareCacheableFlag(UbseMemShareBorrowReq& req)
+{
+    if (ubse::config::UbseIsMemShareNcSupported()) {
+        req.ubseMemPrivData.cacheableFlag = 0;
+        return UBSE_OK;
+    }
+    if (ubse::config::UbseIsMemShareCcSupported()) {
+        req.ubseMemPrivData.cacheableFlag = 1;
+        return UBSE_OK;
+    }
+    return UBSE_ERR_NOT_SUPPORTED;
+}
+
 UbseResult BuildMemShareCreateReq(const UbseIpcMessage& buffer, const UbseRequestContext& context,
                                   UbseMemShareBorrowReq& req)
 {
@@ -582,7 +622,10 @@ UbseResult BuildMemShareCreateReq(const UbseIpcMessage& buffer, const UbseReques
     req.ubseMemPrivData.cmoDelayComp = 0;
     req.ubseMemPrivData.so = 0;
     req.ubseMemPrivData.adTrOchip = 1;
-    req.ubseMemPrivData.cacheableFlag = 0;
+    auto ret = SetCliShareCacheableFlag(req);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
     req.shmAnonymous = false;
     return UBSE_OK;
 }

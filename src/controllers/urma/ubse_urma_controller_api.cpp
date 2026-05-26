@@ -15,6 +15,7 @@
 #include <securec.h>
 #include "ubse_api_server_module.h"
 #include "ubse_com_module.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_logger.h"
@@ -31,12 +32,22 @@ using namespace ubse::utils;
 using namespace ubse::election;
 using namespace ubse::com;
 using namespace ubse::serial;
+using namespace ubse::config;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t UBSE_URMA_NAME_MAX = 32;        // 包含结束符长度
 const uint32_t UBSE_MAX_URMA_PATH_LENGTH = 64; // 包含结束符长度
 const size_t MAX_BUFFER_SIZE = 10 * 1024;      // 10 KB
+
+bool IsUrmaApiSupported()
+{
+    if (UbseIsUrmaSupported()) {
+        return true;
+    }
+    UBSE_LOG_WARN << "URMA feature is unsupported.";
+    return false;
+}
 
 size_t UbseStringCalcSize(const std::string& str, size_t maxLen)
 {
@@ -109,6 +120,9 @@ UbseResult UbseUrmaControllerApi::Register()
 
 uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaBandWidthSet request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -155,6 +169,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage& req, 
 
 uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     uint8_t* buffer = req.buffer;
     if (buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaBandWidthGet request info is null.";
@@ -178,6 +195,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage& req, 
 
 uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     uint32_t nodeId;
     UbseDeSerialization reqSerial(req.buffer, req.length);
     reqSerial >> nodeId;
@@ -221,6 +241,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthCliGet(const UbseIpcMessage& re
 
 uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaBandWidthReset request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -322,6 +345,9 @@ uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage& req, uint32_t& nodeId, std
 
 uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     uint32_t nodeId{};
     std::vector<std::string> deviceNameList;
     // 反序列化
@@ -371,6 +397,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage& req, con
 
 uint32_t UbseUrmaControllerApi::UbseUrmaCliDevActivate(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Get IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -444,6 +473,9 @@ UbseResult AllocRspPack(UbseUrmaDevPath& pathInfos, UbseIpcMessage& response)
 
 uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Alloc IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -486,6 +518,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage& req, cons
 
 uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma Dev Free IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -518,6 +553,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage& req, const
 
 uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!IsUrmaApiSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Ubse Urma LocalDevGet IPC request info is null.";
         return UBSE_ERROR_NULLPTR;

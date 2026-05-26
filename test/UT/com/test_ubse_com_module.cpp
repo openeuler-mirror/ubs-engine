@@ -724,7 +724,7 @@ TEST_F(TestUbseComModule, TestGetUBEnable)
 {
     // 步骤1
     bool ubEnable = false;
-    UbseResult ret = GetUBEnable(ubEnable);
+    UbseResult ret = ubse::config::UbseGetUBEnable(ubEnable);
     EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, ret);
     EXPECT_EQ(false, ubEnable);
 
@@ -732,7 +732,7 @@ TEST_F(TestUbseComModule, TestGetUBEnable)
     std::shared_ptr<UbseConfModule> ubseConfModule = std::make_shared<UbseConfModule>();
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(ubseConfModule));
     MOCKER(&UbseConfModule::GetConf<std::string>).expects(once()).will(returnValue(UBSE_ERROR));
-    ret = GetUBEnable(ubEnable);
+    ret = ubse::config::UbseGetUBEnable(ubEnable);
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ(true, ubEnable);
     GlobalMockObject::verify();
@@ -746,7 +746,7 @@ TEST_F(TestUbseComModule, TestGetUBEnable)
         .expects(once())
         .with(eq(section), eq(configKey), outBound(configVal))
         .will(returnValue(UBSE_OK));
-    ret = GetUBEnable(ubEnable);
+    ret = ubse::config::UbseGetUBEnable(ubEnable);
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ(false, ubEnable);
 }
@@ -938,7 +938,11 @@ TEST_F(TestUbseComModule, TestGetNodeInfoFromMti)
         .stubs()
         .with(outBound(nodeInfo))
         .will(returnValue(UBSE_OK));
-    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(ubseConfModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(any(), any(), outBound(configVal))
+        .will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetLocalIp)
         .stubs()
         .will(returnValue(UBSE_OK));

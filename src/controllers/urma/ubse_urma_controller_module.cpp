@@ -13,6 +13,7 @@
 #include "ubse_urma_controller_module.h"
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
@@ -31,6 +32,7 @@ using namespace ubse::task_executor;
 using namespace ubse::com;
 using namespace ubse::common::def;
 using namespace ubse::nodeController;
+using namespace ubse::config;
 
 std::atomic<uint32_t> g_asyncHandlerCnt{0};
 std::set<std::string> g_RegTimerNames;
@@ -115,20 +117,26 @@ UbseResult RpcReg()
 
 UbseResult UbseUrmaControllerModule::Initialize()
 {
+    enabled_ = UbseIsUrmaSupported();
+    auto ret = UbseUrmaControllerApi::Register();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
+        return ret;
+    }
+    if (!enabled_) {
+        UBSE_LOG_INFO << "URMA feature is unsupported, skip urma controller background initialization.";
+        return UBSE_OK;
+    }
+
     // 注册消息处理函数,监听 topo变化事件
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
+    ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
         return UBSE_ERROR_CONF_INVALID;
-    }
-    ret = UbseUrmaControllerApi::Register();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
-        return ret;
     }
     if (RpcReg() != UBSE_OK) {
         return UBSE_ERROR;
@@ -175,6 +183,9 @@ UbseResult UbseUrmaControllerModule::Start()
 
 void UbseUrmaControllerModule::Stop()
 {
+    if (!enabled_) {
+        return;
+    }
     std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
     auto ret = ubse::event::UbseUnSubEvent(nodeJoinEventId,
                                            ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler);

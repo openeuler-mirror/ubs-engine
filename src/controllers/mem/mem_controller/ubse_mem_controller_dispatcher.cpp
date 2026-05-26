@@ -50,6 +50,7 @@ using namespace ubse::context;
 const std::string MEM_FD_PERMISSION = "mem.fd";
 const std::string MEM_NUMA_PERMISSION = "mem.numa";
 const std::string MEM_SHM_PERMISSION = "mem.shm";
+
 template <class TReq>
 UbseResult SendToMasterIfNotMaster(std::string& masterNodeId, TReq& requestPtr, uint16_t moduleCode, uint16_t opCode)
 {

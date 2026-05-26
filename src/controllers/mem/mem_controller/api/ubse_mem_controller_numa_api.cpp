@@ -341,6 +341,9 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq& req, UbseMemOperationResp
     auto importNodeId = req.importNodeId;
     auto name = req.name;
     resp.requestId = req.requestId;
+    if (!IsMemBorrowFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, name, requestNodeId, MemOperationType::NUMA_BORROW);
+    }
     if (auto ret = CheckReqValid(req, resp); ret != UBSE_OK) {
         return ret;
     }
@@ -1201,6 +1204,9 @@ uint32_t UbseMemNumaReturn(const UbseMemReturnReq& req, UbseMemOperationResp& re
     auto exportKey = GenerateExportObjKey(req.name, req.requestNodeId);
     auto lock = LoggingLockGuard(exportKey);
     InitializeResponse(req, resp);
+    if (!IsMemBorrowFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::NUMA_RETURN);
+    }
     UbseMemNumaBorrowExportObj exportObj{};
     UbseMemNumaBorrowImportObj importObj{};
     UbseMemBorrowStatus status{};

@@ -56,6 +56,15 @@ ubsectl display memory -t borrow_detail
 ubsectl create memory -t numa -s <size> -n <name>
 ```
 
+**特性不支持错误信息**
+
+当 UB 特性配置关闭对应能力时，相关命令返回固定错误信息。
+
+| 命令范围 | 触发条件 | 错误信息 |
+| -------- | -------- | -------- |
+| memory 相关命令 | 内存借用和内存共享特性均不支持，或命令对应的内存类型特性不支持 | `ERROR: Memory feature is not supported.` |
+| URMA 相关命令 | URMA 特性不支持 | `ERROR: URMA feature is not supported.` |
+
 ## 使能命令补齐
 
 ubse内置ubsectl补全脚本，部署完成后脚本位置为：/etc/bash_completion.d/cli_commands.sh

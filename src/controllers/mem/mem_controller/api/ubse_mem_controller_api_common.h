@@ -65,6 +65,16 @@ inline std::string GenerateExportObjKey(const std::string& name, const std::stri
 
 bool IsSdkRequest(uint64_t requestId);
 
+bool IsMemBorrowFeatureSupported();
+
+bool IsMemShareFeatureSupported();
+
+bool IsMemShareModeFeatureSupported(uint16_t cacheableFlag);
+
+uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp &resp, const std::string &name,
+                                         const std::string &requestNodeId,
+                                         MemOperationType type = MemOperationType::FD_BORROW);
+
 template <class importType>
 UbseResult GetErrorCodeByObjState(const importType& importObj, const bool& exportObjExist)
 {

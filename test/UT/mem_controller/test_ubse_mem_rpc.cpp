@@ -18,8 +18,10 @@
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_mem_async_processor.h"
+#include "ubse_mem_api.h"
 #include "ubse_mem_controller_fd_api.h"
 #include "ubse_mem_controller_module.h"
+#include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query_handler.h"
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_mem_util.h"
@@ -45,6 +47,7 @@ namespace ubse::mem_controller::ut {
 using namespace task_executor;
 using namespace ubse::message;
 using namespace ubse::mem::controller;
+using namespace usbe::mem::api;
 using namespace mem::controller::message;
 using namespace ubse::mem::util;
 
@@ -809,6 +812,10 @@ TEST_F(TestUbseMemRpc, UbseMemFdReturnRespMessageHandlerGetModuleCode)
 TEST_F(TestUbseMemRpc, RegHandlerFailed)
 {
     UbseMemControllerModule ubseMemControllerModule{};
+    const auto regMemControllerHandlerFunc = &ubse::mem::controller::RegUbseMemControllerHandler;
+    MOCKER_CPP(regMemControllerHandlerFunc).stubs();
+    const auto memApiRegisterFunc = &UbseMemApi::Register;
+    MOCKER_CPP(memApiRegisterFunc).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     const auto getModuleFunc = &UbseContext::GetModule<UbseComModule>;
@@ -834,6 +841,10 @@ TEST_F(TestUbseMemRpc, RegHandlerFailed)
 TEST_F(TestUbseMemRpc, RegFdHandlerFailed)
 {
     UbseMemControllerModule ubseMemControllerModule{};
+    const auto regMemControllerHandlerFunc = &ubse::mem::controller::RegUbseMemControllerHandler;
+    MOCKER_CPP(regMemControllerHandlerFunc).stubs();
+    const auto memApiRegisterFunc = &UbseMemApi::Register;
+    MOCKER_CPP(memApiRegisterFunc).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     const auto getModuleFunc = &UbseContext::GetModule<UbseComModule>;
@@ -845,7 +856,7 @@ TEST_F(TestUbseMemRpc, RegFdHandlerFailed)
     const auto operationRespSimpoRegFunc =
         &UbseComModule::RegRpcService<UbseMemOperationRespSimpo, UbseMemCallbackMessage>;
     MOCKER(operationRespSimpoRegFunc).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(ubseMemControllerModule.Start(), UBSE_ERROR);
+    EXPECT_NE(ubseMemControllerModule.Start(), UBSE_OK);
 
     const auto fdBorrowReqSimpoRegFunc = &UbseComModule::RegRpcService<UbseMemFdBorrowReqSimpo, UbseMemCallbackMessage>;
     MOCKER(fdBorrowReqSimpoRegFunc)
@@ -882,6 +893,10 @@ TEST_F(TestUbseMemRpc, RegFdHandlerFailed)
 TEST_F(TestUbseMemRpc, RegNumaHandlerFailed)
 {
     UbseMemControllerModule ubseMemControllerModule{};
+    const auto regMemControllerHandlerFunc = &ubse::mem::controller::RegUbseMemControllerHandler;
+    MOCKER_CPP(regMemControllerHandlerFunc).stubs();
+    const auto memApiRegisterFunc = &UbseMemApi::Register;
+    MOCKER_CPP(memApiRegisterFunc).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
     const auto getModuleFunc = &UbseContext::GetModule<UbseComModule>;

@@ -13,6 +13,7 @@
 #include "ubse_conf_module.h"
 
 #include <cstddef> // for size_t
+#include <fstream>
 #include <regex>
 #include <vector>
 
@@ -33,6 +34,7 @@ BASE_DYNAMIC_CREATE(UbseConfModule, ubse::security::UbseSecurityModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string CONFIG_DEFAULT_DIR = "/etc/ubse";
+const std::string UB_FEATURE_PATH = "/sys/bus/ub/ub_feature";
 
 std::tuple<std::string, std::string, std::string> TrimConf(const std::string& section, const std::string& configKey,
                                                            const std::string& configVal = "");
@@ -86,6 +88,7 @@ UbseResult UbseConfModule::Initialize()
             confMgrRef.AddConfig(result->section, result->key, result->value);
         }
     }
+    LoadUbFeature();
     return UBSE_OK;
 }
 
@@ -106,6 +109,85 @@ UbseResult UbseConfModule::GetAllConfigWithPrefix(const std::string& sectionPref
 {
     auto trimPrefix = Trim(sectionPrefix);
     return UbseConfigManager::GetInstance().GetAllConf(trimPrefix, configVals);
+}
+
+void UbseConfModule::LoadUbFeature()
+{
+    ubFeature_.store(UB_FEATURE_ALL_MASK);
+    std::ifstream featureFile(UB_FEATURE_PATH);
+    if (!featureFile.is_open()) {
+        UBSE_LOG_WARN << "Unable to open " << UB_FEATURE_PATH << ", use default all ub features.";
+        return;
+    }
+
+    std::string featureValue;
+    if (!std::getline(featureFile, featureValue)) {
+        UBSE_LOG_WARN << "Unable to read " << UB_FEATURE_PATH << ", use default all ub features.";
+        return;
+    }
+
+    featureValue = Trim(featureValue);
+    try {
+        size_t pos = 0;
+        const uint64_t value = std::stoull(featureValue, &pos, 0);
+        if (pos != featureValue.size()) {
+            UBSE_LOG_WARN << "Invalid ub feature value=" << featureValue << ", use default all ub features.";
+            return;
+        }
+        ubFeature_.store(value);
+        UBSE_LOG_INFO << "Load ub feature success, value=" << value;
+    } catch (const std::invalid_argument&) {
+        UBSE_LOG_WARN << "Invalid ub feature value=" << featureValue << ", use default all ub features.";
+    } catch (const std::out_of_range&) {
+        UBSE_LOG_WARN << "Ub feature value out of range=" << featureValue << ", use default all ub features.";
+    }
+}
+
+bool UbseConfModule::IsUbFeatureSupported(uint64_t featureMask) const
+{
+    const auto ubFeature = ubFeature_.load();
+    return (ubFeature & featureMask) == featureMask;
+}
+
+bool UbseConfModule::IsUrmaSupported() const
+{
+    const auto ubFeature = ubFeature_.load();
+    return (ubFeature & UB_URMA_ALL_MASK) != 0;
+}
+
+bool UbseConfModule::IsMemBorrowNcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_BORROW_NC_MASK);
+}
+
+bool UbseConfModule::IsMemBorrowCcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_BORROW_CC_MASK);
+}
+
+bool UbseConfModule::IsMemShareNcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_SHARE_NC_MASK);
+}
+
+bool UbseConfModule::IsMemShareCcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_SHARE_CC_MASK);
+}
+
+bool UbseConfModule::IsMemBorrowSupported() const
+{
+    return IsMemBorrowNcSupported() || IsMemBorrowCcSupported();
+}
+
+bool UbseConfModule::IsMemShareSupported() const
+{
+    return IsMemShareNcSupported() || IsMemShareCcSupported();
+}
+
+bool UbseConfModule::IsMemSupported() const
+{
+    return IsMemBorrowSupported() || IsMemShareSupported();
 }
 
 template <typename T>

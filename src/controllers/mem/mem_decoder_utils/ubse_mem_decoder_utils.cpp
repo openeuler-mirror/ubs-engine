@@ -12,6 +12,7 @@
 #include "ubse_mem_decoder_utils.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
+#include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_prehandle_manager.h"
@@ -303,7 +304,7 @@ UbseResult MemDecoderUtils::GetAllHandleFromNumaImportObj(DecoderLocTohandleDcna
 void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam)
 {
     importParam.importType = UB_MEMORY_IMPORT_MEMORY;
-    importParam.decoderIdx = 0;
+    importParam.decoderIdx = ubse::config::UbseIsMemBorrowCcSupported() ? 0 : 1;
     importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
     importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
 }
@@ -335,7 +336,7 @@ void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam& 
 void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam, uint16_t wrDelayComp)
 {
     importParam.importType = UB_MEMORY_IMPORT_MEMORY;
-    importParam.decoderIdx = 0;
+    importParam.decoderIdx = ubse::config::UbseIsMemBorrowCcSupported() ? 0 : 1;
     importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
     importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
     if (wrDelayComp == 1) {

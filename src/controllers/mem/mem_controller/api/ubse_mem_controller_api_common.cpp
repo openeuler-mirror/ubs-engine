@@ -17,6 +17,7 @@
 #include <shared_mutex>
 
 #include "ubse_com_module.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -45,11 +46,13 @@ using namespace message;
 using namespace ubse::mem::strategy;
 using namespace adapter_plugins::mti::mami;
 using namespace adapter_plugins::mti;
+using namespace ubse::config;
 static uint32_t MAX_WAIT_TIME(ubse::mem::strategy::API_TIME_OUT); // 单位:second
 std::atomic<uint64_t> g_fdUnimportFailedCount{0};
 std::atomic<uint64_t> g_numaUnimportFailedCount{0};
 std::atomic<uint64_t> g_shareUnimportFailedCount{0};
 std::atomic<uint64_t> g_addrUnimportFailedCount{0};
+const std::string MEM_FEATURE_NOT_SUPPORTED_MSG = "Memory feature is unsupported.";
 
 std::shared_mutex g_decoderImportMutex;
 
@@ -61,6 +64,41 @@ std::shared_mutex& GetDecoderImportMutex()
 bool IsSdkRequest(uint64_t requestId)
 {
     return UbseRequestIdUtil::ParseRequestType(requestId) == ubse::utils::UbseRequestType::SDK_REQUEST;
+}
+
+bool IsMemBorrowFeatureSupported()
+{
+    if (UbseIsMemBorrowSupported()) {
+        return true;
+    }
+    UBSE_LOG_WARN << "Memory borrow feature is unsupported.";
+    return false;
+}
+
+bool IsMemShareFeatureSupported()
+{
+    if (UbseIsMemShareSupported()) {
+        return true;
+    }
+    UBSE_LOG_WARN << "Memory share feature is unsupported.";
+    return false;
+}
+
+bool IsMemShareModeFeatureSupported(uint16_t cacheableFlag)
+{
+    const bool supported = cacheableFlag == 1 ? UbseIsMemShareCcSupported() : UbseIsMemShareNcSupported();
+    if (supported) {
+        return true;
+    }
+    UBSE_LOG_WARN << "Memory share mode is unsupported, cacheableFlag=" << cacheableFlag;
+    return false;
+}
+
+uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp &resp, const std::string &name,
+                                         const std::string &requestNodeId, MemOperationType type)
+{
+    return BuildOperationRespWhenFail(resp, name, requestNodeId, MEM_FEATURE_NOT_SUPPORTED_MSG,
+                                      UBSE_ERR_NOT_SUPPORTED, type);
 }
 
 void SendParamSwitcher(const MemOperationType& type, SendParam& sendParam)

@@ -295,6 +295,9 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq& req, UbseMemOperationRe
     auto name = normalizedReq.name;
     resp.name = name;
     resp.requestId = normalizedReq.requestId;
+    if (!IsMemShareModeFeatureSupported(normalizedReq.ubseMemPrivData.cacheableFlag)) {
+        return BuildMemFeatureNotSupportedResp(resp, name, requestNodeId, MemOperationType::SHARED_BORROW);
+    }
     std::vector<UbseMemShareBorrowExportObj> exportObjs;
     std::vector<UbseMemShareBorrowImportObj> importObjs;
     FindShareBorrowObjByNameWhenBorrow(name, exportObjs, importObjs);
@@ -675,6 +678,34 @@ uint32_t GetCnaTopoByPeerNodeInfo(const UbseMemShareAttachReq& req, const UbseMe
     return UBSE_OK;
 }
 
+uint32_t PrepareShareAttachImportObj(const UbseMemShareAttachReq& req, UbseMemOperationResp& resp,
+                                     UbseMemShareBorrowImportObj& importObj)
+{
+    std::vector<UbseMemShareBorrowExportObj> exportObjs{};
+    std::vector<UbseMemShareBorrowImportObj> importObjs{};
+    FindShareBorrowObjByName(req.name, exportObjs, importObjs);
+    if (const auto ret = ShmAttachPreCheck(req, resp, exportObjs, importObjs, importObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "precheck failed, " << FormatRetCode(ret) << ", requestId=" << req.requestId;
+        return ret;
+    }
+    if (!IsMemShareModeFeatureSupported(exportObjs[0].req.ubseMemPrivData.cacheableFlag)) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_ATTACH);
+    }
+
+    importObj.exportObmmInfo = exportObjs[0].status.exportObmmInfo;
+    importObj.algoResult = exportObjs[0].algoResult;
+    importObj.req = exportObjs[0].req;
+    if (GetCnaTopoByPeerNodeInfo(req, exportObjs[0], resp, importObj) == UBSE_OK) {
+        return UBSE_OK;
+    }
+
+    BorrowFailedAdvice(ProcessType::BORROW_FAILED, req.name, "SHARE_BORROW", req.size,
+                       importObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, UBSE_ERR_INTERNAL,
+                       MemAdvice::INTERNAL_FAILED);
+    return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "Failed to get cna info when import",
+                                      UBSE_ERR_INTERNAL, MemOperationType::SHARED_ATTACH);
+}
+
 uint32_t UbseMemShareAttach(const UbseMemShareAttachReq& req, UbseMemOperationResp& resp)
 {
     UBSE_LOG_INFO << "Share attach begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
@@ -683,30 +714,19 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq& req, UbseMemOperationRe
     // deleteAndBorrowLock 避免attach时获取到export对象后, delete紧跟着对export进行删除,导致单边导入账本
     auto deleteAndBorrowLock = LoggingLockGuard(req.name, LoggingLockGuard::LockType::READ);
     resp.requestId = req.requestId;
+    if (!IsMemShareFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_ATTACH);
+    }
     if (req.importNodeId.empty()) {
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "attach with no node is valid.",
                                           UBSE_ERR_SHM_NODE_EMPTY, MemOperationType::SHARED_ATTACH);
     }
     UbseNodeControllerLockMgr::WriteLock(ClusterHandlerKey);
-    std::vector<UbseMemShareBorrowExportObj> exportObjs{};
-    std::vector<UbseMemShareBorrowImportObj> importObjs{};
-    FindShareBorrowObjByName(req.name, exportObjs, importObjs);
     UbseMemShareBorrowImportObj importObj{};
-    if (const auto ret = ShmAttachPreCheck(req, resp, exportObjs, importObjs, importObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "precheck failed, " << FormatRetCode(ret) << ", requestId=" << req.requestId;
+    auto ret = PrepareShareAttachImportObj(req, resp, importObj);
+    if (ret != UBSE_OK) {
         UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
         return ret;
-    }
-    importObj.exportObmmInfo = exportObjs[0].status.exportObmmInfo;
-    importObj.algoResult = exportObjs[0].algoResult;
-    importObj.req = exportObjs[0].req;
-    if (GetCnaTopoByPeerNodeInfo(req, exportObjs[0], resp, importObj) != UBSE_OK) {
-        UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
-        BorrowFailedAdvice(ProcessType::BORROW_FAILED, req.name, "SHARE_BORROW", req.size,
-                           importObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, UBSE_ERR_INTERNAL,
-                           MemAdvice::INTERNAL_FAILED);
-        return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "Failed to get cna info when import",
-                                          UBSE_ERR_INTERNAL, MemOperationType::SHARED_ATTACH);
     }
     importObj.req.trustRingData.ClearReqSignedDataMemory(); // 清除import对象里请求签名信息
     UBSE_LOG_INFO << "import size=" << importObj.req.size << ", requestId=" << req.requestId;
@@ -749,6 +769,9 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq& req, UbseMemOperationRe
                   << ", requestId=" << req.requestId << ", realRequestNodeId=" << realRequestNodeId;
     auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
     resp.requestId = req.requestId;
+    if (!IsMemShareFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_DETACH);
+    }
     if (req.unImportNodeId.empty()) {
         return ShareDetachFailed(req, resp, "Detach with no node is valid.", UBSE_ERR_SHM_NODE_EMPTY,
                                  MemAdvice::NODE_IN_MAINTENANCE);
@@ -1410,6 +1433,9 @@ uint32_t UbseMemShareReturn(const UbseMemReturnReq& req, UbseMemOperationResp& r
                   << ", requestId=" << req.requestId << ", realRequestNodeId=" << realRequestNodeId;
     auto lock = LoggingLockGuard(req.name);
     InitializeResponse(req, resp);
+    if (!IsMemShareFeatureSupported()) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_RETURN);
+    }
     UbseMemShareBorrowExportObj exportObj;
     uint32_t comErrorCode = UBSE_OK;
     if (auto ret = ShareReturnValidate(req, resp, realRequestNodeId, exportObj, comErrorCode); ret != UBSE_OK) {

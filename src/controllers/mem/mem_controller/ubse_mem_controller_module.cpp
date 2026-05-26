@@ -6,10 +6,13 @@
 #include <atomic>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
+#include "ubse_conf.h"
+#include "ubse_mem_api.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_mem_controller_fault_handle.h"
+#include "ubse_mem_controller_msg.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_rpc_processor.h"
@@ -25,6 +28,7 @@ namespace ubse::mem::controller {
 using namespace ubse::mem::controller::agent;
 using namespace ubse::mem::controller::rpc;
 using namespace ubse::mmi;
+using namespace ubse::config;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
 DYNAMIC_CREATE(UbseMemControllerModule, UbseMmiModule);
@@ -128,9 +132,15 @@ uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo& node)
 
 UbseResult UbseMemControllerModule::Initialize()
 {
+    enabled_ = UbseIsMemSupported();
     auto ret = CreateTaskExecutor();
     if (ret != UBSE_OK) {
         return ret;
+    }
+    if (!enabled_) {
+        UBSE_LOG_INFO
+            << "Memory borrow and share features are unsupported, keep mem executor and skip background init.";
+        return UBSE_OK;
     }
     RegisterNodeCtlNotify();
     UbseNodeController::GetInstance().RegLocalStateNotifyHandler(EnableCycleCheck);
@@ -148,18 +158,27 @@ UbseResult UbseMemControllerModule::Initialize()
 
 void UbseMemControllerModule::UnInitialize()
 {
+    if (!enabled_) {
+        return;
+    }
     ubse::mem::controller::UnInit();
     ubse::timer::UbseTimerHandlerUnregister("handleCheckTimer");
 }
 
 UbseResult UbseMemControllerModule::Start()
 {
-    ubse::mem::controller::Init();
-    if (auto ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
+    UbseResult ret = UBSE_OK;
+    RegUbseMemControllerHandler();
+    ret = usbe::mem::api::UbseMemApi::Register();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register UbseMem IPC-API failed," << FormatRetCode(ret);
+        return ret;
+    }
+    if (ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to reg mem schedule handler.";
         return ret;
     }
-    UbseResult ret = RegMemControllerHandler();
+    ret = RegMemControllerHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to reg MemControllerHandler.";
         return ret;
@@ -169,22 +188,38 @@ UbseResult UbseMemControllerModule::Start()
         UBSE_LOG_ERROR << "Failed to reg UbseMemControllerDispatcher.";
         return ret;
     }
-    ret = UbseMemFaultManager::InitMemFaultManager();
+
+    ret = ubse::mem::controller::agent::Init();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to initialize mem fault handler.";
         return ret;
     }
 
-    ret = UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to reg UbseMemGetOptResultHandler.";
-        return ret;
+    if (enabled_) {
+        ret = ubse::mem::controller::Init();
+        if (ret != UBSE_OK) {
+            return ret;
+        }
+
+        ret = UbseMemFaultManager::InitMemFaultManager();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to initialize mem fault handler.";
+            return ret;
+        }
+
+        ret = UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to reg UbseMemGetOptResultHandler.";
+            return ret;
+        }
     }
-    return ubse::mem::controller::agent::Init();
+    return UBSE_OK;
 }
 
 void UbseMemControllerModule::Stop()
 {
+    if (!enabled_) {
+        return;
+    }
     auto ret = UbseMemFaultManager::DeInitMemFaultManager();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to delete mem fault handler.";

@@ -34,6 +34,7 @@ static const std::string URMA_NODE_STATE_ERROR = "ERROR: Node state is abnormal,
 static const std::string URMA_NODE_ID_ERROR =
     "ERROR: Invalid request param,The option is as follow: node-id(1 ~ max node-id).";
 static const std::string URMA_EMPTY_ERROR = "ERROR: The urma List is empty.";
+static const std::string URMA_NOT_SUPPORTED_ERROR = "ERROR: URMA feature is not supported.";
 static const std::string URMA_ACTIVATE_OPTION_DES =
     "Query urma information for a specific node. Parameter 'node' between 1 and the maximum node ID.";
 static const std::string URMA_QUERY_OPTION_DES_NODE =
@@ -163,6 +164,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(URMA_NOT_SUPPORTED_ERROR);
+    }
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
     }
@@ -259,6 +263,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(URMA_NOT_SUPPORTED_ERROR);
+    }
     if (ret == UBSE_ERR_NOT_EXIST) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
@@ -306,6 +313,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseActivateUrmaDevInfo
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_DEV_ACTIVATE, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
+    if (ret == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(URMA_NOT_SUPPORTED_ERROR);
+    }
     if (ret == UBSE_ERROR_INVAL) {
         return UbseCliStringPromptReply(URMA_NODE_STATE_ERROR);
     }

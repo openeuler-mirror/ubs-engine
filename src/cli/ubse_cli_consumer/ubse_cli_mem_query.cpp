@@ -64,6 +64,8 @@ public:
     {
         if (errorCode_ == UBSE_ERR_NOT_EXIST) {
             return UbseCliRegModule::UbseCliStringPromptReply(memory::error::MEM_QUERY_NOT_EXIST_IN_CREATING);
+        } else if (errorCode_ == UBSE_ERR_NOT_SUPPORTED) {
+            return UbseCliRegModule::UbseCliStringPromptReply(GetErrorMessage(errorCode_));
         } else {
             return UbseCliRegModule::UbseCliStringPromptReply(errorMsg_ +
                                                               " The failure occurred during the query process.");
@@ -209,6 +211,8 @@ public:
                 // 处理获取失败
                 if (errorCode_ == UBSE_ERR_NOT_EXIST) {
                     return UbseCliRegModule::UbseCliStringPromptReply(memory::error::MEM_QUERY_NOT_EXIST_IN_CREATING);
+                } else if (errorCode_ == UBSE_ERR_NOT_SUPPORTED) {
+                    return UbseCliRegModule::UbseCliStringPromptReply(GetErrorMessage(errorCode_));
                 } else {
                     return UbseCliRegModule::UbseCliStringPromptReply(
                         errorMsg_ + " The failure occurred during the query process.");
@@ -357,7 +361,7 @@ public:
                                         &ubse_req_account_buffer, &ubse_res_account_buffer);
             UbseCliBufferGuard ubseCliBufferGuardForAccount(ubse_res_account_buffer);
             if (ret != UBSE_OK) {
-                errorMsg_ = std::string("ERROR: Internal error with error code " + std::to_string(ret));
+                errorMsg_ = GetErrorMessage(ret);
                 return false;
             }
             UbseDeSerialization ubse_account_res_serial(ubse_res_account_buffer.buffer, ubse_res_account_buffer.length);

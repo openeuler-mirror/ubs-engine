@@ -12,6 +12,7 @@
 
 #ifndef UBSE_CONF_MODULE_H
 #define UBSE_CONF_MODULE_H
+#include <atomic>
 #include <cstdint> // for uint32_t, uint64_t, UINT32_MAX, UINT64_MAX
 #include <functional>
 #include <map> // for map
@@ -20,6 +21,7 @@
 #include <type_traits> // for is_same, remove_extent_t
 
 #include "ubse_common_def.h" // for UbseResult
+#include "ubse_conf.h"
 #include "ubse_error.h"      // for UBSE_OK
 #include "ubse_module.h"     // for UbseModule
 
@@ -75,7 +77,27 @@ public:
     UbseResult GetAllConfigWithPrefix(const std::string& sectionPrefix,
                                       std::map<std::string, std::map<std::string, std::string>>& configVals);
 
+    bool IsUbFeatureSupported(uint64_t featureMask) const;
+
+    bool IsUrmaSupported() const;
+
+    bool IsMemBorrowNcSupported() const;
+
+    bool IsMemBorrowCcSupported() const;
+
+    bool IsMemShareNcSupported() const;
+
+    bool IsMemShareCcSupported() const;
+
+    bool IsMemBorrowSupported() const;
+
+    bool IsMemShareSupported() const;
+
+    bool IsMemSupported() const;
+
 private:
+    void LoadUbFeature();
+
     UbseResult GetUIntConf(const std::string& section, const std::string& configKey, uint32_t& configVal);
 
     UbseResult GetULongConf(const std::string& section, const std::string& configKey, uint64_t& configVal);
@@ -88,6 +110,7 @@ private:
 
     std::string configDefaultDir_;
     std::string confCliDir_;
+    std::atomic<uint64_t> ubFeature_{UB_FEATURE_ALL_MASK};
 };
 
 bool IsValidNumber(const std::string& str, bool allowFloating = false);

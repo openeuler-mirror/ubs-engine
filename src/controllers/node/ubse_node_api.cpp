@@ -12,6 +12,7 @@
 #include "ubse_node_api.h"
 
 #include "ubse_api_server_module.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_logger.h"
@@ -113,6 +114,10 @@ uint32_t UbseNodeApi::UbseServerCpuTopoList(const UbseIpcMessage& req, const Ubs
 
 uint32_t UbseNodeApi::UbseServerNodeNumaMemGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+
     uint32_t slotId{};
     auto ret = UbseSlotIdUnpack(req, slotId);
     if (ret != UBSE_OK) {
