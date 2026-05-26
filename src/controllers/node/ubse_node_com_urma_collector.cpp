@@ -21,7 +21,7 @@
 #include "ubse_smbios.h"
 #include "ubse_smbios_impl.h"
 #include "ubse_str_util.h"
-#include "ubse_mti_eid_util.h"
+#include "ubse_mti_eid_interface.h"
 #include "ubse_urma_uvs_module.h"
 
 #include "adapter_plugins/mti/ubse_mti_interface.h"
