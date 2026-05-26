@@ -12,15 +12,14 @@
 #include "process_mem_pid_info_manager.h"
 
 #include <mutex>
-#include <vector>
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_timer.h"
 #include "process_mem_pid_collect.h"
 #include "process_mem_pid_config_manager.h"
-#include "src/framework/config/ubse_conf.h"
-#include "src/include/ubse_mem_controller.h"
+#include "ubse_conf.h"
+#include "ubse_mem_controller.h"
 
 #include "ubse_node_controller.h"
 #include "process_mem_pid_bridge.h"
@@ -56,14 +55,38 @@ uint32_t ProcessMemPidInfoManager::UpdatePidMemBorrowInfo(pid_t pid,
     return UBSE_OK;
 }
 
+uint32_t MigrateOut(const def::ProcessMemPidInfo& pidInfo, uint64_t targetRemoteMemory);
+bool GetMigrateResult(pid_t pid, int64_t remoteNumaId, uint64_t expectSize, bool isBack);
+
 void ProcessMemPidInfoManager::DeletePidMemBorrowInfo(pid_t pid, const std::string& borrowName)
 {
-    std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
-    auto pidIt = pidInfoMap.find(pid);
-    if (pidIt == pidInfoMap.end()) {
+    int remoteNumaId = -1;
+    {
+        std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
+        auto pidIt = pidInfoMap.find(pid);
+        if (pidIt == pidInfoMap.end()) {
+            return;
+        }
+        pidIt->second.memBorrowInfo.debtInfos.erase(borrowName);
+        if (!pidIt->second.memBorrowInfo.debtInfos.empty()) {
+            return;
+        }
+        remoteNumaId = pidIt->second.memBorrowInfo.remoteNumaId;
+        pidIt->second.memBorrowInfo = {};
+    }
+    if (remoteNumaId == -1) {
         return;
     }
-    pidIt->second.memBorrowInfo.debtInfos.erase(borrowName);
+    def::ProcessMemPidInfo tmpInfo{};
+    tmpInfo.configInfo.pid = pid;
+    tmpInfo.memBorrowInfo.remoteNumaId = remoteNumaId;
+    MigrateOut(tmpInfo, 0);
+    bool res = GetMigrateResult(pid, static_cast<int64_t>(remoteNumaId), 0, true);
+    if (!res) {
+        UBSE_LOG_ERROR << "MigrateOut failed, pid=" << pid;
+    }
+    std::vector<pid_t> pids = {pid};
+    pid::bridge::ProcessMemPidBridge::rmrmRemove(static_cast<uint16_t>(remoteNumaId), pids, 0);
 }
 
 void ProcessMemPidInfoManager::ResetPidMemBorrowInfo(pid_t pid)
@@ -91,8 +114,8 @@ void ProcessMemPidInfoManager::SetPidInfoMap(const def::ProcessMemPidInfo& pidIn
                           : "N/A";
     UBSE_LOG_INFO << "srcNuma Id is " << srcNumaStr;
     if (!existsInPidMap) {
-        pidInfoMap.insert_or_assign(pidInfo.configInfo.pid, pidInfo);
         ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo);
+        pidInfoMap.insert_or_assign(pidInfo.configInfo.pid, pidInfo);
         return;
     }
 
@@ -304,10 +327,6 @@ uint32_t GetUbseMemBorrower(const def::ProcessMemPidInfo& pidInfo, ubse::mem::co
             }
         }
     }
-    if (borrower.affinitySocketId == -1) {
-        UBSE_LOG_ERROR << "Get affinitySocketId failed";
-        return UBSE_ERROR;
-    }
     return UBSE_OK;
 }
 
@@ -342,11 +361,11 @@ uint32_t MigrateOut(const def::ProcessMemPidInfo& pidInfo, uint64_t targetRemote
     constexpr uint64_t pageSizeKb = 4;
     memSizeKb = memSizeKb / pageSizeKb * pageSizeKb;
 
-    pid::bridge::MigrateOutPayload payload{};
-    std::vector<pid::bridge::MigrateOutPayload> payloads{};
-    pid::bridge::MigrateOutPayloadInner inner{};
+    mempooling::smap::MigrateOutPayload payload{};
+    std::vector<mempooling::smap::MigrateOutPayload> payloads{};
+    mempooling::smap::MigrateOutPayloadInner inner{};
     payload.count = 1;
-    inner.migrateMode = pid::bridge::MigrateMode::MIG_MEMSIZE_MODE;
+    inner.migrateMode = mempooling::smap::MIG_MEMSIZE_MODE;
     inner.memSize = memSizeKb;
     payload.pid = pidInfo.configInfo.pid;
     inner.destNid = pidInfo.memBorrowInfo.remoteNumaId;
@@ -560,5 +579,401 @@ uint32_t MemoryCheckHandle(def::ProcessMemPidInfo& info, const std::unordered_ma
     return UBSE_OK;
 }
 
+uint32_t ProcessMemPidInfoManager::PerPidMemoryCheckCallBack(pid_t pid,
+                                                             const std::unordered_map<uint32_t, size_t>& numaMemory)
+{
+    if (!isRecoverCompleted_) {
+        UBSE_LOG_INFO << "isRecoverCompleted_ is false";
+        return UBSE_OK;
+    }
+    def::ProcessMemPidInfo info;
+    {
+        std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
+        auto pidIt = pidInfoMap.find(pid);
+        if (pidIt == pidInfoMap.end()) {
+            return UBSE_OK;
+        }
+        if (pidIt->second.processStatus == def::ProcessStatus::FAULT) {
+            return UBSE_OK;
+        }
+        info = pidIt->second;
+    }
+    for (const auto& [key, value] : numaMemory) {
+        UBSE_LOG_INFO << "pid is " << pid << ", numaId is " << key << ", size is " << value;
+    }
+
+    UBSE_LOG_INFO << "evictThreshold is " << info.configInfo.evictThreshold << "target evictThreshold is "
+                  << info.configInfo.targetEvictThreshold << "total used is" << info.configInfo.expectedMemoryUsage;
+    MemoryCheckHandle(info, numaMemory);
+    return UBSE_OK;
+}
+
+template <typename T>
+bool IsProcessMemDebt(const T& debt)
+{
+    def::ProcessMemUsrInfo usrInfo{};
+    if (memcpy_s(&usrInfo, sizeof(usrInfo), debt.usrInfo, sizeof(usrInfo)) != EOK) {
+        return false;
+    }
+    return usrInfo.pluginId == def::UsrInfoPluginType::PROCESS_MEM;
+}
+
+namespace {
+struct ProcessMemDebtEntry {
+    pid_t pid{};
+    ubse::mem::controller::UbseNumaMemoryImportDebtInfo debtInfo{};
+};
+
+std::vector<ProcessMemDebtEntry> CollectProcessMemImportDebts()
+{
+    std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debtInfos{};
+    auto ret = ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "RefreshBorrowInfo: query import debts failed, ret=" << ret;
+        return {};
+    }
+
+    std::vector<ProcessMemDebtEntry> result;
+    for (const auto& debtInfo : debtInfos) {
+        if (!IsProcessMemDebt(debtInfo)) {
+            continue;
+        }
+        def::ProcessMemUsrInfo usrInfo{};
+        if (memcpy_s(&usrInfo, sizeof(usrInfo), debtInfo.usrInfo, sizeof(usrInfo)) != EOK || usrInfo.pid <= 0) {
+            continue;
+        }
+        result.push_back({usrInfo.pid, debtInfo});
+    }
+    return result;
+}
+
+void ApplyImportDebtToBorrowInfo(def::BorrowInfo& borrowInfo,
+                                 const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debt)
+{
+    borrowInfo.remoteNumaId = debt.remoteNumaId;
+    if (!debt.borrowSocketIdList.empty()) {
+        borrowInfo.importSocketId = debt.borrowSocketIdList[0];
+    }
+}
+
+void MergeOrUpdateDebt(def::BorrowInfo& borrowInfo, const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debt)
+{
+    auto debtIt = borrowInfo.debtInfos.find(debt.name);
+    if (debtIt != borrowInfo.debtInfos.end()) {
+        debtIt->second.numaDesc.size = debt.size;
+        debtIt->second.numaDesc.numaId = debt.remoteNumaId;
+        return;
+    }
+
+    def::DebtInfo newDebt{};
+    newDebt.status = def::BorrowStatus::COMPLETED;
+    newDebt.numaDesc.name = debt.name;
+    newDebt.numaDesc.numaId = debt.remoteNumaId;
+    newDebt.numaDesc.size = debt.size;
+    memcpy_s(newDebt.numaDesc.usrInfo, ubse::mem::controller::UBSE_MAX_USR_INFO_LEN, debt.usrInfo,
+             ubse::mem::controller::UBSE_MAX_USR_INFO_LEN);
+    borrowInfo.debtInfos[debt.name] = newDebt;
+}
+
+void RemoveStaleDebts(def::BorrowInfo& borrowInfo, const std::unordered_set<std::string>& activeNames)
+{
+    auto& debtMap = borrowInfo.debtInfos;
+    for (auto it = debtMap.begin(); it != debtMap.end();) {
+        bool inUbse = activeNames.count(it->first) > 0;
+        if (inUbse) {
+            ++it;
+            continue;
+        }
+        // 不在 ubse 结果中：COMPLETED 账本已从远端清理，删除；CREATING 账本保留（除非超时）
+        if (it->second.status == def::BorrowStatus::CREATING) {
+            bool isTimeout = (std::chrono::steady_clock::now() - it->second.borrowStartTime) >
+                             std::chrono::seconds(g_borrowTimeOut);
+            if (!isTimeout) {
+                ++it;
+                continue;
+            }
+        }
+        UBSE_LOG_INFO << "RefreshBorrowInfo: remove stale debt " << it->first;
+        it = debtMap.erase(it);
+    }
+}
+
+} // namespace
+
+void ProcessMemPidInfoManager::RefreshBorrowInfo()
+{
+    auto entries = CollectProcessMemImportDebts();
+    if (entries.empty()) {
+        return;
+    }
+
+    // 收集 ubse 返回的运行态账本名称
+    std::unordered_map<pid_t, std::unordered_set<std::string>> activeDebts;
+    for (const auto& entry : entries) {
+        activeDebts[entry.pid].insert(entry.debtInfo.name);
+    }
+
+    {
+        std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
+
+        // 合并/更新运行态账本
+        for (const auto& entry : entries) {
+            auto pidIt = pidInfoMap.find(entry.pid);
+            if (pidIt == pidInfoMap.end()) {
+                continue;
+            }
+            auto& borrowInfo = pidIt->second.memBorrowInfo;
+            ApplyImportDebtToBorrowInfo(borrowInfo, entry.debtInfo);
+            MergeOrUpdateDebt(borrowInfo, entry.debtInfo);
+        }
+
+        // 清理不在 ubse 中的已完成账本，保留正在创建的账本
+        for (auto& [pid, pidInfo] : pidInfoMap) {
+            auto activeIt = activeDebts.find(pid);
+            if (activeIt != activeDebts.end()) {
+                RemoveStaleDebts(pidInfo.memBorrowInfo, activeIt->second);
+            }
+        }
+    }
+}
+
+void ProcessMemPidInfoManager::TotalMemoryCheckCallBack(const collect::CollectInfoMap& collectInfo)
+{
+    CheckFaultNodesRecovery();
+    RefreshBorrowInfo();
+    for (const auto& [pid, numaMemoryInfo] : collectInfo) {
+        auto ret = PerPidMemoryCheckCallBack(pid, numaMemoryInfo);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "PerPidMemoryCheckCallBack failed";
+        }
+    }
+}
+
+void ProcessMemPidInfoManager::UnsetPidInfo(pid_t pid)
+{
+    std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
+    auto pidIt = pidInfoMap.find(pid);
+    if (pidIt == pidInfoMap.end()) {
+        UBSE_LOG_INFO << "pid not found in pidInfoMap, pid is " << pid;
+        return;
+    }
+    UBSE_LOG_INFO << "pid has borrow info, pid is " << pid;
+    MigrateBackAndReturnMemory(pidIt->second);
+    ProcessMemPidConfigManager::DeletePidConfigInfo(pid);
+    pidInfoMap.erase(pid);
+}
+
+namespace {
+void RecoverSingleDebtInfo(std::unordered_map<pid_t, def::ProcessMemPidInfo>& pidInfoMap,
+                           const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debtInfo,
+                           ubse::task_executor::UbseTaskExecutorPtr& exceptionHandleExecutor)
+{
+    def::ProcessMemUsrInfo usrInfo{};
+    if (memcpy_s(&usrInfo, sizeof(usrInfo), debtInfo.usrInfo, sizeof(usrInfo)) != EOK) {
+        UBSE_LOG_ERROR << "memcpy_s usrInfo failed";
+        return;
+    }
+    UBSE_LOG_INFO << "RecoverSingleDebtInfo usrInfo: pluginId=" << static_cast<int>(usrInfo.pluginId)
+                  << ", pid=" << usrInfo.pid << ", startTime=" << usrInfo.startTime << ", name=" << debtInfo.name
+                  << ", size=" << debtInfo.size << ", remoteNumaId=" << debtInfo.remoteNumaId;
+    if (usrInfo.pluginId != def::UsrInfoPluginType::PROCESS_MEM) {
+        UBSE_LOG_DEBUG << "skip non-process_mem debt, pluginId=" << static_cast<int>(usrInfo.pluginId)
+                       << ", name=" << debtInfo.name;
+        return;
+    }
+
+    auto pidIt = pidInfoMap.find(usrInfo.pid);
+    if (pidIt == pidInfoMap.end()) {
+        UBSE_LOG_WARN << "pid not found, return memory, name=" << debtInfo.name;
+        exceptionHandleExecutor->Execute([name = debtInfo.name]() { ExceptionMemoryHandle(name); });
+        return;
+    }
+
+    def::DebtInfo newDebtInfo{};
+    newDebtInfo.status = def::BorrowStatus::COMPLETED;
+    newDebtInfo.numaDesc.name = debtInfo.name;
+    newDebtInfo.numaDesc.numaId = debtInfo.remoteNumaId;
+    newDebtInfo.numaDesc.size = debtInfo.size;
+    if (memcpy_s(newDebtInfo.numaDesc.usrInfo, ubse::mem::controller::UBSE_MAX_USR_INFO_LEN, debtInfo.usrInfo,
+                 ubse::mem::controller::UBSE_MAX_USR_INFO_LEN) != EOK) {
+        UBSE_LOG_ERROR << "memcpy_s newDebtInfo usrInfo failed";
+        return;
+    }
+    auto& borrowInfo = pidIt->second.memBorrowInfo;
+    borrowInfo.remoteNumaId = debtInfo.remoteNumaId;
+    if (!debtInfo.borrowSocketIdList.empty()) {
+        borrowInfo.importSocketId = debtInfo.borrowSocketIdList[0];
+    }
+    borrowInfo.debtInfos[debtInfo.name] = newDebtInfo;
+    UBSE_LOG_INFO << "Recover debt success, pid=" << usrInfo.pid << ", name=" << debtInfo.name
+                  << ", remoteNumaId=" << debtInfo.remoteNumaId;
+}
+} // namespace
+
+void ProcessMemPidInfoManager::RecoverAllDebtInfoData()
+{
+    UBSE_LOG_INFO << "RecoverAllDebtInfoData begin";
+    std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debtInfos{};
+    auto ret = ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "RecoverAllDebtInfoData failed, ret=" << ret << ", debtInfos.size=" << debtInfos.size();
+        return;
+    }
+    UBSE_LOG_INFO << "UbseGetNumaMemImportDebtInfoWithLocalNode success, total debtInfos=" << debtInfos.size();
+
+    uint32_t matchedCount = 0;
+    uint32_t recoveredCount = 0;
+    {
+        std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
+        UBSE_LOG_INFO << "current pidInfoMap size=" << pidInfoMap.size();
+        for (const auto& debtInfo : debtInfos) {
+            if (!IsProcessMemDebt(debtInfo)) {
+                continue;
+            }
+            ++matchedCount;
+            UBSE_LOG_INFO << "recovering debt: name=" << debtInfo.name << ", size=" << debtInfo.size
+                          << ", remoteNumaId=" << debtInfo.remoteNumaId;
+            RecoverSingleDebtInfo(pidInfoMap, debtInfo, exceptionHandleExecutor);
+            ++recoveredCount;
+        }
+    }
+    UBSE_LOG_INFO << "RecoverAllDebtInfoData matched=" << matchedCount << ", recovered=" << recoveredCount;
+    if (matchedCount == 0 && !debtInfos.empty()) {
+        UBSE_LOG_WARN << "no process_mem debts found among " << debtInfos.size() << " total debts";
+    }
+    isRecoverCompleted_ = true;
+    UBSE_LOG_INFO << "RecoverAllDebtInfoData completed, isRecoverCompleted_=true";
+}
+
+void ProcessMemPidInfoManager::HandleNodeFaultEvent(const std::string& lentNodeId)
+{
+    UBSE_LOG_INFO << "HandleNodeFaultEvent: lentNodeId=" << lentNodeId;
+
+    // 查询该故障节点相关的全量账本信息
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos{};
+    auto ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(lentNodeId, debtInfos);
+    if (ret != UBSE_OK && ret != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
+        UBSE_LOG_ERROR << "HandleNodeFaultEvent: query debts for node " << lentNodeId << " failed, ret=" << ret;
+        return;
+    }
+
+    // 筛选出本插件在该故障借出节点上的借出记录，获取受影响的 PID
+    std::unordered_set<pid_t> affectedPids;
+    for (const auto& debtInfo : debtInfos) {
+        if (debtInfo.lentNodeId != lentNodeId) {
+            continue;
+        }
+        if (!IsProcessMemDebt(debtInfo)) {
+            continue;
+        }
+        def::ProcessMemUsrInfo usrInfo{};
+        if (memcpy_s(&usrInfo, sizeof(usrInfo), debtInfo.usrInfo, sizeof(usrInfo)) != EOK) {
+            UBSE_LOG_WARN << "HandleNodeFaultEvent: memcpy_s usrInfo failed for debt " << debtInfo.name;
+            continue;
+        }
+        if (usrInfo.pid > 0) {
+            affectedPids.insert(usrInfo.pid);
+            UBSE_LOG_INFO << "HandleNodeFaultEvent: found affected pid=" << usrInfo.pid << ", debt=" << debtInfo.name;
+        }
+    }
+
+    if (affectedPids.empty()) {
+        UBSE_LOG_INFO << "HandleNodeFaultEvent: no affected PIDs for lentNodeId=" << lentNodeId;
+        return;
+    }
+
+    // 标记受影响的 PID 为 FAULT 状态
+    {
+        std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
+        for (auto pid : affectedPids) {
+            auto pidIt = pidInfoMap.find(pid);
+            if (pidIt != pidInfoMap.end()) {
+                pidIt->second.processStatus = def::ProcessStatus::FAULT;
+                UBSE_LOG_INFO << "HandleNodeFaultEvent: pid=" << pid << " set to FAULT";
+            } else {
+                UBSE_LOG_WARN << "HandleNodeFaultEvent: pid=" << pid << " not found in pidInfoMap";
+            }
+        }
+        faultedLentNodes_[lentNodeId] = std::move(affectedPids);
+    }
+}
+
+namespace {
+bool IsNodeRecovered(const std::string& lentNodeId)
+{
+    // 条件1: 账本中已无该节点的 ProcessMem 债务
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos{};
+    auto ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(lentNodeId, debtInfos);
+    if (ret == UBSE_OK) {
+        bool hasDebt = false;
+        for (const auto& debtInfo : debtInfos) {
+            if (debtInfo.lentNodeId == lentNodeId && IsProcessMemDebt(debtInfo)) {
+                hasDebt = true;
+                break;
+            }
+        }
+        if (!hasDebt) {
+            return true;
+        }
+    }
+
+    // 条件2: 节点集群状态已恢复为 WORKING
+    auto nodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetNodeById(lentNodeId);
+    return nodeInfo.clusterState == ubse::nodeController::UbseNodeClusterState::UBSE_NODE_WORKING;
+}
+
+void RestoreFaultPids(const std::vector<std::string>& recoveredNodes,
+                      std::unordered_map<std::string, std::unordered_set<pid_t>>& faultedLentNodes,
+                      std::unordered_map<pid_t, def::ProcessMemPidInfo>& pidInfoMap)
+{
+    for (const auto& nodeId : recoveredNodes) {
+        auto nodeIt = faultedLentNodes.find(nodeId);
+        if (nodeIt == faultedLentNodes.end()) {
+            continue;
+        }
+        for (auto pid : nodeIt->second) {
+            auto pidIt = pidInfoMap.find(pid);
+            if (pidIt != pidInfoMap.end() && pidIt->second.processStatus == def::ProcessStatus::FAULT) {
+                pidIt->second.processStatus = def::ProcessStatus::IDLE;
+                UBSE_LOG_INFO << "CheckFaultNodesRecovery: pid=" << pid << " restored to IDLE";
+            }
+        }
+        UBSE_LOG_INFO << "CheckFaultNodesRecovery: fault node " << nodeId << " removed, " << nodeIt->second.size()
+                      << " PIDs recovered";
+        faultedLentNodes.erase(nodeIt);
+    }
+}
+} // namespace
+
+void ProcessMemPidInfoManager::CheckFaultNodesRecovery()
+{
+    // 无锁复制故障节点列表，避免在持有锁时调用 Ubse 接口
+    std::unordered_map<std::string, std::unordered_set<pid_t>> faultedCopy;
+    {
+        std::shared_lock<std::shared_mutex> lock(pidInfoMutex);
+        if (faultedLentNodes_.empty()) {
+            return;
+        }
+        faultedCopy = faultedLentNodes_;
+    }
+
+    // 逐个检查故障节点是否已恢复
+    std::vector<std::string> recoveredNodes;
+    for (const auto& [lentNodeId, pids] : faultedCopy) {
+        if (pids.empty() || IsNodeRecovered(lentNodeId)) {
+            recoveredNodes.push_back(lentNodeId);
+        }
+    }
+
+    if (recoveredNodes.empty()) {
+        return;
+    }
+
+    // 恢复受影响的 PID 为 IDLE 状态
+    {
+        std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
+        RestoreFaultPids(recoveredNodes, faultedLentNodes_, pidInfoMap);
+    }
+}
 
 } // namespace process_mem::manager

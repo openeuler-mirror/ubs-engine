@@ -21,7 +21,7 @@
 #include "ubse_timer.h"
 #include "process_mem_pid_config_manager.h"
 #include "process_mem_pid_info_manager.h"
-#include "src/framework/config/ubse_conf.h"
+#include "ubse_conf.h"
 
 namespace process_mem::collect {
 UBSE_DEFINE_THIS_MODULE("process_mem");
@@ -89,7 +89,7 @@ uint32_t GetPidInfoByCollect(def::ProcessMemPidInfo& pidInfo, CollectInfoMap& pi
 uint32_t ProcessMemPidCollect::Init()
 {
     const std::string section = "process_mem.pid";
-    const std::string configKey = "collect.time";
+    const std::string configKey = "collect.interval";
     uint32_t collectInterval = 0;
     ubse::config::UbseGetUInt(section, configKey, collectInterval);
     constexpr uint32_t maxCollectInterval = 3600;
@@ -114,35 +114,51 @@ uint32_t ProcessMemPidCollect::CycleCollectNumaInfo()
     ProcessMemPidInfoManager::GetInstance().GetAllPidInfo(pidInfos);
     for (auto pidInfo : pidInfos) {
         bool isFaultPid = (pidInfo.processStatus == def::ProcessStatus::FAULT);
-        std::unordered_map<uint32_t, size_t> numaDistribution{};
         if (GetPidInfoByCollect(pidInfo, pidCollectInfo) != UBSE_OK) {
             if (!isFaultPid) {
                 ProcessMemPidInfoManager::GetInstance().UnsetPidInfo(pidInfo.configInfo.pid);
             }
             continue;
         }
-        auto childrenPids = GetChildrenPids(pidInfo.configInfo.pid);
-        for (auto pid : childrenPids) {
-            def::ProcessMemPidInfo childPidInfo{};
-            childPidInfo.ppid = pidInfo.configInfo.pid;
-            childPidInfo.configInfo = pidInfo.configInfo;
-            childPidInfo.configInfo.pid = pid;
-            childPidInfo.startTime = ProcessMemPidConfigManager::GetExactStartTime(pid);
-            ProcessMemPidInfoManager::GetInstance().SetPidInfoMap(childPidInfo);
-            if (GetPidInfoByCollect(childPidInfo, pidCollectInfo) != UBSE_OK) {
-                ProcessMemPidInfoManager::GetInstance().UnsetPidInfo(childPidInfo.configInfo.pid);
-            }
-        }
+        CollectChildPids(pidInfo.configInfo.pid, pidInfo.configInfo, pidCollectInfo);
     }
     decltype(collectHandlers) handlerCopy;
     {
         std::shared_lock<std::shared_mutex> lock(collectHandlersMutex);
         handlerCopy = collectHandlers;
     }
-    for (auto handler : handlerCopy) {
+    for (const auto& handler : handlerCopy) {
         handler.second(pidCollectInfo);
     }
     return UBSE_OK;
+}
+
+void ProcessMemPidCollect::CollectChildPids(pid_t parentPid, const def::ProcessMemPidConfigInfo& parentConfig,
+                                            CollectInfoMap& pidCollectInfo)
+{
+    auto childrenPids = GetChildrenPids(parentPid);
+    for (auto pid : childrenPids) {
+        def::ProcessMemPidInfo childPidInfo{};
+        childPidInfo.ppid = parentPid;
+        childPidInfo.configInfo = parentConfig;
+        childPidInfo.configInfo.pid = pid;
+        childPidInfo.startTime = ProcessMemPidConfigManager::GetExactStartTime(pid);
+
+        auto existingInfo = ProcessMemPidInfoManager::GetInstance().GetPidInfoMap(pid);
+        bool alreadyConfigured =
+            (existingInfo.configInfo.pid != -1 && existingInfo.startTime == childPidInfo.startTime);
+
+        if (GetPidInfoByCollect(childPidInfo, pidCollectInfo) != UBSE_OK) {
+            if (!alreadyConfigured) {
+                ProcessMemPidInfoManager::GetInstance().UnsetPidInfo(pid);
+            }
+            continue;
+        }
+
+        if (!alreadyConfigured) {
+            ProcessMemPidInfoManager::GetInstance().SetPidInfoMap(childPidInfo);
+        }
+    }
 }
 
 uint32_t ProcessMemPidCollect::RegisterCollectHandler(const std::string& name,

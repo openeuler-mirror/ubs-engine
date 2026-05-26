@@ -10,11 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_cli_mem_cmd_reg.h"
-#include <chrono>
-#include <future>
 #include <regex>
-#include <thread>
+#include "ubse_cli_mem_cmd_reg.h"
 
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_cli_mem_attach.h"
@@ -27,7 +24,6 @@
 #include "ubse_mem_controller.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
-#include "src/sdk/c/include/ubs_error.h"
 
 namespace ubse::cli::reg {
 UBSE_CLI_REGISTER_MODULE("CLI_MEM_MODULE", UbseCliRegMemModule);
@@ -36,136 +32,144 @@ using namespace ubse::serial;
 using namespace ubse::mem::controller;
 
 // public option reg
-static const std::string PUBLIC_NAME_OPTION = "name";
+constexpr const char* PUBLIC_NAME_OPTION = "name";
 // public option desc
-static const std::string PUBLIC_NAME_OPTION_TIP =
+constexpr const char* PUBLIC_NAME_OPTION_TIP =
     "Input a unique name. The name must not exceed 47 characters "
     "and can only include English letters, numbers, dots, colons, underscores, and hyphens.";
 // public option input error
-static const std::string PUBLIC_NAME_OPTION_REQUIRED =
+constexpr const char* PUBLIC_NAME_OPTION_REQUIRED =
     "ERROR: The request option -n or --name is required, and the supported name must not exceed 47 characters and can "
     "only include English letters, numbers, dots, colons, underscores, and hyphens.";
-static const std::string PUBLIC_NAME_PARAM_INVALID =
+constexpr const char* PUBLIC_NAME_PARAM_INVALID =
     "ERROR: Invalid name. The name must not exceed 47 characters and can only include English letters, numbers, dots, "
     "colons, underscores, and hyphens.";
 
 // display memory option reg
-static const std::string DISPLAY_MEM_T_OPTION = "type";
-static const std::string DISPLAY_MEM_BT_OPTION = "borrow-type";
-static const std::string DISPLAY_MEM_N_OPTION = "name";
+constexpr const char* DISPLAY_MEM_T_OPTION = "type";
+constexpr const char* DISPLAY_MEM_BT_OPTION = "borrow-type";
+constexpr const char* DISPLAY_MEM_N_OPTION = "name";
 // display memory option desc
-static const std::string DISPLAY_MEM_TYPE_OPTION_TIP =
+constexpr const char* DISPLAY_MEM_TYPE_OPTION_TIP =
     "Query the memory information of a specified option. The option is as follows: node_borrow, borrow_detail, "
     "node_lend, numa_status, config.";
-static const std::string DISPLAY_MEM_BORROW_TYPE_OPTION_TIP =
+constexpr const char* DISPLAY_MEM_BORROW_TYPE_OPTION_TIP =
     "Input the borrow-type to filter memory account. The option is as follows: "
     "fd, numa, share. Supported only when the type parameter is borrow_detail.";
-static const std::string DISPLAY_MEM_NAME_OPTION_TIP =
+constexpr const char* DISPLAY_MEM_NAME_OPTION_TIP =
     "Input a unique name to filter memory account. The name must not exceed 47 characters and can only include English "
     "letters, numbers, dots, colons, underscores, and hyphens. Supported only when the type parameter is "
     "borrow_detail.";
 // display memory option input error
-static const std::string DISPLAY_MEM_TYPE_OPTION_REQUIRED =
+constexpr const char* DISPLAY_MEM_TYPE_OPTION_REQUIRED =
     "ERROR: The request option -t or --type is required, and the supported param is as follows: node_borrow, "
     "borrow_detail, node_lend, numa_status, config, pidInfo.";
-static const std::string DISPLAY_MEM_TYPE_PARAM_INVALID =
+constexpr const char* DISPLAY_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: node_borrow, "
     "borrow_detail, node_lend, numa_status, config, pidInfo.";
-static const std::string DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID =
+constexpr const char* DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID =
     "ERROR: Invalid borrow-type. The supported param is as follows: numa, fd, share.";
-static const std::string DISPLAY_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* DISPLAY_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
 
-const std::string PID_OPTION = "pid";
-const std::string PID_OPTION_TIP = "Input the pid.";
-const std::string EVICT_THRESHOLD_OPTION = "evict-thresh";
-const std::string TARGET_EVICT_THRESHOLD_OPTION = "target-evict-thresh";
-const std::string RECLAIM_THRESHOLD_OPTION = "reclaim-thresh";
-const std::string THRESHOLD_OPTION_TIP = "Input the threshold";
-const std::string SRC_NUMAID_OPTION = "src-numa";
-const std::string SRC_NUMAID_OPTION_TIP = "Input the src-numa";
-const std::string SIZE_OPTION = "size";
-const std::string SIZE_OPTION_TIP = "Specify the size. The rang is from 128M to 256G. "
-                                    "The example is : 1G or 1024M";
-const std::string INVALID_SIZE_OPTION_TIP = "ERROR: Invalid size param. Please check the form.";
+constexpr const char* PID_OPTION = "pid";
+constexpr const char* PID_OPTION_TIP = "PID of the target process. Range: 1-4194304";
+constexpr const char* EVICT_THRESHOLD_OPTION = "evict-thresh";
+constexpr const char* TARGET_EVICT_THRESHOLD_OPTION = "target-evict-thresh";
+constexpr const char* RECLAIM_THRESHOLD_OPTION = "reclaim-thresh";
+constexpr const char* EVICT_THRESHOLD_OPTION_TIP =
+    "Eviction threshold (%). Eviction is triggered when total memory usage exceeds this ratio. Range: 1-100";
+constexpr const char* TARGET_EVICT_THRESHOLD_OPTION_TIP =
+    "Target eviction ratio (%). Target proportion of remote memory to total memory after eviction. Range: 1-100";
+constexpr const char* RECLAIM_THRESHOLD_OPTION_TIP =
+    "Reclaim threshold (%). All remote memory is migrated back and released when total memory usage "
+    "drops below this ratio. Range: 1-100";
+constexpr const char* SRC_NUMAID_OPTION = "src-numa";
+constexpr const char* SRC_NUMAID_OPTION_TIP =
+    "Local NUMA node ID (optional). The lending socket is selected on the same plane as this NUMA node";
+constexpr const char* SIZE_OPTION = "size";
+constexpr const char* SIZE_OPTION_TIP = "Specify the size. The range is from 128M to 256G. "
+                                       "Support up to 2 decimal places. Example: 1G, 512M, 1.5G";
+constexpr const char* INVALID_SIZE_OPTION_TIP = "ERROR: Invalid size param. Please check the form.";
 
-static const std::string DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
+constexpr const char* DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
     "ERROR: The -n or --name option only supports when the -t or --type parameter is borrow_detail.";
-static const std::string DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
+constexpr const char* DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
     "ERROR: The -bt or --borrow-type option only supports when the -t or --type parameter is borrow_detail.";
 
 // create memory option reg
-static const std::string CREATE_MEM_T_OPTION = "type";
-static const std::string CREATE_MEM_L_OPTION = "link";
-static const std::string CREATE_MEM_S_OPTION = "size";
-static const std::string CREATE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
-static const std::string CREATE_MEM_R_OPTION = "region";
+constexpr const char* CREATE_MEM_T_OPTION = "type";
+constexpr const char* CREATE_MEM_L_OPTION = "link";
+constexpr const char* CREATE_MEM_S_OPTION = "size";
+constexpr const char* CREATE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* CREATE_MEM_R_OPTION = "region";
 // create memory option desc
-static const std::string CREATE_MEM_TYPE_OPTION_TIP = "Specify the type. The option is as follows: numa, fd, share.";
-static const std::string CREATE_MEM_LINK_OPTION_TIP =
+constexpr const char* CREATE_MEM_TYPE_OPTION_TIP = "Specify the type. The option is as follows: numa, fd, share.";
+constexpr const char* CREATE_MEM_LINK_OPTION_TIP =
     "Specify the link. The format is: nodeID/socketID/portID-nodeID/socketID/portID (e.g., 1/36/0-2/36/0). Supported "
     "only when the type parameter is numa.";
-static const std::string CREATE_MEM_SIZE_OPTION_TIP =
+constexpr const char* CREATE_MEM_SIZE_OPTION_TIP =
     "Specify the size. The minimum allowed size is 4M. (e.g., 128M,1G).";
-static const std::string CREATE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
-static const std::string CREATE_MEM_REGION_OPTION_TIP =
+constexpr const char* CREATE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* CREATE_MEM_REGION_OPTION_TIP =
     "Specify the shared region node IDs. The format is: node1,node2 "
     "(e.g., 1,2). Supported only when the type parameter is share.";
 // create memory option input error
-static const std::string CREATE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string CREATE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
-static const std::string CREATE_MEM_TYPE_OPTION_REQUIRED =
+constexpr const char* CREATE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* CREATE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* CREATE_MEM_TYPE_OPTION_REQUIRED =
     "ERROR: The request option -t or --type is required, and the supported param is as follows: numa, fd, share.";
-static const std::string CREATE_MEM_TYPE_PARAM_INVALID =
+constexpr const char* CREATE_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: numa, fd, share.";
-static const std::string CREATE_MEM_SIZE_OPTION_REQUIRED =
+constexpr const char* CREATE_MEM_SIZE_OPTION_REQUIRED =
     "ERROR: The request option -s or --size is required, and the minimum allowed size is 4M. (e.g., 128M,1G)";
-static const std::string CREATE_MEM_SIZE_PARAM_INVALID =
+constexpr const char* CREATE_MEM_SIZE_PARAM_INVALID =
     "ERROR: Invalid size. The minimum allowed size is 4M. (e.g., 128M,1G)";
-static const std::string CREATE_MEM_LINK_PARAM_INVALID =
+constexpr const char* CREATE_MEM_LINK_PARAM_INVALID =
     "ERROR: Invalid link. The link must be hyphen-separated nodeID/socketID/portID pairs (e.g., 1/36/0-2/36/0).";
-static const std::string CREATE_MEM_REGION_PARAM_INVALID =
+constexpr const char* CREATE_MEM_REGION_PARAM_INVALID =
     "ERROR: Invalid region. The region must be comma-separated numeric node IDs (e.g., 1,2,3).";
-static const std::string CREATE_MEM_LINK_OPTION_UNSUPPORT =
+constexpr const char* CREATE_MEM_LINK_OPTION_UNSUPPORT =
     "ERROR: The -l or --link option only supports when the -t or --type parameter is numa.";
-static const std::string CREATE_MEM_REGION_OPTION_UNSUPPORT =
+constexpr const char* CREATE_MEM_REGION_OPTION_UNSUPPORT =
     "ERROR: The -r or --region option only supports when the -t or --type parameter is share.";
 
 // delete memory option reg
-static const std::string DELETE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
-static const std::string DELETE_MEM_T_OPTION = "type";
+constexpr const char* DELETE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* DELETE_MEM_T_OPTION = "type";
 // delete memory option desc
-static const std::string DELETE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
-static const std::string DELETE_MEM_TYPE_OPTION_TIP =
+constexpr const char* DELETE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* DELETE_MEM_TYPE_OPTION_TIP =
     "Input the type to delete memory. The default value is numa. The option is as follows: fd, numa, share, addr.";
 // delete memory option input error
-static const std::string DELETE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string DELETE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
-static const std::string DELETE_MEM_TYPE_PARAM_INVALID =
+constexpr const char* DELETE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* DELETE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* DELETE_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: numa, fd, share, addr.";
 
 // attach memory option reg
-static const std::string ATTACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* ATTACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
 // attach memory option desc
-static const std::string ATTACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* ATTACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
 // attach memory option input error
-static const std::string ATTACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string ATTACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* ATTACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* ATTACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
 
 // detach memory option reg
-static const std::string DETACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* DETACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
 // detach memory option desc
-static const std::string DETACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* DETACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
 // detach memory option input error
-static const std::string DETACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string DETACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* DETACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* DETACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
 
-static const std::string NODE_BORROW_EMPTY = "INFO: The node borrow information is empty.";
-static const std::string BORROW_DETAIL_EMPTY = "INFO: The borrow detail information is empty.";
+constexpr const char* NODE_BORROW_EMPTY = "INFO: The node borrow information is empty.";
+constexpr const char* BORROW_DETAIL_EMPTY = "INFO: The borrow detail information is empty.";
 
-static const std::string SERIALIZATION_ERROR = "ERROR: Serialization failed.";
-static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed.";
-static const std::string MEMORY_EMPTY_ERROR = "ERROR: Failed to obtain memory information";
-static const std::string SET_TIMER_ERROR = "ERROR: Set timer failed. ";
+constexpr const char* SERIALIZATION_ERROR = "ERROR: Serialization failed.";
+constexpr const char* DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed.";
+constexpr const char* MEMORY_INTERNAL_ERROR = "ERROR: Internal error with error code ";
+constexpr const char* MEMORY_EMPTY_ERROR = "ERROR: Failed to obtain memory information";
+constexpr const char* SET_TIMER_ERROR = "ERROR: Set timer failed. ";
 
 static const uint16_t MEM_MODULE_CODE = UBSE_MEM;
 static const uint16_t MEM_NODE_BORROW_OP_CODE = UBSE_MEM_CLI_NODE_BORROW;
@@ -810,9 +814,9 @@ UbseCliCommandInfo UbseCliRegMemModule::ChangeMemory()
     builder.UbseCliSetCommand("change")
         .UbseCliSetType("memory")
         .UbseCliAddOption("p", PID_OPTION, PID_OPTION_TIP)
-        .UbseCliAddOption("e", EVICT_THRESHOLD_OPTION, THRESHOLD_OPTION_TIP)
-        .UbseCliAddOption("t", TARGET_EVICT_THRESHOLD_OPTION, THRESHOLD_OPTION_TIP)
-        .UbseCliAddOption("r", RECLAIM_THRESHOLD_OPTION, THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("e", EVICT_THRESHOLD_OPTION, EVICT_THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("t", TARGET_EVICT_THRESHOLD_OPTION, TARGET_EVICT_THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("r", RECLAIM_THRESHOLD_OPTION, RECLAIM_THRESHOLD_OPTION_TIP)
         .UbseCliAddOption("s", SIZE_OPTION, SIZE_OPTION_TIP)
         .UbseCliAddOption("sn", SRC_NUMAID_OPTION, SRC_NUMAID_OPTION_TIP)
         .UbseCliSetFunc(PidSetThresholdFunc);

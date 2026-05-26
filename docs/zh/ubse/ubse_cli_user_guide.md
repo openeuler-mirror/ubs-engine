@@ -804,6 +804,131 @@ $ ubsectl delete memory -t share -n testName
 Delete successfully
 ```
 
+### 查询进程内存配置信息
+
+**描述**
+
+查询当前进程中，所有已配置的进程内存阈值信息
+
+**用法**
+
+```shell
+ubsectl display memory -t pidInfo
+```
+
+**输入参数**
+
+无
+
+**约束限制**
+
+ubsectl只能在root，ubse用户中运行
+
+**输出信息说明**
+
+| 字段名                | 字段描述                | 字段取值 |
+| -------------------- | ----------------------- | -------- |
+| pid                  | 进程ID                  | 整数     |
+| evictThreshold       | 迁出阈值(%)              | 整数     |
+| targetEvictThreshold | 预期迁出比例(%)           | 整数     |
+| reclaimThreshold     | 迁回阈值(%)              | 整数     |
+| totalMemoryUsage     | 进程期望总内存大小         | 整数     |
+| srcNuma              | 本地NUMA节点ID（可选）      | 整数     |
+
+**示例**
+
+```bash
+$ ubsectl display memory -t pidInfo
+------------------------------------------------------------------------
+pid         evictThreshold   targetEvictThreshold   reclaimThreshold   totalMemoryUsage   srcNuma
+------------------------------------------------------------------------
+1234        80               50                     30                 1073741824         1
+5678        80               50                     30                 1073741824         N/A
+------------------------------------------------------------------------
+```
+
+### 修改进程内存配置
+
+**描述**
+
+修改指定进程的内存配置信息，包括迁出阈值、预期迁出比例、迁回阈值以及进程的期望内存大小。当进程存在子进程时，子进程会继承父进程的内存使用配置。
+
+**用法**
+
+```shell
+ubsectl change memory -p <pid> -e <evict-thresh> -t <target-evict-thresh> -r <reclaim-thresh> -s <size> [--src-numa <numa-id>]
+```
+
+**输入参数说明**
+
+| 参数名 | 说明 | 取值 |
+|------|------|------|
+| -p<br/>--pid | 必选，目标进程的PID | 整数，范围 1-4194304 |
+| -e<br/>--evict-thresh | 必选，迁出阈值(%)。当进程总内存使用超过此比例时，触发迁出动作 | 整数，范围 1-100 |
+| -t<br/>--target-evict-thresh | 必选，预期迁出比例(%)。迁出后远端内存占总内存的目标比例 | 整数，范围 1-100 |
+| -r<br/>--reclaim-thresh | 必选，迁回阈值(%)。当进程总内存使用低于此比例时，将远端内存全部迁回并释放 | 整数，范围 1-100，需比--evict-thresh至少小5 |
+| -s<br/>--size | 必选，进程期望总内存大小 | 格式为数字+M/G，支持最多两位小数，如 512M、1G、1.5G |
+| -sn<br/>--src-numa | 可选，本地NUMA节点ID。同平面socket会被选为借出socket | 整数 |
+
+**约束限制**
+
+1. ubsectl只能在root，ubse用户中运行
+2. evict-thresh必须比reclaim-thresh至少大5，避免震荡
+3. 当进程已有子进程时，子进程会继承该配置
+
+**输出信息说明**
+
+Set successfully / 错误信息
+
+**示例**
+
+```bash
+# 配置PID为1234的进程，迁出阈值80%，预期迁出比例50%，迁回阈值30%，期望内存1G
+$ ubsectl change memory -p 1234 -e 80 -t 50 -r 30 -s 1G
+Set successfully
+
+# 指定本地NUMA节点
+$ ubsectl change memory -p 1234 -e 80 -t 50 -r 30 -s 1G --src-numa 0
+Set successfully
+
+# 参数校验失败
+$ ubsectl change memory -p 1234 -e 80 -t 50 -r 76 -s 1G
+evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation
+```
+
+### 移除进程内存配置
+
+**描述**
+
+移除指定进程的内存配置信息。配置移除后，进程将不再进行内存迁出/迁入管理。
+
+**用法**
+
+```shell
+ubsectl remove memory -p <pid>
+```
+
+**输入参数说明**
+
+| 参数名 | 说明 | 取值 |
+|------|------|------|
+| -p<br/>--pid | 必选，目标进程的PID | 整数，范围 1-4194304 |
+
+**约束限制**
+
+ubsectl只能在root，ubse用户中运行
+
+**输出信息说明**
+
+Unset successfully
+
+**示例**
+
+```bash
+$ ubsectl remove memory -p 1234
+Unset successfully
+```
+
 ### 导入共享内存**
 
 **描述**

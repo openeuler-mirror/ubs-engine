@@ -31,8 +31,12 @@ function _ubse_commond_completion() {
                 COMPREPLY=( $(compgen -W "${display_types}" -- ${cur}) )
                 return 0
             ;;
-            'import'|'change'|'remove')
+            'import')
                 COMPREPLY=( $(compgen -W 'cert' -- ${cur}) )
+                return 0
+            ;;
+            'change'|'remove')
+                COMPREPLY=( $(compgen -W 'cert memory' -- ${cur}) )
                 return 0
             ;;
             'check')
@@ -95,6 +99,22 @@ function _ubse_commond_completion() {
                 case ${COMP_WORDS[2]} in
                     'cert')
                         COMPREPLY=( $(compgen -W '--ca-crl-file' -- ${cur}) )
+                        return 0
+                    ;;
+                    'memory')
+                        COMPREPLY=( $(compgen -W '--pid --evict-thresh --target-evict-thresh --reclaim-thresh --size --src-numa' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'remove')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '--pid' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -200,6 +220,22 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-l' -- ${cur}) )
                         return 0
                     ;;
+                    'memory')
+                        COMPREPLY=( $(compgen -W '-p -e -t -r -s -sn' -- ${cur}) )
+                        return 0
+                    ;;
+                    '*')
+                        return 0
+                    ;;
+                esac
+            ;;
+
+            'remove')
+                case ${COMP_WORDS[2]} in
+                    'memory')
+                        COMPREPLY=( $(compgen -W '-p' -- ${cur}) )
+                        return 0
+                    ;;
                     '*')
                         return 0
                     ;;
@@ -264,7 +300,7 @@ function _ubse_commond_completion() {
            [[ ${COMP_WORDS[2]} == memory ]] && \
            [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
 
-            COMPREPLY=( $(compgen -W 'node_borrow borrow_detail node_lend numa_status config' -- ${cur}) )
+            COMPREPLY=( $(compgen -W 'node_borrow borrow_detail node_lend numa_status config pidInfo' -- ${cur}) )
             return 0
     fi
 

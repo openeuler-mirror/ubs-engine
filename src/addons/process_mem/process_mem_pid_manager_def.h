@@ -39,11 +39,11 @@ enum class ProcessStatus {
 };
 
 struct ProcessMemPidConfigInfo {
-    pid_t pid;
-    int evictThreshold;
-    int targetEvictThreshold;
-    int reclaimThreshold;
-    uint64_t expectedMemoryUsage;
+    pid_t pid{};
+    int evictThreshold{};
+    int targetEvictThreshold{};
+    int reclaimThreshold{};
+    uint64_t expectedMemoryUsage{};
     std::optional<uint64_t> srcNumaId; // redis进程存在的numaId，可选
     inline ubse::common::def::UbseResult SerializeConfigInfo(ubse::serial::UbseSerialization& serializer) const
     {

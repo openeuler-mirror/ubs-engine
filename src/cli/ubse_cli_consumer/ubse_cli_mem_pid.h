@@ -14,7 +14,7 @@
 
 #include <memory>
 #include "ubse_cli_res_builder.h"
-#include "src/addons/process_mem/process_mem_pid_manager_def.h"
+#include "process_mem_pid_manager_def.h"
 
 namespace ubse::cli::reg {
 class UbseCliMemPid {

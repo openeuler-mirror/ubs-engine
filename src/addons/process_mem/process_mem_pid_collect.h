@@ -20,6 +20,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "process_mem_pid_manager_def.h"
+
 namespace process_mem::collect {
 
 using CollectInfoMap = std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>>;
@@ -45,6 +47,9 @@ public:
     void UnRegisterCollectHandler(const std::string& name);
 
     uint32_t CollectProcessNumaMemDistribution(pid_t pid, std::unordered_map<uint32_t, size_t>& numaMemDistribution);
+
+    void CollectChildPids(pid_t parentPid, const def::ProcessMemPidConfigInfo& parentConfig,
+                          CollectInfoMap& pidCollectInfo);
 
 private:
     std::unordered_map<std::string, NumaMemDistributionCollectHandler> collectHandlers{};

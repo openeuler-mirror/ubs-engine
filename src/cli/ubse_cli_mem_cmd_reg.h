@@ -16,7 +16,6 @@
 #include "ubse_cli_reg.h"
 #include "ubse_cli_reg_builder.h"
 #include "ubse_serial_util.h"
-#include "src/addons/process_mem/process_mem_pid_manager_def.h"
 namespace ubse::cli::reg {
 using namespace ubse::cli::framework;
 using namespace ubse::serial;
