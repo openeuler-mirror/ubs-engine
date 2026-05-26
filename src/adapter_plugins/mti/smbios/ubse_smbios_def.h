@@ -129,6 +129,7 @@ public:
     uint8_t slotId;      // 槽位Id
     uint8_t meshType;    // 组网类型：clos组网或fullmesh组网
     uint16_t superPodId; // 二层超节点Id
+    uint32_t serverIdx;  // 服务器索引
     std::array<uint8_t, SUPER_POD_BASIC_T_RESERVED_SIZE> reserved; // 保留字段
 
 protected:
