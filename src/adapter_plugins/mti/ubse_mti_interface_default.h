@@ -57,17 +57,17 @@ public:
 
     common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile) override;
 
-    common::def::UbseResult UbseAddEtsProfileVls(const std::string &profileName,
+    common::def::UbseResult UbseAddEtsVlsToProfile(const std::string &profileName,
                                                  const std::vector<UbseEtsVl> &vls) override;
 
-    common::def::UbseResult UbseAddEtsProfilePriorityGroups(
+    common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
         const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups) override;
 
     common::def::UbseResult UbseDeleteEtsProfile(const std::string &profileName) override;
 
-    common::def::UbseResult UbseRemoveEtsProfileVls(const std::string &profileName) override;
+    common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string &profileName) override;
 
-    common::def::UbseResult UbseRemoveEtsProfilePriorityGroups(const std::string &profileName) override;
+    common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string &profileName) override;
 
     common::def::UbseResult UbseQueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile) override;
 };

@@ -37,12 +37,12 @@ public:
     }
 
     UbseResult CreateEtsProfile(const UbseMtiEtsProfile &etsProfile);
-    UbseResult AddEtsProfileVls(const std::string &profileName, const std::vector<UbseEtsVl> &vls);
-    UbseResult AddEtsProfilePriorityGroups(const std::string &profileName,
+    UbseResult AddEtsVlsToProfile(const std::string &profileName, const std::vector<UbseEtsVl> &vls);
+    UbseResult AddEtsPriorityGroupsToProfile(const std::string &profileName,
                                            const std::vector<UbseEtsPriorityGroup> &priorityGroups);
     UbseResult DeleteEtsProfile(const std::string &profileName);
-    UbseResult RemoveEtsProfileVls(const std::string &profileName);
-    UbseResult RemoveEtsProfilePriorityGroups(const std::string &profileName);
+    UbseResult RemoveEtsVlsFromProfile(const std::string &profileName);
+    UbseResult RemoveEtsPriorityGroupsFromProfile(const std::string &profileName);
     UbseResult QueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile);
 
 private:
