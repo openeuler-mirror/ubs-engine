@@ -27,6 +27,7 @@
 #include "ubse_node_controller.h"
 #include "LibvirtHelper.h"
 #include "exporter.h"
+#include "mem_borrow_executor.h"
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_helper.h"
 #include "mempool_migrate_module.h"
@@ -651,6 +652,33 @@ uint32_t mempooling::outinterface::UBSRMRSMemFree(const string& nodeId)
     return ret;
 }
 
+uint32_t mempooling::outinterface::UBSRMRSMemFreeWithMigrate(const std::string& borrowId)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemFree][MemFreeBase] Start to process memory free request, borrowId=" << borrowId << ".";
+
+    if (borrowId.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeBase] Input borrowId param is empty.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint32_t ret = MEM_POOLING_ERROR;
+    MempoolingInterfaceAdapt guard;
+
+    auto& mgr = ApiConcurrencyManager::getInstance();
+    if (!mgr.TryEnterMemReturnFunc()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeBase] Concurrency is not supported, the current function cannot be entered.";
+        return MEM_POOLING_ERROR;
+    }
+    ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true, false);
+    mgr.ExitMemReturnFunc();
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemFree][MemFreeBase] MemFreeWithOps return code=" << ret << ", borrowId=" << borrowId << ".";
+    return ret;
+}
+
 uint32_t mempooling::outinterface::UBSRMRSMemBorrowRollback(const string& borrowInNode, const vector<string>& borrowIds)
 {
     if (borrowInNode != MpConfiguration::GetInstance().GetNodeId()) {
@@ -1000,7 +1028,7 @@ int mempooling::outinterface::UBSRMRSSmapEnableProcessMigrate(std::vector<pid_t>
  * @param pidType  [IN] 进程类型，目前支持4KB和2MB进程类型，int配置类型：0-进程（4K）1-虚拟机（2M）
  * @return int  0：操作成功；非0：操作失败
  */
-int mempooling::outinterface::Remove(const uint16_t remoteNumaId, const std::vector<pid_t>& pids, int pidType)
+int mempooling::outinterface::UBSRMRSRemove(const uint16_t remoteNumaId, const std::vector<pid_t>& pids, int pidType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry Remove.";
     RemoveMsg msg{};
@@ -1074,18 +1102,10 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
     return ret;
 }
 
-int mempooling::outinterface::MigrateOut(const std::vector<MigrateOutPayload>& items, int pidType)
+int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayload>& items, int pidType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry MigrateOut.";
-
-    auto ret = MpSmapHelper::SmapMode(1);
-    if (ret == 0) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "MigrateOut SmapMode success.";
-    } else {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "MigrateOut SmapMode failed, error_code=" << ret << ".";
-        return ret;
-    }
-
+    
     MigrateOutMsg msg{};
     msg.count = static_cast<int>(items.size());
     for (size_t i = 0; i < items.size(); ++i) {

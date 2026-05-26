@@ -517,6 +517,17 @@ uint32_t UBSRMRSMigrateExecute(const std::string& borrowInNode, const std::vecto
  *         4   内存资源删除失败
  */
 uint32_t UBSRMRSMemFree(const std::string& nodeId);
+/**
+ * @brief 内存归还执行
+ * @param borrowId 内存借入borrowId
+ * @return 返回错误码：
+ *         0   成功
+ *         1   失败通用错误码
+ *         2   迁移失败-迁移过程中虚机被删除
+ *         3   迁移失败通用错误码
+ *         4   内存资源删除失败
+ */
+uint32_t UBSRMRSMemFreeWithMigrate(const std::string &borrowId);
 
 /**
  * @brief 借用内存回滚
@@ -644,7 +655,7 @@ uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<Pag
  * @param pidType  [IN] 进程类型，目前支持4KB和2MB进程类型，int配置类型：0-进程（4K）1-虚拟机（2M）
  * @return int  0：操作成功；非0：操作失败
  */
-int MigrateOut(const std::vector<MigrateOutPayload>& items, int pidType);
+int UBSRMRSMigrateOut(const std::vector<MigrateOutPayload>& items, int pidType);
 
 /* *
  * @brief   移除进程的冷热页迁移
@@ -654,7 +665,7 @@ int MigrateOut(const std::vector<MigrateOutPayload>& items, int pidType);
  * @param pidType  [IN] 进程类型，目前支持4KB和2MB进程类型，int配置类型：0-进程（4K）1-虚拟机（2M）
  * @return int  0：操作成功；非0：操作失败
  */
-int Remove(const uint16_t remoteNumaId, const std::vector<pid_t>& pids, int pidType);
+int UBSRMRSRemove(const uint16_t remoteNumaId, const std::vector<pid_t>& pids, int pidType);
 
 /* *
  * @brief   迁移指定进程远端内存到远端内存

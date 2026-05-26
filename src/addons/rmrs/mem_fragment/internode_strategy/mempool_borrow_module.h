@@ -33,13 +33,14 @@
 #include "mp_module.h"
 #include "mp_vector_util.h"
 #include "turbo_rmrs_interface.h"
+#include "process_mem_pid_manager_def.h"
 
 namespace mempooling {
 using namespace ubse::log;
 using namespace ubse::nodeController;
 using namespace ubse::com;
 using namespace mempooling::message;
-
+using namespace process_mem::def;
 struct SrcMemoryBorrowParam {
     SrcMemoryBorrowParam() = default;
 
@@ -261,6 +262,10 @@ public:
                                                  const std::vector<uint64_t>& borrowSizes, const WaterMark& waterMark,
                                                  MemBorrowExecuteResult& borrowExecuteResult,
                                                  const bool isFault = false);
+    static MpResult MemBorrowExecuteForFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                 const std::vector<uint64_t>& borrowSizes, const WaterMark& waterMark,
+                                                 MemBorrowExecuteResult& borrowExecuteResult,
+                                                 const ProcessMemUsrInfo &processMemUsrInfo);
     static MpResult ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam& srcParam,
                                                     const UbseMemNumaCandidateOpt& opt, const bool& isFault,
                                                     UbseMemNumaDesc& desc);

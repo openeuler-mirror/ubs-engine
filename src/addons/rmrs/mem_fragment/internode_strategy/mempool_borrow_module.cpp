@@ -1339,6 +1339,51 @@ MpResult MempoolBorrowModule::MemBorrowExecuteInOverCommit(const SrcMemoryBorrow
     return MEM_POOLING_OK;
 }
 
+MpResult MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
+                                                                   const std::vector<uint64_t>& borrowSizes,
+                                                                   const WaterMark& waterMark,
+                                                                   MemBorrowExecuteResult& borrowExecuteResult,
+                                                                   const ProcessMemUsrInfo &processMemUsrInfo
+                                                                   )
+{
+    if (borrowSizes.empty()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow] Borrow Size is Empty. srcParam: " << srcParam.ToString() << ".";
+        return MEM_POOLING_OK;
+    }
+    std::vector<uint64_t> sortedSizes(borrowSizes.begin(), borrowSizes.end());
+    std::sort(sortedSizes.begin(), sortedSizes.end(), [](uint64_t a, uint64_t b) { return a > b; });
+    std::vector<std::string> candidateNodeList = GenerateBorrowCandidateList(srcParam);
+    for (const auto& borrowSize : sortedSizes) {
+        UbseMemNumaDesc desc;
+        UbseMemNumaCandidateOpt opt;
+        opt.slotIds = candidateNodeList;
+        opt.size = borrowSize;
+        opt.distance = ubse::mem::controller::MEM_DISTANCE_L0;
+        opt.highWatermark = waterMark.highWaterMark;
+
+        if (memcpy_s(opt.usrInfo, UBSE_MAX_USR_INFO_LEN, &processMemUsrInfo, sizeof(ProcessMemUsrInfo)) != EOK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] ProcessMemUsrInfo memcpy_s failed.";
+            return MEM_POOLING_ERROR;
+        }
+
+        UbseResult res = ProcessSingleBorrowInOverCommit(srcParam, opt, true, desc);
+        if (res != UBSE_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow] ProcessSingleBorrow failed.";
+            continue;
+        }
+
+        (void)borrowExecuteResult.borrowIds.emplace_back(desc.name);
+        (void)borrowExecuteResult.presentNumaId.emplace_back(static_cast<uint16_t>(desc.numaId));
+    }
+
+    if (borrowExecuteResult.borrowIds.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow]All Mem borrow failed.";
+        return MEM_POOLING_ERROR;
+    }
+    return MEM_POOLING_OK;
+}
+
 MpResult MempoolBorrowModule::MemBackExecute(std::string nodeId, uint16_t numaId)
 {
     if (nodeId.empty()) {

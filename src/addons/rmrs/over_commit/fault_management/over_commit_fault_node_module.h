@@ -14,12 +14,14 @@
 #define MEMPOOLING_OVER_COMMIT_FAULT_NODE_MODULE_H
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "mem_manager.h"
 #include "mp_error.h"
 #include "over_commit_fault_memid_module.h"
+#include "rmrs_serialize.h"
 #include "vm_mem_migrate_strategy.h"
 
 namespace mempooling {
@@ -35,6 +37,17 @@ struct FaultRecordsInNode {
     std::string nodeId;
     std::vector<BorrowRecord> faultRecords;
 };
+
+struct SimplifiedFaultRecordsInNode {
+    std::string faultNodeId;
+    std::unordered_map<pid_t, std::vector<BorrowRecord>> pidBorrowMap;
+    std::unordered_map<pid_t, int64_t> pidStartTimeMap;
+};
+
+void SimplifiedFaultRecordsInNodeSerialization(rmrs::serialize::RmrsOutStream& out,
+                                               const SimplifiedFaultRecordsInNode& records);
+MpResult SimplifiedFaultRecordsInNodeDeserialization(rmrs::serialize::RmrsInStream& in,
+                                                     SimplifiedFaultRecordsInNode& records);
 
 struct RemoteNumaFault {
     uint16_t localNumaId;    // 借入方NumaId
@@ -52,6 +65,17 @@ struct RemoteNumaFault {
     RemoteNumaFault() {}
 };
 
+struct PendingMigrationState {
+    std::string newBorrowId;
+    uint16_t newRemoteNumaId = 0;
+    std::vector<std::string> oldBorrowIds;
+    std::string borrowNodeId;
+    pid_t pid = 0;
+    uint64_t remoteTotalSizeKB = 0;
+    std::vector<uint16_t> remoteNumaIds;
+    std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
+};
+
 class OverCommitFaultNodeModule {
 public:
     static OverCommitFaultNodeModule& Instance()
@@ -62,6 +86,7 @@ public:
     MpResult ProcessBorrowOutNodeFault(const std::string& nodeId);
     MpResult ProcessBorrowOutNodeFaultByMemId(const std::string& nodeId);
     MpResult ProcessBorrowOutNodeFaultMultiNuma(const std::string& nodeId);
+    MpResult ProcessBorrowOutNodeFaultSimplified(const std::string& nodeId);
     MpResult HandleFaultRemoteNumasPerBorrowNode(const std::string& nodeId,
                                                  const std::vector<BorrowRecord>& borrowRecords);
     MpResult ExecuteFaultMemoryBorrow(const std::vector<BorrowRecord>& borrowRecords,
@@ -107,6 +132,42 @@ public:
 
     MpResult GetVmListByRemoteNumaId(uint16_t remoteNumaId,
                                      std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos);
+    std::unordered_map<pid_t, PendingMigrationState>& GetPendingMigrations() { return g_pendingMigrations; }
+    std::unordered_map<pid_t, PendingMigrationState> g_pendingMigrations;
 };
+
+MpResult AggregatePidBorrowRecords(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                   std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap);
+
+struct PidBorrowContext {
+    pid_t pid = 0;
+    int64_t startTime = 0;
+    std::vector<std::string> oldBorrowIds;
+    uint64_t remoteTotalSizeKB = 0;
+    std::vector<uint16_t> remoteNumaIds;
+    std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
+    std::string borrowNodeId;
+    int16_t borrowLocalNuma = -1;
+    uint16_t borrowSocketId = 0;
+    uid_t uid = 0;
+    std::string username;
+};
+
+MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
+                                      uint64_t remoteTotalSizeKB,
+                                      const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap);
+MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId);
+
+MpResult AggregatePidBorrowRecords(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                   std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap,
+                                   std::unordered_map<pid_t, int64_t>& pidStartTimeMap);
+bool CollectPidBorrowInfo(const std::vector<BorrowRecord>& records, PidBorrowContext& ctx);
+MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrowId, uint16_t& newRemoteNumaId);
+MpResult ExecuteMigrateForPid(const PidBorrowContext& ctx, uint16_t newRemoteNumaId);
+MpResult FinalizePidProcessing(const PidBorrowContext& ctx, const std::string& newBorrowId);
+MpResult ProcessSinglePidFault(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records);
+MpResult ProcessPendingMigration(pid_t pid, std::unordered_map<pid_t, PendingMigrationState>::iterator pendingIt);
+MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records);
+
 } // namespace mempooling
 #endif // MEMPOOLING_OVER_COMMIT_FAULT_NODE_MODULE_H
