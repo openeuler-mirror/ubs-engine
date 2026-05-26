@@ -273,6 +273,11 @@ public:
 
     MpResult SafeUint64To32(uint32_t& targetNum, uint64_t tmp);
 
+    static uint32_t GetBlockSize()
+    {
+        return Instance().gBlockSize;
+    }
+
 private:
     MpResult ValidateBorrowSize(const uint64_t borrowSize);
     MpResult ValidateSrcparam(const SrcMemoryBorrowParam& srcParam);
