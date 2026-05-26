@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_mti_eid_util.h"
+#include "ubse_mti_eid_interface.h"
 
 #include <array>
 #include <bitset>

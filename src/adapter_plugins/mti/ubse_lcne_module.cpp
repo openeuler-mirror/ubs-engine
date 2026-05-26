@@ -31,7 +31,7 @@
 #include "ubse_logger_module.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
-#include "ubse_mti_eid_util.h"
+#include "ubse_mti_eid_interface.h"
 #include "ubse_net_util.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
 

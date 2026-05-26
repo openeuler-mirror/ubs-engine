@@ -16,7 +16,7 @@
 #include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_pointer_process.h" // for SafeDeleteArray
 #include "ubse_str_util.h"        // for ConvertStrToUint32
-#include "ubse_mti_eid_util.h"       // for ParseBaseEid
+#include "ubse_mti_eid_interface.h"       // for ParseBaseEid
 #include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
