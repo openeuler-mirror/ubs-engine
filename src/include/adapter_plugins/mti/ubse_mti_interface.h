@@ -197,6 +197,54 @@ public:
      */
     virtual common::def::UbseResult UbseQueryEtsProfile(const std::string &profileName,
                                                         UbseMtiEtsProfile &etsProfile) = 0;
+
+    /**
+     * @brief 查询全部ETS模板
+     * @param [out] etsProfiles：查询到的ETS模板配置列表
+     * @return 成功返回0, 失败返回非0
+     */
+    virtual common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles) = 0;
+
+    /**
+     * @brief 将ETS模板应用到接口
+     * @param [in] application：接口ETS应用配置
+     * @return 成功返回0, 失败返回非0
+     */
+    virtual common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string &interfaceName,
+                                                                   const std::string &profileName) = 0;
+
+    /**
+     * @brief 删除接口上的ETS模板应用
+     * @param [in] interfaceName：接口名称
+     * @return 成功返回0, 失败返回非0
+     */
+    virtual common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string &interfaceName) = 0;
+
+    /**
+     * @brief 查询所有接口应用的ETS模板
+     * @param [out] applications：所有接口ETS应用配置
+     * @return 成功返回0, 失败返回非0
+     */
+    virtual common::def::UbseResult UbseQueryAllInterfaceEtsProfile(
+        std::vector<UbseMtiInterfaceEtsApplication> &applications) = 0;
+
+    /**
+     * @brief 查询接口应用的ETS模板名称
+     * @param [in] interfaceName：接口名称
+     * @param [out] profileName：接口应用的ETS模板名称；接口未应用ETS模板时返回空字符串
+     * @return 成功返回0, 失败返回非0
+     */
+    virtual common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
+                                                                 std::string &profileName) = 0;
+
+    /**
+     * @brief 查询接口当前ETS配置详情
+     * @param [in] interfaceName：接口名称
+     * @param [out] etsConfig：接口当前ETS配置
+     * @return 成功返回0, 失败返回非0
+     */
+    virtual common::def::UbseResult UbseQueryInterfaceEtsConfig(const std::string &interfaceName,
+                                                                UbseMtiEtsConfiguration &etsConfig) = 0;
 };
 } // namespace ubse::adapter_plugins::mti
 #endif // UBSE_MTI_INTERFACE_H

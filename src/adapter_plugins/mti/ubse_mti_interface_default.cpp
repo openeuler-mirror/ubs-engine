@@ -233,4 +233,38 @@ UbseResult UbseMtiInterfaceDefault::UbseQueryEtsProfile(const std::string &profi
 {
     return lcne::UbseLcneEts::GetInstance().QueryEtsProfile(profileName, etsProfile);
 }
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryAllEtsProfiles(etsProfiles);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseApplyEtsProfileToInterface(const std::string &interfaceName,
+                                                                   const std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().ApplyEtsProfileToInterface(interfaceName, profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfileFromInterface(const std::string &interfaceName)
+{
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsProfileFromInterface(interfaceName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryAllInterfaceEtsProfile(
+    std::vector<UbseMtiInterfaceEtsApplication> &applications)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryAllInterfaceEtsProfile(applications);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
+                                                                 std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryInterfaceEtsProfile(interfaceName, profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryInterfaceEtsConfig(const std::string &interfaceName,
+                                                                UbseMtiEtsConfiguration &etsConfig)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryInterfaceEtsConfig(interfaceName, etsConfig);
+}
 } // namespace ubse::adapter_plugins::mti

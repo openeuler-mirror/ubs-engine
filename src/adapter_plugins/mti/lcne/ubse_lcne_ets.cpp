@@ -28,8 +28,12 @@ using namespace ubse::utils;
 using namespace ubse::adapter_plugins::mti;
 
 const std::string LCNE_ETS_URI = "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles";
+const std::string LCNE_ETS_INTERFACE_URI = "/restconf/data/huawei-ifm:ifm/interfaces/interface";
+const std::string LCNE_ETS_APPLICATION_SUFFIX = "/huawei-ub-qos:ub-qos/ets-application";
+const std::string LCNE_ETS_CONFIG_URI = "/restconf/data/huawei-ub-qos:ub-qos/ets-configurations";
 const std::string LCNE_ETS_YANG_DATA_XML = "application/yang-data+xml";
 const std::string LCNE_ETS_XML = "application/xml";
+const std::string LCNE_ETS_XML_NS = "urn:huawei:yang:huawei-ub-qos";
 const std::string LCNE_ETS_SCHEDULE_MODE_DWRR = "dwrr";
 const std::string LCNE_ETS_SCHEDULE_MODE_SP = "sp";
 
@@ -71,6 +75,15 @@ UbseResult ReadChildText(const std::shared_ptr<UbseXml> &xml, const std::string 
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+bool TryReadChildText(const std::shared_ptr<UbseXml> &xml, const std::string &nodeName, std::string &text)
+{
+    if (xml->Next(nodeName) == nullptr) {
+        return false;
+    }
+    text = xml->Text();
+    return xml->Previous() == UbseXmlError::OK;
 }
 
 UbseResult ReadChildUint32(const std::shared_ptr<UbseXml> &xml, const std::string &nodeName, uint32_t &value)
@@ -263,6 +276,55 @@ UbseResult ParseEtsProfileXml(const std::shared_ptr<UbseXml> &xml, UbseMtiEtsPro
     return ParseEtsLists(xml, etsProfile.vls, etsProfile.priorityGroups);
 }
 
+UbseResult ParseEtsProfilesXml(const std::shared_ptr<UbseXml> &xml, std::vector<UbseMtiEtsProfile> &etsProfiles)
+{
+    int profileIndex = 0;
+    while (xml->Next("ets-profile", profileIndex) != nullptr) {
+        UbseMtiEtsProfile etsProfile{};
+        auto ret = ParseEtsProfileXml(xml, etsProfile);
+        if (ret != UBSE_OK) {
+            return ret;
+        }
+        etsProfiles.push_back(std::move(etsProfile));
+        if (xml->Previous() != UbseXmlError::OK) {
+            UBSE_LOG_ERROR << "[MTI] XML previous ets-profile node failed.";
+            return UBSE_ERROR;
+        }
+        ++profileIndex;
+    }
+    return UBSE_OK;
+}
+
+bool TryReadEtsApplicationProfileName(const std::shared_ptr<UbseXml> &xml, std::string &profileName)
+{
+    if (xml->Next("ets-application") != nullptr) {
+        const bool found = TryReadChildText(xml, "ets-profile-name", profileName);
+        if (xml->Previous() != UbseXmlError::OK) {
+            UBSE_LOG_ERROR << "[MTI] XML previous ets-application node failed.";
+            return false;
+        }
+        return found;
+    }
+
+    if (xml->Next("ub-qos") != nullptr) {
+        bool found = false;
+        if (xml->Next("ets-application") != nullptr) {
+            found = TryReadChildText(xml, "ets-profile-name", profileName);
+            if (xml->Previous() != UbseXmlError::OK) {
+                UBSE_LOG_ERROR << "[MTI] XML previous ets-application node failed.";
+                return false;
+            }
+        }
+        if (xml->Previous() != UbseXmlError::OK) {
+            UBSE_LOG_ERROR << "[MTI] XML previous ub-qos node failed.";
+            return false;
+        }
+        return found;
+    }
+
+    return TryReadChildText(xml, "ets-profile-name", profileName);
+}
+
 UbseResult SendEtsRequest(UbseHttpRequest &req, UbseHttpResponse &rsp,
                           const std::string &contentType = LCNE_ETS_YANG_DATA_XML)
 {
@@ -278,6 +340,16 @@ UbseResult SendEtsRequest(UbseHttpRequest &req, UbseHttpResponse &rsp,
 std::string BuildEtsProfilePath(const std::string &profileName)
 {
     return LCNE_ETS_URI + "/ets-profile=" + profileName;
+}
+
+std::string BuildAllInterfaceEtsApplicationPath()
+{
+    return LCNE_ETS_INTERFACE_URI + LCNE_ETS_APPLICATION_SUFFIX;
+}
+
+std::string BuildInterfaceEtsApplicationPath(const std::string &interfaceName)
+{
+    return LCNE_ETS_INTERFACE_URI + "=(" + interfaceName + ")" + LCNE_ETS_APPLICATION_SUFFIX;
 }
 
 std::string BuildEtsProfileVlsPath(const std::string &profileName)
@@ -309,7 +381,6 @@ UbseResult SendPatchNoContent(const std::string &path, const std::string &body, 
     }
     return UBSE_OK;
 }
-
 UbseResult SendDeleteNoContent(const std::string &path, const std::string &operation)
 {
     UbseHttpRequest req;
@@ -328,7 +399,6 @@ UbseResult SendDeleteNoContent(const std::string &path, const std::string &opera
     }
     return UBSE_OK;
 }
-
 } // namespace
 
 UbseResult UbseLcneEts::CreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
@@ -432,6 +502,145 @@ UbseResult UbseLcneEts::QueryEtsProfile(const std::string &profileName, UbseMtiE
     return UBSE_OK;
 }
 
+UbseResult UbseLcneEts::QueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles)
+{
+    UbseHttpRequest req;
+    UbseHttpResponse rsp;
+
+    etsProfiles.clear();
+    req.method = "GET";
+    req.path = LCNE_ETS_URI;
+
+    auto ret = SendEtsRequest(req, rsp);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
+        UBSE_LOG_ERROR << "[MTI] QueryAllEtsProfiles HTTP status error. Status: " << rsp.status;
+        return UBSE_ERROR;
+    }
+    if (rsp.body.empty()) {
+        UBSE_LOG_WARN << "[MTI] EtsProfiles response is empty.";
+        return UBSE_OK;
+    }
+    return ParseAllEtsProfilesResponse(rsp.body, etsProfiles);
+}
+
+UbseResult UbseLcneEts::ApplyEtsProfileToInterface(const std::string &interfaceName, const std::string &profileName)
+{
+    UbseHttpRequest req;
+    UbseHttpResponse rsp;
+    std::string body;
+
+    req.method = "PUT";
+    req.path = BuildInterfaceEtsApplicationPath(interfaceName);
+    auto ret = BuildInterfaceEtsApplicationXml(profileName, body);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MTI] BuildInterfaceEtsApplicationXml failed.";
+        return ret;
+    }
+    req.body = body;
+
+    ret = SendEtsRequest(req, rsp);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT)) {
+        UBSE_LOG_ERROR << "[MTI] ApplyEtsProfileToInterface HTTP status error. Status: " << rsp.status;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneEts::RemoveEtsProfileFromInterface(const std::string &interfaceName)
+{
+    UbseHttpRequest req;
+    UbseHttpResponse rsp;
+
+    req.method = "DELETE";
+    req.path = BuildInterfaceEtsApplicationPath(interfaceName);
+
+    auto ret = SendEtsRequest(req, rsp);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT)) {
+        UBSE_LOG_ERROR << "[MTI] RemoveEtsProfileFromInterface HTTP status error. Status: " << rsp.status;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneEts::QueryAllInterfaceEtsProfile(std::vector<UbseMtiInterfaceEtsApplication> &applications)
+{
+    UbseHttpRequest req;
+    UbseHttpResponse rsp;
+
+    applications.clear();
+    req.method = "GET";
+    req.path = BuildAllInterfaceEtsApplicationPath();
+
+    auto ret = SendEtsRequest(req, rsp);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
+        UBSE_LOG_ERROR << "[MTI] QueryAllInterfaceEtsProfile HTTP status error. Status: " << rsp.status;
+        return UBSE_ERROR;
+    }
+    if (rsp.body.empty()) {
+        UBSE_LOG_WARN << "[MTI] InterfaceEtsProfiles response is empty.";
+        return UBSE_OK;
+    }
+    return ParseAllInterfaceEtsProfileResponse(rsp.body, applications);
+}
+
+UbseResult UbseLcneEts::QueryInterfaceEtsProfile(const std::string &interfaceName, std::string &profileName)
+{
+    UbseHttpRequest req;
+    UbseHttpResponse rsp;
+
+    req.method = "GET";
+    req.path = BuildInterfaceEtsApplicationPath(interfaceName);
+
+    auto ret = SendEtsRequest(req, rsp);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
+        UBSE_LOG_ERROR << "[MTI] QueryInterfaceEtsProfile HTTP status error. Status: " << rsp.status;
+        return UBSE_ERROR;
+    }
+    if (rsp.body.empty()) {
+        UBSE_LOG_ERROR << "[MTI] InterfaceEtsProfile response is empty.";
+        return UBSE_ERROR;
+    }
+    return ParseInterfaceEtsProfileResponse(rsp.body, profileName);
+}
+
+UbseResult UbseLcneEts::QueryInterfaceEtsConfig(const std::string &interfaceName, UbseMtiEtsConfiguration &etsConfig)
+{
+    UbseHttpRequest req;
+    UbseHttpResponse rsp;
+
+    req.method = "GET";
+    req.path = LCNE_ETS_CONFIG_URI + "/ets-configuration=" + interfaceName;
+
+    auto ret = SendEtsRequest(req, rsp);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
+        UBSE_LOG_ERROR << "[MTI] QueryInterfaceEtsConfig HTTP status error. Status: " << rsp.status;
+        return UBSE_ERROR;
+    }
+    if (rsp.body.empty()) {
+        UBSE_LOG_ERROR << "[MTI] InterfaceEtsConfig response is empty.";
+        return UBSE_ERROR;
+    }
+    return ParseInterfaceEtsConfigResponse(rsp.body, etsConfig);
+}
+
 UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, std::string &xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
@@ -461,6 +670,21 @@ UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, 
         return UBSE_ERROR;
     }
 
+    ubseXml->Printer(xmlStr);
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneEts::BuildInterfaceEtsApplicationXml(const std::string &profileName, std::string &xmlStr)
+{
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
+    if (ubseXml == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Make xml pointer failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    ubseXml->AddNode("ets-application");
+    ubseXml->Attr("xmlns", LCNE_ETS_XML_NS);
+    AddTextNode(ubseXml, "ets-profile-name", profileName);
     ubseXml->Printer(xmlStr);
     return UBSE_OK;
 }
@@ -500,4 +724,161 @@ UbseResult UbseLcneEts::ParseEtsProfileResponse(const std::string &body, UbseMti
     return UBSE_OK;
 }
 
+UbseResult UbseLcneEts::ParseAllEtsProfilesResponse(const std::string &body,
+                                                    std::vector<UbseMtiEtsProfile> &etsProfiles)
+{
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    if (ubseXml == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    const auto ret = ubseXml->Parse();
+    if (ret != UbseXmlError::OK) {
+        UBSE_LOG_ERROR << "[MTI] AllEtsProfiles response body parse failed.";
+        return UBSE_ERROR;
+    }
+
+    if (ubseXml->Name() != "ub-qos") {
+        UBSE_LOG_ERROR << "[MTI] Unexpected AllEtsProfiles root node: " << ubseXml->Name();
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Next("ets-profiles") == nullptr) {
+        etsProfiles.clear();
+        return UBSE_OK;
+    }
+
+    std::vector<UbseMtiEtsProfile> parsedProfiles;
+    auto result = ParseEtsProfilesXml(ubseXml, parsedProfiles);
+    if (ubseXml->Previous() != UbseXmlError::OK) {
+        UBSE_LOG_ERROR << "[MTI] XML previous ets-profiles node failed.";
+        return UBSE_ERROR;
+    }
+    if (result != UBSE_OK) {
+        return result;
+    }
+
+    etsProfiles = std::move(parsedProfiles);
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneEts::ParseInterfaceEtsProfileResponse(const std::string &body, std::string &profileName)
+{
+    profileName.clear();
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    if (ubseXml == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    const auto ret = ubseXml->Parse();
+    if (ret != UbseXmlError::OK) {
+        UBSE_LOG_ERROR << "[MTI] InterfaceEtsProfile response body parse failed.";
+        return UBSE_ERROR;
+    }
+    if (TryReadEtsApplicationProfileName(ubseXml, profileName)) {
+        return UBSE_OK;
+    }
+    if (ubseXml->Next("interfaces") != nullptr) {
+        if (ubseXml->Next("interface") != nullptr) {
+            const bool found = TryReadEtsApplicationProfileName(ubseXml, profileName);
+            if (ubseXml->Previous() != UbseXmlError::OK) {
+                UBSE_LOG_ERROR << "[MTI] XML previous interface node failed.";
+                return UBSE_ERROR;
+            }
+            if (ubseXml->Previous() != UbseXmlError::OK) {
+                UBSE_LOG_ERROR << "[MTI] XML previous interfaces node failed.";
+                return UBSE_ERROR;
+            }
+            return UBSE_OK;
+        }
+        if (ubseXml->Previous() != UbseXmlError::OK) {
+            UBSE_LOG_ERROR << "[MTI] XML previous interfaces node failed.";
+            return UBSE_ERROR;
+        }
+    }
+    UBSE_LOG_ERROR << "[MTI] XML node ets-profile-name not found.";
+    return UBSE_ERROR;
+}
+
+UbseResult UbseLcneEts::ParseAllInterfaceEtsProfileResponse(const std::string &body,
+                                                            std::vector<UbseMtiInterfaceEtsApplication> &applications)
+{
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    if (ubseXml == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    const auto ret = ubseXml->Parse();
+    if (ret != UbseXmlError::OK) {
+        UBSE_LOG_ERROR << "[MTI] AllInterfaceEtsProfile response body parse failed.";
+        return UBSE_ERROR;
+    }
+
+    std::vector<UbseMtiInterfaceEtsApplication> parsedApplications;
+    auto parseInterfaceNodes = [&parsedApplications](const std::shared_ptr<UbseXml> &xml) -> UbseResult {
+        int interfaceIndex = 0;
+        while (xml->Next("interface", interfaceIndex) != nullptr) {
+            UbseMtiInterfaceEtsApplication application{};
+            if (!TryReadChildText(xml, "name", application.interfaceName)) {
+                (void)TryReadChildText(xml, "interface-name", application.interfaceName);
+            }
+            (void)TryReadEtsApplicationProfileName(xml, application.etsProfileName);
+            if (!application.etsProfileName.empty()) {
+                parsedApplications.push_back(std::move(application));
+            }
+            if (xml->Previous() != UbseXmlError::OK) {
+                UBSE_LOG_ERROR << "[MTI] XML previous interface node failed.";
+                return UBSE_ERROR;
+            }
+            ++interfaceIndex;
+        }
+        return UBSE_OK;
+    };
+
+    auto result = parseInterfaceNodes(ubseXml);
+    if (result != UBSE_OK) {
+        return result;
+    }
+    if (parsedApplications.empty() && ubseXml->Next("interfaces") != nullptr) {
+        result = parseInterfaceNodes(ubseXml);
+        if (ubseXml->Previous() != UbseXmlError::OK) {
+            UBSE_LOG_ERROR << "[MTI] XML previous interfaces node failed.";
+            return UBSE_ERROR;
+        }
+        if (result != UBSE_OK) {
+            return result;
+        }
+    }
+    applications = std::move(parsedApplications);
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneEts::ParseInterfaceEtsConfigResponse(const std::string &body, UbseMtiEtsConfiguration &etsConfig)
+{
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    if (ubseXml == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    const auto ret = ubseXml->Parse();
+    if (ret != UbseXmlError::OK) {
+        UBSE_LOG_ERROR << "[MTI] InterfaceEtsConfig response body parse failed.";
+        return UBSE_ERROR;
+    }
+
+    UbseMtiEtsConfiguration parsedConfig{};
+    auto result = ReadChildText(ubseXml, "interface-name", parsedConfig.interfaceName);
+    if (result != UBSE_OK) {
+        return result;
+    }
+    result = ReadChildText(ubseXml, "ets-profile-name", parsedConfig.etsProfileName);
+    if (result != UBSE_OK) {
+        return result;
+    }
+    result = ParseEtsLists(ubseXml, parsedConfig.vls, parsedConfig.priorityGroups);
+    if (result != UBSE_OK) {
+        return result;
+    }
+    etsConfig = std::move(parsedConfig);
+    return UBSE_OK;
+}
 } // namespace ubse::lcne
