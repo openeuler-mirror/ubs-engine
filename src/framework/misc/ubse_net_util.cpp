@@ -11,12 +11,13 @@
  */
 
 #include "ubse_net_util.h"
-#include <ifaddrs.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <netdb.h>
-#include <regex>
+#include <netinet/in.h>
 #include <securec.h>
+#include <regex>
 
 #include <fstream>
 #include <sstream>
@@ -31,6 +32,71 @@ using namespace ubse::common::def;
 const size_t IPV4_MAX_LEN = 4;
 const size_t IPV6_MAX_LEN = 16;
 const uint32_t IPV4_INT_MAX = 255;
+
+std::vector<std::string> UbseNetUtil::ParseIpList(const std::string &ipList)
+{
+    std::vector<std::string> result;
+    std::stringstream ss(ipList);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+        if (!token.empty()) {
+            if (token.find('-') == std::string::npos) {
+                result.push_back(token);
+            } else {
+                ParseIpRangeToList(token, result);
+            }
+        }
+    }
+    return result;
+}
+
+uint32_t UbseNetUtil::FindLocalIpByRemote(const std::string &remoteIp, std::string &localIp)
+{
+    uint32_t rootIp = 0;
+    if (auto ret = IpV4ToInt(remoteIp, rootIp); ret != UBSE_OK) {
+        return ret;
+    }
+    ifaddrs *ifaddr = nullptr;
+    if (getifaddrs(&ifaddr) == -1) {
+        UBSE_LOG_ERROR << "get interface address failed";
+        return UBSE_ERROR;
+    }
+    for (ifaddrs *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) {
+            continue;
+        }
+        if (ifa->ifa_flags & IFF_LOOPBACK) {
+            continue;
+        }
+        if (!(ifa->ifa_flags & IFF_UP)) {
+            continue;
+        }
+        if (!ifa->ifa_netmask) {
+            continue;
+        }
+        sockaddr_in addrIn;
+        sockaddr_in maskIn;
+        memcpy_s(&addrIn, sizeof(sockaddr_in), ifa->ifa_addr, sizeof(sockaddr_in));
+        memcpy_s(&maskIn, sizeof(sockaddr_in), ifa->ifa_netmask, sizeof(sockaddr_in));
+
+        uint32_t ip = ntohl(addrIn.sin_addr.s_addr);
+        uint32_t netmask = ntohl(maskIn.sin_addr.s_addr);
+        uint32_t localNet = ip & netmask;
+        uint32_t rootNet = rootIp & netmask;
+        if (localNet == rootNet) {
+            uint32_t hostBits = ~netmask;
+            if ((ip & hostBits) != 0 && (ip & hostBits) != hostBits) {
+                localIp = IntToIpV4(ip);
+                freeifaddrs(ifaddr);
+                return UBSE_OK;
+            }
+        }
+    }
+    freeifaddrs(ifaddr);
+    UBSE_LOG_ERROR << "current node are not on the same network plane with ip" << remoteIp;
+    return UBSE_ERROR;
+}
 
 bool UbseNetUtil::IsPortVaLid(const uint32_t port)
 {
@@ -58,29 +124,23 @@ bool UbseNetUtil::ValidIpv6Addr(const std::string &ip)
 // 将点分十进制IP转为32位整数
 uint32_t UbseNetUtil::IpV4ToInt(const std::string &ip, uint32_t &intIp)
 {
-    std::istringstream iss(ip);
-    uint32_t a;
-    uint32_t b;
-    uint32_t c;
-    uint32_t d;
-    char dot1;
-    char dot2;
-    char dot3;
-    if (!(iss >> a >> dot1 >> b >> dot2 >> c >> dot3 >> d) || dot1 != '.' || dot2 != '.' || dot3 != '.' ||
-        a > IPV4_INT_MAX || b > IPV4_INT_MAX || c > IPV4_INT_MAX || d > IPV4_INT_MAX) {
+    in_addr addr;
+    if (inet_pton(AF_INET, ip.c_str(), &addr) <= 0) {
+        UBSE_LOG_ERROR << "parse ip " << ip << " to uint32 failed.";
         return UBSE_ERROR;
     }
-    // 分别左移24、16、8和0位，然后将它们用位或操作符 '|' 合并成一个32位的整数
-    intIp = (a << 24) | (b << 16) | (c << 8) | d;
+    intIp = ntohl(addr.s_addr);
     return UBSE_OK;
 }
 
 // 将32位整数转为点分十进制IP
-std::string UbseNetUtil::IntToIpV4(uint32_t ip_int)
+std::string UbseNetUtil::IntToIpV4(uint32_t ipInt)
 {
-    // 右移24位得到ip地址第一位，右移16位得到第二位
-    return std::to_string((ip_int >> 24) & 0xFF) + "." + std::to_string((ip_int >> 16) & 0xFF) + "." +
-           std::to_string((ip_int >> 8) & 0xFF) + "." + std::to_string(ip_int & 0xFF); // 右移8位得到第三位
+    in_addr addr;
+    addr.s_addr = htonl(ipInt);
+    char buf[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &addr, buf, sizeof(buf));
+    return std::string(buf);
 }
 
 // 解析IP范围

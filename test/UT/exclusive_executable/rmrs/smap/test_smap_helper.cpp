@@ -1192,7 +1192,7 @@ TEST_F(TestSmapHelper, ReadAndSetRunMode_Success_01)
         .stubs()
         .will(invoke(RackStorageQueryDataForTest01));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(MEM_POOLING_OK));
 
     MpResult ret = MpSmapHelper::ReadAndSetRunMode();
     EXPECT_EQ(ret, MEM_POOLING_OK);

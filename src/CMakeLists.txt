@@ -66,6 +66,7 @@ target_link_libraries(ubse PRIVATE
         trace_context
         ubse_urma_uvs
         ubse_urma_controller
+        ubse_node_discovery
 )
 
 # 手动导出注册模式下会被编译器优化的符号
