@@ -342,7 +342,7 @@ UbseResult UbseLcneEts::CreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
     return SendPatchNoContent(LCNE_ETS_URI, body, "CreateEtsProfile");
 }
 
-UbseResult UbseLcneEts::AddEtsProfileVls(const std::string &profileName, const std::vector<UbseEtsVl> &vls)
+UbseResult UbseLcneEts::AddEtsVlsToProfile(const std::string &profileName, const std::vector<UbseEtsVl> &vls)
 {
     std::string body;
     UbseMtiEtsProfile etsProfile{};
@@ -353,10 +353,10 @@ UbseResult UbseLcneEts::AddEtsProfileVls(const std::string &profileName, const s
         UBSE_LOG_ERROR << "[MTI] BuildEtsProfileXml failed.";
         return ret;
     }
-    return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsProfileVls");
+    return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsVlsToProfile");
 }
 
-UbseResult UbseLcneEts::AddEtsProfilePriorityGroups(
+UbseResult UbseLcneEts::AddEtsPriorityGroupsToProfile(
     const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
 {
     std::string body;
@@ -368,7 +368,7 @@ UbseResult UbseLcneEts::AddEtsProfilePriorityGroups(
         UBSE_LOG_ERROR << "[MTI] BuildEtsProfileXml failed.";
         return ret;
     }
-    return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsProfilePriorityGroups");
+    return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsPriorityGroupsToProfile");
 }
 
 UbseResult UbseLcneEts::DeleteEtsProfile(const std::string &profileName)
@@ -376,14 +376,14 @@ UbseResult UbseLcneEts::DeleteEtsProfile(const std::string &profileName)
     return SendDeleteNoContent(BuildEtsProfilePath(profileName), "DeleteEtsProfile");
 }
 
-UbseResult UbseLcneEts::RemoveEtsProfileVls(const std::string &profileName)
+UbseResult UbseLcneEts::RemoveEtsVlsFromProfile(const std::string &profileName)
 {
-    return SendDeleteNoContent(BuildEtsProfileVlsPath(profileName), "RemoveEtsProfileVls");
+    return SendDeleteNoContent(BuildEtsProfileVlsPath(profileName), "RemoveEtsVlsFromProfile");
 }
 
-UbseResult UbseLcneEts::RemoveEtsProfilePriorityGroups(const std::string &profileName)
+UbseResult UbseLcneEts::RemoveEtsPriorityGroupsFromProfile(const std::string &profileName)
 {
-    return SendDeleteNoContent(BuildEtsProfilePriorityGroupsPath(profileName), "RemoveEtsProfilePriorityGroups");
+    return SendDeleteNoContent(BuildEtsProfilePriorityGroupsPath(profileName), "RemoveEtsPriorityGroupsFromProfile");
 }
 
 UbseResult UbseLcneEts::QueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile)

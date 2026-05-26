@@ -168,21 +168,21 @@ public:
     virtual common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile) = 0;
 
     /** @brief 增量新增ETS模板VL配置 */
-    virtual common::def::UbseResult UbseAddEtsProfileVls(const std::string &profileName,
+    virtual common::def::UbseResult UbseAddEtsVlsToProfile(const std::string &profileName,
                                                          const std::vector<UbseEtsVl> &vls) = 0;
 
     /** @brief 增量新增ETS模板优先级组配置 */
-    virtual common::def::UbseResult UbseAddEtsProfilePriorityGroups(
+    virtual common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
         const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups) = 0;
 
     /** @brief 删除ETS模板 */
     virtual common::def::UbseResult UbseDeleteEtsProfile(const std::string &profileName) = 0;
 
     /** @brief 删除ETS模板VL配置 */
-    virtual common::def::UbseResult UbseRemoveEtsProfileVls(const std::string &profileName) = 0;
+    virtual common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string &profileName) = 0;
 
     /** @brief 删除ETS模板优先级组配置 */
-    virtual common::def::UbseResult UbseRemoveEtsProfilePriorityGroups(const std::string &profileName) = 0;
+    virtual common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string &profileName) = 0;
 
     /**
      * @brief 查询ETS模板

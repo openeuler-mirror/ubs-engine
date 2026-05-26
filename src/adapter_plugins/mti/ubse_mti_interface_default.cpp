@@ -195,16 +195,16 @@ UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile
     return lcne::UbseLcneEts::GetInstance().CreateEtsProfile(etsProfile);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseAddEtsProfileVls(const std::string &profileName,
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsToProfile(const std::string &profileName,
                                                          const std::vector<UbseEtsVl> &vls)
 {
-    return lcne::UbseLcneEts::GetInstance().AddEtsProfileVls(profileName, vls);
+    return lcne::UbseLcneEts::GetInstance().AddEtsVlsToProfile(profileName, vls);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseAddEtsProfilePriorityGroups(
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsPriorityGroupsToProfile(
     const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
 {
-    return lcne::UbseLcneEts::GetInstance().AddEtsProfilePriorityGroups(profileName, priorityGroups);
+    return lcne::UbseLcneEts::GetInstance().AddEtsPriorityGroupsToProfile(profileName, priorityGroups);
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string &profileName)
@@ -212,14 +212,14 @@ UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string &prof
     return lcne::UbseLcneEts::GetInstance().DeleteEtsProfile(profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfileVls(const std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsVlsFromProfile(const std::string &profileName)
 {
-    return lcne::UbseLcneEts::GetInstance().RemoveEtsProfileVls(profileName);
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsVlsFromProfile(profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfilePriorityGroups(const std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsPriorityGroupsFromProfile(const std::string &profileName)
 {
-    return lcne::UbseLcneEts::GetInstance().RemoveEtsProfilePriorityGroups(profileName);
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsPriorityGroupsFromProfile(profileName);
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseQueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile)

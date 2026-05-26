@@ -166,10 +166,10 @@ TEST_F(TestUbseLcneEts, CreateEtsProfileSuccess)
     EXPECT_NE(g_request.body.find("<priority-groups>"), std::string::npos);
 }
 
-TEST_F(TestUbseLcneEts, AddEtsProfileVlsSuccess)
+TEST_F(TestUbseLcneEts, AddEtsVlsToProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsProfileVls("test-ets", MakeEtsProfile().vls), UBSE_OK);
+    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsVlsToProfile("test-ets", MakeEtsProfile().vls), UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_NE(g_request.headers.find("Content-Type"), g_request.headers.end());
@@ -182,10 +182,10 @@ TEST_F(TestUbseLcneEts, AddEtsProfileVlsSuccess)
     EXPECT_EQ(g_request.body.find("<priority-groups>"), std::string::npos);
 }
 
-TEST_F(TestUbseLcneEts, AddEtsProfilePriorityGroupsSuccess)
+TEST_F(TestUbseLcneEts, AddEtsPriorityGroupsToProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsProfilePriorityGroups("test-ets", MakeEtsProfile().priorityGroups),
+    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsPriorityGroupsToProfile("test-ets", MakeEtsProfile().priorityGroups),
               UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
@@ -213,18 +213,18 @@ TEST_F(TestUbseLcneEts, DeleteEtsProfileSuccess)
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets");
 }
 
-TEST_F(TestUbseLcneEts, RemoveEtsProfileVlsSuccess)
+TEST_F(TestUbseLcneEts, RemoveEtsVlsFromProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().RemoveEtsProfileVls("test-ets"), UBSE_OK);
+    EXPECT_EQ(UbseLcneEts::GetInstance().RemoveEtsVlsFromProfile("test-ets"), UBSE_OK);
     EXPECT_EQ(g_request.method, "DELETE");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets/vls");
 }
 
-TEST_F(TestUbseLcneEts, RemoveEtsProfilePriorityGroupsSuccess)
+TEST_F(TestUbseLcneEts, RemoveEtsPriorityGroupsFromProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().RemoveEtsProfilePriorityGroups("test-ets"), UBSE_OK);
+    EXPECT_EQ(UbseLcneEts::GetInstance().RemoveEtsPriorityGroupsFromProfile("test-ets"), UBSE_OK);
     EXPECT_EQ(g_request.method, "DELETE");
     EXPECT_EQ(g_request.path,
               "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets/priority-groups");
