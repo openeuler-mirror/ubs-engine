@@ -199,6 +199,26 @@ TEST_F(TestUbseLcneEts, AddEtsPriorityGroupsToProfileSuccess)
     EXPECT_EQ(g_request.body.find("<vls>"), std::string::npos);
 }
 
+TEST_F(TestUbseLcneEts, AddEtsVlsAndPriorityGroupsToProfileSuccess)
+{
+    auto etsProfile = MakeEtsProfile();
+    MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
+    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsVlsAndPriorityGroupsToProfile(
+                  "test-ets", etsProfile.vls, etsProfile.priorityGroups),
+              UBSE_OK);
+    EXPECT_EQ(g_request.method, "PATCH");
+    EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
+    ASSERT_NE(g_request.headers.find("Content-Type"), g_request.headers.end());
+    EXPECT_EQ(g_request.headers.find("Content-Type")->second, "application/xml");
+    EXPECT_NE(g_request.body.find("<ets-profiles>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<ets-profile>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<name>test-ets</name>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<vls>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<vl-index>10</vl-index>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<priority-groups>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<cir>1000</cir>"), std::string::npos);
+}
+
 TEST_F(TestUbseLcneEts, CreateEtsProfileStatusFailed)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK));

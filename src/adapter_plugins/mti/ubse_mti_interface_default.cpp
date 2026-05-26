@@ -196,7 +196,7 @@ UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsToProfile(const std::string &profileName,
-                                                         const std::vector<UbseEtsVl> &vls)
+                                                           const std::vector<UbseEtsVl> &vls)
 {
     return lcne::UbseLcneEts::GetInstance().AddEtsVlsToProfile(profileName, vls);
 }
@@ -205,6 +205,13 @@ UbseResult UbseMtiInterfaceDefault::UbseAddEtsPriorityGroupsToProfile(
     const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
 {
     return lcne::UbseLcneEts::GetInstance().AddEtsPriorityGroupsToProfile(profileName, priorityGroups);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsAndPriorityGroupsToProfile(
+    const std::string &profileName, const std::vector<UbseEtsVl> &vls,
+    const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+{
+    return lcne::UbseLcneEts::GetInstance().AddEtsVlsAndPriorityGroupsToProfile(profileName, vls, priorityGroups);
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string &profileName)

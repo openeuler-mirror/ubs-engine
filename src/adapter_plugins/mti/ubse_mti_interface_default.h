@@ -61,6 +61,10 @@ public:
     common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
         const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups) override;
 
+    common::def::UbseResult UbseAddEtsVlsAndPriorityGroupsToProfile(
+        const std::string &profileName, const std::vector<UbseEtsVl> &vls,
+        const std::vector<UbseEtsPriorityGroup> &priorityGroups) override;
+
     common::def::UbseResult UbseDeleteEtsProfile(const std::string &profileName) override;
 
     common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string &profileName) override;

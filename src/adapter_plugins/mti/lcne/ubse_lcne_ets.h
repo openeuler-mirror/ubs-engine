@@ -40,6 +40,9 @@ public:
     UbseResult AddEtsVlsToProfile(const std::string &profileName, const std::vector<UbseEtsVl> &vls);
     UbseResult AddEtsPriorityGroupsToProfile(const std::string &profileName,
                                            const std::vector<UbseEtsPriorityGroup> &priorityGroups);
+    UbseResult AddEtsVlsAndPriorityGroupsToProfile(const std::string &profileName,
+                                                   const std::vector<UbseEtsVl> &vls,
+                                                   const std::vector<UbseEtsPriorityGroup> &priorityGroups);
     UbseResult DeleteEtsProfile(const std::string &profileName);
     UbseResult RemoveEtsVlsFromProfile(const std::string &profileName);
     UbseResult RemoveEtsPriorityGroupsFromProfile(const std::string &profileName);
