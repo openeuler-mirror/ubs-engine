@@ -32,8 +32,8 @@ using namespace ubse::task_executor;
 // 使用匿名命名空间，避免其它文件中使用该变量
 namespace {
 std::atomic<uint32_t> g_asyncHandlerCnt{0};
-std::set<std::string> g_RegTimerNames;
-std::mutex g_RegTimerNamesMtx;
+std::set<std::string> g_regTimerNames;
+std::mutex g_regTimerNamesMtx;
 } // namespace
 
 AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
@@ -78,12 +78,12 @@ UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTa
 UbseResult RegisterUrmaRetryTimer(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
                                   UbseUrmaRetryTaskHandler task)
 {
-    std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
+    std::lock_guard<std::mutex> lock(g_regTimerNamesMtx);
     if (context::g_globalStop) {
         UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
         return UBSE_OK;
     }
-    g_RegTimerNames.insert(taskName);
+    g_regTimerNames.insert(taskName);
     UBSE_LOG_WARN << "Do task failed, taskName=" << taskName << ", retry later";
     auto ret = ubse::timer::UbseTimerHandlerRegister(
         taskName,
@@ -113,8 +113,8 @@ UbseResult RegisterUrmaRetryTimer(const std::string &executorName, const std::st
 
 bool IsTargetTimerExist(const std::string &timerName)
 {
-    std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    return g_RegTimerNames.find(timerName) != g_RegTimerNames.end();
+    std::lock_guard<std::mutex> lock(g_regTimerNamesMtx);
+    return g_regTimerNames.find(timerName) != g_regTimerNames.end();
 }
 
 UbseResult HandleTaskWithRetry(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
@@ -140,11 +140,11 @@ void WaitAndCleanupRetryTasks()
         UBSE_LOG_INFO << "There are async operation, wait to stop";
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    for (const auto &timerName : g_RegTimerNames) {
+    std::lock_guard<std::mutex> lock(g_regTimerNamesMtx);
+    for (const auto &timerName : g_regTimerNames) {
         UBSE_LOG_INFO << "Unregister timer=" << timerName;
         ubse::timer::UbseTimerHandlerUnregister(timerName);
     }
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
 }
 } // namespace ubse::urmaController
