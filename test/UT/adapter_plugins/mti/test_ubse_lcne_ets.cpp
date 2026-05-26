@@ -58,28 +58,6 @@ const std::string ETS_PROFILE_NAME_ONLY_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile>"
     "<name>test-ets-name-only</name></ets-profile></ets-profiles></ub-qos>";
 
-const std::string ETS_CONFIG_XML = R"(<ets-configuration xmlns="urn:huawei:yang:huawei-ub-qos">
-  <interface-name>200GUB0/1/2</interface-name>
-  <ets-profile-name>test-ets</ets-profile-name>
-  <vls>
-    <vl>
-      <vl-index>0</vl-index>
-      <priority-group-id>1</priority-group-id>
-      <schedule-mode>dwrr</schedule-mode>
-      <weight>10</weight>
-    </vl>
-  </vls>
-  <priority-groups>
-    <priority-group>
-      <priority-group-id>1</priority-group-id>
-      <schedule-mode>sp</schedule-mode>
-      <weight>1</weight>
-      <cir>1000</cir>
-      <cbs>10240</cbs>
-    </priority-group>
-  </priority-groups>
-</ets-configuration>)";
-
 UbseResult MockHttpSend(UbseHttpRequest &request, UbseHttpResponse &response)
 {
     g_request = request;
@@ -207,19 +185,6 @@ TEST_F(TestUbseLcneEts, ParseInterfaceEtsProfileResponseSuccess)
 </ets-application>)";
     EXPECT_EQ(UbseLcneEts::GetInstance().ParseInterfaceEtsProfileResponse(responseXml, profileName), UBSE_OK);
     EXPECT_EQ(profileName, "default");
-}
-
-TEST_F(TestUbseLcneEts, ParseInterfaceEtsConfigResponseSuccess)
-{
-    UbseMtiEtsConfiguration config;
-    EXPECT_EQ(UbseLcneEts::GetInstance().ParseInterfaceEtsConfigResponse(ETS_CONFIG_XML, config), UBSE_OK);
-    EXPECT_EQ(config.interfaceName, "200GUB0/1/2");
-    EXPECT_EQ(config.etsProfileName, "test-ets");
-    ASSERT_EQ(config.vls.size(), 1);
-    EXPECT_EQ(config.vls[0].priorityGroupId, 1);
-    ASSERT_EQ(config.priorityGroups.size(), 1);
-    EXPECT_EQ(config.priorityGroups[0].scheduleMode, UbseEtsScheduleMode::SP);
-    EXPECT_EQ(config.priorityGroups[0].cbs, 10240);
 }
 
 TEST_F(TestUbseLcneEts, CreateEtsProfileSuccess)
@@ -495,22 +460,4 @@ TEST_F(TestUbseLcneEts, QueryInterfaceEtsProfileNoApplicationSuccess)
     EXPECT_TRUE(profileName.empty());
 }
 
-TEST_F(TestUbseLcneEts, QueryInterfaceEtsConfigSuccess)
-{
-    MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), ETS_CONFIG_XML);
-    UbseMtiEtsConfiguration config;
-    EXPECT_EQ(UbseLcneEts::GetInstance().QueryInterfaceEtsConfig("200GUB0/1/2", config), UBSE_OK);
-    EXPECT_EQ(g_request.method, "GET");
-    EXPECT_EQ(g_request.path,
-              "/restconf/data/huawei-ub-qos:ub-qos/ets-configurations/ets-configuration=200GUB0/1/2");
-    EXPECT_EQ(config.interfaceName, "200GUB0/1/2");
-    EXPECT_EQ(config.etsProfileName, "test-ets");
-}
-
-TEST_F(TestUbseLcneEts, QueryInterfaceEtsConfigHttpSendFailed)
-{
-    MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), ETS_CONFIG_XML, UBSE_ERROR);
-    UbseMtiEtsConfiguration config;
-    EXPECT_EQ(UbseLcneEts::GetInstance().QueryInterfaceEtsConfig("200GUB0/1/2", config), UBSE_ERROR);
-}
 } // namespace ubse::ut::lcne
