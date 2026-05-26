@@ -89,9 +89,6 @@ public:
 
     common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
                                                          std::string &profileName) override;
-
-    common::def::UbseResult UbseQueryInterfaceEtsConfig(const std::string &interfaceName,
-                                                        UbseMtiEtsConfiguration &etsConfig) override;
 };
 } // namespace ubse::adapter_plugins::mti
 

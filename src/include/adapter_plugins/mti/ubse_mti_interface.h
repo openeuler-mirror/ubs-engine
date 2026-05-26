@@ -257,14 +257,6 @@ public:
     virtual common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
                                                                  std::string &profileName) = 0;
 
-    /**
-     * @brief 查询接口当前ETS配置详情
-     * @param [in] interfaceName：接口名称
-     * @param [out] etsConfig：接口当前ETS配置
-     * @return 成功返回0, 失败返回非0
-     */
-    virtual common::def::UbseResult UbseQueryInterfaceEtsConfig(const std::string &interfaceName,
-                                                                UbseMtiEtsConfiguration &etsConfig) = 0;
 };
 } // namespace ubse::adapter_plugins::mti
 #endif // UBSE_MTI_INTERFACE_H

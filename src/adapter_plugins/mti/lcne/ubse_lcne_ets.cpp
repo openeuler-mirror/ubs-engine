@@ -30,7 +30,6 @@ using namespace ubse::adapter_plugins::mti;
 const std::string LCNE_ETS_URI = "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles";
 const std::string LCNE_ETS_INTERFACE_URI = "/restconf/data/huawei-ifm:ifm/interfaces/interface";
 const std::string LCNE_ETS_APPLICATION_SUFFIX = "/huawei-ub-qos:ub-qos/ets-application";
-const std::string LCNE_ETS_CONFIG_URI = "/restconf/data/huawei-ub-qos:ub-qos/ets-configurations";
 const std::string LCNE_ETS_YANG_DATA_XML = "application/yang-data+xml";
 const std::string LCNE_ETS_XML = "application/xml";
 const std::string LCNE_ETS_XML_NS = "urn:huawei:yang:huawei-ub-qos";
@@ -618,29 +617,6 @@ UbseResult UbseLcneEts::QueryInterfaceEtsProfile(const std::string &interfaceNam
     return ParseInterfaceEtsProfileResponse(rsp.body, profileName);
 }
 
-UbseResult UbseLcneEts::QueryInterfaceEtsConfig(const std::string &interfaceName, UbseMtiEtsConfiguration &etsConfig)
-{
-    UbseHttpRequest req;
-    UbseHttpResponse rsp;
-
-    req.method = "GET";
-    req.path = LCNE_ETS_CONFIG_URI + "/ets-configuration=" + interfaceName;
-
-    auto ret = SendEtsRequest(req, rsp);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
-        UBSE_LOG_ERROR << "[MTI] QueryInterfaceEtsConfig HTTP status error. Status: " << rsp.status;
-        return UBSE_ERROR;
-    }
-    if (rsp.body.empty()) {
-        UBSE_LOG_ERROR << "[MTI] InterfaceEtsConfig response is empty.";
-        return UBSE_ERROR;
-    }
-    return ParseInterfaceEtsConfigResponse(rsp.body, etsConfig);
-}
-
 UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, std::string &xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
@@ -852,33 +828,4 @@ UbseResult UbseLcneEts::ParseAllInterfaceEtsProfileResponse(const std::string &b
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::ParseInterfaceEtsConfigResponse(const std::string &body, UbseMtiEtsConfiguration &etsConfig)
-{
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
-    if (ubseXml == nullptr) {
-        UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
-        return UBSE_ERROR_NULLPTR;
-    }
-    const auto ret = ubseXml->Parse();
-    if (ret != UbseXmlError::OK) {
-        UBSE_LOG_ERROR << "[MTI] InterfaceEtsConfig response body parse failed.";
-        return UBSE_ERROR;
-    }
-
-    UbseMtiEtsConfiguration parsedConfig{};
-    auto result = ReadChildText(ubseXml, "interface-name", parsedConfig.interfaceName);
-    if (result != UBSE_OK) {
-        return result;
-    }
-    result = ReadChildText(ubseXml, "ets-profile-name", parsedConfig.etsProfileName);
-    if (result != UBSE_OK) {
-        return result;
-    }
-    result = ParseEtsLists(ubseXml, parsedConfig.vls, parsedConfig.priorityGroups);
-    if (result != UBSE_OK) {
-        return result;
-    }
-    etsConfig = std::move(parsedConfig);
-    return UBSE_OK;
-}
 } // namespace ubse::lcne
