@@ -63,7 +63,6 @@ TEST_F(TestNodeControllerCollector, CollectNodeBaseInfoWhenConfModuleIsNull)
 TEST_F(TestNodeControllerCollector, CollectCpuInfo)
 {
     std::map<std::string, std::string> portEids;
-    ubse::mti::IODieInfo ioDieInfo;
 
     UbseDevName devName("1", "1");
     std::string portInfo;

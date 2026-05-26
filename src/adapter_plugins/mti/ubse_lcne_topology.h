@@ -29,9 +29,7 @@
 namespace ubse::mti {
 using namespace ubse::common::def;
 using namespace ubse::http;
-DevType StringToDevType(const std::string& str);
 adapter_plugins::mti::UbseDevType StringToUbseDevType(const std::string& str);
-DevType StringToDevTypeVBus(const std::string& str);
 
 struct LcnePortInfo {
     std::string portId;   // 端口ID

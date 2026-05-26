@@ -201,9 +201,11 @@ void UbseNodeControllerAgent::StartExec()
     // 将节点本地状态刷新至 ready，加入集群选主
     UbseNodeController::GetInstance().UpdateNodeInfoLocalState(UbseNodeLocalState::UBSE_NODE_READY);
     // 注册采集定时器并启动
-    UbseTimerHandlerRegister(
-        UBSE_NODE_AGENT_REPORT_TIMER, [this]() -> UbseResult { return UbseNodeInfoReportTimerHandler(); },
-        UBSE_NODE_REPORT_INTERVAL);
+    if (!UbseSmbios::GetInstance().IsClosType()) {
+        UbseTimerHandlerRegister(
+            UBSE_NODE_AGENT_REPORT_TIMER, [this]() -> UbseResult { return UbseNodeInfoReportTimerHandler(); },
+            UBSE_NODE_REPORT_INTERVAL);
+    }
     // 注册LCNE变更回调
     UbseSubEvent(UBSE_TOPOLOGY_CHANGE_EVENT, UbseNodeInfoLcneNotifyHandler);
 }

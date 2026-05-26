@@ -48,6 +48,8 @@ private:
                                    std::vector<UbseMtiFeInfo> &allFeInfos);
     UbseResult GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId);
     UbseResult GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, UbseMtiEidGroup &feInfo);
+    std::string GetEidGroupId(std::string eid);
+
     std::string host;
     int port;
     const std::string GET_FE_LIST_URI = "/restconf/data/huawei-vbussw-service:vbussw-service/mue-ue-binding-infos";

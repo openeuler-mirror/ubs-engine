@@ -893,7 +893,7 @@ void NoHandlerReply(UbseComMessageCtx &message)
 
 void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext &context)
 {
-    mti::MtiNodeInfo localNodeInfo;
+    mti::UbseMtiNodeInfo localNodeInfo;
     const auto ret = mti::UbseGetLocalNodeInfo(localNodeInfo);
     UBSHcomRequest request;
     std::string respData = GET_NODE_ID_FAIL_MSG;

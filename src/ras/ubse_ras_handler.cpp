@@ -232,13 +232,13 @@ UbseResult UbseRasHandler::NodeFaultHandle(alarm_msg *alarmMsgPtr)
     switch (alarmMsgPtr->usAlarmId) {
         case ALARM_REBOOT_EVENT:
             return HandleBMCFault(faultInfo);
-        case TOPOLOGY_FAULT_TYPE::OOM:
+        case ALARM_OOM_EVENT:
             return HandleOomFault(alarmMsgPtr);
-        case TOPOLOGY_FAULT_TYPE::PANIC:
+        case ALARM_PANIC_EVENT:
             return HandlePanicAndRebootFault(ALARM_PANIC_EVENT, faultInfo);
-        case TOPOLOGY_FAULT_TYPE::KERNEL_REBOOT:
+        case ALARM_KERNEL_REBOOT_EVENT:
             return HandlePanicAndRebootFault(ALARM_KERNEL_REBOOT_EVENT, faultInfo);
-        case TOPOLOGY_FAULT_TYPE::MEM_FAULT:
+        case ALARM_MEM_FAULT:
             return HandleMemoryFault(ALARM_MEM_FAULT, faultInfo);
         default:
             UBSE_LOG_WARN << "fault type is invalid, type: " << alarmMsgPtr->usAlarmId << ", info: " << faultInfo;
@@ -757,25 +757,20 @@ UbseResult HandleCnaAndEidMsg(const std::string &faultInfo, std::string &faultNo
 
 std::string QueryNodeIdByEid(const std::string& eid)
 {
-    std::map<UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> socketInfoMap{};
-    auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
+    std::map<adapter_plugins::mti::UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup> comUrmaInfoMap{};
+    auto result = UbseMtiInterface::GetInstance().GetMtiComEid(comUrmaInfoMap);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "Get all socket eid failed, " << ubse::log::FormatRetCode(result);
         return "";
     }
     std::unordered_map<std::string, std::string> eids;
-    for (const auto& info : socketInfoMap) {
-        std::vector<std::string> devVec;
-        ubse::utils::Split(info.first.devName, "-", devVec);
-        if (devVec.size() < NO_2) {
-            UBSE_LOG_ERROR << "Split str failed, devName=" << info.first.devName;
-            return "";
-        }
-        eids[info.second.primaryEid] = devVec[0];
+    for (const auto& info : comUrmaInfoMap) {
+        eids[info.second.primaryEid] = info.first.slotId;
     }
     if (eids.find(eid) == eids.end()) {
-        for (const auto& item : socketInfoMap) {
-            UBSE_LOG_DEBUG << "DevName=" << item.first.devName << "; eid=" << item.second.primaryEid;
+        UBSE_LOG_INFO << "Query EID=" << eid;
+        for (const auto& item : comUrmaInfoMap) {
+            UBSE_LOG_INFO << "SlotId=" << item.first.slotId << "; eid=" << item.second.primaryEid;
         }
         return "";
     }

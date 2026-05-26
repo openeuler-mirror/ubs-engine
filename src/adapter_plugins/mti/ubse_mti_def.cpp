@@ -27,7 +27,7 @@ UbseDevName::UbseDevName(const std::string& name) : devName(name)
 UbseDevName::UbseDevName(std::string&& name) : devName(std::move(name))
 {
 }
-UbseDevName::UbseDevName(const std::string& nodeId, const std::string& socketId) : devName(nodeId + "-" + socketId)
+UbseDevName::UbseDevName(const std::string& nodeId, const std::string& chipId) : devName(nodeId + "-" + chipId)
 {
 }
 
@@ -39,14 +39,14 @@ bool UbseDevName::operator<(const UbseDevName& other) const
 {
     return this->devName < other.devName;
 }
-uint32_t UbseDevName::SplitDevName(std::string& nodeId, std::string& socketId) const
+uint32_t UbseDevName::GetNodeIdAndChipId(std::string& nodeId, std::string& chipId) const
 {
     size_t pos = devName.find('-');
     if (pos == std::string::npos) {
         return UBSE_ERROR;
     }
     nodeId = devName.substr(0, pos);
-    socketId = devName.substr(pos + 1);
+    chipId = devName.substr(pos + 1);
     return UBSE_OK;
 }
 UbseDevPortName::UbseDevPortName(const std::string& slotId, const std::string& chipId, const std::string& cardId,

@@ -12,6 +12,7 @@
 
 #include "ubse_lcne_module.h"
 #include <dlfcn.h>
+#include <cstdint>
 #include <iostream>
 #include <shared_mutex>
 #include <unordered_set>
@@ -30,7 +31,9 @@
 #include "ubse_logger_module.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
+#include "ubse_mti_eid_util.h"
 #include "ubse_net_util.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 namespace ubse::mti {
 using namespace ubse::module;
@@ -96,7 +99,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
     std::string defaultVal;
     auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", defaultVal);
     if (ret != UBSE_OK || defaultVal.empty()) {
-        UBSE_LOG_WARN << "Unable to get cluster.ipList config," << FormatRetCode(ret) << " ,use default tcp";
+        UBSE_LOG_WARN << "Unable to get cluster.ipList config, " << FormatRetCode(ret) << ", use default tcp.";
         return;
     }
     std::vector<std::string> ipRangeVec;
@@ -124,7 +127,7 @@ void UbseLcneModule::UpdateClusterIpListAndLocalIp()
         }
     }
     if (localIp.empty()) {
-        UBSE_LOG_ERROR << "Get local ip failed";
+        UBSE_LOG_ERROR << "Get local ip failed.";
         return;
     }
     clusterIpList = ips;
@@ -135,7 +138,7 @@ UbseResult UbseLcneModule::Initialize()
     // Init阶段，向lcne设备模块获取信息
     auto ret = GetLcneConf();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MTI] Failed to get mock lcne port";
+        UBSE_LOG_ERROR << "[MTI] Failed to get mock lcne port.";
         return UBSE_ERROR;
     }
     std::unique_lock<std::shared_mutex> lock(rw_mutex);
@@ -168,8 +171,7 @@ UbseResult UbseLcneModule::GetLcneData()
     auto hostInfoRet = UbseLcneHostInfo::GetGetInstance().QueryLcneHostInfo(localBoardHostInfo);
     if (topoRet == UBSE_OK && topoChangeRet == UBSE_OK && busInstanceRet == UBSE_OK &&
         ioDieInfoRet == UBSE_OK && hostInfoRet == UBSE_OK) {
-        auto ret = GetComUrmaEid();
-        return ret;
+        return GetComUrmaEid();
     }
     return UBSE_ERROR;
 }
@@ -182,23 +184,6 @@ UbseResult UbseLcneModule::Start()
 }
 
 void UbseLcneModule::Stop() {}
-
-UbseResult UbseLcneModule::GenerateBondingEid(const std::string &nodeId, unsigned char *bondingEid)
-{
-    uint32_t slotNumber = 0;
-    UbseResult ret = ConvertStrToUint32(nodeId, slotNumber);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Failed to parse slotNumber, " << FormatRetCode(ret);
-        return UBSE_ERROR_PARSE_ARGS_FAILED;
-    }
-    // eid的后4个字节是从第12个字节开始的
-    auto res = memcpy_s(bondingEid + NO_12, IPV6_SEGMENT_LENGTH, &slotNumber, IPV6_SEGMENT_LENGTH);
-    if (res != EOK) {
-        UBSE_LOG_ERROR << "Failed to generate bonding eid, memcpy_s error";
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
-}
 
 UbseResult UbseLcneModule::GetComUrmaEid()
 {
@@ -215,17 +200,14 @@ UbseResult UbseLcneModule::GetComUrmaEid()
             return UBSE_ERROR;
         }
         for (auto &dev : localBoardIOInfo) {
-            std::string nodeId;
-            std::string ubpuId;
-            dev.first.SplitDevName(nodeId, ubpuId);
-            UbseMtiIouInfo iou{.slotId = nodeId, .ubpuId = ubpuId, .iouId  = "1"};
+            UbseMtiIouInfo iou(dev.first.slotId, dev.first.ubpuId, dev.first.iouId);
             UbseMtiEidGroup fe;
             if (UbseLcneFeEid::GetInstance().GetComUrmaEidClos(iou, fe) != UBSE_OK) {
                 UBSE_LOG_ERROR << "[MTI] Failed to get UrmaEid from local board.";
                 return UBSE_ERROR;
             }
-            allSocketComEid[UbseDevName(iou.slotId, iou.ubpuId)] = fe;
-            UBSE_LOG_INFO << "[MTI] allSocketComEid ubpu=" << iou.ubpuId << ", entity=" << fe.entityId
+            allSocketComEid[iou] = fe;
+            UBSE_LOG_INFO << "[MTI] allSocketComEid ubpu=" << dev.first.ubpuId << ", entity=" << fe.entityId
                            << ", primaryEid=" << fe.primaryEid << ", portEids.size=" << fe.portEids.size();
         }
     }
@@ -234,242 +216,49 @@ UbseResult UbseLcneModule::GetComUrmaEid()
 
 UbseResult UbseLcneModule::FillNodeComInfo()
 {
-    std::string &localNodeId = ubseLcneBusInstanceInfo.localNodeId;
     ubseNodeInfos_.clear();
-
-    for (const auto &socketComEid : allSocketComEid) {
-        std::string nodeId;
-        std::string socketId;
-        socketComEid.first.SplitDevName(nodeId, socketId);
-
-        if (IsPrimaryEidExist(nodeId)) {
-            continue;
-        }
-
-        unsigned char bondingEid[IPV6_BYTE_COUNT] = {0x42, 0x45, 0x49, 0x44}; // 前32位为BEID
-        auto ret = GenerateBondingEid(nodeId, bondingEid);                    // BEID 0000 0000 [NodeId]000
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        uint32_t serverIdx = 0;
+        auto ret = adapter_plugins::smbios::UbseSmbios::GetInstance().GetServerIdx(serverIdx);
         if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to get super node basic info, " << FormatRetCode(ret);
             return ret;
         }
-
-        std::string bondingEidString = BytesToIPv6String(bondingEid);
-
-        if (nodeId == localNodeId) {
-            ubseNodeInfo_.nodeId = localNodeId;
-            ubseNodeInfo_.eid = bondingEidString;
-            ubseNodeInfos_.insert(ubseNodeInfos_.begin(), ubseNodeInfo_);
-        } else {
-            ubseNodeInfos_.push_back({nodeId, bondingEidString});
+        ubseNodeInfo_.nodeId = std::to_string(serverIdx + 1);
+        ubseNodeInfo_.eid = utils::GenerateUrmaDevEid(0, serverIdx + 1, 0, 0);
+        ubseNodeInfos_.insert(ubseNodeInfos_.begin(), ubseNodeInfo_);
+    } else {
+        std::string &localNodeId = ubseLcneBusInstanceInfo.localNodeId;
+        for (const auto &[iou, socketComEid] : allSocketComEid) {
+            if (IsPrimaryEidExist(iou.slotId)) {
+                continue;
+            }
+            uint32_t slotId = 0;
+            if (ConvertStrToUint32(iou.slotId, slotId) != UBSE_OK) {
+                UBSE_LOG_ERROR << "Convert slotId failed, " << FormatRetCode(UBSE_ERROR);
+                return UBSE_ERROR;
+            }
+            std::string bondingEidString = utils::GenerateUrmaDevEid(0, slotId, 0, 0);
+            if (iou.slotId == localNodeId) {
+                ubseNodeInfo_.nodeId = localNodeId;
+                ubseNodeInfo_.eid = bondingEidString;
+                ubseNodeInfos_.insert(ubseNodeInfos_.begin(), ubseNodeInfo_);
+            } else {
+                ubseNodeInfos_.push_back({iou.slotId, bondingEidString});
+            }
         }
     }
-
     return UBSE_OK;
 }
 
-UbseResult UbseLcneModule::GetBondingEidByNodeId(std::string &bondingEid, const std::string &nodeId)
-{
-    for (MtiNodeInfo &nodeInfo : ubseNodeInfos_) {
-        if (nodeId == nodeInfo.nodeId) {
-            bondingEid = nodeInfo.eid;
-            return UBSE_OK;
-        }
-    }
-    return UBSE_ERROR;
-}
-
-const std::map<UbseDevName, UbseMtiEidGroup> UbseLcneModule::GetAllSocketComEid()
+const std::map<UbseMtiIouInfo, UbseMtiEidGroup> UbseLcneModule::GetMtiComEid()
 {
     return allSocketComEid;
 }
 
-const std::map<UbseDevName, UbseLcneIODieInfo> UbseLcneModule::GetLocalBoardIOInfo()
+const std::map<UbseMtiIouInfo, UbseLcneIODieInfo> UbseLcneModule::GetLocalBoardIOInfo()
 {
     return localBoardIOInfo;
-}
-
-UbseResult UbseLcneModule::GetTopologyInfo(std::map<std::string, std::vector<IODieInfo>> &allNodeIOdieInfo)
-{
-    for (const auto &socketComEid : allSocketComEid) {
-        IODieInfo ioDieInfo{};
-        UbseDevName devName(socketComEid.first.devName);
-        const std::string &primaryEid = socketComEid.second.primaryEid;
-
-        UbseResult ret = ParseColonHexString(primaryEid, ioDieInfo.primaryEid);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << "Failed to parse primaryEid.";
-            continue;
-        }
-
-        const std::map<std::string, std::string>& portEids = socketComEid.second.portEids;
-        if (portEids.size() > 9) {  // 端口eid列表不能超过9个元素
-            return UBSE_ERROR_INVAL;
-        }
-
-        ret = GetIoDiePortEid(devName, ioDieInfo, portEids);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << "Failed to process port eid list.";
-            return ret;
-        }
-
-        std::string nodeId;
-        std::string socketId;
-        socketComEid.first.SplitDevName(nodeId, socketId);
-        ret |= ubse::utils::ConvertStrToInt(socketId, ioDieInfo.socketId);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << "Failed to parse ioDieInfo, devName=" << devName.devName;
-            return UBSE_ERROR_PARSE_ARGS_FAILED;
-        }
-
-        allNodeIOdieInfo[nodeId].push_back(ioDieInfo);
-    }
-
-    return UBSE_OK;
-}
-
-UbseResult UbseLcneModule::GetIoDiePortEid(
-    const UbseDevName& devName, IODieInfo& ioDieInfo,
-    const std::map<std::string, std::string>& portEids)
-{
-    uint32_t index = 0;
-    for (const auto &portEid : portEids) {
-        const std::string &urmaEid = portEid.second;
-        UbseResult ret = ParseColonHexString(urmaEid, ioDieInfo.portEid[index]);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << "Failed to parse eid, eid=" << urmaEid;
-            return UBSE_ERROR_INVAL;
-        }
-
-        UbseDevTopology devTopology{};
-        ubseLcneTopology.UbseGetDevTopology(devTopology);
-
-        auto devTopologyIter = devTopology.find(devName);
-        if (devTopologyIter == devTopology.end()) {
-            ++index;
-            continue;
-        }
-        UbseDevPortName ubseDevPortName{portEid.first};
-        std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> &ubseDevPorts =
-            devTopologyIter->second.second;
-        auto ubseDevPortIter = ubseDevPorts.find(ubseDevPortName);
-        if (ubseDevPortIter == ubseDevPorts.end()) {
-            UBSE_LOG_ERROR << "The corresponding port name was not found portName=" << ubseDevPortName.name;
-            return UBSE_ERROR_INVAL;
-        }
-
-        UbseMtiCpuTopoPortInfo &ubsePortInfo = ubseDevPortIter->second;
-        if (ubsePortInfo.portStatus == UbseMtiCpuTopoPortStatus::DOWN) {
-            ++index;
-            continue;
-        }
-
-        UbseDevName remoteDevName(ubsePortInfo.remoteSlotId, ubsePortInfo.remoteChipId);
-        auto socketComEidIter = allSocketComEid.find(remoteDevName);
-        if (socketComEidIter == allSocketComEid.end()) {
-            UBSE_LOG_ERROR << "The corresponding device name was not found , devName=" << remoteDevName.devName;
-            return UBSE_ERROR_INVAL;
-        }
-
-        UbseMtiEidGroup &remoteSocketComEid = socketComEidIter->second;
-        auto portEidIter = remoteSocketComEid.portEids.find(ubsePortInfo.remotePortId);
-        if (portEidIter == remoteSocketComEid.portEids.end()) {
-            UBSE_LOG_ERROR << "The corresponding port id was not found, portId=" << ubsePortInfo.remotePortId;
-            return UBSE_ERROR_INVAL;
-        }
-
-        ret = ParseColonHexString(portEidIter->second, ioDieInfo.peerPortEid[index]);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << "Failed to parse peer port eid, eid=" << portEidIter->second;
-            return UBSE_ERROR_INVAL;
-        }
-        ++index;
-    }
-    return UBSE_OK;
-}
-
-UbseResult UbseLcneModule::FillTopoArray(std::map<std::string, std::vector<IODieInfo>> &allNodeIOdieInfo,
-                                         std::unique_ptr<TopoInfo[]> &topoArray)
-{
-    uint32_t index = 0;
-    for (const auto &nodeIOdieInfo : allNodeIOdieInfo) {
-        const std::string &nodeId = nodeIOdieInfo.first;
-        TopoInfo &topoInfo = topoArray[index];
-
-        // 填充bondingEid
-        std::string bondingEid;
-        auto ret = GetBondingEidByNodeId(bondingEid, nodeId);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_WARN << "Cannot find the BondingEid corresponding to the node ID.";
-            return UBSE_ERROR_INVAL;
-        }
-        ret = ParseColonHexString(bondingEid, topoInfo.bondingEid);
-        if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_WARN << "Failed to parse ioDieInfo, bondingEid=" << bondingEid;
-            return UBSE_ERROR_INVAL;
-        }
-
-        // 填充ioDieInfo
-        uint32_t maxIoDieSize = 2;
-        uint32_t ioDieSize = nodeIOdieInfo.second.size();
-        ioDieSize = std::min(maxIoDieSize, ioDieSize);
-        for (uint32_t i = 0; i < ioDieSize; i++) {
-            topoInfo.ioDieInfo[i] = nodeIOdieInfo.second[i];
-        }
-
-        // 填充isCurNode
-        topoInfo.isCurNode = (nodeId == ubseLcneBusInstanceInfo.localNodeId);
-
-        ++index;
-    }
-    return UBSE_OK;
-}
-
-UbseResult UbseLcneModule::ParseColonHexString(const std::string &input, char outBytes[IPV6_BYTE_COUNT])
-{
-    if (input.size() != IPV6_FULL_FORMAT_LENGTH) {
-        return UBSE_ERROR;
-    }
-
-    // 将 char* 转换为 unsigned char* 以匹配 sscanf 的格式要求
-    auto *uOut = reinterpret_cast<unsigned char *>(outBytes);
-
-    int scanned = sscanf_s(input.c_str(),
-                           "%2hhx%2hhx:"
-                           "%2hhx%2hhx:"
-                           "%2hhx%2hhx:"
-                           "%2hhx%2hhx:"
-                           "%2hhx%2hhx:"
-                           "%2hhx%2hhx:"
-                           "%2hhx%2hhx:"
-                           "%2hhx%2hhx",
-                           &uOut[0], &uOut[1], &uOut[2], &uOut[3], &uOut[4], &uOut[5], &uOut[6], &uOut[7], &uOut[8],
-                           &uOut[9], &uOut[10], &uOut[11], &uOut[12], &uOut[13], &uOut[14], &uOut[15]);
-
-    return scanned == IPV6_BYTE_COUNT ? UBSE_OK : UBSE_ERROR;
-}
-
-std::string UbseLcneModule::BytesToIPv6String(const unsigned char inBytes[IPV6_BYTE_COUNT])
-{
-    std::array<char, IPV6_FULL_FORMAT_LENGTH + 1> buffer{};
-
-    auto res = snprintf_s(buffer.data(), buffer.size(), IPV6_FULL_FORMAT_LENGTH,
-                          "%02x%02x:"
-                          "%02x%02x:"
-                          "%02x%02x:"
-                          "%02x%02x:"
-                          "%02x%02x:"
-                          "%02x%02x:"
-                          "%02x%02x:"
-                          "%02x%02x",
-                          inBytes[NO_0], inBytes[NO_1], inBytes[NO_2], inBytes[NO_3], inBytes[NO_4], inBytes[NO_5],
-                          inBytes[NO_6], inBytes[NO_7], inBytes[NO_8], inBytes[NO_9], inBytes[NO_10], inBytes[NO_11],
-                          inBytes[NO_12], inBytes[NO_13], inBytes[NO_14], inBytes[NO_15]);
-    if (res < 0) {
-        UBSE_LOG_WARN << "Failed to convert bytes to IPv6 string";
-    } else if (res > IPV6_FULL_FORMAT_LENGTH) {
-        UBSE_LOG_WARN << "IPv6 string is too long";
-    }
-
-    return buffer.data();
 }
 
 bool UbseLcneModule::IsPrimaryEidExist(const std::string &nodeId)
@@ -482,14 +271,14 @@ bool UbseLcneModule::IsPrimaryEidExist(const std::string &nodeId)
     return false;
 }
 
-UbseResult UbseLcneModule::UbseGetLocalNodeInfo(MtiNodeInfo &ubseNodeInfo)
+UbseResult UbseLcneModule::UbseGetLocalNodeInfo(UbseMtiNodeInfo &ubseNodeInfo)
 {
     std::shared_lock<std::shared_mutex> lock(rw_mutex);
     ubseNodeInfo = ubseNodeInfo_;
     return UBSE_OK;
 }
 
-UbseResult UbseLcneModule::UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos)
+UbseResult UbseLcneModule::UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos)
 {
     std::shared_lock<std::shared_mutex> lock(rw_mutex);
     ubseNodeInfos = ubseNodeInfos_;

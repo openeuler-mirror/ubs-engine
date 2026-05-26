@@ -26,7 +26,7 @@ using namespace ubse::http;
 using namespace ubse::mti;
 using namespace ubse::adapter_plugins::mti;
 
-using UbseLcneIODieInfoMap = std::map<UbseDevName, UbseLcneIODieInfo>;
+using UbseLcneIODieInfoMap = std::map<UbseMtiIouInfo, UbseLcneIODieInfo>;
 
 class UbseLcneNodeInfo {
 public:

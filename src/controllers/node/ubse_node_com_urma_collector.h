@@ -38,22 +38,24 @@ public:
 
     UbseResult SetComUrma(std::vector<PhysicalLink> &allLinkInfo, bool isBeforeElection);
 
+    // 获取当前节点MTI感知的设备拓扑信息(仅包含UP的端口)
     UbseResult GetCurNodeTopo(std::vector<PhysicalLink> &allLinkInfo);
+
+    // 获取当前节点MTI感知的端口信息
+    UbseResult GetCurNodePorts(std::vector<PhysicalLink> &allLinkInfo);
 
     UbseResult GetCurNodeIouList(std::vector<UbseMtiIouInfo> &iouList);
 
 private:
 
-    UbseResult ProcessClusterNode(const std::string& curNodeId, uint32_t podId, uint32_t slotId);
+    UbseResult ProcessClusterNode(const std::string& curNodeId, uint32_t serverIdx);
 
-    UbseResult ProcessFeDevice(uint32_t podId, uint32_t slotId, const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe);
+    UbseResult ProcessFeDevice(uint32_t serverIdx, const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe);
+
+    void FillComUrmaFeInfo(const std::string& nodeId, const std::pair<UbseMtiIouInfo, UbseMtiEidGroup>& socketComEid);
 
     std::map<std::string, UbseUrmaUvsAggrDev> comUrmaInfos;
 };
 
-UbseResult OverwriteEid(const uint32_t podId, const uint32_t serverId, const std::string &baseEid, std::string &result);
-
-UbseResult GenerateBondingEid(const uint32_t id0, const uint32_t id1, const uint32_t id2, const uint32_t id3,
-                              std::string &bondingEid);
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_COM_URMA_COLLECTOR_H

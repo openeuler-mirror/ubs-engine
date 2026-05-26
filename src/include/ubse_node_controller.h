@@ -200,7 +200,7 @@ enum class LinkStatus {
     init,
     available, // 可用
     conflict, // 冲突,即两节点上报信息不一样，一节点上报有链路，一节点上报没有，或一节点暂未上报信息
-    outdated, // 过时，即MXE_NODE_UNKNOWN状态的信息
+    unavailable, // 不可用，即端口状态DOWN
 };
 
 struct PhysicalLink {

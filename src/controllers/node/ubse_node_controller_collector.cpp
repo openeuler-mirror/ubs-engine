@@ -491,29 +491,33 @@ void AddEdgeInfo(
 
 UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
 {
-    adapter_plugins::mti::UbseDevTopology devTopology{};
     adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfosGroupByDevName{};
     auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterCpuTopo(cpuTopoInfosGroupByDevName);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] get cpuTopoInfo not successful, ret: " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "[MTI] get cpuTopoInfo not successful, " << FormatRetCode(ret);
         return ret;
     }
     for (auto& [devName, cpuTopoInfo] : cpuTopoInfosGroupByDevName) {
         std::string devNodeId, socketId;
-        devName.SplitDevName(devNodeId, socketId);
+        devName.GetNodeIdAndChipId(devNodeId, socketId);
         if (devNodeId != nodeId) {
             continue;
         }
         UbseCpuInfo info{};
-        info.slotId = cpuTopoInfo.slotId;
-        info.socketId = cpuTopoInfo.socketId;
+        // 消减nodectl中slotId为nodeId
+        info.slotId = cpuTopoInfo.nodeId;
+        info.chipId = cpuTopoInfo.chipId;
+        ret = ConvertStrToUint32(cpuTopoInfo.chipId, info.socketId); // socketId和chipId初始化是一致的
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "convert chipId to uint32 failed, " << FormatRetCode(ret);
+            return ret;
+        }
         UbseCpuLocation location{nodeId, info.socketId};
         auto cpyRet = strcpy_s(info.primaryEid, sizeof(info.primaryEid), cpuTopoInfo.primaryEid.c_str());
         if (cpyRet != EOK) {
             UBSE_LOG_ERROR << "copy primaryEid failed, ErrorCode=" << cpyRet;
             return cpyRet;
         }
-        info.chipId = cpuTopoInfo.chipId;
         info.cardId = cpuTopoInfo.cardId;
         info.busNodeCna = cpuTopoInfo.busNodeCna;
         info.eid = cpuTopoInfo.eid;  // LCNE获取时能保证key存在

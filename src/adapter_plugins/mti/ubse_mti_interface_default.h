@@ -22,6 +22,8 @@ public:
 
     common::def::UbseResult GetClusterNodeInfoList(std::vector<UbseMtiNodeInfo>& nodeIdList) override;
 
+    common::def::UbseResult GetCurNodeTopo(UbseDevTopology& topo) override;
+
     common::def::UbseResult GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& topo) override;
 
     common::def::UbseResult GetLocalIp(std::string& localIp) override;
@@ -36,7 +38,7 @@ public:
 
     common::def::UbseResult GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo& queryInfo,
                                              std::vector<mami::UbseMamiMemHandleValue>& handleValues) override;
-    common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseMtiEidGroup> &socketInfoMap) override;
+    common::def::UbseResult GetMtiComEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup> &comUrmaInfoMap) override;
 
     common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos) override;
 

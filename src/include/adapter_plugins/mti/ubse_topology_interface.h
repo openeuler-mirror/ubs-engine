@@ -13,116 +13,15 @@
 #ifndef UBSE_TOPOLOGY_INTERFACE_H
 #define UBSE_TOPOLOGY_INTERFACE_H
 
-#include <stddef.h>
-#include <stdint.h>
 #include <map>
 #include <string>
 #include <vector>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "ubse_error.h"
+#include "ubse_mti_def.h"
 
-constexpr const uint32_t UbseLcneOk = 0;     // 0 返回成功
-constexpr const uint32_t UbseLcneError = 1;  // 1 返回失败
-
-// 定义故障类型
-typedef enum {
-    REBOOT = 1003,
-    REBOOT_ACK = 1004,
-    OOM = 1005,
-    OOM_ACK = 1006,
-    PANIC = 1007,
-    PANIC_ACK = 1008,
-    KERNEL_REBOOT = 1009,
-    KERNEL_REBOOT_ACK = 1010,
-    MEM_FAULT = 1013,
-} TOPOLOGY_FAULT_TYPE;
-
-// 定义故障处理函数指针
-typedef uint32_t (*topology_fault_handler)(TOPOLOGY_FAULT_TYPE fault_type, const char *fault_info);
-
-/*
- * 接口结构体：ubse_topology_interface
- */
-typedef struct ubse_topology_interface {
-    /**
-     * 注册回调函数
-     * @param fault_type [in] 故障类型
-     * @param handler [in] 回调函数
-     * @return 返回值: 0 (成功) 或其他错误码
-     */
-    uint32_t (*register_fault_handler)(TOPOLOGY_FAULT_TYPE *fault_type, topology_fault_handler handler);
-
-    /**
-     * 通知本地 System sentry 故障处理结果
-     * @param fault_type [in] 对应的故障类型
-     * @param result [in] 故障处理结果
-     * @return 返回值: 0 (成功) 或其他错误码
-     */
-    uint32_t (*notify_fault_handle_result)(TOPOLOGY_FAULT_TYPE *fault_type, char *result);
-} ubse_topology_interface;
-
-// 获取实例
-ubse_topology_interface *get_ubse_topology_instance(void);
-
-#ifdef __cplusplus
-}
-#endif
 namespace ubse::mti {
-// LCNE感知的节点信息
-struct MtiNodeInfo {
-    std::string nodeId;
-    std::string eid; // 当前这里是ip，后续会切换成eid
-};
-
-struct DevName {
-    std::string devName;
-
-    DevName() {}
-    DevName(const std::string &name) : devName(name) {}
-    DevName(std::string &&name) : devName(std::move(name)) {}
-
-    DevName(const std::string &nodeId, const std::string &socketId)
-    {
-        devName = nodeId + "-" + socketId;
-    }
-
-    bool operator==(const DevName &other) const
-    {
-        return this->devName == other.devName;
-    }
-
-    bool operator<(const DevName &other) const
-    {
-        return this->devName < other.devName;
-    }
-
-    uint32_t SplitDevName(std::string &nodeId, std::string &socketId) const
-    {
-        size_t pos = devName.find('-');
-        if (pos == std::string::npos) {
-            return UbseLcneError;
-        } else {
-            nodeId = devName.substr(0, pos);
-            socketId = devName.substr(pos + 1);
-        }
-        return UbseLcneOk;
-    }
-};
-
-struct IODieInfo {
-    char primaryEid[16];
-    char portEid[9][16];
-    char peerPortEid[9][16];
-    int socketId;
-};
-
-struct TopoInfo {
-    char bondingEid[16];
-    IODieInfo ioDieInfo[2];
-    bool isCurNode;
-};
+using namespace ubse::adapter_plugins::mti;
 
 // 查询节点信息
 enum class DevType {
@@ -144,7 +43,7 @@ struct UbseLcneIODieInfo {
     std::string upi;             // IOdie的upi
     std::string primaryCna;      // IOdie的Cna
     std::string chipTypeStr;     // IOdie的设备的类型
-    DevType chipType;            // IOdie的设备的类型
+    UbseDevType chipType;            // IOdie的设备的类型
     std::string chipStatusStr;   // IOdie的状态
     DevStatus chipStatus;        // IOdie的状态表示
 };
@@ -179,13 +78,13 @@ struct UbseLcneBusInstanceInfo {
  * @param [out] ubseNodeInfo: 当前节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetLocalNodeInfo(MtiNodeInfo &ubseNodeInfo);
+uint32_t UbseGetLocalNodeInfo(UbseMtiNodeInfo &ubseNodeInfo);
 
 /**
  * @brief 获取LCNE感知的集群信息
  * @param [out] ubseNodeInfos: 整个集群节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos);
+uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos);
 } // namespace ubse::mti
 #endif // UBSE_TOPOLOGY_INTERFACE_H
