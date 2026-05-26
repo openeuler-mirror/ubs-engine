@@ -180,11 +180,16 @@ public:
 
     /** @brief 增量新增ETS模板VL配置 */
     virtual common::def::UbseResult UbseAddEtsVlsToProfile(const std::string &profileName,
-                                                         const std::vector<UbseEtsVl> &vls) = 0;
+                                                           const std::vector<UbseEtsVl> &vls) = 0;
 
     /** @brief 增量新增ETS模板优先级组配置 */
     virtual common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
         const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups) = 0;
+
+    /** @brief 增量新增ETS模板VL和优先级组配置 */
+    virtual common::def::UbseResult UbseAddEtsVlsAndPriorityGroupsToProfile(
+        const std::string &profileName, const std::vector<UbseEtsVl> &vls,
+        const std::vector<UbseEtsPriorityGroup> &priorityGroups) = 0;
 
     /** @brief 删除ETS模板 */
     virtual common::def::UbseResult UbseDeleteEtsProfile(const std::string &profileName) = 0;

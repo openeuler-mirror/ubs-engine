@@ -371,6 +371,23 @@ UbseResult UbseLcneEts::AddEtsPriorityGroupsToProfile(
     return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsPriorityGroupsToProfile");
 }
 
+UbseResult UbseLcneEts::AddEtsVlsAndPriorityGroupsToProfile(
+    const std::string &profileName, const std::vector<UbseEtsVl> &vls,
+    const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+{
+    std::string body;
+    UbseMtiEtsProfile etsProfile{};
+    etsProfile.profileName = profileName;
+    etsProfile.vls = vls;
+    etsProfile.priorityGroups = priorityGroups;
+    auto ret = BuildEtsProfileXml(etsProfile, body);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MTI] BuildEtsProfileXml failed.";
+        return ret;
+    }
+    return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsVlsAndPriorityGroupsToProfile");
+}
+
 UbseResult UbseLcneEts::DeleteEtsProfile(const std::string &profileName)
 {
     return SendDeleteNoContent(BuildEtsProfilePath(profileName), "DeleteEtsProfile");
