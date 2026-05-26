@@ -18,51 +18,14 @@
 #include <vector>
 
 #include "ubse_error.h"
+#include "ubse_mti_def.h"
 
 namespace ubse::mti {
-// LCNE感知的节点信息
-struct MtiNodeInfo {
-    std::string nodeId;
-    std::string eid; // 当前这里是ip，后续会切换成eid
-};
-
-struct DevName {
-    std::string devName;
-
-    DevName() {}
-    DevName(const std::string &name) : devName(name) {}
-    DevName(std::string &&name) : devName(std::move(name)) {}
-
-    DevName(const std::string &nodeId, const std::string &socketId)
-    {
-        devName = nodeId + "-" + socketId;
-    }
-
-    bool operator==(const DevName &other) const
-    {
-        return this->devName == other.devName;
-    }
-
-    bool operator<(const DevName &other) const
-    {
-        return this->devName < other.devName;
-    }
-
-    uint32_t SplitDevName(std::string &nodeId, std::string &socketId) const
-    {
-        size_t pos = devName.find('-');
-        if (pos == std::string::npos) {
-            return UBSE_ERROR;
-        } else {
-            nodeId = devName.substr(0, pos);
-            socketId = devName.substr(pos + 1);
-        }
-        return UBSE_OK;
-    }
-};
+using namespace ubse::adapter_plugins::mti;
 
 // 查询节点信息
-enum class DevType {
+enum class DevType
+{
     SSU = 0,
     DPU = 1,
     CPU = 2,
@@ -70,7 +33,8 @@ enum class DevType {
     ALL
 };
 
-enum class DevStatus {
+enum class DevStatus
+{
     normal
 };
 
@@ -81,18 +45,20 @@ struct UbseLcneIODieInfo {
     std::string upi;             // IOdie的upi
     std::string primaryCna;      // IOdie的Cna
     std::string chipTypeStr;     // IOdie的设备的类型
-    DevType chipType;            // IOdie的设备的类型
+    UbseDevType chipType;            // IOdie的设备的类型
     std::string chipStatusStr;   // IOdie的状态
     DevStatus chipStatus;        // IOdie的状态表示
 };
 
 // 查询Host信息
-enum class LogicEntityType {
+enum class LogicEntityType
+{
     host,
     guest,
 };
 
-enum class LogicEntityStatus {
+enum class LogicEntityStatus
+{
     online,
     offline,
 };
@@ -108,7 +74,7 @@ struct UbseLcneOSInfo {
 // 查询节点物理上bus instance信息
 struct UbseLcneBusInstanceInfo {
     std::string hostBusinstanceEid;
-    std::string localNodeId;             // 当前节点的nodeid（slotid）
+    std::string localNodeId; // 当前节点的nodeid（slotid）
 };
 
 /**
@@ -116,13 +82,13 @@ struct UbseLcneBusInstanceInfo {
  * @param [out] ubseNodeInfo: 当前节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetLocalNodeInfo(MtiNodeInfo &ubseNodeInfo);
+uint32_t UbseGetLocalNodeInfo(UbseMtiNodeInfo &ubseNodeInfo);
 
 /**
  * @brief 获取LCNE感知的集群信息
  * @param [out] ubseNodeInfos: 整个集群节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos);
+uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos);
 } // namespace ubse::mti
 #endif // UBSE_TOPOLOGY_INTERFACE_H

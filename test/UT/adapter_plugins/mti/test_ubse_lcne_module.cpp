@@ -50,7 +50,7 @@ void TestUbseLcneModule::TearDown()
 TEST_F(TestUbseLcneModule, TestUbseGetLocalNodeInfo)
 {
     UbseLcneModule module;
-    MtiNodeInfo ubseNodeInfo;
+    UbseMtiNodeInfo ubseNodeInfo;
 
     UbseResult ret = module.UbseGetLocalNodeInfo(ubseNodeInfo);
     EXPECT_EQ(ret, UBSE_OK);
@@ -59,7 +59,7 @@ TEST_F(TestUbseLcneModule, TestUbseGetLocalNodeInfo)
 TEST_F(TestUbseLcneModule, UbseGetAllNodeInfos)
 {
     UbseLcneModule module;
-    std::vector<MtiNodeInfo> ubseNodeInfos;
+    std::vector<UbseMtiNodeInfo> ubseNodeInfos;
 
     UbseResult ret = module.UbseGetAllNodeInfos(ubseNodeInfos);
     EXPECT_EQ(ret, UBSE_OK);
@@ -82,7 +82,7 @@ TEST_F(TestUbseLcneModule, GetBondingEidByNodeId)
     UbseResult ret = module.GetBondingEidByNodeId(bondingEid, nodeId);
     EXPECT_EQ(ret, UBSE_ERROR);
 
-    MtiNodeInfo ubseNodeInfo_{"1", "1234:5678:8765:4321:1234:5678:8765:4321"};
+    UbseMtiNodeInfo ubseNodeInfo_{"1", "1234:5678:8765:4321:1234:5678:8765:4321"};
     module.ubseNodeInfos_.push_back(ubseNodeInfo_);
     ret = module.GetBondingEidByNodeId(bondingEid, nodeId);
     EXPECT_EQ(ret, UBSE_OK);
@@ -114,12 +114,12 @@ TEST_F(TestUbseLcneModule, IsPrimaryEidExist)
 
     EXPECT_FALSE(module.IsPrimaryEidExist(nodeId));
 
-    MtiNodeInfo ubseNodeInfo_{"1", "1234:5678:8765:4321:1234:5678:8765:4321"};
+    UbseMtiNodeInfo ubseNodeInfo_{"1", "1234:5678:8765:4321:1234:5678:8765:4321"};
     module.ubseNodeInfos_.push_back(ubseNodeInfo_);
     EXPECT_TRUE(module.IsPrimaryEidExist(nodeId));
 }
 
-TEST_F(TestUbseLcneModule, GetAllSocketComEid)
+TEST_F(TestUbseLcneModule, GetMtiComEid)
 {
     UbseLcneModule module;
     UbseDevName devName("1", "1");
@@ -129,7 +129,7 @@ TEST_F(TestUbseLcneModule, GetAllSocketComEid)
     info.portEids.emplace("2", urmaEid);
     module.allSocketComEid.emplace(devName, info);
 
-    auto ret = module.GetAllSocketComEid();
+    auto ret = module.GetMtiComEid();
     EXPECT_EQ(ret.size(), 1);
     EXPECT_EQ(ret[devName].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4321");
     EXPECT_EQ(ret[devName].portEids["2"], "1234:5678:8765:4321:1234:5678:8765:4325");

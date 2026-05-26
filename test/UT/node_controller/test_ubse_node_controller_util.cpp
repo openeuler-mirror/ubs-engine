@@ -12,21 +12,21 @@
 
 #include "test_ubse_node_controller_util.h"
 
+#include "ubse_node_controller_collector.h"
+#include "src/adapter_plugins/mti/ubse_lcne_module.h"
 #include "src/framework/config/ubse_conf_module.h"
 #include "src/framework/context/ubse_context.h"
-#include "src/adapter_plugins/mti/ubse_lcne_module.h"
-#include "ubse_node_controller_collector.h"
 
-#include <functional>  // 用于 std::function
-#include <string>      // 用于 std::string
-#include <map>         // 用于 std::map
-#include <stdexcept>   // 用于异常处理
+#include <functional> // 用于 std::function
+#include <map>        // 用于 std::map
+#include <stdexcept>  // 用于异常处理
+#include <string>     // 用于 std::string
 
 constexpr uint32_t MAX_PERCENT = 100;
-constexpr uint32_t BLOCK_1G = 1073741824u;     // 1GB
-constexpr uint32_t BLOCK_128M = 134217728u;    // 128MB
-constexpr uint32_t BLOCK_2M = 2097152u;        // 2MB
-constexpr int EOK = 0;                         // 成功码
+constexpr uint32_t BLOCK_1G = 1073741824u;  // 1GB
+constexpr uint32_t BLOCK_128M = 134217728u; // 128MB
+constexpr uint32_t BLOCK_2M = 2097152u;     // 2MB
+constexpr int EOK = 0;                      // 成功码
 
 namespace ubse::node_controller::ut {
 using namespace ubse::context;
@@ -45,28 +45,28 @@ TEST_F(TestUbseNodeControllerUtil, Lock)
     UbseNodeControllerLockMgr::ReadUnLock("util3");
 }
 
-static UbseResult MockGetConfString(UbseConfModule *This, std::string &section, std::string &configKey,
-                                    std::string &configVal)
+static UbseResult MockGetConfString(UbseConfModule* This, std::string& section, std::string& configKey,
+                                    std::string& configVal)
 {
     configVal = "192.168.100.100-192.168.100.102,192.168.100.104";
     return UBSE_OK;
 }
 
-UbseResult MockUbseInvalidGetLocalNodeInfo(UbseLcneModule *, MtiNodeInfo &ubseNodeInfo)
+UbseResult MockUbseInvalidGetLocalNodeInfo(UbseLcneModule*, UbseMtiNodeInfo &ubseNodeInfo)
 {
     ubseNodeInfo.nodeId = "node";
     ubseNodeInfo.eid = "1";
     return UBSE_OK;
 }
 
-UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule *, MtiNodeInfo &ubseNodeInfo)
+UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule*, UbseMtiNodeInfo &ubseNodeInfo)
 {
     ubseNodeInfo.nodeId = "1";
     ubseNodeInfo.eid = "1";
     return UBSE_OK;
 }
 
-UbseResult MockCollectIpList(UbseNodeInfo &ubseNodeInfo)
+UbseResult MockCollectIpList(UbseNodeInfo& ubseNodeInfo)
 {
     UbseIpAddr ipv4{};
     ipv4.type = UbseIpType::UBSE_IP_V4;
@@ -94,17 +94,15 @@ std::unordered_map<std::string, std::string> MockGetClusterIpListFromConf()
 namespace nodeController_test {
 
 // 全局函数指针，用于替换实际的GetUbseConf
-using GetConfigFunc = UbseResult(*)(const std::string&, const std::string&, void*);
+using GetConfigFunc = UbseResult (*)(const std::string&, const std::string&, void*);
 
 static GetConfigFunc g_realGetConfig = nullptr;
 static std::function<UbseResult(const std::string&, const std::string&, std::string&)> g_stringConfigCallback;
 static std::function<UbseResult(const std::string&, const std::string&, uint32_t&)> g_uint32ConfigCallback;
 
 // 统一的测试配置获取函数
-template<typename T>
-UbseResult GetUbseConf_Testable(const std::string& section,
-                                const std::string& key,
-                                T& value)
+template <typename T>
+UbseResult GetUbseConf_Testable(const std::string& section, const std::string& key, T& value)
 {
     // 先尝试使用测试回调
     if constexpr (std::is_same_v<T, std::string>) {
@@ -121,7 +119,7 @@ UbseResult GetUbseConf_Testable(const std::string& section,
     if constexpr (std::is_same_v<T, std::string>) {
         // 默认返回空的配置
         value = "";
-        return UBSE_ERROR;  // 模拟配置读取失败
+        return UBSE_ERROR; // 模拟配置读取失败
     } else if constexpr (std::is_same_v<T, uint32_t>) {
         value = 0;
         return UBSE_ERROR;
@@ -223,9 +221,7 @@ TEST_F(TestUbseNodeControllerUtil, GetAllocator_CompleteTest)
     using namespace nodeController_test;
 
     // 1. 测试hugetlb_pmd
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "obmm" && key == "mempool_allocator") {
             value = "hugetlb_pmd";
             return UBSE_OK;
@@ -236,9 +232,7 @@ TEST_F(TestUbseNodeControllerUtil, GetAllocator_CompleteTest)
     EXPECT_EQ(GetAllocator_Test(), UbseAllocator::HUGETLB_PMD);
 
     // 2. 测试hugetlb_pud
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "obmm" && key == "mempool_allocator") {
             value = "hugetlb_pud";
             return UBSE_OK;
@@ -249,9 +243,7 @@ TEST_F(TestUbseNodeControllerUtil, GetAllocator_CompleteTest)
     EXPECT_EQ(GetAllocator_Test(), UbseAllocator::HUGETLB_PUD);
 
     // 3. 测试配置读取失败
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         return UBSE_ERROR;
     });
 
@@ -265,9 +257,7 @@ TEST_F(TestUbseNodeControllerUtil, GetPmdMapping_CompleteTest)
     using namespace nodeController_test;
 
     // 1. 正常情况
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             uint32_t& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, uint32_t& value) -> UbseResult {
         if (section == "os" && key == "pmd_mapping") {
             value = 75;
             return UBSE_OK;
@@ -275,9 +265,7 @@ TEST_F(TestUbseNodeControllerUtil, GetPmdMapping_CompleteTest)
         return UBSE_ERROR;
     });
 
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "obmm" && key == "mempool_allocator") {
             value = "buddy_highmem";
             return UBSE_OK;
@@ -288,21 +276,17 @@ TEST_F(TestUbseNodeControllerUtil, GetPmdMapping_CompleteTest)
     EXPECT_EQ(GetPmdMapping_Test(), 75u);
 
     // 2. PUD分配器强制100%
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             uint32_t& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, uint32_t& value) -> UbseResult {
         if (section == "os" && key == "pmd_mapping") {
-            value = 30;  // 配置是30%
+            value = 30; // 配置是30%
             return UBSE_OK;
         }
         return UBSE_ERROR;
     });
 
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "obmm" && key == "mempool_allocator") {
-            value = "hugetlb_pud";  // PUD分配器
+            value = "hugetlb_pud"; // PUD分配器
             return UBSE_OK;
         }
         return UBSE_ERROR;
@@ -311,19 +295,15 @@ TEST_F(TestUbseNodeControllerUtil, GetPmdMapping_CompleteTest)
     EXPECT_EQ(GetPmdMapping_Test(), TEST_MAX_PERCENT);
 
     // 3. 配置值超过100%
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             uint32_t& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, uint32_t& value) -> UbseResult {
         if (section == "os" && key == "pmd_mapping") {
-            value = 120;  // 超过100%
+            value = 120; // 超过100%
             return UBSE_OK;
         }
         return UBSE_ERROR;
     });
 
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "obmm" && key == "mempool_allocator") {
             value = "buddy_highmem";
             return UBSE_OK;
@@ -341,11 +321,9 @@ TEST_F(TestUbseNodeControllerUtil, GetBlockSize_CompleteTest)
     using namespace nodeController_test;
 
     // 1. 从配置读取成功
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "ubse.memory" && key == "obmm.memory.block.size") {
-            value = "2097152";  // 2MB
+            value = "2097152"; // 2MB
             return UBSE_OK;
         }
         return UBSE_ERROR;
@@ -354,9 +332,7 @@ TEST_F(TestUbseNodeControllerUtil, GetBlockSize_CompleteTest)
     EXPECT_EQ(GetBlockSize_Test(UbseAllocator::BUDDY_HIGHMEM), TEST_BLOCK_2M);
 
     // 2. 配置读取失败，PUD分配器返回1G
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         return UBSE_ERROR;
     });
 
@@ -367,9 +343,7 @@ TEST_F(TestUbseNodeControllerUtil, GetBlockSize_CompleteTest)
     EXPECT_EQ(GetBlockSize_Test(UbseAllocator::HUGETLB_PMD), TEST_BLOCK_128M);
 
     // 4. 配置值解析失败
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "ubse.memory" && key == "obmm.memory.block.size") {
             value = "not_a_number";
             return UBSE_OK;
@@ -389,73 +363,69 @@ TEST_F(TestUbseNodeControllerUtil, FunctionsIntegrationTest)
 
     // 场景1：PUD分配器场景
     {
-        SetTestConfigCallback([this](const std::string& section,
-                                     const std::string& key,
-                                     std::string& value) -> UbseResult {
-            if (section == "obmm" && key == "mempool_allocator") {
-                value = "hugetlb_pud";
-                return UBSE_OK;
-            }
-            if (section == "ubse.memory" && key == "obmm.memory.block.size") {
-                return UBSE_ERROR;  // 配置读取失败
-            }
-            return UBSE_ERROR;
-        });
+        SetTestConfigCallback(
+            [this](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
+                if (section == "obmm" && key == "mempool_allocator") {
+                    value = "hugetlb_pud";
+                    return UBSE_OK;
+                }
+                if (section == "ubse.memory" && key == "obmm.memory.block.size") {
+                    return UBSE_ERROR; // 配置读取失败
+                }
+                return UBSE_ERROR;
+            });
 
-        SetTestConfigCallback([this](const std::string& section,
-                                     const std::string& key,
-                                     uint32_t& value) -> UbseResult {
-            if (section == "os" && key == "pmd_mapping") {
-                value = 50;  // 配置是50%
-                return UBSE_OK;
-            }
-            return UBSE_ERROR;
-        });
+        SetTestConfigCallback(
+            [this](const std::string& section, const std::string& key, uint32_t& value) -> UbseResult {
+                if (section == "os" && key == "pmd_mapping") {
+                    value = 50; // 配置是50%
+                    return UBSE_OK;
+                }
+                return UBSE_ERROR;
+            });
 
         auto allocator = GetAllocator_Test();
         auto pmdMapping = GetPmdMapping_Test();
         auto blockSize = GetBlockSize_Test(allocator);
 
         EXPECT_EQ(allocator, UbseAllocator::HUGETLB_PUD);
-        EXPECT_EQ(pmdMapping, TEST_MAX_PERCENT);  // PUD强制100%
-        EXPECT_EQ(blockSize, TEST_BLOCK_1G);      // PUD返回1G
+        EXPECT_EQ(pmdMapping, TEST_MAX_PERCENT); // PUD强制100%
+        EXPECT_EQ(blockSize, TEST_BLOCK_1G);     // PUD返回1G
 
         ClearTestCallbacks();
     }
 
     // 场景2：正常BUDDY_HIGHMEM场景
     {
-        SetTestConfigCallback([this](const std::string& section,
-                                     const std::string& key,
-                                     std::string& value) -> UbseResult {
-            if (section == "obmm" && key == "mempool_allocator") {
-                value = "buddy_highmem";
-                return UBSE_OK;
-            }
-            if (section == "ubse.memory" && key == "obmm.memory.block.size") {
-                value = "134217728";  // 128MB
-                return UBSE_OK;
-            }
-            return UBSE_ERROR;
-        });
+        SetTestConfigCallback(
+            [this](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
+                if (section == "obmm" && key == "mempool_allocator") {
+                    value = "buddy_highmem";
+                    return UBSE_OK;
+                }
+                if (section == "ubse.memory" && key == "obmm.memory.block.size") {
+                    value = "134217728"; // 128MB
+                    return UBSE_OK;
+                }
+                return UBSE_ERROR;
+            });
 
-        SetTestConfigCallback([this](const std::string& section,
-                                     const std::string& key,
-                                     uint32_t& value) -> UbseResult {
-            if (section == "os" && key == "pmd_mapping") {
-                value = 65;  // 配置是65%
-                return UBSE_OK;
-            }
-            return UBSE_ERROR;
-        });
+        SetTestConfigCallback(
+            [this](const std::string& section, const std::string& key, uint32_t& value) -> UbseResult {
+                if (section == "os" && key == "pmd_mapping") {
+                    value = 65; // 配置是65%
+                    return UBSE_OK;
+                }
+                return UBSE_ERROR;
+            });
 
         auto allocator = GetAllocator_Test();
         auto pmdMapping = GetPmdMapping_Test();
         auto blockSize = GetBlockSize_Test(allocator);
 
         EXPECT_EQ(allocator, UbseAllocator::BUDDY_HIGHMEM);
-        EXPECT_EQ(pmdMapping, 65u);                // 返回配置值
-        EXPECT_EQ(blockSize, TEST_BLOCK_128M);     // 返回配置的128M
+        EXPECT_EQ(pmdMapping, 65u);            // 返回配置值
+        EXPECT_EQ(blockSize, TEST_BLOCK_128M); // 返回配置的128M
 
         ClearTestCallbacks();
     }
@@ -467,11 +437,9 @@ TEST_F(TestUbseNodeControllerUtil, BoundaryAndExceptionTest)
     using namespace nodeController_test;
 
     // 测试空配置值
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "obmm" && key == "mempool_allocator") {
-            value = "";  // 空字符串
+            value = ""; // 空字符串
             return UBSE_OK;
         }
         return UBSE_ERROR;
@@ -480,11 +448,9 @@ TEST_F(TestUbseNodeControllerUtil, BoundaryAndExceptionTest)
     EXPECT_EQ(GetAllocator_Test(), UbseAllocator::BUDDY_HIGHMEM);
 
     // 测试非常规配置值
-    SetTestConfigCallback([](const std::string& section,
-                             const std::string& key,
-                             std::string& value) -> UbseResult {
+    SetTestConfigCallback([](const std::string& section, const std::string& key, std::string& value) -> UbseResult {
         if (section == "ubse.memory" && key == "obmm.memory.block.size") {
-            value = "99999999999999999999";  // 非常大的数字
+            value = "99999999999999999999"; // 非常大的数字
             return UBSE_OK;
         }
         return UBSE_ERROR;

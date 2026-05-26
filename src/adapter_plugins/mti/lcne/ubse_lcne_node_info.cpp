@@ -12,20 +12,21 @@
 
 #include "ubse_lcne_node_info.h"
 #include <cstdint>                // for uint32_t, uint8_t
-#include "ubse_http_module.h"     // for UbseHttpModule
-#include "securec.h"              // for memcpy_s, EOK
-#include "src/adapter_plugins/mti/ubse_lcne_topology.h"
 #include "ubse_error.h"           // for UBSE_ERROR, UBSE_OK, UBSE_ERROR_NOMEM
+#include "ubse_http_module.h"     // for UbseHttpModule
 #include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_pointer_process.h" // for SafeDeleteArray
 #include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
+#include "securec.h"              // for memcpy_s, EOK
+#include "src/adapter_plugins/mti/ubse_lcne_topology.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
-using namespace ubse::adapter_plugins::mti;
-UbseResult UbseLcneNodeInfo::QueryAllLcneIODieInfo(UbseLcneIODieInfoMap &ubseLcneIODieInfoMap)
+using namespace ubse::mti;
+using namespace ubse::http;
+UbseResult UbseLcneNodeInfo::QueryAllLcneIODieInfo(UbseLcneIODieInfoMap& ubseLcneIODieInfoMap)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -58,22 +59,23 @@ UbseResult UbseLcneNodeInfo::QueryAllLcneIODieInfo(UbseLcneIODieInfoMap &ubseLcn
     return res;
 }
 
-void ParseIODieInfo(const std::shared_ptr<UbseXml> &ubseXml, UbseLcneIODieInfo &ubseLcneIODieInfo)
+void ParseIODieInfo(const std::shared_ptr<UbseXml>& ubseXml, UbseLcneIODieInfo& ubseLcneIODieInfo)
 {
     ubseLcneIODieInfo.ubControllerEid = ubseXml->Child("bus-controller-eid")->Text();
     ubseLcneIODieInfo.guid = ubseXml->Child("guid")->Text();
     ubseLcneIODieInfo.upi = ubseXml->Child("upi")->Text();
     ubseLcneIODieInfo.primaryCna = ubseXml->Child("primary-cna")->Text();
     ubseLcneIODieInfo.chipTypeStr = ubseXml->Child("ubpu-type")->Text();
-    ubseLcneIODieInfo.chipType = StringToDevType(ubseLcneIODieInfo.chipTypeStr);
+    ubseLcneIODieInfo.chipType = StringToUbseDevType(ubseLcneIODieInfo.chipTypeStr);
     ubseLcneIODieInfo.chipStatusStr = ubseXml->Child("iou-status")->Text();
 }
 
-std::string UbseLcneIODieInfoMapToString(const UbseLcneIODieInfoMap &devMap)
+std::string UbseLcneIODieInfoMapToString(const UbseLcneIODieInfoMap& devMap)
 {
     std::ostringstream oss;
-    for (const auto &[devName, info] : devMap) {
-        oss << "{" << "Device= " << devName.devName << ", ubControllerEid= " << info.ubControllerEid
+    for (const auto &[iouInfo, info] : devMap) {
+        oss << "{" << "Device= "<< iouInfo.slotId << "-" << iouInfo.ubpuId << "-" << iouInfo.iouId
+            << ", ubControllerEid= " << info.ubControllerEid
             << ", guid= " << info.guid << ", upi= " << info.upi << ", primaryCna= " << info.primaryCna
             << ", chipType= " << info.chipTypeStr << ", chipStatus= " << info.chipStatusStr << "} ";
         oss << "\n";
@@ -82,8 +84,8 @@ std::string UbseLcneIODieInfoMapToString(const UbseLcneIODieInfoMap &devMap)
     return oss.str();
 }
 
-UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string &responseStr,
-                                                            UbseLcneIODieInfoMap &ubseLcneIODieInfoMap)
+UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string& responseStr,
+                                                            UbseLcneIODieInfoMap& ubseLcneIODieInfoMap)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -110,23 +112,24 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string &r
             UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
             return UBSE_ERROR;
         }
-        UbseDevName devName(nodeId, ubseXml->Child("ubpu-id")->Text());
+        UbseMtiIouInfo iouInfo(nodeId, ubseXml->Child("ubpu-id")->Text(),
+                               ubseXml->Child("iou-id")->Text());
         UbseLcneIODieInfo ubseLcneIODieInfo{};
         ParseIODieInfo(ubseXml, ubseLcneIODieInfo);
         if (ubseLcneIODieInfo.chipStatusStr != "normal") {
-            UBSE_LOG_ERROR << "[MTI] iou-status is" << ubseLcneIODieInfo.chipStatusStr;
+            UBSE_LOG_ERROR << "[MTI] iou-status is " << ubseLcneIODieInfo.chipStatusStr;
             return UBSE_ERROR;
         } else {
             ubseLcneIODieInfo.chipStatus = DevStatus::normal;
         }
-        ubseLcneIODieInfoMap[devName] = ubseLcneIODieInfo;
+        ubseLcneIODieInfoMap[iouInfo] = ubseLcneIODieInfo;
         if (ubseXml->Previous() != UbseXmlError::OK) {
             UBSE_LOG_ERROR << "[MTI] Failed to find xml previous, " << FormatRetCode(UBSE_ERROR);
             return UBSE_ERROR;
         }
     }
     UBSE_LOG_DEBUG << "[MTI] IO DIE information printing: " << "\n"
-                   << UbseLcneIODieInfoMapToString(ubseLcneIODieInfoMap);
+                << UbseLcneIODieInfoMapToString(ubseLcneIODieInfoMap);
     return UBSE_OK;
 }
 } // namespace ubse::lcne

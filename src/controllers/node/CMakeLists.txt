@@ -18,7 +18,7 @@ target_include_directories(ubse_node_controller PUBLIC
         ${SRC_DIR}/adapter_plugins/syssentry
         ${SRC_DIR}/sdk/c/include
         ${SRC_DIR}/adapter_plugins/urma_uvs
-        ${SRC_DIR}/include/adapter_plugins/smbios)
+        ${SRC_DIR}/include/adapter_plugins/mti)
 target_link_libraries(ubse_node_controller PRIVATE
         ubse_com
         ubse_mti
