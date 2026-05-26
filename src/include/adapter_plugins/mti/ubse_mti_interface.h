@@ -256,7 +256,6 @@ public:
      */
     virtual common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
                                                                  std::string &profileName) = 0;
-
 };
 } // namespace ubse::adapter_plugins::mti
 #endif // UBSE_MTI_INTERFACE_H
