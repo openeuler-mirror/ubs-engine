@@ -11,14 +11,15 @@
 */
 #include "ubse_mti_interface_default.h"
 #include <securec.h>
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "lcne/ubse_lcne_decoder_entry.h"
+#include "lcne/ubse_lcne_decoder_handle.h"
+#include "lcne/ubse_lcne_ets.h"
+#include "lcne/ubse_lcne_fe_eid.h"
+#include "lcne/ubse_lcne_qos.h"
 #include "ubse_context.h"
 #include "ubse_lcne_module.h"
 #include "ubse_str_util.h"
-#include "lcne/ubse_lcne_decoder_entry.h"
-#include "lcne/ubse_lcne_decoder_handle.h"
-#include "lcne/ubse_lcne_qos.h"
-#include "lcne/ubse_lcne_fe_eid.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 namespace ubse::adapter_plugins::mti {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace common::def;
@@ -188,4 +189,48 @@ UbseResult UbseMtiInterfaceDefault::UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, st
 {
     return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
 }
-}  // namespace ubse::adapter_plugins::mti
+
+UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
+{
+    return lcne::UbseLcneEts::GetInstance().CreateEtsProfile(etsProfile);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsToProfile(const std::string &profileName,
+                                                           const std::vector<UbseEtsVl> &vls)
+{
+    return lcne::UbseLcneEts::GetInstance().AddEtsVlsToProfile(profileName, vls);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsPriorityGroupsToProfile(
+    const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+{
+    return lcne::UbseLcneEts::GetInstance().AddEtsPriorityGroupsToProfile(profileName, priorityGroups);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsAndPriorityGroupsToProfile(
+    const std::string &profileName, const std::vector<UbseEtsVl> &vls,
+    const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+{
+    return lcne::UbseLcneEts::GetInstance().AddEtsVlsAndPriorityGroupsToProfile(profileName, vls, priorityGroups);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().DeleteEtsProfile(profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsVlsFromProfile(const std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsVlsFromProfile(profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsPriorityGroupsFromProfile(const std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsPriorityGroupsFromProfile(profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryEtsProfile(profileName, etsProfile);
+}
+} // namespace ubse::adapter_plugins::mti

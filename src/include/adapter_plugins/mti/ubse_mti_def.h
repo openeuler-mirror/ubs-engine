@@ -160,5 +160,31 @@ bool ConvertNodeIdToSlotId(const std::string &nodeId, std::string &slotId);
  */
 using UbseDevTopology = std::unordered_map<UbseDevName, UbseDeviceInfoPair, UbseDevNameHash>;
 using UbseMtiCpuTopoInfoMap = std::unordered_map<UbseDevName, UbseMtiCpuTopoInfo, UbseDevNameHash>;
+
+enum class UbseEtsScheduleMode {
+    DWRR = 0,
+    SP = 1,
+};
+
+struct UbseEtsVl {
+    uint32_t vlIndex;
+    uint32_t priorityGroupId;
+    UbseEtsScheduleMode scheduleMode;
+    uint32_t weight;
+};
+
+struct UbseEtsPriorityGroup {
+    uint32_t priorityGroupId;
+    UbseEtsScheduleMode scheduleMode;
+    uint32_t weight;
+    uint32_t cir;
+    uint32_t cbs;
+};
+
+struct UbseMtiEtsProfile {
+    std::string profileName;
+    std::vector<UbseEtsVl> vls;
+    std::vector<UbseEtsPriorityGroup> priorityGroups;
+};
 }  // namespace ubse::adapter_plugins::mti
 #endif  // UBSE_MTI_DEF_H
