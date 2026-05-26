@@ -324,24 +324,24 @@ UbseResult UbseLcneEts::CreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
 UbseResult UbseLcneEts::AddEtsProfileVls(const std::string &profileName, const std::vector<UbseEtsVl> &vls)
 {
     std::string body;
-    auto ret = BuildEtsProfileVlsXml(vls, body);
+    auto ret = BuildEtsProfileVlsXml(profileName, vls, body);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] BuildEtsProfileVlsXml failed.";
         return ret;
     }
-    return SendPatchNoContent(BuildEtsProfileVlsPath(profileName), body, "AddEtsProfileVls");
+    return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsProfileVls");
 }
 
 UbseResult UbseLcneEts::AddEtsProfilePriorityGroups(
     const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
 {
     std::string body;
-    auto ret = BuildEtsProfilePriorityGroupsXml(priorityGroups, body);
+    auto ret = BuildEtsProfilePriorityGroupsXml(profileName, priorityGroups, body);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] BuildEtsProfilePriorityGroupsXml failed.";
         return ret;
     }
-    return SendPatchNoContent(BuildEtsProfilePriorityGroupsPath(profileName), body, "AddEtsProfilePriorityGroups");
+    return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsProfilePriorityGroups");
 }
 
 UbseResult UbseLcneEts::DeleteEtsProfile(const std::string &profileName)
@@ -419,7 +419,8 @@ UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, 
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::BuildEtsProfileVlsXml(const std::vector<UbseEtsVl> &vls, std::string &xmlStr)
+UbseResult UbseLcneEts::BuildEtsProfileVlsXml(const std::string &profileName, const std::vector<UbseEtsVl> &vls,
+                                              std::string &xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -427,17 +428,25 @@ UbseResult UbseLcneEts::BuildEtsProfileVlsXml(const std::vector<UbseEtsVl> &vls,
         return UBSE_ERROR_NULLPTR;
     }
 
-    ubseXml->AddNode("vls");
-    auto ret = BuildEtsProfileVlsContentXml(ubseXml, vls);
-    if (ret != UBSE_OK) {
-        return ret;
+    ubseXml->AddNode("ets-profiles");
+    ubseXml->AddNode("ets-profile");
+    std::shared_ptr<UbseXml> etsProfileXml = ubseXml->Next("ets-profile");
+    AddTextNode(etsProfileXml, "name", profileName);
+    etsProfileXml->AddNode("vls");
+    auto ret = BuildEtsProfileVlsContentXml(etsProfileXml->Next("vls"), vls);
+    if (ret != UBSE_OK || etsProfileXml->Previous() != UbseXmlError::OK) {
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Previous() != UbseXmlError::OK) {
+        UBSE_LOG_ERROR << "[MTI] XML previous ets-profile node failed.";
+        return UBSE_ERROR;
     }
     ubseXml->Printer(xmlStr);
     return UBSE_OK;
 }
 
 UbseResult UbseLcneEts::BuildEtsProfilePriorityGroupsXml(
-    const std::vector<UbseEtsPriorityGroup> &priorityGroups, std::string &xmlStr)
+    const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups, std::string &xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -445,10 +454,18 @@ UbseResult UbseLcneEts::BuildEtsProfilePriorityGroupsXml(
         return UBSE_ERROR_NULLPTR;
     }
 
-    ubseXml->AddNode("priority-groups");
-    auto ret = BuildEtsProfilePriorityGroupsContentXml(ubseXml, priorityGroups);
-    if (ret != UBSE_OK) {
-        return ret;
+    ubseXml->AddNode("ets-profiles");
+    ubseXml->AddNode("ets-profile");
+    std::shared_ptr<UbseXml> etsProfileXml = ubseXml->Next("ets-profile");
+    AddTextNode(etsProfileXml, "name", profileName);
+    etsProfileXml->AddNode("priority-groups");
+    auto ret = BuildEtsProfilePriorityGroupsContentXml(etsProfileXml->Next("priority-groups"), priorityGroups);
+    if (ret != UBSE_OK || etsProfileXml->Previous() != UbseXmlError::OK) {
+        return UBSE_ERROR;
+    }
+    if (ubseXml->Previous() != UbseXmlError::OK) {
+        UBSE_LOG_ERROR << "[MTI] XML previous ets-profile node failed.";
+        return UBSE_ERROR;
     }
     ubseXml->Printer(xmlStr);
     return UBSE_OK;
