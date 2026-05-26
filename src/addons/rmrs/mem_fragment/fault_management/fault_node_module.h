@@ -134,6 +134,81 @@ struct NumaReplaceReturnMsg {
     std::vector<BorrowExecuteParam> BorrowExecuteParamVec;
 };
 
+enum class BorrowStrategyType {
+    NUMA_LEVEL_STRATEGY,        // 采用NUMA级别借用决策
+    BORROW_ID_LEVEL_STRATEGY,   // 采用borrowId级别借用决策
+    STRATEGY_FAILED             // 决策失败
+};
+
+struct FaultNumaVmInfo {
+    pid_t pid;
+    uint16_t localNumaId;
+    uint16_t remoteNumaId;
+    uint64_t remoteNumaUsedMem;
+};
+
+
+struct NumaLevelDecision {
+    std::vector<std::string> oldNames;                                  // 旧的borrowId集合
+    uint16_t borrowNumaId;                                              // 借入方numaId
+    uint16_t borrowSocketId;                                            // 借入方socketId
+    std::string lentNodeId;                                             // 借出方nodeId
+    uint16_t lentSocketId;                                              // 决策出的借出方socketId
+    uint64_t borrowSize;                                                // 决策出的借用内存大小
+    uint16_t lentNumaId;                                                // 决策出的借出方numaId
+    uint64_t lentMemSize;                                               // 决策出的借出方numaId上的借出内存大小(单位：KB)
+    std::map<uint16_t, uint64_t> lentNumaIdAndSizeMap;                  // 决策出的借出方numaId -> 借出内存大小(单位：KB)
+    bool isReturnDirectly = false;                                      // 是否直接归还（无需借用迁移）
+    std::vector<pid_t> pids;                                            // 需逃生的虚机pid集合
+    uid_t uid{0};                                                       // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
+    std::string username{};                                             // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+};
+
+struct BorrowIdLevelDecision {
+    std::string oldName;                                                // 旧的borrowId
+    uint16_t borrowSocketId;                                            // 借入方socketId
+    uint16_t borrowNumaId;                                              // 借入方numaId
+    uint64_t needBorrowSize;                                            // 决策出的需要借用内存大小
+    std::vector<pid_t> pids;                                            // 需逃生的虚机pid集合
+    std::string lentNodeId;                                             // 决策出的借出方nodeId
+    uint16_t lentSocketId;                                              // 决策出的借出方socketId
+    uint16_t lentNumaId;                                                // 决策出的借出方numaId
+    uint64_t lentMemSize;                                               // 决策出的借出方numaId上的借出内存大小(单位：KB)
+    std::map<uint16_t, uint64_t> lentNumaIdAndSizeMap;                  // 决策出的借出方numaId -> 借出内存大小(单位：KB)
+    bool isReturnDirectly = false;                                      // 是否直接归还（无需借用迁移）
+    uid_t uid{0};                                                       // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
+    std::string username{};                                             // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+};
+
+struct BorrowGroupResult {
+    std::string borrowNodeId;                               // 该故障numa对应的nodeId
+    uint16_t borrowSocketId;                                // 该故障numa对应的socketId
+    uint16_t remoteNumaId;                                  // 该故障numa对应的远端numaId
+    uint64_t totalSize;                                     // 该故障numa上的总借用内存大小
+    uint64_t totalUsedSize;                                 // 该故障numa上的已用内存大小
+    std::vector<BorrowRecord> records;                      // 该故障numa上的账本集合，已按size降序
+    std::vector<FaultNumaVmInfo> vmInfos;                   // 该故障numa上的虚机信息集合，按占用大小降序
+    BorrowStrategyType strategyType = BorrowStrategyType::STRATEGY_FAILED;      // 该故障numa上的借用决策（NUMA级别/borrowId级别/决策失败）
+    NumaLevelDecision numaDecision;                         // NUMA级别决策结果
+    std::vector<BorrowIdLevelDecision> borrowIdDecisions;   // BorrowId级别决策结果（每个borrowRecord对应一个）
+};
+
+// 集群快照项（增加 totalBlocks 用于快速判断，派生自 numaCanLentMap）
+struct ClusterSnapshotItem {
+    std::string nodeId;
+    uint16_t socketId;
+    uint64_t freeMemSize;                           // 可借出内存（理论未对齐大小）
+    uint64_t canLentMemSize;                        // 实际可借出内存（按blockSize对齐后的总大小）
+    std::vector<uint16_t> numaIds;                  // 该socket下的所有numaId
+    std::map<uint16_t, uint64_t> numaCanLentMap;    // numaId -> 可借block数量
+    uint64_t totalBlocks;                           // 该 socket 可借block总数（派生，加速判断）
+};
+
+struct AllocResult {
+    ClusterSnapshotItem* selected = nullptr;
+    std::vector<std::pair<uint16_t, uint64_t>> allocatedNumas;
+};
+
 class FaultNodeModule {
 public:
     static FaultNodeModule& Instance()
@@ -185,21 +260,58 @@ public:
                          std::pair<std::string, std::vector<BorrowExecuteParam>> nodeBorrowExecuteParam,
                          std::vector<ForwardMemIdParam>& forwardMemIdParamList);
 
+    MpResult ProcessBorrowOutNodeFaultParallel(const std::string nodeId, bool forceDeleteMem);
+    MpResult FaultHandleInfosCollect(const std::string& faultNodeId,
+                                     std::vector<BorrowGroupResult>& borrowGroups,
+                                     std::vector<ClusterSnapshotItem>& baseSnapshot);
+    std::vector<BorrowGroupResult> GroupBorrowRecordsByNuma(const std::vector<BorrowRecord>& records);
+    MpResult GetVmOccupancyForGroup(const std::string& borrowNodeId, uint16_t remoteNumaId,
+                                    std::vector<FaultNumaVmInfo>& vmInfos);
+    MpResult GetBaseClusterSnapshot(const std::string& faultNodeId, std::vector<ClusterSnapshotItem>& clusterInfos);
+    MpResult FaultHandleBorrowStrategy(std::vector<BorrowGroupResult>& borrowGroups,
+                                       std::vector<ClusterSnapshotItem>& baseSnapshot);
+    void GenerateNumaLevelDecision(std::vector<BorrowGroupResult>& borrowGroups,
+                                   std::vector<ClusterSnapshotItem>& baseSnapshot,
+                                   bool mustSamePlane);
+    void GenerateBorrowIdLevelDecision(std::vector<BorrowGroupResult>& borrowGroups,
+                                                        std::vector<ClusterSnapshotItem>& baseSnapshot,
+                                                        bool mustSamePlane);
+    std::vector<ClusterSnapshotItem*> FilterSnapshotByBorrowNode(const std::string& borrowNodeId,
+                                                                 uint16_t borrowSocketId,
+                                                                 std::vector<ClusterSnapshotItem>& clusterInfos);
+    void NumaLevelDecisionFill(BorrowGroupResult& group, ClusterSnapshotItem& best, uint64_t needBlocks,
+                               std::vector<std::pair<uint16_t, uint64_t>>& allocatedNumas);
+    bool TryBestFitAllocate(const BorrowGroupResult& group, const std::vector<ClusterSnapshotItem*>& candidates,
+                            uint64_t needBlocks, bool samePlaneOnly, AllocResult& result);
+    void RemoveMigratedPidsFromVmInfos(std::vector<FaultNumaVmInfo>& vmInfos, const std::vector<pid_t>& pids);
+    MpResult BorrowIdLevelExecute(const BorrowGroupResult& group, BorrowIdLevelDecision decision);
+    MpResult SendNumaLevelExecuteRpc(std::string& nodeId, BorrowGroupResult& group, MpResult& outResult);
+    MpResult SendBorrowIdExecuteRpc(std::string& nodeId, BorrowGroupResult& group, MpResult& outResult);
+    MpResult FaultHandleExecuteParallel(std::vector<BorrowGroupResult>& borrowGroups);
+    MpResult NumaLevelExecute(const BorrowGroupResult& group, NumaLevelDecision decision);
+    static uint64_t GetBlockSizeKB();
+
 private:
     FaultNodeModule() = default;
     ~FaultNodeModule() = default;
     FaultNodeModule(const FaultNodeModule&) = delete;
     FaultNodeModule& operator=(const FaultNodeModule&) = delete;
     uint16_t faultHandleCurRound = 0;
+    static uint64_t sBlockSizeKb;             // 缓存的块大小（KB）
+    static void SetBlockSizeKB(const std::string& nodeId);  // 根据节点设置块大小
 };
 
 // RPC Handler
-uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
-void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
-void NodeNumaReplaceReturnHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
-void NodeNumaReplaceReturnResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
-void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
-                                  uint64_t& hugePageMemSize);
+uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+void CheckUBTurboIsAliveResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+void NodeNumaReplaceReturnHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+void NodeNumaReplaceReturnResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg &rpcMsg, std::vector<pid_t> &destPidList,
+                                  uint64_t &hugePageMemSize);
+uint32_t NumaLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+uint32_t BorrowIdLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void NumaLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+void BorrowIdLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
 class MpFaultNodeSubModule : public MpSubModule {
 public:
@@ -220,6 +332,24 @@ public:
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";
+            return ret;
+        }
+
+        // 注册 NUMA 级别执行 handler
+        endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_NUMA_LEVEL_EXECUTE};
+        ret = UbseRegRpcService(endpoint, NumaLevelExecuteHandler);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MSG] NumaLevelExecuteHandler reg failed, ret=" << ret;
+            return ret;
+        }
+
+        // 注册 BorrowId 级别执行 handler
+        endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_BORROW_ID_LEVEL_EXECUTE};
+        ret = UbseRegRpcService(endpoint, BorrowIdLevelExecuteHandler);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MSG] BorrowIdLevelExecuteHandler reg failed, ret=" << ret;
             return ret;
         }
 
