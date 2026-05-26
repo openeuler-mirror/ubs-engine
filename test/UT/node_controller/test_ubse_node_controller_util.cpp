@@ -52,14 +52,14 @@ static UbseResult MockGetConfString(UbseConfModule* This, std::string& section, 
     return UBSE_OK;
 }
 
-UbseResult MockUbseInvalidGetLocalNodeInfo(UbseLcneModule*, MtiNodeInfo& ubseNodeInfo)
+UbseResult MockUbseInvalidGetLocalNodeInfo(UbseLcneModule*, UbseMtiNodeInfo &ubseNodeInfo)
 {
     ubseNodeInfo.nodeId = "node";
     ubseNodeInfo.eid = "1";
     return UBSE_OK;
 }
 
-UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule*, MtiNodeInfo& ubseNodeInfo)
+UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule*, UbseMtiNodeInfo &ubseNodeInfo)
 {
     ubseNodeInfo.nodeId = "1";
     ubseNodeInfo.eid = "1";

@@ -67,4 +67,15 @@ UbseResult UbseSmbios::GetPodId(uint16_t &podId)
     return UBSE_OK;
 }
 
+UbseResult UbseSmbios::GetServerIdx(uint32_t &serverIdx)
+{
+    auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
+    if (basicInfo == nullptr) {
+        UBSE_LOG_ERROR << "Get super pod basic info failed";
+        return UBSE_ERROR;
+    }
+    // 计算serverIdx，serverIdx从0开始，slotId从1开始
+    serverIdx = static_cast<uint32_t>(basicInfo->podId) * NO_8 + static_cast<uint32_t>(basicInfo->slotId) - 1;
+    return UBSE_OK;
+}
 } // namespace ubse::adapter_plugins::smbios

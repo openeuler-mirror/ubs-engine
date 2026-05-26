@@ -33,14 +33,14 @@ bool UbseDevName::operator<(const UbseDevName& other) const
 {
     return this->devName < other.devName;
 }
-uint32_t UbseDevName::SplitDevName(std::string& nodeId, std::string& socketId) const
+uint32_t UbseDevName::GetNodeIdAndChipId(std::string& nodeId, std::string& chipId) const
 {
     size_t pos = devName.find('-');
     if (pos == std::string::npos) {
         return UBSE_ERROR;
     }
     nodeId = devName.substr(0, pos);
-    socketId = devName.substr(pos + 1);
+    chipId = devName.substr(pos + 1);
     return UBSE_OK;
 }
 UbseDevPortName::UbseDevPortName(const std::string& slotId, const std::string& chipId, const std::string& cardId,

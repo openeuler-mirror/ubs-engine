@@ -18,6 +18,7 @@
 #include "ubse_str_util.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_def.h"
+#include "ubse_mti_eid_util.h"
 #include "ubse_urma_uvs_module.h"
 #include "securec.h"
 #include "src/controllers/node/ubse_node_com_urma_collector.h"

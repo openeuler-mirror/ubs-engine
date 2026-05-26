@@ -190,10 +190,10 @@ TEST_F(TestSysSentryModule, GetCurNodeCna)
     UbseDevName devName1_2("1-2");
     UbseDevName devName2_1("2-1");
     UbseDevName devName2_2("2-2");
-    UbseMtiCpuTopoInfo cpuTopoInfo1_1{.slotId = 1, .socketId = 1, .busNodeCna = 0x123, .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo1_2{.slotId = 1, .socketId = 2, .busNodeCna = 0x456, .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo2_1{.slotId = 2, .socketId = 1, .busNodeCna = 0x789, .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo2_2{.slotId = 2, .socketId = 2, .busNodeCna = 0xabc, .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo1_1{.nodeId = 1, .chipId = 1, .busNodeCna = 0x123, .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo1_2{.nodeId = 1, .chipId = 2, .busNodeCna = 0x456, .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo2_1{.nodeId = 2, .chipId = 1, .busNodeCna = 0x789, .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo2_2{.nodeId = 2, .chipId = 2, .busNodeCna = 0xabc, .portInfos = {}};
     UbseMtiCpuTopoInfoMap topo;
     topo[devName1_1] = cpuTopoInfo1_1;
     topo[devName1_2] = cpuTopoInfo1_2;

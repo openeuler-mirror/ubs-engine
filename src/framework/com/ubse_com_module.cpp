@@ -313,30 +313,6 @@ bool UbseComModule::IsCurrentNode(const std::string& nodeId)
     return roleInfo.nodeId == nodeId;
 }
 
-UbseResult GetNodeInfoFromMti(IpAddress& address, std::string& nodeId)
-{
-    adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo;
-    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    bool ubEnable;
-    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get communication mode.";
-        return UBSE_ERROR_CONF_INVALID;
-    }
-    nodeId = ubseNodeInfo.nodeId;
-    if (ubEnable) {
-        address.first = ubseNodeInfo.eid;
-        address.second = TCP_LISTEN_PORT;
-    } else {
-        adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(address.first);
-        address.second = TCP_LISTEN_PORT;
-    };
-    UBSE_LOG_INFO << "Com_ip=" << address.first << ", com_port=" << address.second << ", com_node_id=" << nodeId;
-    return UBSE_OK;
-}
-
 UbseResult UbseComModule::RegNewChannelCallBack(UbseComCallBackForHA func)
 {
     if (rpcServer_ == nullptr) {

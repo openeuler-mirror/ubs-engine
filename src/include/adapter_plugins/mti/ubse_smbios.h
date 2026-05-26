@@ -58,6 +58,13 @@ public:
      */
     uint32_t GetPodId(uint16_t &podId);
 
+    /**
+      * @brief 获取服务器索引
+      * @param serverIdx 服务器索引
+      * @return UBSE_OK 标识成功
+      * @return UBSE_ERROR 表示失败
+      */
+    uint32_t GetServerIdx(uint32_t &serverIdx);
 private:
     UbseSmbios() = default;
 };

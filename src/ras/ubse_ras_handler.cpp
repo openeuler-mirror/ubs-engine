@@ -790,25 +790,20 @@ std::string ToLowerEid(const std::string& eid)
 std::string QueryNodeIdByEid(const std::string& eid)
 {
     const std::string lowerEid = ToLowerEid(eid);
-    std::map<UbseDevName, adapter_plugins::mti::UbseMtiEidGroup> socketInfoMap{};
-    auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
+    std::map<adapter_plugins::mti::UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup> comUrmaInfoMap{};
+    auto result = UbseMtiInterface::GetInstance().GetMtiComEid(comUrmaInfoMap);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "Get all socket eid failed, " << ubse::log::FormatRetCode(result);
         return "";
     }
     std::unordered_map<std::string, std::string> eids;
-    for (const auto& info : socketInfoMap) {
-        std::vector<std::string> devVec;
-        ubse::utils::Split(info.first.devName, "-", devVec);
-        if (devVec.size() < NO_2) {
-            UBSE_LOG_ERROR << "Split str failed, devName=" << info.first.devName;
-            return "";
-        }
-        eids[ToLowerEid(info.second.primaryEid)] = devVec[0];
+    for (const auto& info : comUrmaInfoMap) {
+        eids[info.second.primaryEid] = info.first.slotId;
     }
     if (eids.find(lowerEid) == eids.end()) {
-        for (const auto& item : socketInfoMap) {
-            UBSE_LOG_DEBUG << "DevName=" << item.first.devName << "; eid=" << ToLowerEid(item.second.primaryEid);
+        UBSE_LOG_INFO << "Query EID=" << lowerEid;
+        for (const auto& item : comUrmaInfoMap) {
+            UBSE_LOG_INFO << "SlotId=" << item.first.slotId << "; eid=" << ToLowerEid(item.second.primaryEid);
         }
         return "";
     }

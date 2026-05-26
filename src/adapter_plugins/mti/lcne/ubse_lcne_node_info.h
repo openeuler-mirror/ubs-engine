@@ -25,7 +25,7 @@ using common::def::UbseResult;
 using ubse::adapter_plugins::mti::UbseDevName;
 using ubse::mti::UbseLcneIODieInfo;
 
-using UbseLcneIODieInfoMap = std::map<UbseDevName, UbseLcneIODieInfo>;
+using UbseLcneIODieInfoMap = std::map<UbseMtiIouInfo, UbseLcneIODieInfo>;
 
 class UbseLcneNodeInfo {
 public:

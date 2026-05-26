@@ -86,71 +86,21 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
     }
 }
 
-void BuildEdgeInfo(
-    std::pair<const adapter_plugins::mti::UbseDevPortName, adapter_plugins::mti::UbseMtiCpuTopoPortInfo>& port,
-    UbsePortInfo& portInfo)
-{
-    portInfo.portId = port.second.portId;
-    portInfo.ifName = port.second.ifName;
-    portInfo.portRole = port.second.portRole;
-    portInfo.portStatus = static_cast<PortStatus>(port.second.portStatus);
-    portInfo.portCna = port.second.portCna;
-    portInfo.urmaEid = port.second.urmaEid;
-    portInfo.remoteSlotId = port.second.remoteSlotId;
-    portInfo.remoteChipId = port.second.remoteChipId;
-    portInfo.remoteCardId = port.second.remoteCardId;
-    portInfo.remoteIfName = port.second.remoteIfName;
-    portInfo.remotePortId = port.second.remotePortId;
-}
-
-UbseResult CollectCpuInfo(UbseNodeInfo& ubseNodeInfo, const std::string& nodeId)
-{
-    adapter_plugins::mti::UbseDevTopology devTopology{};
-    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfosGroupByDevName{};
-    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterCpuTopo(cpuTopoInfosGroupByDevName);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[MTI] get cpuTopoInfo not successful, " << FormatRetCode(ret);
-        return ret;
-    }
-    for (auto& [devName, cpuTopoInfo] : cpuTopoInfosGroupByDevName) {
-        std::string devNodeId, socketId;
-        devName.SplitDevName(devNodeId, socketId);
-        if (devNodeId != nodeId) {
-            continue;
-        }
-        UbseCpuInfo info{};
-        info.slotId = cpuTopoInfo.slotId;
-        info.socketId = cpuTopoInfo.socketId;
-        UbseCpuLocation location{nodeId, info.socketId};
-        auto cpyRet = strcpy_s(info.primaryEid, sizeof(info.primaryEid), cpuTopoInfo.primaryEid.c_str());
-        if (cpyRet != EOK) {
-            UBSE_LOG_ERROR << "copy primaryEid failed, ErrorCode=" << cpyRet;
-            return cpyRet;
-        }
-        info.chipId = cpuTopoInfo.chipId;
-        info.cardId = cpuTopoInfo.cardId;
-        info.busNodeCna = cpuTopoInfo.busNodeCna;
-        info.eid = cpuTopoInfo.eid;   // LCNE获取时能保证key存在
-        info.guid = cpuTopoInfo.guid; // LCNE获取时能保证key存在
-        for (auto& port : cpuTopoInfo.portInfos) {
-            nodeController::UbsePortInfo portInfo{};
-            BuildEdgeInfo(port, portInfo);
-            info.portInfos[portInfo.portId] = portInfo;
-        }
-        ubseNodeInfo.cpuInfos[location] = info;
-    }
-    return UBSE_OK;
-}
-
 std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
 {
-    UbseNodeInfo curNodeInfo{};
     std::unordered_set<UBSE_ID_TYPE> topoLinkedNodes{};
-    CollectCpuInfo(curNodeInfo, currentNode_.id);
-    for (const auto& [cpuLocation, cpuInfo] : curNodeInfo.cpuInfos) {
-        for (const auto& [portId, portInfo] : cpuInfo.portInfos) {
-            if (portInfo.remoteSlotId != "-") {
-                topoLinkedNodes.insert(portInfo.remoteSlotId);
+    adapter_plugins::mti::UbseDevTopology devTopology{};
+    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetCurNodeTopo(devTopology);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] get devTopology not successful, " << FormatRetCode(ret);
+        return topoLinkedNodes;
+    }
+    for (auto& [devName, devTopo] : devTopology) {
+        std::string devNodeId, chipId;
+        devName.GetNodeIdAndChipId(devNodeId, chipId);
+        for (auto& port : devTopo.second) {
+            if (port.second.remoteSlotId != "-") {
+                topoLinkedNodes.insert(port.second.remoteSlotId);
             }
         }
     }
