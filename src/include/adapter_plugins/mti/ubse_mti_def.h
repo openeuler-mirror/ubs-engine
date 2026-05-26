@@ -187,13 +187,6 @@ struct UbseMtiEtsProfile {
     std::vector<UbseEtsPriorityGroup> priorityGroups;
 };
 
-struct UbseMtiEtsConfiguration {
-    std::string interfaceName;
-    std::string etsProfileName;
-    std::vector<UbseEtsVl> vls;
-    std::vector<UbseEtsPriorityGroup> priorityGroups;
-};
-
 struct UbseMtiInterfaceEtsApplication {
     std::string interfaceName;
     std::string etsProfileName;
