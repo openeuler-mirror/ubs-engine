@@ -28,69 +28,9 @@ UbseHttpRequest g_request;
 UbseHttpResponse g_response;
 UbseResult g_httpRet = UBSE_OK;
 
-const std::string ETS_PROFILE_XML = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos">
-  <ets-profiles>
-    <ets-profile>
-      <name>test-ets</name>
-      <vls>
-        <vl>
-          <vl-index>0</vl-index>
-          <priority-group-id>1</priority-group-id>
-          <schedule-mode>dwrr</schedule-mode>
-          <weight>10</weight>
-        </vl>
-        <vl>
-          <vl-index>10</vl-index>
-          <priority-group-id>2</priority-group-id>
-          <schedule-mode>sp</schedule-mode>
-          <weight>1</weight>
-        </vl>
-      </vls>
-      <priority-groups>
-        <priority-group>
-          <priority-group-id>1</priority-group-id>
-          <schedule-mode>dwrr</schedule-mode>
-          <weight>20</weight>
-          <cir>1000</cir>
-          <cbs>4096</cbs>
-        </priority-group>
-      </priority-groups>
-    </ets-profile>
-  </ets-profiles>
-</ub-qos>)";
-
-const std::string ETS_PROFILE_WRAPPED_XML = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos">
-  <ets-profiles>
-    <ets-profile>
-      <name>test-ets1</name>
-      <vls>
-        <vl>
-          <vl-index>1</vl-index>
-          <priority-group-id>1</priority-group-id>
-          <schedule-mode>dwrr</schedule-mode>
-          <weight>1</weight>
-        </vl>
-      </vls>
-      <priority-groups>
-        <priority-group>
-          <priority-group-id>1</priority-group-id>
-          <schedule-mode>dwrr</schedule-mode>
-          <weight>1</weight>
-          <cir>1000</cir>
-          <cbs>4096</cbs>
-        </priority-group>
-      </priority-groups>
-    </ets-profile>
-  </ets-profiles>
-</ub-qos>)";
-
-const std::string ETS_PROFILE_NAME_ONLY_XML = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos">
-  <ets-profiles>
-    <ets-profile>
-      <name>test-ets-name-only</name>
-    </ets-profile>
-  </ets-profiles>
-</ub-qos>)";
+const std::string ETS_PROFILE_XML = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos"><ets-profiles><ets-profile><name>test-ets</name><vls><vl><vl-index>0</vl-index><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode><weight>10</weight></vl><vl><vl-index>10</vl-index><priority-group-id>2</priority-group-id><schedule-mode>sp</schedule-mode><weight>1</weight></vl></vls><priority-groups><priority-group><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode><weight>20</weight><cir>1000</cir><cbs>4096</cbs></priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>)";
+const std::string ETS_PROFILE_WRAPPED_XML = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos"><ets-profiles><ets-profile><name>test-ets1</name><vls><vl><vl-index>1</vl-index><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode><weight>1</weight></vl></vls><priority-groups><priority-group><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode><weight>1</weight><cir>1000</cir><cbs>4096</cbs></priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>)";
+const std::string ETS_PROFILE_NAME_ONLY_XML = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos"><ets-profiles><ets-profile><name>test-ets-name-only</name></ets-profile></ets-profiles></ub-qos>)";
 
 UbseResult MockHttpSend(UbseHttpRequest &request, UbseHttpResponse &response)
 {
@@ -182,30 +122,7 @@ TEST_F(TestUbseLcneEts, ParseEtsProfileResponseNameOnlySuccess)
 
 TEST_F(TestUbseLcneEts, ParseEtsProfileResponseInvalidNumberFailed)
 {
-    std::string responseXml = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos">
-  <ets-profiles>
-    <ets-profile>
-      <name>test-ets</name>
-      <vls>
-        <vl>
-          <vl-index>invalid</vl-index>
-          <priority-group-id>1</priority-group-id>
-          <schedule-mode>dwrr</schedule-mode>
-          <weight>10</weight>
-        </vl>
-      </vls>
-      <priority-groups>
-        <priority-group>
-          <priority-group-id>1</priority-group-id>
-          <schedule-mode>dwrr</schedule-mode>
-          <weight>20</weight>
-          <cir>1000</cir>
-          <cbs>4096</cbs>
-        </priority-group>
-      </priority-groups>
-    </ets-profile>
-  </ets-profiles>
-</ub-qos>)";
+    std::string responseXml = R"(<ub-qos xmlns="urn:huawei:yang:huawei-ub-qos"><ets-profiles><ets-profile><name>test-ets</name><vls><vl><vl-index>invalid</vl-index><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode><weight>10</weight></vl></vls><priority-groups><priority-group><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode><weight>20</weight><cir>1000</cir><cbs>4096</cbs></priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>)";
     UbseMtiEtsProfile profile;
     EXPECT_EQ(UbseLcneEts::GetInstance().ParseEtsProfileResponse(responseXml, profile), UBSE_ERROR);
 }
