@@ -80,6 +80,10 @@ std::size_t UbseDevNameHash::operator()(const UbseDevName& obj) const
 
 bool ConvertSlotIdToNodeId(const std::string &slotId, std::string &nodeId)
 {
+    if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        nodeId = slotId;
+        return true;
+    }
     uint32_t slot;
     if (utils::ConvertStrToUint32(slotId, slot) != UBSE_OK) {
         UBSE_LOG_ERROR << "slotId is not a number: " << slotId;
@@ -97,6 +101,10 @@ bool ConvertSlotIdToNodeId(const std::string &slotId, std::string &nodeId)
 
 bool ConvertNodeIdToSlotId(const std::string &nodeId, std::string &slotId)
 {
+    if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        slotId = nodeId;
+        return true;
+    }
     uint32_t node;
     if (utils::ConvertStrToUint32(nodeId, node) != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId is not a number: " << nodeId;

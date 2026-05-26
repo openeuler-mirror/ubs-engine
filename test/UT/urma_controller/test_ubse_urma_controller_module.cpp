@@ -26,7 +26,7 @@
 
 namespace ubse::urmaController {
 extern std::atomic<uint32_t> g_asyncHandlerCnt;
-extern std::set<std::string> g_RegTimerNames;
+extern std::set<std::string> g_regTimerNames;
 extern UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task);
 extern UbseResult RpcReg();
 extern void DisconnectAllNormalLink();
@@ -130,11 +130,11 @@ TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_TaskOk)
 TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_TaskFails)
 {
     ubse::context::g_globalStop = false;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     auto task = []() -> UbseResult { return UBSE_ERROR; };
     MOCKER_CPP(UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_OK));
     auto ret = HandleTaskWithRetry("executor", "task_name", 1000, task);
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -150,10 +150,10 @@ TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_TaskFailsAndGlobalS
 TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_TaskFailsAndSetsGlobalStop)
 {
     ubse::context::g_globalStop = false;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     auto task = []() -> UbseResult { ubse::context::g_globalStop = true; return UBSE_ERROR; };
     auto ret = HandleTaskWithRetry("executor", "task_name", 1000, task);
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -348,7 +348,7 @@ TEST_F(TestUbseUrmaControllerModule, DisconnectAllNormalLink_Success)
 TEST_F(TestUbseUrmaControllerModule, Stop_UnSubEventNodeJoinFail)
 {
     g_asyncHandlerCnt = 0;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     MOCKER_CPP(UbseTimerHandlerUnregister).stubs();
     MOCKER_CPP(UbseUnSubEvent).stubs().will(returnValue(UBSE_ERROR));
     UbseUrmaControllerModule module;
@@ -358,7 +358,7 @@ TEST_F(TestUbseUrmaControllerModule, Stop_UnSubEventNodeJoinFail)
 TEST_F(TestUbseUrmaControllerModule, Stop_UnSubEventNodeTopoLinkFail)
 {
     g_asyncHandlerCnt = 0;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     MOCKER_CPP(UbseTimerHandlerUnregister).stubs();
     MOCKER_CPP(UbseUnSubEvent).stubs().will(returnValue(UBSE_OK)).then(returnValue(UBSE_ERROR));
     UbseUrmaControllerModule module;

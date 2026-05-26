@@ -21,7 +21,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_manager.h"
-#include "ubse_urma_controller_module.h"
+#include "ubse_urma_controller_util.h"
 
 namespace ubse::urmaController {
 using namespace ubse::com;
@@ -31,19 +31,9 @@ using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::nodeController;
 using namespace ubse::urma;
+using namespace ubse::urmaController;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-const int URMA_NO2 = 2;
-UrmaDevState ConvertUint32ToBondingState(uint32_t val)
-{
-    if (val == 1) {
-        return UrmaDevState::ACTIVED;
-    }
-    if (val == URMA_NO2) {
-        return UrmaDevState::INACTIVED;
-    }
-    return UrmaDevState::UNKNOWN;
-}
 
 UbseResult UrmaDevQueryReqSimpo::Serialize()
 {
@@ -126,7 +116,7 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr &req,
     UrmaDevQueryRpcRsp rpcRsp;
     /* 如果是本节点的消息就查询，如果是主节点就转发，其他情况丢弃 */
     if (std::to_string(urmaReq.nodeId) == currentNodeInfo.nodeId) {
-        UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(rpcRsp.urmaInfos);
+        UbseUrmaController::GetInstance().GetLocalUrmaDevs(rpcRsp.urmaInfos);
         rpcRsp.result = UBSE_OK;
         response->SetUbseUrmaDevQueryRsp(rpcRsp);
         return UBSE_OK;
@@ -244,17 +234,6 @@ UbseResult QueryUrmaInfoFromMaster(const UbseRoleInfo &roleInfo, std::vector<std
     return UBSE_OK;
 }
 
-void UbseUrmaBandwidthInit(const std::string &nodeId)
-{
-    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
-    for (const auto &urmaInfoPair : nodeInfo.urmaList) {
-        if (g_globalStop) {
-            break;
-        }
-        UrmaController::GetInstance().UbseUrmaBandWidthUpdate(urmaInfoPair.first);
-    }
-}
-
 UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
 {
     AsyncHandlerGuard cntGuard;
@@ -282,7 +261,7 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
         return ret;
     }
     // 尝试从urma恢复bonding设备
-    UrmaController::GetInstance().FillUrmaDevsByUvsInfo(curNode.nodeId, uvsInfos);
+    UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo(curNode.nodeId, uvsInfos);
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to query all ports status, ret=" << ret;
@@ -290,8 +269,8 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
     }
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
-        UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
-        UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
+        UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to PORT_DOWN";
+        UbseUrmaControllerManager::GetInstance().SetAllUrmaDevStateForNode(UrmaDevState::PORT_DOWN);
     }
     UBSE_LOG_INFO << "End to update urma info";
     return UBSE_OK;
@@ -316,8 +295,8 @@ UbseResult PostUpdateUrmaInfosTask(const std::map<std::string, uint64_t> &urmaIn
         timeStampUpdateId = globalTimeStampUpdateId.fetch_add(1);
     }
 
-    static std::mutex PostUpdateUrmaInfosTaskMtx;
-    std::lock_guard<std::mutex> lock(PostUpdateUrmaInfosTaskMtx);
+    static std::mutex postUpdateUrmaInfosTaskMtx;
+    std::lock_guard<std::mutex> lock(postUpdateUrmaInfosTaskMtx);
     if (timeStampUpdateId < globalTimeStampUpdateId - 1) {
         UBSE_LOG_INFO << "Urma info has been updated, ignore this task";
         return UBSE_OK;
