@@ -12,7 +12,9 @@ function _ubse_commond_completion() {
     local prev=${COMP_WORDS[COMP_CWORD-2]}
 
     commands='create display import delete check change remove detach attach urma'
-    display_types='topo memory cluster cert node urma'
+    display_types='topo memory cluster cert node urma ets'
+    create_types='memory ets'
+    delete_types='memory ets'
     check_types='memory'
 
     case "${cmd}" in
@@ -39,7 +41,15 @@ function _ubse_commond_completion() {
                 COMPREPLY=( $(compgen -W "${check_types}" -- ${cur}) )
                 return 0
             ;;
-            'delete'|'create'|'detach'|'attach')
+            'create')
+                COMPREPLY=( $(compgen -W "${create_types}" -- ${cur}) )
+                return 0
+            ;;
+            'delete')
+                COMPREPLY=( $(compgen -W "${delete_types}" -- ${cur}) )
+                return 0
+            ;;
+            'detach'|'attach')
                 COMPREPLY=( $(compgen -W 'memory' -- ${cur}) )
                 return 0
             ;;
@@ -71,6 +81,10 @@ function _ubse_commond_completion() {
                     ;;
                     'urma')
                         COMPREPLY=( $(compgen -W '--node --dev' -- ${cur}) )
+                        return 0
+                    ;;
+                    'ets')
+                        COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -109,6 +123,10 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '--type --link --size --name --region' -- ${cur}) )
                         return 0
                     ;;
+                    'ets')
+                        COMPREPLY=( $(compgen -W '--pri --cir --node' -- ${cur}) )
+                        return 0
+                    ;;
                     '*')
                         return 0
                     ;;
@@ -119,6 +137,10 @@ function _ubse_commond_completion() {
                 case ${COMP_WORDS[2]} in
                     'memory')
                         COMPREPLY=( $(compgen -W '--name --type' -- ${cur}) )
+                        return 0
+                    ;;
+                    'ets')
+                        COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -176,6 +198,10 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-n -d' -- ${cur}) )
                         return 0
                     ;;
+                    'ets')
+                        COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
+                        return 0
+                    ;;
                     '*')
                         return 0
                     ;;
@@ -212,6 +238,10 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-t -l -s -n -r' -- ${cur}) )
                         return 0
                     ;;
+                    'ets')
+                        COMPREPLY=( $(compgen -W '-p -c -n' -- ${cur}) )
+                        return 0
+                    ;;
                     '*')
                         return 0
                     ;;
@@ -222,6 +252,10 @@ function _ubse_commond_completion() {
                 case ${COMP_WORDS[2]} in
                     'memory')
                         COMPREPLY=( $(compgen -W '-n -t' -- ${cur}) )
+                        return 0
+                    ;;
+                    'ets')
+                        COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
                         return 0
                     ;;
                     '*')
@@ -304,6 +338,14 @@ function _ubse_commond_completion() {
             return 0
     fi
 
+    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+           [[ ${COMP_WORDS[1]} == create ]] && \
+           [[ ${COMP_WORDS[2]} == ets ]] && \
+           [[ "${cmd}" == '--pri' || "${cmd}" == '-p' ]]; then
+
+            COMPREPLY=( $(compgen -W '1 2' -- ${cur}) )
+            return 0
+    fi
 
 }
 

@@ -227,7 +227,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage &req, const Ubse
                 ubseSerial << UBSE_ROLE_AGENT;
             }
         }
-        ubseSerial << node.bondingEid;
+        ubseSerial << (UbseSmbios::GetInstance().IsClosType() ? "-" : node.bondingEid);
         ubseSerial << (!isOnline || node.guid.empty() ? "-" : node.guid);
     }
     if (!ubseSerial.Check()) {
@@ -395,7 +395,7 @@ static void SerializeNodeFoundStrict(UbseSerialization &ubseSerial,
     }
     roleStrOut = roleStr;
 
-    std::string bondingEid = targetNode.bondingEid;
+    std::string bondingEid = (UbseSmbios::GetInstance().IsClosType() ? "-" : targetNode.bondingEid);
 
     // 获取guid，如果离线或guid为空则显示"-"
     std::string guid = (!isOnline || targetNode.guid.empty()) ? "-" : targetNode.guid;
