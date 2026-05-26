@@ -49,7 +49,7 @@ struct UrmaDevQueryRpcReq {
 };
 
 struct UrmaDevQueryRpcRsp {
-    std::vector<UbseUrmaInfoForQuery> urmaInfos;
+    std::vector<UbseUrmaDevBrief> urmaInfos;
     uint32_t result;
 
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,

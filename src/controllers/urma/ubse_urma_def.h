@@ -23,38 +23,24 @@
 
 namespace ubse::urma {
 
-struct UrmaQosProfile {
-    std::string profileName{};
-    uint32_t minBandWidth;
-    uint32_t maxBandWidth;
-    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
-                                                       const UrmaQosProfile &profile)
-    {
-        serializer << profile.profileName << profile.minBandWidth << profile.maxBandWidth;
-        return serializer;
-    }
-    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
-                                                         UrmaQosProfile &profile)
-    {
-        deserializer >> profile.profileName >> profile.minBandWidth >> profile.maxBandWidth;
-        return deserializer;
-    }
-};
-
-enum class UrmaDevType {
+enum class UrmaDevType
+{
     UNIQUE = 0,
     SHARED = 1,
     BUTT
 };
 
-enum class UrmaDevState {
+enum class UrmaDevState
+{
     ACTIVED = 0,   // 激活
     INACTIVED = 1, // 未激活
     UNKNOWN = 2,   // 未知
+    PORT_DOWN = 3, // 端口down
     BUTT           // 未参考业界定义枚举类型最大值用BUTT表示
 };
 
-enum class FeType {
+enum class FeType
+{
     PHYSICAL_TYPE = 0, // pfe0, 物理类型FE用于集群通信
     VIRTUAL_TYPE = 1,  // vfe1, 虚拟类型VFE
     BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示
@@ -120,7 +106,6 @@ struct UbseUrmaInfo {
     std::string subPath;    // 对应uvs中的boundingname，用于组成设备path
     std::string urmaDevEid; // [BEID+podId, slotId, fe0Id, fe1Id]，每个字段占32位
     std::vector<EidGroup> eidGroups;
-    UrmaQosProfile urmaQosProfile;
     UrmaDevType urmaDevType;
     UrmaDevState state;
     uint64_t hwResId; // 第一个vfe的iouId << 32 | entityId
@@ -128,16 +113,16 @@ struct UbseUrmaInfo {
     friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
                                                        const UbseUrmaInfo &info)
     {
-        serializer << info.subPath << info.urmaDevEid << info.eidGroups << info.urmaQosProfile
-                   << ubse::serial::enum_v(info.urmaDevType) << ubse::serial::enum_v(info.state);
+        serializer << info.subPath << info.urmaDevEid << info.eidGroups << ubse::serial::enum_v(info.urmaDevType)
+                   << ubse::serial::enum_v(info.state);
         return serializer;
     }
 
     friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
                                                          UbseUrmaInfo &info)
     {
-        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >> info.urmaQosProfile >>
-            ubse::serial::enum_v(info.urmaDevType) >> ubse::serial::enum_v(info.state);
+        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >> ubse::serial::enum_v(info.urmaDevType) >>
+            ubse::serial::enum_v(info.state);
         return deserializer;
     }
 };
@@ -206,6 +191,30 @@ typedef struct {
     std::string bondingPath;
     std::string bondingEid;
 } UbseUrmaDevPath;
+
+struct UbseUrmaDevBrief {
+    std::string urmaName;
+    std::vector<std::string> feNames;
+    std::vector<std::string> feEids;
+    std::string devEid;
+    UrmaDevType bondingType;
+    UrmaDevState state;
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UbseUrmaDevBrief &info)
+    {
+        serializer << info.urmaName << info.feNames << info.feEids << info.devEid
+                   << ubse::serial::enum_v(info.bondingType) << ubse::serial::enum_v(info.state);
+        return serializer;
+    }
+
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UbseUrmaDevBrief &info)
+    {
+        deserializer >> info.urmaName >> info.feNames >> info.feEids >> info.devEid >>
+            ubse::serial::enum_v(info.bondingType) >> ubse::serial::enum_v(info.state);
+        return deserializer;
+    }
+};
 } // namespace ubse::urma
 
 #endif // UBSE_URMA_DEF_H
