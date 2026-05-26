@@ -38,6 +38,9 @@ public:
 
     static uint32_t FaultHandleMemBorrowRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
     static void FaultHandleMemBorrowResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+    // 处理涉及故障借出节点的借入节点（简化流程）
+    static uint32_t SimplifiedFaultNumaProcessRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+    static void SimplifiedFaultNumaProcessResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 };
 } // namespace mempooling::over_commit
 

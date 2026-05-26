@@ -89,6 +89,12 @@ uint32_t MpConfiguration::LoadConfig()
     }
     LOG_DEBUG << "Param: enableBorrowSplit=" << enableBorrowSplit << " .";
 
+    ret = UbseGetBool("plugin_mempooling", "rmrs.fault.simplified", faultSimplified_);
+    if (ret != MEM_POOLING_OK) {
+        LOG_WARN << "Get config failed, key=rmrs.fault.simplified.";
+    }
+    LOG_DEBUG << "Param: faultSimplified_=" << faultSimplified_ << " .";
+
     LoadUCacheConfig();
 
     LoadMultiNumaSceneConfig();

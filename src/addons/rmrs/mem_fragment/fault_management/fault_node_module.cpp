@@ -59,7 +59,7 @@ MpResult FaultNodeModule::DetermineNodeTypeOverCommit(const std::string nodeId, 
     MpResult ret = MEM_POOLING_OK;
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
     UbseResult retErrorCode = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
-    if (retErrorCode != UBSE_OK) {
+    if (retErrorCode != UBSE_OK && retErrorCode != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager][OverCommit] Call UbseGetNumaMemDebtInfoWithNode failed.";
         nodeType = NodeType::ABNORMAL;

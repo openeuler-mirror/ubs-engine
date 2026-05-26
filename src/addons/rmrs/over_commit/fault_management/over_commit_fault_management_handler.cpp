@@ -10,10 +10,12 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "over_commit_fault_management_handler.h"
+#include <algorithm>
+
 #include "mem_borrow_executor.h"
 #include "over_commit_fault_memid_module.h"
 #include "over_commit_fault_node_module.h"
+#include "over_commit_fault_management_handler.h"
 
 namespace mempooling::over_commit {
 
@@ -437,6 +439,93 @@ void OverCommitFaultManagementHandler::FaultHandleMemBorrowResHandler(void* ctx,
 
     RmrsInStream inBuilder(respData.data, respData.len);
     inBuilder >> (*faultHandleMemBorrowResult);
+}
+
+uint32_t SetHandlerResponseFromResult(UbseByteBuffer& resp, MpResult result)
+{
+    if (result != MEM_POOLING_OK) {
+        resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
+    } else {
+        resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
+    }
+    resp.data = new (std::nothrow) uint8_t[resp.len]{};
+    if (resp.data == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+        return MEM_POOLING_ERROR;
+    }
+    resp.data[0] = static_cast<uint8_t>(result);
+    if (result != MEM_POOLING_OK) {
+        resp.data[1] = 0;
+    }
+    resp.freeFunc = [](uint8_t* p) {
+        if (p != nullptr) {
+            delete[] p;
+        }
+    };
+    return static_cast<uint32_t>(result);
+}
+
+MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records)
+{
+    std::vector<std::pair<pid_t, uint64_t>> pidSizeList;
+    for (const auto& entry : records.pidBorrowMap) {
+        uint64_t totalSize = 0;
+        for (const auto& rec : entry.second) {
+            totalSize += rec.size;
+        }
+        pidSizeList.emplace_back(entry.first, totalSize);
+    }
+    std::sort(pidSizeList.begin(), pidSizeList.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+
+    MpResult finalResult = MEM_POOLING_OK;
+    for (const auto& pidSizePair : pidSizeList) {
+        int64_t startTime = records.pidStartTimeMap.count(pidSizePair.first) ?
+            records.pidStartTimeMap.at(pidSizePair.first) : 0;
+        MpResult pidResult = ProcessSinglePidFault(
+            pidSizePair.first, startTime, records.pidBorrowMap.at(pidSizePair.first));
+        if (pidResult != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] SimplifiedFaultNumaProcessRecvHandler ProcessSinglePidFault"
+                << " failed, pid=" << pidSizePair.first << ", ret=" << pidResult << ".";
+            finalResult = MEM_POOLING_ERROR;
+        }
+    }
+    return finalResult;
+}
+
+uint32_t OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessRecvHandler(const UbseByteBuffer& req,
+                                                                                 UbseByteBuffer& resp)
+{
+    LOG_DEBUG << "SimplifiedFaultNumaProcessRecvHandler start.";
+    RmrsInStream in(req.data, req.len);
+    SimplifiedFaultRecordsInNode records;
+    if (SimplifiedFaultRecordsInNodeDeserialization(in, records) != MEM_POOLING_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] SimplifiedFaultNumaProcessRecvHandler deserialization failed.";
+        return SetHandlerResponseFromResult(resp, MEM_POOLING_ERROR);
+    }
+
+    MpResult finalResult = ProcessSimplifiedFaultPids(records);
+
+    LOG_DEBUG << "SimplifiedFaultNumaProcessRecvHandler end, result=" << finalResult << ".";
+    return SetHandlerResponseFromResult(resp, finalResult);
+}
+
+void OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessResHandler(void* ctx, const UbseByteBuffer& respData,
+                                                                            uint32_t resCode)
+{
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        LOG_ERROR << "SimplifiedFaultNumaProcessResHandler ctx or respData is null.";
+        return;
+    }
+    auto* result = static_cast<uint32_t*>(ctx);
+    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+        *result = MEM_POOLING_ERROR;
+        return;
+    }
+    *result = MEM_POOLING_OK;
 }
 
 } // namespace mempooling::over_commit

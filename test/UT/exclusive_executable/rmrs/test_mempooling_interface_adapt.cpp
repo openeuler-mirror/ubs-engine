@@ -93,6 +93,12 @@ std::string MockTestGetNodeId()
     return nodeId;
 }
 
+std::string MockTestGetNodeIdNode1()
+{
+    std::string nodeId = "Node1";
+    return nodeId;
+}
+
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowStrategySucceed)
 {
     MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(invoke(MockTestGetNodeId));
@@ -198,13 +204,12 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateStrategySucceed)
                             turbo::rmrs::MigrateStrategyResult&))
         .stubs()
         .will(returnValue(0));
-    std::string nodeId = "Node1";
-    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(returnValue(nodeId));
-    std::string borrowInNode{nodeId};
+    std::string borrowInNode{"Node1"};
+    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string(*)()).stubs().will(invoke(MockTestGetNodeIdNode1));
     std::vector<mempooling::outinterface::VMPresetParam> outVmInfoList;
     mempooling::outinterface::VMPresetParam param;
     outVmInfoList.push_back(param);
-    uint64_t borrowSize;
+    uint64_t borrowSize{0};
     mempooling::outinterface::MigrateStrategyResult outMigrateStrategyResult;
 
     auto ret = UBSRMRSMigrateStrategy(borrowInNode, outVmInfoList, borrowSize, outMigrateStrategyResult);

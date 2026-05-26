@@ -108,6 +108,11 @@ public:
         return multiNumaScene;
     }
 
+    inline bool GetFaultSimplified() const
+    {
+        return faultSimplified_;
+    }
+
     inline long GetBasePageSize()
     {
         return basePageSize;
@@ -139,6 +144,7 @@ private:
     bool multiNumaScene = false;
     bool mustSamePlane = true;
     bool enableBorrowSplit = true;
+    bool faultSimplified_{false};
 };
 
 } // namespace mempooling

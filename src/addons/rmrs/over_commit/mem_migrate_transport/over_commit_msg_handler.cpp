@@ -487,6 +487,15 @@ uint32_t InitOverCommitReg()
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "FaultHandleMemBorrowRecvHandler reg failed res: " << ret;
     }
 
+    // 简化版单numa超分场景故障处理在节点侧进行借用
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_FAULT_NUMA_PROCESS_SIMPLIFIED};
+    ret = UbseRegRpcService(endpoint,
+        over_commit::OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) <<
+            "SimplifiedFaultNumaProcessRecvHandler reg failed res: " << ret;
+    }
+
     return ret;
 }
 

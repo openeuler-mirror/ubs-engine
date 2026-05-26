@@ -25,6 +25,7 @@ target_include_directories(
             ${CMAKE_CURRENT_SOURCE_DIR}/mem_fragment/intranode_strategy
             ${CMAKE_CURRENT_SOURCE_DIR}/../../framework/misc
             ${CMAKE_CURRENT_SOURCE_DIR}/../../framework/config
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../framework/serde
             ${CMAKE_CURRENT_SOURCE_DIR}/../../include
             ${CMAKE_CURRENT_SOURCE_DIR}/../../include/adapter_plugins/mti
             ${CMAKE_CURRENT_SOURCE_DIR}
@@ -43,7 +44,8 @@ target_include_directories(
             ${CMAKE_CURRENT_SOURCE_DIR}/mem_fragment/fault_management
             ${CMAKE_CURRENT_SOURCE_DIR}/mem_fragment/internode_strategy
             ${CMAKE_CURRENT_SOURCE_DIR}/common/exportV2/LibvirtHelper
-            ${CMAKE_CURRENT_SOURCE_DIR}/common/exportV2/OsHelper)
+            ${CMAKE_CURRENT_SOURCE_DIR}/common/exportV2/OsHelper
+            ${CMAKE_CURRENT_SOURCE_DIR}/../process_mem)
 
 target_include_directories(rmrs_deps PRIVATE ${LIBVIRT_INCLUDE_DIRS})
 target_link_libraries(rmrs_deps PRIVATE ${LIBVIRT_LIBRARIES})

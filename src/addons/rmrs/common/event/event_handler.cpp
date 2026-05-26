@@ -194,11 +194,16 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
         << "[FaultManager] HandlePanicEvent recv " << eventId << " " << eventMessage << ".";
     // 读取超分/碎片场景
     bool isOverCommit = false;
-    MpResult retRunMode = CheckIsOverCommitMode(isOverCommit);
-    if (retRunMode != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
-        return MEM_POOLING_ERROR;
+    bool isSimplified = MpConfiguration::GetInstance().GetFaultSimplified();
+    if (isSimplified) {
+        isOverCommit = true;
+    } else {
+        MpResult retRunMode = CheckIsOverCommitMode(isOverCommit);
+        if (retRunMode != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
+            return MEM_POOLING_ERROR;
+        }
     }
     std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
@@ -224,7 +229,8 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
             return MEM_POOLING_OK;
         }
         if (nodeType == NodeType::BORROW_OUT) {
-            ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
+            ret = isSimplified ? OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified(nodeId) :
+                  OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
             if (ret != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[FaultManager] BORROW_OUT failed" << eventMessage << ".";
@@ -240,11 +246,16 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultManager] HandleAlarmKernelRebootEvent recv " << eventId << " " << eventMessage << ".";
     bool isOverCommit = false;
-    MpResult retRunMode = CheckIsOverCommitMode(isOverCommit);
-    if (retRunMode != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
-        return MEM_POOLING_ERROR;
+    bool isSimplified = MpConfiguration::GetInstance().GetFaultSimplified();
+    if (isSimplified) {
+        isOverCommit = true;
+    } else {
+        MpResult retRunMode = CheckIsOverCommitMode(isOverCommit);
+        if (retRunMode != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] Failed to get runmode param. Skipping fault handling.";
+            return MEM_POOLING_ERROR;
+        }
     }
     std::string nodeId = eventMessage;
     if (!isOverCommit) { // 碎片场景
@@ -270,7 +281,8 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
             return MEM_POOLING_OK;
         }
         if (nodeType == NodeType::BORROW_OUT) {
-            ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
+            ret = isSimplified ? OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified(nodeId) :
+                  OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
             if (ret != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] BORROW_OUT failed" << eventMessage;
                 return ret;

@@ -23,6 +23,7 @@
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_election.h"
 #include "ubse_mem_controller.h"
 #include "mem_manager.h"
 #include "mempooling_return_module.h"

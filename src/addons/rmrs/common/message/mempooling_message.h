@@ -64,6 +64,7 @@ const uint32_t OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE = 51;
 const uint32_t OPCODE_SMAP_PROCESS_MIGRATE_DISABLE = 52;
 const uint32_t OPCODE_CHECK_UBTURBO_IS_ALIVE = 53;
 const uint32_t OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW = 54;
+const uint32_t OPCODE_OVER_COMMIT_FAULT_NUMA_PROCESS_SIMPLIFIED = 55;
 
 using OSTurboFunctionCaller = uint32_t (*)(const std::string& function, const TurboByteBuffer& params,
                                            TurboByteBuffer& result);

@@ -54,7 +54,7 @@ struct BorrowRecord {
     std::vector<LentNuma> lentNuma{};    //  借出numa
     std::string borrowNode{};            //  借入节点
     int16_t borrowLocalNuma{0};          //  借入numa, app 借用时有效，否则为-1
-    int16_t borrowRemoteNuma{0};         //  借入numa, remote 借用时有效，否则为-1
+    int16_t borrowRemoteNuma{-1};        //  借入numa, remote 借用时有效，否则为-1
     std::vector<uint64_t> borrowMemId{}; //  借入memId
     uid_t uid{0};                        // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
     std::string username{};              // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
