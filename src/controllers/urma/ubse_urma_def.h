@@ -23,24 +23,6 @@
 
 namespace ubse::urma {
 
-struct UrmaQosProfile {
-    std::string profileName{};
-    uint32_t minBandWidth;
-    uint32_t maxBandWidth;
-    friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
-                                                       const UrmaQosProfile& profile)
-    {
-        serializer << profile.profileName << profile.minBandWidth << profile.maxBandWidth;
-        return serializer;
-    }
-    friend ubse::serial::UbseDeSerialization& operator>>(ubse::serial::UbseDeSerialization& deserializer,
-                                                         UrmaQosProfile& profile)
-    {
-        deserializer >> profile.profileName >> profile.minBandWidth >> profile.maxBandWidth;
-        return deserializer;
-    }
-};
-
 enum class UrmaDevType
 {
     UNIQUE = 0,
@@ -53,6 +35,7 @@ enum class UrmaDevState
     ACTIVED = 0,   // 激活
     INACTIVED = 1, // 未激活
     UNKNOWN = 2,   // 未知
+    PORT_DOWN = 3, // 端口down
     BUTT           // 未参考业界定义枚举类型最大值用BUTT表示
 };
 
@@ -71,16 +54,16 @@ struct UbseFeInfo {
     std::string entityId;
     FeType fetype;
 
-    friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
-                                                       const UbseFeInfo& info)
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UbseFeInfo &info)
     {
         serializer << info.name << info.slotId << info.ubpuId << info.iouId << info.entityId
                    << ubse::serial::enum_v(info.fetype);
         return serializer;
     }
 
-    friend ubse::serial::UbseDeSerialization& operator>>(ubse::serial::UbseDeSerialization& deserializer,
-                                                         UbseFeInfo& info)
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UbseFeInfo &info)
     {
         deserializer >> info.name >> info.slotId >> info.ubpuId >> info.iouId >> info.entityId >>
             ubse::serial::enum_v(info.fetype);
@@ -93,8 +76,8 @@ struct EidGroup {
     std::map<std::string, std::string> portEids;
     std::shared_ptr<UbseFeInfo> feInfo;
 
-    friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
-                                                       const EidGroup& group)
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const EidGroup &group)
     {
         if (group.feInfo == nullptr) {
             uint32_t invalidVal = 0;
@@ -105,15 +88,15 @@ struct EidGroup {
         return serializer;
     }
 
-    friend ubse::serial::UbseDeSerialization& operator>>(ubse::serial::UbseDeSerialization& deserializer,
-                                                         EidGroup& group)
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         EidGroup &group)
     {
         deserializer >> group.primaryEid >> group.portEids;
         group.feInfo = std::make_shared<UbseFeInfo>();
         if (group.feInfo == nullptr) {
             return deserializer; // 内存分配失败，直接返回，后续流程会触发异常
         }
-        UbseFeInfo& refFeInfo = *group.feInfo;
+        UbseFeInfo &refFeInfo = *group.feInfo;
         deserializer >> refFeInfo;
         return deserializer;
     }
@@ -123,30 +106,29 @@ struct UbseUrmaInfo {
     std::string subPath;    // 对应uvs中的boundingname，用于组成设备path
     std::string urmaDevEid; // [BEID+podId, slotId, fe0Id, fe1Id]，每个字段占32位
     std::vector<EidGroup> eidGroups;
-    UrmaQosProfile urmaQosProfile;
     UrmaDevType urmaDevType;
     UrmaDevState state;
     uint64_t hwResId; // 第一个vfe的iouId << 32 | entityId
 
-    friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
-                                                       const UbseUrmaInfo& info)
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UbseUrmaInfo &info)
     {
-        serializer << info.subPath << info.urmaDevEid << info.eidGroups << info.urmaQosProfile
-                   << ubse::serial::enum_v(info.urmaDevType) << ubse::serial::enum_v(info.state);
+        serializer << info.subPath << info.urmaDevEid << info.eidGroups << ubse::serial::enum_v(info.urmaDevType)
+                   << ubse::serial::enum_v(info.state);
         return serializer;
     }
 
-    friend ubse::serial::UbseDeSerialization& operator>>(ubse::serial::UbseDeSerialization& deserializer,
-                                                         UbseUrmaInfo& info)
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UbseUrmaInfo &info)
     {
-        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >> info.urmaQosProfile >>
-            ubse::serial::enum_v(info.urmaDevType) >> ubse::serial::enum_v(info.state);
+        deserializer >> info.subPath >> info.urmaDevEid >> info.eidGroups >> ubse::serial::enum_v(info.urmaDevType) >>
+            ubse::serial::enum_v(info.state);
         return deserializer;
     }
 };
 
 struct UrmaNameCompare {
-    static std::pair<bool, uint64_t> ExtractNumber(const std::string& s)
+    static std::pair<bool, uint64_t> ExtractNumber(const std::string &s)
     {
         size_t numPos = s.find_last_of('_');
         if (numPos == std::string::npos || numPos == s.length() - 1) {
@@ -164,7 +146,7 @@ struct UrmaNameCompare {
         }
     }
 
-    bool operator()(const std::string& a, const std::string& b) const
+    bool operator()(const std::string &a, const std::string &b) const
     {
         auto pairA = ExtractNumber(a);
         auto pairB = ExtractNumber(b);
@@ -187,17 +169,17 @@ struct UrmaNameCompare {
 struct UbseUrmaNodeInfo {
     std::string nodeId;
     std::map<std::string, UbseUrmaInfo, UrmaNameCompare>
-        urmaList; // <urmaName, urmaInfo>，urmaName (urma_urmaId)是对北向唯一标识，由ubse生成
+        urmaList;                // <urmaName, urmaInfo>，urmaName (urma_urmaId)是对北向唯一标识，由ubse生成
     uint64_t updateTimeStamp{0}; // 表示节点信息的更新序号，用于判断当前的是否为最新
-    friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
-                                                       const UbseUrmaNodeInfo& info)
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UbseUrmaNodeInfo &info)
     {
         serializer << info.nodeId << info.urmaList << info.updateTimeStamp;
         return serializer;
     }
 
-    friend ubse::serial::UbseDeSerialization& operator>>(ubse::serial::UbseDeSerialization& deserializer,
-                                                         UbseUrmaNodeInfo& info)
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UbseUrmaNodeInfo &info)
     {
         deserializer >> info.nodeId >> info.urmaList >> info.updateTimeStamp;
         return deserializer;
@@ -209,6 +191,30 @@ typedef struct {
     std::string bondingPath;
     std::string bondingEid;
 } UbseUrmaDevPath;
+
+struct UbseUrmaDevBrief {
+    std::string urmaName;
+    std::vector<std::string> feNames;
+    std::vector<std::string> feEids;
+    std::string devEid;
+    UrmaDevType bondingType;
+    UrmaDevState state;
+    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                                       const UbseUrmaDevBrief &info)
+    {
+        serializer << info.urmaName << info.feNames << info.feEids << info.devEid
+                   << ubse::serial::enum_v(info.bondingType) << ubse::serial::enum_v(info.state);
+        return serializer;
+    }
+
+    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                                         UbseUrmaDevBrief &info)
+    {
+        deserializer >> info.urmaName >> info.feNames >> info.feEids >> info.devEid >>
+            ubse::serial::enum_v(info.bondingType) >> ubse::serial::enum_v(info.state);
+        return deserializer;
+    }
+};
 } // namespace ubse::urma
 
 #endif // UBSE_URMA_DEF_H
