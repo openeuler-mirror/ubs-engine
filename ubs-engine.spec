@@ -35,6 +35,15 @@ Requires(postun): coreutils gawk util-linux systemd shadow glibc-common
 UBS Engine
 
 # ========================================================
+#                   SUBPACKAGE: ubs-engine-process-mem
+# ========================================================
+%package processmem
+Summary: processmem plugin
+Requires: %{name} = %{version}-%{release}
+%description processmem
+Development package for processmem plugin
+
+# ========================================================
 #                   SUBPACKAGE: ubs-engine-client-libs
 # ========================================================
 %define lib_name libubse-client
@@ -218,6 +227,10 @@ ln -sf libubs-virt-agent.so.%{version} %{buildroot}/usr/lib64/libubs-virt-agent.
 ln -sf libubs-virt-agent.so.1 %{buildroot}/usr/lib64/libubs-virt-agent.so
 mkdir -p %{buildroot}/usr/include/virt_agent
 cp -r %{_builddir}/%{project_dir}/src/addons/virt_agent/sdk/include/* %{buildroot}/usr/include/virt_agent/
+
+#install processmem
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libprocess_mem.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/conf/plugin_process_mem.conf %{buildroot}/etc/ubse/plugins/
 
 #install client-libs
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
@@ -440,3 +453,7 @@ fi
 /usr/lib64/libmempooling.so
 %defattr(644,root,root,755)
 /usr/local/mempooling/include/mempooling/
+
+%files processmem
+%config(noreplace) %{_sysconfdir}/ubse/plugins/plugin_process_mem.conf
+%{_libdir}/libprocess_mem.so

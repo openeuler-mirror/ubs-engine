@@ -11,7 +11,7 @@
  */
 #include "process_mem_pid_bridge.h"
 
-#include <unordered_set>
+#include <set>
 
 #include <dlfcn.h>
 #include <linux/capability.h>
@@ -20,15 +20,16 @@
 
 #include "ubse_api_server.h"
 #include "ubse_com.h"
+#include "ubse_com_op_code.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "ubse_node_controller.h"
 #include "ubse_security_module.h"
+#include "ubse_serial_util.h"
 #include "process_mem_pid_config_manager.h"
 #include "process_mem_pid_info_manager.h"
-#include "src/framework/ipc/include/ubse_ipc_common.h"
-#include "src/framework/serde/ubse_serial_util.h"
 namespace process_mem::pid::bridge {
 UBSE_DEFINE_THIS_MODULE("process_mem");
 
@@ -128,12 +129,126 @@ uint32_t ProcessMemPidBridge::GetRemoteNumaSocketInfo(const ubse::mem::controlle
     return UBSE_ERROR;
 }
 
+namespace {
+
+ubse::com::UbseComEndpoint GetProcessMemFaultComEndpoint(uint16_t opCode, const std::string& nodeId)
+{
+    return ubse::com::UbseComEndpoint{
+        .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::UBSE_MEM_FAULT),
+        .serviceId = static_cast<uint32_t>(opCode),
+        .address = nodeId,
+    };
+}
+
+uint32_t SendProcessMemNodeFaultToNode(const std::string& nodeId, const std::string& faultNodeId)
+{
+    UBSE_LOG_INFO << "[PROCESS_MEM] Sending node fault notify to nodeId=" << nodeId << ", faultNodeId=" << faultNodeId;
+
+    ubse::serial::UbseSerialization output;
+    output << faultNodeId;
+    if (!output.Check()) {
+        UBSE_LOG_ERROR << "[PROCESS_MEM] Failed to serialize node fault notify message.";
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
+    auto respHandler = [](void*, const UbseByteBuffer&, uint32_t statusCode) -> void {
+        UBSE_LOG_INFO << "[PROCESS_MEM] Node fault notify response, statusCode=" << statusCode;
+    };
+
+    auto endpoint = GetProcessMemFaultComEndpoint(
+        static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_NODE_FAULT_NOTIFY), nodeId);
+    UbseByteBuffer request{.data = output.GetBuffer(), .len = output.GetLength(), .freeFunc = nullptr};
+    return ubse::com::UbseRpcAsyncSend(endpoint, request, nullptr, respHandler);
+}
+
+} // namespace
+
 uint32_t ProcessMemPidBridge::FaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)
 {
     const auto& lentNodeId = faultInfo;
     UBSE_LOG_INFO << "FaultHandler: event=" << alarmFaultEvent << ", lentNodeId=" << lentNodeId;
+
+    // 1. 本地处理（如果Master自身也是借入节点，处理本地的PID）
     manager::ProcessMemPidInfoManager::GetInstance().HandleNodeFaultEvent(lentNodeId);
+
+    // 2. 通知其他借入节点处理故障
+    NotifyBorrowNodesOnFault(lentNodeId);
+
     return UBSE_OK;
+}
+
+void ProcessMemPidBridge::NotifyBorrowNodesOnFault(const std::string& lentNodeId)
+{
+    // 查询该故障节点相关的全量账本信息，找出所有借入节点
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos{};
+    auto ret = UbseGetNumaMemDebtInfoWithNode(lentNodeId, debtInfos);
+    if (ret != UBSE_OK && ret != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
+        UBSE_LOG_WARN << "[PROCESS_MEM] NotifyBorrowNodesOnFault: query debts for node " << lentNodeId
+                      << " failed, ret=" << ret;
+        return;
+    }
+
+    // 获取当前节点ID，避免通知自身（自身已在FaultHandler中处理）
+    auto currentNodeId = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
+
+    // 收集所有与该故障节点相关的借入节点（排除自身）
+    std::set<std::string> targetNodeIds;
+    for (const auto& debtInfo : debtInfos) {
+        if (debtInfo.lentNodeId != lentNodeId) {
+            continue;
+        }
+        if (!debtInfo.borrowNodeId.empty() && debtInfo.borrowNodeId != currentNodeId) {
+            targetNodeIds.insert(debtInfo.borrowNodeId);
+        }
+    }
+
+    if (targetNodeIds.empty()) {
+        UBSE_LOG_INFO << "[PROCESS_MEM] No remote borrow nodes to notify for lentNodeId=" << lentNodeId;
+        return;
+    }
+
+    // 向每个借入节点发送故障通知
+    for (const auto& nodeId : targetNodeIds) {
+        auto sendRet = SendProcessMemNodeFaultToNode(nodeId, lentNodeId);
+        if (sendRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "[PROCESS_MEM] Failed to notify borrow node " << nodeId << " about fault node "
+                           << lentNodeId;
+        }
+    }
+}
+
+void ProcessMemPidBridge::ProcessMemNodeFaultNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    UBSE_LOG_INFO << "[PROCESS_MEM] Received node fault notify from master.";
+
+    ubse::serial::UbseDeSerialization input(req.data, req.len);
+    std::string faultNodeId;
+    input >> faultNodeId;
+    if (!input.Check()) {
+        UBSE_LOG_ERROR << "[PROCESS_MEM] Failed to deserialize node fault notify message.";
+        return;
+    }
+
+    UBSE_LOG_INFO << "[PROCESS_MEM] Processing node fault notify, faultNodeId=" << faultNodeId;
+    manager::ProcessMemPidInfoManager::GetInstance().HandleNodeFaultEvent(faultNodeId);
+}
+
+uint32_t SendPidSetResponse(int successCode, const std::string& errorMsg, uint64_t requestId)
+{
+    api::server::UbseIpcMessage response{};
+    ubse::serial::UbseSerialization serial;
+    serial << successCode << errorMsg;
+    response.buffer = serial.GetBuffer();
+    if (!response.buffer) {
+        UBSE_LOG_ERROR << "Serialization response failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    response.length = static_cast<uint32_t>(serial.GetLength());
+    auto ret = SendResponse(UBSE_OK, requestId, response);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Send response failed, " << ubse::log::FormatRetCode(ret);
+    }
+    return ret;
 }
 
 uint32_t SetPidInfo(const api::server::UbseIpcMessage& request, const api::server::UbseRequestContext& context)
@@ -145,43 +260,29 @@ uint32_t SetPidInfo(const api::server::UbseIpcMessage& request, const api::serve
         UBSE_LOG_ERROR << "DeSerialPidDefInfo failed, " << ubse::log::FormatRetCode(ret);
         return ret;
     }
+    if (pidInfo.configInfo.srcNumaId.has_value()) {
+        auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
+        bool numaFound = false;
+        for (const auto& [numaLoc, _] : curNodeInfo.numaInfos) {
+            if (numaLoc.numaId == pidInfo.configInfo.srcNumaId.value()) {
+                numaFound = true;
+                break;
+            }
+        }
+        if (!numaFound) {
+            UBSE_LOG_ERROR << "srcNumaId " << pidInfo.configInfo.srcNumaId.value() << " not found on current node";
+            return SendPidSetResponse(
+                0, "srcNumaId " + std::to_string(pidInfo.configInfo.srcNumaId.value()) + " not found on current node",
+                context.requestId);
+        }
+    }
     pidInfo.startTime = manager::ProcessMemPidConfigManager::GetExactStartTime(pidInfo.configInfo.pid);
     if (pidInfo.startTime == 0) {
         UBSE_LOG_ERROR << "PID " << pidInfo.configInfo.pid << " does not exist";
-        api::server::UbseIpcMessage response;
-        ubse::serial::UbseSerialization serial;
-        int successCode = 0;
-        std::string errorMsg = "PID does not exist";
-        serial << successCode << errorMsg;
-        response.buffer = serial.GetBuffer();
-        if (!response.buffer) {
-            UBSE_LOG_ERROR << "Serialization response failed.";
-            return UBSE_ERROR_NULLPTR;
-        }
-        response.length = static_cast<uint32_t>(serial.GetLength());
-        ret = SendResponse(UBSE_OK, context.requestId, response);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Send response failed, " << ubse::log::FormatRetCode(ret);
-        }
-        return ret;
+        return SendPidSetResponse(0, "PID does not exist", context.requestId);
     }
     manager::ProcessMemPidInfoManager::GetInstance().SetPidInfoMap(pidInfo);
-    api::server::UbseIpcMessage response;
-    ubse::serial::UbseSerialization serial;
-    int successCode = 1;
-    std::string errorMsg;
-    serial << successCode << errorMsg;
-    response.buffer = serial.GetBuffer();
-    if (!response.buffer) {
-        UBSE_LOG_ERROR << "Serialization response failed.";
-        return UBSE_ERROR_NULLPTR;
-    }
-    response.length = static_cast<uint32_t>(serial.GetLength());
-    ret = SendResponse(UBSE_OK, context.requestId, response);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Send response failed, " << ubse::log::FormatRetCode(ret);
-    }
-    return ret;
+    return SendPidSetResponse(1, "", context.requestId);
 }
 
 uint32_t PidInfoPrint(const api::server::UbseIpcMessage& request, const api::server::UbseRequestContext& context)
@@ -197,7 +298,11 @@ uint32_t PidInfoPrint(const api::server::UbseIpcMessage& request, const api::ser
         auto ret = info.configInfo.SerializeConfigInfo(serializer);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "SerialPidDefInfo failed, " << ubse::log::FormatRetCode(ret);
-            return ret;
+            auto ret = SendResponse(UBSE_OK, context.requestId, response);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Send response failed, " << ubse::log::FormatRetCode(ret);
+                return ret;
+            }
         }
     }
 
@@ -235,19 +340,20 @@ uint32_t UnSetPidInfoPrint(const api::server::UbseIpcMessage& request, const api
     return ret;
 }
 
-static bool LoadMemPoolingLibrary()
+namespace {
+bool LoadMemPoolingLibrary()
 {
     void* handle = dlopen(MEMPOOLING_PATH, RTLD_LAZY);
     if (!handle) {
         return false;
     }
     ProcessMemPidBridge::memPoolingHandle = handle;
-    ProcessMemPidBridge::rmrsMigrateOut =
-        reinterpret_cast<int (*)(const std::vector<MigrateOutPayload>&, int)>(dlsym(handle, "UBSRMRSMigrateOut"));
+    using MigrateOutFunc = int (*)(const std::vector<mempooling::smap::MigrateOutPayload>&, int);
+    ProcessMemPidBridge::rmrsMigrateOut = reinterpret_cast<MigrateOutFunc>(dlsym(handle, "UBSRMRSMigrateOut"));
     ProcessMemPidBridge::rmrmRemove =
         reinterpret_cast<int (*)(const uint16_t, const std::vector<pid_t>&, int)>(dlsym(handle, "UBSRMRSRemove"));
     ProcessMemPidBridge::rmrsFreeWithMigrate =
-        reinterpret_cast<uint32_t(*)(const std::string)>(dlsym(handle, "UBSRMRSMemFreeWithMigrate"));
+        reinterpret_cast<uint32_t (*)(const std::string)>(dlsym(handle, "UBSRMRSMemFreeWithMigrate"));
     if (!ProcessMemPidBridge::rmrsMigrateOut || !ProcessMemPidBridge::rmrmRemove) {
         dlclose(handle);
         ProcessMemPidBridge::memPoolingHandle = nullptr;
@@ -256,7 +362,7 @@ static bool LoadMemPoolingLibrary()
     return true;
 }
 
-static void RegisterLocalStateHandler()
+void RegisterLocalStateHandler()
 {
     // 注册前先检查当前节点状态，避免状态已变更但回调未注册
     auto curNode = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
@@ -279,7 +385,6 @@ static void RegisterLocalStateHandler()
     ubse::nodeController::UbseNodeController::GetInstance().RegLocalStateNotifyHandler(localStateHandler);
 }
 
-namespace {
 void RegisterFaultHandlers()
 {
     ubse::ras::AlarmHandler panicHandler;
@@ -313,6 +418,17 @@ uint32_t ProcessMemPidBridge::Init()
     if (!LoadMemPoolingLibrary()) {
         return UBSE_ERROR;
     }
+
+    // 注册process_mem节点故障通知RPC处理器（所有节点均需注册，用于接收Master的通知）
+    auto rpcEndpoint = GetProcessMemFaultComEndpoint(
+        static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_NODE_FAULT_NOTIFY), "");
+    auto rpcRet = ubse::com::UbseRegRpcService(rpcEndpoint, ProcessMemPidBridge::ProcessMemNodeFaultNotifyHandler);
+    if (rpcRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "[PROCESS_MEM] Register node fault notify RPC handler failed, "
+                       << ubse::log::FormatRetCode(rpcRet);
+        return rpcRet;
+    }
+
     RegisterFaultHandlers();
     process_mem::manager::ProcessMemPidInfoManager::GetInstance().Init();
     RegisterLocalStateHandler();
