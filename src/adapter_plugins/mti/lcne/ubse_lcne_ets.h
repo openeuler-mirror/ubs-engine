@@ -51,9 +51,6 @@ private:
     UbseLcneEts &operator=(const UbseLcneEts &) = delete;
 
     UbseResult BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, std::string &xmlStr);
-    UbseResult BuildEtsProfileVlsXml(const UbseMtiEtsProfile &etsProfile, std::string &xmlStr);
-    UbseResult BuildEtsProfilePriorityGroupsXml(const UbseMtiEtsProfile &etsProfile,
-                                                std::string &xmlStr);
     UbseResult ParseEtsProfileResponse(const std::string &body, UbseMtiEtsProfile &etsProfile);
 
     std::string host;
