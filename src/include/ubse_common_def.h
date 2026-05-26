@@ -56,6 +56,7 @@ constexpr int16_t NO_500 = 500;
 constexpr int16_t NO_1000 = 1000;
 constexpr int16_t NO_1024 = 1024;
 constexpr int16_t NO_2048 = 2048;
+constexpr int16_t NO_4096 = 4096;
 constexpr int32_t NO_60000 = 60000;
 constexpr int16_t NO_NEGATIVE_1 = -1;
 constexpr int MAX_IPC_DATA_PACKAGE_LEN = 10485760;
