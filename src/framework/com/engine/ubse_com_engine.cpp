@@ -19,25 +19,27 @@
 #include <fstream>
 #include <iostream>
 
+#include "crc/ubse_crc.h"
+#include "hcom/hcom_service_context.h"
+#include "trace_context.h"
 #include "ubse_com_def.h"
-#include "ubse_com_op_code.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_election.h"
 #include "ubse_env_util.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
-#include "ubse_security_module.h"
 #include "ubse_str_util.h"
+#include "ubse_security_module.h"
+#include "ubse_com_op_code.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "crc/ubse_crc.h"
-#include "hcom/hcom_service_context.h"
-#include "trace_context.h"
+#include "ubse_smbios.h"
 
 namespace ubse::com {
 using namespace ubse::log;
 using namespace ubse::config;
 using namespace ubse::security;
+using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::utils;
 using namespace ock::hcom;
 using namespace ubse::common::def;
@@ -510,17 +512,19 @@ UbseResult UbseComEngine::Start()
     InitEngineOptions();
     std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    auto ret = hcomNetService_->Start();
-    if (UBSE_RESULT_FAIL(ret)) {
-        std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
-        UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, " << FormatRetCode(ret)
-                      << ", will retry";
-        try {
-            startRetryThread_ = std::thread([this]() { DoEngineStart(); });
-        } catch (const std::exception& e) {
-            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
-            UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
-            return UBSE_ERROR;
+    if (!UbseSmbios::GetInstance().IsClosType()) {
+        auto ret = hcomNetService_->Start();
+        if (UBSE_RESULT_FAIL(ret)) {
+            std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
+            UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, ret=" << ret
+                          << ",will retry";
+            try {
+                std::thread([this]() { DoEngineStart(); }).detach();
+            } catch (const std::exception &e) {
+                UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+                UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
+                return UBSE_ERROR;
+            }
         }
     }
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);

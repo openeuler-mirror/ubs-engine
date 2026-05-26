@@ -17,6 +17,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "ubse_common_def.h"
 namespace ubse::adapter_plugins::mti {
 struct UbseMtiEidGroup {
     std::string entityId;
@@ -196,7 +197,7 @@ struct UbseEtsPriorityGroup {
     UbseEtsScheduleMode scheduleMode;
     uint32_t weight;
     uint32_t cir;
-    uint32_t cbs;
+    uint32_t cbs = ubse::common::def::NO_4096; // Committed Burst Size 承诺突发尺寸（Byte）
 };
 
 struct UbseMtiEtsProfile {

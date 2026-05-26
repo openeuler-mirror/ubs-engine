@@ -177,6 +177,10 @@ ubs_error_t ubse_urma_dev_info_unpack(const uint8_t* buffer, uint32_t len, ubs_u
 
 ubs_error_t ubse_urma_qos_unpack(const uint8_t* buffer, uint32_t len, uint32_t* minBandWidth, uint32_t* maxBandWidth);
 
+size_t ubse_urma_qos_create_req_calc_size(uint32_t count);
+
+ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t *configs, uint32_t count,
+                                           ubse_api_buffer_t *ptr);
 ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t* buffer, uint32_t len, ubs_mem_export_memid_t* mem_info);
 
 #endif // LIBUBSE_HELPER_H

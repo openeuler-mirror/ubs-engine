@@ -26,23 +26,34 @@ public:
     void UbseCliSignUp() override;
 
 private:
-    static UbseCliCommandInfo UbseCliQueryUrmaQos();
-    static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaQosFunc(
-        [[maybe_unused]] const std::map<std::string, std::string>& params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaQosTable(UbseDeSerialization& ubse_de_serial,
-                                                                         uint32_t urma_size);
+    static UbseCliCommandInfo UbseCliCreateUrmaQos();
+    static UbseCliCommandInfo UbseCliDeleteUrmaQos();
+    static UbseCliCommandInfo UbseCliDisplayUrmaQos();
+    static std::shared_ptr<UbseCliResultEcho> UbseCreateUrmaQosFunc(
+        [[maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseDeleteUrmaQosFunc(
+        [[maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseDisplayUrmaQosFunc(
+        [[maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaQosTable(UbseDeSerialization &ubseDeSerial,
+                                                                         uint32_t urmaSize);
+    static bool IsPositiveInteger(const std::string &str);
+    static std::shared_ptr<UbseCliResultEcho> ValidateSingleQosParam(
+        const std::string &priToken, const std::string &cirToken,
+        uint32_t &priority, uint32_t &bandwidth);
+    static std::shared_ptr<UbseCliResultEcho> MapQosErrorToMessage(uint32_t ret);
+    static std::shared_ptr<UbseCliResultEcho> ParseAndValidateQosParams(
+        const std::string &priStr, const std::string &cirStr,
+        std::vector<uint32_t> &priorities, std::vector<uint32_t> &bandwidths);
     static UbseCliCommandInfo UbseCliQueryUrmaDevInfo();
-    static std::vector<std::string> ParseCommaSeparatedDeviceList(const std::string& deviceStr);
-    static UbseCliCommandInfo UbseCliActivateUrmaDevInfo();
+    static std::vector<std::string> ParseCommaSeparatedDeviceList(const std::string &deviceStr);
     static std::shared_ptr<UbseCliResultEcho> ParseAndValidateUrmaParams(
-        const std::map<std::string, std::string>& params, uint32_t& nodeId, std::vector<std::string>& deviceNameList);
+        const std::map<std::string, std::string> &params, uint32_t &nodeId, std::vector<std::string> &deviceNameList);
     static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaDevInfoFunc(
-        [[maybe_unused]] const std::map<std::string, std::string>& params);
-    static std::shared_ptr<UbseCliResultEcho> UbseActivateUrmaDevInfoFunc(
-        [[maybe_unused]] const std::map<std::string, std::string>& params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaDevInfoTable(UbseDeSerialization& ubse_de_serial,
-                                                                             uint32_t urma_size);
+        [[maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaDevInfoTable(UbseDeSerialization &ubseDeSerial,
+                                                                             uint32_t urmaSize);
 };
-} // namespace ubse::cli::reg
+}  // namespace ubse::cli::reg
 
 #endif
