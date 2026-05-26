@@ -32,6 +32,7 @@ enum class VirDomainEventType {
     VIR_DOMAIN_EVENT_PMSUSPENDED = 7,
     VIR_DOMAIN_EVENT_CRASHED = 8,
     VIR_DOMAIN_EVENT_LAST = 9,
+    VIR_DOMAIN_EVENT_REBOOT = 99
 };
 using EventCallback = std::function<void(std::string_view, VirDomainEventType, std::shared_ptr<char>)>;
 
@@ -39,7 +40,7 @@ class LibvirtMonitorImpl;
 
 class LibvirtMonitor {
 public:
-    explicit LibvirtMonitor(const std::string &uri = "qumu:///system");
+    explicit LibvirtMonitor(const std::string &uri = "qemu:///system");
 
     ~LibvirtMonitor();
 

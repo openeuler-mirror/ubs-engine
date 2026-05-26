@@ -138,8 +138,8 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
             logger.debug(f"bus_instance_guid type: {type(bus_instance_guid)}")
             raw_bus_instance_guid = UbsBusinstanceId(bus_instance_guid).to_raw()
             tid = ctypes.c_uint32()
-            uba = ctypes.c_uint32()
-            size = ctypes.c_uint32()
+            uba = ctypes.c_uint64()
+            size = ctypes.c_uint64()
             buf = create_string_buffer(raw_bus_instance_guid.encode('utf-8'))
             ubyte_ptr = cast(buf, POINTER(c_ubyte))
             result = self.lib_ubse.ubs_uba_tid_size_query(ubyte_ptr, ctypes.byref(tid),
@@ -568,5 +568,5 @@ class UbsEngineBindingNpu(UbsEngineBindingBase):
         self.lib_ubse.ubs_npu_device_list_free.restype = None
 
         self.lib_ubse.ubs_uba_tid_size_query.argtypes = [POINTER(ctypes.c_uint8), POINTER(ctypes.c_uint32),
-                                                         POINTER(ctypes.c_uint32), POINTER(ctypes.c_uint32)]
+                                                         POINTER(ctypes.c_uint64), POINTER(ctypes.c_uint64)]
         self.lib_ubse.ubs_uba_tid_size_query.restype = ctypes.c_int32
