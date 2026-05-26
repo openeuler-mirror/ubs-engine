@@ -296,8 +296,8 @@ UbseResult PostUpdateUrmaInfosTask(const std::map<std::string, uint64_t> &urmaIn
         timeStampUpdateId = globalTimeStampUpdateId.fetch_add(1);
     }
 
-    static std::mutex PostUpdateUrmaInfosTaskMtx;
-    std::lock_guard<std::mutex> lock(PostUpdateUrmaInfosTaskMtx);
+    static std::mutex postUpdateUrmaInfosTaskMtx;
+    std::lock_guard<std::mutex> lock(postUpdateUrmaInfosTaskMtx);
     if (timeStampUpdateId < globalTimeStampUpdateId - 1) {
         UBSE_LOG_INFO << "Urma info has been updated, ignore this task";
         return UBSE_OK;

@@ -11,32 +11,32 @@
 */
 
 #include "test_ubse_urma_controller_module.h"
+#include "ubse_com_base.h"
+#include "ubse_com_module.h"
+#include "ubse_common_def.h"
+#include "ubse_event.h"
+#include "ubse_node_controller.h"
+#include "ubse_thread_pool_module.h"
+#include "ubse_timer.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_module.h"
-#include "ubse_urma_def.h"
-#include "ubse_timer.h"
-#include "ubse_event.h"
 #include "ubse_urma_controller_rpc.h"
-#include "ubse_common_def.h"
-#include "ubse_com_module.h"
-#include "ubse_thread_pool_module.h"
-#include "ubse_node_controller.h"
-#include "ubse_com_base.h"
+#include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
 extern std::atomic<uint32_t> g_asyncHandlerCnt;
-extern std::set<std::string> g_RegTimerNames;
+extern std::set<std::string> g_regTimerNames;
 extern UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task);
 extern UbseResult RpcReg();
 extern void DisconnectAllNormalLink();
-}
+} // namespace ubse::urmaController
 
 namespace ubse::urmaController {
 class UbseUrmaControllerApi {
 public:
     static UbseResult Register();
 };
-}
+} // namespace ubse::urmaController
 
 namespace ubse::urmaControllerModule::ut {
 using namespace ubse::urmaController;
@@ -88,7 +88,9 @@ TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_GlobalStop)
 {
     ubse::context::g_globalStop = true;
     MOCKER_CPP(UbseTimerHandlerUnregister).stubs();
-    auto task = []() -> UbseResult { return UBSE_OK; };
+    auto task = []() -> UbseResult {
+        return UBSE_OK;
+    };
     auto ret = DoTaskWithTimerCallback("test_timer", task);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -97,7 +99,9 @@ TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_TaskOk)
 {
     ubse::context::g_globalStop = false;
     MOCKER_CPP(UbseTimerHandlerUnregister).stubs();
-    auto task = []() -> UbseResult { return UBSE_OK; };
+    auto task = []() -> UbseResult {
+        return UBSE_OK;
+    };
     auto ret = DoTaskWithTimerCallback("test_timer", task);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -105,7 +109,9 @@ TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_TaskOk)
 TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_TaskFails)
 {
     ubse::context::g_globalStop = false;
-    auto task = []() -> UbseResult { return UBSE_ERROR; };
+    auto task = []() -> UbseResult {
+        return UBSE_ERROR;
+    };
     auto ret = DoTaskWithTimerCallback("test_timer", task);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -113,7 +119,9 @@ TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_TaskFails)
 TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_GlobalStop)
 {
     ubse::context::g_globalStop = true;
-    auto task = []() -> UbseResult { return UBSE_OK; };
+    auto task = []() -> UbseResult {
+        return UBSE_OK;
+    };
     auto ret = HandleTaskWithRetry("executor", "task_name", 1000, task);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -121,7 +129,9 @@ TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_GlobalStop)
 TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_TaskOk)
 {
     ubse::context::g_globalStop = false;
-    auto task = []() -> UbseResult { return UBSE_OK; };
+    auto task = []() -> UbseResult {
+        return UBSE_OK;
+    };
     auto ret = HandleTaskWithRetry("executor", "task_name", 1000, task);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -129,11 +139,11 @@ TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_TaskOk)
 TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_TaskFails)
 {
     ubse::context::g_globalStop = false;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     auto task = []() -> UbseResult { return UBSE_ERROR; };
     MOCKER_CPP(UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_OK));
     auto ret = HandleTaskWithRetry("executor", "task_name", 1000, task);
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -141,7 +151,10 @@ TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_TaskFailsAndGlobalS
 {
     ubse::context::g_globalStop = false;
     MOCKER_CPP(UbseTimerHandlerUnregister).stubs();
-    auto task = []() -> UbseResult { ubse::context::g_globalStop = true; return UBSE_ERROR; };
+    auto task = []() -> UbseResult {
+        ubse::context::g_globalStop = true;
+        return UBSE_ERROR;
+    };
     auto ret = DoTaskWithTimerCallback("test_timer", task);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -149,10 +162,15 @@ TEST_F(TestUbseUrmaControllerModule, DoTaskWithTimerCallback_TaskFailsAndGlobalS
 TEST_F(TestUbseUrmaControllerModule, HandleTaskWithRetry_TaskFailsAndSetsGlobalStop)
 {
     ubse::context::g_globalStop = false;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     auto task = []() -> UbseResult { ubse::context::g_globalStop = true; return UBSE_ERROR; };
-    auto ret = HandleTaskWithRetry("executor", "task_name", 1000, task);
     g_RegTimerNames.clear();
+    auto task = []() -> UbseResult {
+        ubse::context::g_globalStop = true;
+        return UBSE_ERROR;
+    };
+    auto ret = HandleTaskWithRetry("executor", "task_name", 1000, task);
+    g_regTimerNames.clear();
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -169,7 +187,7 @@ TEST_F(TestUbseUrmaControllerModule, RpcReg_RegBrocastFail)
     auto comModule = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
 
-    UbseResult (UbseComModule::*regBrocast)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*regBrocast)(UbseComBaseMessageHandlerPtr&) =
         &UbseComModule::RegRpcService<UbseUrmaBrocastReqSimpo, UbseUrmaBrocastRspSimpo>;
     MOCKER_CPP(regBrocast).stubs().will(returnValue(UBSE_ERROR));
 
@@ -182,11 +200,11 @@ TEST_F(TestUbseUrmaControllerModule, RpcReg_RegQueryFail)
     auto comModule = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
 
-    UbseResult (UbseComModule::*regBrocast)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*regBrocast)(UbseComBaseMessageHandlerPtr&) =
         &UbseComModule::RegRpcService<UbseUrmaBrocastReqSimpo, UbseUrmaBrocastRspSimpo>;
     MOCKER_CPP(regBrocast).stubs().will(returnValue(UBSE_OK));
 
-    UbseResult (UbseComModule::*regQuery)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*regQuery)(UbseComBaseMessageHandlerPtr&) =
         &UbseComModule::RegRpcService<UbseUrmaQueryReqSimpo, UbseUrmaQueryRspSimpo>;
     MOCKER_CPP(regQuery).stubs().will(returnValue(UBSE_ERROR));
 
@@ -199,15 +217,15 @@ TEST_F(TestUbseUrmaControllerModule, RpcReg_RegDevQueryFail)
     auto comModule = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
 
-    UbseResult (UbseComModule::*regBrocast)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*regBrocast)(UbseComBaseMessageHandlerPtr&) =
         &UbseComModule::RegRpcService<UbseUrmaBrocastReqSimpo, UbseUrmaBrocastRspSimpo>;
     MOCKER_CPP(regBrocast).stubs().will(returnValue(UBSE_OK));
 
-    UbseResult (UbseComModule::*regQuery)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*regQuery)(UbseComBaseMessageHandlerPtr&) =
         &UbseComModule::RegRpcService<UbseUrmaQueryReqSimpo, UbseUrmaQueryRspSimpo>;
     MOCKER_CPP(regQuery).stubs().will(returnValue(UBSE_OK));
 
-    UbseResult (UbseComModule::*regDevQuery)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*regDevQuery)(UbseComBaseMessageHandlerPtr&) =
         &UbseComModule::RegRpcService<UrmaDevQueryReqSimpo, UrmaDevQueryRspSimpo>;
     MOCKER_CPP(regDevQuery).stubs().will(returnValue(UBSE_ERROR));
 
@@ -259,11 +277,7 @@ TEST_F(TestUbseUrmaControllerModule, RpcReg_RegActivateFail)
 
     UbseResult (UbseComModule::*regReport)(UbseComBaseMessageHandlerPtr &) =
         &UbseComModule::RegRpcService<UbseUrmaReportUrmaNodeInfoReqSimpo, UbseUrmaReportUrmaNodeInfoRspSimpo>;
-    MOCKER_CPP(regReport).stubs().will(returnValue(UBSE_OK));
-
-    UbseResult (UbseComModule::*regActivate)(UbseComBaseMessageHandlerPtr &) =
-        &UbseComModule::RegRpcService<UbseUrmaActivateUrmaInfoReqSimpo, UbseUrmaActivateUrmaInfoRspSimpo>;
-    MOCKER_CPP(regActivate).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(regReport).stubs().will(returnValue(UBSE_ERROR));
 
     auto ret = RpcReg();
     EXPECT_NE(ret, UBSE_OK);
@@ -351,7 +365,7 @@ TEST_F(TestUbseUrmaControllerModule, DisconnectAllNormalLink_Success)
 TEST_F(TestUbseUrmaControllerModule, Stop_UnSubEventNodeJoinFail)
 {
     g_asyncHandlerCnt = 0;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     MOCKER_CPP(UbseTimerHandlerUnregister).stubs();
     MOCKER_CPP(UbseUnSubEvent).stubs().will(returnValue(UBSE_ERROR));
     UbseUrmaControllerModule module;
@@ -361,7 +375,7 @@ TEST_F(TestUbseUrmaControllerModule, Stop_UnSubEventNodeJoinFail)
 TEST_F(TestUbseUrmaControllerModule, Stop_UnSubEventNodeTopoLinkFail)
 {
     g_asyncHandlerCnt = 0;
-    g_RegTimerNames.clear();
+    g_regTimerNames.clear();
     MOCKER_CPP(UbseTimerHandlerUnregister).stubs();
     MOCKER_CPP(UbseUnSubEvent).stubs().will(returnValue(UBSE_OK)).then(returnValue(UBSE_ERROR));
     UbseUrmaControllerModule module;

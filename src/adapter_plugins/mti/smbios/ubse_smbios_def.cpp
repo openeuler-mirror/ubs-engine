@@ -264,7 +264,6 @@ UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t> &dmiBuf, uint32_
         }
         // 当前的type不匹配，跳到下一个type
         if (this->header.type != static_cast<uint8_t>(type)) {
-            UBSE_LOG_ERROR << "Skip smbios type " << static_cast<int>(this->header.type);
             // 跳转到字符串表
             uint8_t *next = cursor + this->header.length;
             // 遍历字符串表，直到连续两个符号都是'\0'，表示字符串表结束

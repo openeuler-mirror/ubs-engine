@@ -18,6 +18,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "securec.h"
 #include "src/controllers/node/ubse_node_com_urma_collector.h"
 #include "ubse_common_def.h"
@@ -33,7 +34,6 @@
 #include "ubse_urma_controller.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
-#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 
 namespace ubse::urmaController {
 using namespace ubse::election;
@@ -85,7 +85,7 @@ std::string GetVfeInfoKey(const UbseMtiFeInfo &info)
 }
 
 UbseResult UbseUrmaControllerManager::AllocUrmaDev(const std::string &urmaName, std::vector<std::string> &feNames,
-                                                         std::string &eid)
+                                                   std::string &eid)
 {
     UbseRoleInfo currentNodeInfo{};
     if (UbseGetCurrentNodeInfo(currentNodeInfo) != UBSE_OK) {
