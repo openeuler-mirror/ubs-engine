@@ -309,15 +309,15 @@ bool UbseComModule::IsCurrentNode(const std::string& nodeId)
 
 UbseResult GetNodeInfoFromMti(IpAddress& address, std::string& nodeId)
 {
-    bool ubEnable;
-    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get communication mode.";
-        return UBSE_ERROR_CONF_INVALID;
-    }
     adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo;
     auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
     if (ret != UBSE_OK) {
         return ret;
+    }
+    bool ubEnable;
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get communication mode.";
+        return UBSE_ERROR_CONF_INVALID;
     }
     nodeId = ubseNodeInfo.nodeId;
     if (ubEnable) {

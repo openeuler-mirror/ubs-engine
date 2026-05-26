@@ -678,6 +678,34 @@ uint32_t GetCnaTopoByPeerNodeInfo(const UbseMemShareAttachReq& req, const UbseMe
     return UBSE_OK;
 }
 
+uint32_t PrepareShareAttachImportObj(const UbseMemShareAttachReq& req, UbseMemOperationResp& resp,
+                                     UbseMemShareBorrowImportObj& importObj)
+{
+    std::vector<UbseMemShareBorrowExportObj> exportObjs{};
+    std::vector<UbseMemShareBorrowImportObj> importObjs{};
+    FindShareBorrowObjByName(req.name, exportObjs, importObjs);
+    if (const auto ret = ShmAttachPreCheck(req, resp, exportObjs, importObjs, importObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "precheck failed, " << FormatRetCode(ret) << ", requestId=" << req.requestId;
+        return ret;
+    }
+    if (!IsMemShareModeFeatureSupported(exportObjs[0].req.ubseMemPrivData.cacheableFlag)) {
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_ATTACH);
+    }
+
+    importObj.exportObmmInfo = exportObjs[0].status.exportObmmInfo;
+    importObj.algoResult = exportObjs[0].algoResult;
+    importObj.req = exportObjs[0].req;
+    if (GetCnaTopoByPeerNodeInfo(req, exportObjs[0], resp, importObj) == UBSE_OK) {
+        return UBSE_OK;
+    }
+
+    BorrowFailedAdvice(ProcessType::BORROW_FAILED, req.name, "SHARE_BORROW", req.size,
+                       importObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, UBSE_ERR_INTERNAL,
+                       MemAdvice::INTERNAL_FAILED);
+    return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "Failed to get cna info when import",
+                                      UBSE_ERR_INTERNAL, MemOperationType::SHARED_ATTACH);
+}
+
 uint32_t UbseMemShareAttach(const UbseMemShareAttachReq& req, UbseMemOperationResp& resp)
 {
     UBSE_LOG_INFO << "Share attach begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
@@ -694,29 +722,11 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq& req, UbseMemOperationRe
                                           UBSE_ERR_SHM_NODE_EMPTY, MemOperationType::SHARED_ATTACH);
     }
     UbseNodeControllerLockMgr::WriteLock(ClusterHandlerKey);
-    std::vector<UbseMemShareBorrowExportObj> exportObjs{};
-    std::vector<UbseMemShareBorrowImportObj> importObjs{};
-    FindShareBorrowObjByName(req.name, exportObjs, importObjs);
     UbseMemShareBorrowImportObj importObj{};
-    if (const auto ret = ShmAttachPreCheck(req, resp, exportObjs, importObjs, importObj); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "precheck failed, " << FormatRetCode(ret) << ", requestId=" << req.requestId;
+    auto ret = PrepareShareAttachImportObj(req, resp, importObj);
+    if (ret != UBSE_OK) {
         UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
         return ret;
-    }
-    if (!IsMemShareModeFeatureSupported(exportObjs[0].req.ubseMemPrivData.cacheableFlag)) {
-        UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
-        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_ATTACH);
-    }
-    importObj.exportObmmInfo = exportObjs[0].status.exportObmmInfo;
-    importObj.algoResult = exportObjs[0].algoResult;
-    importObj.req = exportObjs[0].req;
-    if (GetCnaTopoByPeerNodeInfo(req, exportObjs[0], resp, importObj) != UBSE_OK) {
-        UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
-        BorrowFailedAdvice(ProcessType::BORROW_FAILED, req.name, "SHARE_BORROW", req.size,
-                           importObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, UBSE_ERR_INTERNAL,
-                           MemAdvice::INTERNAL_FAILED);
-        return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "Failed to get cna info when import",
-                                          UBSE_ERR_INTERNAL, MemOperationType::SHARED_ATTACH);
     }
     importObj.req.trustRingData.ClearReqSignedDataMemory(); // 清除import对象里请求签名信息
     UBSE_LOG_INFO << "import size=" << importObj.req.size << ", requestId=" << req.requestId;

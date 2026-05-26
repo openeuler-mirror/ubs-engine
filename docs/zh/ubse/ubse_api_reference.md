@@ -326,6 +326,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
 | UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
@@ -467,6 +468,7 @@ typedef struct {
 | Error                                | Description      |
 | ------------------------------------ | ---------------- |
 | UBS\_ERR\_NULL\_POINTER              | 空指针              |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name或者size参数超出范围 |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败      |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过     |
@@ -583,6 +585,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -705,6 +708,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -818,6 +822,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -928,6 +933,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -1012,6 +1018,7 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t **fd_descs, uint32_t *fd_desc_cnt);
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | 参数超出范围       |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -1098,6 +1105,7 @@ int32_t ubs_mem_fd_delete(const char *name);
 | Error                                | Description                                   |
 | ------------------------------------ | --------------------------------------------- |
 | UBS\_ERR\_NULL\_POINTER              | 空指针                                           |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围                                    |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败                                   |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过                                  |
@@ -1207,6 +1215,7 @@ typedef struct {
 | Error                                | Description      |
 | ------------------------------------ | ---------------- |
 | UBS\_ERR\_NULL\_POINTER              | 空指针              |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name或者size参数超出范围 |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败      |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过     |
@@ -1296,6 +1305,7 @@ int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -1394,6 +1404,7 @@ int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, cons
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -1483,6 +1494,7 @@ int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc);
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -1567,6 +1579,7 @@ int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t **numa_descs, uint32_t *numa_desc_
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | 参数超出范围       |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -1653,6 +1666,7 @@ int32_t ubs_mem_numa_delete(const char *name);
 | Error                                | Description                                   |
 | ------------------------------------ | --------------------------------------------- |
 | UBS\_ERR\_NULL\_POINTER              | 空指针                                           |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围                                    |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败                                   |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过                                  |
@@ -1761,6 +1775,7 @@ typedef struct {
 | Error                                | Description      |
 | ------------------------------------ | ---------------- |
 | UBS\_ERR\_NULL\_POINTER              | 空指针              |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name或者size参数超出范围 |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败      |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过     |
@@ -1861,6 +1876,7 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
 | Error                                | Description      |
 | ------------------------------------ | ---------------- |
 | UBS\_ERR\_NULL\_POINTER              | 空指针              |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name或者size参数超出范围 |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败      |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过     |
@@ -1966,6 +1982,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | 参数超出范围       |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -2098,6 +2115,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -2192,6 +2210,7 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -2278,6 +2297,7 @@ int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt)
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | 参数超出范围       |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -2366,6 +2386,7 @@ int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t
 | Error                                | Description        |
 | ------------------------------------ | ------------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针                |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name\_prefix参数超出范围 |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败        |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过       |
@@ -2442,6 +2463,7 @@ int32_t ubs_mem_shm_detach(const char *name);
 | Error                                | Description   |
 | ------------------------------------ | ------------- |
 | UBS\_ERR\_NULL\_POINTER              | 空指针           |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围    |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败   |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过  |
@@ -2520,6 +2542,7 @@ int32_t ubs_mem_shm_delete(const char *name);
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -2642,6 +2665,7 @@ typedef struct {
 | Error                                | Description  |
 | ------------------------------------ | ------------ |
 | UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | name参数超出范围   |
 | UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
 | UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
@@ -3132,6 +3156,7 @@ int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, 
 | Error                               | Description     |
 | ----------------------------------- | --------------- |
 | UBS\_ERR\_NULL\_POINTER             | 空指针             |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ERR\_INVALID\_ARG              | 参数无效            |
 | UBS_ENGINE_ERR_CONNECTION_FAILED        | 连接UBSE服务端失败     |
 | UBS_ENGINE_ERR_AUTH_FAILED              | UBSE服务端鉴权不通过    |
@@ -3212,6 +3237,7 @@ int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid
 | Error                               | Description     |
 | ----------------------------------- | --------------- |
 | UBS\_ERR\_NULL\_POINTER             | 空指针             |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ERR\_INVALID\_ARG              | 参数无效            |
 | UBS_ENGINE_ERR_CONNECTION_FAILED        | 连接UBSE服务端失败     |
 | UBS_ENGINE_ERR_AUTH_FAILED              | UBSE服务端鉴权不通过    |
@@ -3293,6 +3319,7 @@ int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid,
 | Error                               | Description     |
 | ----------------------------------- | --------------- |
 | UBS\_ERR\_NULL\_POINTER             | 空指针             |
+| UBS\_ERR\_NOT\_SUPPORTED           | 当前服务不支持对应内存特性 |
 | UBS\_ERR\_INVALID\_ARG              | 参数无效            |
 | UBS_ENGINE_ERR_CONNECTION_FAILED        | 连接UBSE服务端失败     |
 | UBS_ENGINE_ERR_AUTH_FAILED              | UBSE服务端鉴权不通过    |
@@ -3720,6 +3747,7 @@ typedef struct {
 | Error                            | Description        |
 |----------------------------------|--------------------|
 | UBS_ERR_NULL_POINTER             | 空指针              |
+| UBS_ERR_NOT_SUPPORTED          | 当前服务不支持URMA特性 |
 | UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败    |
 | UBS_ENGINE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过   |
 | UBS_ENGINE_ERR_TIMEOUT           | UBSE服务端处理超时     |
@@ -3826,6 +3854,7 @@ typedef struct {
 | Error                            | Description        |
 |----------------------------------|--------------------|
 | UBS_ERR_NULL_POINTER             | 空指针              |
+| UBS_ERR_NOT_SUPPORTED          | 当前服务不支持URMA特性 |
 | UBS_ENGINE_ERR_OUT_OF_RANGE      | name参数超出范围     |
 | UBS_ENGINE_ERR_NOT_EXIST         | URMA设备不存在       |
 | UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败    |
@@ -3918,6 +3947,7 @@ uint32_t ubs_urma_dev_free(const char *name);
 | Error                            | Description        |
 |----------------------------------|--------------------|
 | UBS_ERR_NULL_POINTER             | 空指针              |
+| UBS_ERR_NOT_SUPPORTED          | 当前服务不支持URMA特性 |
 | UBS_ENGINE_ERR_OUT_OF_RANGE      | name参数超出范围     |
 | UBS_ENGINE_ERR_NOT_EXIST         | URMA设备不存在       |
 | UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败    |

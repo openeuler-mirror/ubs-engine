@@ -78,7 +78,7 @@ bool UbseIsUbFeatureSupported(uint64_t featureMask)
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return (UB_FEATURE_ALL_MASK & featureMask) == featureMask;
     }
     return cfgPtr->IsUbFeatureSupported(featureMask);
 }
@@ -87,7 +87,7 @@ bool UbseIsUrmaSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsUrmaSupported();
 }
@@ -96,7 +96,7 @@ bool UbseIsMemBorrowNcSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsMemBorrowNcSupported();
 }
@@ -105,7 +105,7 @@ bool UbseIsMemBorrowCcSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsMemBorrowCcSupported();
 }
@@ -114,7 +114,7 @@ bool UbseIsMemShareNcSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsMemShareNcSupported();
 }
@@ -123,7 +123,7 @@ bool UbseIsMemShareCcSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsMemShareCcSupported();
 }
@@ -132,7 +132,7 @@ bool UbseIsMemBorrowSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsMemBorrowSupported();
 }
@@ -141,7 +141,7 @@ bool UbseIsMemShareSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsMemShareSupported();
 }
@@ -150,7 +150,7 @@ bool UbseIsMemSupported()
 {
     auto cfgPtr = GetConfModule();
     if (cfgPtr == nullptr) {
-        return false;
+        return true;
     }
     return cfgPtr->IsMemSupported();
 }
