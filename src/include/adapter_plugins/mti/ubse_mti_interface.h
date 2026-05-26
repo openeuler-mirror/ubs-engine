@@ -162,7 +162,36 @@ public:
      * @param [out] proflieName：查询到的profile名称
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName)  = 0;
+    virtual common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName) = 0;
+
+    /** @brief 创建ETS模板，支持携带VL和优先级组配置 */
+    virtual common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile) = 0;
+
+    /** @brief 增量新增ETS模板VL配置 */
+    virtual common::def::UbseResult UbseAddEtsProfileVls(const std::string &profileName,
+                                                         const std::vector<UbseEtsVl> &vls) = 0;
+
+    /** @brief 增量新增ETS模板优先级组配置 */
+    virtual common::def::UbseResult UbseAddEtsProfilePriorityGroups(
+        const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups) = 0;
+
+    /** @brief 删除ETS模板 */
+    virtual common::def::UbseResult UbseDeleteEtsProfile(const std::string &profileName) = 0;
+
+    /** @brief 删除ETS模板VL配置 */
+    virtual common::def::UbseResult UbseRemoveEtsProfileVls(const std::string &profileName) = 0;
+
+    /** @brief 删除ETS模板优先级组配置 */
+    virtual common::def::UbseResult UbseRemoveEtsProfilePriorityGroups(const std::string &profileName) = 0;
+
+    /**
+     * @brief 查询ETS模板
+     * @param [in] profileName：待查询ETS模板名称
+     * @param [out] etsProfile：查询到的ETS模板配置
+     * @return 成功返回0, 模板不存在返回UBSE_MTI_ERROR_NOT_EXIST, 其他失败返回非0
+     */
+    virtual common::def::UbseResult UbseQueryEtsProfile(const std::string &profileName,
+                                                        UbseMtiEtsProfile &etsProfile) = 0;
 };
-}  // namespace ubse::adapter_plugins::mti
-#endif  // UBSE_MTI_INTERFACE_H
+} // namespace ubse::adapter_plugins::mti
+#endif // UBSE_MTI_INTERFACE_H

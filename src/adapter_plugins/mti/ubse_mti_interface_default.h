@@ -44,14 +44,31 @@ public:
 
     common::def::UbseResult UbseDeleteQosProfile(std::string proflieName) override;
 
-    common::def::UbseResult UbseQueryQosProfile(std::string proflieName, UbseMtiQosProfile &ubseLcneQosProfile)  override;
+    common::def::UbseResult UbseQueryQosProfile(std::string proflieName,
+                                                UbseMtiQosProfile &ubseLcneQosProfile) override;
 
     common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName) override;
 
     common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo) override;
 
     common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName) override;
-};
-}  // namespace ubse::adapter_plugins::mti
 
-#endif  // UBSE_MTI_INTERFACE_DEFAULT_H
+    common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile) override;
+
+    common::def::UbseResult UbseAddEtsProfileVls(const std::string &profileName,
+                                                 const std::vector<UbseEtsVl> &vls) override;
+
+    common::def::UbseResult UbseAddEtsProfilePriorityGroups(
+        const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups) override;
+
+    common::def::UbseResult UbseDeleteEtsProfile(const std::string &profileName) override;
+
+    common::def::UbseResult UbseRemoveEtsProfileVls(const std::string &profileName) override;
+
+    common::def::UbseResult UbseRemoveEtsProfilePriorityGroups(const std::string &profileName) override;
+
+    common::def::UbseResult UbseQueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile) override;
+};
+} // namespace ubse::adapter_plugins::mti
+
+#endif // UBSE_MTI_INTERFACE_DEFAULT_H

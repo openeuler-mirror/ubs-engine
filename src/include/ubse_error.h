@@ -230,6 +230,9 @@
 #define UBSE_MEMCONTROLLER_ERROR_GET_INFO_FAIL  UBSE_INTERNAL_ERROR_DEF(1002)     /* 从内部获取数据失败 */
 #define UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS  UBSE_INTERNAL_ERROR_DEF(1003)       /* 对账未完成，查询账本返回部分成功 */
 
+/* ====================== MTI错误码 (11200~11299) ====================== */
+#define UBSE_MTI_ERROR_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(1200) /* MTI查询对象不存在 */
+
 /* 公共方法判断错误码 */
 #define UBSE_RESULT_FAIL(ret) (static_cast<UbseResult>(ret) != UBSE_OK)
 #define UBSE_RESULT_OK(ret) (static_cast<UbseResult>(ret) == UBSE_OK)
