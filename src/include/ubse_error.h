@@ -233,6 +233,9 @@
 #define UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS UBSE_INTERNAL_ERROR_DEF(1003)        /* 集群存在节点故障，账本不完整 */
 #define UBSE_MEMCONTROLLER_ERROR_SMOOTHING UBSE_INTERNAL_ERROR_DEF(1004)          /* 对账未完成 */
 
+/* ====================== MTI错误码 (11200~11299) ====================== */
+#define UBSE_MTI_ERROR_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(1200) /* MTI查询对象不存在 */
+
 /* 公共方法判断错误码 */
 #define UBSE_RESULT_FAIL(ret) (static_cast<UbseResult>(ret) != UBSE_OK)
 #define UBSE_RESULT_OK(ret) (static_cast<UbseResult>(ret) == UBSE_OK)
