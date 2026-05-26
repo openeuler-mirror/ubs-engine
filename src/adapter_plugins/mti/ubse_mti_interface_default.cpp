@@ -18,9 +18,9 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "lcne/ubse_lcne_decoder_entry.h"
 #include "lcne/ubse_lcne_decoder_handle.h"
-#include "lcne/ubse_lcne_qos.h"
+#include "lcne/ubse_lcne_ets.h"
 #include "lcne/ubse_lcne_fe_eid.h"
-
+#include "lcne/ubse_lcne_qos.h"
 namespace ubse::adapter_plugins::mti {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace common::def;
@@ -195,5 +195,42 @@ UbseResult UbseMtiInterfaceDefault::UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
 UbseResult UbseMtiInterfaceDefault::UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& profileName)
 {
     return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
+{
+    return lcne::UbseLcneEts::GetInstance().CreateEtsProfile(etsProfile);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsProfileVls(const std::string &profileName,
+                                                         const std::vector<UbseEtsVl> &vls)
+{
+    return lcne::UbseLcneEts::GetInstance().AddEtsProfileVls(profileName, vls);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsProfilePriorityGroups(
+    const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+{
+    return lcne::UbseLcneEts::GetInstance().AddEtsProfilePriorityGroups(profileName, priorityGroups);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().DeleteEtsProfile(profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfileVls(const std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsProfileVls(profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfilePriorityGroups(const std::string &profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsProfilePriorityGroups(profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryEtsProfile(profileName, etsProfile);
 }
 } // namespace ubse::adapter_plugins::mti
