@@ -136,8 +136,7 @@ uint32_t AssignImportInfo(const UbseMemDebtQueryRequest& request,
     const std::string name = request.name;
     // 填充导入相关数据
     auto importObj = importObjPtrs[0];
-        error_t cpyRet =
-    memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObj->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
+    error_t cpyRet = memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObj->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
     if (cpyRet != UBSE_OK) {
         UBSE_LOG_WARN << "userInfo create from importObj failed, name=" << name;
     }

@@ -242,7 +242,8 @@ public:
         return *this;
     }
 
-    template <typename T> UbseSerialization& operator<<(const std::unordered_set<T>& set)
+    template <typename T>
+    UbseSerialization& operator<<(const std::unordered_set<T>& set)
     {
         *this << array_len_insert(set.size());
         for (auto& element : set) {
@@ -466,7 +467,8 @@ public:
         return *this;
     }
 
-    template <typename T> UbseDeSerialization& operator>>(std::unordered_set<T>& set)
+    template <typename T>
+    UbseDeSerialization& operator>>(std::unordered_set<T>& set)
     {
         common_len len;
         *this >> array_len_capture(len);

@@ -13,6 +13,8 @@
 #ifndef REQUEST_ID_H
 #define REQUEST_ID_H
 
+#include <string>
+
 /* *
 ### 组装唯一且正确的RequestID
 非Delete：RequestID = name(资源唯一标识) + requestNodeId

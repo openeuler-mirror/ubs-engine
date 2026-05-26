@@ -13,6 +13,7 @@ target_link_libraries( ubse_mem_controller_debt
         ubse_http
         mem_controller
         ubse_serial
+        ubse_controller_includes
 )
 target_include_directories(ubse_mem_controller_debt PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}

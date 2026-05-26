@@ -43,7 +43,6 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_ras
         ubse_timer
         ubse_context
-        ubse_security
         ubse_controller
         api_server
         syssentry
@@ -58,6 +57,23 @@ target_link_libraries(${UT_BINARY} PUBLIC
 
 target_link_libraries(${UT_BINARY} PUBLIC
         ubse_node_controller_register_config
+)
+
+include_directories(
+        ${SRC_DIR}/framework/ipc
+        ${SRC_DIR}/framework/ipc/include
+        ${SRC_DIR}/framework/ipc/server
+        ${SRC_DIR}/framework/misc
+        ${SRC_DIR}/framework/misc/lock
+        ${SRC_DIR}/framework/config
+        ${SRC_DIR}/framework/context
+        ${SRC_DIR}/framework/com
+        ${SRC_DIR}/framework/serde
+        ${SRC_DIR}/framework/security
+        ${SRC_DIR}/api_server
+        ${SRC_DIR}/controllers/include
+        ${SRC_DIR}/ras
+        ${SRC_DIR}/adapter_plugins/urma_uvs
 )
 
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")

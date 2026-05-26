@@ -14,6 +14,7 @@
 #define UTILS_RM_MEM_REF_H
 
 #include <cstdint>
+#include <new>
 #include <utility>
 
 namespace mempooling {

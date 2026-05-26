@@ -655,7 +655,7 @@ int32_t ubs_mem_shm_fault_get(const char* name, ubs_mem_memids_fault_t* fault);
  */
 int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler);
 
- /**
+/**
   * @brief 客户端订阅fd内存故障事件
   * @param[in] registerFunc: fd内存故障事件响应处理函数
   * @return 成功返回0, 失败返回非0

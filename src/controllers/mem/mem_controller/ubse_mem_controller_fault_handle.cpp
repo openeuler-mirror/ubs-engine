@@ -99,7 +99,7 @@ static UbseComEndpoint GetMemFaultComEndpoint(uint16_t opCode, const std::string
     };
 }
 
-static void PushBmcFaultEvent(const std::string &faultNodeId, uint32_t faultTypeValue)
+static void PushBmcFaultEvent(const std::string& faultNodeId, uint32_t faultTypeValue)
 {
     std::lock_guard<std::mutex> lock(g_bmcFaultMutex);
 
@@ -123,8 +123,7 @@ static void PushBmcFaultEvent(const std::string &faultNodeId, uint32_t faultType
                   << ", pendingCount=" << g_pendingBmcFaultEvents.size();
 }
 
-static UbseResult SendBmcFaultToNode(const std::string &nodeId, const std::string &faultNodeId,
-                                     uint32_t faultTypeValue)
+static UbseResult SendBmcFaultToNode(const std::string& nodeId, const std::string& faultNodeId, uint32_t faultTypeValue)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Sending BMC fault notify to nodeId=" << nodeId
                   << ", faultNodeId=" << faultNodeId;
@@ -136,16 +135,16 @@ static UbseResult SendBmcFaultToNode(const std::string &nodeId, const std::strin
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
     // 异步回调不处理
-    auto respHandler = [](void *, const UbseByteBuffer &, uint32_t statusCode) -> void {
+    auto respHandler = [](void*, const UbseByteBuffer&, uint32_t statusCode) -> void {
         UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault notify response, statusCode=" << statusCode;
     };
-    auto endpoint = GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_BMC_AGENTS), nodeId);
+    auto endpoint =
+        GetMemFaultComEndpoint(static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_BMC_AGENTS), nodeId);
     UbseByteBuffer request{.data = output.GetBuffer(), .len = output.GetLength(), .freeFunc = nullptr};
     return UbseRpcAsyncSend(endpoint, request, nullptr, respHandler);
 }
 
-static bool GetAllNodeIds(std::set<std::string> &allNodeIds)
+static bool GetAllNodeIds(std::set<std::string>& allNodeIds)
 {
     std::vector<UbseRoleInfo> roleInfos;
     auto ret = UbseGetAllNodeInfos(roleInfos);
@@ -153,19 +152,19 @@ static bool GetAllNodeIds(std::set<std::string> &allNodeIds)
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get all node infos.";
         return false;
     }
-    for (const auto &roleInfo : roleInfos) {
+    for (const auto& roleInfo : roleInfos) {
         allNodeIds.insert(roleInfo.nodeId);
     }
     UBSE_LOG_DEBUG << "[MEM_CONTROLLER] GetAllNodeIds success, nodeCount=" << allNodeIds.size();
     return true;
 }
 
-static void SendBmcFaultToPendingNodes(const std::string &faultNodeId, BmcFaultEvent &event,
-                                       const std::set<std::string> &allNodeIds)
+static void SendBmcFaultToPendingNodes(const std::string& faultNodeId, BmcFaultEvent& event,
+                                       const std::set<std::string>& allNodeIds)
 {
     uint32_t sentCount = 0;
     uint32_t failedCount = 0;
-    for (const auto &nodeId : allNodeIds) {
+    for (const auto& nodeId : allNodeIds) {
         if (event.sentNodeIds.find(nodeId) != event.sentNodeIds.end()) {
             continue;
         }
@@ -173,8 +172,7 @@ static void SendBmcFaultToPendingNodes(const std::string &faultNodeId, BmcFaultE
         if (ret == UBSE_OK) {
             event.sentNodeIds.insert(nodeId);
             sentCount++;
-            UBSE_LOG_INFO << "[MEM_CONTROLLER] Sent BMC fault to nodeId=" << nodeId
-                          << ", faultNodeId=" << faultNodeId;
+            UBSE_LOG_INFO << "[MEM_CONTROLLER] Sent BMC fault to nodeId=" << nodeId << ", faultNodeId=" << faultNodeId;
         } else {
             failedCount++;
             UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send BMC fault to nodeId=" << nodeId
@@ -183,18 +181,18 @@ static void SendBmcFaultToPendingNodes(const std::string &faultNodeId, BmcFaultE
     }
     if (sentCount > 0 || failedCount > 0) {
         UBSE_LOG_INFO << "[MEM_CONTROLLER] SendBmcFaultToPendingNodes done, faultNodeId=" << faultNodeId
-                       << ", sentCount=" << sentCount << ", failedCount=" << failedCount;
+                      << ", sentCount=" << sentCount << ", failedCount=" << failedCount;
     }
 }
 
-static bool ProcessSingleBmcFaultEvent(const std::string &faultNodeId, BmcFaultEvent &event,
-                                       const std::set<std::string> &allNodeIds,
-                                       const std::chrono::steady_clock::time_point &now)
+static bool ProcessSingleBmcFaultEvent(const std::string& faultNodeId, BmcFaultEvent& event,
+                                       const std::set<std::string>& allNodeIds,
+                                       const std::chrono::steady_clock::time_point& now)
 {
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - event.createTime).count();
     if (elapsed > BMC_FAULT_TIMEOUT_SECONDS || event.retryCount >= BMC_FAULT_MAX_RETRY_COUNT) {
-        UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault event timeout or max retry reached, faultNodeId="
-                      << faultNodeId << ", elapsed=" << elapsed << "s, retryCount=" << event.retryCount
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault event timeout or max retry reached, faultNodeId=" << faultNodeId
+                      << ", elapsed=" << elapsed << "s, retryCount=" << event.retryCount
                       << ", sentNodeCount=" << event.sentNodeIds.size();
         return true; // 防止主备倒换集群节点不全，结束条件为达到最大次数，或者超时
     }
@@ -203,8 +201,8 @@ static bool ProcessSingleBmcFaultEvent(const std::string &faultNodeId, BmcFaultE
 
     event.retryCount++;
     UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault event processed, faultNodeId=" << faultNodeId
-                   << ", sentCount=" << event.sentNodeIds.size() << ", totalNodeCount=" << allNodeIds.size()
-                   << ", retryCount=" << event.retryCount;
+                  << ", sentCount=" << event.sentNodeIds.size() << ", totalNodeCount=" << allNodeIds.size()
+                  << ", retryCount=" << event.retryCount;
     return false;
 }
 
@@ -242,12 +240,12 @@ static void ProcessBmcFaultEvents()
             return;
         }
         UBSE_LOG_INFO << "[MEM_CONTROLLER] ProcessBmcFaultEvents, pendingCount=" << g_pendingBmcFaultEvents.size();
-        for (auto &[faultNodeId, event] : g_pendingBmcFaultEvents) {
+        for (auto& [faultNodeId, event] : g_pendingBmcFaultEvents) {
             if (ProcessSingleBmcFaultEvent(faultNodeId, event, allNodeIds, now)) {
                 eventsToRemove.push_back(faultNodeId);
             }
         }
-        for (const auto &faultNodeId : eventsToRemove) {
+        for (const auto& faultNodeId : eventsToRemove) {
             g_pendingBmcFaultEvents.erase(faultNodeId);
             UBSE_LOG_WARN << "[MEM_CONTROLLER] Removed completed BMC fault event, faultNodeId=" << faultNodeId;
         }
@@ -450,8 +448,7 @@ UbseResult UbseMemFaultManager::InitMemFaultManager()
         return ret;
     }
 
-    ret = timer::UbseTimerHandlerRegister(BMC_FAULT_TIMER_NAME, BmcFaultTimerHandler,
-                                          BMC_FAULT_TIMER_INTERVAL_SECONDS);
+    ret = timer::UbseTimerHandlerRegister(BMC_FAULT_TIMER_NAME, BmcFaultTimerHandler, BMC_FAULT_TIMER_INTERVAL_SECONDS);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register BMC fault timer. " << FormatRetCode(ret);
         return ret;
@@ -473,7 +470,7 @@ UbseResult UbseMemFaultManager::DeInitMemFaultManager()
     std::string alarmName = MEM_FAULT_ALAUBSE_NAME;
     auto ret = UnRegisterAlarmFaultHandler(ALARM_MEM_FAULT, alarmName);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister mem fault alarm. " << FormatRetCode(ret) ;
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister mem fault alarm. " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
@@ -528,7 +525,7 @@ uint32_t UbseMemFaultManager::PanicRebootFaultEventHandler(std::string& eventId,
     return MemReportWhenExportNodeOnFault(faultType, faultNodeId);
 }
 
-uint32_t UbseMemFaultManager::BmcFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, const std::string &faultInfo)
+uint32_t UbseMemFaultManager::BmcFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, const std::string& faultInfo)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Received BMC fault event, faultInfo=" << faultInfo;
 
@@ -564,7 +561,7 @@ uint32_t UbseMemFaultManager::BmcFaultTimerHandler()
     return UBSE_OK;
 }
 
-void UbseMemFaultManager::BmcFaultAgentsHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UbseMemFaultManager::BmcFaultAgentsHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Received BMC fault notify from master.";
 
@@ -601,10 +598,10 @@ UbseResult UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE 
     return UBSE_OK;
 }
 
-UbseResult UbseMemFaultManager::ReportSingleImportDebt(const std::string &targetNodeId,
-                                                       const def::ShareHandleInfoVec &shareHandleInfoVec,
-                                                       const def::NumaHandleInfoVec &numaHandleInfoVec,
-                                                       const def::FdHandleInfoVec &fdHandleInfoVec)
+UbseResult UbseMemFaultManager::ReportSingleImportDebt(const std::string& targetNodeId,
+                                                       const def::ShareHandleInfoVec& shareHandleInfoVec,
+                                                       const def::NumaHandleInfoVec& numaHandleInfoVec,
+                                                       const def::FdHandleInfoVec& fdHandleInfoVec)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] ReportSingleImportDebt called, targetNodeId=" << targetNodeId
                   << ", shareCount=" << shareHandleInfoVec.size() << ", numaCount=" << numaHandleInfoVec.size()
@@ -626,10 +623,10 @@ UbseResult UbseMemFaultManager::ReportSingleImportDebt(const std::string &target
         return ret;
     }
 
-    const UbseByteBuffer request{.data = notifyMsg.SerializedData(),
-                                 .len = notifyMsg.SerializedDataSize(),
-                                 .freeFunc = [](uint8_t *) -> void {}};
-    auto respHandler = [](void *, const UbseByteBuffer &, uint32_t) -> void {
+    const UbseByteBuffer request{
+        .data = notifyMsg.SerializedData(), .len = notifyMsg.SerializedDataSize(), .freeFunc = [](uint8_t*) -> void {
+        }};
+    auto respHandler = [](void*, const UbseByteBuffer&, uint32_t) -> void {
     };
     ret = UbseRpcAsyncSend(
         GetMemFaultComEndpoint(static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SINGLE_IMPORT_DEBT_NOTIFY), targetNodeId),
@@ -645,7 +642,7 @@ UbseResult UbseMemFaultManager::ReportSingleImportDebt(const std::string &target
     return ret;
 }
 
-void UbseMemFaultManager::SingleImportDebtNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void UbseMemFaultManager::SingleImportDebtNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Received single import debt notify from master.";
 
@@ -664,11 +661,11 @@ void UbseMemFaultManager::SingleImportDebtNotifyHandler(const UbseByteBuffer &re
                   << ", numaCount=" << numaHandleInfoVec.size() << ", fdCount=" << fdHandleInfoVec.size();
 
     ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER>(
-        shareHandleInfoVec, "share", [](const auto &info) -> const auto& { return info.memIds; });
+        shareHandleInfoVec, "share", [](const auto& info) -> const auto& { return info.memIds; });
     ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_NUMA, UBSE_LONG_LINK_REGISTER>(
-        numaHandleInfoVec, "numa", [](const auto &info) -> const auto& { return info.numaIds; });
+        numaHandleInfoVec, "numa", [](const auto& info) -> const auto& { return info.numaIds; });
     ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER>(
-        fdHandleInfoVec, "fd", [](const auto &info) -> const auto& { return info.memIds; });
+        fdHandleInfoVec, "fd", [](const auto& info) -> const auto& { return info.memIds; });
 }
 
 template <typename ImportObjType>
@@ -705,8 +702,8 @@ static bool DoFindInImportMap(debt::UbseMemTypeDebtMap<ImportObjType>& importMap
     return false;
 }
 
-UbseResult FindNameByMemIdInImportObj(uint64_t memId, std::string& memName, std::string& memType,
-                                      UbseUdsInfo& udsInfo, uint64_t& handleId)
+UbseResult FindNameByMemIdInImportObj(uint64_t memId, std::string& memName, std::string& memType, UbseUdsInfo& udsInfo,
+                                      uint64_t& handleId)
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Finding import object by memId=" << memId;
 

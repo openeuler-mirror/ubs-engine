@@ -23,12 +23,12 @@ using namespace ubse::mem::def;
 class UbseMemSingleImportMessage : public UbseBaseMessage {
 public:
     UbseMemSingleImportMessage() = default;
-    explicit UbseMemSingleImportMessage(uint8_t *data, uint32_t size)
+    explicit UbseMemSingleImportMessage(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
 
-    inline void SetShareHandleInfoVec(const ShareHandleInfoVec &handleInfoVec)
+    inline void SetShareHandleInfoVec(const ShareHandleInfoVec& handleInfoVec)
     {
         shareHandleInfoVec_ = handleInfoVec;
     }
@@ -38,7 +38,7 @@ public:
         return shareHandleInfoVec_;
     }
 
-    inline void SetNumaHandleInfoVec(const NumaHandleInfoVec &handleInfoVec)
+    inline void SetNumaHandleInfoVec(const NumaHandleInfoVec& handleInfoVec)
     {
         numaHandleInfoVec_ = handleInfoVec;
     }
@@ -48,7 +48,7 @@ public:
         return numaHandleInfoVec_;
     }
 
-    inline void SetFdHandleInfoVec(const FdHandleInfoVec &handleInfoVec)
+    inline void SetFdHandleInfoVec(const FdHandleInfoVec& handleInfoVec)
     {
         fdHandleInfoVec_ = handleInfoVec;
     }

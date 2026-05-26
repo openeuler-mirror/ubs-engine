@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "ubse_mem_fault_common.h"
 #include <signal.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "ubse_mem_fault_common.h"
 
 volatile int g_ubse_running = 1;
 
-const char *ubse_fault_type_to_string(ubs_mem_fault_type_t type)
+const char* ubse_fault_type_to_string(ubs_mem_fault_type_t type)
 {
     switch (type) {
         case UB_MEM_ATOMIC_DATA_ERR:
@@ -65,7 +65,7 @@ const char *ubse_fault_type_to_string(ubs_mem_fault_type_t type)
     }
 }
 
-void ubse_start_fault_monitoring(const char *memory_type, int32_t register_result)
+void ubse_start_fault_monitoring(const char* memory_type, int32_t register_result)
 {
     if (register_result != 0) {
         fprintf(stderr, "[MAIN] Failed to register fault handler, error: %d\n", register_result);
@@ -96,13 +96,13 @@ void ubse_setup_signal_handlers(void)
     signal(SIGTERM, ubse_signal_handler);
 }
 
-void ubse_print_fault_info(const char *memory_type, const char *name, uint64_t memid, ubs_mem_fault_type_t type)
+void ubse_print_fault_info(const char* memory_type, const char* name, uint64_t memid, ubs_mem_fault_type_t type)
 {
     if (name == NULL) {
         fprintf(stderr, "[FAULT] Error: name is NULL\n");
         return;
     }
 
-    printf("[FAULT] %s memory: name=%s, handleId=%lu, type=%s(%d)\n",
-           memory_type, name, (unsigned long)memid, ubse_fault_type_to_string(type), type);
+    printf("[FAULT] %s memory: name=%s, handleId=%lu, type=%s(%d)\n", memory_type, name, (unsigned long)memid,
+           ubse_fault_type_to_string(type), type);
 }

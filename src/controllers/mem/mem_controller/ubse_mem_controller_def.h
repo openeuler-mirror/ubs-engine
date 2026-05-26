@@ -130,9 +130,9 @@ struct NumaHandleInfo {
 using NumaHandleInfoVec = std::vector<NumaHandleInfo>;
 
 struct DebtHandleInfos {
-    ShareHandleInfoVec &shareVec;
-    NumaHandleInfoVec &numaVec;
-    FdHandleInfoVec &fdVec;
+    ShareHandleInfoVec& shareVec;
+    NumaHandleInfoVec& numaVec;
+    FdHandleInfoVec& fdVec;
 };
 } // namespace ubse::mem::def
 

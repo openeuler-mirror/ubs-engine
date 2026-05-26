@@ -1705,18 +1705,17 @@ bool UbseMemOperationRespDeserialize(UbseDeSerialization& in, UbseMemOperationRe
     return in.Check();
 }
 
-
-bool ShareHandleInfoVecSerialize(UbseSerialization &out, const def::ShareHandleInfoVec &data)
+bool ShareHandleInfoVecSerialize(UbseSerialization& out, const def::ShareHandleInfoVec& data)
 {
     out << ubse::serial::array_len_insert(data.size());
-    for (const auto &item : data) {
-        out << item.name << item.memIds << item.udsInfo.uid << item.udsInfo.gid
-            << item.udsInfo.pid << item.udsInfo.username;
+    for (const auto& item : data) {
+        out << item.name << item.memIds << item.udsInfo.uid << item.udsInfo.gid << item.udsInfo.pid
+            << item.udsInfo.username;
     }
     return out.Check();
 }
 
-bool ShareHandleInfoVecDeserialize(UbseDeSerialization &in, def::ShareHandleInfoVec &data)
+bool ShareHandleInfoVecDeserialize(UbseDeSerialization& in, def::ShareHandleInfoVec& data)
 {
     uint64_t vectorSize;
     in >> ubse::serial::array_len_capture(vectorSize);
@@ -1725,8 +1724,8 @@ bool ShareHandleInfoVecDeserialize(UbseDeSerialization &in, def::ShareHandleInfo
     }
     for (size_t i = 0; i < vectorSize; i++) {
         def::ShareHandleInfo item;
-        in >> item.name >> item.memIds >> item.udsInfo.uid >> item.udsInfo.gid
-           >> item.udsInfo.pid >> item.udsInfo.username;
+        in >> item.name >> item.memIds >> item.udsInfo.uid >> item.udsInfo.gid >> item.udsInfo.pid >>
+            item.udsInfo.username;
         if (!in.Check()) {
             return false;
         }
@@ -1735,17 +1734,17 @@ bool ShareHandleInfoVecDeserialize(UbseDeSerialization &in, def::ShareHandleInfo
     return in.Check();
 }
 
-bool NumaHandleInfoVecSerialize(UbseSerialization &out, const def::NumaHandleInfoVec &data)
+bool NumaHandleInfoVecSerialize(UbseSerialization& out, const def::NumaHandleInfoVec& data)
 {
     out << ubse::serial::array_len_insert(data.size());
-    for (const auto &item : data) {
-        out << item.name << item.numaIds << item.udsInfo.uid << item.udsInfo.gid
-            << item.udsInfo.pid << item.udsInfo.username;
+    for (const auto& item : data) {
+        out << item.name << item.numaIds << item.udsInfo.uid << item.udsInfo.gid << item.udsInfo.pid
+            << item.udsInfo.username;
     }
     return out.Check();
 }
 
-bool NumaHandleInfoVecDeserialize(UbseDeSerialization &in, def::NumaHandleInfoVec &data)
+bool NumaHandleInfoVecDeserialize(UbseDeSerialization& in, def::NumaHandleInfoVec& data)
 {
     uint64_t vectorSize;
     in >> ubse::serial::array_len_capture(vectorSize);
@@ -1754,8 +1753,8 @@ bool NumaHandleInfoVecDeserialize(UbseDeSerialization &in, def::NumaHandleInfoVe
     }
     for (size_t i = 0; i < vectorSize; i++) {
         def::NumaHandleInfo item;
-        in >> item.name >> item.numaIds >> item.udsInfo.uid >> item.udsInfo.gid
-           >> item.udsInfo.pid >> item.udsInfo.username;
+        in >> item.name >> item.numaIds >> item.udsInfo.uid >> item.udsInfo.gid >> item.udsInfo.pid >>
+            item.udsInfo.username;
         if (!in.Check()) {
             return false;
         }

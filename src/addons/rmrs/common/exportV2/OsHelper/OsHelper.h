@@ -14,6 +14,8 @@
 #define OS_HELPER_H
 
 #include <unistd.h>
+
+#include <ctime>
 #include <map>
 #include <string>
 #include <unordered_map>

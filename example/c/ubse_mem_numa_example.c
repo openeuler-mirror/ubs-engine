@@ -12,13 +12,13 @@
 
 #include <malloc.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#include "ubse_mem_fault_common.h"
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
-#include "ubse_mem_fault_common.h"
 
 void print_mem_numa_desc(const ubs_mem_numa_desc_t* numa_desc)
 {
@@ -137,7 +137,7 @@ void ubse_mem_numa_delete_example(void)
     }
 }
 
-static int32_t numa_fault_handler(const char *name, uint64_t numaid, ubs_mem_fault_type_t type)
+static int32_t numa_fault_handler(const char* name, uint64_t numaid, ubs_mem_fault_type_t type)
 {
     ubse_print_fault_info("NUMA", name, numaid, type);
     return 0;

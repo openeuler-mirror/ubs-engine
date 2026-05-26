@@ -13,8 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> // getuid, getgid, getpid
-#include "ubse/ubs_engine_mem.h"
 #include "ubse_mem_fault_common.h"
+#include "ubse/ubs_engine_mem.h"
 
 static const char* g_shm_name = "demo_shm";
 static const uint64_t g_shm_size = 4 * 1024 * 1024; // 4MB
@@ -197,7 +197,7 @@ static void ubs_mem_shm_fault_get_example(void)
     }
 }
 
-static int32_t shm_fault_handler(const char *name, uint64_t memid, ubs_mem_fault_type_t type)
+static int32_t shm_fault_handler(const char* name, uint64_t memid, ubs_mem_fault_type_t type)
 {
     ubse_print_fault_info("Shared", name, memid, type);
     return 0;

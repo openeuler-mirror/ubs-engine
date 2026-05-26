@@ -72,7 +72,7 @@ template <class T>
 class AccountImpl : public BaseAlgoAccount {
 public:
     template <class... Ts>
-    explicit AccountImpl(Ts&&... ts) : account_{std::forward<Ts>(ts)...}
+    explicit AccountImpl(Ts&&... ts) : account_(std::forward<Ts>(ts)...)
     {
     }
 

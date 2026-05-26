@@ -12,13 +12,13 @@
 
 #include <malloc.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#include "ubse_mem_fault_common.h"
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
-#include "ubse_mem_fault_common.h"
 
 void print_mem_fd_desc(const ubs_mem_fd_desc_t* fd_desc)
 {
@@ -116,7 +116,7 @@ void ubse_mem_fd_delete_example(void)
     }
 }
 
-static int32_t fd_fault_handler(const char *name, uint64_t memid, ubs_mem_fault_type_t type)
+static int32_t fd_fault_handler(const char* name, uint64_t memid, ubs_mem_fault_type_t type)
 {
     ubse_print_fault_info("FD", name, memid, type);
     return 0;
