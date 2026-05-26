@@ -319,12 +319,33 @@ uint32_t GetUbseMemBorrower(const def::ProcessMemPidInfo& pidInfo, ubse::mem::co
     }
 
     borrower.affinitySocketId = pidInfo.memBorrowInfo.importSocketId;
-    if (borrower.affinitySocketId == -1 && pidInfo.configInfo.srcNumaId.has_value()) {
-        auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
-        for (const auto& [numaLoc, numaInfo] : curNodeInfo.numaInfos) {
-            if (numaLoc.numaId == pidInfo.configInfo.srcNumaId.value()) {
-                borrower.affinitySocketId = numaInfo.socketId;
+    if (borrower.affinitySocketId != -1) {
+        return UBSE_OK;
+    }
+
+    uint64_t targetNumaId = 0;
+    if (pidInfo.configInfo.srcNumaId.has_value()) {
+        targetNumaId = pidInfo.configInfo.srcNumaId.value();
+    } else {
+        std::unordered_map<uint32_t, size_t> numaDistribution{};
+        auto ret = process_mem::collect::ProcessMemPidCollect::GetInstance().CollectProcessNumaMemDistribution(
+            pidInfo.configInfo.pid, numaDistribution);
+        if (ret != UBSE_OK || numaDistribution.empty()) {
+            return UBSE_OK;
+        }
+        size_t maxMemSize = 0;
+        for (const auto& [numaId, memSize] : numaDistribution) {
+            if (memSize > maxMemSize) {
+                maxMemSize = memSize;
+                targetNumaId = numaId;
             }
+        }
+    }
+
+    auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
+    for (const auto& [numaLoc, numaInfo] : curNodeInfo.numaInfos) {
+        if (numaLoc.numaId == targetNumaId) {
+            borrower.affinitySocketId = numaInfo.socketId;
         }
     }
     return UBSE_OK;
