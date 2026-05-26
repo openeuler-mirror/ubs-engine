@@ -66,15 +66,16 @@ void ParseIODieInfo(const std::shared_ptr<UbseXml> &ubseXml, UbseLcneIODieInfo &
     ubseLcneIODieInfo.upi = ubseXml->Child("upi")->Text();
     ubseLcneIODieInfo.primaryCna = ubseXml->Child("primary-cna")->Text();
     ubseLcneIODieInfo.chipTypeStr = ubseXml->Child("ubpu-type")->Text();
-    ubseLcneIODieInfo.chipType = StringToDevType(ubseLcneIODieInfo.chipTypeStr);
+    ubseLcneIODieInfo.chipType = StringToUbseDevType(ubseLcneIODieInfo.chipTypeStr);
     ubseLcneIODieInfo.chipStatusStr = ubseXml->Child("iou-status")->Text();
 }
 
 std::string UbseLcneIODieInfoMapToString(const UbseLcneIODieInfoMap &devMap)
 {
     std::ostringstream oss;
-    for (const auto &[devName, info] : devMap) {
-        oss << "{" << "Device= " << devName.devName << ", ubControllerEid= " << info.ubControllerEid
+    for (const auto &[iouInfo, info] : devMap) {
+        oss << "{" << "Device= "<< iouInfo.slotId << "-" << iouInfo.ubpuId << "-" << iouInfo.iouId
+            << ", ubControllerEid= " << info.ubControllerEid
             << ", guid= " << info.guid << ", upi= " << info.upi << ", primaryCna= " << info.primaryCna
             << ", chipType= " << info.chipTypeStr << ", chipStatus= " << info.chipStatusStr << "} ";
         oss << "\n";
@@ -111,16 +112,17 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string &r
             UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
             return UBSE_ERROR;
         }
-        UbseDevName devName(nodeId, ubseXml->Child("ubpu-id")->Text());
+        UbseMtiIouInfo iouInfo(nodeId, ubseXml->Child("ubpu-id")->Text(),
+                               ubseXml->Child("iou-id")->Text());
         UbseLcneIODieInfo ubseLcneIODieInfo{};
         ParseIODieInfo(ubseXml, ubseLcneIODieInfo);
         if (ubseLcneIODieInfo.chipStatusStr != "normal") {
-            UBSE_LOG_ERROR << "[MTI] iou-status is" << ubseLcneIODieInfo.chipStatusStr;
+            UBSE_LOG_ERROR << "[MTI] iou-status is " << ubseLcneIODieInfo.chipStatusStr;
             return UBSE_ERROR;
         } else {
             ubseLcneIODieInfo.chipStatus = DevStatus::normal;
         }
-        ubseLcneIODieInfoMap[devName] = ubseLcneIODieInfo;
+        ubseLcneIODieInfoMap[iouInfo] = ubseLcneIODieInfo;
         if (ubseXml->Previous() != UbseXmlError::OK) {
             UBSE_LOG_ERROR << "[MTI] Failed to find xml previous, " << FormatRetCode(UBSE_ERROR);
             return UBSE_ERROR;

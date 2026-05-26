@@ -323,28 +323,6 @@ bool UbseComModule::IsCurrentNode(const std::string &nodeId)
     return roleInfo.nodeId == nodeId;
 }
 
-UbseResult GetNodeInfoFromMti(IpAddress &address, std::string &nodeId)
-{
-    bool ubEnable;
-    GetUBEnable(ubEnable);
-    adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo;
-    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    nodeId = ubseNodeInfo.nodeId;
-    if (ubEnable) {
-        address.first = ubseNodeInfo.eid;
-        address.second = TCP_LISTEN_PORT;
-    } else {
-        adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(address.first);
-        address.second = TCP_LISTEN_PORT;
-    };
-    UBSE_LOG_INFO << "Com ip is " << address.first << ", com port is " << address.second << ", com node id is "
-                  << nodeId;
-    return UBSE_OK;
-}
-
 UbseResult UbseComModule::RegNewChannelCallBack(UbseComCallBackForHA func)
 {
     if (rpcServer_ == nullptr) {

@@ -38,16 +38,16 @@ struct UbseDevName {
     }
     UbseDevName(const std::string& name);
     UbseDevName(std::string&& name);
-    UbseDevName(const std::string& nodeId, const std::string& socketId);
+    UbseDevName(const std::string& nodeId, const std::string& chipId);
     bool operator==(const UbseDevName& other) const;
     bool operator<(const UbseDevName& other) const;
     /**
-     * 从设备名中拆解出nodeId和socketId
+     * 从设备名中拆解出nodeId和chipId
      * @param nodeId 输出参数，节点ID
-     * @param socketId 输出参数，socketID
+     * @param chipId 输出参数，chipId
      * @return 0 成功，非0失败
      */
-    uint32_t SplitDevName(std::string& nodeId, std::string& socketId) const;
+    uint32_t GetNodeIdAndChipId(std::string& nodeId, std::string& chipId) const;
 };
 // 端口名称
 struct UbseDevPortName {
@@ -55,7 +55,7 @@ struct UbseDevPortName {
     UbseDevPortName()
     {
     }
-    UbseDevPortName(const std::string& slotId, const std::string& chipId, const std::string& cardId,
+    UbseDevPortName(const std::string& nodeId, const std::string& chipId, const std::string& cardId,
                     const std::string& portId);
     explicit UbseDevPortName(const std::string& name);
     explicit UbseDevPortName(std::string&& name);
@@ -67,6 +67,7 @@ struct UbseMtiNodeInfo {
     std::string nodeId;
     std::string eid;
 };
+
 enum class UbseMtiCpuTopoPortStatus { UP = 0, DOWN = 1 };
 struct UbseMtiCpuTopoPortInfo {
     // 端口信息
@@ -113,8 +114,7 @@ struct UbseDevNameHash {
 using UbsePortMap = std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>;
 using UbseDeviceInfoPair = std::pair<UbseDeviceInfo, UbsePortMap>;
 struct UbseMtiCpuTopoInfo {
-    uint32_t slotId;  // 槽位号
-    uint32_t socketId;  // os文件的socketId
+    uint32_t nodeId;  // 节点ID
     uint32_t busNodeCna;  // 本设备cna标识
     std::string primaryEid;  // cpu对应的urma通信eid
     std::string chipId;  // LCNE提供的chipid
@@ -128,6 +128,17 @@ struct UbseMtiIouInfo {
     std::string slotId;
     std::string ubpuId;
     std::string iouId;
+
+    UbseMtiIouInfo() = default;
+    UbseMtiIouInfo(const std::string& slotId, const std::string& ubpuId,
+                   const std::string& iouId): slotId(slotId), ubpuId(ubpuId), iouId(iouId) {}
+
+    bool operator==(const UbseMtiIouInfo& other) const;
+    bool operator<(const UbseMtiIouInfo& other) const
+    {
+        return slotId < other.slotId || (slotId == other.slotId && ubpuId < other.ubpuId) ||
+               (slotId == other.slotId && ubpuId == other.ubpuId && iouId < other.iouId);
+    }
 };
 
 enum class UbseMtiFeType {

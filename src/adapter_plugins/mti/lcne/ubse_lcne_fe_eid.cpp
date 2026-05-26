@@ -16,6 +16,7 @@
 #include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_pointer_process.h" // for SafeDeleteArray
 #include "ubse_str_util.h"        // for ConvertStrToUint32
+#include "ubse_mti_eid_interface.h"       // for ParseBaseEid
 #include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
@@ -116,20 +117,18 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiF
         return ret;
     }
     if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
-        UBSE_LOG_ERROR << "[MTI] UpdateFeEid information is failed.The HTTP status code is " << rsp.status;
+        UBSE_LOG_ERROR << "[MTI] UpdateFeEid information is failed. The HTTP status code is " << rsp.status;
         return UBSE_ERROR;
     }
     if (rsp.body.empty()) {
         UBSE_LOG_ERROR << "[MTI] LCNE UrmaEid response is empty.";
         return UBSE_ERROR;
     }
-    ret = ParseGetFeEidResponse(rsp.body, allFeInfos);
-    if (ret != UBSE_OK) {
+    if (ParseGetFeEidResponse(rsp.body, allFeInfos) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] Failed to parse response body for get fe eid.";
         return UBSE_ERROR;
     }
-    ret = CheckFeEid(allFeInfos);
-    if (ret != UBSE_OK) {
+    if (CheckFeEid(allFeInfos) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] Failed to check fe eid.";
         return UBSE_ERROR;
     }
@@ -275,7 +274,7 @@ UbseResult UbseLcneFeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ubs
         std::string eid = ubseEidXml->Text();
         ubseEidXml->Previous();
         if (ubseEidXml->Next("port-group-id") != nullptr) {
-            eidGroups[eid.substr(NO_0, NO_20)].primaryEid = eid;
+            eidGroups[GetEidGroupId(eid)].primaryEid = eid;
             ubseEidXml->Previous();
         } else if (ubseEidXml->Next("interface-name") != nullptr) {
             std::string interfaceName = ubseEidXml->Text();
@@ -284,7 +283,7 @@ UbseResult UbseLcneFeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ubs
                 UBSE_LOG_ERROR << "[MTI] get portId from interfaceName " << interfaceName << " failed";
                 return UBSE_ERROR;
             }
-            eidGroups[eid.substr(NO_0, NO_20)].portEids[std::to_string(portId)] = eid;
+            eidGroups[GetEidGroupId(eid)].portEids[std::to_string(portId)] = eid;
             ubseEidXml->Previous();
         } else {
             UBSE_LOG_ERROR << "[MTI] Xml parse communication-info failed, which label is not supported";
@@ -304,13 +303,18 @@ UbseResult UbseLcneFeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ubs
 
 UbseResult UbseLcneFeEid::GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, UbseMtiEidGroup &feInfo)
 {
-    if (allFeInfos.empty()) {
-        UBSE_LOG_ERROR << "[MIT] Get allFeInfos size = 0";
+    // 1. 筛选出fetype为PHYSICAL_TYPE的FeInfo，然后按照entityId转换为uint32_t后的值进行降序排序，取entityId最小的一组
+    std::vector<UbseMtiFeInfo> phyFeInfos;
+    for (const auto& feInfo : allFeInfos) {
+        if (feInfo.fetype == UbseMtiFeType::PHYSICAL_TYPE) {
+            phyFeInfos.push_back(feInfo);
+        }
+    }
+    if (phyFeInfos.empty()) {
+        UBSE_LOG_ERROR << "[MTI] No PHYSICAL_TYPE FeInfo found. allFeInfos size =" << allFeInfos.size();
         return UBSE_ERROR;
     }
-
-    // 1. 排序 allFeInfos, 按照 entityId 转换为 uint32_t 后的值进行升序排序, entityId 前置已校验
-    std::sort(allFeInfos.begin(), allFeInfos.end(), [](const UbseMtiFeInfo &a, const UbseMtiFeInfo &b) {
+    std::sort(phyFeInfos.begin(), phyFeInfos.end(), [](const UbseMtiFeInfo& a, const UbseMtiFeInfo& b) {
         uint32_t idA = static_cast<uint32_t>(std::stoul(a.entityId));
         uint32_t idB = static_cast<uint32_t>(std::stoul(b.entityId));
         return idA < idB;
@@ -320,7 +324,7 @@ UbseResult UbseLcneFeEid::GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, 
     UbseMtiEidGroup *selectedGroup = nullptr;
     std::string minPrimaryEid;
 
-    for (auto &eidGroup : allFeInfos[NO_0].eidGroups) {
+    for (auto &eidGroup : phyFeInfos[NO_0].eidGroups) {
         if (selectedGroup == nullptr || eidGroup.primaryEid < minPrimaryEid) {
             selectedGroup = &eidGroup;
             minPrimaryEid = eidGroup.primaryEid;
@@ -388,5 +392,12 @@ UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, ui
         return UBSE_OK;
     }
     return UBSE_ERROR;
+}
+
+std::string UbseLcneFeEid::GetEidGroupId(std::string eid)
+{
+    return eid.substr(NO_0, NO_20);
+    // EID 128位bit字符串，第121位到第125位为EID组ID
+    /* 当前eid算法逻辑保持原有，待LCNE更新后替换 */
 }
 } // namespace ubse::lcne

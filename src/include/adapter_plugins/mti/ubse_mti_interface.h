@@ -35,6 +35,15 @@ public:
     virtual common::def::UbseResult GetLocalNodeInfo(UbseMtiNodeInfo& nodeInfo) = 0;
 
     /**
+     * @brief 获取当前节点LCNE感知的设备拓扑信息
+     * @param topo 当前节点LCNE感知的设备拓扑信息
+     * @return UBSE_OK 标识成功
+     * @return UBSE_ERROR_MODULE_LOAD_FAILED mti模块未加载
+     * @return UBSE_ERROR 表示失败
+     */
+    virtual common::def::UbseResult GetCurNodeTopo(UbseDevTopology& topo) = 0;
+
+    /**
     * @brief 获取集群内所有节点对应LCNE感知的节点信息
     * @param nodeInfoList 集群内所有节点对应LCNE感知的节点信息
     * @return UBSE_OK 标识成功
@@ -72,12 +81,12 @@ public:
 
     /**
      * 获取全量规划的urma通信EID（物理意义）
-     * @param socketInfoMap 全量规划的urma通信EID key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
+     * @param comUrmaInfoMap 全量规划的urma通信EID key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR_MODULE_LOAD_FAILED mti模块未加载
      * @return UBSE_ERROR 表示失败
      */
-    virtual common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseMtiEidGroup>& socketInfoMap) = 0;
+    virtual common::def::UbseResult GetMtiComEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup>& comUrmaInfoMap) = 0;
     /**
      * 增加Decoder表项
      * @param importInfo decoder表项内容

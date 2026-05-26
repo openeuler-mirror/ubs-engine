@@ -401,7 +401,7 @@ TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgIsNull)
 TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgVecSizeError)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::OOM, .pucParas = "HandleOomFaultMsgVecSizeError"};
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT, .pucParas = "HandleOomFaultMsgVecSizeError"};
     auto res = handle.NodeFaultHandle(&msg);
     ASSERT_EQ(res, UBSE_ERROR_INVAL);
 }
@@ -409,7 +409,7 @@ TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgVecSizeError)
 TEST_F(TestUbseRasHandler, HandleOomFaultSuccess)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::OOM,
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT,
                   .pucParas = "1652_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],sync:1,timeout:30000,reason:2}"};
     MOCKER_CPP(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
     auto res = handle.NodeFaultHandle(&msg);
@@ -419,7 +419,7 @@ TEST_F(TestUbseRasHandler, HandleOomFaultSuccess)
 TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgDuplication)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::OOM,
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT,
                   .pucParas = "1653_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],sync:1,timeout:30000,reason:2}"};
 
     MOCKER_CPP(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
@@ -434,7 +434,7 @@ TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgDuplication)
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenHandleCnaFail)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT,
                   .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_ERROR));
     auto res = handle.NodeFaultHandle(&msg);
@@ -444,7 +444,7 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenHandleCnaFail)
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenGetCurrentNodeInfoFail)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT,
                   .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
@@ -456,7 +456,7 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenGetCurrentNodeInfoFail)
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenNodeIsNotMaster)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT,
                   .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
@@ -469,7 +469,7 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenNodeIsNotMaster)
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultSuccess)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT,
                   .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
@@ -489,7 +489,7 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultSuccess)
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenMsgDuplication)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT,
                   .pucParas = "123_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
@@ -514,7 +514,7 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenMsgDuplication)
 TEST_F(TestUbseRasHandler, HandleRebootFaultSuccess)
 {
     auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::KERNEL_REBOOT,
+    alarm_msg msg{.usAlarmId = ALARM_KERNEL_REBOOT_EVENT,
                   .pucParas = "12334_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();

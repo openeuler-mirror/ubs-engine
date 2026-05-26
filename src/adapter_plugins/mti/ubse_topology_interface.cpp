@@ -20,7 +20,7 @@ using namespace ubse::context;
 using namespace ubse::config;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-uint32_t UbseGetLocalNodeInfo(MtiNodeInfo& ubseNodeInfo)
+uint32_t UbseGetLocalNodeInfo(UbseMtiNodeInfo& ubseNodeInfo)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -30,7 +30,7 @@ uint32_t UbseGetLocalNodeInfo(MtiNodeInfo& ubseNodeInfo)
     return module->UbseGetLocalNodeInfo(ubseNodeInfo);
 }
 
-uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos)
+uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -46,7 +46,7 @@ uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &ubseNodeInfos)
 
     std::vector<std::string> ipList = module->GetClusterIpList();
     for (auto &ip : ipList) {
-        MtiNodeInfo nodeInfo{};
+        UbseMtiNodeInfo nodeInfo{};
         nodeInfo.eid = ip;
         ubseNodeInfos.emplace_back(nodeInfo);
     }
