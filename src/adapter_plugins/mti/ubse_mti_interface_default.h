@@ -76,6 +76,22 @@ public:
     common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string &profileName) override;
 
     common::def::UbseResult UbseQueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile) override;
+
+    common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles) override;
+
+    common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string &interfaceName,
+                                                           const std::string &profileName) override;
+
+    common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string &interfaceName) override;
+
+    common::def::UbseResult UbseQueryAllInterfaceEtsProfile(
+        std::vector<UbseMtiInterfaceEtsApplication> &applications) override;
+
+    common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
+                                                         std::string &profileName) override;
+
+    common::def::UbseResult UbseQueryInterfaceEtsConfig(const std::string &interfaceName,
+                                                        UbseMtiEtsConfiguration &etsConfig) override;
 };
 } // namespace ubse::adapter_plugins::mti
 

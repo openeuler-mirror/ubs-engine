@@ -47,6 +47,12 @@ public:
     UbseResult RemoveEtsVlsFromProfile(const std::string &profileName);
     UbseResult RemoveEtsPriorityGroupsFromProfile(const std::string &profileName);
     UbseResult QueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile);
+    UbseResult QueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles);
+    UbseResult ApplyEtsProfileToInterface(const std::string &interfaceName, const std::string &profileName);
+    UbseResult RemoveEtsProfileFromInterface(const std::string &interfaceName);
+    UbseResult QueryAllInterfaceEtsProfile(std::vector<UbseMtiInterfaceEtsApplication> &applications);
+    UbseResult QueryInterfaceEtsProfile(const std::string &interfaceName, std::string &profileName);
+    UbseResult QueryInterfaceEtsConfig(const std::string &interfaceName, UbseMtiEtsConfiguration &etsConfig);
 
 private:
     UbseLcneEts(std::string host, int port) : host(std::move(host)), port(port) {}
@@ -54,7 +60,13 @@ private:
     UbseLcneEts &operator=(const UbseLcneEts &) = delete;
 
     UbseResult BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, std::string &xmlStr);
+    UbseResult BuildInterfaceEtsApplicationXml(const std::string &profileName, std::string &xmlStr);
     UbseResult ParseEtsProfileResponse(const std::string &body, UbseMtiEtsProfile &etsProfile);
+    UbseResult ParseAllEtsProfilesResponse(const std::string &body, std::vector<UbseMtiEtsProfile> &etsProfiles);
+    UbseResult ParseInterfaceEtsProfileResponse(const std::string &body, std::string &profileName);
+    UbseResult ParseAllInterfaceEtsProfileResponse(const std::string &body,
+                                                   std::vector<UbseMtiInterfaceEtsApplication> &applications);
+    UbseResult ParseInterfaceEtsConfigResponse(const std::string &body, UbseMtiEtsConfiguration &etsConfig);
 
     std::string host;
     int port;

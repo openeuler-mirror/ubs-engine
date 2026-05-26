@@ -204,5 +204,17 @@ struct UbseMtiEtsProfile {
     std::vector<UbseEtsVl> vls;
     std::vector<UbseEtsPriorityGroup> priorityGroups;
 };
+
+struct UbseMtiEtsConfiguration {
+    std::string interfaceName;
+    std::string etsProfileName;
+    std::vector<UbseEtsVl> vls;
+    std::vector<UbseEtsPriorityGroup> priorityGroups;
+};
+
+struct UbseMtiInterfaceEtsApplication {
+    std::string interfaceName;
+    std::string etsProfileName;
+};
 } // namespace ubse::adapter_plugins::mti
 #endif // UBSE_MTI_DEF_H
