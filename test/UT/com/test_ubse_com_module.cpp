@@ -938,7 +938,11 @@ TEST_F(TestUbseComModule, TestGetNodeInfoFromMti)
         .stubs()
         .with(outBound(nodeInfo))
         .will(returnValue(UBSE_OK));
-    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(ubseConfModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(any(), any(), outBound(configVal))
+        .will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetLocalIp)
         .stubs()
         .will(returnValue(UBSE_OK));

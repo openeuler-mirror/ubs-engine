@@ -257,6 +257,9 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfigStatge2)
     MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(allNodesVec));
     std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
     MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
     uint32_t result = nodeMgr.LoadConfig();
     EXPECT_EQ(result, UBSE_OK);
 }

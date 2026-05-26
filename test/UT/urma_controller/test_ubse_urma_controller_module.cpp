@@ -293,6 +293,7 @@ TEST_F(TestUbseUrmaControllerModule, Initialize_CreateFail)
     auto taskExec = std::make_shared<UbseTaskExecutorModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(taskExec));
     MOCKER_CPP(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(UbseUrmaControllerApi::Register).stubs().will(returnValue(UBSE_OK));
     auto ret = module.Initialize();
     EXPECT_EQ(ret, UBSE_ERROR_CONF_INVALID);
 }

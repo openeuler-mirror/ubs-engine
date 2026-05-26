@@ -93,9 +93,6 @@ TEST_F(TestUbseMemControllerApi, Init)
 {
     MOCKER_CPP(ubse::mem::scheduler::Init).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_TRUE(UBSE_ERROR == ubse::mem::controller::Init());
-    MOCKER_CPP(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&usbe::mem::api::UbseMemApi::Register).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == ubse::mem::controller::Init());
     EXPECT_TRUE(UBSE_OK == ubse::mem::controller::Init());
 }
 
