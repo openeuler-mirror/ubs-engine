@@ -874,17 +874,6 @@ TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenLongLinkConnectSuccess_Re
     EXPECT_TRUE(ret);
 }
 
-// LongLinkConnect 持续失败时，重连尝试最终返回失败
-TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenAlwaysFail_ReturnFalse)
-{
-    client->isReConnect_.store(true);
-    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
-
-    auto ret = client->PerformReconnectAttempts();
-
-    EXPECT_FALSE(ret);
-}
-
 // 用于控制 LongLinkConnect 的调用次数，模拟重连过程中外部停止重连
 static int g_longLinkConnectCallCount = 0;
 static UbseUDSClient* g_testClient = nullptr;

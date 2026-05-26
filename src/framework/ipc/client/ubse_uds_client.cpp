@@ -33,6 +33,7 @@ namespace ubse::ipc {
 using namespace ubse::common::def;
 
 const uint32_t CONNECT_RETRY_DURATION = 200; // 200毫秒
+const uint64_t FAST_RETRY_THRESHOLD = 1000;  // 快速重试次数阈值
 
 UbseUDSClient::UbseUDSClient(const std::string& socketPath)
     : socketPath_(socketPath),
@@ -665,30 +666,22 @@ bool UbseUDSClient::StopCurrentConnection()
 
 bool UbseUDSClient::PerformReconnectAttempts()
 {
-    int attempt = 0;
-    const int maxAttempts = 20; // 限制最大尝试次数
-    while (isReConnect_.load() && attempt < maxAttempts) {
+    // 使用uint64_t避免长期运行时重连次数计数发生有符号整数溢出
+    uint64_t attempt = 0;
+    while (isReConnect_.load()) {
         attempt++;
         // 尝试连接
         if (LongLinkConnect() == UBSE_OK) {
             IPC_LOG_INFO << "reconnect success after " << attempt << " attempts";
             return true;
         }
-        // 每3次打印一次日志
-        if (attempt % 3 == 0) {
-            IPC_LOG_INFO << "reconnect attempt " << attempt << " failed";
+        if (attempt <= FAST_RETRY_THRESHOLD) {
+            // 前1000次每200ms快速重试，保证短暂断链场景快速恢复
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        } else {
+            // 超过1000次后每5s低频探测，减少长期不可达时的线程唤醒和系统调用开销
+            std::this_thread::sleep_for(std::chrono::seconds(5));
         }
-        // 等待200ms，但每20ms检查一次停止标志
-        for (int i = 0; i < 10; i++) {
-            if (!isReConnect_.load()) {
-                IPC_LOG_INFO << "reconnect stopped at attempt " << attempt;
-                return false;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        }
-    }
-    if (attempt >= maxAttempts) {
-        IPC_LOG_ERROR << "reconnect failed after " << maxAttempts << " attempts";
     }
     return false;
 }
