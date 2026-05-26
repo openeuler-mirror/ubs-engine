@@ -233,9 +233,12 @@ TEST_F(TestUbseLcneEts, AddEtsProfileVlsSuccess)
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
     EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsProfileVls("test-ets", MakeEtsProfile().vls), UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
-    EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets/vls");
+    EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_NE(g_request.headers.find("Content-Type"), g_request.headers.end());
     EXPECT_EQ(g_request.headers.find("Content-Type")->second, "application/xml");
+    EXPECT_NE(g_request.body.find("<ets-profiles>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<ets-profile>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<name>test-ets</name>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<vls>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<vl-index>10</vl-index>"), std::string::npos);
     EXPECT_EQ(g_request.body.find("<priority-groups>"), std::string::npos);
@@ -247,10 +250,12 @@ TEST_F(TestUbseLcneEts, AddEtsProfilePriorityGroupsSuccess)
     EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsProfilePriorityGroups("test-ets", MakeEtsProfile().priorityGroups),
               UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
-    EXPECT_EQ(g_request.path,
-              "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets/priority-groups");
+    EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_NE(g_request.headers.find("Content-Type"), g_request.headers.end());
     EXPECT_EQ(g_request.headers.find("Content-Type")->second, "application/xml");
+    EXPECT_NE(g_request.body.find("<ets-profiles>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<ets-profile>"), std::string::npos);
+    EXPECT_NE(g_request.body.find("<name>test-ets</name>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<priority-groups>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<cir>1000</cir>"), std::string::npos);
     EXPECT_EQ(g_request.body.find("<vls>"), std::string::npos);
