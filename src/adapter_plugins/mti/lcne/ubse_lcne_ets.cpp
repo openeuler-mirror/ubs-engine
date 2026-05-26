@@ -373,7 +373,10 @@ UbseResult UbseLcneEts::CreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
 UbseResult UbseLcneEts::AddEtsProfileVls(const std::string &profileName, const std::vector<UbseEtsVl> &vls)
 {
     std::string body;
-    auto ret = BuildEtsProfileVlsXml(profileName, vls, body);
+    UbseMtiEtsProfile etsProfile{};
+    etsProfile.profileName = profileName;
+    etsProfile.vls = vls;
+    auto ret = BuildEtsProfileVlsXml(etsProfile, body);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] BuildEtsProfileVlsXml failed.";
         return ret;
@@ -385,7 +388,10 @@ UbseResult UbseLcneEts::AddEtsProfilePriorityGroups(
     const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
 {
     std::string body;
-    auto ret = BuildEtsProfilePriorityGroupsXml(profileName, priorityGroups, body);
+    UbseMtiEtsProfile etsProfile{};
+    etsProfile.profileName = profileName;
+    etsProfile.priorityGroups = priorityGroups;
+    auto ret = BuildEtsProfilePriorityGroupsXml(etsProfile, body);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] BuildEtsProfilePriorityGroupsXml failed.";
         return ret;
@@ -448,19 +454,18 @@ UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, 
     }, xmlStr);
 }
 
-UbseResult UbseLcneEts::BuildEtsProfileVlsXml(const std::string &profileName, const std::vector<UbseEtsVl> &vls,
-                                              std::string &xmlStr)
+UbseResult UbseLcneEts::BuildEtsProfileVlsXml(const UbseMtiEtsProfile &etsProfile, std::string &xmlStr)
 {
-    return BuildEtsProfileEnvelopeXml(profileName, [&vls](const std::shared_ptr<UbseXml> &xml) {
-        return BuildEtsProfileVlsNode(xml, vls);
+    return BuildEtsProfileEnvelopeXml(etsProfile.profileName, [&etsProfile](const std::shared_ptr<UbseXml> &xml) {
+        return BuildEtsProfileVlsNode(xml, etsProfile.vls);
     }, xmlStr);
 }
 
 UbseResult UbseLcneEts::BuildEtsProfilePriorityGroupsXml(
-    const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups, std::string &xmlStr)
+    const UbseMtiEtsProfile &etsProfile, std::string &xmlStr)
 {
-    return BuildEtsProfileEnvelopeXml(profileName, [&priorityGroups](const std::shared_ptr<UbseXml> &xml) {
-        return BuildEtsProfilePriorityGroupsNode(xml, priorityGroups);
+    return BuildEtsProfileEnvelopeXml(etsProfile.profileName, [&etsProfile](const std::shared_ptr<UbseXml> &xml) {
+        return BuildEtsProfilePriorityGroupsNode(xml, etsProfile.priorityGroups);
     }, xmlStr);
 }
 
