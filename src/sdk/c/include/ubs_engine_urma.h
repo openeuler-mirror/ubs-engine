@@ -117,6 +117,20 @@ uint32_t ubs_urma_qos_create(const ubs_urma_qos_config_t *configs, uint32_t coun
  */
 uint32_t ubs_urma_qos_delete(void);
 
+/**
+ * @brief 查询QoS配置
+ *
+ * @param configs [OUT] QoS配置数组指针，调用者需要释放该内存
+ * @param count [OUT] 数组元素个数
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+uint32_t ubs_urma_qos_get(ubs_urma_qos_config_t **configs, uint32_t *count);
+
 #ifdef __cplusplus
 }
 #endif

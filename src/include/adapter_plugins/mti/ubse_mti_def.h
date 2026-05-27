@@ -197,7 +197,7 @@ struct UbseEtsPriorityGroup {
     UbseEtsScheduleMode scheduleMode;
     uint32_t weight;
     uint32_t cir;
-    uint32_t cbs = ubse::common::def::NO_4096; // Committed Burst Size 承诺突发尺寸（Byte）
+    uint32_t cbs = ubse::common::def::NO_2048 * ubse::common::def::NO_2; // Committed Burst Size 承诺突发尺寸（Byte）
 };
 
 struct UbseMtiEtsProfile {
