@@ -63,10 +63,10 @@ constexpr const char* DISPLAY_MEM_NAME_OPTION_TIP =
 // display memory option input error
 constexpr const char* DISPLAY_MEM_TYPE_OPTION_REQUIRED =
     "ERROR: The request option -t or --type is required, and the supported param is as follows: node_borrow, "
-    "borrow_detail, node_lend, numa_status, config, pidInfo.";
+    "borrow_detail, node_lend, numa_status, config.";
 constexpr const char* DISPLAY_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: node_borrow, "
-    "borrow_detail, node_lend, numa_status, config, pidInfo.";
+    "borrow_detail, node_lend, numa_status, config.";
 constexpr const char* DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID =
     "ERROR: Invalid borrow-type. The supported param is as follows: numa, fd, share.";
 constexpr const char* DISPLAY_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
@@ -428,12 +428,25 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
             return UbseCliQueryNumaStatus();
         } else if (kind == "config") {
             return QueryMemConfig();
-        } else if (kind == "pidInfo") {
-            UbseCliMemPid memPid{};
-            return memPid.UbseCliPrintPidInfo();
         }
     }
     return UbseCliStringPromptReply(DISPLAY_MEM_TYPE_PARAM_INVALID);
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DisplayProcessMemFunc(
+    const std::map<std::string, std::string>& params)
+{
+    auto it = params.find("type");
+    if (it == params.end()) {
+        return UbseCliStringPromptReply(
+            "ERROR: The request option -t or --type is required, and the supported param is as follows: config.");
+    }
+    if (it->second != "config") {
+        return UbseCliStringPromptReply(
+            "ERROR: Invalid type. The supported param is as follows: config.");
+    }
+    UbseCliMemPid memPid{};
+    return memPid.UbseCliPrintPidInfo();
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatusFunc(
@@ -808,11 +821,21 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
     }
 }
 
+UbseCliCommandInfo UbseCliRegMemModule::DisplayProcessMem()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("display")
+        .UbseCliSetType("process-mem")
+        .UbseCliAddOption("t", "type", "Query the process memory configuration. The option is as follows: config.")
+        .UbseCliSetFunc(DisplayProcessMemFunc);
+    return builder.UbseCliBuild();
+}
+
 UbseCliCommandInfo UbseCliRegMemModule::ChangeMemory()
 {
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("change")
-        .UbseCliSetType("memory")
+        .UbseCliSetType("process-mem")
         .UbseCliAddOption("p", PID_OPTION, PID_OPTION_TIP)
         .UbseCliAddOption("e", EVICT_THRESHOLD_OPTION, EVICT_THRESHOLD_OPTION_TIP)
         .UbseCliAddOption("t", TARGET_EVICT_THRESHOLD_OPTION, TARGET_EVICT_THRESHOLD_OPTION_TIP)
@@ -844,7 +867,7 @@ UbseCliCommandInfo UbseCliRegMemModule::RemoveMemory()
 {
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("remove")
-        .UbseCliSetType("memory")
+        .UbseCliSetType("process-mem")
         .UbseCliAddOption("p", PID_OPTION, PID_OPTION_TIP)
         .UbseCliSetFunc(PidUnSetFunc);
     return builder.UbseCliBuild();
@@ -943,6 +966,7 @@ void UbseCliRegMemModule::UbseCliSignUp()
     this->cmd_.emplace_back(ShmMemoryDetach());
     this->cmd_.emplace_back(ChangeMemory());
     this->cmd_.emplace_back(RemoveMemory());
+    this->cmd_.emplace_back(DisplayProcessMem());
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryAttachFunc(

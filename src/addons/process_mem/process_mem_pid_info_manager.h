@@ -33,7 +33,7 @@ public:
         return instance;
     }
 
-    void SetPidInfoMap(const def::ProcessMemPidInfo& pidInfo);
+    uint32_t SetPidInfoMap(const def::ProcessMemPidInfo& pidInfo);
 
     void GetAllPidInfo(std::vector<def::ProcessMemPidInfo>& pidInfos);
 
@@ -41,7 +41,7 @@ public:
 
     void TotalMemoryCheckCallBack(const collect::CollectInfoMap& collectInfoMap);
 
-    void UnsetPidInfo(pid_t pid);
+    uint32_t UnsetPidInfo(pid_t pid);
 
     uint32_t PerPidMemoryCheckCallBack(pid_t pid, const std::unordered_map<uint32_t, size_t>& numaMemory);
 

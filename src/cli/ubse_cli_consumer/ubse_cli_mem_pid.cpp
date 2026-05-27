@@ -146,7 +146,14 @@ public:
             return UbseCliRegModule::UbseCliStringPromptReply(
                 std::string("ERROR: Internal error with error code " + std::to_string(ret)));
         }
-        return UbseCliRegModule::UbseCliStringPromptReply("Unset successfully");
+        UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
+        int successCode = 0;
+        std::string errMsg;
+        deserial >> successCode >> errMsg;
+        if (deserial.Check() && successCode == 1) {
+            return UbseCliRegModule::UbseCliStringPromptReply("Unset successfully");
+        }
+        return UbseCliRegModule::UbseCliStringPromptReply("ERROR: " + errMsg);
     }
 };
 

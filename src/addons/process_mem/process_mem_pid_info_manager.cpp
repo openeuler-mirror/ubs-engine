@@ -13,13 +13,13 @@
 
 #include <mutex>
 
+#include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mem_controller.h"
 #include "ubse_timer.h"
 #include "process_mem_pid_collect.h"
 #include "process_mem_pid_config_manager.h"
-#include "ubse_conf.h"
-#include "ubse_mem_controller.h"
 
 #include "ubse_node_controller.h"
 #include "process_mem_pid_bridge.h"
@@ -86,7 +86,7 @@ void ProcessMemPidInfoManager::DeletePidMemBorrowInfo(pid_t pid, const std::stri
         UBSE_LOG_ERROR << "MigrateOut failed, pid=" << pid;
     }
     std::vector<pid_t> pids = {pid};
-    pid::bridge::ProcessMemPidBridge::rmrmRemove(static_cast<uint16_t>(remoteNumaId), pids, 0);
+    pid::bridge::ProcessMemPidBridge::rmrsRemove(static_cast<uint16_t>(remoteNumaId), pids, 0);
 }
 
 void ProcessMemPidInfoManager::ResetPidMemBorrowInfo(pid_t pid)
@@ -99,47 +99,46 @@ void ProcessMemPidInfoManager::ResetPidMemBorrowInfo(pid_t pid)
     pidIt->second.memBorrowInfo = {};
 }
 
-void ProcessMemPidInfoManager::SetPidInfoMap(const def::ProcessMemPidInfo& pidInfo)
+uint32_t ProcessMemPidInfoManager::SetPidInfoMap(const def::ProcessMemPidInfo& pidInfo)
 {
     std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
     if (pidInfo.startTime == 0) {
         UBSE_LOG_ERROR << "Failed to get exact start time for pid: " << pidInfo.configInfo.pid;
-        return;
+        return UBSE_ERR_NOT_EXIST;
     }
 
     auto pidIt = pidInfoMap.find(pidInfo.configInfo.pid);
     bool existsInPidMap = (pidIt != pidInfoMap.end());
-    auto srcNumaStr = pidInfo.configInfo.srcNumaId.has_value()
-                          ? std::to_string(pidInfo.configInfo.srcNumaId.value())
-                          : "N/A";
+    auto srcNumaStr = pidInfo.configInfo.srcNumaId.has_value() ? std::to_string(pidInfo.configInfo.srcNumaId.value()) :
+                                                                 "N/A";
     UBSE_LOG_INFO << "srcNuma Id is " << srcNumaStr;
     if (!existsInPidMap) {
         ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo);
         pidInfoMap.insert_or_assign(pidInfo.configInfo.pid, pidInfo);
-        return;
+        return UBSE_OK;
     }
 
     if (pidInfo.startTime != pidIt->second.startTime) {
         UBSE_LOG_ERROR << "Start time mismatch for pid: " << pidInfo.configInfo.pid
                        << ", provided: " << pidInfo.startTime << ", actual: " << pidIt->second.startTime;
-        return;
+        return UBSE_ERR_INVALID_ARG;
     }
     if (!pidIt->second.memBorrowInfo.debtInfos.empty() &&
         pidInfo.configInfo.srcNumaId != pidIt->second.configInfo.srcNumaId) {
         UBSE_LOG_ERROR << "Cannot modify srcNumaId while pid=" << pidInfo.configInfo.pid
                        << " has existing borrow debts";
-        return;
+        return UBSE_ERR_RESOURCE_BUSY;
     }
     pidIt->second.configInfo = pidInfo.configInfo;
     ProcessMemPidConfigManager::PersistPidConfigInfo(pidIt->second);
+    return UBSE_OK;
 }
 
 void PrintConfigInfo(const std::vector<def::ProcessMemPidInfo>& pidInfos)
 {
     for (const auto& pidInfo : pidInfos) {
-        auto srcNumaStr = pidInfo.configInfo.srcNumaId.has_value()
-                              ? std::to_string(pidInfo.configInfo.srcNumaId.value())
-                              : "N/A";
+        auto srcNumaStr =
+            pidInfo.configInfo.srcNumaId.has_value() ? std::to_string(pidInfo.configInfo.srcNumaId.value()) : "N/A";
         UBSE_LOG_INFO << "Pid: " << pidInfo.configInfo.pid << ", NumaId: " << srcNumaStr;
     }
 }
@@ -475,7 +474,8 @@ void AsyncBorrowAndMigrateExecute(pid_t pid, const def::DebtInfo& debtInfo, uint
     MigrateOut(infoAfterBorrow, freshExpectRemote);
 }
 
-uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t requestSize, uint64_t expectRemoteMemory)
+uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t requestSize, uint64_t expectRemoteMemory,
+                          int32_t minNuma)
 {
     bool isNeedBorrow = false;
     uint64_t needBorrowSize = requestSize;
@@ -493,7 +493,8 @@ uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t requestSize,
     debtInfo.status = def::BorrowStatus::CREATING;
     const def::ProcessMemUsrInfo usrInfo{
         .pid = pidInfo.configInfo.pid,
-        .startTime = pidInfo.startTime
+        .startTime = pidInfo.startTime,
+        .srcNuma = minNuma
     };
     auto ret =
         memcpy_s(debtInfo.numaDesc.usrInfo, ubse::mem::controller::UBSE_MAX_USR_INFO_LEN, &usrInfo, sizeof(usrInfo));
@@ -510,7 +511,8 @@ uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t requestSize,
     return UBSE_OK;
 }
 
-uint32_t BorrowMemoryAndMigrateOut(def::ProcessMemPidInfo& pidInfo, uint64_t localMemorySize, uint64_t remoteMemorySize)
+uint32_t BorrowMemoryAndMigrateOut(def::ProcessMemPidInfo& pidInfo, uint64_t localMemorySize, uint64_t remoteMemorySize,
+                                   int32_t minNuma)
 {
     auto expectRemoteMemory = ((localMemorySize + remoteMemorySize) * pidInfo.configInfo.targetEvictThreshold) / 100;
     UBSE_LOG_INFO << "localMemory is " << localMemorySize << ", remoteMemory is " << remoteMemorySize
@@ -519,7 +521,7 @@ uint32_t BorrowMemoryAndMigrateOut(def::ProcessMemPidInfo& pidInfo, uint64_t loc
         MigrateOut(pidInfo, expectRemoteMemory);
         return UBSE_OK;
     }
-    BorrowAndMigrate(pidInfo, expectRemoteMemory - remoteMemorySize, expectRemoteMemory);
+    BorrowAndMigrate(pidInfo, expectRemoteMemory - remoteMemorySize, expectRemoteMemory, minNuma);
     return UBSE_OK;
 }
 
@@ -543,11 +545,11 @@ uint32_t MigrateBackAndReturnMemoryAsyncExecute(const def::ProcessMemPidInfo& pi
         }
         std::vector<pid_t> pids;
         pids.push_back(pidInfo.configInfo.pid);
-        res = pid::bridge::ProcessMemPidBridge::rmrmRemove(remoteNuma, pids, 0);
+        res = pid::bridge::ProcessMemPidBridge::rmrsRemove(remoteNuma, pids, 0);
         for (const auto& [name, debtInfo] : pidInfo.memBorrowInfo.debtInfos) {
             auto borrowName = name;
             auto ret = process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate(debtInfo.numaDesc.name);
-            if (ret != UBSE_OK) {
+            if (ret != UBSE_OK && ret != UBSE_ERR_NOT_EXIST) {
                 UBSE_LOG_ERROR << "rmrsFreeWithMigrate failed";
                 ProcessMemPidInfoManager::GetInstance().exceptionHandleExecutor->Execute(
                     [borrowName]() { ExceptionMemoryHandle(borrowName); });
@@ -593,7 +595,13 @@ uint32_t MemoryCheckHandle(def::ProcessMemPidInfo& info, const std::unordered_ma
     UBSE_LOG_INFO << "needBorrow IS " << needBorrow << ", needReturn is" << needReturn << ", localMemory is "
                   << localMemory << ", remote memory is " << remoteMemory << ",expectMemory is " << expectMemory;
     if (needBorrow) {
-        BorrowMemoryAndMigrateOut(info, localMemory, remoteMemory);
+        int32_t minNuma = -1;
+        for (const auto& [numaId, _] : numaMemory) {
+            if (minNuma == -1 || static_cast<int32_t>(numaId) < minNuma) {
+                minNuma = static_cast<int32_t>(numaId);
+            }
+        }
+        BorrowMemoryAndMigrateOut(info, localMemory, remoteMemory, minNuma);
     } else if (needReturn) {
         MigrateBackAndReturnMemory(info);
     }
@@ -770,18 +778,19 @@ void ProcessMemPidInfoManager::TotalMemoryCheckCallBack(const collect::CollectIn
     }
 }
 
-void ProcessMemPidInfoManager::UnsetPidInfo(pid_t pid)
+uint32_t ProcessMemPidInfoManager::UnsetPidInfo(pid_t pid)
 {
     std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
     auto pidIt = pidInfoMap.find(pid);
     if (pidIt == pidInfoMap.end()) {
         UBSE_LOG_INFO << "pid not found in pidInfoMap, pid is " << pid;
-        return;
+        return UBSE_ERR_NOT_EXIST;
     }
     UBSE_LOG_INFO << "pid has borrow info, pid is " << pid;
     MigrateBackAndReturnMemory(pidIt->second);
     ProcessMemPidConfigManager::DeletePidConfigInfo(pid);
     pidInfoMap.erase(pid);
+    return UBSE_OK;
 }
 
 namespace {
@@ -804,8 +813,11 @@ void RecoverSingleDebtInfo(std::unordered_map<pid_t, def::ProcessMemPidInfo>& pi
     }
 
     auto pidIt = pidInfoMap.find(usrInfo.pid);
-    if (pidIt == pidInfoMap.end()) {
-        UBSE_LOG_WARN << "pid not found, return memory, name=" << debtInfo.name;
+    if (pidIt == pidInfoMap.end() || pidIt->second.startTime != usrInfo.startTime) {
+        UBSE_LOG_WARN << "pid not found or startTime mismatch, return memory, name=" << debtInfo.name;
+        if (pidIt != pidInfoMap.end()) {
+            pidInfoMap.erase(pidIt);
+        }
         exceptionHandleExecutor->Execute([name = debtInfo.name]() { ExceptionMemoryHandle(name); });
         return;
     }

@@ -142,6 +142,7 @@ struct ProcessMemUsrInfo {
     UsrInfoPluginType pluginId{UsrInfoPluginType::PROCESS_MEM};
     int32_t pid{};
     int64_t startTime{};
+    int32_t srcNuma{-1};
 };
 static_assert(sizeof(ProcessMemUsrInfo) <= ubse::mem::controller::UBSE_MAX_USR_INFO_LEN,
               "ProcessMemUsrInfo must fit within usrInfo buffer");

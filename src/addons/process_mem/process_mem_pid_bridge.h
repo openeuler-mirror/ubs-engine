@@ -47,7 +47,7 @@ public:
     static uint32_t GetRemoteNumaSocketInfo(const ubse::mem::controller::UbseMemNumaDesc& desc, uint32_t& socketId,
                                             uint64_t& numaId);
     inline static MigrateOut rmrsMigrateOut;
-    inline static Remove rmrmRemove;
+    inline static Remove rmrsRemove;
     inline static NoMigrateBack rmrsFreeWithMigrate;
     inline static void* memPoolingHandle = nullptr;
     static uint32_t FaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
