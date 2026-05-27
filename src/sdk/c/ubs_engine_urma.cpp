@@ -151,3 +151,27 @@ uint32_t ubs_urma_qos_delete(void)
     ubse_api_buffer_free(&response_buffer);
     return UBS_SUCCESS;
 }
+
+uint32_t ubs_urma_qos_get(ubs_urma_qos_config_t **configs, uint32_t *count)
+{
+    if (configs == nullptr || count == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+
+    ubse_api_buffer_t request_buffer{nullptr, 0};
+    ubse_api_buffer_t response_buffer{nullptr, 0};
+
+    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_QOS_GET, &request_buffer, &response_buffer);
+    if (ret != UBS_SUCCESS) {
+        ubse_api_buffer_free(&response_buffer);
+        return ubse_map_daemon_error(ret);
+    }
+
+    ret = ubse_urma_qos_get_resp_unpack(response_buffer.buffer, response_buffer.length, configs, count);
+    ubse_api_buffer_free(&response_buffer);
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+
+    return UBS_SUCCESS;
+}
