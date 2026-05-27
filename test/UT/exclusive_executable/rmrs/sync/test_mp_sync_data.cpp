@@ -83,7 +83,7 @@ uint32_t MockGetData(UbseByteBuffer& buffer)
 
 TEST_F(TestSync, SubModuleInitFailed1)
 {
-    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t (*)(MpSyncDataHelper*)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t(*)(MpSyncDataHelper*)).stubs().will(returnValue(1));
     MpSyncDataSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -91,7 +91,7 @@ TEST_F(TestSync, SubModuleInitFailed1)
 
 TEST_F(TestSync, SubModuleInitSucceed)
 {
-    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t (*)(MpSyncDataHelper*)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t(*)(MpSyncDataHelper*)).stubs().will(returnValue(0));
     MpSyncDataSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);

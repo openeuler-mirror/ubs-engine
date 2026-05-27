@@ -50,13 +50,13 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFault_Succeed)
     rec.lentNodeId = nodeId;
     rec.borrowMemId = {0};
     infos.push_back(rec);
-    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t (*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
 
         .stubs()
         .with(any(), outBound(infos))
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage,
-               MpResult (*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
+               MpResult(*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
@@ -73,7 +73,7 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFault_GetNumaMemDebtIn
     rec.lentNodeId = nodeId;
     rec.borrowMemId = {0};
     infos.push_back(rec);
-    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t (*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
 
         .stubs()
         .with(any(), outBound(infos))
@@ -87,12 +87,12 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFault_BorrowRecords_Em
 {
     std::string nodeId = "node1";
     std::vector<UbseNumaMemoryDebtInfo> infos;
-    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t (*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
         .stubs()
         .with(any(), outBound(infos))
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage,
-               MpResult (*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
+               MpResult(*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
@@ -110,12 +110,12 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFault_LentNode_NotEq_S
     rec.borrowMemId = {0};
     infos.push_back(rec);
 
-    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t (*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
         .stubs()
         .with(any(), outBound(infos))
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage,
-               MpResult (*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
+               MpResult(*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
@@ -132,12 +132,12 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFault_MemIdFaultManage
     rec.lentNodeId = nodeId;
     rec.borrowMemId = {0};
     infos.push_back(rec);
-    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t (*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
+    MOCKER_CPP(&UbseGetNumaMemDebtInfoWithNode, uint32_t(*)(const std::string&, std::vector<UbseNumaMemoryDebtInfo>&))
         .stubs()
         .with(any(), outBound(infos))
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage,
-               MpResult (*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
+               MpResult(*)(OverCommitFaultMemIdModule*, std::string, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
@@ -203,7 +203,7 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail1)
     uint64_t memId = 1;
     BorrowInNodeData borNodeData = {.borrowInNid = borrowInNid, .memId = memId};
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult (*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
+               MpResult(*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -217,13 +217,13 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageFail2)
     uint64_t memId = 1;
     BorrowInNodeData borNodeData = {.borrowInNid = borrowInNid, .memId = memId};
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult (*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
+               MpResult(*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-               MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
-                            mempooling::WaterMark&))
+               MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
+                           mempooling::WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -237,18 +237,18 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk3)
     uint64_t memId = 1;
     BorrowInNodeData borNodeData = {.borrowInNid = borrowInNid, .memId = memId};
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult (*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
+               MpResult(*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-               MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
-                            mempooling::WaterMark&))
+               MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
+                           mempooling::WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetSelectPids,
-               MpResult (*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
+               MpResult(*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -262,23 +262,23 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk4)
     uint64_t memId = 1;
     BorrowInNodeData borNodeData = {.borrowInNid = borrowInNid, .memId = memId};
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult (*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
+               MpResult(*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-               MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
-                            mempooling::WaterMark&))
+               MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
+                           mempooling::WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetSelectPids,
-               MpResult (*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
+               MpResult(*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult (*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
+               MpResult(*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -292,28 +292,27 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk5)
     uint64_t memId = 1;
     BorrowInNodeData borNodeData = {.borrowInNid = borrowInNid, .memId = memId};
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult (*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
+               MpResult(*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-               MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
-                            mempooling::WaterMark&))
+               MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
+                           mempooling::WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetSelectPids,
-               MpResult (*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
+               MpResult(*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult (*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
+               MpResult(*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecuteRpc,
-               MpResult (*)(OverCommitFaultMemIdExecuteParam, std::string))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecuteRpc, MpResult(*)(OverCommitFaultMemIdExecuteParam, std::string))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -327,33 +326,32 @@ TEST_F(TestOverCommitFaultNodeModule, MemIdFaultManageOk6)
     uint64_t memId = 1;
     BorrowInNodeData borNodeData = {.borrowInNid = borrowInNid, .memId = memId};
     MOCKER_CPP(&OverCommitFaultMemIdModule::IsBorrowIdOfCurNidOverCommit,
-               MpResult (*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
+               MpResult(*)(BorrowInNodeData&, uint64_t&, uint16_t&, uid_t&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::PrepareParamForBorrowMem,
-               MpResult (*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
-                            mempooling::WaterMark&))
+               MpResult(*)(outinterface::SrcMemoryBorrowParam&, uint16_t, uint16_t, std::vector<VmNumaInfo>&,
+                           mempooling::WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetSelectPids,
-               MpResult (*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
+               MpResult(*)(FMVmInfoResult&, uint64_t, std::vector<VmNumaInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult (*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
+               MpResult(*)(SrcMemoryBorrowParam, uint64_t, WaterMark, MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecuteRpc,
-               MpResult (*)(OverCommitFaultMemIdExecuteParam, std::string))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecuteRpc, MpResult(*)(OverCommitFaultMemIdExecuteParam, std::string))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::ReturnFaultMem,
-               MpResult (*)(outinterface::SrcMemoryBorrowParam, std::string borrowId, uint16_t, uint64_t, uint64_t))
+               MpResult(*)(outinterface::SrcMemoryBorrowParam, std::string borrowId, uint16_t, uint64_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -501,18 +499,18 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultMultiNuma_Succeed
 {
     // Stub: Simulate successful collection of ledger
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult (*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(MockCollectBorrowRecordsNode));
 
     MOCKER_CPP(&OverCommitFaultNodeModule::HandleFaultRemoteNumasPerBorrowNode,
-               uint32_t (*)(const std::string&, const std::vector<BorrowRecord>&))
+               uint32_t(*)(const std::string&, const std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     // Stub: Simulate successful RPC send to remote node0
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t (*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendMockSuccess));
 
@@ -526,7 +524,7 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultMultiNuma_Succeed
 TEST_F(TestOverCommitFaultNodeModule, HandleFaultRemoteNumasPerBorrowNode_Succeed)
 {
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t (*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const ubse::com::UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendMockSuccess));
 
@@ -561,7 +559,7 @@ TEST_F(TestOverCommitFaultNodeModule, CalculateRemainingQuotaOnFaultNuma_Correct
 TEST_F(TestOverCommitFaultNodeModule, GetVmRatioOnFaultNumaBySmap_Succeed)
 {
     // Stub: Simulate getting function pointer
-    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc (*)())
+    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
         .will(invoke(GetSmapGetRemoteProcessesFuncMock));
     std::unordered_map<pid_t, mempooling::outinterface::VMInfo> vmInfos;
@@ -598,14 +596,14 @@ TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsExecute_Succeed)
         .will(invoke(SmapEnableProcessMigrateHelperMock));
 
     // Stub: SmapMigratePidMultiRemoteNumaHelperWithRetryMock
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry, MpResult (*)(const MigrateEscapeMsg&))
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry, MpResult(*)(const MigrateEscapeMsg&))
         .stubs()
         .will(invoke(SmapMigratePidMultiRemoteNumaHelperWithRetryMock));
 
     // Stub: If SetSmapRemoteNumaInfoExec declaration, need to mock its dependency.
     // Here assume it's a global function, we mock it to avoid real Smap dispatch
     // If it's also a member of some class, adjust MOCKER accordingly
-    MOCKER_CPP(&SetSmapRemoteNumaInfoExec, MpResult (*)(int16_t, int16_t, uint64_t))
+    MOCKER_CPP(&SetSmapRemoteNumaInfoExec, MpResult(*)(int16_t, int16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -640,12 +638,12 @@ TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsExecute_Succeed)
 TEST_F(TestOverCommitFaultNodeModule, ReturnFaultRemoteNumaMemory_Succeed)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(const std::string& name, bool isForceDelete, bool smapBack))
+               MpResult(*)(const std::string& name, bool isForceDelete, bool smapBack))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     // Ignore SetSmapRemoteNumaInfoExec real call, use cast Mock (if symbol not found, can comment out this line)
-    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult (*)(int16_t, int16_t, uint64_t))
+    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult(*)(int16_t, int16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -670,7 +668,7 @@ TEST_F(TestOverCommitFaultNodeModule, ReturnFaultRemoteNumaMemory_Succeed)
 TEST_F(TestOverCommitFaultNodeModule, BorrowInNodeProcess_Succeed)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(invoke(GetVmInfoImmediatelyMock));
 
@@ -678,46 +676,46 @@ TEST_F(TestOverCommitFaultNodeModule, BorrowInNodeProcess_Succeed)
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult (*)(const std::string&, const int&, uint16_t&))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string&, const int&, uint16_t&))
         .stubs()
         .will(invoke(GetSocketIdMock));
 
-    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult (*)(WaterMark&))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::GetWaterMark, MpResult(*)(WaterMark&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteInOverCommit,
-               MpResult (*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                            MemBorrowExecuteResult&, bool))
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
+                           MemBorrowExecuteResult&, bool))
         .stubs()
         .will(invoke(MemBorrowExecuteInOverCommitMock));
 
-    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult (*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
+    MOCKER_CPP(&MpSmapHelper::AllocateHugePages, MpResult(*)(std::vector<uint64_t>&, std::vector<uint64_t>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc (*)())
+    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
         .will(invoke(GetSmapGetRemoteProcessesFuncMock));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry, MpResult (*)(const MigrateEscapeMsg&))
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry, MpResult(*)(const MigrateEscapeMsg&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult (*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult (*)(int16_t, int16_t, uint64_t))
+    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult(*)(int16_t, int16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult (*)(const std::string&, bool, bool, bool))
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&BorrowIdInFaultProcess::Clear, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdInFaultProcess::Clear, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
 
     FaultRecordsInNode faultRecordsInNode;
     faultRecordsInNode.nodeId = "local_node";
@@ -742,7 +740,7 @@ TEST_F(TestOverCommitFaultNodeModule, BorrowInNodeProcess_Succeed)
 TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsFromFaultNuma_Succeed)
 {
     // 1. Stub: Get Smap remote process list and ratio (reuse global Mock: pid=1234, ratio=50)
-    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc (*)())
+    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
         .will(invoke(GetSmapGetRemoteProcessesFuncMock));
 
@@ -752,19 +750,19 @@ TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsFromFaultNuma_Succeed)
         .will(invoke(SmapEnableProcessMigrateHelperMock));
 
     // 3. Stub: Smap remote to remote actual migration execution
-    MOCKER_CPP(&MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry, MpResult (*)(const MigrateEscapeMsg&))
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry, MpResult(*)(const MigrateEscapeMsg&))
         .stubs()
         .will(invoke(SmapMigratePidMultiRemoteNumaHelperWithRetryMock));
 
     // 4. Stub: Collect ledger and set remote Numa capacity (to make ReSetRemoteNumaInfo in EvaculateVmsExecute run through)
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
-               MpResult (*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     // If SetSmapRemoteNumaInfoExec undefined, add at top of file:
     // extern MpResult SetSmapRemoteNumaInfoExec(int16_t, int16_t, uint64_t);
-    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult (*)(int16_t, int16_t, uint64_t))
+    MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult(*)(int16_t, int16_t, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -815,7 +813,7 @@ TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsFromFaultNuma_Succeed)
 TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsFromFaultNuma_NotFound_Fail)
 {
     // Stub: Only ensure first step Smap query doesn't error
-    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc (*)())
+    MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
         .will(invoke(GetSmapGetRemoteProcessesFuncMock));
 

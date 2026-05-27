@@ -32,8 +32,8 @@ constexpr uint64_t UB_URMA_UTP_UNO_MASK = 1ULL << 23;
 constexpr uint64_t UB_URMA_ALL_MASK = UB_URMA_RTP_ROI_MASK | UB_URMA_RTP_ROT_MASK | UB_URMA_RTP_ROL_MASK |
                                       UB_URMA_CTP_ROI_MASK | UB_URMA_CTP_ROT_MASK | UB_URMA_CTP_ROL_MASK |
                                       UB_URMA_CTP_UNO_MASK | UB_URMA_UTP_UNO_MASK;
-constexpr uint64_t UB_MEM_ALL_MASK =
-    UB_MEM_BORROW_NC_MASK | UB_MEM_BORROW_CC_MASK | UB_MEM_SHARE_NC_MASK | UB_MEM_SHARE_CC_MASK;
+constexpr uint64_t UB_MEM_ALL_MASK = UB_MEM_BORROW_NC_MASK | UB_MEM_BORROW_CC_MASK | UB_MEM_SHARE_NC_MASK |
+                                     UB_MEM_SHARE_CC_MASK;
 constexpr uint64_t UB_FEATURE_ALL_MASK = UB_MEM_ALL_MASK | UB_URMA_ALL_MASK;
 
 /**

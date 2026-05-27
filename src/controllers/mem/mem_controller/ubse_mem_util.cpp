@@ -24,6 +24,8 @@ namespace ubse::mem::util {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::mti;
+using namespace ubse::task_executor;
+using namespace ubse::utils;
 
 std::string GetCurNodeId()
 {

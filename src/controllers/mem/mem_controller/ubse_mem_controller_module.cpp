@@ -31,6 +31,8 @@ using namespace ubse::mmi;
 using namespace ubse::config;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
+using namespace ubse::log;
+
 DYNAMIC_CREATE(UbseMemControllerModule, UbseMmiModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -118,12 +120,12 @@ UbseResult CycleCheckDecoderHandle()
 
 uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo& node)
 {
-    if (node.localState == UbseNodeLocalState::UBSE_NODE_READY) {
+    if (node.localState == nodeController::UbseNodeLocalState::UBSE_NODE_READY) {
         CycleCheckDecoderHandle();
         g_startCheckDecoderHandle.store(true);
     }
 
-    if (node.localState == UbseNodeLocalState::UBSE_NODE_RESTORE) {
+    if (node.localState == nodeController::UbseNodeLocalState::UBSE_NODE_RESTORE) {
         g_startCheckDecoderHandle.store(false);
     }
 

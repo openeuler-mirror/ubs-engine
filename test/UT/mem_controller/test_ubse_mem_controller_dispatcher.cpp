@@ -28,6 +28,8 @@ using namespace ubse::nodeController;
 using namespace api::server;
 using namespace ubse::context;
 using namespace ubse::mem::def;
+using namespace ubse::mem::controller::message;
+using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::controller;
 using namespace ubse::com;
 using namespace ubse::node::api;

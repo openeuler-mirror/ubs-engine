@@ -22,7 +22,7 @@
 #include "ubse_error.h"
 
 namespace ubse::utils {
-using namespace common::def;
+using common::def::UbseResult;
 
 void Split(const std::string& src, const std::string& sep, std::vector<std::string>& out);
 

@@ -20,8 +20,8 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::urma {
-using namespace ubse::common::def;
-using namespace ubse::nodeController;
+using ubse::common::def::UbseResult;
+using ubse::nodeController::PhysicalLink;
 
 struct UbseUrmaUvsFe {
     std::string ubpuId;

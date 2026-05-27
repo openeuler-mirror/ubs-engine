@@ -13,9 +13,8 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::nodeController;
-using namespace ubse::common::def;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::SocketCnaInfo;
+using ubse::common::def::UbseResult;
 
 // 记录节点状态
 enum class PreOnLineState {

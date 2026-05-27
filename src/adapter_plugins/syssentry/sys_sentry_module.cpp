@@ -25,6 +25,10 @@
 namespace syssentry {
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::context;
+using namespace ubse::common::def;
+using namespace ubse::module;
+using namespace ubse::task_executor;
 DYNAMIC_CREATE(SysSentryModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 

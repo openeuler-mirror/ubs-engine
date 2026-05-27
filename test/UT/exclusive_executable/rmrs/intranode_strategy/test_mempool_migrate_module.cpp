@@ -139,7 +139,7 @@ uint32_t TestGetNumaInfoImmediately(std::vector<mempooling::exportV2::NumaInfo>&
 TEST_F(TestMempoolMigrateModule, FillDestNumaFreeHugePageMapFailed)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
+               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::map<uint16_t, uint64_t> destNumaFreeHugePageMap{};
@@ -152,7 +152,7 @@ TEST_F(TestMempoolMigrateModule, FillDestNumaFreeHugePageMapFailed)
 TEST_F(TestMempoolMigrateModule, FillDestNumaFreeHugePageMap1)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
+               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
         .stubs()
         .will(returnValue(0));
     std::map<uint16_t, uint64_t> destNumaFreeHugePageMap{};
@@ -173,7 +173,7 @@ MpResult TestGetNumaInfoImmediately_1(std::vector<mempooling::exportV2::NumaInfo
 TEST_F(TestMempoolMigrateModule, FillDestNumaFreeHugePageMap2)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
-               MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
+               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
         .stubs()
         .will(invoke(TestGetNumaInfoImmediately_1));
     std::map<uint16_t, uint64_t> destNumaFreeHugePageMap{};
@@ -186,7 +186,7 @@ TEST_F(TestMempoolMigrateModule, FillDestNumaFreeHugePageMap2)
 TEST_F(TestMempoolMigrateModule, GetVmInfoMapFailed)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(returnValue(0));
     std::map<pid_t, VmDomainInfo> vmInfoMap;
@@ -206,7 +206,7 @@ MpResult TestGetVmInfoImmediately_1(std::vector<VmDomainInfo>& vmDomainInfos)
 TEST_F(TestMempoolMigrateModule, GetVmInfoMap_1)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(returnValue(0));
     std::map<pid_t, VmDomainInfo> vmInfoMap;
@@ -218,7 +218,7 @@ TEST_F(TestMempoolMigrateModule, GetVmInfoMap_1)
 TEST_F(TestMempoolMigrateModule, GetVmInfoMap_2)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(invoke(TestGetVmInfoImmediately_1));
     std::map<pid_t, VmDomainInfo> vmInfoMap;
@@ -230,7 +230,7 @@ TEST_F(TestMempoolMigrateModule, GetVmInfoMap_2)
 TEST_F(TestMempoolMigrateModule, TestGetVmInfoMapSuccess)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(invoke(TestGetVmInfoImmediately_1));
     std::map<pid_t, VmDomainInfo> vmInfoMap;
@@ -464,7 +464,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_success)
     nodeTopology["NodeA-0"] = {memNodeData};
     MOCKER_CPP(
         &BorrowRecordHelper::CollectBorrowRecords,
-        MpResult (*)(BorrowRecordHelper* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+        MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsMock));
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
@@ -549,7 +549,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed3)
     nodeTopology["NodeA-0"] = {data};
     MOCKER_CPP(
         &BorrowRecordHelper::CollectBorrowRecords,
-        MpResult (*)(BorrowRecordHelper* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+        MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsMock1));
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
@@ -579,7 +579,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed4)
     nodeTopology["NodeA-0"] = {data};
     MOCKER_CPP(
         &BorrowRecordHelper::CollectBorrowRecords,
-        MpResult (*)(BorrowRecordHelper* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+        MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsMock));
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
@@ -609,7 +609,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed5)
     nodeTopology["NodeA-0"] = {memNodeData};
     MOCKER_CPP(
         &BorrowRecordHelper::CollectBorrowRecords,
-        MpResult (*)(BorrowRecordHelper* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+        MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
@@ -620,7 +620,7 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed1)
 {
     std::vector<VMMigrateOutParam> vmMigrateOutParam;
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(returnValue(1));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
@@ -631,10 +631,10 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed2)
 {
     std::vector<VMMigrateOutParam> vmMigrateOutParam;
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t (*)(NodeInfo& rackNodeInfo))
+    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t(*)(NodeInfo & rackNodeInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
@@ -645,14 +645,14 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed3)
 {
     std::vector<VMMigrateOutParam> vmMigrateOutParam;
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t (*)(NodeInfo& rackNodeInfo))
+    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t(*)(NodeInfo & rackNodeInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
@@ -663,14 +663,14 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_success1)
 {
     std::vector<VMMigrateOutParam> vmMigrateOutParam;
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t (*)(NodeInfo& rackNodeInfo))
+    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t(*)(NodeInfo & rackNodeInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
@@ -696,21 +696,21 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed4)
 {
     std::vector<VMMigrateOutParam> vmMigrateOutParam;
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t (*)(NodeInfo& rackNodeInfo))
+    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t(*)(NodeInfo & rackNodeInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(invoke(GetVmInfoImmediatelyMock));
 
     MOCKER_CPP(&MempoolMigrateModule::ValidateSamePlane,
-               MpResult (*)(const VMMigrateOutParam& perVmParam, const std::vector<VmDomainInfo>& vmDomainInfos,
-                            const std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                            const std::string& curNodeId))
+               MpResult(*)(const VMMigrateOutParam& perVmParam, const std::vector<VmDomainInfo>& vmDomainInfos,
+                           const std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                           const std::string& curNodeId))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
@@ -721,21 +721,21 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_success2)
 {
     std::vector<VMMigrateOutParam> vmMigrateOutParam;
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t (*)(NodeInfo& rackNodeInfo))
+    MOCKER_CPP(&ubse::mti::UbseGetLocalNodeInfo, uint32_t(*)(NodeInfo & rackNodeInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(invoke(GetVmInfoImmediatelyMock));
 
     MOCKER_CPP(&MempoolMigrateModule::ValidateSamePlane,
-               MpResult (*)(const VMMigrateOutParam& perVmParam, const std::vector<VmDomainInfo>& vmDomainInfos,
-                            const std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                            const std::string& curNodeId))
+               MpResult(*)(const VMMigrateOutParam& perVmParam, const std::vector<VmDomainInfo>& vmDomainInfos,
+                           const std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                           const std::string& curNodeId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
@@ -781,7 +781,7 @@ MpResult Test_GetVmInfoImmediately(std::vector<VmDomainInfo>& vmDomainInfos)
 TEST_F(TestMempoolMigrateModule, MigrateExecuteImplFailed)
 {
     MOCKER_CPP(&MempoolMigrateModule::ValidateAllPidSamePlane,
-               MpResult (*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
+               MpResult(*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolMigrateModule::ValidateRemoteFreeSpace,
@@ -846,7 +846,7 @@ static uint32_t RmrsMigrateBackReturn3(MigrateBackResult& migrateBackResult)
 TEST_F(TestMempoolMigrateModule, MigrateExecuteImplFailed1)
 {
     MOCKER_CPP(&MempoolMigrateModule::ValidateAllPidSamePlane,
-               MpResult (*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
+               MpResult(*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolMigrateModule::ValidateRemoteFreeSpace,
@@ -866,7 +866,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteImplFailed1)
 TEST_F(TestMempoolMigrateModule, MigrateExecuteImplFailed2)
 {
     MOCKER_CPP(&MempoolMigrateModule::ValidateAllPidSamePlane,
-               MpResult (*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
+               MpResult(*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolMigrateModule::ValidateRemoteFreeSpace,
@@ -886,7 +886,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteImplFailed2)
 TEST_F(TestMempoolMigrateModule, MigrateExecuteImplOK)
 {
     MOCKER_CPP(&MempoolMigrateModule::ValidateAllPidSamePlane,
-               MpResult (*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
+               MpResult(*)(const std::vector<VMMigrateOutParam>& vmMigrateOutParam))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolMigrateModule::ValidateRemoteFreeSpace,
@@ -940,7 +940,7 @@ uint32_t MockRmrsBorrowRollBackReturn3(std::map<std::string, std::set<BorrowIdIn
 TEST_F(TestMempoolMigrateModule, FreeMemAndPersistentFailed1)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(const std::string& name, bool isForceDelete, bool smapBack))
+               MpResult(*)(const std::string& name, bool isForceDelete, bool smapBack))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::set<std::string> validBorrowIdSet = {"borrowId1", "borrowId2"};
@@ -963,7 +963,7 @@ TEST_F(TestMempoolMigrateModule, FreeMemAndPersistentFailed1)
 TEST_F(TestMempoolMigrateModule, FreeMemAndPersistentSuccess)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(const std::string& name, bool isForceDelete, bool smapBack))
+               MpResult(*)(const std::string& name, bool isForceDelete, bool smapBack))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     std::set<std::string> validBorrowIdSet = {"borrowId1", "borrowId2"};
@@ -987,7 +987,7 @@ TEST_F(TestMempoolMigrateModule, FreeMemAndPersistentSuccess)
 TEST_F(TestMempoolMigrateModule, FreeMemAndPersistentSuccess1)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(const std::string& name, bool isForceDelete, bool smapBack))
+               MpResult(*)(const std::string& name, bool isForceDelete, bool smapBack))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     std::set<std::string> validBorrowIdSet = {"borrowId1", "borrowId2"};
@@ -1183,7 +1183,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_Fail03)
     std::string curNodeId = "Node0";
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper*, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecords_moc));
 
@@ -1209,14 +1209,14 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed0)
     uint64_t waitingTime = 60000;
     std::vector<std::string> borrowIdList{"fafdsfasdfd"};
     MOCKER_CPP(&VmInfosCompleted::Update,
-               MpResult (*)(const pid_t pid, std::string remoteNumaId, std::string borrowInNode))
+               MpResult(*)(const pid_t pid, std::string remoteNumaId, std::string borrowInNode))
         .stubs()
         .will(returnValue(1));
-    MOCKER_CPP(&UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                          const UbseComRespHandler& handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnInMigrateExecuteRpc));
-    MOCKER_CPP(&LibvirtHelper::Connect, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&LibvirtHelper::Connect, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolMigrateExecute::MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
     GlobalMockObject::verify();
     EXPECT_EQ(ret, 1);
@@ -1240,15 +1240,15 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed1)
     uint64_t waitingTime = 60000;
     std::vector<std::string> borrowIdList{"fafdsfasdfd"};
     MOCKER_CPP(&VmInfosCompleted::Update,
-               MpResult (*)(const pid_t pid, std::string remoteNumaId, std::string borrowInNode))
+               MpResult(*)(const pid_t pid, std::string remoteNumaId, std::string borrowInNode))
         .stubs()
         .will(returnValue(1));
-    MOCKER_CPP(&UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                          const UbseComRespHandler& handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnInMigrateExecuteRpcSuccess));
-    MOCKER_CPP(&LibvirtHelper::Connect, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&VmInfosCompleted::Query, MpResult (*)(std::unordered_map<pid_t, std::string>& vmInfosCompletedMap))
+    MOCKER_CPP(&LibvirtHelper::Connect, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&VmInfosCompleted::Query, MpResult(*)(std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(returnValue(1));
     MpResult ret = MempoolMigrateExecute::MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
@@ -1272,19 +1272,19 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed2)
     uint64_t waitingTime = 60000;
     std::vector<std::string> borrowIdList{"fafdsfasdfd"};
     MOCKER_CPP(&VmInfosCompleted::Update,
-               MpResult (*)(const pid_t pid, std::string remoteNumaId, std::string borrowInNode))
+               MpResult(*)(const pid_t pid, std::string remoteNumaId, std::string borrowInNode))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                          const UbseComRespHandler& handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnInMigrateExecuteRpcSuccess));
     MOCKER_CPP(&VmInfosCompleted::Query,
-               MpResult (*)(VmInfosCompleted*, std::unordered_map<pid_t, std::string>& vmInfosCompletedMap))
+               MpResult(*)(VmInfosCompleted*, std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(invoke(MockGetVmInfosCompletedMap));
-    MOCKER_CPP(&LibvirtHelper::Connect, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&VmInfosCompleted::Remove, MpResult (*)(const pid_t pid)).stubs().will(returnValue(1));
+    MOCKER_CPP(&LibvirtHelper::Connect, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&VmInfosCompleted::Remove, MpResult(*)(const pid_t pid)).stubs().will(returnValue(1));
 
     MpResult ret = MempoolMigrateExecute::MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
     GlobalMockObject::verify();
@@ -1293,7 +1293,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed2)
 
 TEST_F(TestMempoolMigrateModule, GetVmInfoImmediatelyRecvHandlerFailed)
 {
-    MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately, MpResult (*)(std::vector<VmDomainInfo>&))
+    MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately, MpResult(*)(std::vector<VmDomainInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     UbseByteBuffer req;
@@ -1340,7 +1340,7 @@ MpResult MockGetVmInfoImmediately(std::vector<VmDomainInfo>& vmDomainInfos)
 TEST_F(TestMempoolMigrateModule, GetVmInfoImmediatelyRecvHandlerSucceed)
 {
     MOCKER_CPP(&mempooling::exportV2::Exporter::GetVmInfoImmediately,
-               MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos))
+               MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos))
         .stubs()
         .will(invoke(MockGetVmInfoImmediately));
     UbseByteBuffer req;

@@ -47,10 +47,13 @@ using namespace ubse::utils;
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::ipc;
-using namespace api::server;
+using namespace ::api::server;
 using namespace ubse::config;
 using namespace ubse::com;
 using namespace ubse::serial;
+using namespace ubse::ras;
+using namespace ubse::common::def;
+using namespace ubse::task_executor;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 

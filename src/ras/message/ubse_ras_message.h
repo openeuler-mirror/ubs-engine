@@ -19,8 +19,11 @@
 #include "src/include/ubse_base_message.h"
 
 namespace ubse::ras {
-using namespace ubse::message;
-using namespace ubse::serial;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialization;
+using ubse::utils::Ref;
 
 struct RasData {
     std::string msgId;

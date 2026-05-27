@@ -184,7 +184,7 @@ TEST_F(TestUbseLcneTopology, PubPortUpDownEvent_InterfaceNotFound)
 {
     std::string linkUpDown = "link-up";
     std::string interfaceName = "eth_not_exist";
-    
+
     UbseLcneTopology topology;
     UbseResult ret = topology.PubPortUpDownEvent(linkUpDown, interfaceName);
     EXPECT_EQ(UBSE_ERROR, ret);
@@ -220,7 +220,7 @@ TEST_F(TestUbseLcneTopology, PortUpDownFunc)
 {
     UbseHttpRequest req{};
     UbseHttpResponse resp{};
-    req.body = "{\"linkUpDown\":\"link-down\",\"interfaceName\":\"eth0\"}"; 
+    req.body = "{\"linkUpDown\":\"link-down\",\"interfaceName\":\"eth0\"}";
 
     MOCKER_CPP(&UbseLcneLinkInfo::ParseLinkUpDownReq).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseLcneTopology::CreateDevTopology).stubs().will(returnValue(UBSE_OK));
@@ -237,7 +237,7 @@ TEST_F(TestUbseLcneTopology, PortUpDownFunc_Failed)
 {
     UbseHttpRequest req{};
     UbseHttpResponse resp{};
-    req.body = "{\"linkUpDown\":\"link-down\",\"interfaceName\":\"eth0\"}"; 
+    req.body = "{\"linkUpDown\":\"link-down\",\"interfaceName\":\"eth0\"}";
     MOCKER_CPP(&UbseLcneLinkInfo::ParseLinkUpDownReq).stubs().will(returnValue(UBSE_ERROR));
 
     UbseLcneTopology topology;

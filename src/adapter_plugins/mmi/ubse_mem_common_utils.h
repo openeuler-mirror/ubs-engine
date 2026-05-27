@@ -25,8 +25,11 @@
 
 namespace ubse::mmi {
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::common::def;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemAlgoResult;
+using ubse::adapter_plugins::mmi::UbseMemImportResult;
+using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
+using ubse::adapter_plugins::mmi::UbseMemPrivData;
+using ubse::common::def::UbseResult;
 constexpr uint32_t BASE_16 = 16;
 
 void CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc& src, obmm_mem_desc* des, uint64_t hpa);

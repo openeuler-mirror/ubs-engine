@@ -25,7 +25,8 @@ namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
-using namespace adapter_plugins::mti;
+using namespace ubse::http;
+using namespace ::ubse::adapter_plugins::mti;
 void OutPutUrmaEidResultToLog(std::map<UbseDevName, adapter_plugins::mti::UbseUrmaEidInfo>& urmaEidMap)
 {
     std::ostringstream oss;

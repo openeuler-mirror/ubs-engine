@@ -14,6 +14,9 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController;
 using namespace ubse::election;
 using namespace ubse::mem::strategy;
+using namespace ubse::log;
+using namespace ubse::com;
+using namespace ubse::common::def;
 
 static std::unordered_map<std::string, std::string>
     g_nodeBmcFaultMsgId; // <nodeId, msgId>，记录nodeId上一次BMC处理的msgId

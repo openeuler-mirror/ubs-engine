@@ -15,6 +15,7 @@
 
 namespace ubse::ut::utils {
 using namespace ubse::utils;
+using namespace ubse::nodeController;
 void TestUbseTopoUtil::SetUp()
 {
     Test::SetUp();

@@ -28,21 +28,17 @@
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
 
-const uint32_t HA_SEQUENCE_ID = 101; // todo 待链路合并后下线，需要确保在节点建链后触发，节点建链优先级100。
-
-const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_INTERVAL = 400; // 节点上线，主动采集失败重试周期，单位豪秒
-const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_TIMES = 5;      // 节点上线，主动采集失败重试次数
-const uint32_t UBSE_NODE_LEDGER_INTERVAL = 300;            // 中心侧主动向各节点对账周期，单位秒
-const uint32_t UBSE_REPORT_LOG_INTERVAL = 60;    // 中心侧收到各节点上报日志打印周期，单位秒
-const uint32_t UBSE_LEDGER_RETRY_INTERVAL = 300; // 对账重试间隔，单位秒
+const uint32_t HA_SEQUENCE_ID = 101;
+const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_INTERVAL = 400;
+const uint32_t UBSE_COLLECT_TOPOLOGY_RETRY_TIMES = 5;
+const uint32_t UBSE_NODE_LEDGER_INTERVAL = 300;
+const uint32_t UBSE_REPORT_LOG_INTERVAL = 60;
+const uint32_t UBSE_LEDGER_RETRY_INTERVAL = 300;
 const std::string UBSE_NODE_MASTER_LEDGER_TIMER = "UbseNodeLedger";
 const std::string UBSE_NODE_MASTER_ONLINE = "UbseMasterOnLine";
 const std::string UBSE_NODE_NODE_UP = "UbseNodeUp";
 const std::string UBSE_NODE_NODE_DOWN = "UbseNodeDown";
-constexpr int UBSE_RPC_TIMEOUT_MS = 60000; // 5秒超时
-constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
-
-std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
+constexpr int UBSE_RPC_TIMEOUT_MS = 60000;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeController {
@@ -53,6 +49,12 @@ using namespace ubse::ras;
 using namespace ubse::event;
 using namespace ubse::timer;
 using namespace ubse::serial;
+using namespace ubse::common::def;
+using namespace ubse::task_executor;
+using namespace ubse::com;
+
+constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
+std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
 std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
 
@@ -423,7 +425,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo& n
 {
     // 参数校验
     if (nodeInfo.nodeId.empty()) {
-        return SER_INVALID_PARAM;
+        return UBSE_ERROR_INVAL;
     }
 
     // 更新节点信息
@@ -493,7 +495,7 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
     UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId << ", lcne topology change, msg=" << nodeInfo.eventMessage;
 
     if (nodeInfo.nodeId.empty()) {
-        return SER_INVALID_PARAM;
+        return UBSE_ERROR_INVAL;
     }
 
     // 如果需要，创建临时变量
@@ -694,7 +696,8 @@ static UbseResult CreateErrorResponse(UbseResult errorCode, UbseByteBuffer& resp
 {
     uint8_t* errorBuffer = new (std::nothrow) uint8_t[4];
     if (errorBuffer != nullptr) {
-        *reinterpret_cast<uint32_t*>(errorBuffer) = static_cast<uint32_t>(errorCode);
+        *reinterpret_cast<uint32_t*>(errorBuffer) =
+            static_cast<uint32_t>(errorCode); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         resp = {errorBuffer, 4, [](uint8_t* p) noexcept {
                     delete[] p;
                 }};
@@ -712,7 +715,7 @@ static UbseResult ProcessNodeRequest(const UbseByteBuffer& req, UbseByteBuffer& 
     // 参数验证
     if (req.data == nullptr && req.len > 0) {
         UBSE_LOG_ERROR << "Invalid request: data is null but len=" << req.len;
-        return CreateErrorResponse(SER_INVALID_PARAM, resp);
+        return CreateErrorResponse(UBSE_ERROR_INVAL, resp);
     }
 
     // 反序列化
@@ -754,7 +757,7 @@ static UbseResult ProcessNodeRequestWithResponse(const UbseByteBuffer& req, Ubse
     // 参数验证
     if (req.data == nullptr && req.len > 0) {
         UBSE_LOG_ERROR << "Invalid request: data is null but len=" << req.len;
-        return CreateErrorResponse(SER_INVALID_PARAM, resp);
+        return CreateErrorResponse(UBSE_ERROR_INVAL, resp);
     }
 
     // 反序列化

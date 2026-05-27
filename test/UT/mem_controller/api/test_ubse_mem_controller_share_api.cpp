@@ -30,6 +30,9 @@ using namespace mem::controller::message;
 using namespace mem::controller;
 using namespace mem::controller::debt;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::election;
+using namespace ubse::nodeController;
 
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";

@@ -21,7 +21,7 @@
 #include "ubse_common_def.h"
 
 namespace ubse::timer {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 using UbseTimerHandler = std::function<UbseResult()>;
 

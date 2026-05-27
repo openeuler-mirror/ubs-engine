@@ -15,7 +15,9 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::utils {
-using namespace ubse::nodeController;
+using ubse::nodeController::PortStatus;
+using ubse::nodeController::UbseCpuInfo;
+using ubse::nodeController::UbseNodeController;
 
 struct ChipLocation {
     std::string slotId;

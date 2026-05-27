@@ -25,8 +25,7 @@
 #include "src/framework/context/ubse_context.h"
 
 namespace ubse::mti {
-using namespace ubse::module;
-using namespace ubse::context;
+using ubse::module::UbseModule;
 
 constexpr uint32_t IPV6_FULL_FORMAT_LENGTH = 39;
 constexpr uint32_t IPV6_BYTE_COUNT = 16;

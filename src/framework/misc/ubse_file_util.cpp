@@ -25,6 +25,7 @@
 #include "ubse_logger_module.h"
 
 namespace ubse::utils {
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using std::ifstream;

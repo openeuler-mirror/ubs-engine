@@ -22,9 +22,8 @@
 #include "ubse_thread_pool.h"
 
 namespace ubse::nodeController {
-using namespace ubse::common::def;
-using namespace ubse::task_executor;
-using namespace ubse::com;
+using ubse::common::def::UbseResult;
+using ubse::task_executor::UbseTaskExecutorPtr;
 
 class UbseNodeControllerMaster {
 public:

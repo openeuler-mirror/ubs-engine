@@ -22,11 +22,12 @@
 
 #include "ubse_common_def.h" // for UbseResult
 #include "ubse_conf.h"
-#include "ubse_error.h"      // for UBSE_OK
-#include "ubse_module.h"     // for UbseModule
+#include "ubse_error.h"  // for UBSE_OK
+#include "ubse_module.h" // for UbseModule
 
 namespace ubse::config {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 // 校验错误枚举类
 enum class ErrorType : uint16_t {

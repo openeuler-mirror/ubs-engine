@@ -14,8 +14,7 @@
 #ifndef VM_SDK_DEF_H
 #define VM_SDK_DEF_H
 
-typedef enum
-{
+typedef enum {
     UBS_VA_VM_MIGRATE = 0x1001,        // Module code for VM Migration
     UBS_VA_QUERY = 0x1002,             // Module code for Query
     UBS_VA_MEM_FRAGMENTATION = 0x1003, // Module code for Memory Fragmentation
@@ -23,21 +22,18 @@ typedef enum
     UBS_VA_CONTAINER = 0x1005,         // Module code for container
 } ubs_virt_agent_module_code_t;
 
-typedef enum
-{
+typedef enum {
     UBS_VA_MAKE_DECISION = 0x0001,               // Op code for making migration decision
     UBS_VA_PAGE_FLOW_AND_UPDATE_STATUS = 0x0002, // Op code for update page flow and vm status
     UBS_VA_HAM_NORTH = 0x0003,                   // Op code for ham migration
 } ubse_virt_agent_ham_migrate_op_code_t;
 
-typedef enum
-{
+typedef enum {
     UBS_VA_NUMA_INFO = 0x0001, // Op code for NUMA information
     UBS_VA_VM_INFO = 0x0002,   // Op code for VM information
 } ubs_virt_agent_query_op_code_t;
 
-typedef enum
-{
+typedef enum {
     UBS_VA_NODE_ANTI_AFFINITY = 0x0001,   // Op code for NODE_ANTI_AFFINITY
     UBS_VA_MEM_BORROW_STRATEGY = 0x0002,  // Op code for MEM_BORROW_STRATEGY
     UBS_VA_MEM_BORROW_EXECUTE = 0x0003,   // Op code for MEM_BORROW_EXECUTE
@@ -51,14 +47,12 @@ typedef enum
     UBS_VA_PAGE_SWAP_ENABLE = 0x000b,     // Op code for PAGE_SWAP_ENABLE
 } ubs_virt_agent_mem_fragmentation_op_code_t;
 
-typedef enum
-{
+typedef enum {
     UBS_VA_CASE_CONF_GET = 0x0001, // Op code for getting case configuration
     UBS_VA_CASE_CONF_SET = 0x0002, // Op code for setting case configuration
 } ubs_virt_agent_case_conf_op_code_t;
 
-typedef enum
-{
+typedef enum {
     UBS_VA_CONTAINER_GET_MEM_INFO_FOR_PID = 0x0001,  // Op code for getting mem info for pid
     UBS_VA_CONTAINER_UPDATE_WATERLINE = 0x0002,      // Op code for update water line
     UBS_VA_CONTAINER_GET_CONTAINER_PIDS = 0x0003,    // Op code for getting container pid list

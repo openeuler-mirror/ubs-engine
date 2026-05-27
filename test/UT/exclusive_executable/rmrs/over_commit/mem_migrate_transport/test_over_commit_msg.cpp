@@ -186,7 +186,7 @@ uint32_t UbseStoragePutDataMsgMockFailed(const std::string& keyPrefix, const std
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_Success)
 {
     MOCKER_CPP(UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendForMsgMockSuccess));
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
@@ -200,7 +200,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_Success)
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_RpcSendFailed)
 {
     MOCKER_CPP(UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendForMsgMockFailed));
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
@@ -213,7 +213,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_RpcSendFailed)
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_EmptyResult)
 {
     MOCKER_CPP(UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(UbseRpcSendForMsgMockEmpty));
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
@@ -225,10 +225,10 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_EmptyResult)
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_Success)
 {
-    MOCKER_CPP(&Exporter::GetVmInfoImmediately, MpResult (*)(std::vector<VmDomainInfo>&))
+    MOCKER_CPP(&Exporter::GetVmInfoImmediately, MpResult(*)(std::vector<VmDomainInfo>&))
         .stubs()
         .will(invoke(GetVmInfoImmediatelyMsgMockSuccess));
-    MOCKER_CPP(&Exporter::GetNumaInfoImmediately, MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>&))
+    MOCKER_CPP(&Exporter::GetNumaInfoImmediately, MpResult(*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(invoke(GetNumaInfoImmediatelyMsgMockSuccess));
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
@@ -239,7 +239,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_Success)
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_GetVmInfoFailed)
 {
-    MOCKER_CPP(&Exporter::GetVmInfoImmediately, MpResult (*)(std::vector<VmDomainInfo>&))
+    MOCKER_CPP(&Exporter::GetVmInfoImmediately, MpResult(*)(std::vector<VmDomainInfo>&))
         .stubs()
         .will(invoke(GetVmInfoImmediatelyMsgMockFailed));
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
@@ -250,7 +250,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_GetVmInfoFailed)
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_EmptyVmList)
 {
-    MOCKER_CPP(&Exporter::GetVmInfoImmediately, MpResult (*)(std::vector<VmDomainInfo>&))
+    MOCKER_CPP(&Exporter::GetVmInfoImmediately, MpResult(*)(std::vector<VmDomainInfo>&))
         .stubs()
         .will(invoke(GetVmInfoImmediatelyMsgMockEmpty));
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
@@ -273,7 +273,7 @@ TEST_F(TestOverCommitMsg, SetResponse_Success)
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_GetMasterFailed)
 {
-    MOCKER_CPP(UbseGetMasterNodeId, uint32_t (*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockFailed));
+    MOCKER_CPP(UbseGetMasterNodeId, uint32_t(*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockFailed));
     MOCKER_CPP(&OverCommitMsg::SetResponse,
                void (*)(ResponseInfoSimpo&, const MpResult&, const std::string&, UbseByteBuffer&))
         .stubs()
@@ -288,7 +288,7 @@ TEST_F(TestOverCommitMsg, SyncDataToStandByNode_GetMasterFailed)
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_NotMaster)
 {
-    MOCKER_CPP(UbseGetMasterNodeId, uint32_t (*)(std::string&))
+    MOCKER_CPP(UbseGetMasterNodeId, uint32_t(*)(std::string&))
         .stubs()
         .will(invoke(UbseGetMasterNodeIdMsgMockNotMaster));
     ResponseInfoSimpo response;
@@ -301,8 +301,8 @@ TEST_F(TestOverCommitMsg, SyncDataToStandByNode_NotMaster)
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_GetStandbyFailed)
 {
-    MOCKER_CPP(UbseGetMasterNodeId, uint32_t (*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockSuccess));
-    MOCKER_CPP(UbseGetStandbyInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(invoke(UbseGetStandbyInfoMsgMockFailed));
+    MOCKER_CPP(UbseGetMasterNodeId, uint32_t(*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockSuccess));
+    MOCKER_CPP(UbseGetStandbyInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(invoke(UbseGetStandbyInfoMsgMockFailed));
     MOCKER_CPP(&OverCommitMsg::SetResponse,
                void (*)(ResponseInfoSimpo&, const MpResult&, const std::string&, UbseByteBuffer&))
         .stubs()
@@ -317,10 +317,10 @@ TEST_F(TestOverCommitMsg, SyncDataToStandByNode_GetStandbyFailed)
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_SyncDataFailed)
 {
-    MOCKER_CPP(UbseGetMasterNodeId, uint32_t (*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockSuccess));
-    MOCKER_CPP(UbseGetStandbyInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(invoke(UbseGetStandbyInfoMsgMockSuccess));
+    MOCKER_CPP(UbseGetMasterNodeId, uint32_t(*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockSuccess));
+    MOCKER_CPP(UbseGetStandbyInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(invoke(UbseGetStandbyInfoMsgMockSuccess));
     MOCKER_CPP(&MpSyncDataHelper::SyncDataToNode,
-               MpResult (*)(MpSyncDataHelper*, const std::vector<std::string>&, const uint32_t&, const UbseByteBuffer&))
+               MpResult(*)(MpSyncDataHelper*, const std::vector<std::string>&, const uint32_t&, const UbseByteBuffer&))
         .stubs()
         .will(invoke(SyncDataToNodeMsgMockFailed));
     MOCKER_CPP(&OverCommitMsg::SetResponse,
@@ -337,10 +337,10 @@ TEST_F(TestOverCommitMsg, SyncDataToStandByNode_SyncDataFailed)
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_Success)
 {
-    MOCKER_CPP(UbseGetMasterNodeId, uint32_t (*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockSuccess));
-    MOCKER_CPP(UbseGetStandbyInfo, uint32_t (*)(UbseRoleInfo&)).stubs().will(invoke(UbseGetStandbyInfoMsgMockSuccess));
+    MOCKER_CPP(UbseGetMasterNodeId, uint32_t(*)(std::string&)).stubs().will(invoke(UbseGetMasterNodeIdMsgMockSuccess));
+    MOCKER_CPP(UbseGetStandbyInfo, uint32_t(*)(UbseRoleInfo&)).stubs().will(invoke(UbseGetStandbyInfoMsgMockSuccess));
     MOCKER_CPP(&MpSyncDataHelper::SyncDataToNode,
-               MpResult (*)(MpSyncDataHelper*, const std::vector<std::string>&, const uint32_t&, const UbseByteBuffer&))
+               MpResult(*)(MpSyncDataHelper*, const std::vector<std::string>&, const uint32_t&, const UbseByteBuffer&))
         .stubs()
         .will(invoke(SyncDataToNodeMsgMockSuccess));
     ResponseInfoSimpo response;
@@ -386,9 +386,7 @@ TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_GetCurrentNodeIdFailed)
                void (*)(ResponseInfoSimpo&, const MpResult&, const std::string&, UbseByteBuffer&))
         .stubs()
         .will(ignoreReturnValue());
-    MOCKER_CPP(UbseGetCurrentNodeId, uint32_t (*)(std::string&))
-        .stubs()
-        .will(invoke(UbseGetCurrentNodeIdMsgMockFailed));
+    MOCKER_CPP(UbseGetCurrentNodeId, uint32_t(*)(std::string&)).stubs().will(invoke(UbseGetCurrentNodeIdMsgMockFailed));
     JSON_MAP jsonMap;
     jsonMap["testKey"] = "BIND_SINGLE";
     RmrsOutStream builder;
@@ -409,10 +407,10 @@ TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_StoragePutDataFailed)
                void (*)(ResponseInfoSimpo&, const MpResult&, const std::string&, UbseByteBuffer&))
         .stubs()
         .will(ignoreReturnValue());
-    MOCKER_CPP(UbseGetCurrentNodeId, uint32_t (*)(std::string&))
+    MOCKER_CPP(UbseGetCurrentNodeId, uint32_t(*)(std::string&))
         .stubs()
         .will(invoke(UbseGetCurrentNodeIdMsgMockSuccess));
-    MOCKER_CPP(UbseStoragePutData, uint32_t (*)(const std::string&, const std::string&, UbseByteBuffer*))
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
         .stubs()
         .will(invoke(UbseStoragePutDataMsgMockFailed));
     JSON_MAP jsonMap;
@@ -435,13 +433,13 @@ TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_Success)
                void (*)(ResponseInfoSimpo&, const MpResult&, const std::string&, UbseByteBuffer&))
         .stubs()
         .will(ignoreReturnValue());
-    MOCKER_CPP(UbseGetCurrentNodeId, uint32_t (*)(std::string&))
+    MOCKER_CPP(UbseGetCurrentNodeId, uint32_t(*)(std::string&))
         .stubs()
         .will(invoke(UbseGetCurrentNodeIdMsgMockSuccess));
-    MOCKER_CPP(UbseStoragePutData, uint32_t (*)(const std::string&, const std::string&, UbseByteBuffer*))
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
         .stubs()
         .will(invoke(UbseStoragePutDataMsgMockSuccess));
-    MOCKER_CPP(UbseGetMasterNodeId, uint32_t (*)(std::string&))
+    MOCKER_CPP(UbseGetMasterNodeId, uint32_t(*)(std::string&))
         .stubs()
         .will(invoke(UbseGetMasterNodeIdMsgMockNotMaster));
     JSON_MAP jsonMap;

@@ -51,6 +51,9 @@ using namespace ubse::mmi;
 using namespace ubse::mem::strategy;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::utils;
+
 const std::string ClusterHandlerKey = "NODE_CLUSTER_HDL";
 
 void FindShareBorrowObjByNameWhenBorrow(const std::string& name, std::vector<UbseMemShareBorrowExportObj>& exportObjs,

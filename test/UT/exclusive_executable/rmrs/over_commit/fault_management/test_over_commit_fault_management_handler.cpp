@@ -38,7 +38,7 @@ public:
 TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapRecvHandler_Succeed)
 {
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetRemoteNumaVms,
-               MpResult (*)(OverCommitFaultMemIdModule*, uint16_t, std::vector<VmNumaInfoWithSocket>&))
+               MpResult(*)(OverCommitFaultMemIdModule*, uint16_t, std::vector<VmNumaInfoWithSocket>&))
         .stubs()
         .with(any(), any(), any())
         .will(returnValue(MEM_POOLING_OK));
@@ -56,7 +56,7 @@ TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapRecvHandler_GetRemo
     vmNumaInfoWithSocketList.push_back(sockItem);
 
     MOCKER_CPP(&OverCommitFaultMemIdModule::GetRemoteNumaVms,
-               MpResult (*)(OverCommitFaultMemIdModule*, uint16_t, std::vector<VmNumaInfoWithSocket>&))
+               MpResult(*)(OverCommitFaultMemIdModule*, uint16_t, std::vector<VmNumaInfoWithSocket>&))
         .stubs()
         .with(any(), any(), any())
         .will(returnValue(MEM_POOLING_ERROR));
@@ -87,15 +87,15 @@ TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapResHandler_resCode_
 
 TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteRecvHandler_Succeed)
 {
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecute, MpResult (*)(OverCommitFaultMemIdExecuteParam))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecute, MpResult(*)(OverCommitFaultMemIdExecuteParam))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&OverCommitFaultMemIdModule::CheckBorrowedMemSizeForPidMigrate,
-               MpResult (*)(OverCommitFaultMemIdExecuteParam, uint64_t&))
+               MpResult(*)(OverCommitFaultMemIdExecuteParam, uint64_t&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize,
-               MpResult (*)(OverCommitFaultMemIdExecuteParam&, const uint64_t))
+               MpResult(*)(OverCommitFaultMemIdExecuteParam&, const uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     UbseByteBuffer req;
@@ -106,7 +106,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteRecvHandler_Succeed)
 
 TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteRecvHandler_MemIdExecute_Failed)
 {
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecute, MpResult (*)(OverCommitFaultMemIdExecuteParam))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdExecute, MpResult(*)(OverCommitFaultMemIdExecuteParam))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     UbseByteBuffer req;
@@ -274,7 +274,7 @@ TEST_F(TestOverCommitFaultManagementHandler, FaultNumaProcessResHandler_CtxNull)
 TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnExecuteRecvHandler_Succeed)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     UbseByteBuffer req;
@@ -287,7 +287,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnExecuteRecvHandler_Succe
 TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnExecuteRecvHandler_MemFreeWithOps_Failed)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     UbseByteBuffer req;
@@ -300,7 +300,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnExecuteRecvHandler_MemFr
 TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnDirectlyExecuteRecvHandler_Succeed)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     UbseByteBuffer req;
@@ -313,7 +313,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnDirectlyExecuteRecvHandl
 TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnDirectlyExecuteRecvHandler_MemFreeWithOps_Failed)
 {
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     UbseByteBuffer req;
@@ -350,7 +350,7 @@ TEST_F(TestOverCommitFaultManagementHandler, DisableSmapProcessMigrateRecvHandle
 TEST_F(TestOverCommitFaultManagementHandler, FaultNumaProcessRecvHandler_Succeed)
 {
     MOCKER_CPP(&OverCommitFaultNodeModule::BorrowInNodeProcess,
-               MpResult (*)(OverCommitFaultNodeModule*, const FaultRecordsInNode&))
+               MpResult(*)(OverCommitFaultNodeModule*, const FaultRecordsInNode&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     UbseByteBuffer req;
@@ -363,7 +363,7 @@ TEST_F(TestOverCommitFaultManagementHandler, FaultNumaProcessRecvHandler_Succeed
 TEST_F(TestOverCommitFaultManagementHandler, FaultNumaProcessRecvHandler_BorrowInNodeProcess_Failed)
 {
     MOCKER_CPP(&OverCommitFaultNodeModule::BorrowInNodeProcess,
-               MpResult (*)(OverCommitFaultNodeModule*, const FaultRecordsInNode&))
+               MpResult(*)(OverCommitFaultNodeModule*, const FaultRecordsInNode&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     UbseByteBuffer req;

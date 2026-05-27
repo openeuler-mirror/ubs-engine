@@ -11,8 +11,10 @@
 #include "message/ubse_mem_share_detach_req_simpo.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::common::def;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
+using ubse::common::def::UbseResult;
 message::UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSimpoPtr request);
 message::UbseResult AsyncMemShmBorrowRespProcessor(message::UbseMemOperationRespSimpoPtr request);
 message::UbseResult AsyncMemShmAttachProcessor(message::UbseMemShareAttachReqSimpoPtr request);

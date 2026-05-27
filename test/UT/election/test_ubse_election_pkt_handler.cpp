@@ -18,6 +18,7 @@
 namespace ubse::ut::election {
 using namespace ubse::election::message;
 using namespace ubse::context;
+using namespace ubse::com;
 void TestUbseElectionPktHandler::SetUp()
 {
     Test::SetUp();

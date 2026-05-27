@@ -47,7 +47,8 @@ struct hash<ubse::adapter_plugins::mmi::UbseMemNumaLoc> {
 };
 } // namespace std
 namespace ubse::mem::strategy {
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemNumaLoc;
+
 struct NumaData {
     std::string nodeId;
     int socketId;

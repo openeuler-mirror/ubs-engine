@@ -91,8 +91,8 @@ uint32_t MockRackRpcSendForUsageRatioERROR(const UbseComEndpoint& endpoint, cons
 
 TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnERROR_WhenRackRpcSendFailed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                          const UbseComRespHandler& handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnError));
     UCacheMigrationStrategyParam ucacheStrategy{};
@@ -102,8 +102,8 @@ TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnERROR_WhenR
 
 TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnOK_WhenRackRpcSendSucceed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                          const UbseComRespHandler& handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSend));
     UCacheMigrationStrategyParam ucacheStrategy{};
@@ -113,8 +113,8 @@ TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnOK_WhenRack
 
 TEST_F(TestOverCommitUCache, CheckAndStopUCacheMigration_ShouldReturnERROR_WhenRackRpcSendFailed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                          const UbseComRespHandler& handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnError));
     std::string srcNid = "Node0";
@@ -123,8 +123,8 @@ TEST_F(TestOverCommitUCache, CheckAndStopUCacheMigration_ShouldReturnERROR_WhenR
 
 TEST_F(TestOverCommitUCache, CheckAndStopUCacheMigration_ShouldReturnOK_WhenRackRpcSendSucceed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t (*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
-                                          const UbseComRespHandler& handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSend));
     std::string srcNid = "Node0";
@@ -305,7 +305,7 @@ TEST_F(TestOverCommitUCache, UpdateUcacheUsageRatio_Success)
     std::string nodeId = "0";
 
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(MockRackRpcSendForUsageRatioOK));
 
@@ -321,7 +321,7 @@ TEST_F(TestOverCommitUCache, UpdateUcacheUsageRatio_Failed)
     const float ratioDefault = 0.0f;
 
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(MockRackRpcSendForUsageRatioERROR));
 

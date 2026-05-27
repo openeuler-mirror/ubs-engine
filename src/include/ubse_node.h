@@ -16,7 +16,7 @@
 #include "ubse_election.h"
 
 namespace ubse::nodeController {
-using namespace ubse::election;
+using ubse::election::UbseRoleInfo;
 
 enum class JumpCount {
     One = 0,

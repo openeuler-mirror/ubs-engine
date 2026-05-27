@@ -165,7 +165,7 @@ void UbseUrmaControllerModule::UnInitialize() {}
 
 void DisconnectAllNormalLink()
 {
-    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    auto comModule = context::UbseContext::GetInstance().GetModule<com::UbseComModule>();
     if (comModule == nullptr) {
         UBSE_LOG_WARN << "Failed to get com module";
         return;
@@ -221,7 +221,7 @@ void UbseUrmaControllerModule::Stop()
 UbseResult DoTaskWithTimerCallback(const std::string& timerName, UbseUrmaRetryTaskHandler task)
 {
     AsyncHandlerGuard cntGuard;
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
         ubse::timer::UbseTimerHandlerUnregister(timerName);
         return UBSE_OK;
@@ -233,7 +233,7 @@ UbseResult DoTaskWithTimerCallback(const std::string& timerName, UbseUrmaRetryTa
         return UBSE_OK;
     }
     UBSE_LOG_WARN << "Do timer task failed, timer name=" << timerName << ", retry later";
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
         ubse::timer::UbseTimerHandlerUnregister(timerName);
     }
@@ -245,7 +245,7 @@ UbseResult HandleTaskWithRetry(const std::string& executorName, const std::strin
 {
     UBSE_LOG_INFO << "HandleTaskWithRetry start, taskName=" << taskName;
     AsyncHandlerGuard cntGuard;
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
         return UBSE_OK;
     }
@@ -254,7 +254,7 @@ UbseResult HandleTaskWithRetry(const std::string& executorName, const std::strin
         return UBSE_OK;
     }
     std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
         return UBSE_OK;
     }
@@ -264,7 +264,7 @@ UbseResult HandleTaskWithRetry(const std::string& executorName, const std::strin
         taskName,
         [executorName, taskName, task]() {
             AsyncHandlerGuard innerCntGuard;
-            if (g_globalStop) {
+            if (context::g_globalStop) {
                 UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
                 ubse::timer::UbseTimerHandlerUnregister(taskName);
                 return UBSE_OK;

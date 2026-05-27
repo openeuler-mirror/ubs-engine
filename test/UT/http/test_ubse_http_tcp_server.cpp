@@ -26,6 +26,8 @@ namespace ubse::ut::http {
 using namespace ubse::http;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::common::def;
+using namespace httplib;
 
 constexpr const uint32_t DEFAULT_TCP_SERVER_PORT = 8082;
 constexpr const uint32_t TCP_SERVER_PORT = 8088;

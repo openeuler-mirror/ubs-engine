@@ -14,8 +14,10 @@
 #include <mutex>
 
 #include "ubse_conf.h"
+#include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mem_controller.h"
 #include "ubse_mem_controller.h"
 #include "ubse_timer.h"
 #include "process_mem_pid_collect.h"
@@ -491,11 +493,7 @@ uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t requestSize,
     debtInfo.numaDesc.name = name;
     debtInfo.numaDesc.size = needBorrowSize;
     debtInfo.status = def::BorrowStatus::CREATING;
-    const def::ProcessMemUsrInfo usrInfo{
-        .pid = pidInfo.configInfo.pid,
-        .startTime = pidInfo.startTime,
-        .srcNuma = minNuma
-    };
+    const def::ProcessMemUsrInfo usrInfo{.pid = pidInfo.configInfo.pid, .startTime = pidInfo.startTime};
     auto ret =
         memcpy_s(debtInfo.numaDesc.usrInfo, ubse::mem::controller::UBSE_MAX_USR_INFO_LEN, &usrInfo, sizeof(usrInfo));
     if (ret != EOK) {

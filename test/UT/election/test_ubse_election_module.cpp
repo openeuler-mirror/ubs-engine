@@ -20,6 +20,8 @@ namespace ubse::ut::election {
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::com;
+using namespace ubse::common::def;
 void TestUbseElectionModule::SetUp()
 {
     Test::SetUp();

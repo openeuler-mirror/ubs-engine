@@ -16,7 +16,10 @@
 
 #include "ubse_com_base.h"
 namespace ubse::mem::controller::rpc {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseMemQueryOpCode;
+using ubse::com::UbseModuleCode;
 class UbseMemDebtInfoQueryHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemDebtInfoQueryHandler() = default;

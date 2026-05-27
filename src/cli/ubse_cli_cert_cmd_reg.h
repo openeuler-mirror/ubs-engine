@@ -16,7 +16,8 @@
 #include "ubse_cli_reg_builder.h"
 
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliResultEcho;
 class UbseCliRegCertModule : public UbseCliRegModule {
 public:
     void UbseCliSignUp() override;

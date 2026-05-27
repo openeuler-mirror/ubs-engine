@@ -46,6 +46,7 @@ using namespace message;
 using namespace ubse::mem::strategy;
 using namespace adapter_plugins::mti::mami;
 using namespace adapter_plugins::mti;
+using namespace ubse::utils;
 using namespace ubse::config;
 static uint32_t MAX_WAIT_TIME(ubse::mem::strategy::API_TIME_OUT); // 单位:second
 std::atomic<uint64_t> g_fdUnimportFailedCount{0};
@@ -94,11 +95,11 @@ bool IsMemShareModeFeatureSupported(uint16_t cacheableFlag)
     return false;
 }
 
-uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp &resp, const std::string &name,
-                                         const std::string &requestNodeId, MemOperationType type)
+uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp& resp, const std::string& name,
+                                         const std::string& requestNodeId, MemOperationType type)
 {
-    return BuildOperationRespWhenFail(resp, name, requestNodeId, MEM_FEATURE_NOT_SUPPORTED_MSG,
-                                      UBSE_ERR_NOT_SUPPORTED, type);
+    return BuildOperationRespWhenFail(resp, name, requestNodeId, MEM_FEATURE_NOT_SUPPORTED_MSG, UBSE_ERR_NOT_SUPPORTED,
+                                      type);
 }
 
 void SendParamSwitcher(const MemOperationType& type, SendParam& sendParam)

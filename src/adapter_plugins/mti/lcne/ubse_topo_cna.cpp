@@ -26,6 +26,9 @@ namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::common::def;
+using namespace ubse::http;
+using namespace ubse::mti;
 
 void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {

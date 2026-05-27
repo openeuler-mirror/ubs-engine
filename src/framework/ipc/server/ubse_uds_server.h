@@ -19,6 +19,7 @@
 #include <string>
 #include <unordered_set>
 
+#include "ubse_api_server.h"
 #include "ubse_api_server_def.h"
 #include "ubse_ipc_message.h"
 #include "ubse_map_util.h"
@@ -26,7 +27,9 @@
 #include "ubse_thread_pool.h"
 
 namespace ubse::ipc {
-using namespace api::server;
+using api::server::SendResponse;
+using api::server::UbseClientInfo;
+using api::server::UbseRequestContext;
 struct UbseUDSConfig {
     std::string socketPath;
     uint32_t socketPermissions = 0660;

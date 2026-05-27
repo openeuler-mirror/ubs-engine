@@ -23,7 +23,9 @@
 
 namespace ubse::task_executor {
 
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
+using ubse::utils::ReadWriteLock;
 
 class UbseTaskExecutorModule final : public UbseModule {
 public:

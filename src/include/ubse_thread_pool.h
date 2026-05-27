@@ -26,7 +26,9 @@
 #include "src/framework/misc/referable/ubse_ref.h"
 
 namespace ubse::task_executor {
-using namespace ubse::utils;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
+using ubse::utils::RingBufferBlockingQueue;
 
 enum class UbseRunnableType {
     NORMAL = 0,

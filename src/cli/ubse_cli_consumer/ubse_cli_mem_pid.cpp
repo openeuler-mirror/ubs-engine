@@ -68,18 +68,16 @@ std::shared_ptr<UbseCliResultEcho> BuildPidInfoTable(
     for (const auto& pidInfo : pidInfoDetail) {
         row = variableCellBuilder.UbseCliAddRow();
         variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, std::to_string(pidInfo.configInfo.pid));
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_2,
-            std::to_string(pidInfo.configInfo.evictThreshold));
+        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(pidInfo.configInfo.evictThreshold));
         variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_3,
-            std::to_string(pidInfo.configInfo.targetEvictThreshold));
+                                               std::to_string(pidInfo.configInfo.targetEvictThreshold));
         variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_4,
-            std::to_string(pidInfo.configInfo.reclaimThreshold));
+                                               std::to_string(pidInfo.configInfo.reclaimThreshold));
         variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_5,
-            std::to_string(pidInfo.configInfo.expectedMemoryUsage));
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_6,
-            pidInfo.configInfo.srcNumaId.has_value()
-                                                     ? std::to_string(pidInfo.configInfo.srcNumaId.value())
-                                                     : "N/A");
+                                               std::to_string(pidInfo.configInfo.expectedMemoryUsage));
+        variableCellBuilder.UbseCliSetCellData(
+            row, UBSE_CLI_NUM_6,
+            pidInfo.configInfo.srcNumaId.has_value() ? std::to_string(pidInfo.configInfo.srcNumaId.value()) : "N/A");
     }
     variableCellBuilder.UbseCliAddBottomlineSeparate();
     return UbseCliRegModule::UbseCliVariableCelReply(variableCellBuilder.UbseCliVariableCellBuild());

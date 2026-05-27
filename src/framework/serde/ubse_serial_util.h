@@ -180,7 +180,7 @@ public:
         }
         writeTypeAndLen(mBuf_ + mLen_, GetTypeId<T>(), sizeof(T));
         mLen_ += alignedHeadLen;
-        *(reinterpret_cast<T*>(mBuf_ + mLen_)) = param;
+        *(reinterpret_cast<T*>(mBuf_ + mLen_)) = param; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         mLen_ += alignedParamLen;
         return *this;
     }
@@ -265,7 +265,8 @@ public:
     template <typename T>
     UbseSerialization& operator<<(addr_len<T> addrLen)
     {
-        add(reinterpret_cast<base_ptr_type*>(addrLen.ptr), addrLen.len, GetTypePointerId<T>());
+        add(reinterpret_cast<base_ptr_type*>(addrLen.ptr), addrLen.len,
+            GetTypePointerId<T>()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         return *this;
     }
 
@@ -296,7 +297,8 @@ private:
       */
     inline void writeTypeAndLen(base_ptr_type* buf, serial_type type, serial_len len)
     {
-        *(reinterpret_cast<serial_head*>(buf)) = (static_cast<serial_head>(type) << LEN_CTRL_OFFSET) | len;
+        *(reinterpret_cast<serial_head*>(buf)) = (static_cast<serial_head>(type) << LEN_CTRL_OFFSET) |
+                                                 len; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     }
 
     void add(const base_ptr_type* addr, common_len len, serial_type type);
@@ -403,7 +405,7 @@ public:
             return *this;
         }
         mPos_ += alignedHeadLen;
-        param = *(reinterpret_cast<T*>(mPos_));
+        param = *(reinterpret_cast<T*>(mPos_)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         mPos_ += alignedParamLen;
         return *this;
     }
@@ -428,7 +430,7 @@ public:
                 return *this;
             }
             vec.resize(len);
-            T* p = reinterpret_cast<T*>(addr);
+            T* p = reinterpret_cast<T*>(addr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             for (size_t i = 0; i < vec.size(); i++) {
                 vec[i] = *(p + i);
             }
@@ -588,7 +590,7 @@ private:
     inline std::optional<serial_len> readLenByType(base_ptr_type* buf, const serial_type& type)
     {
         std::optional<serial_len> result;
-        auto head = *reinterpret_cast<serial_head*>(buf);
+        auto head = *reinterpret_cast<serial_head*>(buf); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         auto t = static_cast<serial_type>(head >> LEN_CTRL_OFFSET);
         if (t == type) {
             result = head & LEN_CTRL_MASK;

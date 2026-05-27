@@ -19,8 +19,18 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller::agent {
-using namespace ubse::adapter_plugins::mmi;
-using namespace api::server;
+using api::server::UbseIpcMessage;
+using api::server::UbseRequestContext;
+using ubse::adapter_plugins::mmi::MemOperationType;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
+using ubse::adapter_plugins::mmi::UbseMemShareAttachReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShareDetachReq;
+using ubse::common::def::UbseResult;
 
 const uint32_t MAX_TIMEOUT_SECONDS = 3600; // 1小时
 

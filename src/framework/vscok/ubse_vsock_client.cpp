@@ -229,7 +229,7 @@ bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void* data, 
     std::unique_ptr<char[]> buffer(new char[total_size]);
     const auto safeSize = 1LL << 20;
 
-    MsgHeader* hdr = reinterpret_cast<MsgHeader*>(buffer.get());
+    MsgHeader* hdr = reinterpret_cast<MsgHeader*>(buffer.get()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     hdr->id = id;
     hdr->version = 0xffff0400;
     hdr->type = type;

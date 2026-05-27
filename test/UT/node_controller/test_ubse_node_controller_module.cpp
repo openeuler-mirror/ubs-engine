@@ -18,6 +18,7 @@
 namespace ubse::node_controller::ut {
 using namespace ubse::timer;
 using namespace election;
+using namespace ubse::com;
 
 void TestUbseNodeControllerModule::SetUp()
 {

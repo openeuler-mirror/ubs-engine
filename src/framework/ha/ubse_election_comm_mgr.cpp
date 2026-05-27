@@ -30,6 +30,10 @@ using namespace ubse::log;
 using namespace ubse::event;
 using namespace ubse::election::utils;
 
+using namespace ubse::module;
+using namespace ubse::utils;
+using namespace ubse::message;
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE& dstIp)

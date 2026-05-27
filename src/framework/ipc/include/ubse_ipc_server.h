@@ -21,7 +21,11 @@
 #include "ubse_uds_server.h"
 
 namespace ubse::ipc {
-using namespace api::server;
+using api::server::SendResponse;
+using api::server::UbseClientInfo;
+using api::server::UbseIpcHandler;
+using api::server::UbseIpcMessage;
+using api::server::UbseRequestContext;
 
 using UbseIpcHandlerMap = ubse::utils::PairMap<uint16_t, uint16_t, UbseIpcHandler>;
 

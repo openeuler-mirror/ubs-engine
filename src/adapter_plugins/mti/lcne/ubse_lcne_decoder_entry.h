@@ -20,10 +20,10 @@
 #include "src/include/adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace adapter_plugins::mti::mami;
-using namespace adapter_plugins::mmi;
+using adapter_plugins::mti::mami::UbseMamiMemImportInfo;
+using adapter_plugins::mti::mami::UbseMamiMemImportResult;
+using adapter_plugins::mti::mami::UbseMamiMemWithdraw;
+using common::def::UbseResult;
 
 class UbseLcneDecoderEntry {
 public:

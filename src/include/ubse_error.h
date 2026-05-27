@@ -234,7 +234,7 @@
 #define UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS UBSE_INTERNAL_ERROR_DEF(1003) /* 对账未完成，查询账本返回部分成功 */
 
 /* 公共方法判断错误码 */
-#define UBSE_RESULT_FAIL(ret) (static_cast<UbseResult>(ret) != UBSE_OK)
-#define UBSE_RESULT_OK(ret) (static_cast<UbseResult>(ret) == UBSE_OK)
+#define UBSE_RESULT_FAIL(ret) (static_cast<uint32_t>(ret) != UBSE_OK)
+#define UBSE_RESULT_OK(ret) (static_cast<uint32_t>(ret) == UBSE_OK)
 
 #endif // UBSE_ERROR_H

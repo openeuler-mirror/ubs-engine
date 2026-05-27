@@ -206,7 +206,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeReportHandler)
     UbseNodeInfo faultNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_FAULT};
 
     // empty node
-    EXPECT_EQ(master.UbseNodeReportHandler(emptyNodeInfo), SER_INVALID_PARAM);
+    EXPECT_EQ(master.UbseNodeReportHandler(emptyNodeInfo), UBSE_ERROR_INVAL);
 
     MOCKER(&UbseNodeController::UpdateNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
@@ -254,7 +254,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseLcneTopologyChangeHandler)
     UbseNodeInfo emptyNodeInfo{};
     UbseNodeInfo initNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_INIT};
 
-    EXPECT_EQ(master.UbseLcneTopologyChangeHandler(emptyNodeInfo), SER_INVALID_PARAM);
+    EXPECT_EQ(master.UbseLcneTopologyChangeHandler(emptyNodeInfo), UBSE_ERROR_INVAL);
 
     MOCKER(&UbseNodeController::UpdateNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
@@ -403,7 +403,7 @@ TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequest_InvalidParam)
 
     auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) { return UBSE_OK; });
 
-    EXPECT_EQ(ret, SER_INVALID_PARAM);
+    EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequest_DeserializeFail)

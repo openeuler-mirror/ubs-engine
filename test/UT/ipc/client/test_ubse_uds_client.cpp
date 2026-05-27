@@ -27,6 +27,7 @@
 #include "src/framework/ipc/ubse_ipc_socket.h"
 
 namespace ubse::ut::ipc {
+using namespace ubse::task_executor;
 namespace {
 int MockPollErr(struct pollfd* fds, nfds_t, int)
 {

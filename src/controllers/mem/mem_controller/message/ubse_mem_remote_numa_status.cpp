@@ -15,7 +15,7 @@
 #include "ubse_logger_module.h"
 #include "ubse_mem_controller_serial.h"
 namespace ubse::mem::controller::message {
-using namespace serial;
+using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseMemRemoteNumaStatus::Serialize()

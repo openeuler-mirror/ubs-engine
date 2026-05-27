@@ -23,6 +23,7 @@ namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::mem::controller;
+using namespace ubse::com;
 
 UbseResult UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler()
 {

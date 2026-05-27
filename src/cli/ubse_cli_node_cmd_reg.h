@@ -18,8 +18,9 @@
 #include "ubse_serial_util.h"
 
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
-using namespace ubse::serial;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliResultEcho;
+using ubse::serial::UbseDeSerialization;
 
 struct CliPhysicalLink {
     std::string node;          // hostname+节点id

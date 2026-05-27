@@ -23,6 +23,7 @@ using namespace common::def;
 using namespace ubse::http;
 using namespace ubse::adapter_plugins::mti;
 using namespace ubse::log;
+using namespace ubse::utils;
 
 uint32_t CheckEidGroup(std::vector<UbseMtiEidGroup>& eidGroups, const std::string type, uint32_t portId);
 

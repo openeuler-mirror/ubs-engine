@@ -178,7 +178,7 @@ void UbseHttpServer::HandleRequest(const httplib::Request& req, httplib::Respons
     UBSE_LOG_INFO << "Receive request, uri=" << req.path << ", method=" << req.method;
     UbseHttpRequest request{};
     if (ValidateHttpRequest(req, request) != UBSE_OK) {
-        res.status = BadRequest_400;
+        res.status = httplib::BadRequest_400;
         res.set_content("The request is invalid.", "text/plain");
         return;
     }
@@ -190,7 +190,7 @@ void UbseHttpServer::HandleRequest(const httplib::Request& req, httplib::Respons
     auto it = routes_.find(routeKey);
     if (it == routes_.end()) {
         UBSE_LOG_ERROR << "url=" << req.path << "has not been registered in tcp server.";
-        res.status = NotFound_404;
+        res.status = httplib::NotFound_404;
         res.set_content("Not Found", "text/plain");
         return;
     }

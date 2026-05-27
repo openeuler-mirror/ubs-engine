@@ -80,7 +80,7 @@ bool MockRackMemConvertJsonStr2Vec1(const JSON_STR& jsonStr, JSON_VEC& strVec)
 
 TEST_F(TestMpUpdateAntiNodeParam, AntiFromJsonSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string> (*)()).stubs().will(invoke(MockTestGetNodeIds1));
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)()).stubs().will(invoke(MockTestGetNodeIds1));
     MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(invoke(MockRackMemConvertJsonStr2Map1));
@@ -94,7 +94,7 @@ TEST_F(TestMpUpdateAntiNodeParam, AntiFromJsonSuccess)
 
 TEST_F(TestMpUpdateAntiNodeParam, AntiFromJsonFailed1)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string> (*)()).stubs().will(invoke(MockTestGetNodeIds));
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)()).stubs().will(invoke(MockTestGetNodeIds));
     MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(false));
@@ -105,7 +105,7 @@ TEST_F(TestMpUpdateAntiNodeParam, AntiFromJsonFailed1)
 
 TEST_F(TestMpUpdateAntiNodeParam, AntiToJsonSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string> (*)()).stubs().will(invoke(MockTestGetNodeIds));
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)()).stubs().will(invoke(MockTestGetNodeIds));
     MpUpdateAntiNodeParam param;
     param.nodeAntiAffinityMap = {{"1", {"2"}}, {"2", {"1"}}};
     param.ToJson();

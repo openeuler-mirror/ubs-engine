@@ -20,6 +20,8 @@
 using namespace ubse::log;
 using namespace ubse::context;
 using namespace ubse::security;
+using namespace ubse::common::def;
+using namespace ubse::task_executor;
 
 namespace syssentry {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -66,21 +68,23 @@ UbseResult UbseRasObserver::Init()
         UBSE_LOG_WARN << "xalarm is not registered, ret: dlopen libxalarm.so fail";
         return UBSE_ERROR;
     }
-    xalarmGetEventFunc = reinterpret_cast<XalarmGetEventFunc>(GetFuncByDlsym(xalarmHandle, "xalarm_get_event"));
+    xalarmGetEventFunc = reinterpret_cast<XalarmGetEventFunc>(
+        GetFuncByDlsym(xalarmHandle, "xalarm_get_event")); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (xalarmGetEventFunc == nullptr) {
         UBSE_LOG_WARN << "xalarm is not registered, ret: xalarm_get_event is null";
         dlclose(xalarmHandle);
         xalarmHandle = nullptr;
         return UBSE_ERROR;
     }
-    xalarmRegisterFunc = reinterpret_cast<XalarmRegisterFunc>(GetFuncByDlsym(xalarmHandle, "xalarm_register_event"));
+    xalarmRegisterFunc = reinterpret_cast<XalarmRegisterFunc>(
+        GetFuncByDlsym(xalarmHandle, "xalarm_register_event")); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (xalarmRegisterFunc == nullptr) {
         dlclose(xalarmHandle);
         xalarmHandle = nullptr;
         return UBSE_ERROR;
     }
-    xalarmUnRegisterFunc =
-        reinterpret_cast<XalarmUnRegisterFunc>(GetFuncByDlsym(xalarmHandle, "xalarm_unregister_event"));
+    xalarmUnRegisterFunc = reinterpret_cast<XalarmUnRegisterFunc>(
+        GetFuncByDlsym(xalarmHandle, "xalarm_unregister_event")); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (xalarmUnRegisterFunc == nullptr) {
         dlclose(xalarmHandle);
         xalarmHandle = nullptr;

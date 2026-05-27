@@ -17,6 +17,8 @@
 #include "ubse_election_role_mgr.h"
 
 namespace ubse::election {
+using namespace ubse::module;
+using namespace ::ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
 constexpr size_t MIN_NODES_FOR_COMPARISON = 2;

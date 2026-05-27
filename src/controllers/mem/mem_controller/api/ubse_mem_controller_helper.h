@@ -19,7 +19,9 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
 
 UbseResult UbseMemCreateWithLenderReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
                                              const std::vector<UbseMemNumaLender>& lenders);

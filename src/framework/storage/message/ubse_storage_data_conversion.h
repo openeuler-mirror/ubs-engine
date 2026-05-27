@@ -19,8 +19,15 @@
 #include "ubse_storage_resp_simpo.h"
 
 namespace ubse::storage::data::conversion {
-using namespace ubse::serial;
-using namespace ubse::storage::message;
+using ubse::serial::addr_len;
+using ubse::serial::alloc_addr_len_;
+using ubse::serial::enum_v;
+using ubse::serial::right_v;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialFreeFunc;
+using ubse::serial::UbseSerialization;
+using ubse::storage::message::UbseStorageReq;
+using ubse::storage::message::UbseStorageResp;
 
 inline void UbseStorageReqSerialize(UbseSerialization& out, UbseStorageReq& ubseStorageReq)
 {

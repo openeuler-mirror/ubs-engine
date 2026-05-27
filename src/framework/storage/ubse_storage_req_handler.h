@@ -16,7 +16,12 @@
 #include "ubse_com_base.h"
 
 namespace ubse::storage {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseModuleCode;
+using ubse::com::UbseStorageOpCode;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
 class UbseStorageReqHandler : public UbseComBaseMessageHandler {
 public:
     UbseStorageReqHandler() = default;

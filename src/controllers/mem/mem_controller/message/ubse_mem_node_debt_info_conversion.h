@@ -20,8 +20,9 @@
 #include "ubse_mem_controller_serial.h"
 
 namespace ubse::mem::serial {
+using namespace ubse::serial;
+using namespace ubse::adapter_plugins::mmi;
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::log;
 
 inline void UbseMemFdImportObjMapSerialize(UbseSerialization& out, const UbseMemFdImportObjMap& data)
 {

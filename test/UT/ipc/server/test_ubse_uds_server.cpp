@@ -31,6 +31,7 @@
 
 namespace ubse::ut::ipc {
 using namespace ubse::security;
+using namespace ubse::utils;
 
 // 使用 /tmp 短路径，避免 Jenkins 工作目录路径过长导致 socket path 超过 sun_path 限制 (107 字节)
 static std::string GetSocketPath()

@@ -638,8 +638,10 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrExportExecutor(UbseMemAddrBorrowExpo
         customMeta.memidCount = addr.size();
         customMeta.virAddr = addr[i].addr;
         ubse_mem_obmm_mem_desc obmmMemDesc{};
-        ObmmPidExportParam param(static_cast<int>(exportObj.req.exportPid), reinterpret_cast<void*>(addr[i].addr),
-                                 addr[i].size, 0, 0, 0);
+        ObmmPidExportParam param(
+            static_cast<int>(exportObj.req.exportPid),
+            reinterpret_cast<void*>(addr[i].addr), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+            addr[i].size, 0, 0, 0);
         ret = RmObmmExecutor::GetInstance().ObmmExportPid(param, obmmMemDesc, customMeta, ubMemPrivData);
         if (UBSE_RESULT_FAIL(ret)) {
             RmObmmExecutor::GetInstance().ObmmUnExport(param.memid);

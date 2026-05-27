@@ -17,8 +17,10 @@
 #include "ubse_storage.h"
 
 namespace ubse::storage {
-using namespace std;
-using namespace ubse::module;
+using std::uint32_t;
+using std::uint8_t;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 const std::string DEFAULT_DB_NAME = "default";
 const std::string DB_STORE_DIR = "/var/lib/ubse/data";

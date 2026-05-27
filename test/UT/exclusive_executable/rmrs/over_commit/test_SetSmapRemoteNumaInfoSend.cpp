@@ -51,7 +51,7 @@ TEST_F(TestSetSmapRemoteNumaInfoSend, SendMsgCreateRequestDataFailed)
     memBorrowInfos.emplace_back(memBorrowInfo);
     SetSmapRemoteNumaInfoSend setSmapRemoteNumaInfoSend =
         SetSmapRemoteNumaInfoSend(srcMemoryBorrowParam, memBorrowInfos);
-    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::CreateRequestData, MpResult (*)(UbseByteBuffer&))
+    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::CreateRequestData, MpResult(*)(UbseByteBuffer&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     ASSERT_EQ(setSmapRemoteNumaInfoSend.SendMsg(), MEM_POOLING_OK);

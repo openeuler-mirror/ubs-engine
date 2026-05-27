@@ -23,6 +23,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace rapidjson;
+using namespace ubse::http;
 const std::string KEY_QUERY = "huawei-vbussw-service:ub-memory-handle";
 const std::string DECODER_HANDLE_URL = "/restconf/operations/huawei-vbussw-service:ub-memory-handle";
 

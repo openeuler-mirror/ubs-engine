@@ -17,8 +17,10 @@
 #include "ubse_secure_buffer.h"
 #include "httplib.h"
 namespace ubse::http {
-using namespace httplib;
-using namespace ubse::common::def;
+using httplib::Request;
+using httplib::Response;
+using httplib::Server;
+using ubse::common::def::UbseResult;
 
 class UbseHttpServer {
 public:

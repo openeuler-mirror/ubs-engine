@@ -22,12 +22,8 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::nodeController {
-using namespace ubse::mti;
-using namespace ubse::context;
-using namespace ubse::log;
-using namespace ubse::module;
-using namespace ubse::timer;
-using namespace ubse::election;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseNodeControllerModule : public UbseModule {
 public:

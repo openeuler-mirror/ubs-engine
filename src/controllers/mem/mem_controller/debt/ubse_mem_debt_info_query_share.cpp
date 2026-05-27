@@ -29,6 +29,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::election;
 using namespace ubse::log;
 using namespace ubse::mem::strategy;
+using namespace ubse::utils;
+using namespace ubse::adapter_plugins::mmi;
 
 constexpr size_t MAX_MEM_DESC_COUNT = 2000; // 查询内存信息列表返回的最大数据量
 

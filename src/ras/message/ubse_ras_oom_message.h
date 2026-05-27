@@ -8,9 +8,11 @@
 #include "ubse_serial_util.h"
 
 namespace ubse::ras {
-using namespace ubse::message;
-using namespace ubse::utils;
-using namespace ubse::serial;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialization;
+using ubse::utils::Ref;
 
 class UbseRasOomMessage : public UbseBaseMessage {
 public:

@@ -17,7 +17,9 @@
 
 #include "ubse_base_message.h"
 namespace ubse::election::message {
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 class UbseElectionReplyPktSimpo : public UbseBaseMessage {
 public:
     UbseElectionReplyPktSimpo() = default;

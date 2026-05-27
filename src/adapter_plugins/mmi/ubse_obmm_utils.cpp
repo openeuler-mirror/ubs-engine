@@ -33,6 +33,7 @@ using namespace ubse::config;
 using namespace ubse::nodeController;
 using namespace ubse::mem::strategy;
 using namespace ubse::mmi;
+using namespace ubse::adapter_plugins::mmi;
 
 constexpr uint32_t INVALID_VALUE_CNA = 0;
 constexpr int CNA_FIRST_SHIFT = 24;

@@ -26,6 +26,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::common::def;
 using namespace ubse::utils;
 using namespace ubse::mem::controller;
+using namespace ubse::adapter_plugins::mmi;
 const std::string MEM_CONFING_SECTION_NAME = "ubse.memory";
 const std::string POOL_MEMORY_RATIO = "system.pool.memory.ratio";
 /* **************************************** */

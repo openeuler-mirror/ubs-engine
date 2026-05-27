@@ -759,7 +759,9 @@ bool FaultNodeModule::CheckUBTurboIsAliveRpc(std::string nodeId)
     RmrsOutStream builder;
     builder << nodeId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     bool isAlive = false;
     auto ret = UbseRpcSend(endpoint, reqData, &isAlive, CheckUBTurboIsAliveResHandler);
     if (ret != MEM_POOLING_OK) {

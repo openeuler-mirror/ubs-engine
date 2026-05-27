@@ -319,13 +319,13 @@ struct NumaPageData {
 struct NumaMetaData {
     NumaMetaData() = default;
 
-    std::string nodeId{};                                    // 节点Id
-    std::string hostName{};                                  // 节点HostName
-    int16_t numaId{};                                        // numaId
-    int16_t socketId{};                                      // 该numa绑定cpu映射socketId
-    bool isLocal{};                                          // 是否是本地numa  0：非本地  1：本地
-    uint64_t memTotal{};                                     // 该numa节点内存总量(包含)，系统文件采集，kb
-    uint64_t memFree{};                                      // 该numa上空闲内存，系统文件采集，kb
+    std::string nodeId{};   // 节点Id
+    std::string hostName{}; // 节点HostName
+    int16_t numaId{};       // numaId
+    int16_t socketId{};     // 该numa绑定cpu映射socketId
+    bool isLocal{};         // 是否是本地numa  0：非本地  1：本地
+    uint64_t memTotal{};    // 该numa节点内存总量(包含)，系统文件采集，kb
+    uint64_t memFree{};     // 该numa上空闲内存，系统文件采集，kb
     std::unordered_map<uint64_t, NumaPageData> numaPageInfo; // 该numa上页信息，key为该numaId上页类型
 
     std::string ToString() const
@@ -527,7 +527,7 @@ uint32_t UBSRMRSMemFree(const std::string& nodeId);
  *         3   迁移失败通用错误码
  *         4   内存资源删除失败
  */
-uint32_t UBSRMRSMemFreeWithMigrate(const std::string &borrowId);
+uint32_t UBSRMRSMemFreeWithMigrate(const std::string& borrowId);
 
 /**
  * @brief 借用内存回滚

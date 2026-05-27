@@ -17,8 +17,9 @@
 #include "ubse_cli_reg_builder.h"
 #include "ubse_serial_util.h"
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
-using namespace ubse::serial;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliResultEcho;
+using ubse::serial::UbseDeSerialization;
 class UbseCliRegMemModule : public UbseCliRegModule {
 public:
     void UbseCliSignUp() override;

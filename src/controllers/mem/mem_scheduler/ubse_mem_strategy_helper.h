@@ -27,7 +27,9 @@
 
 namespace ubse::mem::strategy {
 #define MODULE_LOG_NAME "ubse_mem_strategy"
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::common::def::UbseResult;
 
 inline uint32_t GetRandomNumaId(const std::string& nodeId, uint32_t socketId)
 {
@@ -162,8 +164,8 @@ public:
     }
 
     /* importNodeId: borrower, exportNodeId: lender */
-    void AddLenderDebt(const std::string &importNodeId, const std::string &exportNodeId);
-    void SubLenderDebt(const std::string &importNodeId, const std::string &exportNodeId);
+    void AddLenderDebt(const std::string& importNodeId, const std::string& exportNodeId);
+    void SubLenderDebt(const std::string& importNodeId, const std::string& exportNodeId);
 
     const std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>>& GetLenderDebt() const
     {

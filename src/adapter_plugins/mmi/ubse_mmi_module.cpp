@@ -25,6 +25,7 @@ namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::common::def;
 
 DYNAMIC_CREATE(UbseMmiModule);
 UbseResult UbseMmiModule::Initialize()

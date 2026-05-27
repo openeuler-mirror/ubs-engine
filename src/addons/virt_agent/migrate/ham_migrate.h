@@ -51,8 +51,7 @@ struct RespInfo {
     }
 };
 
-enum class ClearType
-{
+enum class ClearType {
     NODE = 0,            // Current node
     MIGRATED_CLEAR = 1,  // Migration successful cleanup
     NOMIGRATE_CLEAR = 2, // Migration failed cleanup

@@ -23,6 +23,7 @@
 #include "ubse_logger.h"     // for UbseLoggerEntry, UBSE_D...
 
 namespace ubse::task_executor {
+using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 void UbseRunnable::Run()

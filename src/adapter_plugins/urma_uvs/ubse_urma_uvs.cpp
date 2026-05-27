@@ -400,7 +400,7 @@ UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IP
     }
 
     // 将 char* 转换为 unsigned char* 以匹配 sscanf 的格式要求
-    auto* uOut = reinterpret_cast<unsigned char*>(outBytes);
+    auto* uOut = reinterpret_cast<unsigned char*>(outBytes); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 
     int scanned = sscanf_s(input.c_str(),
                            "%2hhx%2hhx:"

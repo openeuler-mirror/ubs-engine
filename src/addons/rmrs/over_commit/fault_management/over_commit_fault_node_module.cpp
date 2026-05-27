@@ -20,6 +20,7 @@
 #include "over_commit_fault_management_handler.h"
 #include "over_commit_fault_memid_module.h"
 #include "over_commit_storage.h"
+#include "process_mem_pid_manager_def.h"
 #include "rmrs_resource_query.h"
 #include "process_mem_pid_manager_def.h"
 #include "securec.h"

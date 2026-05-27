@@ -27,6 +27,9 @@ namespace ubse::node::api::ut {
 using namespace ubse::serial;
 using namespace ubse::context;
 using namespace ubse::nodeController;
+using namespace ubse::common::def;
+using ::api::server::UbseApiServerModule;
+using ::api::server::UbseResult;
 
 // mock UbseGetDirConnectInfo函数 - 正常情况
 std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectInfo()

@@ -19,7 +19,6 @@
 #include "syslog.h"
 
 namespace ubse::log {
-using namespace ubse::utils;
 
 struct LoggerOptions {
     UbseLogLevel minLogLevel = UbseLogLevel::INFO;

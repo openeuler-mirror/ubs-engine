@@ -1343,8 +1343,7 @@ MpResult MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(const SrcMemo
                                                                    const std::vector<uint64_t>& borrowSizes,
                                                                    const WaterMark& waterMark,
                                                                    MemBorrowExecuteResult& borrowExecuteResult,
-                                                                   const ProcessMemUsrInfo &processMemUsrInfo
-                                                                   )
+                                                                   const ProcessMemUsrInfo& processMemUsrInfo)
 {
     if (borrowSizes.empty()) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)

@@ -16,7 +16,14 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbMemFaultType;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
+using ubse::adapter_plugins::mmi::UbseMemShareAttachReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShareDetachReq;
 /* *
  * 共享内存借用
  * @param req [IN] 请求参数

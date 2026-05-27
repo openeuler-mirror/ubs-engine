@@ -21,6 +21,8 @@
 
 namespace ubse::lcne {
 using namespace ubse::context;
+using namespace ubse::http;
+using namespace ubse::mti;
 
 constexpr int ZERO = 0;
 constexpr int ONE = 1;

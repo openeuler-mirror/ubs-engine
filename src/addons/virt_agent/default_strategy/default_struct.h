@@ -36,8 +36,7 @@ const uint32_t DS_ERR_RET_MEM_LINE = 6;    // memory waterline exceeds the retur
 const uint32_t DS_ERR_BOR_MEM_RETMOTE = 7; // remote node of borrowed memory not found in GlobalNumaInfoMap
 const uint32_t DS_ERR_SET_INVAL = 8;       // invalid strategy parameter setting
 
-enum class StrategyTip : int
-{
+enum class StrategyTip : int {
     NOPE = 0,                  // no status code
     RET_BORROW_LEGER_EMPTY,    // memory return hint: borrow ledger is empty
     RET_BAN_RET_TOO_LARGE_MEM, // memory return hint: return is forbidden as it would cause high memory waterline
@@ -47,8 +46,7 @@ enum class StrategyTip : int
 };
 
 // log level of default strategy
-enum class StrategyLogLevel : uint32_t
-{
+enum class StrategyLogLevel : uint32_t {
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
@@ -56,8 +54,7 @@ enum class StrategyLogLevel : uint32_t
     CRIT = 4
 };
 
-enum class NumaMigrateStatus : int
-{
+enum class NumaMigrateStatus : int {
     NORMAL = 0,
     MIGRATEIN,
     MIGRATEOUT,
@@ -65,29 +62,25 @@ enum class NumaMigrateStatus : int
     MIGRATINGOUT
 };
 
-enum class ConnectionState : int
-{
+enum class ConnectionState : int {
     UP = 0,
     DOWN,
     NONE
 };
 
-enum class VmMigrateStatus : int
-{
+enum class VmMigrateStatus : int {
     MIGRATEABLE = 0,
     MIGRATING,
     MIGRATEUNABLE
 };
 
-enum class EscapeActionType : int
-{
+enum class EscapeActionType : int {
     BORROW = 0,
     RETURN,
     NOPE
 };
 
-enum class NumaStatus : int
-{
+enum class NumaStatus : int {
     NORMAL = 0,
     FAULT,
     UNKNOWN,

@@ -21,7 +21,7 @@
 #include "ubse_common_def.h"
 
 namespace ubse::config {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 class UbseConfModule;
 class Format {
 public:

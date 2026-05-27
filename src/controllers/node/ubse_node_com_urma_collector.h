@@ -18,9 +18,10 @@
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
 
 namespace ubse::nodeController {
-using namespace ubse::common::def;
-using namespace ubse::urma;
-using namespace ubse::adapter_plugins::mti;
+using ubse::adapter_plugins::mti::UbseMtiIouInfo;
+using ubse::common::def::UbseResult;
+using ubse::urma::UbseUrmaUvsAggrDev;
+using ubse::urma::UbseUrmaUvsNodeInfo;
 
 class UbseNodeComUrmaCollector {
 public:

@@ -382,8 +382,7 @@ void AlarmHandler::FillGlobalWithNumaMemInfo(const AlarmNumaInfo& alarmNumaInfo,
                    << "byte, numaMemLend=" << globalNumaInfoMapIn[alarmNumaLoc].numaMemLend << "byte.";
 }
 
-enum NodeLocLevel : uint32_t
-{
+enum NodeLocLevel : uint32_t {
     HOSTID = 0,
     SOCKETID,
     NUMAID

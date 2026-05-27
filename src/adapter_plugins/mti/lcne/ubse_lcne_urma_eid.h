@@ -24,8 +24,7 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
+using common::def::UbseResult;
 
 class UbseLcneUrmaEid {
 public:

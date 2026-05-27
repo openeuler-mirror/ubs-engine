@@ -22,6 +22,7 @@
 namespace ubse::node_controller::ut {
 using namespace ubse::election;
 using namespace ubse::context;
+using namespace ubse::mem::account;
 void TestUbseNodeControllerQueryApi::SetUp()
 {
     Test::SetUp();

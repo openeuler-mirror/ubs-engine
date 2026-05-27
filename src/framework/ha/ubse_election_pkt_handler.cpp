@@ -24,6 +24,7 @@ using namespace ubse::context;
 using namespace ubse::message;
 using namespace message;
 using namespace ubse::log;
+using namespace ubse::com;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 

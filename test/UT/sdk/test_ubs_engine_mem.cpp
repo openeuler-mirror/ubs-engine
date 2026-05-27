@@ -28,6 +28,7 @@
 namespace ubse::sdk::ut {
 using namespace node::api;
 using namespace mem::controller;
+using namespace ubse::common::def;
 
 void TestUbsEngineMem::SetUp()
 {

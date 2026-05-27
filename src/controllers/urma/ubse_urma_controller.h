@@ -25,6 +25,12 @@
 #include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
+using common::def::UbseResult;
+using nodeController::PhysicalLink;
+using urma::UbseUrmaDevPath;
+using urma::UbseUrmaInfo;
+using urma::UbseUrmaUvsNodeInfo;
+
 class UrmaController {
 public:
     static UrmaController& GetInstance()
@@ -37,7 +43,6 @@ public:
     UbseResult UbseUrmaBandWidthGet(const std::string urmaName, uint32_t& minBandWidth, uint32_t& maxBandWidth);
     UbseResult UbseUrmaBandWidthReset(const std::string urmaName);
     void UbseUrmaBandWidthUpdate(const std::string urmaName);
-    // For SDK
     UbseResult UbseGetLocalUrmaDevInfo(std::vector<std::string>& nameInfo, std::vector<uint32_t>& status,
                                        std::vector<uint64_t>& hwResIds);
     UbseResult UbseAllocUrmaDev(const std::string& name, UbseUrmaDevPath& devPaths);
@@ -65,12 +70,6 @@ std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 UbseResult UbseUrmaControllerSetUvsInfo(const std::string& current_slot_id,
                                         const std::vector<PhysicalLink>& allLinkInfo,
                                         const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo);
-/**
- * @brief 查询指定urma的状态，如果为空则查询所有urma，查询后设置urmaInfo状态
- * @param nodeId: 节点ID
- * @param urmaName: urma name，为空时查询所有urma
- * @return 成功返回0, 失败返回非0
- */
 UbseResult QueryUrmaInfoStateFromUrma(const std::string& nodeId, const std::string& urmaName = "");
 bool IsUdmaDevHealthy(const std::string& feEid);
 UbseResult QueryAllPortsDown(bool& isAllPortDown);

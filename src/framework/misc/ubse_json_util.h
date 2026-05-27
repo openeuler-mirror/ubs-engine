@@ -21,7 +21,7 @@
 #include "rapidjson/writer.h"
 
 namespace ubse::utils {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 using Allocator = rapidjson::Document::AllocatorType;
 
 class UbseJsonUtil {

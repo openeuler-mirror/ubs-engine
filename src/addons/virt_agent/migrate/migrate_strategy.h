@@ -22,16 +22,14 @@
 namespace vm {
 using namespace api::server;
 
-enum class MigrateStrategy : uint32_t
-{
+enum class MigrateStrategy : uint32_t {
     MULTICOPY_MIGRATE_POLICY = 0,
     ONECOPY_MIGRATE_POLICY = 1,
     HAM_MIGRATE_POLICY = 2,
     CROSS_RACK_MULTICOPY_MIGRATE_POLICY = 3,
 };
 
-enum class UbseVmResult : uint32_t
-{
+enum class UbseVmResult : uint32_t {
     // Basic values of VM error codes
     VM_ERROR_BASE = 2000,
     VM_DRIVER_NOT_FIND = VM_ERROR_BASE + 1,

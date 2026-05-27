@@ -21,9 +21,8 @@
 #include "ubse_thread_pool_module.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::ras;
-using namespace ubse::common::def;
-using namespace ubse::task_executor;
+using ubse::common::def::UbseResult;
+using ubse::task_executor::UbseTaskExecutorPtr;
 
 class UbseMemFaultManager {
 public:
@@ -39,17 +38,17 @@ public:
 private:
     static uint32_t PanicRebootFaultEventHandler(std::string& eventId, std::string& eventMessage);
 
-    static uint32_t BmcFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, const std::string& faultInfo);
+    static uint32_t BmcFaultHandler(ras::ALARM_FAULT_TYPE alarmFaultEvent, const std::string& faultInfo);
 
     static uint32_t BmcFaultTimerHandler();
 
     static void BmcFaultAgentsHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-    static UbseResult MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string& faultId);
+    static UbseResult MemReportWhenExportNodeOnFault(ras::ALARM_FAULT_TYPE faultType, std::string& faultId);
 
     static void SingleImportDebtNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-    static uint32_t MemFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
+    static uint32_t MemFaultHandler(ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
     static UbseResult SendMemFaultMessageByType(const std::string& memType, uint64_t memId, const std::string& memName,
                                                 const adapter_plugins::mmi::UbseUdsInfo& udsInfo,

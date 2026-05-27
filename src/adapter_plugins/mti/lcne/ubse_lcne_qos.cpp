@@ -20,6 +20,7 @@ namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::http;
 
 const std::string LCNE_QOS_MODE = "dwrr";
 const std::string LCNE_QOS_URI = "/restconf/data/huawei-vbussw-service:"

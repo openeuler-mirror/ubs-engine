@@ -31,8 +31,7 @@
 #include "mempooling_def.h"
 
 namespace vm {
-enum class AsyncTaskStatus
-{
+enum class AsyncTaskStatus {
     NOT_EXIST,
     RUNNING,
     SUCCESS,

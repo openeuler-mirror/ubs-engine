@@ -43,6 +43,7 @@ using namespace ubse::log;
 using namespace ubse::nodeController;
 using namespace ubse::security;
 using namespace ubse::com;
+using namespace ubse::election;
 using namespace api::server;
 using namespace vm::mempooling;
 

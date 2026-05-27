@@ -21,7 +21,7 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::strategy {
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemNumaLoc;
 // 事件id：RegisterMemEventNotifyFunc_high
 // 事件id：RegisterMemEventNotifyFunc_low
 struct UbseMemEventNotifyBorrowItem {

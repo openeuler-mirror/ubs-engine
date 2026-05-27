@@ -32,6 +32,8 @@ using namespace ubse::config;
 using namespace ubse::mem::util;
 using namespace ubse::serial;
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::common::def;
+using namespace ubse::log;
 
 const uint64_t MIN_PRE_ONLINE_SIZE = 128;         // 最小预上线内存，单位MB
 const uint64_t DEFAULT_PRE_ONLINE_SIZE = 4096;    // 默认预上线内存，单位MB

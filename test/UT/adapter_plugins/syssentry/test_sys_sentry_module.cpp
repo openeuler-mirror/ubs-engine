@@ -18,6 +18,7 @@
 
 namespace syssentry::ut {
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::task_executor;
 auto module = std::make_shared<SysSentryModule>();
 
 void TestSysSentryModule::SetUp()

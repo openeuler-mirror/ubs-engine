@@ -18,6 +18,7 @@
 namespace ubse::mem::controller::message {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController::def;
+using namespace ubse::serial;
 void UbseNodeSerialization(UbseSerialization& out, const UbseNode& node)
 {
     out << node.slotId;
@@ -70,8 +71,9 @@ void UbseTopoNodeSerialization(UbseSerialization& out, const UbseTopoNode& node)
     for (auto ip : node.ips) {
         out << ip.af;
         struct in_addr ipv4 = ip.ipv4;
-        out << *reinterpret_cast<uint32_t*>(&ipv4);
-        const auto* ipv6_parts = reinterpret_cast<const uint64_t*>(&ip.ipv6);
+        out << *reinterpret_cast<uint32_t*>(&ipv4); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        const auto* ipv6_parts =
+            reinterpret_cast<const uint64_t*>(&ip.ipv6); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         out << ipv6_parts[0];
         out << ipv6_parts[1];
     }
@@ -111,7 +113,7 @@ bool UbseTopoNodeDeserialization(UbseDeSerialization& in, UbseTopoNode& node)
         if (!in.Check()) {
             return false;
         }
-        *reinterpret_cast<uint32_t*>(&ip.ipv4) = ipv4_raw;
+        *reinterpret_cast<uint32_t*>(&ip.ipv4) = ipv4_raw; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 
         uint64_t ipv6_part0{};
         uint64_t ipv6_part1{};
@@ -120,7 +122,7 @@ bool UbseTopoNodeDeserialization(UbseDeSerialization& in, UbseTopoNode& node)
         if (!in.Check()) {
             return false;
         }
-        auto* ipv6_parts = reinterpret_cast<uint64_t*>(&ip.ipv6);
+        auto* ipv6_parts = reinterpret_cast<uint64_t*>(&ip.ipv6); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         ipv6_parts[0] = ipv6_part0;
         ipv6_parts[1] = ipv6_part1;
     }

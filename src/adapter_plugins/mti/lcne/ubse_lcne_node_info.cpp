@@ -24,7 +24,8 @@ namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
-using namespace ubse::adapter_plugins::mti;
+using namespace ubse::mti;
+using namespace ubse::http;
 UbseResult UbseLcneNodeInfo::QueryAllLcneIODieInfo(UbseLcneIODieInfoMap& ubseLcneIODieInfoMap)
 {
     UbseHttpRequest req;

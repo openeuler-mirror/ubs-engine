@@ -28,6 +28,8 @@ namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::mem::controller::message;
+using namespace ubse::com;
+using namespace ubse::log;
 UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComModule>& comModule);
 
 UbseResult RegAgentUpdateHandler(const std::shared_ptr<com::UbseComModule>& comModule)

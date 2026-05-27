@@ -644,7 +644,9 @@ MpResult OverCommitFaultMemIdModule::GetVmNumaInfoMapRpc(std::string importNodeI
     RmrsOutStream builder;
     builder << vmNumaInfoParam;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     uint32_t ret = UbseRpcSend(endpoint_get_vm_info, reqData, &vmNumaInfoWithSocketList,
                                OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler);
     if (ret != MEM_POOLING_OK) {
@@ -669,7 +671,9 @@ MpResult OverCommitFaultMemIdModule::MemFreeExecuteRpc(std::string borrowId, std
     RmrsOutStream builder;
     builder << borrowId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     uint32_t ret = 0;
     UbseRpcSend(endpoint_fm_memfree_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler);
@@ -689,7 +693,9 @@ MpResult OverCommitFaultMemIdModule::DisableSmapProcessMigrateRpc(std::vector<pi
     RmrsOutStream builder;
     builder << pids;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     uint32_t ret = 0;
     UbseRpcSend(endpoint_fm_disable_pid, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler);
@@ -727,7 +733,9 @@ MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(outinterface::Src
     RmrsOutStream builder;
     builder << borrowId;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     ret = 0;
     UbseRpcSend(endpoint_fm_memfree_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler);
@@ -752,7 +760,9 @@ MpResult OverCommitFaultMemIdModule::MemIdExecuteRpc(OverCommitFaultMemIdExecute
     RmrsOutStream builder;
     builder << param;
     UbseByteBuffer reqData = {
-        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) { delete[] data; }};
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
     uint32_t ret;
     UbseRpcSend(endpoint_fm_memid_execute, reqData, &ret,
                 over_commit::OverCommitFaultManagementHandler::MemIdExecuteResHandler);

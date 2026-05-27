@@ -22,11 +22,19 @@
 
 namespace ubse::com {
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::module;
-using namespace ubse::utils;
-using namespace ubse::message;
-using namespace ubse::log;
-using namespace ubse::com;
+using ubse::com::ConnectOption;
+using ubse::com::LinkNotifyFunction;
+using ubse::com::SendParam;
+
+using ubse::com::UbseLinkInfo;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::message::UbseBaseMessagePtr;
+using ubse::module::UbseModule;
+using ubse::utils::ReadWriteLock;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
+using ubse::utils::WriteLocker;
 
 class UbseComModule : public UbseModule {
 public:

@@ -15,10 +15,13 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 namespace ubse::com {
-UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::module;
 using namespace ubse::config;
 using namespace ubse::context;
+using namespace ubse::log;
+using namespace ubse::common::def;
 const std::string WorkGroup = "server";
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseRpcServer::Start()
 {

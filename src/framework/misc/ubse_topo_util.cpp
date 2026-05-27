@@ -13,6 +13,7 @@
 #include "ubse_topo_util.h"
 
 namespace ubse::utils {
+using namespace ubse::nodeController;
 
 bool IsMultiPortTopo(const UbseCpuInfo& cpuInfo)
 {

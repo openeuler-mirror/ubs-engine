@@ -28,6 +28,7 @@ using namespace api::server;
 using namespace ubse::config;
 using namespace ubse::nodeController;
 using namespace ubse::mem::controller;
+using namespace ubse::election;
 
 namespace ubse::vm::ut {
 

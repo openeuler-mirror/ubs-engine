@@ -1197,8 +1197,8 @@ static void ApplyAllocationResult(RemoteNumaCandidate& candidate, uint64_t alloc
     } else {
         LOG_DEBUG << "[BatchBorrow] Allocate " << allocateSize << "KB (rounded down to blockSize) from "
                   << candidate.nodeId << "-" << candidate.socketId << "-" << candidate.numaId
-                  << ", remaining=" << remaining << "KB." << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId]
-                  << "KB"
+                  << ", remaining=" << remaining << "KB."
+                  << ", nodeTotal=" << ctx.nodeBorrowedMap[candidate.nodeId] << "KB"
                   << ", socketTotal=" << ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}] << "KB.";
     }
 }

@@ -65,7 +65,7 @@ uint32_t CrcUtil::SoftCrc32(const void* data, uint32_t dataLen, uint32_t initVal
         0xE03E9C81, 0x34F4F86A, 0xC69F7B69, 0xD5CF889D, 0x27A40B9E, 0x79B737BA, 0x8BDCB4B9, 0x988C474D, 0x6AE7C44E,
         0xBE2DA0A5, 0x4C4623A6, 0x5F16D052, 0xAD7D5351L};
 
-    auto p = reinterpret_cast<const unsigned char*>(data);
+    auto p = reinterpret_cast<const unsigned char*>(data); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     uint32_t crc = initValue ^ 0xFFFFFFFF;
     for (uint32_t i = 0; i < dataLen; i++) {
         crc = ((crc >> 8UL) ^ gCrcTable[((*p) ^ crc) & 0xFF]);

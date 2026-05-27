@@ -15,6 +15,8 @@
 
 namespace ubse::event {
 using namespace ubse::log;
+using namespace ubse::utils;
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 void UbseEventDistribute::RegisterSubscribe(const std::string& eventId, UbseEventPriority priority,

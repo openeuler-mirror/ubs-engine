@@ -20,8 +20,8 @@
 #include "ubse_module.h"
 
 namespace api::server {
-using namespace ubse::module;
-using namespace ubse::ipc;
+using ubse::ipc::UbseAsyncResponseHandler;
+using ubse::module::UbseModule;
 
 class UbseApiServerModule final : public UbseModule {
 public:

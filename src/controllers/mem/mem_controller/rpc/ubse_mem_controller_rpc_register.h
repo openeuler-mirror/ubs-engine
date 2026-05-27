@@ -14,7 +14,7 @@
 #define UBSE_MEM_CONTROLLER_RPC_REGISTER_H
 #include "ubse_common_def.h"
 namespace ubse::mem::controller::rpc {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 UbseResult RegMemControllerHandler();
 } // namespace ubse::mem::controller::rpc
 #endif // UBSE_MEM_CONTROLLER_RPC_REGISTER_H

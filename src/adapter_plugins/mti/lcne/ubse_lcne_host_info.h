@@ -21,9 +21,8 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace ubse::mti;
+using common::def::UbseResult;
+using ubse::mti::UbseLcneOSInfo;
 
 class UbseLcneHostInfo {
 public:

@@ -21,9 +21,10 @@
 #include "ubse_pack_util.h"
 
 namespace ubse::node::api {
-using namespace ubse::nodeController::def;
-using namespace ubse::utils;
-using namespace ubse::mem::account;
+using ubse::mem::account::UbseNumaNodeInfo;
+using ubse::nodeController::def::UbseCpuLink;
+using ubse::nodeController::def::UbseNode;
+using ubse::utils::UbsePackUtil;
 
 const size_t UBSE_NODE_SIZE =
     sizeof(uint32_t) + sizeof(uint32_t) * UBS_TOPO_SOCKET_NUM + HOST_NAME_MAX; // ubse_node_t size

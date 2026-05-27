@@ -19,7 +19,7 @@
 #include "ubse_common_def.h"
 
 namespace ubse::plugin {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 struct UbsePluginInfo {
     /* *

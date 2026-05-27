@@ -27,6 +27,7 @@
 namespace ubse::mem_controller::addr::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
 

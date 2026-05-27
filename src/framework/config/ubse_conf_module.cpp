@@ -25,6 +25,7 @@
 #include "ubse_str_util.h"
 
 namespace ubse::config {
+using namespace ubse::module;
 using namespace ubse::context;
 using namespace ubse::log;
 using namespace ubse::common::def;

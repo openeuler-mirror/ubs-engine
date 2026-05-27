@@ -18,8 +18,7 @@
 #include "register_xalarm.h"
 
 namespace syssentry {
-using namespace ubse::common::def;
-using namespace ubse::task_executor;
+using ubse::common::def::UbseResult;
 
 using XalarmRegisterFunc = int (*)(struct alarm_register**, struct alarm_subscription_info);
 using XalarmGetEventFunc = int (*)(struct alarm_msg*, struct alarm_register*);

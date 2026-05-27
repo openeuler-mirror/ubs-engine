@@ -25,7 +25,7 @@
 #include "ubse_thread_pool.h"
 
 namespace ubse::ipc {
-using namespace ubse::task_executor;
+using ubse::task_executor::UbseTaskExecutorPtr;
 const uint32_t DEFAULT_TOTAL_TIMEOUT = 1800000; // Default global timeout in milliseconds (ms)
 const uint32_t DEFAULT_CONNECT_TIMEOUT = 5000;  // Default connection establishment timeout in ms
 const uint32_t DEFAULT_SEND_TIMEOUT = 5000;     // Default data sending timeout in ms

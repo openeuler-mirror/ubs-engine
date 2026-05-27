@@ -22,6 +22,7 @@
 namespace ubse::lcne {
 using namespace ubse::context;
 using namespace adapter_plugins::mti;
+using namespace ubse::http;
 void TestUbseLcneUrmaEid::SetUp()
 {
     Test::SetUp();

@@ -44,30 +44,26 @@ struct hash<vm::NodeLocInfo> {
 
 namespace vm {
 
-enum NumaMigrateStatus
-{
+enum NumaMigrateStatus {
     NORMAL = 0,
     MIGRATEIN,
     MIGRATEOUT,
     MIGRATINGIN,
     MIGRATINGOUT
 };
-enum EscapeActionType
-{
+enum EscapeActionType {
     BORROW = 0,
     RETURN,
     NOPE
 };
 
-enum ConnectionState
-{
+enum ConnectionState {
     UP,
     DOWN,
     NONE
 };
 
-enum class NumaStatus : int
-{
+enum class NumaStatus : int {
     NORMAL = 0,
     FAULT,
     UNKNOWN,
@@ -224,8 +220,7 @@ struct EscapeAction {
     }
 };
 
-enum class MemMigrateStatus : uint8_t
-{
+enum class MemMigrateStatus : uint8_t {
     READY_TO_MIGRATE = 0,
     MIGRATE_SUCCESS = 1
 };

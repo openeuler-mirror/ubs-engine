@@ -23,9 +23,12 @@
 #include "ubse_thread_pool_module.h"
 
 namespace ubse::mem::util {
-using namespace ubse::task_executor;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfo;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseUdsInfo;
 using ubse::common::def::UbseResult;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::task_executor::UbseTaskExecutorPtr;
 
 std::string GetCurNodeId();
 UbseTaskExecutorPtr GetExecutor(const std::string& name);

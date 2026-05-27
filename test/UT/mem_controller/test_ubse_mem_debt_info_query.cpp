@@ -34,6 +34,7 @@ using namespace ubse::mem::controller::message;
 using namespace ubse::mem::controller;
 using namespace ubse::mem::controller::debt;
 using namespace ubse::mem::def;
+using namespace ubse::adapter_plugins::mmi;
 
 void TestUbseMemDebtInfoQuery::SetUp()
 {

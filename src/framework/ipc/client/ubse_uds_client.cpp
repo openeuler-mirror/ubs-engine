@@ -31,6 +31,7 @@
 
 namespace ubse::ipc {
 using namespace ubse::common::def;
+using namespace ubse::task_executor;
 
 const uint32_t CONNECT_RETRY_DURATION = 200; // 200毫秒
 const uint64_t FAST_RETRY_THRESHOLD = 1000;  // 快速重试次数阈值
@@ -97,7 +98,8 @@ uint32_t UbseUDSClient::Connect()
 
 uint32_t UbseUDSClient::ConnectToServer(sockaddr_un& addr)
 {
-    int result = connect(sockFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+    int result = connect(sockFd_, reinterpret_cast<struct sockaddr*>(&addr),
+                         sizeof(addr)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (result < 0) {
         if (errno == EINPROGRESS) {
             // Wait for the connection to complete or timeout

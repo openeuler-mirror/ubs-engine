@@ -19,6 +19,7 @@
 #include "ubs_engine_mem.h"
 
 namespace ubse::node::api {
+using namespace ubse::utils;
 const uint32_t BITS_PER_HALF_UINT64 = 32;
 // 自定义64位网络字节序转换
 uint64_t HtonllCustom(uint64_t host_value)
@@ -122,10 +123,13 @@ uint32_t UbseNodePackInner(const UbseNode& node, UbsePackUtil& packUtil)
     for (const ubs_topo_ip_address_t& ipAddr : node.ips) {
         packUtil.UbsePackInt32(ipAddr.af);
         struct in_addr ipv4 = ipAddr.ipv4;
-        packUtil.UbsePackUint32(*reinterpret_cast<uint32_t*>(&ipv4));
+        packUtil.UbsePackUint32(
+            *reinterpret_cast<uint32_t*>(&ipv4)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         struct in6_addr ipv6 = ipAddr.ipv6;
-        packUtil.UbsePackUint64(*(reinterpret_cast<uint64_t*>(&ipv6)));
-        packUtil.UbsePackUint64(*(reinterpret_cast<uint64_t*>(&ipv6) + 1));
+        packUtil.UbsePackUint64(
+            *(reinterpret_cast<uint64_t*>(&ipv6))); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        packUtil.UbsePackUint64(
+            *(reinterpret_cast<uint64_t*>(&ipv6) + 1)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     }
     return UBSE_OK;
 }

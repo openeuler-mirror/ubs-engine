@@ -17,7 +17,7 @@
 #include "ubse_mmi_def.h"
 
 namespace ubse::adapter_plugins::mmi {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 class UbseMmiInterface {
 public:
     virtual ~UbseMmiInterface() = default;

@@ -18,9 +18,7 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::nodeController {
-using namespace ubse::module;
-using namespace ubse::log;
-using namespace ubse::context;
+using ubse::common::def::UbseResult;
 
 /**
  * 采集节点基础信息：包含节点id, eid, hostname, slotId等

@@ -34,6 +34,8 @@ using namespace ubse::task_executor;
 using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::common::def;
+using namespace httplib;
 
 BASE_DYNAMIC_CREATE(UbseHttpModule, UbseTaskExecutorModule);
 UBSE_DEFINE_THIS_MODULE("ubse");

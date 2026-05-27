@@ -23,6 +23,7 @@
 namespace ubse::ut::lcne {
 using namespace ubse::lcne;
 using namespace ubse::context;
+using namespace ubse::http;
 
 void TestUbseLcneDecoderEntry ::SetUp()
 {

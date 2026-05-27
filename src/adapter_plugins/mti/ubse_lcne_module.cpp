@@ -41,6 +41,7 @@ using namespace ubse::lcne;
 using namespace ubse::utils;
 using namespace ubse::log;
 using namespace adapter_plugins::mti;
+using namespace ubse::common::def;
 BASE_DYNAMIC_CREATE(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 

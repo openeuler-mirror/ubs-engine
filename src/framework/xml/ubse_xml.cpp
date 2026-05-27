@@ -108,7 +108,8 @@ void UbseXml::Printer(std::string& outputString, bool includeXmlDeclaration)
     xmlSaveClose(saveCtxt); // 自动释放 saveCtxt
 
     if (result >= 0 && buffer->content && buffer->use > 0) {
-        outputString.assign(reinterpret_cast<char*>(buffer->content), buffer->use);
+        outputString.assign(reinterpret_cast<char*>(buffer->content),
+                            buffer->use); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     } else {
         outputString.clear();
     }
@@ -142,7 +143,8 @@ std::shared_ptr<UbseXml> UbseXml::Next(const std::string& name, int num)
 xmlNode* UbseXml::FindNthChildByName(xmlNode* child, const std::string& name, int num) const
 {
     int matchCount = 0;
-    const xmlChar* targetName = reinterpret_cast<const xmlChar*>(name.c_str());
+    const xmlChar* targetName =
+        reinterpret_cast<const xmlChar*>(name.c_str()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 
     while (child) {
         if (child->type == XML_ELEMENT_NODE && xmlStrcmp(child->name, targetName) == 0) {
@@ -215,8 +217,8 @@ std::shared_ptr<UbseXml> UbseXml::Child(const std::string& name, int num)
     int matchCount = 0;
 
     while (child) {
-        if (child->type == XML_ELEMENT_NODE &&
-            xmlStrcmp(child->name, reinterpret_cast<const xmlChar*>(name.c_str())) == 0) {
+        if (child->type == XML_ELEMENT_NODE && xmlStrcmp(child->name, reinterpret_cast<const xmlChar*>(name.c_str())) ==
+                                                   0) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             if (matchCount == num) {
                 curNode = child;
                 return shared_from_this();
@@ -242,7 +244,8 @@ std::string UbseXml::Text()
     }
 
     xmlChar* content = xmlNodeGetContent(curNode);
-    std::string text = (content != nullptr) ? reinterpret_cast<char*>(content) : "";
+    std::string text = (content != nullptr) ? reinterpret_cast<char*>(content) :
+                                              ""; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (content) {
         xmlFree(content);
     }
@@ -269,7 +272,8 @@ void UbseXml::Text(const std::string& text)
     }
 
     // 设置新文本
-    xmlNodeSetContent(curNode, reinterpret_cast<const xmlChar*>(text.c_str()));
+    xmlNodeSetContent(
+        curNode, reinterpret_cast<const xmlChar*>(text.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 
     Back(); // 恢复到初始节点
 }
@@ -284,8 +288,9 @@ std::string UbseXml::Name()
         return "";
     }
 
-    std::string name = reinterpret_cast<const char*>(curNode->name);
-    Back(); // 读取后重置
+    std::string name =
+        reinterpret_cast<const char*>(curNode->name); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+    Back();                                           // 读取后重置
     return name;
 }
 
@@ -300,8 +305,9 @@ void UbseXml::Name(const std::string& name)
     }
 
     // 修改节点名
-    xmlNodeSetName(curNode, reinterpret_cast<const xmlChar*>(name.c_str()));
-    Back(); // 恢复到初始节点
+    xmlNodeSetName(
+        curNode, reinterpret_cast<const xmlChar*>(name.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+    Back();                                                       // 恢复到初始节点
 }
 
 /**
@@ -319,8 +325,9 @@ std::string UbseXml::Attr(const std::string& key)
     if (key == "xmlns") {
         xmlNsPtr ns = curNode->ns;
         if (ns && ns->href) {
-            std::string result = reinterpret_cast<const char*>(ns->href);
-            Back(); // 读取后重置
+            std::string result =
+                reinterpret_cast<const char*>(ns->href); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+            Back();                                      // 读取后重置
             return result;
         }
 
@@ -328,7 +335,8 @@ std::string UbseXml::Attr(const std::string& key)
         ns = curNode->nsDef;
         while (ns) {
             if (!ns->prefix || xmlStrcmp(ns->prefix, BAD_CAST "") == 0) {
-                std::string result = reinterpret_cast<const char*>(ns->href);
+                std::string result =
+                    reinterpret_cast<const char*>(ns->href); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
                 Back();
                 return result;
             }
@@ -339,8 +347,10 @@ std::string UbseXml::Attr(const std::string& key)
     }
 
     // 普通属性
-    xmlChar* value = xmlGetProp(curNode, reinterpret_cast<const xmlChar*>(key.c_str()));
-    std::string result = (value != nullptr) ? reinterpret_cast<char*>(value) : "";
+    xmlChar* value = xmlGetProp(
+        curNode, reinterpret_cast<const xmlChar*>(key.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+    std::string result = (value != nullptr) ? reinterpret_cast<char*>(value) :
+                                              ""; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (value) {
         xmlFree(value);
     }
@@ -364,8 +374,9 @@ void UbseXml::SetXmlns(const std::string& uri)
     }
 
     // 创建新的命名空间定义（不会重复添加）
-    xmlNsPtr ns = xmlNewNs(nullptr, reinterpret_cast<const xmlChar*>(uri.c_str()),
-                           nullptr); // nullptr = 默认命名空间
+    xmlNsPtr ns = xmlNewNs(
+        nullptr, reinterpret_cast<const xmlChar*>(uri.c_str()), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        nullptr);                                               // nullptr = 默认命名空间
     if (ns) {
         // 将命名空间绑定到当前节点
         xmlSetNs(curNode, ns);
@@ -392,11 +403,14 @@ void UbseXml::Attr(const std::string& key, const std::string& value)
     // 普通属性处理
     if (value.empty()) {
         // 删除普通属性
-        xmlUnsetProp(curNode, reinterpret_cast<const xmlChar*>(key.c_str()));
+        xmlUnsetProp(curNode, reinterpret_cast<const xmlChar*>(
+                                  key.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     } else {
         // 设置普通属性
-        xmlSetProp(curNode, reinterpret_cast<const xmlChar*>(key.c_str()),
-                   reinterpret_cast<const xmlChar*>(value.c_str()));
+        xmlSetProp(
+            curNode,
+            reinterpret_cast<const xmlChar*>(key.c_str()),    // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+            reinterpret_cast<const xmlChar*>(value.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     }
 
     Back(); // 按原逻辑，操作后回退
@@ -414,7 +428,9 @@ void UbseXml::AddNode(const std::string& name, bool isFirst)
             throw std::invalid_argument("name can't be empty");
         }
 
-        xmlNodePtr newNode = xmlNewNode(nullptr, reinterpret_cast<const xmlChar*>(name.c_str()));
+        xmlNodePtr newNode = xmlNewNode(
+            nullptr,
+            reinterpret_cast<const xmlChar*>(name.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         if (!newNode) {
             throw std::bad_alloc();
         }
@@ -433,7 +449,8 @@ void UbseXml::AddNode(const std::string& name, bool isFirst)
 
             // 确保 doc 存在，并将 rootNode 绑定为根元素
             if (!doc) {
-                doc = xmlNewDoc(reinterpret_cast<const xmlChar*>("1.0"));
+                doc = xmlNewDoc(
+                    reinterpret_cast<const xmlChar*>("1.0")); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             }
             // 必须设置根元素，否则文档为空
             xmlDocSetRootElement(doc, rootNode);
@@ -471,8 +488,8 @@ UbseXmlError UbseXml::DeleteNode(const std::string& name, int num)
     int matchCount = 0;
 
     while (child) {
-        if (child->type == XML_ELEMENT_NODE &&
-            xmlStrcmp(child->name, reinterpret_cast<const xmlChar*>(name.c_str())) == 0) {
+        if (child->type == XML_ELEMENT_NODE && xmlStrcmp(child->name, reinterpret_cast<const xmlChar*>(name.c_str())) ==
+                                                   0) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             if (matchCount == num) {
                 // 找到目标节点，删除它
                 xmlUnlinkNode(child); // 从树中移除

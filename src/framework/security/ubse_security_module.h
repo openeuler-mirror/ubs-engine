@@ -20,7 +20,7 @@
 #include "ubse_security_manager.h"
 
 namespace ubse::security {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 using ubse::module::UbseModule;
 
 class UbseSecurityModule final : public UbseModule {

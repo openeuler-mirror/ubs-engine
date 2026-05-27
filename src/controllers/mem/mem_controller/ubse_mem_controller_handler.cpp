@@ -23,6 +23,8 @@ using namespace ubse::mem_controller;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::context;
 using namespace ubse::mem::controller::message;
+using namespace ubse::com;
+using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseMemOperationRespHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                UbseComBaseMessageHandlerCtxPtr ctx)

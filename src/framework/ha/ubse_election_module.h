@@ -23,8 +23,8 @@
 #include "ubse_module.h"
 
 namespace ubse::election {
-using namespace ubse::module;
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseElectionModule : public UbseModule {
 public:

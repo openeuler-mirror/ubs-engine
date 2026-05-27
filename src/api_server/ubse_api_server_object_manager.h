@@ -21,7 +21,6 @@
 #include "ubse_map_util.h"
 
 namespace api::server {
-using namespace ubse::common::def;
 
 class UbseApiServerObjectManager {
 public:

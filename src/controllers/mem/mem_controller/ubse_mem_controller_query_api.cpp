@@ -11,7 +11,6 @@
  */
 #include "ubse_mem_controller_query_api.h"
 
-#include "api/ubse_mem_controller_api_common.h"
 #include "ubse_com_module.h"
 #include "ubse_conf.h"
 #include "ubse_election.h"
@@ -25,6 +24,7 @@
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_query_api.h"
+#include "api/ubse_mem_controller_api_common.h"
 #include "message/node_mem_debtInfo_query_req_simpo.h"
 #include "message/node_mem_debt_info_simpo.h"
 #include "message/ubse_mem_controller_def_simpo.h"
@@ -41,7 +41,8 @@ using namespace ubse::log;
 using namespace ubse::mem::controller::message;
 using namespace ubse::mem::controller;
 using namespace ubse::mem::util;
-using namespace ubse::mem::strategy;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::mem::controller;
 
 bool IsMemIdQueryFeatureSupported(uint32_t borrowType)
 {

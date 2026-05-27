@@ -13,8 +13,16 @@
 #include "message/ubse_mem_share_detach_req_simpo.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::ipc;
-using namespace message;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
+using message::UbseMemReturnReqSimpoPtr;
+using message::UbseMemShareAttachReqSimpoPtr;
+using message::UbseMemShareBorrowReqSimpoPtr;
+using message::UbseMemShareDetachReqSimpoPtr;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
 class UbseMemControllerDispatcher {
 public:
     static UbseMemControllerDispatcher& GetInstance()

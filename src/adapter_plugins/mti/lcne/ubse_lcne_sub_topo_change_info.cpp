@@ -28,6 +28,8 @@ using namespace ubse::utils;
 using namespace ubse::mti;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::common::def;
+using namespace ubse::http;
 
 void GetTcpServerPort(uint32_t& port)
 {
@@ -151,8 +153,8 @@ uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string& resBody)
     return UBSE_OK;
 }
 
-uint32_t UbseLcneLinkInfo::ParseLinkUpDownReq(const std::string &reqBody, std::string &linkUpDown,
-                                              std::string &interfaceName)
+uint32_t UbseLcneLinkInfo::ParseLinkUpDownReq(const std::string& reqBody, std::string& linkUpDown,
+                                              std::string& interfaceName)
 {
     if (reqBody.empty()) {
         UBSE_LOG_WARN << "[MTI] req.body is empty.";

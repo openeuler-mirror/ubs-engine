@@ -19,7 +19,7 @@
 #include "ubse_common_def.h"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::strategy {
-using namespace ubse::common::def;
+
 enum class AccountState {
     IMPORT_EXPORT_EXIST,
     ONLY_EXPORT_EXIST,

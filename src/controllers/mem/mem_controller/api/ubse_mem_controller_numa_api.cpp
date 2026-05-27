@@ -50,6 +50,8 @@ using namespace message;
 using namespace ubse::mmi;
 using namespace ubse::mem::strategy;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::utils;
 
 bool CheckSpecifyLink(const UbseMemNumaBorrowReq& req)
 {

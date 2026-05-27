@@ -18,8 +18,9 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 class UbseMemNumaBorrowExportobjSimpo : public UbseBaseMessage {
 public:

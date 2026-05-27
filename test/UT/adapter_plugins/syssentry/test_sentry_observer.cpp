@@ -15,6 +15,7 @@
 #include "ubse_timer.h"
 
 namespace syssentry::ut {
+using namespace ubse::task_executor;
 
 void TestSentryObserver::SetUp()
 {

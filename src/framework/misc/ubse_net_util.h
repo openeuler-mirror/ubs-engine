@@ -17,7 +17,7 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::utils {
-using namespace ubse::common::def;
+
 class UbseNetUtil {
 public:
     static bool IsPortVaLid(const uint32_t port);

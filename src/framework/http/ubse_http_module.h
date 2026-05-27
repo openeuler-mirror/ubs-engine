@@ -22,7 +22,8 @@
 #include "ubse_http_common.h" // for UbseHttpResponse (ptr only), UbseHttpRe...
 #include "ubse_module.h"      // for UbseModule
 namespace ubse::http {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 const size_t MAX_TOTAL_HEADERS_SIZE = 8 * 1024; // 8KB
 
 class UbseHttpModule : public UbseModule {

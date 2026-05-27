@@ -30,6 +30,9 @@ using namespace ubse::serial;
 using namespace ubse::log;
 using namespace ::api::server;
 using namespace ubse::nodeController;
+using namespace ubse::utils;
+using namespace ubse::common::def;
+using namespace ubse::election;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 

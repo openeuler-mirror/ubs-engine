@@ -15,8 +15,6 @@
 #include <fstream>
 #include <regex>
 #include <variant>
-#include "message/ubse_ras_oom_message.h"
-#include "src/framework/security/ubse_security_module.h"
 #include "ubse_com_module.h"
 #include "ubse_conf.h"
 #include "ubse_context.h"
@@ -26,9 +24,11 @@
 #include "ubse_ras.h"
 #include "ubse_ras_com_handler.h"
 #include "ubse_str_util.h"
+#include "message/ubse_ras_oom_message.h"
+#include "src/framework/security/ubse_security_module.h"
 
 using namespace ubse::election;
-using namespace ubse::common;
+using namespace ubse::common::def;
 using namespace ubse::log;
 using namespace ubse::com;
 using namespace ubse::config;
@@ -52,7 +52,7 @@ const uint64_t TWO_MB_HUGE_PAGE = static_cast<uint64_t>(2048) * 1024;
 const uint16_t HUGEPAGE_OOM = 2;
 constexpr auto UBSE_ADMISSION_CONFIG_SECTION_NAME = "ubse_plugin_admission";
 constexpr auto OCK_VM_ENABLE = "virt_agent";
-using LibPtr = void *;
+using LibPtr = void*;
 
 std::vector<int> SplitNids(const std::string& nid_str)
 {
@@ -142,8 +142,8 @@ UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, i
     return UBSE_OK;
 }
 
-uint32_t ProcessSmallpageOom(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
-                             [[maybe_unused]] uint64_t &nrFree)
+uint32_t ProcessSmallpageOom(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
+                             [[maybe_unused]] uint64_t& nrFree)
 {
     // 小页场景是为了以后预埋，目前就打日志
     UBSE_LOG_INFO << "Smallpage case is for future, just need ack.";
@@ -327,8 +327,8 @@ UbseResult InitOomHandler()
         return UBSE_ERROR;
     }
 
-    smapUrgentMigrateOutFunc =
-        reinterpret_cast<SmapUrgentMigrateOutPtr>(dlsym(handle, "ubturbo_smap_urgent_migrate_out"));
+    smapUrgentMigrateOutFunc = reinterpret_cast<SmapUrgentMigrateOutPtr>(
+        dlsym(handle, "ubturbo_smap_urgent_migrate_out")); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     if (smapUrgentMigrateOutFunc == nullptr) {
         UBSE_LOG_ERROR << "Dlopen SmapUrgentMigrateOut failed " << dlerror();
@@ -443,8 +443,8 @@ UbseResult GetOomNumaId(const std::map<std::string, std::variant<uint64_t, long,
 }
 
 uint32_t ProcessHugepageOom(
-    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
-    [[maybe_unused]] uint64_t &nrFree)
+    const std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
+    [[maybe_unused]] uint64_t& nrFree)
 {
     auto ret = CheckHugePageOomParam(messageValue);
     if (ret != UBSE_OK) {

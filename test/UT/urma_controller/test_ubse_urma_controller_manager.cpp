@@ -22,7 +22,7 @@ namespace ubse::urmaControllerManager::ut {
 using namespace ubse::urmaController;
 using namespace ubse::urma;
 using namespace ubse::election;
-using namespace ubse::mti;
+using namespace ubse::adapter_plugins::mti;
 using namespace ubse::nodeController;
 
 std::vector<UbseMtiFeInfo> g_feInfosOneBoundary{

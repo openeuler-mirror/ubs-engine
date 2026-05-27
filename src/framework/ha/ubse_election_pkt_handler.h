@@ -15,7 +15,12 @@
 #include "ubse_com_module.h"
 
 namespace ubse::election {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseElectionOpCode;
+using ubse::com::UbseModuleCode;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
 using ElECTION_HANDLER_FUNC = UbseResult (*)(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                              UbseComBaseMessageHandlerCtxPtr ctx);
 

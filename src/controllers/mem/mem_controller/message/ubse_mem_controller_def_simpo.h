@@ -16,7 +16,8 @@
 #include "ubse_mem_controller_def.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 class UbseMemFdDescSimpo : public UbseBaseMessage {
 public:
     UbseMemFdDescSimpo() = default;

@@ -36,6 +36,8 @@ using namespace ubse::mem::controller::debt;
 using namespace ubse::mem::decoder::utils;
 using namespace ubse::mmi;
 using namespace ubse::context;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::com;
 
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";

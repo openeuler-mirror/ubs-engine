@@ -47,7 +47,9 @@ void LoggingLockGuard::RemoveObjMutex(const std::string& objId)
 }
 
 LoggingLockGuard::LoggingLockGuard(const std::string& name, LockType type)
-    : mutex_(GetObjMutex(name)), name_(name), lockType_(type)
+    : mutex_(GetObjMutex(name)),
+      name_(name),
+      lockType_(type)
 {
     if (lockType_ == LockType::READ) {
         (*mutex_).lock_shared();

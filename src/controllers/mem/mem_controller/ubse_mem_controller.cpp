@@ -39,6 +39,7 @@ using namespace ubse::mem::account;
 using namespace ubse::election;
 using namespace com;
 using namespace ubse::mem::controller::message;
+using namespace ubse::context;
 
 uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType)
 {
@@ -492,19 +493,16 @@ UbseResult UbseMemNumaCreateWithLender(const std::string& name, const UbseMemBor
 UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& borrower, const UbseMemNumaCreateOpt& opt,
                              UbseMemNumaDesc& desc)
 {
-    // 参数校验
     auto ret = UbseMemCreateReqIsValid(name, borrower, opt);
     if (ret != UBSE_OK) {
         return ret;
     }
-    // 请求转换
     UbseMemNumaBorrowReq numaBorrowReq;
     UbseMemOperationResp resp;
     ret = ConvertUbseMemNumaCreateReq(name, borrower, opt, numaBorrowReq);
     if (ret != UBSE_OK) {
         return ret;
     }
-    // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemNumaBorrow(numaBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {
         UBSE_LOG_INFO << "numa create failed, return code=" << resp.errorCode;

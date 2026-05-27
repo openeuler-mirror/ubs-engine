@@ -29,6 +29,9 @@ using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::log;
 
+using namespace ubse::module;
+using namespace ubse::utils;
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 BASE_DYNAMIC_CREATE(UbseEventModule, UbseConfModule, UbseLoggerModule);
 

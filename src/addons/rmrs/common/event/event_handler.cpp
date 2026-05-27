@@ -230,7 +230,7 @@ MpResult EventHandler::HandlePanicEvent(ALARM_FAULT_TYPE eventId, std::string ev
         }
         if (nodeType == NodeType::BORROW_OUT) {
             ret = isSimplified ? OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified(nodeId) :
-                  OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
+                                 OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
             if (ret != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[FaultManager] BORROW_OUT failed" << eventMessage << ".";
@@ -282,7 +282,7 @@ MpResult EventHandler::HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, st
         }
         if (nodeType == NodeType::BORROW_OUT) {
             ret = isSimplified ? OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified(nodeId) :
-                  OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
+                                 OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFault(nodeId);
             if (ret != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] BORROW_OUT failed" << eventMessage;
                 return ret;

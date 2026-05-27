@@ -32,6 +32,7 @@
 #include "mp_error.h"
 #include "mp_module.h"
 #include "mp_vector_util.h"
+#include "process_mem_pid_manager_def.h"
 #include "turbo_rmrs_interface.h"
 #include "process_mem_pid_manager_def.h"
 
@@ -263,9 +264,10 @@ public:
                                                  MemBorrowExecuteResult& borrowExecuteResult,
                                                  const bool isFault = false);
     static MpResult MemBorrowExecuteForFaultInOverCommit(const SrcMemoryBorrowParam& srcParam,
-                                                 const std::vector<uint64_t>& borrowSizes, const WaterMark& waterMark,
-                                                 MemBorrowExecuteResult& borrowExecuteResult,
-                                                 const ProcessMemUsrInfo &processMemUsrInfo);
+                                                         const std::vector<uint64_t>& borrowSizes,
+                                                         const WaterMark& waterMark,
+                                                         MemBorrowExecuteResult& borrowExecuteResult,
+                                                         const ProcessMemUsrInfo& processMemUsrInfo);
     static MpResult ProcessSingleBorrowInOverCommit(const SrcMemoryBorrowParam& srcParam,
                                                     const UbseMemNumaCandidateOpt& opt, const bool& isFault,
                                                     UbseMemNumaDesc& desc);

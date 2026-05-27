@@ -37,7 +37,15 @@
 
 namespace ubse::com {
 const std::string FAKE_CUR_NODE_ID = "FakeCurNodeId";
-using namespace ubse::log;
+using ubse::common::def::UBSE_AGENT_IPC_SERVER_ENGINE_NAME;
+using ubse::common::def::UbseResult;
+using ubse::log::FormatRetCode;
+using ubse::log::UbseLoggerEntry;
+using ubse::message::UbseBaseMessage;
+using ubse::message::UbseBaseMessagePtr;
+using ubse::utils::ReadWriteLock;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 #define MODULE_LOG_NAME "ubse"
 
 class UbseComBaseMessageHandlerCtx {

@@ -25,8 +25,8 @@
 #include "ubse_conf_module.h"
 
 namespace api::server {
-using namespace ubse::config;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::config::UbseConfModule;
 
 class UbseApiServerAuthManager {
 public:

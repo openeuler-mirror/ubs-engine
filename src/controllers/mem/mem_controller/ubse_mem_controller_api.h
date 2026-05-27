@@ -28,8 +28,11 @@
 #include "api/ubse_mem_controller_share_api.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::nodeController;
+using ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemState;
+using ubse::nodeController::UbseNodeClusterState;
+using ubse::nodeController::UbseNodeController;
 
 enum class BorrowedType {
     FD,
@@ -83,7 +86,7 @@ UbseResult GetStateByObjExist(const bool& importObjExist, const bool& exportObjE
                               const exportType& exportObj)
 {
     if (!importObjExist && exportObjExist) {
-        if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
+        if (exportObj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYED) {
             return UBSE_ERR_NOT_EXIST;
         }
         auto nodeId = exportObj.importNodeId;

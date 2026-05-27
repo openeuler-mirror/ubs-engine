@@ -19,8 +19,9 @@
 #include "adapter_plugins/mti/ubse_mti_mami_def.h"
 
 namespace ubse::mem::decoder::utils {
-using namespace common::def;
-using namespace adapter_plugins::mti::mami;
+using adapter_plugins::mti::mami::UbseMamiMemHandleValue;
+using adapter_plugins::mti::mami::UbseMamiMemImportResult;
+using common::def::UbseResult;
 
 struct ImportDecoderParam {
     uint8_t importType;
@@ -56,10 +57,10 @@ struct DecoderEntryLoc {
             auto hashUint32 = std::hash<uint32_t>{};
             auto hashUint8 = std::hash<uint8_t>{};
             const uint32_t randValue = 0x9e3779b9;
-            seed ^= hashUint32(loc.ubpuId) + randValue + (seed << NO_6) + (seed >> NO_2);
-            seed ^= hashUint32(loc.iouId) + randValue + (seed << NO_6) + (seed >> NO_2);
-            seed ^= hashUint32(loc.marId) + randValue + (seed << NO_6) + (seed >> NO_2);
-            seed ^= hashUint8(loc.decoderId) + randValue + (seed << NO_6) + (seed >> NO_2);
+            seed ^= hashUint32(loc.ubpuId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
+            seed ^= hashUint32(loc.iouId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
+            seed ^= hashUint32(loc.marId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
+            seed ^= hashUint8(loc.decoderId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
             return seed;
         }
     };

@@ -13,8 +13,8 @@
 #include <unistd.h>
 #include <array>
 #include <csignal>
-#include "ubse_mem_common_utils.h"
 #include "ubse_conf_module.h"
+#include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
@@ -23,6 +23,7 @@
 namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::security;
+using namespace ubse::context;
 
 std::vector<__u32> overrideCap = {CAP_DAC_OVERRIDE};
 static const std::string OBMM_LOG_INFO = "#######UB[OBMM]########";
@@ -53,9 +54,8 @@ UbseResult RmObmmExecutor::Init()
             offlineTimeoutMs_ = timeoutMs * MS_PER_SECOND;
             UBSE_LOG_INFO << MMI_LOG_INFO << "obmm.memory.offline.timeout configured, value=" << timeoutMs << "s";
         } else {
-            UBSE_LOG_WARN << MMI_LOG_INFO << "obmm.memory.offline.timeout=" << timeoutMs
-                          << " out of range [" << OFFLINE_TIMEOUT_MIN_S << ", " << OFFLINE_TIMEOUT_MAX_S
-                          << "], use original calculation";
+            UBSE_LOG_WARN << MMI_LOG_INFO << "obmm.memory.offline.timeout=" << timeoutMs << " out of range ["
+                          << OFFLINE_TIMEOUT_MIN_S << ", " << OFFLINE_TIMEOUT_MAX_S << "], use original calculation";
         }
     } else {
         UBSE_LOG_INFO << MMI_LOG_INFO << "obmm.memory.offline.timeout not configured, use original calculation";
@@ -549,7 +549,8 @@ UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam& param, ubse_mem_obm
         return UBSE_ERROR_NULLPTR;
     }
     auto flag = 0;
-    UBSE_LOG_INFO << MMI_LOG_INFO << "The pid=" << param.pid << ", va=" << reinterpret_cast<uint64_t>(param.va)
+    UBSE_LOG_INFO << MMI_LOG_INFO << "The pid=" << param.pid << ", va="
+                  << reinterpret_cast<uint64_t>(param.va) // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
                   << ", size=" << param.size;
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
     param.memid = obmmExportByPidFunc(param.pid, param.va, param.size, flag, obmmMemDesc);

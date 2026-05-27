@@ -47,8 +47,7 @@ uint32_t mock_numa_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_cod
 {
     UbseSerialization ser;
     ser << std::string("test-numa") << right_v<int64_t>(1) << right_v<uint32_t>(1) << right_v<uint32_t>(2)
-        << right_v<uint64_t>(128 * 1024 * 1024)
-        << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST);
+        << right_v<uint64_t>(128 * 1024 * 1024) << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST);
     response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
@@ -64,14 +63,13 @@ uint32_t mock_numa_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_cod
     return UBSE_OK;
 }
 
-uint32_t mock_fd_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                         const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
+uint32_t mock_fd_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                         ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     std::vector<uint64_t> memIds{100, 200};
     ser << std::string("test-fd") << memIds << right_v<uint32_t>(1) << right_v<uint32_t>(2)
-        << right_v<uint64_t>(256 * 1024 * 1024)
-        << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST);
+        << right_v<uint64_t>(256 * 1024 * 1024) << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST);
     response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
@@ -87,8 +85,8 @@ uint32_t mock_fd_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
     return UBSE_OK;
 }
 
-uint32_t mock_shm_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                          const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
+uint32_t mock_shm_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                          ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     ser << std::string("test-shm") << right_v<uint64_t>(512 * 1024 * 1024) << right_v<uint32_t>(1)
@@ -114,8 +112,8 @@ uint32_t mock_shm_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code
 }
 
 uint32_t mock_mem_operation_resp_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                                        const ubse_api_buffer_t* request_data,
-                                                        ubse_api_buffer_t* response_data)
+                                                         const ubse_api_buffer_t* request_data,
+                                                         ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     std::vector<uint64_t> memIdList{100, 200};
@@ -137,8 +135,8 @@ uint32_t mock_mem_operation_resp_ubse_invoke_call_normal(uint16_t module_code, u
 }
 
 uint32_t mock_shm_detach_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                                  const ubse_api_buffer_t* request_data,
-                                                  ubse_api_buffer_t* response_data)
+                                                 const ubse_api_buffer_t* request_data,
+                                                 ubse_api_buffer_t* response_data)
 {
     return UBSE_OK;
 }

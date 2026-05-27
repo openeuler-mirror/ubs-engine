@@ -25,6 +25,9 @@ namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::http;
+using namespace ubse::common::def;
+using namespace ubse::mti;
 
 std::unique_ptr<UbseLcneBusInstance> UbseLcneBusInstance::instance = nullptr;
 

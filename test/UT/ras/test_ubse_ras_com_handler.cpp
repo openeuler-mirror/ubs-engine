@@ -17,6 +17,7 @@
 
 namespace ubse::ras::ut {
 using namespace mem::strategy;
+using namespace ubse::com;
 
 void TestUbseRasComHandler::SetUp()
 {

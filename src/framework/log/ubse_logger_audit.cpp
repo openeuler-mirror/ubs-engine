@@ -36,7 +36,7 @@ inline int AuditDlsym(void* handle, T& ptr, std::string sym)
     if (ptr1 == nullptr) {
         return -1;
     }
-    ptr = reinterpret_cast<T>(ptr1);
+    ptr = reinterpret_cast<T>(ptr1); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return 0;
 }
 

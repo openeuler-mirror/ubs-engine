@@ -16,8 +16,9 @@
 #include "ubse_base_message.h"
 #include "ubse_mem_controller_def.h"
 namespace ubse::mem::controller::message {
-using namespace ubse::mem::def;
-using namespace ubse::message;
+using ubse::mem::def::LedgerResp;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 class UbseMemLedgerRespSerial : public UbseBaseMessage {
 public:

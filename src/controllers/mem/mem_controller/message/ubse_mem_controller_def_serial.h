@@ -15,8 +15,10 @@
 #include "ubse_mem_controller_def.h"
 #include "ubse_serial_util.h"
 namespace ubse::mem::controller::message {
-using namespace ubse::serial;
-using namespace controller;
+using controller::UbseMemAddrDesc;
+using controller::UbseMemNumaDesc;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialization;
 
 void UbseErrCodeSerialization(UbseSerialization& out, const uint32_t& mErrCode);
 bool UbseErrCodeDeserialization(UbseDeSerialization& in, uint32_t& mErrCode);
