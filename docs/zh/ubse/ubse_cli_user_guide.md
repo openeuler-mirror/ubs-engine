@@ -429,10 +429,11 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 $ ubsectl display memory -t node_borrow
 --------------------------------------------
 node          lend             size   
+--------------------------------------------
 node-1(1)     node-2(2)        450   
 node-1(1)     node-3(3)        450   
 node-4(4)     node-3(3)        100   
-
+--------------------------------------------
 ```
 
 ### 查询各节点内存借出信息
@@ -472,11 +473,12 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 ```bash
 $ ubsectl display memory -t node_lend
 --------------------------------------------
-node          borrow         size   
+node          borrow           size   
+--------------------------------------------
 node-1(1)     node-2(2)        450   
 node-1(1)     node-3(3)        450   
 node-4(4)     node-3(3)        100   
-
+--------------------------------------------
 ```
 
 ### 查询内存借用账本详细信息
@@ -525,22 +527,23 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 
 查询全量账本
 
-    ```bash
-    $ ubsectl display memory -t borrow_detail
-    ------------------------------------------------------------------------------------------------
-    name         type    borrow_node   lend_node   lend_numa   lend_size       status       handle    
-    memory1      numa    node-1(1)     node-3(3)   1(216)      100             done         5
-    memory2      share   node-1(1)     node-3(3)   1(216)      200             done         1,2
-    memory2      share   node-2(2)     node-3(3)   1(216)      1200            done         3,4
-    memory3      share                 node-3(3)   1(216)      1200            done         -
-    memory4      numa    node-2(2)     node-3(3)   1(216)      1300            exporting    -
-    memory5      fd      node-1(1)     node-3(3)   1(216)      1400            importing    -
-    memory6      numa                  node-3(3)   1(216)      1300            unexporting  -
-    memory7      fd      node-1(1)     node-3(3)   1(216)      1400            unimporting  -
-    memory8      numa    node-2(2)                             1500            fault        -
-    memory9      fd                    node-3(3)   1(216)      1500            fault        -
-    ------------------------------------------------------------------------------------------------
-    ```
+```bash
+$ ubsectl display memory -t borrow_detail
+------------------------------------------------------------------------------------------------
+name         type    borrow_node   lend_node   lend_numa   lend_size       status       handle    
+------------------------------------------------------------------------------------------------
+memory1      numa    node-1(1)     node-3(3)   1(216)      100             done         5
+memory2      share   node-1(1)     node-3(3)   1(216)      200             done         1,2
+memory2      share   node-2(2)     node-3(3)   1(216)      1200            done         3,4
+memory3      share                 node-3(3)   1(216)      1200            done         -
+memory4      numa    node-2(2)     node-3(3)   1(216)      1300            exporting    -
+memory5      fd      node-1(1)     node-3(3)   1(216)      1400            importing    -
+memory6      numa                  node-3(3)   1(216)      1300            unexporting  -
+memory7      fd      node-1(1)     node-3(3)   1(216)      1400            unimporting  -
+memory8      numa    node-2(2)                             1500            fault        -
+memory9      fd                    node-3(3)   1(216)      1500            fault        -
+------------------------------------------------------------------------------------------------
+```
 
 根据类型过滤
 
@@ -609,14 +612,14 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 
 - 显示信息中的字段说明：
 
-| 字段名       | 字段描述                                                     | 字段取值 |
-| ------------ | ------------------------------------------------------------ | -------- |
+| 字段名       | 字段描述                                                                   | 字段取值 |
+| ------------ |------------------------------------------------------------------------| -------- |
 | node         | 节点信息。例：computer1(1)<br/>节点信息由2部分组成：<br/>1.括号前部分：主机名<br/>2.括号内部分：节点的槽位号 | 字符串   |
-| numa         | numa id，单位: MB                                            | 整数     |
-| total        | NUMA的内存总量，单位: MB                                     | 整数     |
-| used         | NUMA的内存使用量，单位: MB                                   | 整数     |
-| free         | NUMA的内存空闲量，单位: MB                                   | 整数     |
-| used_percent | 内存使用比例, 保留一位小数                                   | 浮点数   |
+| numa         | numa id                                                                | 整数     |
+| total        | NUMA的内存总量，单位: MB                                                       | 整数     |
+| used         | NUMA的内存使用量，单位: MB                                                      | 整数     |
+| free         | NUMA的内存空闲量，单位: MB                                                      | 整数     |
+| used_percent | 内存使用比例, 保留一位小数                                                         | 浮点数   |
 
 **示例**
 
@@ -931,7 +934,7 @@ $ ubsectl remove process-mem -p 1234
 Unset successfully
 ```
 
-### 导入共享内存**
+### 导入共享内存
 
 **描述**
 
@@ -1434,10 +1437,10 @@ ubsectl display urma [--node <node-id>] [--dev <urma_name>]
 
 - **输入参数**
 
-| 字段名           | 字段描述              | 字段取值                           |
-|---------------|-------------------|--------------------------------|
-| --node<br/>-n | 指定要查询的节点ID        | 1~max_id                       |
-| --dev<br/>-d  | 设备名称              | 字符串列表，批量查询用逗号分隔，如urma_1,urma_2 |
+| 字段名           | 字段描述          | 字段取值                           |
+|---------------|---------------|--------------------------------|
+| --node<br/>-n | 可选，指定要查询的节点ID | 数字，取值范围 1-255                      |
+| --dev<br/>-d  | 可选，设备名称       | 字符串列表，批量查询用逗号分隔，如urma_1,urma_2 |
 
 - **输出信息说明**
 支持分页

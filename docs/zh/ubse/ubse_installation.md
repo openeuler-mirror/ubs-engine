@@ -63,16 +63,16 @@
 
 - ubs-engine 主程序安装结果：
 
-  | 路径                                 | 用途          |
-  | ------------------------------------ | -------------|
-  | /usr/bin/ubse, /usr/bin/ubsectl      | 主程序与 CLI  |
+  | 路径                                  | 用途          |
+  |-------------------------------------| -------------|
+  | /usr/bin/ubse, /usr/bin/ubsectl     | 主程序与 CLI  |
   | /usr/lib/systemd/system/ubse.service | systemd 服务  |
-  | /etc/ubse/                           | 配置目录      |
-  | /var/log/ubse/                       | 日志目录      |
-  | /var/lib/ubse/                       | 持久化数据    |
-  | /var/lib/ubse/cert/                  | 证书目录      |
-  | /var/lib/ubse/lcne_cert/             | 高安部署证书目录|
-  | /var/run/ubse/                       | 运行时 socket |
+  | /etc/ubse/                          | 配置目录      |
+  | /var/log/ubse/                      | 日志目录      |
+  | /var/lib/ubse/cert/                 | 证书目录      |
+  | /var/lib/ubse/data                  | 持久化数据    |
+  | /var/lib/ubse/lcne_cert/            | 高安部署证书目录|
+  | /var/run/ubse/                      | 运行时 socket |
 
 - ubs-engine 客户端运行库安装结果：
 
@@ -83,10 +83,10 @@
 
 - ubs-engine Python API 包安装结果：
 
-  | 文件/目录                      | 其它说明                                     |
-  | ------------------------------ | -------------------------------------------- |
-  | `/usr/lib64/python3.11/site-packages/ubse` | 内部文件（`*.py`）权限：`644`             |
-  | `/usr/lib/python3.11/site-packages/ubse-1.0.0-py3.11.egg-info` | 内部文件权限：`644`，Python包相关信息。             |
+| 文件/目录                      | 其它说明                                 |
+| ------------------------------ | ---------------------------------------- |
+| `/usr/lib/python3.11/site-packages/ubse` | 内部文件（`*.py`）权限：`644`         |
+| `/usr/lib/python3.11/site-packages/ubse-xx.xx.xx-py3.11.egg-info` | 内部文件权限：`644`，Python包相关信息    |
 
 ## （可选）修改配置
 
