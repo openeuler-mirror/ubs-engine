@@ -813,12 +813,14 @@ Delete successfully
 **用法**
 
 ```shell
-ubsectl display memory -t pidInfo
+ubsectl display process-mem -t <type>
 ```
 
-**输入参数**
+**输入参数说明**
 
-无
+| 参数名 | 说明 | 取值 |
+|------|------|------|
+| -t<br/>--type | 必选，查询的进程内存配置信息类型 | config |
 
 **约束限制**
 
@@ -838,7 +840,7 @@ ubsectl只能在root，ubse用户中运行
 **示例**
 
 ```bash
-$ ubsectl display memory -t pidInfo
+$ ubsectl display process-mem -t config
 ------------------------------------------------------------------------
 pid         evictThreshold   targetEvictThreshold   reclaimThreshold   totalMemoryUsage   srcNuma
 ------------------------------------------------------------------------
@@ -856,7 +858,7 @@ pid         evictThreshold   targetEvictThreshold   reclaimThreshold   totalMemo
 **用法**
 
 ```shell
-ubsectl change memory -p <pid> -e <evict-thresh> -t <target-evict-thresh> -r <reclaim-thresh> -s <size> [--src-numa <numa-id>]
+ubsectl change process-mem -p <pid> -e <evict-thresh> -t <target-evict-thresh> -r <reclaim-thresh> -s <size> [--src-numa <numa-id>]
 ```
 
 **输入参数说明**
@@ -884,15 +886,15 @@ Set successfully / 错误信息
 
 ```bash
 # 配置PID为1234的进程，迁出阈值80%，预期迁出比例50%，迁回阈值30%，期望内存1G
-$ ubsectl change memory -p 1234 -e 80 -t 50 -r 30 -s 1G
+$ ubsectl change process-mem -p 1234 -e 80 -t 50 -r 30 -s 1G
 Set successfully
 
 # 指定本地NUMA节点
-$ ubsectl change memory -p 1234 -e 80 -t 50 -r 30 -s 1G --src-numa 0
+$ ubsectl change process-mem -p 1234 -e 80 -t 50 -r 30 -s 1G --src-numa 0
 Set successfully
 
 # 参数校验失败
-$ ubsectl change memory -p 1234 -e 80 -t 50 -r 76 -s 1G
+$ ubsectl change process-mem -p 1234 -e 80 -t 50 -r 76 -s 1G
 evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation
 ```
 
@@ -905,7 +907,7 @@ evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation
 **用法**
 
 ```shell
-ubsectl remove memory -p <pid>
+ubsectl remove process-mem -p <pid>
 ```
 
 **输入参数说明**
@@ -925,7 +927,7 @@ Unset successfully
 **示例**
 
 ```bash
-$ ubsectl remove memory -p 1234
+$ ubsectl remove process-mem -p 1234
 Unset successfully
 ```
 

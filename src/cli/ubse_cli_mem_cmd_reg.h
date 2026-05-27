@@ -52,6 +52,10 @@ private:
 
     UbseCliCommandInfo RemoveMemory();
 
+    static UbseCliCommandInfo DisplayProcessMem();
+    static std::shared_ptr<UbseCliResultEcho> DisplayProcessMemFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
+
     static std::shared_ptr<UbseCliResultEcho> DeleteMemoryFunc(const std::map<std::string, std::string>& params);
 
     static std::shared_ptr<UbseCliResultEcho> ShmMemoryAttachFunc(const std::map<std::string, std::string>& params);

@@ -251,6 +251,37 @@ uint32_t SendPidSetResponse(int successCode, const std::string& errorMsg, uint64
     return ret;
 }
 
+uint32_t ValidateSrcNumaIdOnCurrentNode(const def::ProcessMemPidConfigInfo& configInfo)
+{
+    if (!configInfo.srcNumaId.has_value()) {
+        return UBSE_OK;
+    }
+    auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
+    for (const auto& [numaLoc, _] : curNodeInfo.numaInfos) {
+        if (numaLoc.numaId == configInfo.srcNumaId.value()) {
+            return UBSE_OK;
+        }
+    }
+    UBSE_LOG_ERROR << "srcNumaId " << configInfo.srcNumaId.value() << " not found on current node";
+    return UBSE_ERR_NOT_EXIST;
+}
+
+uint32_t SendSetPidMapErrorResponse(uint32_t ret, uint64_t requestId)
+{
+    const char* msg = nullptr;
+    if (ret == UBSE_ERR_NOT_EXIST) {
+        msg = "PID does not exist on current node";
+    } else if (ret == UBSE_ERR_INVALID_ARG) {
+        msg = "PID start time mismatch, process may have been restarted";
+    } else if (ret == UBSE_ERR_RESOURCE_BUSY) {
+        msg = "Cannot modify srcNumaId while borrow debts exist";
+    } else {
+        msg = "Set PID info failed";
+    }
+    UBSE_LOG_ERROR << "SetPidInfoMap failed, " << ubse::log::FormatRetCode(ret);
+    return SendPidSetResponse(0, msg, requestId);
+}
+
 uint32_t SetPidInfo(const api::server::UbseIpcMessage& request, const api::server::UbseRequestContext& context)
 {
     ubse::serial::UbseDeSerialization deserializer{request.buffer, request.length};
@@ -260,28 +291,21 @@ uint32_t SetPidInfo(const api::server::UbseIpcMessage& request, const api::serve
         UBSE_LOG_ERROR << "DeSerialPidDefInfo failed, " << ubse::log::FormatRetCode(ret);
         return ret;
     }
-    if (pidInfo.configInfo.srcNumaId.has_value()) {
-        auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
-        bool numaFound = false;
-        for (const auto& [numaLoc, _] : curNodeInfo.numaInfos) {
-            if (numaLoc.numaId == pidInfo.configInfo.srcNumaId.value()) {
-                numaFound = true;
-                break;
-            }
-        }
-        if (!numaFound) {
-            UBSE_LOG_ERROR << "srcNumaId " << pidInfo.configInfo.srcNumaId.value() << " not found on current node";
-            return SendPidSetResponse(
-                0, "srcNumaId " + std::to_string(pidInfo.configInfo.srcNumaId.value()) + " not found on current node",
-                context.requestId);
-        }
+    auto retValidate = ValidateSrcNumaIdOnCurrentNode(pidInfo.configInfo);
+    if (retValidate != UBSE_OK) {
+        return SendPidSetResponse(
+            0, "srcNumaId " + std::to_string(pidInfo.configInfo.srcNumaId.value()) + " not found on current node",
+            context.requestId);
     }
     pidInfo.startTime = manager::ProcessMemPidConfigManager::GetExactStartTime(pidInfo.configInfo.pid);
     if (pidInfo.startTime == 0) {
         UBSE_LOG_ERROR << "PID " << pidInfo.configInfo.pid << " does not exist";
         return SendPidSetResponse(0, "PID does not exist", context.requestId);
     }
-    manager::ProcessMemPidInfoManager::GetInstance().SetPidInfoMap(pidInfo);
+    ret = manager::ProcessMemPidInfoManager::GetInstance().SetPidInfoMap(pidInfo);
+    if (ret != UBSE_OK) {
+        return SendSetPidMapErrorResponse(ret, context.requestId);
+    }
     return SendPidSetResponse(1, "", context.requestId);
 }
 
@@ -324,20 +348,15 @@ uint32_t UnSetPidInfoPrint(const api::server::UbseIpcMessage& request, const api
     ubse::serial::UbseDeSerialization out{request.buffer, request.length};
     pid_t pid{};
     out >> pid;
-    manager::ProcessMemPidInfoManager::GetInstance().UnsetPidInfo(pid);
-    ubse::serial::UbseSerialization serial;
-    api::server::UbseIpcMessage response;
-    response.buffer = serial.GetBuffer();
-    if (!response.buffer) {
-        UBSE_LOG_ERROR << "Serialization response failed.";
-        return UBSE_ERROR_NULLPTR;
+    auto ret = manager::ProcessMemPidInfoManager::GetInstance().UnsetPidInfo(pid);
+    if (ret == UBSE_ERR_NOT_EXIST) {
+        UBSE_LOG_ERROR << "UnsetPidInfo failed, " << ubse::log::FormatRetCode(ret);
+        return SendPidSetResponse(0, "PID is not configured", context.requestId);
+    } else if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UnsetPidInfo failed, " << ubse::log::FormatRetCode(ret);
+        return SendPidSetResponse(0, "Failed to unset PID info", context.requestId);
     }
-    response.length = static_cast<uint32_t>(serial.GetLength());
-    auto ret = api::server::SendResponse(UBSE_OK, context.requestId, response);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Send response failed, " << ubse::log::FormatRetCode(ret);
-    }
-    return ret;
+    return SendPidSetResponse(1, "", context.requestId);
 }
 
 namespace {
@@ -350,11 +369,11 @@ bool LoadMemPoolingLibrary()
     ProcessMemPidBridge::memPoolingHandle = handle;
     using MigrateOutFunc = int (*)(const std::vector<mempooling::smap::MigrateOutPayload>&, int);
     ProcessMemPidBridge::rmrsMigrateOut = reinterpret_cast<MigrateOutFunc>(dlsym(handle, "UBSRMRSMigrateOut"));
-    ProcessMemPidBridge::rmrmRemove =
+    ProcessMemPidBridge::rmrsRemove =
         reinterpret_cast<int (*)(const uint16_t, const std::vector<pid_t>&, int)>(dlsym(handle, "UBSRMRSRemove"));
     ProcessMemPidBridge::rmrsFreeWithMigrate =
         reinterpret_cast<uint32_t (*)(const std::string)>(dlsym(handle, "UBSRMRSMemFreeWithMigrate"));
-    if (!ProcessMemPidBridge::rmrsMigrateOut || !ProcessMemPidBridge::rmrmRemove) {
+    if (!ProcessMemPidBridge::rmrsMigrateOut || !ProcessMemPidBridge::rmrsRemove) {
         dlclose(handle);
         ProcessMemPidBridge::memPoolingHandle = nullptr;
         return false;
