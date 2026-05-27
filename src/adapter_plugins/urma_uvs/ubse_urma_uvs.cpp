@@ -38,6 +38,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 utils::ReadWriteLock g_invokeUrmaMutex;
 
+void FillSelfLinks(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 UbseResult FillNodeComInfo(const std::string &currentSlotId, const std::vector<PhysicalLink> &allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
@@ -404,6 +405,15 @@ void InitialNodes(const std::string &currentSlotId, const std::set<std::string> 
     }
 }
 
+void FillSelfLinks(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
+{
+    for (auto &pair : nodeMap) {
+        for (uint32_t i = 0; i < UVS_PORT_NUM; i++) {
+            pair.second.links[i][i] = true;
+        }
+    }
+}
+
 UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap, bool isClosType)
 {
     uint16_t superNodeId = 0;
@@ -441,6 +451,7 @@ UbseResult FillNodeComInfo(const std::string &currentSlotId, const std::vector<P
         UBSE_LOG_ERROR << "Failed to fill topo";
         return ret;
     }
+    FillSelfLinks(nodeMap);
     ret = FillBondingInfo(bondingInfo, nodeMap);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill bondingInfo";

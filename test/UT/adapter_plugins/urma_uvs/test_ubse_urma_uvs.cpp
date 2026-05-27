@@ -20,6 +20,7 @@
 #include "ubse_error.h"
 
 namespace ubse::urma {
+void FillSelfLinks(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig &topoConfig,
                                 std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 } // namespace ubse::urma
@@ -140,5 +141,48 @@ TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigFailsWhenChipInvalid)
     };
 
     EXPECT_EQ(FillClosTopoByConfig(config, nodeMap), UBSE_ERROR);
+}
+
+/*
+ * 用例描述：FillSelfLinks 为所有节点（包括当前节点）的每个 port 设置自连通 links[i][i]=true。
+ * 预期结果：当前节点和非当前节点的所有 port 自连通为 true，非自连通位保持原值。
+ */
+TEST_F(TestUbseUrmaUvs, FillSelfLinksSetsSelfConnectivityForAllNodes)
+{
+    std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
+        {"1", MakeNode(1, true)},
+        {"2", MakeNode(2, false)},
+    };
+
+    FillSelfLinks(nodeMap);
+
+    for (uint32_t i = 0; i < UVS_PORT_NUM; i++) {
+        EXPECT_TRUE(nodeMap["1"].links[i][i]);
+        EXPECT_TRUE(nodeMap["2"].links[i][i]);
+    }
+    EXPECT_FALSE(nodeMap["1"].links[0][1]);
+    EXPECT_FALSE(nodeMap["2"].links[0][1]);
+}
+
+/*
+ * 用例描述：FillSelfLinks 与 FillClosTopoByConfig 组合后，当前节点的自连通也为 true。
+ * 预期结果：当前节点 self-link 为 true（由 FillSelfLinks 保证），非当前节点的跨节点链路和自连通均为 true。
+ */
+TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigWithSelfLinksCurrentNodeAlsoSelfConnected)
+{
+    std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
+        {"1", MakeNode(1, true)},
+        {"2", MakeNode(2, false)},
+    };
+
+    EXPECT_EQ(FillClosTopoByConfig(MakeNonCrossTopoConfig(), nodeMap), UBSE_OK);
+    FillSelfLinks(nodeMap);
+
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
+    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
+    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
+    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
+    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
+    EXPECT_FALSE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(2, 1)]);
 }
 } // namespace ubse::ut::urma
