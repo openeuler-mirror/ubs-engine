@@ -797,7 +797,7 @@ MpResult OverCommitFaultMemIdModule::AdjustFaultHandleBorrowedMemSize(OverCommit
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "No need to adjust borrowed size.";
         return MEM_POOLING_OK;
     }
-    if (adjustSize >= ADJUST_SIZE_LARGE) {
+    if (adjustSize > ADJUST_SIZE_LARGE) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "AdjustSize is too large.";
         return MEM_POOLING_ERROR;
     }

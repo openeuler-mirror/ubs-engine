@@ -807,6 +807,23 @@ MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
             << "[FaultManager] DetermineNodeType failed.";
         return MEM_POOLING_ERROR;
     }
+    
+    // 防止无法BMC下电 --> 当账本为空且所有节点都是Working状态时，返回OK以结束故障处理
+    if (nodeType == NodeType::NO_RECORD) {
+        bool isAllNodeWorkingWhenDebtsEmpty = true;
+        const auto allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
+        for (const auto& [nId, nodeInfo] : allNodeInfo) {
+            if (nId != nodeId && nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
+                isAllNodeWorkingWhenDebtsEmpty = false;
+            }
+        }
+        if (isAllNodeWorkingWhenDebtsEmpty) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] FragmentHandleFault round "
+                                                              << faultHandleCurRound << " end, process succeed.";
+            return MEM_POOLING_OK;
+        }
+    }
+
     if (nodeType == NodeType::BORROW_IN) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] BORROW_IN Fault is handled by ubse.";
