@@ -58,7 +58,7 @@ uint32_t UBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &outSrcParam, const
 | 参数名                  | 数据类型                | 有效性规格                                                   | 参数类型 | description                  |
 | ----------------------- | ----------------------- | ------------------------------------------------------------ | -------- | ---------------------------- |
 | outSrcParam             | SrcMemoryBorrowParam    | - srcNid：借入方节点ID <br>- srcSocketId：借入方Socket ID<br>- srcNumaId：借入方NUMA ID <br>- uid：借入方用户uid <br>- username：借入方用户名 | 入参     | 借入节点信息。               |
-| borrowSize              | uint64_t                | 如果传入的borrowSize不是obmm.memory.block.size*1024的整数倍，内部则按obmm.memory.block.size*1024对齐取整后再进行借用决策。obmm.memory.block.size参数详情请参见“《BeiMing 26.0.RC1 UBS Engine 用户指南》> 安装 > 服务配置文件 > ubse.conf”。 | 入参     | 需要借入的内存大小。单位：KB |
+| borrowSize              | uint64_t                | 如果传入的borrowSize不是obmm.memory.block.size*1024的整数倍，内部则按obmm.memory.block.size*1024对齐取整后再进行借用决策。obmm.memory.block.size参数详情请参见“UB Service Core> 使用UBS Engine > 内存池化配置说明”。 | 入参     | 需要借入的内存大小。单位：KB |
 | outBorrowStrategyResult | MemBorrowStrategyResult | - destNid：借出方节点ID。<br>-  destSocketId：借出方Socket ID。<br/>-   destNumaNum：同一个Socket单次借出的NUMA数量，当前限制为1。<br/>-  destNumaId：借出方NUMA ID。<br/>-  memSize：借用大小，单位为KB。<br/>-  borrowSize：内存借用大小。 | 出参     | 决策结果。                   |
 
 **返回值 RETURN VALUE**
@@ -218,11 +218,11 @@ uint32_t UBSRMRSMemFree(const std::string &nodeId);
 
 **返回值 RETURN VALUE**
 
- *         返回0：成功
- *         返回1：失败通用错误码
- *         返回2：迁移失败-迁移过程中虚机被删除
- *         返回3：迁移失败通用错误码
- *         返回4：内存资源删除失败
+- 返回0：成功
+- 返回1：失败通用错误码
+- 返回2：迁移失败-迁移过程中虚机被删除
+- 返回3：迁移失败通用错误码
+- 返回4：内存资源删除失败
 
 **约束 CONSTRAINTS**
 

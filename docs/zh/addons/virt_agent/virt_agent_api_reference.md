@@ -110,11 +110,11 @@ virt_agent_ret_t ubs_virt_agent_case_conf_set(const char *param, case_conf_set_i
 
 - 数据结构说明
 
-```c
-typedef struct {
-    uint32_t ret;
-} case_conf_set_info_t;
-```
+    ```c
+    typedef struct {
+        uint32_t ret;
+    } case_conf_set_info_t;
+    ```
 
 **返回值 RETURN VALUE**
 
@@ -289,18 +289,18 @@ int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t *memMigrateRe
 
 - 数据结构说明
 
-```c
-typedef struct {
-    pid_t pid;
-    int ratio;
-} container_param_t;
-typedef struct {
-    borrow_param_t borrowParam;
-    uint64_t borrowSizes[64];
-    size_t borrowSizesSize;
-    watermark_t waterMark;
-} mem_borrow_request_t;
-```
+    ```c
+    typedef struct {
+        pid_t pid;
+        int ratio;
+    } container_param_t;
+    typedef struct {
+        borrow_param_t borrowParam;
+        uint64_t borrowSizes[64];
+        size_t borrowSizesSize;
+        watermark_t waterMark;
+    } mem_borrow_request_t;
+    ```
 
 **返回值 RETURN VALUE**
 
