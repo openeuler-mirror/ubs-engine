@@ -52,11 +52,16 @@ VM_XML_TEMPLATE = """<domain type="kvm">
         <hugepages>
             <page size="2048" nodeset="0" unit="KiB" />
         </hugepages>
+        <allocation mode="hugepage-ondemand" />
     </memoryBacking>
     <numatune>
         {numa_tune}
     </numatune>
-    <vcpu>16</vcpu>
+    <vcpu placement="static">192</vcpu>
+    <cputune>
+        {cputune}
+        <emulatorpin cpuset="0-47,96-143,192-239,288-335" />
+    </cputune>
     <os>
         <type arch="aarch64" machine="virt">hvm</type>
         <loader readonly="yes" type="pflash">/usr/share/edk2/aarch64/QEMU_EFI-pflash.raw</loader>
@@ -67,9 +72,9 @@ VM_XML_TEMPLATE = """<domain type="kvm">
         <gic version="3" />
     </features>
     <cpu mode="host-passthrough" match="exact">
-        <topology sockets="1" cores="8" threads="2" />
+        <topology sockets="2" cores="48" threads="2" />
         <numa>
-            <cell id="0" cpus="0-15" memory="{memory}" memAccess="shared" />
+            <cell id="0" cpus="0-191" memory="{memory}" memAccess="shared" />
         </numa>
     </cpu>
     <clock offset="utc">
@@ -89,6 +94,11 @@ VM_XML_TEMPLATE = """<domain type="kvm">
             <target dev="sda" bus="scsi" />
             <address type="drive" controller="0" bus="0" target="0" unit="0" />
         </disk>
+        <interface type = "bridge">
+            <source bridge="br0" />
+            <model type="virtio" />
+            <driver name='vhost' queues='1' mtu='9000' />
+        </interface>
         <console type="pty" />
         <channel type="unix">
             <source mode="bind" />
@@ -114,6 +124,20 @@ def generate_numa_tune(numa_infos):
     for info in numa_infos:
         proportions.append(f"{info['size']}-node{info['numa_id']}")
     return f'<memnode cellid="0" mode="preferred" proportion="{":".join(proportions)}" />'
+
+
+def generate_cputune():
+    vcpupin_list = []
+    mappings = [
+        (0, 47, 0, 47),
+        (48, 95, 96, 143),
+        (96, 143, 192, 239),
+        (144, 191, 288, 335),
+    ]
+    for vcpu_start, vcpu_end, cpu_start, cpu_end in mappings:
+        for vcpu, cpu in zip(range(vcpu_start, vcpu_end + 1), range(cpu_start, cpu_end + 1)):
+            vcpupin_list.append(f'        <vcpupin vcpu="{vcpu}" cpuset="{cpu}" />')
+    return "\n".join(vcpupin_list)
 
 
 async def send_cmd(cmd, timeout=VIRSH_TIMEOUT):
@@ -157,12 +181,14 @@ async def create_vm_xml(numa_infos):
     memory = str(MEM_SIZE * 1024 * 1024)
     image_path = os.path.join(IMAGE_BASE_PATH, IMAGE_NAME)
     numa_tune = generate_numa_tune(numa_infos)
+    cputune = generate_cputune()
 
     xml_content = VM_XML_TEMPLATE.format(
         uuid=str(uuid.uuid4()),
         vm_name=VM_NAME,
         memory=memory,
         numa_tune=numa_tune,
+        cputune=cputune,
         image_path=image_path
     )
     write_xml_file(xml_content, XML_FILE_PATH)
@@ -231,6 +257,8 @@ async def get_numa_len_and_numa_info(node_info_list):
             continue
         new_numa_len = len(node_info.numa_infos)
         for numa_info in node_info.numa_infos:
+            if numa_info.numa_huge_page_info[2 * MB_TO_KB].huge_page_total == 0:
+                continue
             new_numa_info = NumaMetaInfoT(
                 socket_id=numa_info.socket_id,
                 numa_id=int(numa_info.numa_id)
@@ -293,8 +321,8 @@ async def create():
                 flag = False
                 for _ in range(ASYNC_MAX_RETRY):
                     ret, task_info = ubs_task_result_query(task_id)
-                    if ret != 0:
-                        raise RuntimeError(f"Failed to get task result, task_id: {task_id}")
+                    if ret != 0 or task_info is AsyncTaskStatus.FAILED:
+                        raise RuntimeError(f"Failed to get task result or task is failed, task_id: {task_id}")
                     if task_info.status == AsyncTaskStatus.SUCCESS:
                         flag = True
                         borrow_result[i].borrow_ids = task_info.mem_borrow_result.borrow_ids
