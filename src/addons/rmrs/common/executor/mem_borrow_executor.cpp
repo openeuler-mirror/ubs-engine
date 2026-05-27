@@ -365,7 +365,9 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
     if (retMemFreeByUbse != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] MemFreeWithOpsByMemfabric failed.";
-        return MEM_POOLING_ERROR;
+    } else {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemBorrowExecute] MemBorrowExecutor frees memory success, borrow_id=" << name << ".";
     }
 
     retSmap = SmapEnableNumaProcess(enableMsg);
@@ -376,10 +378,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
         return MEM_POOLING_ERROR;
     }
 
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemBorrowExecute] MemBorrowExecutor frees memory success, borrow_id=" << name << ".";
-
-    return MEM_POOLING_OK;
+    return retMemFreeByUbse;
 }
 
 MpResult MemBorrowExecutor::MemFreeWithOpsByMemfabric(const std::string &name, const std::string &deleteName,
