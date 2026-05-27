@@ -15,7 +15,6 @@
 #include <cstdint>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <utility>
 #include "adapter_plugins/mti/ubse_mti_eid_interface.h"
@@ -29,11 +28,8 @@
 #include "ubse_mti_def.h"
 #include "ubse_node_controller.h"
 #include "ubse_smbios.h"
-#include "ubse_smbios_impl.h"
 #include "ubse_str_util.h"
-#include "ubse_urma_controller.h"
 #include "ubse_urma_def.h"
-#include "ubse_urma_uvs_module.h"
 
 namespace ubse::urmaController {
 using namespace ubse::election;
@@ -607,10 +603,11 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
         UBSE_LOG_ERROR << "Failed to do preset step when construct new urma bounding info";
         return UBSE_ERROR;
     }
-    auto &biosInstance = impl::UbseSmbiosImpl::GetInstance();
-    auto superPodBasicInfo = biosInstance.GetSmbiosTypeInfo<SmbiosSuperPodBasicInfo::type>();
-    if (superPodBasicInfo == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get super pod basic info";
+    uint16_t superPodId = 0;
+    uint32_t serverIdx = 0;
+    if (UbseSmbios::GetInstance().GetSuperPodId(superPodId) != UBSE_OK ||
+        UbseSmbios::GetInstance().GetServerIdx(serverIdx) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get super pod id or server idx from smbios";
         return UBSE_ERROR;
     }
     UBSE_LOG_INFO << "Begin to construct new bounding info for nodeId=" << nodeId;
@@ -633,8 +630,7 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string &no
                           << ", ubpuId=" << lcneFe0.ubpuId;
             continue;
         }
-        if (CreateAndInsertUrmaInfo(superPodBasicInfo->superPodId, superPodBasicInfo->serverIdx, nodeId, lcneFe0,
-                                    lcneFe1) == UBSE_OK) {
+        if (CreateAndInsertUrmaInfo(superPodId, serverIdx, nodeId, lcneFe0, lcneFe1) == UBSE_OK) {
             hasModified = true;
         }
     }
