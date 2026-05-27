@@ -1244,8 +1244,9 @@ void FaultNodeModule::GenerateNumaLevelDecision(std::vector<BorrowGroupResult>& 
                 << "[NumaLevelDecision] No candidates for borrowNode " << group.borrowNodeId << ".";
             continue;
         }
-        // 2. 该故障numa所需借用的block数
-        uint64_t needBlocks = (group.totalUsedSize + sBlockSizeKb - 1) / sBlockSizeKb;
+
+        // 2. 使用 group.totalSize 计算 needBlocks（账本总借用大小）
+        uint64_t needBlocks = (group.totalSize + GetBlockSizeKB() - 1) / GetBlockSizeKB();
         AllocResult allocResult;
         bool allocateSuccess = false;
 
@@ -1817,6 +1818,7 @@ MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaL
                 return MEM_POOLING_ERROR;
             }
         }
+        return MEM_POOLING_OK;
     }
 
     // 1 借用新内存
