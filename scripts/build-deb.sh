@@ -53,9 +53,9 @@ sed -i "s|/usr/lib64/ubse|/usr/lib/${DEB_HOST_MULTIARCH}/ubse|g" "$SERVICE_FILE"
 install -Dm644 cmake-build-release/conf/ubse.conf "$STAGING/etc/ubse/ubse.conf"
 install -Dm644 cmake-build-release/conf/ubse_auth_default.conf "$STAGING/etc/ubse/ubse_auth_default.conf"
 install -Dm644 cmake-build-release/conf/ubse_plugin_admission.conf "$STAGING/etc/ubse/ubse_plugin_admission.conf"
-install -Dm644 cmake-build-release/conf/urma_topology/non-cross.json \
+install -Dm644 cmake-build-release/conf/topo/non-cross.json \
     "$STAGING/etc/ubse/topo/non-cross.json"
-install -Dm644 cmake-build-release/conf/urma_topology/hccs-cross.json \
+install -Dm644 cmake-build-release/conf/topo/hccs-cross.json \
     "$STAGING/etc/ubse/topo/hccs-cross.json"
 install -Dm644 src/addons/virt_agent/conf/plugin_virt_agent.conf "$STAGING/etc/ubse/plugins/plugin_virt_agent.conf"
 install -Dm644 src/addons/virt_agent/conf/auth-virt_agent.conf "$STAGING/etc/ubse/plugins/auth-virt_agent.conf"

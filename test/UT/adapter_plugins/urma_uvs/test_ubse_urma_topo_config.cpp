@@ -168,7 +168,7 @@ TEST_F(TestUbseUrmaTopoConfig, ParseUrmaTopoConfigFailsWhenPortFormatInvalid)
 TEST_F(TestUbseUrmaTopoConfig, ParseBuiltinNonCrossTopoConfig)
 {
     auto filePath = std::filesystem::path(UT_DIRECTORY).parent_path().parent_path() /
-                    "conf" / "urma_topology" / "non-cross.json";
+                    "conf" / "topo" / "non-cross.json";
 
     UbseUrmaTopoConfig topoConfig;
     EXPECT_EQ(ParseUrmaTopoConfig(filePath.string(), topoConfig), UBSE_OK);
@@ -188,7 +188,7 @@ TEST_F(TestUbseUrmaTopoConfig, ParseBuiltinNonCrossTopoConfig)
 TEST_F(TestUbseUrmaTopoConfig, ParseBuiltinHccsCrossTopoConfig)
 {
     auto filePath = std::filesystem::path(UT_DIRECTORY).parent_path().parent_path() /
-                    "conf" / "urma_topology" / "hccs-cross.json";
+                    "conf" / "topo" / "hccs-cross.json";
 
     UbseUrmaTopoConfig topoConfig;
     EXPECT_EQ(ParseUrmaTopoConfig(filePath.string(), topoConfig), UBSE_OK);
