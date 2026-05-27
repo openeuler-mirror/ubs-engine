@@ -1396,7 +1396,7 @@ static uint32_t ShareReturnValidate(const UbseMemReturnReq& req, UbseMemOperatio
     }
     if (exportObjs.empty()) {
         comErrorCode =
-            ShareReturnFail(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
+            ShareReturnFail(req, resp, "Memory does not exist.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
         return UBSE_ERR_NOT_EXIST;
     }
     auto memStage = GetMemStageByExportObjState(exportObj, true);

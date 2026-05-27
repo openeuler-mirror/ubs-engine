@@ -1010,7 +1010,7 @@ uint32_t CheckAddrReturn(const UbseMemReturnReq& req, UbseMemOperationResp& resp
     if (!importObjPtr && !exportObjPtr) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_PRI_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
-        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource not found.", UBSE_ERR_NOT_EXIST,
+        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Memory does not exist.", UBSE_ERR_NOT_EXIST,
                                    MemOperationType::ADDR_RETURN);
         return UBSE_ERROR;
     }
@@ -1065,7 +1065,7 @@ uint32_t UbseMemAddrReturn(const UbseMemReturnReq& req, UbseMemOperationResp& re
         if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
             BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_PRI_BORROW", 0, "", req.requestNodeId,
                                UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
-            return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "resource not found.",
+            return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Memory does not exist.",
                                               UBSE_ERR_NOT_EXIST, MemOperationType::ADDR_RETURN);
         }
         exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;

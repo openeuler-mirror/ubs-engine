@@ -98,14 +98,15 @@ constexpr const char* DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
 
 // create memory option reg
 constexpr const char* CREATE_MEM_T_OPTION = "type";
-constexpr const char* CREATE_MEM_L_OPTION = "link";
+constexpr const char* CREATE_MEM_L_OPTION = "link-id";
 constexpr const char* CREATE_MEM_S_OPTION = "size";
 constexpr const char* CREATE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
 constexpr const char* CREATE_MEM_R_OPTION = "region";
 // create memory option desc
 constexpr const char* CREATE_MEM_TYPE_OPTION_TIP = "Specify the type. The option is as follows: numa, fd, share.";
 constexpr const char* CREATE_MEM_LINK_OPTION_TIP =
-    "Specify the link. The format is: nodeID/socketID/portID-nodeID/socketID/portID (e.g., 1/36/0-2/36/0). Supported "
+    "Specify the link-id. The format is: nodeID/socketID/portID-nodeID/socketID/portID (e.g., 1/36/0-2/36/0). "
+    "Supported "
     "only when the type parameter is numa.";
 constexpr const char* CREATE_MEM_SIZE_OPTION_TIP =
     "Specify the size. The minimum allowed size is 4M. (e.g., 128M,1G).";
@@ -208,8 +209,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowIn
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "lend");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "borrow_node");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "lend_node");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "size");
     variable_cell_builder.UbseCliAddBottomlineSeparate();
 
@@ -253,8 +254,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeLendInfo
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "borrow");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "lend_node");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "borrow_node");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "size");
     variable_cell_builder.UbseCliAddBottomlineSeparate();
 

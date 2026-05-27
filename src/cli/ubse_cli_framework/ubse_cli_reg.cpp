@@ -41,6 +41,7 @@ bool UbseCliParse::UbseCliArgsParse(const std::vector<std::string>& args)
     if (match_command.options.empty()) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: The command '" + args[0] + " " + args[1] +
                                                                      "' does not support any long or short options.\n");
+        return false;
     }
     return UbseCliArgsMapParse(args);
 }
