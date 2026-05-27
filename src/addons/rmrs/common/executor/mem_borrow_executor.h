@@ -40,9 +40,15 @@ public:
                        std::string& borrowId, int16_t& presentNumaId, bool isBorrowIdPersistence = true);
     MpResult MemFree(const std::string& name);
 
+    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete,
+                                         bool smapBack, bool isFault = false);
+
     MpResult MemFreeWithOps(const std::string& name, bool isForceDelete, bool smapBack, bool isFault = false);
 
     MpResult MemFreeWithOpsBySmap(const std::string& name, const std::string& deleteName, bool isFault = false);
+
+    MpResult MemFreeWithOpsBySmapForProcessMem(const std::string& name, const std::string& deleteName,
+                                               bool isFault = false);
 
     MpResult MemFreeWithOpsByMemfabric(const std::string& name, const std::string& deleteName, bool isFault = false);
 
@@ -50,8 +56,12 @@ public:
 
     MpResult GetBorrowRecordForSmapParams(const std::string& name, BorrowRecord& record, bool isFault);
 
+    MpResult GenerateSmapParamsForProcessMem(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgs,
+                                             EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault = false);
+
     MpResult GenerateSmapParams(const std::string& name, MigrateBackMsg& migrateBackMsg, EnableNodeMsg& enableMsg,
                                 std::string& importNodeId, bool isFault = false);
+
     MpResult SmapMigreatBackRpc(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg);
 
     MpResult GenerateUniqueId(const std::string& nodeId, std::string& str, const bool isFault = false);
@@ -62,7 +72,21 @@ public:
                                         UbseMemBorrower& borrower, std::vector<UbseMemNumaLender>& lenders,
                                         uint8_t usrInfo[ubse::mem::controller::UBSE_MAX_USR_INFO_LEN]);
 
+    static MpResult UpdateSmapRemoteNumaInfoBeforeMigrateBack(const std::string& name, const std::string& deleteName,
+                                                              bool isFault);
+
 private:
+    static MpResult FindCurrentDebtInfoAndSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                  const std::string& name,
+                                                  const UbseNumaMemoryDebtInfo*& outCurrentDebtInfo,
+                                                  int& outSrcNuma);
+
+    static uint64_t CalculateTotalSizeBytesForSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                      int srcNuma, int16_t remoteNumaId);
+
+    static MpResult ValidateAndExecuteSmapUpdate(const UbseNumaMemoryDebtInfo* currentDebtInfo,
+                                                 uint64_t totalSizeBytes, int srcNuma, const std::string& name);
+
     MemBorrowExecutor() = default;
     ~MemBorrowExecutor() = default;
     MemBorrowExecutor(const MemBorrowExecutor&) = delete;

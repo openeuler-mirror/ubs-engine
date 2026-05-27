@@ -671,7 +671,7 @@ uint32_t mempooling::outinterface::UBSRMRSMemFreeWithMigrate(const std::string& 
             << "[MemFree][MemFreeBase] Concurrency is not supported, the current function cannot be entered.";
         return MEM_POOLING_ERROR;
     }
-    ret = MemBorrowExecutor::Instance().MemFreeWithOps(borrowId, false, true, false);
+    ret = MemBorrowExecutor::Instance().MemFreeWithOpsForProcessMem(borrowId, false, true, false);
     mgr.ExitMemReturnFunc();
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
