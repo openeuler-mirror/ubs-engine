@@ -20,7 +20,8 @@
 #include "ubse_error.h"
 
 namespace ubse::urma {
-void FillSelfLinks(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
+void FillSelfLinks(const std::string &currentSlotId,
+                   std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig &topoConfig,
                                 std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 } // namespace ubse::urma
@@ -144,21 +145,21 @@ TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigFailsWhenChipInvalid)
 }
 
 /*
- * 用例描述：FillSelfLinks 为所有节点（包括当前节点）的每个 port 设置自连通 links[i][i]=true。
- * 预期结果：当前节点和非当前节点的所有 port 自连通为 true，非自连通位保持原值。
+ * 用例描述：FillSelfLinks 仅为当前节点 entry 的每个 port 设置 links[i][i]=true。
+ * 预期结果：当前节点的所有 port 自连通为 true，非当前节点的 links 不受影响。
  */
-TEST_F(TestUbseUrmaUvs, FillSelfLinksSetsSelfConnectivityForAllNodes)
+TEST_F(TestUbseUrmaUvs, FillSelfLinksOnlySetsCurrentNodeSelfConnectivity)
 {
     std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
         {"1", MakeNode(1, true)},
         {"2", MakeNode(2, false)},
     };
 
-    FillSelfLinks(nodeMap);
+    FillSelfLinks("1", nodeMap);
 
     for (uint32_t i = 0; i < UVS_PORT_NUM; i++) {
         EXPECT_TRUE(nodeMap["1"].links[i][i]);
-        EXPECT_TRUE(nodeMap["2"].links[i][i]);
+        EXPECT_FALSE(nodeMap["2"].links[i][i]);
     }
     EXPECT_FALSE(nodeMap["1"].links[0][1]);
     EXPECT_FALSE(nodeMap["2"].links[0][1]);
@@ -166,7 +167,7 @@ TEST_F(TestUbseUrmaUvs, FillSelfLinksSetsSelfConnectivityForAllNodes)
 
 /*
  * 用例描述：FillSelfLinks 与 FillClosTopoByConfig 组合后，当前节点的自连通也为 true。
- * 预期结果：当前节点 self-link 为 true（由 FillSelfLinks 保证），非当前节点的跨节点链路和自连通均为 true。
+ * 预期结果：当前节点 self-link 为 true（由 FillSelfLinks 保证），非当前节点的链路由配置决定。
  */
 TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigWithSelfLinksCurrentNodeAlsoSelfConnected)
 {
@@ -176,7 +177,7 @@ TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigWithSelfLinksCurrentNodeAlsoSelfConn
     };
 
     EXPECT_EQ(FillClosTopoByConfig(MakeNonCrossTopoConfig(), nodeMap), UBSE_OK);
-    FillSelfLinks(nodeMap);
+    FillSelfLinks("1", nodeMap);
 
     EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
     EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
