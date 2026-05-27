@@ -503,19 +503,20 @@ UbseResult UbseComEngine::Start()
     InitEngineOptions();
     std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    if (!UbseSmbios::GetInstance().IsClosType()) {
-        auto ret = hcomNetService_->Start();
-        if (UBSE_RESULT_FAIL(ret)) {
-            std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
-            UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, ret=" << ret
-                          << ",will retry";
-            try {
-                std::thread([this]() { DoEngineStart(); }).detach();
-            } catch (const std::exception &e) {
-                UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
-                UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
-                return UBSE_ERROR;
-            }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type, skip start hcomservice";
+        return UBSE_OK;
+    }
+    auto ret = hcomNetService_->Start();
+    if (UBSE_RESULT_FAIL(ret)) {
+        std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
+        UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, ret=" << ret << ",will retry";
+        try {
+            std::thread([this]() { DoEngineStart(); }).detach();
+        } catch (const std::exception &e) {
+            UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
+            UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
+            return UBSE_ERROR;
         }
     }
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);

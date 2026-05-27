@@ -2033,3 +2033,53 @@ ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t *configs,
     }
     return UBS_SUCCESS;
 }
+
+ubs_error_t ubse_urma_qos_get_resp_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_qos_config_t **configs,
+                                          uint32_t *count)
+{
+    if (buffer == nullptr || configs == nullptr || count == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    *configs = nullptr;
+    *count = 0;
+    if (len < sizeof(uint32_t)) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    unpack_ctx_t ctx = {buffer, len};
+    ubs_error_t ret = unpack_uint32(&ctx, count);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack count. Error code: " << ret;
+        return ret;
+    }
+
+    if (*count == 0) {
+        return UBS_SUCCESS;
+    }
+    *configs = (ubs_urma_qos_config_t *)calloc(*count, sizeof(ubs_urma_qos_config_t));
+    if (*configs == nullptr) {
+        IPC_LOG_ERROR << "Failed to allocate memory for qos configs";
+        *count = 0;
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    for (uint32_t i = 0; i < *count; i++) {
+        uint32_t priorityValue;
+        ret = unpack_uint32(&ctx, &priorityValue);
+        if (ret != UBS_SUCCESS) {
+            IPC_LOG_ERROR << "Failed to unpack priority at index " << i;
+            free(*configs);
+            *configs = nullptr;
+            *count = 0;
+            return ret;
+        }
+        (*configs)[i].priority = priorityValue;
+        ret = unpack_uint32(&ctx, &(*configs)[i].bandwidth);
+        if (ret != UBS_SUCCESS) {
+            IPC_LOG_ERROR << "Failed to unpack bandwidth at index " << i;
+            free(*configs);
+            *configs = nullptr;
+            *count = 0;
+            return ret;
+        }
+    }
+    return UBS_SUCCESS;
+}

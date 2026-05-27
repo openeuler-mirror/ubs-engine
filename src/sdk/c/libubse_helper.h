@@ -169,7 +169,8 @@ ubs_error_t ubse_urma_dev_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_d
 
 ubs_error_t ubse_urma_dev_info_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_dev_info_t *dev_info);
 
-ubs_error_t ubse_urma_qos_unpack(const uint8_t *buffer, uint32_t len, uint32_t *minBandWidth, uint32_t *maxBandWidth);
+ubs_error_t ubse_urma_qos_get_resp_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_qos_config_t **configs,
+                                          uint32_t *count);
 
 size_t ubse_urma_qos_create_req_calc_size(uint32_t count);
 

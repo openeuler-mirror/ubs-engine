@@ -191,7 +191,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
         variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, std::to_string(priority));
-        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(bandwidth / NO_1000));
+        variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(bandwidth));
     }
     variableCellBuilder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variableCellBuilder.UbseCliVariableCellBuild());
@@ -330,7 +330,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDeleteUrmaQosFunc([
     }
     ubse_api_buffer_t ubseReqBuffer{nullptr, 0};
     ubse_api_buffer_t ubseResBuffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_DELETE, &ubseReqBuffer, &ubseResBuffer);
+    uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_QOS_DELETE, &ubseReqBuffer, &ubseResBuffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubseResBuffer);
     if (ret != UBSE_OK) {
         return UbseCliStringPromptReply(URMA_QOS_INTERNAL_ERROR + std::to_string(ret));
