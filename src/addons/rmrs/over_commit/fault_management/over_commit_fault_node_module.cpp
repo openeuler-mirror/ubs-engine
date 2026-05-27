@@ -998,15 +998,21 @@ MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
     return MEM_POOLING_OK;
 }
 
-MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId)
+MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId,
+                          std::unordered_set<std::string>& freedOldBorrowIds)
 {
     MpResult finalRet = MEM_POOLING_OK;
     for (const auto& oldBorrowId : oldBorrowIds) {
+        if (freedOldBorrowIds.count(oldBorrowId) > 0) {
+            LOG_DEBUG << "[FaultManager][Simplified] Skip already freed oldBorrowId=" << oldBorrowId << ".";
+            continue;
+        }
         MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldBorrowId, true, false, true);
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
             finalRet = MEM_POOLING_ERROR;
         } else {
+            freedOldBorrowIds.insert(oldBorrowId);
             LOG_DEBUG << "[FaultManager][Simplified] Freed oldBorrowId=" << oldBorrowId << ".";
         }
     }
@@ -1088,30 +1094,36 @@ MpResult ProcessSinglePidFault(pid_t pid, int64_t startTime, const std::vector<B
 MpResult ProcessPendingMigration(pid_t pid, std::unordered_map<pid_t, PendingMigrationState>::iterator pendingIt)
 {
     auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
-    const auto& state = pendingIt->second;
+    auto& state = pendingIt->second;
     
-    LOG_INFO << "[FaultManager][Simplified] Found pending migration for pid=" << pid
-             << ", newBorrowId=" << state.newBorrowId << ", direct migrate.";
-    
-    std::vector<pid_t> pids{pid};
-    auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
-    if (smapRet != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pending pid=" << pid << ".";
-        return MEM_POOLING_ERROR;
-    }
-    
-    MpResult ret = ExecuteMigrateForPidWithNuma(pid, state.newRemoteNumaId,
-                                                state.remoteTotalSizeKB, state.remoteNumaSizeMap);
-    if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] Pending migrate failed for pid=" << pid
-                  << ", borrowId=" << state.newBorrowId << " retained.";
+    if (state.migrated) {
+        LOG_INFO << "[FaultManager][Simplified] Pending migration already done for pid=" << pid
+                 << ", retry FreeOldBorrowIds only.";
+    } else {
+        LOG_INFO << "[FaultManager][Simplified] Found pending migration for pid=" << pid
+                 << ", newBorrowId=" << state.newBorrowId << ", direct migrate.";
+        
+        std::vector<pid_t> pids{pid};
+        auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
+        if (smapRet != MEM_POOLING_OK) {
+            LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pending pid=" << pid << ".";
+            return MEM_POOLING_ERROR;
+        }
+        
+        MpResult ret = ExecuteMigrateForPidWithNuma(pid, state.newRemoteNumaId,
+                                                    state.remoteTotalSizeKB, state.remoteNumaSizeMap);
+        if (ret != MEM_POOLING_OK) {
+            LOG_ERROR << "[FaultManager][Simplified] Pending migrate failed for pid=" << pid
+                      << ", borrowId=" << state.newBorrowId << " retained.";
+            MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
+            return MEM_POOLING_ERROR;
+        }
+        
         MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
-        return MEM_POOLING_ERROR;
+        state.migrated = true;
     }
     
-    MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
-    
-    ret = FreeOldBorrowIds(state.oldBorrowIds, state.newBorrowId);
+    MpResult ret = FreeOldBorrowIds(state.oldBorrowIds, state.newBorrowId, state.freedOldBorrowIds);
     if (ret == MEM_POOLING_OK) {
         pendingMigrations.erase(pendingIt);
         LOG_INFO << "[FaultManager][Simplified] Pending migration completed for pid=" << pid;
@@ -1170,6 +1182,11 @@ MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<Bo
         LOG_ERROR << "[FaultManager][Simplified] ExecuteMigrateForPid failed for pid=" << ctx.pid
                   << ", borrowId=" << newBorrowId << " retained for retry.";
         return MEM_POOLING_ERROR;
+    }
+    
+    auto pendingIt = pendingMigrations.find(pid);
+    if (pendingIt != pendingMigrations.end()) {
+        pendingIt->second.migrated = true;
     }
     
     ret = FinalizePidProcessing(ctx, newBorrowId);

@@ -15,6 +15,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
@@ -74,6 +75,8 @@ struct PendingMigrationState {
     uint64_t remoteTotalSizeKB = 0;
     std::vector<uint16_t> remoteNumaIds;
     std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
+    bool migrated = false;
+    std::unordered_set<std::string> freedOldBorrowIds;
 };
 
 class OverCommitFaultNodeModule {
@@ -156,7 +159,8 @@ struct PidBorrowContext {
 MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
                                       uint64_t remoteTotalSizeKB,
                                       const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap);
-MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId);
+MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId,
+                          std::unordered_set<std::string>& freedOldBorrowIds);
 
 MpResult AggregatePidBorrowRecords(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
                                    std::unordered_map<pid_t, std::vector<BorrowRecord>>& pidBorrowMap,
