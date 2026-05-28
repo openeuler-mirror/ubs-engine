@@ -291,7 +291,6 @@ MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name,
             << ", srcNid=" << msg.payload[0].srcNid << ", dstNid=" << msg.payload[0].destNid
             << ", first memid=" << msg.payload[0].memid << ", last memid=" << msg.payload[curCount - 1].memid;
 
-
         migrateBackMsgList.push_back(std::move(msg));
         offset += curCount;
     }
