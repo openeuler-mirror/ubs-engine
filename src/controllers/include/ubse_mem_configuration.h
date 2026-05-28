@@ -52,7 +52,8 @@ struct NodeConfig {
     uint32_t pmdMapping;
 };
 
-enum class PageSizeType {
+enum class PageSizeType
+{
     Page4K,
     Page64K
 };

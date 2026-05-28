@@ -29,7 +29,8 @@ const uint32_t PROCESS_MEM_SERVICE_ID = 11;
 /**
  * @brief 进程运行时状态
  */
-enum class ProcessStatus {
+enum class ProcessStatus
+{
     IDLE,        // 无借用
     WAIT_BORROW, // 等待借用
     BORROWING,   // 借用中
@@ -72,7 +73,8 @@ struct ProcessMemPidConfigInfo {
     }
 };
 
-enum class BorrowStatus {
+enum class BorrowStatus
+{
     COMPLETED,
     CREATING,
 };
@@ -132,7 +134,8 @@ struct PidCollectInfo {
     std::vector<pid_t> childrenInfo{};                          // 子进程信息
 };
 
-enum class UsrInfoPluginType : uint32_t {
+enum class UsrInfoPluginType : uint32_t
+{
     PROCESS_MEM = 0,
 };
 

@@ -25,7 +25,8 @@
 #include "ubse_election.h"
 
 namespace ubse::nodeController {
-enum class PortStatus {
+enum class PortStatus
+{
     UP = 0,
     DOWN = 1
 };
@@ -67,7 +68,8 @@ struct UbseIpV6Addr {
     uint8_t addr[16]; // 16个字符存储ipv6地址
 };
 
-enum class UbseIpType {
+enum class UbseIpType
+{
     UBSE_IP_V4 = 0,
     UBSE_IP_V6
 };
@@ -136,7 +138,8 @@ struct UbseNumaInfo {
     uint64_t timestamp;                   // 采集时间戳
 };
 
-enum class UbseNodeClusterState {
+enum class UbseNodeClusterState
+{
     UBSE_NODE_INIT,      // 初始化
     UBSE_NODE_SMOOTHING, // 对账中
     UBSE_NODE_WORKING,   // 节点正常
@@ -145,24 +148,28 @@ enum class UbseNodeClusterState {
     UBSE_NODE_PRE_BMC    // BMC 预下电状态，若下电成功进入fault状态，下电失败进入平滑状态
 };
 
-enum class UbseNodeLocalState {
+enum class UbseNodeLocalState
+{
     UBSE_NODE_RESTORE, // 对账中
     UBSE_NODE_READY,   // 节点正常
 };
 
-enum class UbseAllocator {
+enum class UbseAllocator
+{
     HUGETLB_PMD,  // 使用2M大页决策借出节点
     HUGETLB_PUD,  // 使用1G大页决策借出节点
     BUDDY_HIGHMEM // 使用内存总量决策借出节点
 };
 
-enum class UbseNodeSysSentryState {
+enum class UbseNodeSysSentryState
+{
     UBSE_NODE_SYSSENTRY_OK,  // sysSentry服务正常
     UBSE_NODE_SYSSENTRY_NOK, // 服务异常
     UBSE_NODE_SYSSENTRY_UNKNOWN
 };
 
-enum class UbseNodeObmmState {
+enum class UbseNodeObmmState
+{
     UBSE_NODE_OBMM_INSERTED,     // 内核已插入
     UBSE_NODE_OBMM_NOT_INSERTED, // 内核未插入
     UBSE_NODE_OBMM_UNKNOWN       // 状态未知
@@ -197,7 +204,8 @@ struct UbseNodeInfo {
     UbseNodeObmmState obmmState{UbseNodeObmmState::UBSE_NODE_OBMM_UNKNOWN}; // 本节点obmm内核插入状态
 };
 
-enum class LinkStatus {
+enum class LinkStatus
+{
     init,
     available, // 可用
     conflict, // 冲突,即两节点上报信息不一样，一节点上报有链路，一节点上报没有，或一节点暂未上报信息

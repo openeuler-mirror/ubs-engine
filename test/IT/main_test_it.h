@@ -25,7 +25,8 @@ const std::string IT_AGENT_NODE_ID = "Node1";
 const std::string IT_MOCK_ALLNODES = "NodeIT,127.0.0.1:1901";
 
 /* 命令类型 */
-enum class TagTestCmdInfo {
+enum class TagTestCmdInfo
+{
     CMD_INIT = 0,
     CMD_SERVER_START,
     CMD_CLI_START,

@@ -14,10 +14,8 @@
 #include <mutex>
 
 #include "ubse_conf.h"
-#include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_mem_controller.h"
 #include "ubse_mem_controller.h"
 #include "ubse_timer.h"
 #include "process_mem_pid_collect.h"

@@ -30,19 +30,22 @@ constexpr const int NOT_READY = 0;
 using UBSE_ID_TYPE = std::string;
 constexpr const char* NODE_IP_NULL = "";
 constexpr const uint16_t NODE_PORT_NULL = 0;
-enum class RoleType {
+enum class RoleType
+{
     MASTER,
     STANDBY,
     AGENT,
     INITIALIZER
 };
 
-enum class UbseElectionPktType {
+enum class UbseElectionPktType
+{
     HEART_BEAT_PKT,
     BE_MASTER
 };
 
-enum class UbseNodeChangeState {
+enum class UbseNodeChangeState
+{
     INIT,
     UNCHANGED,
     ADD,
@@ -75,12 +78,14 @@ constexpr int ELECTION_PKT_TYPE_HEART = 1;
 constexpr uint8_t NEED_SWITCH_OVER = 1;
 constexpr uint8_t NO_SWITCH_OVER = 0;
 
-enum class NotifyStatus : uint8_t {
+enum class NotifyStatus : uint8_t
+{
     NOT_BROADCAST = 0,
     BROADCAST = 1
 };
 
-enum class HeartBeatState : uint8_t {
+enum class HeartBeatState : uint8_t
+{
     LOST = 0,
     ACTIVE = 1
 };
@@ -102,7 +107,8 @@ struct BroadcastStatus {
     }
 };
 
-enum class HeartBeatStatus : uint8_t {
+enum class HeartBeatStatus : uint8_t
+{
     DISABLED = 0,
     ENABLED = 1
 };

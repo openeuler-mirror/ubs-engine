@@ -124,14 +124,16 @@ struct UbseMemLocalObmmMetaData {
     std::vector<uint64_t> usedPidSet; // 恢复0引用元数据用
 };
 
-enum class UbseBorrowType {
+enum class UbseBorrowType
+{
     FD_BORROW = 0,
     NUMA_BORROW = 1,
     SHARE_BORROW = 2,
     ADDR_BORROW = 3
 };
 
-enum class UbseObmmType {
+enum class UbseObmmType
+{
     IMPORT = 0,
     EXPORT = 1
 };

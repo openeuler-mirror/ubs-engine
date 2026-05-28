@@ -413,7 +413,8 @@ bool CheckFilePathValid(const std::string& filePath, bool isFile, std::string& e
         return false;
     }
 
-    struct stat st {};
+    struct stat st {
+    };
     if (stat(filePath.c_str(), &st) != 0) {
         errMsg = filePath + " access failed.";
         return false;

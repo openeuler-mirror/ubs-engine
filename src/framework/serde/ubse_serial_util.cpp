@@ -15,7 +15,8 @@
 #include "securec.h"
 
 namespace ubse::serial {
-enum class HeadBlockIndex {
+enum class HeadBlockIndex
+{
     CTRL_CODE_IDX = 0,
     ALIGN_CODE_IDX,
     LEN_CODE_ID,
@@ -165,7 +166,7 @@ UbseSerialization& UbseSerialization::operator<<(array_len_insert arrayLenInsert
 }
 
 template <>
-UbseSerialization& UbseSerialization::operator<< <bool>(const std::vector<bool>& vec)
+UbseSerialization& UbseSerialization::operator<<<bool>(const std::vector<bool>& vec)
 {
     *this << array_len_insert(vec.size());
     if (vec.empty()) {
@@ -378,7 +379,7 @@ bool UbseDeSerialization::checkValid(common_len expectLen)
 }
 
 template <>
-UbseDeSerialization& UbseDeSerialization::operator>> <bool>(std::vector<bool>& vec)
+UbseDeSerialization& UbseDeSerialization::operator>><bool>(std::vector<bool>& vec)
 {
     common_len bit_len;
     *this >> array_len_capture(bit_len);

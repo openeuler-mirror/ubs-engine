@@ -21,7 +21,8 @@ namespace ubse::mem::controller {
 
 class LoggingLockGuard {
 public:
-    enum class LockType {
+    enum class LockType
+    {
         READ,
         WRITE
     };

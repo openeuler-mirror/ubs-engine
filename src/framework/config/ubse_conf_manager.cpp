@@ -408,7 +408,8 @@ UbseResult TravelDepthLimitedFiles(std::vector<std::string>& filePaths, const st
         return UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR;
     }
     const dirent* dir;
-    struct stat statBuf {};
+    struct stat statBuf {
+    };
     while ((dir = readdir(pd)) != nullptr) {
         std::string dName = dir->d_name;
         if (dName == "." || dName == "..") {

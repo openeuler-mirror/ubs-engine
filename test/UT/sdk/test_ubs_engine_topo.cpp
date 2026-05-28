@@ -90,14 +90,16 @@ UbseNode BuildNode()
     node.numaIds[1][0] = 3; // numaId是3
     node.numaIds[1][1] = 4; // numaId是4
     // 初始化 IPv4 地址
-    struct in_addr ipv4_addr {};
+    struct in_addr ipv4_addr {
+    };
     if (inet_pton(AF_INET, "192.168.1.1", &ipv4_addr) == 1) {
         node.ips[0].af = AF_INET;
         node.ips[0].ipv4 = ipv4_addr;
     }
 
     // 初始化 IPv6 地址
-    struct in6_addr ipv6_addr {};
+    struct in6_addr ipv6_addr {
+    };
     if (inet_pton(AF_INET6, "::1", &ipv6_addr) == 1) {
         node.ips[1].af = AF_INET6;
         node.ips[1].ipv6 = ipv6_addr;

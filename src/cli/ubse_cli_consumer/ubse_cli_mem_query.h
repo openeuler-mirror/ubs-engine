@@ -21,7 +21,8 @@ class UbseCliMemQuery {
 public:
     UbseCliMemQuery();
     ~UbseCliMemQuery() noexcept;
-    enum class WaitType {
+    enum class WaitType
+    {
         QUERY_ONLY,
         WAIT_CREATING,
     };

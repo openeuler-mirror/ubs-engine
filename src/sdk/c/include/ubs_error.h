@@ -20,7 +20,8 @@ extern "C" {
 #endif
 
 // 统一错误码类型
-typedef enum {
+typedef enum
+{
     /* ====================== 公共错误码 ====================== */
     UBS_SUCCESS = 0,
 

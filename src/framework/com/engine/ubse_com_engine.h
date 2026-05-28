@@ -35,7 +35,8 @@ using HandlerMap = ubse::utils::PairMap<uint16_t, uint16_t, UbseComMsgHandler>;
 using NodeChannelMap = std::map<std::string, std::map<UbseChannelType, UbseComChannelInfo>>;
 using NodeIpIdMap = std::map<std::string, std::string>;
 using ChannelIdMap = std::map<uint64_t, UbseComChannelInfo>;
-enum OpCodeType : uint16_t {
+enum OpCodeType : uint16_t
+{
     DEFAULT = 0,
     GET_REMOTE_ID = 1,
     ASK_REMOTE_INFO_OFFSET = 100,

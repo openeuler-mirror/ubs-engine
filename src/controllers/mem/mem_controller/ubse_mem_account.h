@@ -44,7 +44,8 @@ struct UbseNumaNodeInfo {
 uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo>& numaNodeInfoList);
 
 // 借用类型
-enum class LedgerType {
+enum class LedgerType
+{
     APP,
     WATER, // water 和 app组成numa
     FD,

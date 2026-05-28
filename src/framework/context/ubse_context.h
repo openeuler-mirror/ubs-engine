@@ -38,7 +38,8 @@ using ubse::module::UbseModule;
 
 using ModulerCreatorFunc = std::function<std::shared_ptr<UbseModule>()>;
 
-enum class ProcessMode {
+enum class ProcessMode
+{
     MANAGER, // manager启动
     CLI,     // cli启动
     DEFAULT  // 默认启动方式, manager启动

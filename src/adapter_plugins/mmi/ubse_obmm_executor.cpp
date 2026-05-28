@@ -66,7 +66,8 @@ UbseResult RmObmmExecutor::Init()
 
 void RmObmmExecutor::RegisterSigusr1Handler()
 {
-    struct sigaction sa {};
+    struct sigaction sa {
+    };
     sa.sa_handler = [](int) {
         const char msg[] = "SIGUSR1 received, obmm_unimport interrupted\n";
         write(STDERR_FILENO, msg, sizeof(msg) - 1);

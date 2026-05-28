@@ -30,7 +30,8 @@ using ubse::common::def::UbseResult;
 using ubse::module::UbseModule;
 
 // 校验错误枚举类
-enum class ErrorType : uint16_t {
+enum class ErrorType : uint16_t
+{
     CONFIG_RETURN_FAILURE = 1,    // 调用下层接口失败, 返回非0
     CONFIG_UNSUPPORTED_TYPE = 2,  // 非法类型
     CONFIG_CONVERSION_FAILED = 3, // 读取结果无法转化为指定类型

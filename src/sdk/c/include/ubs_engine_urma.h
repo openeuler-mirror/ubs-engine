@@ -23,7 +23,8 @@ extern "C" {
 #define UBS_MAX_URMA_PATH_LENGTH 64 // 包含结束符长度
 #define UBS_VFE_PATH_NUM 2
 
-typedef enum {
+typedef enum
+{
     UNIQUE = 0, // 独占类型
     SHARED      // 共享类型
 } ubs_urma_type;

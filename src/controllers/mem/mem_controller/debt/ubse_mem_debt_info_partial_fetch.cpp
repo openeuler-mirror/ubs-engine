@@ -34,7 +34,8 @@ const std::set<UbseMemState> allowedStates = {
     UbseMemState::UBSE_MEM_IMPORT_SUCCESS,    UbseMemState::UBSE_MEM_EXPORT_SUCCESS,
     UbseMemState::UBSE_MEM_IMPORT_DESTROYING, UbseMemState::UBSE_MEM_EXPORT_DESTROYING};
 
-enum class AccoutObjType {
+enum class AccoutObjType
+{
     SHM_EXPORT,
     SHM_IMPORT,
     NUMA_EXPORT,
@@ -113,9 +114,11 @@ void HandleImportResults(AccoutObjType accountObjType, const ObjType& obj, FlatD
 }
 
 template <typename T, typename = void>
-struct HasImportResultsInStruct : std::false_type {};
+struct HasImportResultsInStruct : std::false_type {
+};
 template <typename T>
-struct HasImportResultsInStruct<T, std::void_t<decltype(std::declval<T>().status.importResults)>> : std::true_type {};
+struct HasImportResultsInStruct<T, std::void_t<decltype(std::declval<T>().status.importResults)>> : std::true_type {
+};
 template <typename ObjMapType>
 void CollectSingleAccountMap(const ObjMapType& objs, const AccountType& type, const DebtFetchInfo& debtFetchInfo,
                              AccoutObjType accountObjType, PartialFetchRes& partialFetchRes)

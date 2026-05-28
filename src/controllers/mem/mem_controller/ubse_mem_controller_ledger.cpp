@@ -58,7 +58,8 @@ const uint32_t LEDGER_RUNNING_WAIT_INTERVAL = 1;
 const std::string CRITICAL_ERR_PATH_PREFIX = "/sys/devices/system/node/node";
 const std::string CRITICAL_ERR_FILE = "/critical_err";
 
-enum class RemoteNumaStatus {
+enum class RemoteNumaStatus
+{
     AVAILABLE = 0,
     UNAVAILABLE = 1,
     UNKNOWN = 2,

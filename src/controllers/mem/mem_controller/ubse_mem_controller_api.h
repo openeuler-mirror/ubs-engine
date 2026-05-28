@@ -34,7 +34,8 @@ using ubse::adapter_plugins::mmi::UbseMemState;
 using ubse::nodeController::UbseNodeClusterState;
 using ubse::nodeController::UbseNodeController;
 
-enum class BorrowedType {
+enum class BorrowedType
+{
     FD,
     NUMA,
     ADDR,

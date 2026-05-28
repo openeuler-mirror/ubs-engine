@@ -48,17 +48,20 @@ const int NUM_TOTAL_NUMA_FULLY_CONNECTED =
 const float LENDER_BALANCE_RELIABILITY_COST = 0.53f;
 const float LENDER_BALANCE_BALANCE_COST = 0.13f;
 
-using ShmRegionType = enum class MemShmRegionType {
+using ShmRegionType = enum class MemShmRegionType
+{
     ALL2ALL_SHARE = 0, /* *SHM域类型为域内任何节点提供内存都可以被域内所有节点共享访问 */
     ONE2ALL_SHARE      /* *SHM域类型为域内单一节点作为提供方都可以被域内所有节点共享访问 */
 };
 
-using WatermarkGrain = enum class MemWatermarkGrainType {
+using WatermarkGrain = enum class MemWatermarkGrainType
+{
     HOST_WATERMARK = 0, /* 水线以host为粒度，触发内存借用或归还 */
     NUMA_WATERMARK      /* 水线以numa为粒度，触发内存借用或归还 */
 };
 
-enum class RequestUrgentLevel {
+enum class RequestUrgentLevel
+{
     LEVEL0 = 0, /* 紧急程度最低, 不允许内存提供方提供内存后超过memHighLineL0水线 */
     LEVEL1,     /* 紧急程度中等, 不允许内存提供方提供内存后超过memHighLineL1水线  */
     LEVEL2      /* 紧急程度最高, 允许内存提供方提供所有剩余内存 */
@@ -158,12 +161,14 @@ struct ShareAlgoParam {
     float wDivideNumaCost{0.12f};    /* 共享决策, NUMA拆分代价权重 */
 };
 
-enum class AlgoMode {
+enum class AlgoMode
+{
     GREEDY,        /* 贪心算法 */
     SELF_DEVELOPED /* 自研算法 */
 };
 
-enum class LenderNumaMode {
+enum class LenderNumaMode
+{
     NON_BALANCE,
     BALANCE,
 };
@@ -231,7 +236,8 @@ struct UbseStatus {
     DebtDetail debtDetail{};              /* 系统详细借用账本 */
 };
 
-using PerfLevel = enum class UbseMemPerLevel {
+using PerfLevel = enum class UbseMemPerLevel
+{
     L0, // 对应直连
     L1, // 对应1跳节点
     L2, // 对应超过一条节点
@@ -258,7 +264,8 @@ struct ShareResult {
     int32_t shareSizes[MAX_NUM_SRC_PER_REQUEST]{}; /* 共享内存量, 单位: MB */
 };
 
-enum LogLevel {
+enum LogLevel
+{
     TRACE = 0,
     DEBUG = 1,
     INFO = 2,

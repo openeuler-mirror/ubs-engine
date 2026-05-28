@@ -57,7 +57,8 @@ struct UbseCliMemOperationResp {
 };
 
 // 操作类型枚举
-enum class UbseCliShmOperation {
+enum class UbseCliShmOperation
+{
     CREATE,
     DELETE,
     ATTACH,

@@ -27,7 +27,8 @@
 
 namespace ubse::com {
 // 模块码
-enum class UbseModuleCode {
+enum class UbseModuleCode
+{
     UBSE_MEM = 0x0001, // UBSE内存基础模块
 
     ELECTION = 0x0002, // 选举模块
@@ -52,7 +53,8 @@ enum class UbseModuleCode {
 };
 
 // 内存基础操作码
-enum class UbseMemOpCode {
+enum class UbseMemOpCode
+{
     // FD操作
     UBSE_MEM_FD_CREATE = 0x0001,                // FD内存创建
     UBSE_MEM_FD_WITH_LEND_INFO = 0x0002,        // 带出借方信息的FD创建
@@ -98,17 +100,20 @@ enum class UbseMemOpCode {
 };
 
 // 选举模块操作码
-enum class UbseElectionOpCode {
+enum class UbseElectionOpCode
+{
     ELECTION_PKT = 0x0001, // 选举包
 };
 
 // 存储模块操作码
-enum class UbseStorageOpCode {
+enum class UbseStorageOpCode
+{
     STORAGE_REQ = 0x0001, // 存储请求
 };
 
 // 节点控制器操作码
-enum class UbseNodeControllerOpCode {
+enum class UbseNodeControllerOpCode
+{
     NODE_CONTROLLER_COLLECT = 0x0001,                     // 节点控制器收集
     NODE_CONTROLLER_ALL_NODE = 0x0002,                    // 所有节点
     NODE_CONTROLLER_LCNE_CHANGE_REPORT_TOPOLOGY = 0x0003, // LCNE变更报告拓扑
@@ -118,7 +123,8 @@ enum class UbseNodeControllerOpCode {
 };
 
 // UBSE内存响应控制操作码
-enum class UbseMemRespCtrlOpCode {
+enum class UbseMemRespCtrlOpCode
+{
     UBSE_MEM_SHARE_BORROW_RESP = 0x0001,                            // 共享内存借用响应
     UBSE_MEM_SHARE_ATTACH_RESP = 0x0002,                            // 共享内存附加响应
     UBSE_MEM_SHARE_DETACH_RESP = 0x0003,                            // 共享内存分离响应
@@ -145,7 +151,8 @@ enum class UbseMemRespCtrlOpCode {
 };
 
 // UBSE内存查询操作码
-enum class UbseMemQueryOpCode {
+enum class UbseMemQueryOpCode
+{
     UBSE_MEM_DEBINFO_QUERY = 0x0001,                       // 内存账本信息查询
     UBSE_MEM_DEBT_INFO_FD_GET = 0x0002,                    // FD账本信息获取
     UBSE_MEM_DEBT_INFO_FD_LIST = 0x0003,                   // FD账本信息列表
@@ -172,7 +179,8 @@ enum class UbseMemQueryOpCode {
 };
 
 // UBSE内存借用回调操作码
-enum class UbseMemBorrowCallbackOpCode {
+enum class UbseMemBorrowCallbackOpCode
+{
     // UBSE内存借用操作
     UBSE_MEM_FD_BORROW = 0x0001,    // FD内存借用
     UBSE_MEM_NUMA_BORROW = 0x0002,  // NUMA内存借用
@@ -194,7 +202,8 @@ enum class UbseMemBorrowCallbackOpCode {
 };
 
 // UBSE内存故障处理操作码
-enum class UbseMemFaultOpCode {
+enum class UbseMemFaultOpCode
+{
     UBSE_SHARE_MEM_FAULT_REPORT = 0x0001,        // 共享内存故障报告
     UBSE_SHARE_MEM_FAULT_REPORT_REPLY = 0x0002,  // 共享内存故障报告回复
     UBSE_SHARE_MEM_FAULT_NOTIFY = 0x0003,        // 共享内存故障通知
@@ -205,14 +214,16 @@ enum class UbseMemFaultOpCode {
 };
 
 // RAS模块操作码
-enum class UbseRasOpCode {
+enum class UbseRasOpCode
+{
     UBSE_RAS_BMC_REBOOT = 0x0001,  // BMC重启
     UBSE_RAS_SWITCH_ROLE = 0x0002, // 切换角色
     UBSE_RAS_OOM = 0x0003,         // OOM处理
 };
 
 // Urma controller模块操作码
-enum class UbseUrmaRpcOpCode {
+enum class UbseUrmaRpcOpCode
+{
     URMA_RPC_URMA_INFO_REPORT = 0x0001,
     URMA_RPC_URMA_INFO_BROADCAST = 0x0002,
     URMA_RPC_URMA_INFO_QUERY = 0x0003,

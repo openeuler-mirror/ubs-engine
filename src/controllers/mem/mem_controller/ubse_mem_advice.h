@@ -17,7 +17,8 @@
 #include <string>
 
 namespace ubse::mem::controller {
-enum class ProcessType {
+enum class ProcessType
+{
     BORROW_FAILED = 0,
     IMPORT_FAILED = 1,
     EXPORT_FAILED = 2,
@@ -26,7 +27,8 @@ enum class ProcessType {
     UNEXPORT_FAILED = 5,
 };
 
-enum class MemAdvice {
+enum class MemAdvice
+{
     INTERNAL_FAILED = 0,
     CHECK_FAILED = 1,
     COMM_FAILED = 2,

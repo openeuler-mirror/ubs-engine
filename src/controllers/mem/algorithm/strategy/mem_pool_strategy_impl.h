@@ -46,7 +46,8 @@ struct DebtInfo {
 };
 
 /** 请求类型 */
-enum class RequestMode {
+enum class RequestMode
+{
     BORROW,
     SHARE
 };

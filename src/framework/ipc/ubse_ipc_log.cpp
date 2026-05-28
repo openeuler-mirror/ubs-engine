@@ -48,7 +48,8 @@ void UbseIpcLog::Print(uint32_t level, const char* msg)
         return;
     }
 
-    struct timeval tv {};
+    struct timeval tv {
+    };
     char strTime[24] = {};
 
     int ret = gettimeofday(&tv, nullptr);
@@ -56,7 +57,8 @@ void UbseIpcLog::Print(uint32_t level, const char* msg)
         std::cout << "Fail to get the current system time, " << ret << ".\n";
     }
     time_t timeStamp = tv.tv_sec;
-    struct tm localTime {};
+    struct tm localTime {
+    };
     struct tm* resultTime = localtime_r(&timeStamp, &localTime);
     if ((resultTime != nullptr) && (strftime(strTime, sizeof strTime, "%Y-%m-%d %H:%M:%S.", resultTime) != 0)) {
         std::cout << strTime << std::setw(microsecondWith) << std::setfill('0') << (tv.tv_usec / NO_1000) << " "

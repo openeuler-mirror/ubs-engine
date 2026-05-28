@@ -18,7 +18,8 @@ using ubse::common::def::UbseResult;
 using ubse::message::UbseBaseMessage;
 using ubse::utils::Ref;
 
-enum class UbseStorageReqCmdType : uint8_t {
+enum class UbseStorageReqCmdType : uint8_t
+{
     GET = 0,
     GET_WITH_PREFIX = 1,
 };

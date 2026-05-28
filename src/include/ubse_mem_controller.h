@@ -22,7 +22,8 @@
 namespace ubse::mem::controller {
 using ubse::common::def::UbseResult;
 
-enum class UbseMemStage : uint32_t {
+enum class UbseMemStage : uint32_t
+{
     UBSE_NOT_EXIST = 0,         // 借用关系不存在
     UBSE_CREATING = 1,          // 正在创建中
     UBSE_DELETING = 2,          // 正在删除中
@@ -38,7 +39,8 @@ struct UbseMemResult {
     UbseMemStage stage;
 };
 
-enum class UbseMemBorrowType {
+enum class UbseMemBorrowType
+{
     FD_BORROW = 0,
     NUMA_BORROW = 1,
     ADDR_BORROW = 2,
@@ -120,7 +122,8 @@ struct UbseNumaMemoryImportDebtInfo {
 */
 UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos);
 
-enum UbseMemDistance {
+enum UbseMemDistance
+{
     MEM_DISTANCE_L0, // L0对应直接CPU连线节点
     MEM_DISTANCE_L1, // L1对应通过1跳节点, 暂不支持
     MEM_DISTANCE_L2  // L2对应过超过1跳节点 , 暂不支持

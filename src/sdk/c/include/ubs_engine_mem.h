@@ -33,12 +33,14 @@ extern "C" {
 #define UBS_MEM_FLAG_CACHEABLE 0x4     // 设置cacheableFlag为1
 #define UBS_MEM_MAX_DESC_LIST 2000
 
-typedef enum {
+typedef enum
+{
     NUMA_LOCAL, // 本地numa
     NUMA_REMOTE // 远端numa, 当前不支持
 } ubs_mem_numa_type_t;
 
-typedef enum {
+typedef enum
+{
     UBSE_NOT_EXIST = 0,         // 借用关系不存在
     UBSE_CREATING = 1,          // 正在创建中
     UBSE_DELETING = 2,          // 正在删除中
@@ -89,7 +91,8 @@ typedef struct {
     pid_t pid; // 属主进程的的运行用户的pid, 指定pid，pid消失时, ubs自动释放借用内存(暂不提供)
 } ubs_mem_fd_owner_t;
 
-typedef enum {
+typedef enum
+{
     MEM_DISTANCE_L0, // L0对应直连节点
     MEM_DISTANCE_L1, // L1对应通过1跳节点, 暂不支持
     MEM_DISTANCE_L2  // L2对应超过1跳节点 , 暂不支持
@@ -599,7 +602,8 @@ int32_t ubs_mem_shm_detach(const char* name);
  */
 int32_t ubs_mem_shm_delete(const char* name);
 
-typedef enum {
+typedef enum
+{
     UB_MEM_ATOMIC_DATA_ERR = 0,
     UB_MEM_READ_DATA_ERR,
     UB_MEM_FLOW_POISON,

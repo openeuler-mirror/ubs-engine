@@ -5,7 +5,8 @@
 #include "ubse_serial_util.h"
 
 namespace ubse::serial {
-enum class allowed_type {
+enum class allowed_type
+{
     CHAR = 0,
     BOOL,
     SHORT,

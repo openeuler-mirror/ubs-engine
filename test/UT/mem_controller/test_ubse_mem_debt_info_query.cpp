@@ -229,9 +229,11 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemNodeBorrowQueryWhenGetCurrentNodeInfoFai
 }
 
 template <typename T, typename = void>
-struct HasImportResultsInStruct : std::false_type {};
+struct HasImportResultsInStruct : std::false_type {
+};
 template <typename T>
-struct HasImportResultsInStruct<T, std::void_t<decltype(std::declval<T>().status.importResults)>> : std::true_type {};
+struct HasImportResultsInStruct<T, std::void_t<decltype(std::declval<T>().status.importResults)>> : std::true_type {
+};
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemImportObjHasImportResults)
 {
     bool hasImportResults = true;

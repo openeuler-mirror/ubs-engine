@@ -23,7 +23,8 @@
 
 namespace ubse::adapter_plugins::mmi {
 constexpr uint32_t UBSE_MAX_USR_INFO_LEN = 32;
-enum class MemOperationType {
+enum class MemOperationType
+{
     FD_BORROW,
     NUMA_BORROW,
     ADDR_BORROW,
@@ -57,14 +58,16 @@ struct FdOwner {
     friend std::ostream& operator<<(std::ostream& os, const FdOwner& obj);
 };
 
-enum UbseMemDistance {
+enum UbseMemDistance
+{
     MEM_DISTANCE_L0, // *L0对应直连节点
     MEM_DISTANCE_L1, // *L1对应通过1跳节点，暂不支持
     MEM_DISTANCE_L2  // *L2对应过超过1跳节点 ，暂不支持
 };
 
 // 内存状态枚举
-enum UbseMemState {
+enum UbseMemState
+{
     UBSE_MEM_STATE_INIT,
     UBSE_MEM_STATE_SUCCEEDED,
     UBSE_MEM_STATE_FAILED,
@@ -83,7 +86,8 @@ enum UbseMemState {
 };
 
 // 内存故障类型
-enum UbMemFaultType {
+enum UbMemFaultType
+{
     UB_MEM_ATOMIC_DATA_ERR = 0,
     UB_MEM_READ_DATA_ERR,
     UB_MEM_FLOW_POISON,
@@ -106,7 +110,8 @@ enum UbMemFaultType {
     UB_MEM_HEALTHY = 1000, // 无故障
 };
 
-enum UbseNodeStatus {
+enum UbseNodeStatus
+{
     UBSE_NODE_STATUS_NORMAL,  // 正常
     UBSE_NODE_STATUS_ABNORMAL // 异常
 };

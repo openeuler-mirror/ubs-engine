@@ -41,19 +41,24 @@ using ubse::adapter_plugins::mmi::UbseMemState;
  * @note 默认为false_type，通过特化支持具体的ExportObj类型
  */
 template <typename T>
-struct IsExportObjType : std::false_type {};
+struct IsExportObjType : std::false_type {
+};
 
 template <>
-struct IsExportObjType<UbseMemFdBorrowExportObj> : std::true_type {};
+struct IsExportObjType<UbseMemFdBorrowExportObj> : std::true_type {
+};
 
 template <>
-struct IsExportObjType<UbseMemNumaBorrowExportObj> : std::true_type {};
+struct IsExportObjType<UbseMemNumaBorrowExportObj> : std::true_type {
+};
 
 template <>
-struct IsExportObjType<UbseMemShareBorrowExportObj> : std::true_type {};
+struct IsExportObjType<UbseMemShareBorrowExportObj> : std::true_type {
+};
 
 template <>
-struct IsExportObjType<UbseMemAddrBorrowExportObj> : std::true_type {};
+struct IsExportObjType<UbseMemAddrBorrowExportObj> : std::true_type {
+};
 
 /**
  * @brief IsExportObjType的辅助变量模板
@@ -69,13 +74,16 @@ inline constexpr bool IsExportObjTypeV = IsExportObjType<T>::value;
  * @note 默认为false_type，通过特化支持地址借用相关的ImportObj和ExportObj类型
  */
 template <typename T>
-struct IsAddrType : std::false_type {};
+struct IsAddrType : std::false_type {
+};
 
 template <>
-struct IsAddrType<UbseMemAddrBorrowImportObj> : std::true_type {};
+struct IsAddrType<UbseMemAddrBorrowImportObj> : std::true_type {
+};
 
 template <>
-struct IsAddrType<UbseMemAddrBorrowExportObj> : std::true_type {};
+struct IsAddrType<UbseMemAddrBorrowExportObj> : std::true_type {
+};
 
 /**
  * @brief IsAddrType的辅助变量模板

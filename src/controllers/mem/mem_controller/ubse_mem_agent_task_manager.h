@@ -31,7 +31,8 @@ using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
 using ubse::common::def::UbseResult;
 
-enum class MemResourceType {
+enum class MemResourceType
+{
     FD_EXPORT,
     NUMA_EXPORT,
     SHARE_EXPORT,

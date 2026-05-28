@@ -18,7 +18,8 @@ namespace ubse::cli::cert {
 
 bool FileUtils::IsSymlink(const std::string& filePath)
 {
-    struct stat buf {};
+    struct stat buf {
+    };
     if (lstat(filePath.c_str(), &buf) != 0) {
         return false;
     }
@@ -27,7 +28,8 @@ bool FileUtils::IsSymlink(const std::string& filePath)
 
 bool FileUtils::IsHardLink(const std::string& filePath)
 {
-    struct stat fileStat {};
+    struct stat fileStat {
+    };
     if (stat(filePath.c_str(), &fileStat) != 0) {
         return false;
     }
