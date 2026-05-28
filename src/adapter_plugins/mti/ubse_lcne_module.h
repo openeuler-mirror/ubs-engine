@@ -63,6 +63,8 @@ public:
 
     UbseLcneOSInfo GetUbseLcneOSInfo();
 
+    std::string GetCurSlotId();
+
     const std::map<adapter_plugins::mti::UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup> GetMtiComEid();
     const std::map<adapter_plugins::mti::UbseMtiIouInfo, UbseLcneIODieInfo> GetLocalBoardIOInfo();
 

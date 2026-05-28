@@ -108,7 +108,7 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string& r
     while (ubseXml->Next("iou-info", index++) != nullptr) {
         std::string slotId = ubseXml->Child("slot-id")->Text();
         std::string nodeId;
-        if (!ConvertSlotIdToNodeId(slotId, nodeId)) {
+        if (!GetCurNodeId(slotId, nodeId)) {
             UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
             return UBSE_ERROR;
         }

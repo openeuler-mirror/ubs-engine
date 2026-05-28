@@ -20,7 +20,6 @@
 #include "lcne/ubse_lcne_decoder_handle.h"
 #include "lcne/ubse_lcne_ets.h"
 #include "lcne/ubse_lcne_fe_eid.h"
-#include "lcne/ubse_lcne_qos.h"
 namespace ubse::adapter_plugins::mti {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace common::def;
@@ -173,6 +172,11 @@ UbseResult UbseMtiInterfaceDefault::GetMtiComEid(std::map<UbseMtiIouInfo, UbseMt
 
 UbseResult UbseMtiInterfaceDefault::UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)
 {
+    auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
+    if (module == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    iouInfo.slotId = module->GetCurSlotId();
     return lcne::UbseLcneFeEid::GetInstance().GetFeEid(iouInfo, allFeInfos);
 }
 

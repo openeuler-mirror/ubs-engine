@@ -111,15 +111,16 @@ UbseResult UbseLcneBusInstance::ParseQueryBusinstanceResponse(const std::string&
     if (ubseXml == nullptr) {
         return UBSE_ERROR;
     }
-    std::string slotId = ubseXml->Child("slot-id")->Text();
+    busInstanceInfo.localSlotId = ubseXml->Child("slot-id")->Text();
     std::string nodeId;
-    if (!ConvertSlotIdToNodeId(slotId, nodeId)) {
-        UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
+    if (!GetCurNodeId(busInstanceInfo.localSlotId, nodeId)) {
+        UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId=" << busInstanceInfo.localSlotId;
         return UBSE_ERROR;
     }
     busInstanceInfo.localNodeId = nodeId;
-    UBSE_LOG_DEBUG << "[MTI] " << "BusInstanceInfo.hostBusinstanceEid=" << busInstanceInfo.hostBusinstanceEid << ", "
-                   << "BusInstanceInfo.localNodeId=" << busInstanceInfo.localNodeId;
+    UBSE_LOG_INFO << "[MTI] " << "BusInstanceInfo.hostBusinstanceEid=" << busInstanceInfo.hostBusinstanceEid << ", "
+                  << "BusInstanceInfo.localSlotId=" << busInstanceInfo.localSlotId << ", "
+                  << "BusInstanceInfo.localNodeId=" << busInstanceInfo.localNodeId;
     return UBSE_OK;
 }
 
