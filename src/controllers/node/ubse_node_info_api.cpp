@@ -30,6 +30,8 @@
 namespace ubse::nodeController {
 using namespace ubse::adapter_plugins::mti;
 using namespace ubse::election;
+using namespace ubse::log;
+using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 struct UbseNodeTopoMap {

@@ -13,8 +13,15 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::com;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfo;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
 
 void RegUbseMemControllerHandler();
 

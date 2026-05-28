@@ -31,7 +31,12 @@
 #include "ubse_cli_reg_builder.h"
 
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliOptionsInfo;
+using ubse::cli::framework::UbseCliResultEcho;
+using ubse::cli::framework::UbseCliStringEcho;
+using ubse::cli::framework::UbseCliVariableCellEcho;
+using ubse::cli::framework::UbseCliVariableCellInfo;
 
 class UbseCliRegModule;
 

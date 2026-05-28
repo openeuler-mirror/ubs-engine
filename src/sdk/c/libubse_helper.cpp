@@ -55,7 +55,7 @@ static ubs_error_t unpack_uint32(unpack_ctx_t* ctx, uint32_t* value)
     if (ctx->remaining < sizeof(uint32_t)) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const uint32_t*>(ctx->ptr);
+    *value = *reinterpret_cast<const uint32_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(uint32_t);
     ctx->remaining -= sizeof(uint32_t);
     return UBS_SUCCESS;
@@ -67,7 +67,7 @@ static ubs_error_t unpack_int32(unpack_ctx_t* ctx, int32_t* value)
         IPC_LOG_ERROR << "Buffer is too small to unpack int32_t";
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const int32_t*>(ctx->ptr);
+    *value = *reinterpret_cast<const int32_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(int32_t);
     ctx->remaining -= sizeof(int32_t);
     return UBS_SUCCESS;
@@ -78,7 +78,7 @@ static ubs_error_t unpack_uint64(unpack_ctx_t* ctx, uint64_t* value)
     if (ctx->remaining < sizeof(uint64_t)) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const uint64_t*>(ctx->ptr);
+    *value = *reinterpret_cast<const uint64_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(uint64_t);
     ctx->remaining -= sizeof(uint64_t);
     return UBS_SUCCESS;
@@ -89,7 +89,7 @@ static ubs_error_t unpack_int64(unpack_ctx_t* ctx, int64_t* value)
     if (ctx->remaining < sizeof(int64_t)) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const int64_t*>(ctx->ptr);
+    *value = *reinterpret_cast<const int64_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(int64_t);
     ctx->remaining -= sizeof(int64_t);
     return UBS_SUCCESS;
@@ -129,7 +129,7 @@ void pack_uint16(uint8_t** ptr, uint16_t value)
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<uint16_t*>(*ptr) = value;
+    *reinterpret_cast<uint16_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(uint16_t);
 }
 
@@ -138,7 +138,7 @@ void pack_uint32(uint8_t** ptr, uint32_t value)
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<uint32_t*>(*ptr) = value;
+    *reinterpret_cast<uint32_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(uint32_t);
 }
 
@@ -147,7 +147,7 @@ void pack_int32(uint8_t** ptr, int32_t value)
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<int32_t*>(*ptr) = value;
+    *reinterpret_cast<int32_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(int32_t);
 }
 
@@ -156,7 +156,7 @@ void pack_uint64(uint8_t** ptr, uint64_t value)
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<uint64_t*>(*ptr) = value;
+    *reinterpret_cast<uint64_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(uint64_t);
 }
 
@@ -737,11 +737,13 @@ ubs_error_t ubse_node_unpack_inner(unpack_ctx_t* ctx, ubs_topo_node_t* node)
             IPC_LOG_ERROR << "Failed to unpack ipv4";
             return ret;
         }
-        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t*>(&ip_addr.ipv6.__in6_u))) != UBS_SUCCESS) {
+        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t*>(&ip_addr.ipv6.__in6_u))) !=
+            UBS_SUCCESS) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             IPC_LOG_ERROR << "Failed to unpack ipv6";
             return ret;
         }
-        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t*>(&ip_addr.ipv6.__in6_u) + 1)) != UBS_SUCCESS) {
+        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t*>(&ip_addr.ipv6.__in6_u) + 1)) !=
+            UBS_SUCCESS) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             IPC_LOG_ERROR << "Failed to unpack ipv6";
             return ret;
         }
@@ -1610,7 +1612,8 @@ ubs_mem_shm_desc_t* ubse_mem_shm_desc_alloc(uint8_t* buffer, uint32_t length)
         malloc(sizeof(ubs_mem_shm_desc_t) + import_desc_cnt * sizeof(ubs_mem_shm_import_desc_t)));
     if (shm_desc) {
         shm_desc->import_desc_cnt = import_desc_cnt;
-        shm_desc->import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t*>(shm_desc + 1);
+        shm_desc->import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t*>(
+            shm_desc + 1); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     }
     return shm_desc;
 }
@@ -1698,7 +1701,8 @@ ubs_error_t ubse_mem_shm_list_alloc_memory(uint32_t shm_desc_cnt, const uint32_t
     }
 
     // 2. 分配一整块内存
-    uint8_t* memory_ptr = reinterpret_cast<uint8_t*>(malloc(total_size));
+    uint8_t* memory_ptr =
+        reinterpret_cast<uint8_t*>(malloc(total_size)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (memory_ptr == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm_descs";
         *shm_descs_ptr = nullptr;
@@ -1706,13 +1710,15 @@ ubs_error_t ubse_mem_shm_list_alloc_memory(uint32_t shm_desc_cnt, const uint32_t
     }
 
     // 3. 设置 shm_descs
-    ubs_mem_shm_desc_t* shm_descs = reinterpret_cast<ubs_mem_shm_desc_t*>(memory_ptr);
+    ubs_mem_shm_desc_t* shm_descs =
+        reinterpret_cast<ubs_mem_shm_desc_t*>(memory_ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     uint8_t* current_pos = memory_ptr + shm_desc_cnt * sizeof(ubs_mem_shm_desc_t);
 
     // 4. 初始化每个 desc 的 import_desc 指针
     for (size_t i = 0; i < shm_desc_cnt; i++) {
         if (import_desc_counts[i] != 0) {
-            shm_descs[i].import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t*>(current_pos);
+            shm_descs[i].import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t*>(
+                current_pos); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             current_pos += import_desc_counts[i] * sizeof(ubs_mem_shm_import_desc_t);
         } else {
             shm_descs[i].import_desc = nullptr;

@@ -32,6 +32,7 @@ using namespace ubse::mem::def;
 using namespace mem::controller::message;
 using namespace ubse::com;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
 
 void TestUbseMemControllerQueryApi::SetUp()
 {
@@ -557,7 +558,7 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemAddrGet)
 
 TEST_F(TestUbseMemControllerQueryApi, UbseMemNumaGetWithImportNode)
 {
-    ubse::mem::controller::UbseMemNumaDesc numaDesc;
+    mem::controller::UbseMemNumaDesc numaDesc;
     std::string name = "test_name";
     std::string importNodeId = "1";
     // 模拟本地节点是主节点且查询成功

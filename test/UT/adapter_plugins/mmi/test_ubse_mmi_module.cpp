@@ -19,6 +19,7 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 namespace ubse::ut::mmi {
+using namespace ubse::adapter_plugins::mmi;
 std::atomic<uint64_t> TestUbseMmiModule::mockMemId_{1};
 TEST_F(TestUbseMmiModule, UbseMemFdImportExecutor_Success)
 {

@@ -77,18 +77,18 @@ void SetCapabilitiesData(__user_cap_data_struct* capData)
         CAP_FOWNER,   // 允许绕过 /dev/obmm_shmdev 的 owner 检查
         CAP_DAC_OVERRIDE,
         CAP_DAC_READ_SEARCH, // 允许读取其他进程的 /proc/* 文件
-        CAP_CHOWN,       // 允许修改 /dev/obmm_shmdev 的 owner 和 group
-        CAP_AUDIT_WRITE, // 允许写入审计日志 日志路径 /var/log/audit
-        CAP_NET_ADMIN,   // 允许访问urma文件
-        CAP_SYS_PTRACE,  // 允许访问其他进程的信息，如 /proc/pid/numa_maps
+        CAP_CHOWN,           // 允许修改 /dev/obmm_shmdev 的 owner 和 group
+        CAP_AUDIT_WRITE,     // 允许写入审计日志 日志路径 /var/log/audit
+        CAP_NET_ADMIN,       // 允许访问urma文件
+        CAP_SYS_PTRACE,      // 允许访问其他进程的信息，如 /proc/pid/numa_maps
     };
 
     const std::vector<__u32> eCapabilities = {
-        CAP_SYS_NICE,    // 允许进程改变进程或线程的优先级和调度策略
+        CAP_SYS_NICE,        // 允许进程改变进程或线程的优先级和调度策略
         CAP_DAC_READ_SEARCH, // 允许读取其他进程的 /proc/* 文件
-        CAP_AUDIT_WRITE, // 允许写入审计日志 日志路径 /var/log/audit
-        CAP_NET_ADMIN,   // 允许访问urma文件
-        CAP_SYS_PTRACE,  // 允许访问其他进程的信息，如 /proc/pid/numa_maps
+        CAP_AUDIT_WRITE,     // 允许写入审计日志 日志路径 /var/log/audit
+        CAP_NET_ADMIN,       // 允许访问urma文件
+        CAP_SYS_PTRACE,      // 允许访问其他进程的信息，如 /proc/pid/numa_maps
     };
 
     const std::vector<__u32> iCapabilities = {

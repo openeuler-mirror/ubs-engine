@@ -90,7 +90,9 @@ public:
         auto respPtr = UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(rsp);
         if (respPtr->SetInputRawData(respData.data, static_cast<uint32_t>(respData.len)) != UBSE_OK) {
             std::string tmpData = UbseReplyResultToString(UbseReplyResult::ERR_NO_REPLY);
-            respPtr->SetInputRawData(reinterpret_cast<uint8_t*>(tmpData.data()), static_cast<uint32_t>(tmpData.size()));
+            respPtr->SetInputRawData(
+                reinterpret_cast<uint8_t*>(tmpData.data()),
+                static_cast<uint32_t>(tmpData.size())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         }
         respPtr->Deserialize();
         uint32_t ret = UBSE_OK;

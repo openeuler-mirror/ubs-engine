@@ -27,8 +27,9 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::mti {
-using namespace ubse::common::def;
-using namespace ubse::http;
+using ubse::common::def::UbseResult;
+using ubse::http::UbseHttpRequest;
+using ubse::http::UbseHttpResponse;
 DevType StringToDevType(const std::string& str);
 adapter_plugins::mti::UbseDevType StringToUbseDevType(const std::string& str);
 DevType StringToDevTypeVBus(const std::string& str);

@@ -15,17 +15,17 @@
 #include <vector>
 
 #include "ubse_def.h"
-#include "ubse_ras.h"
-#include "process_mem_pid_manager_def.h"
 #include "ubse_mem_controller.h"
+#include "ubse_ras.h"
 #include "mp_smap_module.h"
+#include "process_mem_pid_manager_def.h"
 
 namespace process_mem::pid::bridge {
 constexpr const char* MEMPOOLING_PATH = "/usr/lib64/libmempooling.so";
 
 using MigrateOut = std::function<int(const std::vector<mempooling::smap::MigrateOutPayload>&, int)>;
 using Remove = std::function<int(const uint16_t, const std::vector<pid_t>&, int)>;
-using NoMigrateBack = std::function<uint32_t (const std::string&)>;
+using NoMigrateBack = std::function<uint32_t(const std::string&)>;
 
 struct MemoryBorrowRequest {
     std::string name;
@@ -52,7 +52,7 @@ public:
     inline static void* memPoolingHandle = nullptr;
     static uint32_t FaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
-    static void ProcessMemNodeFaultNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+    static void ProcessMemNodeFaultNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
     static void NotifyBorrowNodesOnFault(const std::string& lentNodeId);
 };

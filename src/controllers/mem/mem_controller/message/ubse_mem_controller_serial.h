@@ -18,9 +18,49 @@
 #include "ubse_serial_util.h"
 
 namespace ubse::mem::serial {
-using namespace ubse::common::def;
-using namespace ubse::serial;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::FdOwner;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfo;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemAddrExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemAddrImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemAddrInfo;
+using ubse::adapter_plugins::mmi::UbseMemAlgoResult;
+using ubse::adapter_plugins::mmi::UbseMemAttachResourceShareAttr;
+using ubse::adapter_plugins::mmi::UbseMemBorrowExportBaseObj;
+using ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj;
+using ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo;
+using ubse::adapter_plugins::mmi::UbseMemExportStatus;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemFdExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemFdImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemFdPermissionReq;
+using ubse::adapter_plugins::mmi::UbseMemImportResult;
+using ubse::adapter_plugins::mmi::UbseMemImportStatus;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemNumaImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
+using ubse::adapter_plugins::mmi::UbseMemShareAttachReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShareDetachReq;
+using ubse::adapter_plugins::mmi::UbseMemShareExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemShareImportObjMap;
+using ubse::adapter_plugins::mmi::UbseNodeInfo;
+using ubse::adapter_plugins::mmi::UbseNumaLocation;
+using ubse::adapter_plugins::mmi::UbseShmRegionDesc;
+using ubse::adapter_plugins::mmi::UbseUdsInfo;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialization;
 
 void UbseMemDebtNumaInfoSerialization(UbseSerialization& out, const UbseMemDebtNumaInfo& debtNumaInfo);
 

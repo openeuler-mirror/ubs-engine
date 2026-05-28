@@ -24,9 +24,10 @@
 namespace ubse::adapter_plugins::mti {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace common::def;
-using namespace adapter_plugins::mti;
 using namespace ubse::mti;
 using namespace context;
+using namespace ubse::lcne;
+using namespace ubse::adapter_plugins::mti::mami;
 void SwapNodeInfo(UbseMtiNodeInfo& distNodeInfo, const MtiNodeInfo& srcNodeInfo)
 {
     distNodeInfo.eid = srcNodeInfo.eid;
@@ -130,9 +131,9 @@ UbseResult UbseMtiInterfaceDefault::GetClusterIpList(std::vector<std::string>& i
 }
 UbseResult UbseMtiInterfaceDefault::AddDecoderEntry(const mami::UbseMamiMemImportInfo& importInfo,
                                                     mami::UbseMamiMemImportResult& importResult,
-                                                    const lcne::UbseDecoderTrustRingData& trustRingData)
+                                                    const UbseDecoderTrustRingData& trustRingData)
 {
-    return lcne::UbseLcneDecoderEntry::AddDecoderEntry(importInfo, importResult, trustRingData);
+    return UbseLcneDecoderEntry::AddDecoderEntry(importInfo, importResult, trustRingData);
 }
 
 UbseResult UbseMtiInterfaceDefault::DeleteDecoderEntry(const mami::UbseMamiMemWithdraw& drawInfo)

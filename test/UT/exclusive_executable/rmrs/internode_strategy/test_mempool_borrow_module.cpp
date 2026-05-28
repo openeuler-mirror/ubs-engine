@@ -84,7 +84,7 @@ TEST_F(TestMemPoolBorrowModule, compareNodeMemInfo_TestSuccess)
     std::pair<std::string, NodeMemInfo> b = {"nodeB", NodeMemInfo{.totalBorrowableMem = 200}};
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(const std::string& nodeId, NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
+               MpResult(*)(const std::string& nodeId, NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
         .stubs()
         .will(returnValue(1));
     bool flag = compareNodeMemInfo("main-node", a, b);
@@ -115,8 +115,8 @@ TEST_F(TestMemPoolBorrowModule, compareNodeMemInfo_TestFailed)
     std::pair<std::string, NodeMemInfo> b = {"NodeD", NodeMemInfo{.totalBorrowableMem = 200}};
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(BorrowRecordHelper*, const std::string& nodeId,
-                            NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
+               MpResult(*)(BorrowRecordHelper*, const std::string& nodeId,
+                           NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
         .stubs()
         .will(invoke(CollectBorrowableInfoMock1));
     bool flag = compareNodeMemInfo("main-node", a, b);
@@ -129,8 +129,8 @@ TEST_F(TestMemPoolBorrowModule, compareNodeMemInfo_TestFailed1)
     std::pair<std::string, NodeMemInfo> a = {"NodeX", NodeMemInfo{.totalBorrowableMem = 100}};
     std::pair<std::string, NodeMemInfo> b = {"NodeC", NodeMemInfo{.totalBorrowableMem = 200}};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(BorrowRecordHelper*, const std::string& nodeId,
-                            NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
+               MpResult(*)(BorrowRecordHelper*, const std::string& nodeId,
+                           NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
         .stubs()
         .will(invoke(CollectBorrowableInfoMock1));
     bool flag = compareNodeMemInfo("main-node", a, b);
@@ -143,8 +143,8 @@ TEST_F(TestMemPoolBorrowModule, compareNodeMemInfo_TestFailed2)
     std::pair<std::string, NodeMemInfo> a = {"NodeX", NodeMemInfo{.totalBorrowableMem = 100}};
     std::pair<std::string, NodeMemInfo> b = {"NodeY", NodeMemInfo{.totalBorrowableMem = 200}};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(BorrowRecordHelper*, const std::string& nodeId,
-                            NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
+               MpResult(*)(BorrowRecordHelper*, const std::string& nodeId,
+                           NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
         .stubs()
         .will(invoke(CollectBorrowableInfoMock1));
     bool flag = compareNodeMemInfo("main-node", a, b);
@@ -157,8 +157,8 @@ TEST_F(TestMemPoolBorrowModule, compareNodeMemInfo_TestFailed3)
     std::pair<std::string, NodeMemInfo> a = {"NodeX", NodeMemInfo{.totalBorrowableMem = 300}};
     std::pair<std::string, NodeMemInfo> b = {"NodeY", NodeMemInfo{.totalBorrowableMem = 200}};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(BorrowRecordHelper*, const std::string& nodeId,
-                            NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
+               MpResult(*)(BorrowRecordHelper*, const std::string& nodeId,
+                           NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
         .stubs()
         .will(invoke(CollectBorrowableInfoMock1));
     bool flag = compareNodeMemInfo("main-node", a, b);
@@ -227,7 +227,7 @@ TEST_F(TestMemPoolBorrowModule, compareSocketMemInfo_TestFailed2)
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed1)
 {
     MOCKER_CPP(&MemManager::GenerateNumaSocketMap,
-               MpResult (*)(std::map<std::string, std::map<int, int>>& numaSocketMap))
+               MpResult(*)(std::map<std::string, std::map<int, int>> & numaSocketMap))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     SrcMemoryBorrowParam srcParam = {"Node3", 0, 0};
@@ -246,7 +246,7 @@ MpResult MockGenerateNumaSocketMap(std::map<std::string, std::map<int, uint16_t>
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed2)
 {
     MOCKER_CPP(&MemManager::GenerateNumaSocketMap,
-               MpResult (*)(std::map<std::string, std::map<int, int>>& numaSocketMap))
+               MpResult(*)(std::map<std::string, std::map<int, int>> & numaSocketMap))
         .stubs()
         .will(invoke(MockGenerateNumaSocketMap));
     SrcMemoryBorrowParam srcParam = {"Node3", 0, 0};
@@ -258,7 +258,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed2)
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed3)
 {
     MOCKER_CPP(&MemManager::GenerateNumaSocketMap,
-               MpResult (*)(std::map<std::string, std::map<int, int>>& numaSocketMap))
+               MpResult(*)(std::map<std::string, std::map<int, int>> & numaSocketMap))
         .stubs()
         .will(invoke(MockGenerateNumaSocketMap));
     SrcMemoryBorrowParam srcParam = {"Node0", 1, 0};
@@ -270,7 +270,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed3)
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed4)
 {
     MOCKER_CPP(&MemManager::GenerateNumaSocketMap,
-               MpResult (*)(std::map<std::string, std::map<int, int>>& numaSocketMap))
+               MpResult(*)(std::map<std::string, std::map<int, int>> & numaSocketMap))
         .stubs()
         .will(invoke(MockGenerateNumaSocketMap));
     SrcMemoryBorrowParam srcParam = {"Node0", 0, 1};
@@ -282,7 +282,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed4)
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestSuccess)
 {
     MOCKER_CPP(&MemManager::GenerateNumaSocketMap,
-               MpResult (*)(std::map<std::string, std::map<int, uint16_t>>& numaSocketMap))
+               MpResult(*)(std::map<std::string, std::map<int, uint16_t>> & numaSocketMap))
         .stubs()
         .will(invoke(MockGenerateNumaSocketMap));
 
@@ -344,10 +344,10 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy_TestWithBorrowFailed)
     MemManager::Instance().nodeMemMap["node1"] = node1;
     // GetMemoryInfo
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortSockets,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                            std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                           std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::UpdateNodeMemInfoWithNuma,
@@ -392,10 +392,10 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy_TestWithBadBorrowSuccess)
         .stubs()
         .will(returnValue(nullptr));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortSockets,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                            std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                           std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
@@ -496,7 +496,7 @@ MpResult RpcGetVmInfoImmediatelyForTest(const std::string& nodeId, std::vector<V
 TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestWithSuccess1)
 {
     MOCKER_CPP(&migrate::MempoolMigrateExecute::RpcGetVmInfoImmediately,
-               MpResult (*)(const std::string&, std::vector<VmDomainInfo>&))
+               MpResult(*)(const std::string&, std::vector<VmDomainInfo>&))
         .stubs()
         .will(invoke(RpcGetVmInfoImmediatelyForTest));
 
@@ -517,7 +517,7 @@ TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestWithSuccess1)
 TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestFailed1)
 {
     MOCKER_CPP(&migrate::MempoolMigrateExecute::RpcGetVmInfoImmediately,
-               MpResult (*)(const std::string&, std::vector<VmDomainInfo>&))
+               MpResult(*)(const std::string&, std::vector<VmDomainInfo>&))
         .stubs()
         .will(returnValue(1));
 
@@ -538,7 +538,7 @@ TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestFailed1)
 TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestWithFailed2)
 {
     MOCKER_CPP(&migrate::MempoolMigrateExecute::RpcGetVmInfoImmediately,
-               MpResult (*)(const std::string&, std::vector<VmDomainInfo>&))
+               MpResult(*)(const std::string&, std::vector<VmDomainInfo>&))
         .stubs()
         .will(returnValue(0));
 
@@ -560,7 +560,7 @@ TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestWithFailed2)
 TEST_F(TestMemPoolBorrowModule, ValidateBorrowParamSamePlane1)
 {
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(returnValue(1));
     SrcMemoryBorrowParam srcParam;
@@ -584,7 +584,7 @@ uint32_t RackMemGetTopologyInfoMock(std::unordered_map<std::string, std::vector<
 TEST_F(TestMemPoolBorrowModule, ValidateBorrowParamSamePlane2)
 {
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(invoke(RackMemGetTopologyInfoMock));
     SrcMemoryBorrowParam srcParam;
@@ -601,7 +601,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowParamSamePlane2)
 TEST_F(TestMemPoolBorrowModule, ValidateBorrowParamSamePlane3)
 {
     MOCKER_CPP(&UbseMemGetTopologyInfo,
-               uint32_t (*)(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology))
+               uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>> & nodeTopology))
         .stubs()
         .will(invoke(RackMemGetTopologyInfoMock));
     SrcMemoryBorrowParam srcParam;
@@ -625,8 +625,8 @@ MpResult GetBorrowableListMock(MpParseGroupProviderConf* This, const std::string
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithSuccess)
 {
     MOCKER_CPP(&MpParseGroupProviderConf::GetBorrowableList,
-               MpResult (*)(MpParseGroupProviderConf*, const std::string& curNid,
-                            std::unordered_set<std::string>& borrowableNidSet))
+               MpResult(*)(MpParseGroupProviderConf*, const std::string& curNid,
+                           std::unordered_set<std::string>& borrowableNidSet))
         .stubs()
         .will(invoke(GetBorrowableListMock));
     SrcMemoryBorrowParam srcParam;
@@ -645,8 +645,8 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithSuccess)
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed0)
 {
     MOCKER_CPP(&MpParseGroupProviderConf::GetBorrowableList,
-               MpResult (*)(MpParseGroupProviderConf*, const std::string& curNid,
-                            std::unordered_set<std::string>& borrowableNidSet))
+               MpResult(*)(MpParseGroupProviderConf*, const std::string& curNid,
+                           std::unordered_set<std::string>& borrowableNidSet))
         .stubs()
         .will(invoke(GetBorrowableListMock));
     SrcMemoryBorrowParam srcParam;
@@ -665,8 +665,8 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed0)
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailedNotEqualSize)
 {
     MOCKER_CPP(&MpParseGroupProviderConf::GetBorrowableList,
-               MpResult (*)(MpParseGroupProviderConf*, const std::string& curNid,
-                            std::unordered_set<std::string>& borrowableNidSet))
+               MpResult(*)(MpParseGroupProviderConf*, const std::string& curNid,
+                           std::unordered_set<std::string>& borrowableNidSet))
         .stubs()
         .will(invoke(GetBorrowableListMock));
     SrcMemoryBorrowParam srcParam;
@@ -684,8 +684,8 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailedNotEqualSize)
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed1)
 {
     MOCKER_CPP(&MpParseGroupProviderConf::GetBorrowableList,
-               MpResult (*)(MpParseGroupProviderConf*, const std::string& curNid,
-                            std::unordered_set<std::string>& borrowableNidSet))
+               MpResult(*)(MpParseGroupProviderConf*, const std::string& curNid,
+                           std::unordered_set<std::string>& borrowableNidSet))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     SrcMemoryBorrowParam srcParam;
@@ -701,8 +701,8 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed1)
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed2)
 {
     MOCKER_CPP(&MpParseGroupProviderConf::GetBorrowableList,
-               MpResult (*)(MpParseGroupProviderConf*, const std::string& curNid,
-                            std::unordered_set<std::string>& borrowableNidSet))
+               MpResult(*)(MpParseGroupProviderConf*, const std::string& curNid,
+                           std::unordered_set<std::string>& borrowableNidSet))
         .stubs()
         .will(invoke(GetBorrowableListMock));
     SrcMemoryBorrowParam srcParam;
@@ -744,21 +744,21 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithSuccess)
     destParams.push_back(destParam1);
     destParams.push_back(destParam2);
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowParamSamePlane,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::ValidateDestNids,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowExecuteParam,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
-                            const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
+                           const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MemBorrowExecutor::MemBorrow,
-               MpResult (*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
-                            int16_t& presentNumaId))
+               MpResult(*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
+                           int16_t& presentNumaId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -783,13 +783,13 @@ TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnOkWhenAllMethodWo
     destParam.memSize.push_back(1048576); // 假设 8MB 内存
 
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowExecuteParam,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
-                            const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
+                           const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MemBorrowExecutor::MemBorrow,
-               MpResult (*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
-                            int16_t& presentNumaId))
+               MpResult(*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
+                           int16_t& presentNumaId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -815,13 +815,13 @@ TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenSizeNE)
     destParam.memSize.push_back(1048576); // 假设 8MB 内存
 
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowExecuteParam,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
-                            const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
+                           const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MemBorrowExecutor::MemBorrow,
-               MpResult (*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
-                            int16_t& presentNumaId))
+               MpResult(*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
+                           int16_t& presentNumaId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -846,13 +846,13 @@ TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenValidate
     destParam.memSize.push_back(1048576); // 假设 8MB 内存
 
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowExecuteParam,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
-                            const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
+                           const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MOCKER_CPP(&MemBorrowExecutor::MemBorrow,
-               MpResult (*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
-                            int16_t& presentNumaId))
+               MpResult(*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
+                           int16_t& presentNumaId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -877,17 +877,17 @@ TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenMemBorro
     destParam.memSize.push_back(1048576); // 假设 8MB 内存
 
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowExecuteParam,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
-                            const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, MemMallocAttr& memAttr,
+                           const MemBorrowExecuteResult& borrowExecuteResult, uint64_t& totalSize))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MemBorrowExecutor::MemBorrow,
-               MpResult (*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
-                            int16_t& presentNumaId))
+               MpResult(*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
+                           int16_t& presentNumaId))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowFailedRollback,
-               MpResult (*)(const MemBorrowExecuteResult& borrowExecuteResult))
+               MpResult(*)(const MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -927,8 +927,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithBadDestParamSize)
     destParams.push_back(destParam2);
 
     MOCKER_CPP(&MemBorrowExecutor::MemBorrow,
-               MpResult (*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
-                            int16_t& presentNumaId))
+               MpResult(*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
+                           int16_t& presentNumaId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -1038,8 +1038,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed)
 
     // MemBorrowExecutor::Instance().MemBorrow
     MOCKER_CPP(&MemBorrowExecutor::MemBorrow,
-               MpResult (*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
-                            int16_t& presentNumaId))
+               MpResult(*)(const std::string& attachNode, RackCreateResourceWaterBorrowAttr& attr, std::string& name,
+                           int16_t& presentNumaId))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -1093,12 +1093,12 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed2)
     destParams.push_back(destParam1);
     destParams.push_back(destParam2);
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowParamSamePlane,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::ExecuteSingleBorrow,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, const SrcMemoryBorrowParam& srcParam,
-                            MemBorrowExecuteResult& borrowExecuteResult))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, const SrcMemoryBorrowParam& srcParam,
+                           MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -1136,20 +1136,20 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed3)
     destParams.push_back(destParam1);
     destParams.push_back(destParam2);
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowParamSamePlane,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::ValidateDestNids,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::ExecuteSingleBorrow,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, const SrcMemoryBorrowParam& srcParam,
-                            MemBorrowExecuteResult& borrowExecuteResult))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, const SrcMemoryBorrowParam& srcParam,
+                           MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&BorrowIdsCompleted::Query,
-               MpResult (*)(BorrowIdsCompleted* This, std::vector<std::string>& borrowIdsCompletedList))
+               MpResult(*)(BorrowIdsCompleted * This, std::vector<std::string> & borrowIdsCompletedList))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -1194,23 +1194,23 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed4)
     destParams.push_back(destParam1);
     destParams.push_back(destParam2);
     MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowParamSamePlane,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::ValidateDestNids,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::ExecuteSingleBorrow,
-               MpResult (*)(const DestMemoryBorrowParam& destParam, const SrcMemoryBorrowParam& srcParam,
-                            MemBorrowExecuteResult& borrowExecuteResult))
+               MpResult(*)(const DestMemoryBorrowParam& destParam, const SrcMemoryBorrowParam& srcParam,
+                           MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&BorrowIdsCompleted::Query,
-               MpResult (*)(BorrowIdsCompleted* This, std::vector<std::string>& borrowIdsCompletedList))
+               MpResult(*)(BorrowIdsCompleted * This, std::vector<std::string> & borrowIdsCompletedList))
         .stubs()
         .will(invoke(GetBorrowIdsCompletedListMocks));
-    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult (*)(const std::string borrowId))
+    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult(*)(const std::string borrowId))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MemBorrowExecuteResult borrowExecuteResult;
@@ -1252,14 +1252,14 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithSuccess)
     // 将 node1 添加到 nodeMemMap
     MemManager::Instance().nodeMemMap["Node0"] = node1;
 
-    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult (*)(const std::string& nodeId, NodeMemInfo& outInfo))
+    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult(*)(const std::string& nodeId, NodeMemInfo& outInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId, MpResult (*)(const uint16_t numaId, const std::string nodeId))
+    MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId, MpResult(*)(const uint16_t numaId, const std::string nodeId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     // MemFree
-    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult (*)(std::string nodeId)).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult(*)(std::string nodeId)).stubs().will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
@@ -1269,10 +1269,10 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithGetNodeMemInfoFailed)
     std::string nodeId = "Node0";
     uint16_t numaId = 0;
 
-    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult (*)(const std::string& nodeId, NodeMemInfo& outInfo))
+    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult(*)(const std::string& nodeId, NodeMemInfo& outInfo))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId, MpResult (*)(const uint16_t numaId, const std::string nodeId))
+    MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId, MpResult(*)(const uint16_t numaId, const std::string nodeId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
@@ -1305,7 +1305,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithMemFreeFailed)
     MemManager::Instance().nodeMemMap["Node0"] = node1;
 
     // MemFree
-    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult (*)(std::string nodeId))
+    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult(*)(std::string nodeId))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     // MemManager::Instance().RemoveName
@@ -1339,7 +1339,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithRemoveNameFailed)
     MemManager::Instance().nodeMemMap["Node0"] = node1;
 
     // MemFree
-    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult (*)(std::string nodeId)).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult(*)(std::string nodeId)).stubs().will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
@@ -1361,7 +1361,7 @@ TEST_F(TestMemPoolBorrowModule, AddMemoryParamsToResult_TestWithOk)
 
 TEST_F(TestMemPoolBorrowModule, GetSocketInfo_TestFailed)
 {
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult (*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     DestMemoryBorrowParam destParam1;
@@ -1404,8 +1404,8 @@ void FilterAndSortNodesForUT(MempoolBorrowModule*, std::unordered_map<std::strin
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleTest)
 {
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(MempoolBorrowModule*, std::unordered_map<std::string, NodeMemInfo>&,
-                            const SrcMemoryBorrowParam&, std::vector<std::string>&))
+               MpResult(*)(MempoolBorrowModule*, std::unordered_map<std::string, NodeMemInfo>&,
+                           const SrcMemoryBorrowParam&, std::vector<std::string>&))
         .stubs()
         .will(invoke(GetMemoryInfoForUnitTest));
 
@@ -1437,8 +1437,8 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleTest)
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleTest2)
 {
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(MempoolBorrowModule*, std::unordered_map<std::string, NodeMemInfo>&,
-                            const SrcMemoryBorrowParam&, std::vector<std::string>&))
+               MpResult(*)(MempoolBorrowModule*, std::unordered_map<std::string, NodeMemInfo>&,
+                           const SrcMemoryBorrowParam&, std::vector<std::string>&))
         .stubs()
         .will(invoke(GetMemoryInfoForUnitTest));
 
@@ -1486,7 +1486,7 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo1)
     std::unordered_map<std::string, NodeMemInfo> nodeMemMap;
     SrcMemoryBorrowParam srcParam;
     std::vector<std::string> antiNodeMemVec;
-    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& outMap))
+    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & outMap))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().GetMemoryInfo(nodeMemMap, srcParam, antiNodeMemVec);
@@ -1498,7 +1498,7 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo2)
     std::unordered_map<std::string, NodeMemInfo> nodeMemMap;
     SrcMemoryBorrowParam srcParam;
     std::vector<std::string> antiNodeMemVec;
-    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& outMap))
+    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & outMap))
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().GetMemoryInfo(nodeMemMap, srcParam, antiNodeMemVec);
@@ -1541,10 +1541,10 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo3)
     std::unordered_map<std::string, NodeMemInfo> nodeMemMap;
     SrcMemoryBorrowParam srcParam;
     std::vector<std::string> antiNodeMemVec;
-    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& outMap))
+    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & outMap))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&AntiNode::Query, MpResult (*)(const std::string& srcNid, std::vector<std::string>& antiNodeMemVec))
+    MOCKER_CPP(&AntiNode::Query, MpResult(*)(const std::string& srcNid, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(1))
         .then(returnValue(0));
@@ -1559,14 +1559,14 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo4)
     std::unordered_map<std::string, NodeMemInfo> nodeMemMap;
     SrcMemoryBorrowParam srcParam;
     std::vector<std::string> antiNodeMemVec;
-    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& outMap))
+    MOCKER_CPP(&MemManager::GetNodeMemMap, MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & outMap))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::UpdateNodeMemInfoWithNuma,
                void (*)(MempoolBorrowModule* This, std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
         .stubs()
         .will(invoke(MempoolBorrowModuleUpdateNodeMemInfoWithNuma));
-    MOCKER_CPP(&AntiNode::Query, MpResult (*)(const std::string& srcNid, std::vector<std::string>& antiNodeMemVec))
+    MOCKER_CPP(&AntiNode::Query, MpResult(*)(const std::string& srcNid, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(1))
         .then(returnValue(0));
@@ -1615,7 +1615,7 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortNodes1)
     std::vector<std::string> antiNodeMemVec = {"node1"};
     std::vector<std::pair<std::string, NodeMemInfo>> nodeVec;
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(1));
     MempoolBorrowModule::Instance().FilterAndSortNodes(nodeMemMap, srcNid, antiNodeMemVec, nodeVec);
@@ -1631,8 +1631,8 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortNodes_WhenFilterBorrowableNodesFail
     std::vector<std::string> antiNodeMemVec = {"node1"};
     std::vector<std::pair<std::string, NodeMemInfo>> nodeVec;
     MOCKER_CPP(&MempoolBorrowModule::FilterBorrowableNodes,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MempoolBorrowModule::Instance().FilterAndSortNodes(nodeMemMap, srcNid, antiNodeMemVec, nodeVec);
@@ -1649,12 +1649,12 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets1)
     std::vector<std::pair<std::string, NodeMemInfo>> nodeVec;
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     MOCKER_CPP(&MempoolBorrowModule::FilterBorrowableNodes,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(1));
     MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec, nodeTopology, nodeVec);
@@ -1670,8 +1670,8 @@ TEST_F(TestMemPoolBorrowModule, FilterBorrowableNodesSuccess)
     srcParam.srcNid = "nodeA";
     std::vector<std::string> antiNodeMemVec = {"nodeC"};
     MOCKER_CPP(&MpParseGroupProviderConf::GetBorrowableList,
-               MpResult (*)(MpParseGroupProviderConf*, const std::string& curNid,
-                            std::unordered_set<std::string>& borrowableNidSet))
+               MpResult(*)(MpParseGroupProviderConf*, const std::string& curNid,
+                           std::unordered_set<std::string>& borrowableNidSet))
         .stubs()
         .will(invoke(GetBorrowableListMock));
     auto ret = MempoolBorrowModule::Instance().FilterBorrowableNodes(srcParam, antiNodeMemVec, nodeMemMap);
@@ -1697,12 +1697,12 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets2)
     std::vector<std::pair<std::string, NodeMemInfo>> nodeVec;
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     MOCKER_CPP(&MempoolBorrowModule::FilterBorrowableNodes,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
@@ -1728,16 +1728,16 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets3)
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     nodeTopology["node0"].push_back(memNodeDataA);
     MOCKER_CPP(&MempoolBorrowModule::FilterBorrowableNodes,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(const std::string&, NodeMemoryInfoWithReservedMem&))
+               MpResult(*)(const std::string&, NodeMemoryInfoWithReservedMem&))
         .stubs()
         .will(returnValue(1));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
@@ -1765,16 +1765,16 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets4)
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     nodeTopology["node0-36"].push_back(memNodeDataA);
     MOCKER_CPP(&MempoolBorrowModule::FilterBorrowableNodes,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(const std::string&, NodeMemoryInfoWithReservedMem&))
+               MpResult(*)(const std::string&, NodeMemoryInfoWithReservedMem&))
         .stubs()
         .will(returnValue(1));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
@@ -1802,16 +1802,16 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets5)
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     nodeTopology["node0-36"].push_back(memNodeDataA);
     MOCKER_CPP(&MempoolBorrowModule::FilterBorrowableNodes,
-               MpResult (*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(const std::string&, NodeMemoryInfoWithReservedMem&))
+               MpResult(*)(const std::string&, NodeMemoryInfoWithReservedMem&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
@@ -1853,11 +1853,11 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets6)
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     nodeTopology["node0"].push_back(memNodeDataA);
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(BorrowRecordHelper* This, const std::string&, NodeMemoryInfoWithReservedMem&))
+               MpResult(*)(BorrowRecordHelper * This, const std::string&, NodeMemoryInfoWithReservedMem&))
         .stubs()
         .will(invoke(CollectBorrowableInfoMock));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
@@ -1883,11 +1883,11 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets7)
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     nodeTopology["node0"].push_back(memNodeDataA);
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<BorrowRecord> & borrowRecords))
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
-               MpResult (*)(BorrowRecordHelper* This, const std::string&, NodeMemoryInfoWithReservedMem&))
+               MpResult(*)(BorrowRecordHelper * This, const std::string&, NodeMemoryInfoWithReservedMem&))
         .stubs()
         .will(invoke(CollectBorrowableInfoMock));
     MpConfiguration::GetInstance().mustSamePlane = false;
@@ -1906,7 +1906,7 @@ TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow1)
     std::pair<std::string, NodeMemInfo> node = {"node0", nodeMemInfo1};
     uint32_t needBorrowNum;
     MemBorrowStrategyResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::GetSocketInfo, MpResult (*)(DestMemoryBorrowParam& tempParam, uint32_t numaId))
+    MOCKER_CPP(&MempoolBorrowModule::GetSocketInfo, MpResult(*)(DestMemoryBorrowParam & tempParam, uint32_t numaId))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().ProcessNodeMemBorrow(node, needBorrowNum, borrowStrategyResult);
@@ -1923,7 +1923,7 @@ TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow2)
     std::pair<std::string, NodeMemInfo> node = {"node0", nodeMemInfo1};
     uint32_t needBorrowNum = 128 * 1024 * 1024 * 2;
     MemBorrowStrategyResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::GetSocketInfo, MpResult (*)(DestMemoryBorrowParam& tempParam, uint32_t numaId))
+    MOCKER_CPP(&MempoolBorrowModule::GetSocketInfo, MpResult(*)(DestMemoryBorrowParam & tempParam, uint32_t numaId))
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().ProcessNodeMemBorrow(node, needBorrowNum, borrowStrategyResult);
@@ -1940,7 +1940,7 @@ TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow3)
     std::pair<std::string, NodeMemInfo> node = {"node0", nodeMemInfo1};
     uint32_t needBorrowNum = 0;
     MemBorrowStrategyResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::GetSocketInfo, MpResult (*)(DestMemoryBorrowParam& tempParam, uint32_t numaId))
+    MOCKER_CPP(&MempoolBorrowModule::GetSocketInfo, MpResult(*)(DestMemoryBorrowParam & tempParam, uint32_t numaId))
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().ProcessNodeMemBorrow(node, needBorrowNum, borrowStrategyResult);
@@ -1952,7 +1952,7 @@ TEST_F(TestMemPoolBorrowModule, GetSocketInfo_Success)
     DestMemoryBorrowParam tempParam;
     tempParam.destNid = "node0";
     uint32_t numaId = 1;
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult (*)(const std::string& nodeId, const int& numaId, int& socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto res = MempoolBorrowModule::Instance().GetSocketInfo(tempParam, numaId);
@@ -1964,7 +1964,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy1)
     SrcMemoryBorrowParam srcParam;
     uint64_t borrowSize = 1024;
     MemBorrowStrategyResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const std::string srcNid))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const std::string srcNid))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
@@ -1976,10 +1976,10 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy2)
     SrcMemoryBorrowParam srcParam;
     uint64_t borrowSize = 1024;
     MemBorrowStrategyResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const std::string srcNid))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const std::string srcNid))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MempoolBorrowModule::ValidateSrcparam, MpResult (*)(const SrcMemoryBorrowParam& srcParam))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateSrcparam, MpResult(*)(const SrcMemoryBorrowParam& srcParam))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
@@ -1991,15 +1991,15 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy3)
     SrcMemoryBorrowParam srcParam;
     uint64_t borrowSize = 1024;
     MemBorrowStrategyResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const std::string srcNid))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const std::string srcNid))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MempoolBorrowModule::ValidateSrcparam, MpResult (*)(const SrcMemoryBorrowParam& srcParam))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateSrcparam, MpResult(*)(const SrcMemoryBorrowParam& srcParam))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
@@ -2034,27 +2034,27 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy4)
     srcParam.srcNid = "node1";
     uint64_t borrowSize = 128 * 1024 * 2;
     MemBorrowStrategyResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const std::string srcNid))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const std::string srcNid))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MempoolBorrowModule::ValidateSrcparam, MpResult (*)(const SrcMemoryBorrowParam& srcParam))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateSrcparam, MpResult(*)(const SrcMemoryBorrowParam& srcParam))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortSockets,
-               MpResult (*)(MempoolBorrowModule* This, std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                            std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
+               MpResult(*)(MempoolBorrowModule * This, std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                           std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
         .stubs()
         .will(invoke(MempoolBorrowModuleFilterAndSortSockets1));
     MOCKER_CPP(&MempoolBorrowModule::ProcessNodeMemBorrow,
-               MpResult (*)(const std::pair<std::string, NodeMemInfo>& node, uint32_t& needBorrowNum,
-                            MemBorrowStrategyResult& borrowStrategyResult))
+               MpResult(*)(const std::pair<std::string, NodeMemInfo>& node, uint32_t& needBorrowNum,
+                           MemBorrowStrategyResult& borrowStrategyResult))
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
@@ -2095,7 +2095,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultiple1)
     std::vector<uint64_t> borrowSizes = {1};
     std::string destPreNid;
     MemBorrowStrategyMultiResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const uint64_t borrowSize))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const uint64_t borrowSize))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategyMultiple(srcParam, borrowSizes, destPreNid,
@@ -2109,7 +2109,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB1)
     std::vector<uint64_t> borrowSizes = {1};
     std::string destPreNid;
     MemBorrowStrategyMultiResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const uint64_t borrowSize))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const uint64_t borrowSize))
         .stubs()
         .will(returnValue(1));
     uint16_t socketId = 0;
@@ -2124,12 +2124,12 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultiple2)
     std::vector<uint64_t> borrowSizes = {1};
     std::string destPreNid;
     MemBorrowStrategyMultiResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const uint64_t borrowSize))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const uint64_t borrowSize))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategyMultiple(srcParam, borrowSizes, destPreNid,
@@ -2143,12 +2143,12 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB2)
     std::vector<uint64_t> borrowSizes = {1};
     std::string destPreNid;
     MemBorrowStrategyMultiResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const uint64_t borrowSize))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const uint64_t borrowSize))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(1));
     uint16_t socketId = 0;
@@ -2179,12 +2179,12 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultiple3)
     std::vector<uint64_t> borrowSizes = {0};
     std::string destPreNid;
     MemBorrowStrategyMultiResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const uint64_t borrowSize))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const uint64_t borrowSize))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortNodes,
@@ -2204,12 +2204,12 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB3)
     std::vector<uint64_t> borrowSizes = {0};
     std::string destPreNid;
     MemBorrowStrategyMultiResult borrowStrategyResult;
-    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult (*)(const uint64_t borrowSize))
+    MOCKER_CPP(&MempoolBorrowModule::ValidateBorrowSize, MpResult(*)(const uint64_t borrowSize))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortNodes,
@@ -2227,15 +2227,15 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB3)
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUBTest)
 {
     MOCKER_CPP(&MempoolBorrowModule::GetMemoryInfo,
-               MpResult (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
+               MpResult(*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, std::vector<std::string>& antiNodeMemVec))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortSockets,
-               MpResult (*)(MempoolBorrowModule* This, std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
-                            const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
-                            std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                            std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
+               MpResult(*)(MempoolBorrowModule * This, std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
+                           const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& antiNodeMemVec,
+                           std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
+                           std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
         .stubs()
         .will(invoke(MempoolBorrowModuleFilterAndSortSockets1));
 
@@ -2270,7 +2270,7 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute1)
     vm.pid = 1;
     vm.memSize = 25;
     vmInfoList.push_back(vm);
-    MOCKER_CPP(&Name2VmInfo::Update, MpResult (*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& value))
+    MOCKER_CPP(&Name2VmInfo::Update, MpResult(*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(1));
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
@@ -2288,7 +2288,7 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute2)
     vm.pid = 1;
     vm.memSize = 25;
     vmInfoList.push_back(vm);
-    MOCKER_CPP(&Name2VmInfo::Update, MpResult (*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& value))
+    MOCKER_CPP(&Name2VmInfo::Update, MpResult(*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(1));
 
@@ -2316,12 +2316,12 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute3)
     std::vector<std::string> borrowIdList = {"borrow-1", "borrow-2", "borrow-3"};
 
     MOCKER_CPP(&migrate::MempoolMigrateExecute::GetMigrateExecuteInfo,
-               MpResult (*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
-                            std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
+               MpResult(*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
+                           std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
         .stubs()
         .will(invoke(MockGetMigrateExecuteInfo));
     MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId,
-               MpResult (*)(std::vector<std::string>& borrowIds, const uint16_t numaId, const std::string nodeId))
+               MpResult(*)(std::vector<std::string> & borrowIds, const uint16_t numaId, const std::string nodeId))
         .stubs()
         .will(returnValue(1));
 
@@ -2347,15 +2347,15 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute4)
     std::vector<std::string> borrowIdList = {"borrow-1", "borrow-2", "borrow-3"};
 
     MOCKER_CPP(&migrate::MempoolMigrateExecute::GetMigrateExecuteInfo,
-               MpResult (*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
-                            std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
+               MpResult(*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
+                           std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
         .stubs()
         .will(invoke(MockGetMigrateExecuteInfo));
-    MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId, MpResult (*)(MemManager*, std::vector<std::string>& borrowIds,
-                                                                      const uint16_t numaId, const std::string nodeId))
+    MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId, MpResult(*)(MemManager*, std::vector<std::string> & borrowIds,
+                                                                     const uint16_t numaId, const std::string nodeId))
         .stubs()
         .will(invoke(MockGetBorrowIdByNumaId));
-    MOCKER_CPP(&Name2VmInfo::Update, MpResult (*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& value))
+    MOCKER_CPP(&Name2VmInfo::Update, MpResult(*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(1));
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
@@ -2372,21 +2372,21 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute5)
     std::vector<std::string> borrowIdList = {"borrow-1", "borrow-2", "borrow-3"};
 
     MOCKER_CPP(&migrate::MempoolMigrateExecute::GetMigrateExecuteInfo,
-               MpResult (*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
-                            std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
+               MpResult(*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
+                           std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
         .stubs()
         .will(invoke(MockGetMigrateExecuteInfo));
     MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId,
-               MpResult (*)(BorrowRecordHelper*, std::vector<std::string>& borrowIds, const uint16_t numaId,
-                            const std::string nodeId))
+               MpResult(*)(BorrowRecordHelper*, std::vector<std::string> & borrowIds, const uint16_t numaId,
+                           const std::string nodeId))
         .stubs()
         .will(invoke(MockGetBorrowIdByNumaId));
-    MOCKER_CPP(&Name2VmInfo::Update, MpResult (*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& value))
+    MOCKER_CPP(&Name2VmInfo::Update, MpResult(*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&mempooling::migrate::MempoolMigrateExecute::MigrateExecuteRpc,
-               MpResult (*)(std::string borrowInNode, std::vector<turbo::rmrs::VMMigrateOutParam> vmInfoList,
-                            uint64_t waitingTime, std::vector<std::string> borrowIdList))
+               MpResult(*)(std::string borrowInNode, std::vector<turbo::rmrs::VMMigrateOutParam> vmInfoList,
+                           uint64_t waitingTime, std::vector<std::string> borrowIdList))
         .stubs()
         .will(returnValue(1));
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
@@ -2403,25 +2403,25 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute6)
     std::vector<std::string> borrowIdList = {"borrow-1", "borrow-2", "borrow-3"};
 
     MOCKER_CPP(&migrate::MempoolMigrateExecute::GetMigrateExecuteInfo,
-               MpResult (*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
-                            std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
+               MpResult(*)(std::string&, std::vector<turbo::rmrs::VMMigrateOutParam>&,
+                           std::set<turbo::rmrs::BorrowIdInfo>&, std::unordered_set<uint16_t>&))
         .stubs()
         .will(invoke(MockGetMigrateExecuteInfo));
     MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId,
-               MpResult (*)(BorrowRecordHelper*, std::vector<std::string>& borrowIds, const uint16_t numaId,
-                            const std::string nodeId))
+               MpResult(*)(BorrowRecordHelper*, std::vector<std::string> & borrowIds, const uint16_t numaId,
+                           const std::string nodeId))
         .stubs()
         .will(invoke(MockGetBorrowIdByNumaId));
-    MOCKER_CPP(&Name2VmInfo::Update, MpResult (*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& value))
+    MOCKER_CPP(&Name2VmInfo::Update, MpResult(*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&mempooling::migrate::MempoolMigrateExecute::MigrateExecuteRpc,
-               MpResult (*)(std::string borrowInNode, std::vector<turbo::rmrs::VMMigrateOutParam> vmInfoList,
-                            uint64_t waitingTime, std::vector<std::string> borrowIdList))
+               MpResult(*)(std::string borrowInNode, std::vector<turbo::rmrs::VMMigrateOutParam> vmInfoList,
+                           uint64_t waitingTime, std::vector<std::string> borrowIdList))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&migrate::MempoolMigrateExecute::ValidMigrateExecuteParam,
-               MpResult (*)(std::string borrowInNode, std::unordered_set<uint16_t> uniqueDesNumaIdList))
+               MpResult(*)(std::string borrowInNode, std::unordered_set<uint16_t> uniqueDesNumaIdList))
         .stubs()
         .will(returnValue(0));
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
@@ -2435,7 +2435,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowFailedRollback_TestWithFailed)
     borrowExecuteResult.borrowIds.push_back("borrowId_1");
 
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(const std::string& name, bool isForceDelete, bool smapBack))
+               MpResult(*)(const std::string& name, bool isForceDelete, bool smapBack))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowFailedRollback(borrowExecuteResult);
@@ -2449,7 +2449,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowFailedRollback_TestWithSuccess)
     borrowExecuteResult.borrowIds.push_back("borrowId_1");
 
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
-               MpResult (*)(const std::string& name, bool isForceDelete, bool smapBack))
+               MpResult(*)(const std::string& name, bool isForceDelete, bool smapBack))
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().MemBorrowFailedRollback(borrowExecuteResult);
@@ -2479,7 +2479,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed1)
     uint64_t totalSize = 0;
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowFailedRollback,
-               MpResult (*)(const MemBorrowExecuteResult& borrowExecuteResult))
+               MpResult(*)(const MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowExecuteParam(param, memAttr, result, totalSize);
@@ -2508,7 +2508,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed2)
     uint64_t totalSize = 0;
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowFailedRollback,
-               MpResult (*)(const MemBorrowExecuteResult& borrowExecuteResult))
+               MpResult(*)(const MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowExecuteParam(param, memAttr, result, totalSize);
@@ -2537,7 +2537,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed3)
     uint64_t totalSize = 0;
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowFailedRollback,
-               MpResult (*)(const MemBorrowExecuteResult& borrowExecuteResult))
+               MpResult(*)(const MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowExecuteParam(param, memAttr, result, totalSize);
@@ -2555,11 +2555,11 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute1)
 {
     std::string nodeId = "node1";
     uint16_t numaId = 1;
-    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult (*)(const std::string& nodeId, NodeMemInfo& outInfo))
+    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult(*)(const std::string& nodeId, NodeMemInfo& outInfo))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId,
-               MpResult (*)(std::vector<std::string>& borrowIds, const uint16_t numaId, const std::string nodeId))
+               MpResult(*)(std::vector<std::string> & borrowIds, const uint16_t numaId, const std::string nodeId))
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
@@ -2577,15 +2577,15 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute2)
 {
     std::string nodeId = "node1";
     uint16_t numaId = 1;
-    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult (*)(const std::string& nodeId, NodeMemInfo& outInfo))
+    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult(*)(const std::string& nodeId, NodeMemInfo& outInfo))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<std::string>& borrowIds, const uint16_t numaId,
-                            const std::string nodeId))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<std::string> & borrowIds, const uint16_t numaId,
+                           const std::string nodeId))
         .stubs()
         .will(invoke(MemManagerGetBorrowIdByNumaId));
-    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult (*)(const std::string& name)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult(*)(const std::string& name)).stubs().will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
     EXPECT_EQ(res, MEM_POOLING_ERROR);
 }
@@ -2594,15 +2594,15 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute3)
 {
     std::string nodeId = "node1";
     uint16_t numaId = 1;
-    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult (*)(const std::string& nodeId, NodeMemInfo& outInfo))
+    MOCKER_CPP(&MemManager::GetNodeMemInfo, MpResult(*)(const std::string& nodeId, NodeMemInfo& outInfo))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::GetBorrowIdByNumaId,
-               MpResult (*)(BorrowRecordHelper* This, std::vector<std::string>& borrowIds, const uint16_t numaId,
-                            const std::string nodeId))
+               MpResult(*)(BorrowRecordHelper * This, std::vector<std::string> & borrowIds, const uint16_t numaId,
+                           const std::string nodeId))
         .stubs()
         .will(invoke(MemManagerGetBorrowIdByNumaId));
-    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult (*)(const std::string& name)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult(*)(const std::string& name)).stubs().will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
     EXPECT_EQ(res, 0);
 }
@@ -2633,7 +2633,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamSuccess)
 {
     MOCKER_CPP(
         &BorrowRecordHelper::CollectBorrowRecords,
-        MpResult (*)(BorrowRecordHelper* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+        MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(TestCollectBorrowRecordsForValidMigrateParam));
     std::string borrowInNode = "Node1";
@@ -2653,7 +2653,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_EmptyNumaIdList)
 TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_CollectBorrowRecordFailed)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(MemManager* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(MemManager * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(1));
     std::string borrowInNode = "Node1";
@@ -2665,7 +2665,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_CollectBorrowReco
 TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_EmptyBorrowRecord)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(MemManager* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(MemManager * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(returnValue(0));
     std::string borrowInNode = "Node1";
@@ -2677,7 +2677,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_EmptyBorrowRecord
 TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_NotMatchNumaId)
 {
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(MemManager* This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(MemManager * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(TestCollectBorrowRecordsForValidMigrateParam));
     std::string borrowInNode = "Node1";
@@ -2747,15 +2747,15 @@ TEST_F(TestMemPoolBorrowModule, ConvertMigrateStrategyParamTestSucceed)
     turbo::rmrs::MigrateStrategyParamRMRS migrateStrategyParamRMRS;
 
     MOCKER_CPP(&GetNumaData,
-               uint32_t (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos,
-                            std::vector<uint16_t>& remoteNumaIdList, std::map<uint16_t, NumaHugePageInfo>& numaInfoMap,
-                            std::vector<NumaHugePageInfo>& numaHugePageInfoSumList))
+               uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos,
+                           std::vector<uint16_t> & remoteNumaIdList, std::map<uint16_t, NumaHugePageInfo> & numaInfoMap,
+                           std::vector<NumaHugePageInfo> & numaHugePageInfoSumList))
         .stubs()
         .will(returnValue(0));
 
-    MOCKER_CPP(&GetVMData, uint32_t (*)(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos,
-                                        std::vector<VmNumaInfoBrr>& allVmNumaInfoInfoList,
-                                        std::map<pid_t, VmNumaInfoBrr>& vmNumaInfoMap))
+    MOCKER_CPP(&GetVMData, uint32_t(*)(std::vector<mempooling::exportV2::VmDomainInfo> & vmDomainInfos,
+                                       std::vector<VmNumaInfoBrr> & allVmNumaInfoInfoList,
+                                       std::map<pid_t, VmNumaInfoBrr> & vmNumaInfoMap))
         .stubs()
         .will(returnValue(0));
 
@@ -2770,7 +2770,7 @@ TEST_F(TestMemPoolBorrowModule, GetVMDataTestFailed)
     std::vector<VmNumaInfoBrr> allVmNumaInfoInfoList;
     std::map<pid_t, VmNumaInfoBrr> vmNumaInfoMap;
 
-    MOCKER_CPP(&Exporter::GetVmInfoImmediately, uint32_t (*)(std::vector<VmDomainInfo>& vmInfos))
+    MOCKER_CPP(&Exporter::GetVmInfoImmediately, uint32_t(*)(std::vector<VmDomainInfo> & vmInfos))
         .stubs()
         .will(returnValue(1));
 
@@ -2785,7 +2785,7 @@ TEST_F(TestMemPoolBorrowModule, GetNumaDataTestFailed)
     std::map<uint16_t, NumaHugePageInfo> numaInfoMap;
     std::vector<NumaHugePageInfo> numaHugePageInfoSumList;
 
-    MOCKER_CPP(&Exporter::GetNumaInfoImmediately, uint32_t (*)(std::vector<mempooling::exportV2::NumaInfo>& numaInfos))
+    MOCKER_CPP(&Exporter::GetNumaInfoImmediately, uint32_t(*)(std::vector<mempooling::exportV2::NumaInfo> & numaInfos))
         .stubs()
         .will(returnValue(1));
 

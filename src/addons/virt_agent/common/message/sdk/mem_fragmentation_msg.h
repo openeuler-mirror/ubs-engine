@@ -92,8 +92,7 @@ typedef struct {
     char task_id[MEM_TASK_ID_MAX];
 } mem_borrow_result_c;
 
-using async_task_status_c = enum
-{
+using async_task_status_c = enum {
     ASYNC_TASK_NOT_EXIST = 0,
     ASYNC_TASK_RUNNING = 1,
     ASYNC_TASK_SUCCESS = 2,

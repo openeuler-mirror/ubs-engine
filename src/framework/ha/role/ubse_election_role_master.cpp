@@ -29,9 +29,15 @@
 #include "ubse_election_role_mgr.h"
 
 namespace ubse::election {
+using namespace ubse::module;
+using namespace ubse::message;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::election::message;
+using namespace ::ubse::common::def;
+using ::ubse::com::UbseChannelType;
+using ::ubse::com::UbseComModule;
+using ::ubse::log::FormatRetCode;
 void SwitchStandbyNode(UBSE_ID_TYPE standbyId)
 {
     RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_SWITCH_TO_STANDBY, standbyId);
@@ -345,7 +351,7 @@ uint32_t Master::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt& pkt)
     activeCount_.fetch_add(1);
     ubse::com::UbseComCallback callback;
     callback.cb = AsyncDealReply;
-    callback.cbCtx = reinterpret_cast<void*>(context);
+    callback.cbCtx = reinterpret_cast<void*>(context); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     lock.unlock();
     auto retCode = rackComModule->RpcAsyncSend(sendParam, electionSimpoPtr, callback);
     if (retCode != UBSE_OK) {

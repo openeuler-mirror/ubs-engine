@@ -23,6 +23,7 @@
 #include "ubse_error.h"
 
 namespace ubse::context {
+using namespace ubse::module;
 
 std::atomic<bool> g_globalStop{false};
 std::condition_variable_any g_globalCv;

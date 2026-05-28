@@ -20,6 +20,8 @@
 
 namespace ubse::mmi::restore {
 UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::common::def;
 void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdImportLocalObmmMetaDatas,
                                 UbseMemFdBorrowImportObj& ubseMemFdBorrowImportObj, bool& isNormal)
 {
@@ -227,8 +229,9 @@ void ConstructSingleNumaImportObj(const std::vector<UbseMemLocalObmmMetaData>& i
     std::string lendNode = std::string(meta.exportNodeId);
     BuildSingleNumaImportReq(meta, req, lendNode);
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name=" << req.name
-                       << ", usrInfo=" << reinterpret_cast<char*>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name=" << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -370,8 +373,9 @@ void ConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& e
     UbseMemNumaBorrowReq req{};
     BuildSingleNumaExportReq(obmmMetaData, lendNode, req);
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char*>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -552,8 +556,9 @@ void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& 
     UBSE_LOG_DEBUG << MMI_LOG_INFO << "req size is " << resourceMemSize;
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char*>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -609,8 +614,9 @@ void ConstructSingleShareImportObjFromExportMetaData(
     AssignReqValue(obmmMetaData, req, numaCount);
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char*>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -697,8 +703,9 @@ void ConstructSingleShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& 
     AssignReqValue(obmmMetaData, req, numaCount);
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char*>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }

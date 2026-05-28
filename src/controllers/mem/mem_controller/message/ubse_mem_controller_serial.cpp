@@ -20,6 +20,7 @@
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::common;
 using namespace ubse::log;
+using namespace ubse::serial;
 
 namespace ubse::mem::serial {
 UBSE_DEFINE_THIS_MODULE("ubse");

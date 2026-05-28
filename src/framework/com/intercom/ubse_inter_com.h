@@ -19,7 +19,14 @@
 #include "ubse_thread_pool_module.h"
 #include "trace_context.h"
 
-using namespace ubse::message;
+using ubse::message::UbseBaseMessage;
+
+using ubse::common::def::MASTER_RPC_SERVER_NAME;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
+using ubse::utils::ReadWriteLock;
+using ubse::utils::Ref;
+using ubse::utils::WriteLocker;
 
 namespace ubse::com {
 #define MODULE_LOG_NAME "ubse"

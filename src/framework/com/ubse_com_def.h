@@ -26,9 +26,31 @@
 #include "trace_context.h"
 
 namespace ubse::com {
-using namespace ock::hcom;
-using namespace ubse::common::def;
-using namespace ubse::message;
+using ock::hcom::AES_GCM_128;
+using ock::hcom::Callback;
+using ock::hcom::NN_NO0;
+using ock::hcom::UBSHcomChannel;
+using ock::hcom::UBSHcomChannelPtr;
+using ock::hcom::UBSHcomConnectOptions;
+using ock::hcom::UBSHcomFlowCtrlOptions;
+using ock::hcom::UBSHcomNetCipherSuite;
+using ock::hcom::UBSHcomNetUdsIdInfo;
+using ock::hcom::UBSHcomOneSideRequest;
+using ock::hcom::UBSHcomOneSideSglRequest;
+using ock::hcom::UBSHcomPeerCertVerifyType;
+using ock::hcom::UBSHcomReplyContext;
+using ock::hcom::UBSHcomRequest;
+using ock::hcom::UBSHcomResponse;
+using ock::hcom::UBSHcomServiceContext;
+using ock::hcom::UBSHcomServiceNewChannelHandler;
+using ock::hcom::UBSHcomServiceProtocol;
+using ock::hcom::UBSHcomTLSCertVerifyCallback;
+using ock::hcom::UBSHcomTLSEraseKeypass;
+using ock::hcom::UBSHcomTlsOptions;
+using ock::hcom::UBSHcomTwoSideThreshold;
+using ubse::common::def::DEFAULT_HCOM_HB_TIMEOUT;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
 using UbseComCallBackForHA = std::function<UbseResult(const std::string& remoteIp, const std::string& remoteNodeId)>;
 // 大数据场景下，默认单次最大发送数据量大小，单位MB
 const uint32_t DEFAULT_MAX_SENDRECEIVE_SIZE = 1;      // 注意规避
@@ -489,6 +511,11 @@ struct UbseComDataDesc {
  * 参数四：返回结果
  */
 using UbseComAsyncMsgCbkHook = std::function<void(void* ctx, void* recv, uint32_t len, int32_t result)>;
+using ock::hcom::UBSHcomChannelPtr;
+using ock::hcom::UBSHcomNetCipherSuite;
+using ock::hcom::UBSHcomServiceNewChannelHandler;
+using ock::hcom::UBSHcomServiceProtocol;
+using ubse::common::def::DEFAULT_HCOM_HB_TIMEOUT;
 
 struct UbseComCallback {
     UbseComAsyncMsgCbkHook cb;

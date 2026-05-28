@@ -15,6 +15,7 @@
 
 #include "ubse_file_util.h"
 #include "ubse_mem_instance_inner.h"
+#include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_obmm_executor.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
@@ -24,6 +25,8 @@ namespace ubse::ut::mmi {
 using namespace ubse::mmi;
 using namespace ubse::utils;
 using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::context;
 
 std::vector<mem_id> MockObmmImportReturnEmpty(RmObmmExecutor* mockClass, const std::vector<UbseMemObmmInfo>& desc,
                                               ObmmOpParam& opParam, UbseMemImportStatus& status, int* numa)

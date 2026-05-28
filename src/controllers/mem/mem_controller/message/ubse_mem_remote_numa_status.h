@@ -18,7 +18,9 @@
 #include "ubse_base_message.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 class UbseMemRemoteNumaStatus : public UbseBaseMessage {
 public:
     UbseMemRemoteNumaStatus() = default;

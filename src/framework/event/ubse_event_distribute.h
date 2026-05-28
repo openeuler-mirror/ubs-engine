@@ -29,8 +29,9 @@
 #include "ubse_logger_module.h"
 
 namespace ubse::event {
-using namespace ubse::utils;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 
 class UbseEventDistribute : public Referable {
 public:

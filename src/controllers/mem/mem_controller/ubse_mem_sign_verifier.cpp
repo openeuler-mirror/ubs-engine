@@ -28,6 +28,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace rapidjson;
 using namespace log;
+using namespace ubse::utils;
 constexpr uint32_t REQ_TYPE_SIGN = 0x10;
 constexpr uint32_t REQ_TYPE_VERIFY_AND_SIGN = 0x0012;
 constexpr uint32_t TO_SIGN_DATA_SIZE = 20; // 8 + 8 + 4
@@ -72,8 +73,10 @@ public:
         if (buffer.size() + s.size() > bufferSize) {
             throw std::overflow_error("Buffer overflow");
         }
-        buffer.insert(buffer.end(), reinterpret_cast<const uint8_t*>(s.data()),
-                      reinterpret_cast<const uint8_t*>(s.data()) + s.size());
+        buffer.insert(buffer.end(),
+                      reinterpret_cast<const uint8_t*>(s.data()), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+                      reinterpret_cast<const uint8_t*>(s.data()) +
+                          s.size()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     }
 
     [[nodiscard]] std::string Generate() const

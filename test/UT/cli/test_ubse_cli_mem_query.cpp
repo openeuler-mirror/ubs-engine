@@ -79,8 +79,7 @@ TEST_F(TestUbseCliMemQuery, GetFdMemByNameInvokeFailed)
 {
     UbseCliMemQuery query;
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_failed));
-    EXPECT_NO_THROW(
-        query.UbseCliGetFdMemByName("test", UbseCliMemQuery::WaitType::QUERY_ONLY)->UbseCliDisplayResult());
+    EXPECT_NO_THROW(query.UbseCliGetFdMemByName("test", UbseCliMemQuery::WaitType::QUERY_ONLY)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
 }
 
@@ -88,8 +87,7 @@ TEST_F(TestUbseCliMemQuery, GetFdMemByNameInvokeNormal)
 {
     UbseCliMemQuery query;
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_fd_ubse_invoke_call_normal));
-    EXPECT_NO_THROW(
-        query.UbseCliGetFdMemByName("test", UbseCliMemQuery::WaitType::QUERY_ONLY)->UbseCliDisplayResult());
+    EXPECT_NO_THROW(query.UbseCliGetFdMemByName("test", UbseCliMemQuery::WaitType::QUERY_ONLY)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
 }
 

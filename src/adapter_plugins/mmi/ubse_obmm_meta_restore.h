@@ -20,7 +20,7 @@
 #include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 class RmObmmMetaRestore {
 public:

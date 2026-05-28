@@ -15,8 +15,10 @@
 #include "ubse_election_role_mgr.h"
 #include "ubse_logger_audit.h"
 namespace ubse::election {
+using namespace ubse::module;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
+using namespace ::ubse::common::def;
 Standby::Standby(RoleContext& ctx) : turnId_(0), lastHeartTime_()
 {
     Node myself;

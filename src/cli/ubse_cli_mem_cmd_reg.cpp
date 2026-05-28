@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <regex>
 #include "ubse_cli_mem_cmd_reg.h"
+#include <regex>
 
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_cli_mem_attach.h"
@@ -88,7 +88,7 @@ constexpr const char* SRC_NUMAID_OPTION_TIP =
     "Local NUMA node ID (optional). The lending socket is selected on the same plane as this NUMA node";
 constexpr const char* SIZE_OPTION = "size";
 constexpr const char* SIZE_OPTION_TIP = "Specify the size. The range is from 128M to 256G. "
-                                       "Support up to 2 decimal places. Example: 1G, 512M, 1.5G";
+                                        "Support up to 2 decimal places. Example: 1G, 512M, 1.5G";
 constexpr const char* INVALID_SIZE_OPTION_TIP = "ERROR: Invalid size param. Please check the form.";
 
 constexpr const char* DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
@@ -107,12 +107,10 @@ constexpr const char* CREATE_MEM_TYPE_OPTION_TIP = "Specify the type. The option
 constexpr const char* CREATE_MEM_LINK_OPTION_TIP =
     "Specify the link. The format is: nodeID/socketID/portID-nodeID/socketID/portID (e.g., 1/36/0-2/36/0). Supported "
     "only when the type parameter is numa.";
-constexpr const char* CREATE_MEM_SIZE_OPTION_TIP =
-    "Specify the size. The minimum allowed size is 4M. (e.g., 128M,1G).";
+constexpr const char* CREATE_MEM_SIZE_OPTION_TIP = "Specify the size. The minimum allowed size is 4M. (e.g., 128M,1G).";
 constexpr const char* CREATE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
-constexpr const char* CREATE_MEM_REGION_OPTION_TIP =
-    "Specify the shared region node IDs. The format is: node1,node2 "
-    "(e.g., 1,2). Supported only when the type parameter is share.";
+constexpr const char* CREATE_MEM_REGION_OPTION_TIP = "Specify the shared region node IDs. The format is: node1,node2 "
+                                                     "(e.g., 1,2). Supported only when the type parameter is share.";
 // create memory option input error
 constexpr const char* CREATE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
 constexpr const char* CREATE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;

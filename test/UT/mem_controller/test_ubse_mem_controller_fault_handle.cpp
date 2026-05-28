@@ -481,8 +481,8 @@ TEST_F(TestUbseMemControllerFaultHandle, SingleImportDebtNotifyHandler_Success)
     msg.SetFdHandleInfoVec(fdVec);
     msg.Serialize();
 
-    UbseByteBuffer req{
-        .data = msg.SerializedData(), .len = msg.SerializedDataSize(), .freeFunc = [](uint8_t*) -> void {}};
+    UbseByteBuffer req{.data = msg.SerializedData(), .len = msg.SerializedDataSize(), .freeFunc = [](uint8_t*) -> void {
+                       }};
     UbseByteBuffer resp{.data = nullptr, .len = 0, .freeFunc = nullptr};
 
     UbseMemFaultManager::SingleImportDebtNotifyHandler(req, resp);

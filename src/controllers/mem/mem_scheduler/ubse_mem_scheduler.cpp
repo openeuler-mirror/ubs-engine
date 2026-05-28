@@ -25,7 +25,7 @@ std::mutex schedulerMutex;
 using namespace ubse::log;
 using namespace ubse::nodeController;
 using namespace ubse::mem::strategy;
-using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::mmi;
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 uint32_t Init()
 {

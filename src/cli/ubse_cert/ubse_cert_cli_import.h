@@ -17,7 +17,7 @@
 #include <string>
 
 namespace ubse::cli::cert {
-using namespace common::def;
+using common::def::UbseResult;
 bool ImportCertSet(const std::string& serverCertPath, const std::string& trustCertPath,
                    const std::string& serverKeyPath, const std::string& caCrlPath, std::string& errMsg);
 bool ImportCert(const std::string& serverCertPath, const std::string& trustCertPath, const std::string& serverKeyPath,

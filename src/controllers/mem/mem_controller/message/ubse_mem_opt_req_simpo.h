@@ -17,8 +17,9 @@
 #include "ubse_mem_controller.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
-using namespace ubse::mem::controller;
+using ubse::mem::controller::UbseMemBorrowType;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 class UbseMemOptReqSimpo : public UbseBaseMessage {
 public:

@@ -22,8 +22,25 @@
 #include "ubse_obmm_meta_restore.h"
 namespace ubse::mmi::restore {
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemAddrImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemFdImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemNumaImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShareExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemShareImportObjMap;
+using ubse::common::def::UbseResult;
 
 struct LocalObmmMetaData {
     std::vector<UbseMemLocalObmmMetaData> FdImportMetaData{};

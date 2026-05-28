@@ -18,10 +18,16 @@
 #include "ubse_node_controller_def.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::ipc;
-using namespace ubse::common::def;
-using namespace ubse::nodeController::def;
-using namespace ubse::adapter_plugins::mmi;
+using api::server::UbseIpcMessage;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemFdPermissionReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
+using ubse::adapter_plugins::mmi::UbseMemShareAttachReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShareDetachReq;
+using ubse::nodeController::def::UbseNode;
 
 uint32_t UbseMemNameUnpack(const UbseIpcMessage& buffer, std::string& name);
 

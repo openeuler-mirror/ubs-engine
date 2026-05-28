@@ -25,8 +25,14 @@
 #include "lock/ubse_lock.h"
 
 namespace ubse::urmaController {
-using namespace ubse::urma;
-using namespace ubse::adapter_plugins::mti;
+using common::def::UbseResult;
+using ubse::adapter_plugins::mti::UbseMtiFeInfo;
+using ubse::urma::UbseUrmaInfo;
+using ubse::urma::UbseUrmaNodeInfo;
+using ubse::urma::UbseUrmaUvsNodeInfo;
+using ubse::urma::UrmaDevState;
+using ubse::urma::UrmaDevType;
+using ubse::urma::UrmaQosProfile;
 
 struct UbseUrmaInfoForQuery {
     std::string urmaName;

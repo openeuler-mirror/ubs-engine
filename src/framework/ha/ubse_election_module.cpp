@@ -24,6 +24,9 @@ using namespace ubse::context;
 using namespace ubse::com;
 using namespace ubse::config;
 using namespace ubse::nodeController;
+using namespace ubse::module;
+using namespace ubse::message;
+using namespace ::ubse::common::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 BASE_DYNAMIC_CREATE(UbseElectionModule, UbseComModule);

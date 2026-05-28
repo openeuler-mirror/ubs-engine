@@ -41,6 +41,12 @@ using namespace ubse::nodeController;
 using ubse::election::UbseElectionModule;
 using namespace ubse::mem::controller::debt;
 using namespace ubse::security;
+using namespace ubse::context;
+using namespace ubse::log;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::common::def;
+using namespace ubse::com;
+using namespace ubse::mem::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 const std::string ClusterHandlerKey = "NODE_CLUSTER_HDL";

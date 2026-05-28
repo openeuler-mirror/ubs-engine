@@ -29,10 +29,16 @@
 
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 namespace ubse::com {
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::task_executor;
 using namespace ubse::election;
 using namespace ubse::config;
+using namespace ubse::module;
+using namespace ubse::utils;
+using namespace ubse::message;
+using namespace ubse::log;
+using namespace ubse::com;
 BASE_DYNAMIC_CREATE(UbseComModule, UbseConfModule, ubse::task_executor::UbseTaskExecutorModule,
                     ubse::event::UbseEventModule);
 const std::string UBSE_CERT_SECTION = "ubse.rpc";

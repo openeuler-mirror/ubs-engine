@@ -35,6 +35,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::utils;
 using namespace ubse::nodeController::def;
 using namespace ubse::node::api;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::log;
 
 // 定义位掩码和位移常量
 constexpr uint16_t ONE_PTH_MASK = 0x1;
@@ -68,7 +70,8 @@ bool UbseOwnerUnpack(UbseUnpackUtil& unpackUtil, FdOwner& owner)
         UBSE_LOG_ERROR << "unpack owner gid failed.";
         return false;
     }
-    if (!unpackUtil.UnpackUint32(reinterpret_cast<uint32_t&>(owner.pid))) {
+    if (!unpackUtil.UnpackUint32(
+            reinterpret_cast<uint32_t&>(owner.pid))) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         UBSE_LOG_ERROR << "unpack owner pid failed.";
         return false;
     }

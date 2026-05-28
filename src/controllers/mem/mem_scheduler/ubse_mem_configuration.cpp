@@ -15,6 +15,9 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::strategy {
+using namespace ubse::log;
+using namespace ubse::config;
+using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 
@@ -30,18 +33,18 @@ uint16_t ParseRadiusConfig(const std::string& configKey, const std::string& conf
                 UBSE_LOG_INFO << "Set " << configName << " to " << radius;
                 return static_cast<uint16_t>(radius);
             }
-            UBSE_LOG_WARN << configKey << " value=" << radius << " is out of range [0, 7], Use default value="
-                          << defaultValue;
-        } catch (const std::exception &e) {
-            UBSE_LOG_WARN << "Convert " << configKey << " failed: " << e.what() << ", Use default value="
-                          << defaultValue;
+            UBSE_LOG_WARN << configKey << " value=" << radius
+                          << " is out of range [0, 7], Use default value=" << defaultValue;
+        } catch (const std::exception& e) {
+            UBSE_LOG_WARN << "Convert " << configKey << " failed: " << e.what()
+                          << ", Use default value=" << defaultValue;
         }
     } else {
         UBSE_LOG_WARN << "Get " << configKey << " failed, Use default value=" << defaultValue;
     }
     return defaultValue;
 }
-}
+} // namespace
 void UbseMemConfiguration::Init()
 {
     SetPageType();
@@ -115,7 +118,7 @@ std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeById(const std::string
 
 std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeFromLenderNode() const
 {
-    for (const auto &[_, config] : nodeConfigs_) {
+    for (const auto& [_, config] : nodeConfigs_) {
         if (config.isLender) {
             return config.blockSize;
         }
@@ -125,7 +128,7 @@ std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeFromLenderNode() const
 
 std::optional<UbseAllocator> UbseMemConfiguration::GetAllocatorFromLenderNode() const
 {
-    for (const auto &[_, config] : nodeConfigs_) {
+    for (const auto& [_, config] : nodeConfigs_) {
         if (config.isLender) {
             return config.allocator;
         }

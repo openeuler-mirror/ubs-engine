@@ -26,6 +26,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::election;
 using namespace ubse::log;
+using namespace ubse::adapter_plugins::mmi;
 
 uint32_t FillNumaDesc(const std::string& name, const std::string& importNodeId,
                       const UbseMemNumaBorrowImportObj& importObj, def::UbseMemNumaDesc& numaDesc)
@@ -179,7 +180,6 @@ uint32_t UbseMemNumaGetWithImportNode(const UbseMemDebtQueryRequest& request, Ub
     ubse::nodeController::UbseNodeGetByNodeIdInMaster(importNodeId, importNode);
     numaDesc.importNode.slotId = importNode.slotId;
     numaDesc.importNode.hostName = importNode.hostName;
-    numaDesc.importNode.socketIdList.clear();
     for (int i = 0; i < UBS_TOPO_SOCKET_NUM; i++) {
         numaDesc.importNode.socketIdList.push_back(static_cast<int16_t>(importNode.socketId[i]));
     }
@@ -191,7 +191,6 @@ uint32_t UbseMemNumaGetWithImportNode(const UbseMemDebtQueryRequest& request, Ub
                                                           exportNode);
         numaDesc.exportNode.slotId = exportNode.slotId;
         numaDesc.exportNode.hostName = exportNode.hostName;
-        numaDesc.exportNode.socketIdList.clear();
         for (int i = 0; i < UBS_TOPO_SOCKET_NUM; i++) {
             numaDesc.exportNode.socketIdList.push_back(static_cast<int16_t>(exportNode.socketId[i]));
         }

@@ -10,12 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_plugin.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_plugin_module.h"
 
 namespace ubse::plugin {
+using namespace ubse::context;
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 bool GetPluginInitRes(const std::string& pluginName)

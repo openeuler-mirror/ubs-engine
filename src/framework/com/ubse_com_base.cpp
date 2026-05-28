@@ -32,6 +32,10 @@
 #include "crc/ubse_crc.h"
 
 namespace ubse::com {
+using namespace ubse::log;
+using namespace ubse::message;
+using namespace ubse::common::def;
+using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE("ubse");
 std::map<std::string, UbseComBaseMessageHandlerPtr> UbseComBaseMessageHandlerManager::gHandlerMap_;
 std::mutex UbseComBaseMessageHandlerManager::gLock_;
@@ -258,7 +262,8 @@ void Reply(UbseComMessageCtx& message, UbseBaseMessagePtr response)
         UBSE_LOG_ERROR << "response serialize data is null";
         return;
     }
-    UbseComDataDesc data(reinterpret_cast<uint8_t*>(response->SerializedData()), response->SerializedDataSize());
+    UbseComDataDesc data(reinterpret_cast<uint8_t*>(response->SerializedData()),
+                         response->SerializedDataSize()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     UbseCommunication::UbseComMsgReply(message, data, UbseComCallback{ReplyCallback, &message});
 }
 

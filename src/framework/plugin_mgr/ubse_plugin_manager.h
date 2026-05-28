@@ -25,8 +25,7 @@
 #include "ubse_plugin_config.h"
 
 namespace ubse::plugin {
-using namespace ubse::common::def;
-using namespace ubse::context;
+using ubse::common::def::UbseResult;
 using UbsePluginInitFunc = uint32_t (*)(const uint16_t);
 using UbsePluginDeInitFunc = void (*)();
 

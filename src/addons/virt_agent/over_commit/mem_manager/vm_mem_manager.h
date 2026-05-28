@@ -22,8 +22,7 @@
 namespace vm::overcommit {
 using namespace vm::mempooling;
 
-enum class MemOpType
-{
+enum class MemOpType {
     BORROW,
     MIGRATE,
     RETURN,

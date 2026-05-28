@@ -18,9 +18,10 @@
 #include "ubse_node_controller.h"
 
 namespace usbe::mem::api {
-using namespace ubse::common::def;
-using namespace ubse::ipc;
-using namespace ubse::nodeController;
+using ::api::server::UbseApiServerModule;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
+using ubse::common::def::UbseResult;
 
 class UbseMemApi {
 public:

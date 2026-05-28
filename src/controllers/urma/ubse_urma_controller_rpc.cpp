@@ -34,6 +34,7 @@ using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::nodeController;
 using namespace ubse::urma;
+using namespace ubse::common::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 const int URMA_NO2 = 2;

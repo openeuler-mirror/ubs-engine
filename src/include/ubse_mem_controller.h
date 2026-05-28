@@ -20,7 +20,7 @@
 #include "ubse_common_def.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 enum class UbseMemStage : uint32_t {
     UBSE_NOT_EXIST = 0,         // 借用关系不存在

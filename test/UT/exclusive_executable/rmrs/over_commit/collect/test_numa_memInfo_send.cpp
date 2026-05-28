@@ -44,7 +44,7 @@ protected:
 TEST_F(TestOverCommitNumaMemInfoSend, SendMsgSuccess)
 {
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(returnValue(0));
     auto numaMemInfoSend = over_commit::NumaMemInfoSend("node1", 1);
@@ -54,11 +54,11 @@ TEST_F(TestOverCommitNumaMemInfoSend, SendMsgSuccess)
 
 TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenCreateFail)
 {
-    MOCKER_CPP(&NumaMemInfoSend::CreateRequestData, MpResult (*)(UbseByteBuffer& reqData))
+    MOCKER_CPP(&NumaMemInfoSend::CreateRequestData, MpResult(*)(UbseByteBuffer & reqData))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(returnValue(0));
     auto numaMemInfoSend = over_commit::NumaMemInfoSend("node1", 1);
@@ -68,11 +68,11 @@ TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenCreateFail)
 
 TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenSendFail)
 {
-    MOCKER_CPP(&NumaMemInfoSend::CreateRequestData, MpResult (*)(UbseByteBuffer& reqData))
+    MOCKER_CPP(&NumaMemInfoSend::CreateRequestData, MpResult(*)(UbseByteBuffer & reqData))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t (*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(returnValue(1));
     auto numaMemInfoSend = NumaMemInfoSend("node1", 1);
@@ -92,7 +92,7 @@ TEST_F(TestOverCommitNumaMemInfoSend, CreateRequestDataFail)
 {
     auto numaMemInfoSend = NumaMemInfoSend("node1", 1);
     UbseByteBuffer reqData{};
-    MOCKER_CPP(&RmrsOutStream::GetBufferPointer, uint8_t* (*)())
+    MOCKER_CPP(&RmrsOutStream::GetBufferPointer, uint8_t * (*)())
         .stubs()
         .will(returnValue(static_cast<uint8_t*>(nullptr)));
     auto ret = numaMemInfoSend.CreateRequestData(reqData);

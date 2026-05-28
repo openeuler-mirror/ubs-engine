@@ -16,7 +16,10 @@
 #include "ubse_com_module.h"
 
 namespace ubse::ras {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseModuleCode;
+using ubse::com::UbseRasOpCode;
 class UbseRasComHandler : public UbseComBaseMessageHandler {
 public:
     UbseRasComHandler() = default;

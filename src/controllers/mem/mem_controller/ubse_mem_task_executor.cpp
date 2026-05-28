@@ -28,6 +28,7 @@ namespace ubse::mem::controller {
 using namespace ubse::log;
 using namespace ubse::mem::def;
 using namespace ubse::serial;
+using namespace ubse::utils;
 using namespace api::server;
 using namespace ubse::mem::controller::message;
 

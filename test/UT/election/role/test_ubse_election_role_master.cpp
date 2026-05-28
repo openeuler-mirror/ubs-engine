@@ -19,6 +19,8 @@
 namespace ubse::event::election {
 using namespace ubse::election;
 using namespace ubse::context;
+using namespace ubse::com;
+using namespace ubse::common::def;
 ubse::election::UbseResult FAKE_GetMyselfNode0(UbseElectionNodeMgr* pthis, Node& myself);
 
 UbseResult MockGetAllNode(UbseElectionNodeMgr* pthis, std::vector<Node>& allNodes)

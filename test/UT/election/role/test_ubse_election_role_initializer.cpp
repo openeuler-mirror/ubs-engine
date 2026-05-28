@@ -20,6 +20,8 @@ namespace ubse::event::election {
 using namespace ubse::election;
 using namespace ubse::config;
 using namespace ubse::context;
+using namespace ubse::com;
+using namespace ubse::common::def;
 
 UbseResult FAKE_GetMyselfNode0(UbseElectionNodeMgr* pthis, Node& myself)
 {

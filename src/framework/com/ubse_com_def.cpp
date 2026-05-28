@@ -31,6 +31,9 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::utils;
 using namespace ubse::log;
+using namespace ock::hcom;
+using namespace ubse::common::def;
+using namespace ubse::message;
 UbseEngineType UbseComEngineInfo::GetEngineType() const
 {
     return engineType_;

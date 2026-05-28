@@ -21,8 +21,12 @@
 #include "ubse_node_controller_def.h"
 #include "ubs_engine_mem.h"
 namespace ubse::mem::def {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::nodeController::def;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
+using ubse::adapter_plugins::mmi::UbMemFaultType;
+using ubse::adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN;
+using ubse::adapter_plugins::mmi::UbseUdsInfo;
+using ubse::nodeController::def::UbseNode;
+
 struct UbseMemFdDesc {
     std::string name;
     std::vector<uint64_t> memIds;

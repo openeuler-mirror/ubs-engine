@@ -38,6 +38,11 @@ namespace ubse::com {
 using namespace ubse::log;
 using namespace ubse::config;
 using namespace ubse::security;
+using namespace ubse::utils;
+using namespace ock::hcom;
+using namespace ubse::common::def;
+using namespace ubse::message;
+using namespace ubse::module;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 // 对于reply的接收端，通信框架截取该值用于判断是否为错误码（StringToUbseReplyResult成功表示数据为errcode，否则认为是数据）；
@@ -915,7 +920,7 @@ void VarifyFailReply(UbseComMessageCtx& message)
 {
     auto res = (UbseReplyResultToString(UbseReplyResult::ERR_VERIFY_FAIL));
     UbseComDataDesc data;
-    data.data = reinterpret_cast<uint8_t*>(res.data());
+    data.data = reinterpret_cast<uint8_t*>(res.data()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     data.len = res.length();
     UbseComCallback usrCb;
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
@@ -925,7 +930,7 @@ void NoHandlerReply(UbseComMessageCtx& message)
 {
     auto res = (UbseReplyResultToString(UbseReplyResult::ERR_NO_HANDLER));
     UbseComDataDesc data;
-    data.data = reinterpret_cast<uint8_t*>(res.data());
+    data.data = reinterpret_cast<uint8_t*>(res.data()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     data.len = res.length();
     UbseComCallback usrCb;
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
@@ -1279,7 +1284,8 @@ UbseResult CheckReplyResult(const UbseComDataDesc& retData)
     if (retData.len > MAX_ERROR_CODE_LENGTH) {
         return UBSE_OK;
     }
-    std::string str(reinterpret_cast<const char*>(retData.data), retData.len);
+    std::string str(reinterpret_cast<const char*>(retData.data),
+                    retData.len); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (StringToUbseReplyResult(str) != UbseReplyResult::OK) {
         UBSE_LOG_ERROR << "Unable to Call Reason: " << str;
         return UBSE_ERROR;
@@ -1482,7 +1488,7 @@ void ReplyWhenChannelNotInMap(UbseComMessageCtx& message, const UbseComCallback&
                    << ", moduleCode=" << message.GetModuleCode() << ", opCode=" << message.GetOpCode();
     UBSHcomRequest reqMsg;
     auto res = (UbseReplyResultToString(UbseReplyResult::ERR_CH_NOT_IN_MAP));
-    reqMsg.address = reinterpret_cast<uint8_t*>(res.data());
+    reqMsg.address = reinterpret_cast<uint8_t*>(res.data()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     reqMsg.size = res.length();
     reqMsg.opcode = 0;
     Callback* done = nullptr;

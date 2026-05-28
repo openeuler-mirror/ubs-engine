@@ -18,7 +18,7 @@
 #include "ubse_node_controller_def.h"
 
 namespace ubse::nodeController {
-using namespace ubse::mem::account;
+using ubse::mem::account::UbseNumaNodeInfo;
 /**
  * @brief 查询所有CPU类型节点的拓扑信息
  *

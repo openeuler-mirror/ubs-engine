@@ -16,12 +16,12 @@
 #include <fstream>
 #include <string>
 
+#include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_timer.h"
 #include "process_mem_pid_config_manager.h"
 #include "process_mem_pid_info_manager.h"
-#include "ubse_conf.h"
 
 namespace process_mem::collect {
 UBSE_DEFINE_THIS_MODULE("process_mem");

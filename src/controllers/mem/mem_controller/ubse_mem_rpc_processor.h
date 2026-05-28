@@ -12,9 +12,12 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::com;
-using namespace ubse::utils;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemFdPermissionReq;
+using ubse::adapter_plugins::mmi::UbseMemFdPermissionResp;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseComModule;
+using ubse::utils::Ref;
 
 class UbseMemFdBorrowMessageHandler : public UbseComBaseMessageHandler {
 public:

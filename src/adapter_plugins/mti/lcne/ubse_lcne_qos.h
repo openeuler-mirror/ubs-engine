@@ -22,9 +22,9 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace ubse::adapter_plugins::mti;
+using common::def::UbseResult;
+using ubse::adapter_plugins::mti::UbseMtiFeInfo;
+using ubse::adapter_plugins::mti::UbseMtiQosProfile;
 
 class UbseLcneQos {
 public:

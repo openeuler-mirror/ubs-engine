@@ -232,7 +232,8 @@ uint32_t UbseUDSServer::BindSocket() const
     unlink(socketPath.c_str());
 
     // 绑定socket
-    if (bind(serverFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1) {
+    if (bind(serverFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
+        -1) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         UBSE_LOG_ERROR << "Failed to bind socket=" << strerror(errno);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
@@ -359,7 +360,8 @@ void UbseUDSServer::HandleNewConnection()
     while (true) { // 边缘触发需要处理所有等待的连接
         struct sockaddr_un client_addr {};
         socklen_t client_len = sizeof(client_addr);
-        int clientFd = accept4(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len, SOCK_NONBLOCK);
+        int clientFd = accept4(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len,
+                               SOCK_NONBLOCK); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         if (clientFd == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // 所有连接都已处理

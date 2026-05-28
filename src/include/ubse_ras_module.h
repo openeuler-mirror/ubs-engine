@@ -16,7 +16,8 @@
 #include "src/adapter_plugins/syssentry/sentry_observer.h"
 
 namespace ubse::ras {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseRasModule : public UbseModule {
 public:

@@ -23,9 +23,8 @@
 #include "ubse_lcne_topology.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace ubse::mti;
+using common::def::UbseResult;
+using ubse::mti::LcneNodeCnaInfo;
 
 class UbseTopoCna {
 public:

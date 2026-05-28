@@ -28,6 +28,8 @@ using namespace ubse::utils;
 using namespace ubse::config;
 using namespace mem::strategy;
 using namespace ubse::security;
+using namespace ubse::log;
+using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
 static std::regex g_rgx("(\\d+)");
 const uint8_t IPV4_LENGTH = 4;

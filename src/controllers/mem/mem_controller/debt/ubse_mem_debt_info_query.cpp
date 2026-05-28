@@ -26,6 +26,7 @@ namespace ubse::mem::controller::debt {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::election;
+using namespace ubse::utils;
 
 inline uint64_t BytesToMB(uint64_t bytes)
 {

@@ -24,7 +24,10 @@
 #include <condition_variable>
 
 namespace ubse::com {
-using namespace ubse::utils;
+using ock::hcom::UBSHcomNewCallback;
+using ock::hcom::UBSHcomService;
+using ubse::common::def::UbseResult;
+using ubse::utils::PairMap;
 const uint16_t MODULES_SIZE = 1000; // 最大模块数
 const uint16_t OP_CODE_SIZE = 1000; // 最大操作码
 
@@ -32,7 +35,6 @@ using HandlerMap = ubse::utils::PairMap<uint16_t, uint16_t, UbseComMsgHandler>;
 using NodeChannelMap = std::map<std::string, std::map<UbseChannelType, UbseComChannelInfo>>;
 using NodeIpIdMap = std::map<std::string, std::string>;
 using ChannelIdMap = std::map<uint64_t, UbseComChannelInfo>;
-
 enum OpCodeType : uint16_t {
     DEFAULT = 0,
     GET_REMOTE_ID = 1,
@@ -273,8 +275,7 @@ protected:
     UbseResult AddConnectingNodeForServer(UbseComChannelInfo& chInfo);
     void UpdateNewChannelIdMap(const std::string& nodeId, UbseComChannelInfo& channelInfo);
     bool SplitIp(const std::string ipPortStr, std::string& ip);
-    bool ResolvePeerConnectInfo(const std::string& ipPort,
-                                const std::pair<std::string, UbseChannelType>& payLoadPair,
+    bool ResolvePeerConnectInfo(const std::string& ipPort, const std::pair<std::string, UbseChannelType>& payLoadPair,
                                 UbseComChannelConnectInfo& connectInfo);
     bool VerifyMsg(UbseComMessageCtx& msgCtx);
     void HandleGetLocalNodeId(const UBSHcomServiceContext& context);
@@ -298,7 +299,7 @@ protected:
     int16_t heartBeatTimeout_;
     ShouldDoReconnectCb shouldReconnect_ = nullptr;
     QueryEidByNodeIdCb queryCb_ = nullptr;
-    std::thread startRetryThread_;     // 启动HCOM Server重试线程
+    std::thread startRetryThread_; // 启动HCOM Server重试线程
 };
 
 class UbseComEngineManager {

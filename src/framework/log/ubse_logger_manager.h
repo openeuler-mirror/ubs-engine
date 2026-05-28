@@ -21,8 +21,7 @@
 #include "sys/syslog.h"
 
 namespace ubse::log {
-using namespace ubse::common::def;
-using namespace ubse::utils;
+using ubse::common::def::UbseResult;
 
 class UbseLoggerManager {
 public:

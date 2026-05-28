@@ -15,6 +15,9 @@
 
 namespace ubse::ut::lcne {
 using namespace ubse::lcne;
+using namespace ubse::http;
+using namespace ubse::mti;
+using namespace ubse::common::def;
 constexpr int ZERO = 0;
 constexpr int ONE = 1;
 void TestUbseLcneTopologyClient::SetUp()

@@ -25,6 +25,7 @@ namespace api::server {
 using namespace ubse::ipc;
 using namespace ubse::config;
 using namespace ubse::log;
+using namespace ubse::common::def;
 
 BASE_DYNAMIC_CREATE(UbseApiServerModule, UbseConfModule);
 UBSE_DEFINE_THIS_MODULE("ubse");

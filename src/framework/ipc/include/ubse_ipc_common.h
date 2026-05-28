@@ -82,9 +82,9 @@ typedef enum {
     UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                 // SHM链接(CLI)
     UBSE_MEM_CLI_SHM_DETACH = 0x0046,                 // SHM释放(CLI)
     UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047, // 内存删除(聚合接口)(CLI)
-    UBSE_MEM_CLI_PID_SET_THRESHOLD = 0x0048, // PID阈值设置(CLI)
-    UBSE_MEM_CLI_PRINT_PID_INFO = 0x0049,    // PID信息查询(CLI)
-    UBSE_MEM_CLI_PID_UNSET = 0x0050,         // PID配置删除(CLI)
+    UBSE_MEM_CLI_PID_SET_THRESHOLD = 0x0048,          // PID阈值设置(CLI)
+    UBSE_MEM_CLI_PRINT_PID_INFO = 0x0049,             // PID信息查询(CLI)
+    UBSE_MEM_CLI_PID_UNSET = 0x0050,                  // PID配置删除(CLI)
 } ubse_ipc_mem_op_code_t;
 
 typedef enum {

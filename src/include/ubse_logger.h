@@ -163,7 +163,7 @@ private:
     template <typename T>
     void EncodeData(T data)
     {
-        *reinterpret_cast<T*>(GetBuffer()) = data;
+        *reinterpret_cast<T*>(GetBuffer()) = data; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         currentSize += sizeof(T);
     }
 

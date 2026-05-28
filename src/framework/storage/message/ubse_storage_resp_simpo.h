@@ -16,7 +16,9 @@
 #include "ubse_base_message.h"
 #include "ubse_storage.h"
 namespace ubse::storage::message {
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 struct UbseStorageResp {
     std::vector<KV> kvs;

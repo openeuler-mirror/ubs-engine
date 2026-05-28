@@ -25,6 +25,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace ubse::http;
+using namespace ubse::mti;
 
 UbseResult UbseLcneHostInfo::QueryLcneHostInfo(UbseLcneOSInfo& ubseLcneOSInfo)
 {

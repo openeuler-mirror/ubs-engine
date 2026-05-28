@@ -19,6 +19,7 @@
 namespace ubse::mem::account {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace strategy;
+using namespace ubse::adapter_plugins::mmi;
 
 void ShareAlgoAccount::UpdateMapNumaInfo(bool isAdd, const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult)
 {

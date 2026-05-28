@@ -17,8 +17,8 @@
 #include "ubse_api_server_module.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
-#include "ubse_mem_async_processor.h"
 #include "ubse_mem_api.h"
+#include "ubse_mem_async_processor.h"
 #include "ubse_mem_controller_fd_api.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_msg.h"
@@ -50,6 +50,9 @@ using namespace ubse::mem::controller;
 using namespace usbe::mem::api;
 using namespace mem::controller::message;
 using namespace ubse::mem::util;
+using namespace ubse::com;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::context;
 
 void TestUbseMemRpc::SetUp()
 {

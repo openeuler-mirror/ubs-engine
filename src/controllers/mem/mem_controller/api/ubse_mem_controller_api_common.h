@@ -31,8 +31,23 @@
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::utils;
+using ubse::adapter_plugins::mmi::MemOperationType;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_RUNNING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_RUNNING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS;
+using ubse::adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+using ubse::adapter_plugins::mmi::UbseMemImportStatus;
+using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseShmRegionDesc;
+using ubse::adapter_plugins::mmi::UbseUdsInfo;
 
 const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
@@ -71,8 +86,8 @@ bool IsMemShareFeatureSupported();
 
 bool IsMemShareModeFeatureSupported(uint16_t cacheableFlag);
 
-uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp &resp, const std::string &name,
-                                         const std::string &requestNodeId,
+uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp& resp, const std::string& name,
+                                         const std::string& requestNodeId,
                                          MemOperationType type = MemOperationType::FD_BORROW);
 
 template <class importType>

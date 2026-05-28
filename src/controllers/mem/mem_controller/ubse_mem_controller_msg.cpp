@@ -39,6 +39,11 @@ using namespace ubse::election;
 using namespace ubse::serial;
 using namespace ubse::context;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::com;
+using namespace ubse::common::def;
+using namespace ubse::utils;
+using namespace ubse::log;
+using namespace ubse::nodeController;
 
 void RegRespCtrlHandlers()
 {

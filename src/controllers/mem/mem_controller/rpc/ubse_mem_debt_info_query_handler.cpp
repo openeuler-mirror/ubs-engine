@@ -32,6 +32,10 @@ using namespace ubse::mem::controller::message;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller;
+using namespace ubse::com;
+using namespace ubse::log;
+using namespace ubse::mem::controller;
+
 UbseResult UbseMemDebtInfoQueryHandler::RegUbseMemDebtInfoQueryHandler()
 {
     UbseComBaseMessageHandlerPtr ubseComBaseMessageHandler = new (std::nothrow) UbseMemDebtInfoQueryHandler();

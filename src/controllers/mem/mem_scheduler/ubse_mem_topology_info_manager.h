@@ -23,6 +23,9 @@
 #include "mem_pool_strategy.h"
 
 namespace ubse::mem::strategy {
+using ubse::adapter_plugins::mmi::UbseMemNumaLoc;
+using ubse::nodeController::UbseAllocator;
+using ubse::nodeController::UbseNumaInfo;
 struct SocketCnaTopoInfo {
     std::string importNodeIdSocketId{};
     std::string exportNodeIdSocketId{};

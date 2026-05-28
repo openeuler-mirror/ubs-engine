@@ -21,8 +21,15 @@
 #include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::common::def::UbseResult;
 
 obmm_mem_desc* ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta& customMeta, const UbMemPrivData& ubMemPrivData);
 obmm_mem_desc* ConstructImportMemDesc(const ObmmOpParam& opParam, const ubse_mem_obmm_mem_desc& desc);

@@ -46,7 +46,7 @@ public:
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSUpdateAntiNodeSucceed)
 {
-    MOCKER_CPP(&AntiNode::Update, MpResult (*)(const std::map<std::string, std::vector<std::string>>& nodeAntiMap))
+    MOCKER_CPP(&AntiNode::Update, MpResult(*)(const std::map<std::string, std::vector<std::string>>& nodeAntiMap))
         .stubs()
         .will(returnValue(0));
     std::map<std::string, std::vector<std::string>> nodeAntiMap;
@@ -57,7 +57,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSUpdateAntiNodeSucceed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSUpdateAntiNodeFailed)
 {
-    MOCKER_CPP(&AntiNode::Update, MpResult (*)(const std::map<std::string, std::vector<std::string>>& nodeAntiMap))
+    MOCKER_CPP(&AntiNode::Update, MpResult(*)(const std::map<std::string, std::vector<std::string>>& nodeAntiMap))
         .stubs()
         .will(returnValue(0));
     std::map<std::string, std::vector<std::string>> nodeAntiMap;
@@ -77,7 +77,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowStrategyFailed1)
 {
     MOCKER_CPP(
         &MempoolBorrowModule::MemBorrowStrategy,
-        MpResult (*)(const mempooling::SrcMemoryBorrowParam&, const uint64_t, mempooling::MemBorrowStrategyResult&))
+        MpResult(*)(const mempooling::SrcMemoryBorrowParam&, const uint64_t, mempooling::MemBorrowStrategyResult&))
         .stubs()
         .will(returnValue(0));
     mempooling::outinterface::SrcMemoryBorrowParam outSrcParam;
@@ -101,10 +101,10 @@ std::string MockTestGetNodeIdNode1()
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowStrategySucceed)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(invoke(MockTestGetNodeId));
+    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string(*)()).stubs().will(invoke(MockTestGetNodeId));
     MOCKER_CPP(
         &MempoolBorrowModule::MemBorrowStrategy,
-        MpResult (*)(const mempooling::SrcMemoryBorrowParam&, const uint64_t, mempooling::MemBorrowStrategyResult&))
+        MpResult(*)(const mempooling::SrcMemoryBorrowParam&, const uint64_t, mempooling::MemBorrowStrategyResult&))
         .stubs()
         .will(returnValue(0));
     mempooling::outinterface::SrcMemoryBorrowParam outSrcParam;
@@ -117,10 +117,10 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowStrategySucceed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(invoke(MockTestGetNodeId));
+    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string(*)()).stubs().will(invoke(MockTestGetNodeId));
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult (*)(const mempooling::SrcMemoryBorrowParam&,
-                            const std::vector<mempooling::DestMemoryBorrowParam>&, mempooling::MemBorrowExecuteResult&))
+               MpResult(*)(const mempooling::SrcMemoryBorrowParam&,
+                           const std::vector<mempooling::DestMemoryBorrowParam>&, mempooling::MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(0));
     mempooling::outinterface::SrcMemoryBorrowParam outSrcParam;
@@ -134,10 +134,10 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteSucceed)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(invoke(MockTestGetNodeId));
+    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string(*)()).stubs().will(invoke(MockTestGetNodeId));
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult (*)(const mempooling::SrcMemoryBorrowParam&,
-                            const std::vector<mempooling::DestMemoryBorrowParam>&, mempooling::MemBorrowExecuteResult&))
+               MpResult(*)(const mempooling::SrcMemoryBorrowParam&,
+                           const std::vector<mempooling::DestMemoryBorrowParam>&, mempooling::MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(0));
     mempooling::outinterface::SrcMemoryBorrowParam outSrcParam;
@@ -164,8 +164,8 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed1)
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed2)
 {
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult (*)(mempooling::SrcMemoryBorrowParam&, const std::vector<mempooling::DestMemoryBorrowParam>&,
-                            mempooling::MemBorrowExecuteResult&))
+               MpResult(*)(mempooling::SrcMemoryBorrowParam&, const std::vector<mempooling::DestMemoryBorrowParam>&,
+                           mempooling::MemBorrowExecuteResult&))
         .stubs()
         .will(returnValue(1));
     mempooling::outinterface::SrcMemoryBorrowParam outSrcParam;
@@ -181,8 +181,8 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed2)
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateStrategyFailed1)
 {
     MOCKER_CPP(&migrate::MempoolMigrateModule::MigrateStrategy,
-               MpResult (*)(std::string, std::vector<mempooling::VMPresetParam>, std::uint64_t,
-                            turbo::rmrs::MigrateStrategyResult&))
+               MpResult(*)(std::string, std::vector<mempooling::VMPresetParam>, std::uint64_t,
+                           turbo::rmrs::MigrateStrategyResult&))
         .stubs()
         .will(returnValue(0));
 
@@ -200,8 +200,8 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateStrategyFailed1)
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateStrategySucceed)
 {
     MOCKER_CPP(&migrate::MempoolMigrateModule::MigrateStrategy,
-               MpResult (*)(std::string, std::vector<mempooling::VMPresetParam>, std::uint64_t,
-                            turbo::rmrs::MigrateStrategyResult&))
+               MpResult(*)(std::string, std::vector<mempooling::VMPresetParam>, std::uint64_t,
+                           turbo::rmrs::MigrateStrategyResult&))
         .stubs()
         .will(returnValue(0));
     std::string borrowInNode{"Node1"};
@@ -220,7 +220,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateExecuteFailed)
 {
     MOCKER_CPP(
         &migrate::MempoolMigrateExecute::MigrateExecute,
-        MpResult (*)(std::string, std::vector<turbo::rmrs::VMMigrateOutParam>, uint64_t, std::vector<std::string>))
+        MpResult(*)(std::string, std::vector<turbo::rmrs::VMMigrateOutParam>, uint64_t, std::vector<std::string>))
         .stubs()
         .will(returnValue(0));
     std::string borrowInNode{"Node0"};
@@ -238,12 +238,12 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateExecuteSucceed)
 {
     MOCKER_CPP(
         &migrate::MempoolMigrateExecute::MigrateExecute,
-        MpResult (*)(std::string, std::vector<turbo::rmrs::VMMigrateOutParam>, uint64_t, std::vector<std::string>))
+        MpResult(*)(std::string, std::vector<turbo::rmrs::VMMigrateOutParam>, uint64_t, std::vector<std::string>))
         .stubs()
         .will(returnValue(0));
 
     std::string nodeId = "Node0";
-    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(returnValue(nodeId));
+    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string(*)()).stubs().will(returnValue(nodeId));
     std::string borrowInNode{nodeId};
     std::vector<mempooling::outinterface::VMMigrateOutParam> outVmInfoList;
     mempooling::outinterface::VMMigrateOutParam param;
@@ -257,7 +257,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateExecuteSucceed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemFreeFailed)
 {
-    MOCKER_CPP(&MempoolBorrowModule::MemFree, MpResult (*)(std::string)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MempoolBorrowModule::MemFree, MpResult(*)(std::string)).stubs().will(returnValue(0));
     std::string nodeId{"Node0"};
     auto ret = UBSRMRSMemFree(nodeId);
     EXPECT_EQ(ret, 1);
@@ -265,8 +265,8 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemFreeFailed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemFreeSucceed)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(invoke(MockTestGetNodeId));
-    MOCKER_CPP(&MempoolBorrowModule::MemFree, MpResult (*)(std::string)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string(*)()).stubs().will(invoke(MockTestGetNodeId));
+    MOCKER_CPP(&MempoolBorrowModule::MemFree, MpResult(*)(std::string)).stubs().will(returnValue(0));
     std::string nodeId{"1"};
     auto ret = UBSRMRSMemFree(nodeId);
     EXPECT_EQ(ret, 0);
@@ -274,8 +274,8 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemFreeSucceed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowRollbackSucceed)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string (*)()).stubs().will(invoke(MockTestGetNodeId));
-    MOCKER_CPP(mempooling::RpcMemBorrowRollback, MpResult (*)(std::string, const std::vector<std::string>&))
+    MOCKER_CPP(&MpConfiguration::GetNodeId, std::string(*)()).stubs().will(invoke(MockTestGetNodeId));
+    MOCKER_CPP(mempooling::RpcMemBorrowRollback, MpResult(*)(std::string, const std::vector<std::string>&))
         .stubs()
         .will(returnValue(0));
     std::string borrowInNode{"1"};
@@ -286,7 +286,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowRollbackSucceed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowRollbackFailed)
 {
-    MOCKER_CPP(mempooling::RpcMemBorrowRollback, MpResult (*)(std::string, const std::vector<std::string>&))
+    MOCKER_CPP(mempooling::RpcMemBorrowRollback, MpResult(*)(std::string, const std::vector<std::string>&))
         .stubs()
         .will(returnValue(0));
     std::string borrowInNode{"Node0"};
@@ -304,7 +304,7 @@ MpResult HelpGetVmInfoListOnNodeForTest(std::vector<mempooling::exportV2::VmDoma
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSGetVmInfoListOnNodeSucceed)
 {
-    MOCKER_CPP(mempooling::HelpGetVmInfoListOnNode, MpResult (*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
+    MOCKER_CPP(mempooling::HelpGetVmInfoListOnNode, MpResult(*)(std::vector<mempooling::exportV2::VmDomainInfo>&))
         .stubs()
         .will(invoke(HelpGetVmInfoListOnNodeForTest));
     std::vector<mempooling::outinterface::VmDomainInfo> outVmDomainInfos;
@@ -321,7 +321,7 @@ MpResult HelpGetNumaInfoListOnNodeForTest(std::vector<mempooling::exportV2::Numa
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSGetNumaInfoListOnNodeSucceed)
 {
-    MOCKER_CPP(mempooling::HelpGetNumaInfoListOnNode, MpResult (*)(std::vector<mempooling::exportV2::NumaInfo>&))
+    MOCKER_CPP(mempooling::HelpGetNumaInfoListOnNode, MpResult(*)(std::vector<mempooling::exportV2::NumaInfo>&))
         .stubs()
         .will(invoke(HelpGetNumaInfoListOnNodeForTest));
     std::vector<mempooling::outinterface::NumaInfo> outNumaInfos;
@@ -344,7 +344,7 @@ MpResult HelpGetContainerPidNumaInfoByLocalNodeTest(const std::string& srcNid, c
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSPidNumaInfoCollectSucceed)
 {
     MOCKER_CPP(ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode,
-               MpResult (*)(const std::string&, const std::vector<pid_t>&, std::vector<mempooling::RmrsPidInfo>&))
+               MpResult(*)(const std::string&, const std::vector<pid_t>&, std::vector<mempooling::RmrsPidInfo>&))
         .stubs()
         .will(invoke(HelpGetContainerPidNumaInfoByLocalNodeTest));
     mempooling::outinterface::SrcMemoryBorrowParam srcParam;
@@ -357,7 +357,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSPidNumaInfoCollectSucceed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSetRunModeSucceed)
 {
-    MOCKER_CPP(mempooling::smap::MpSmapHelper::SetRunModeAndWrite, MpResult (*)(int)).stubs().will(returnValue(0));
+    MOCKER_CPP(mempooling::smap::MpSmapHelper::SetRunModeAndWrite, MpResult(*)(int)).stubs().will(returnValue(0));
     int runMode = 0;
     auto ret = UBSRMRSSetRunMode(runMode);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -365,7 +365,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSetRunModeSucceed)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSetRunModeSucceed1)
 {
-    MOCKER_CPP(mempooling::smap::MpSmapHelper::SetRunModeAndWrite, MpResult (*)(int)).stubs().will(returnValue(0));
+    MOCKER_CPP(mempooling::smap::MpSmapHelper::SetRunModeAndWrite, MpResult(*)(int)).stubs().will(returnValue(0));
     int runMode = 1;
     auto ret = UBSRMRSSetRunMode(runMode);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -373,7 +373,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSetRunModeSucceed1)
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSetRunModeFailed)
 {
-    MOCKER_CPP(mempooling::smap::MpSmapHelper::SetRunModeAndWrite, MpResult (*)(int)).stubs().will(returnValue(1));
+    MOCKER_CPP(mempooling::smap::MpSmapHelper::SetRunModeAndWrite, MpResult(*)(int)).stubs().will(returnValue(1));
     int runMode = 0;
     auto ret = UBSRMRSSetRunMode(runMode);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -382,7 +382,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSetRunModeFailed)
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapAddProcessTrackingSucceed)
 {
     MOCKER_CPP(mempooling::smap::MpSmapHelper::SmapAddProcessTrackingHelper,
-               MpResult (*)(const std::vector<pid_t>&, const std::vector<uint32_t>&, int, const std::vector<uint32_t>&))
+               MpResult(*)(const std::vector<pid_t>&, const std::vector<uint32_t>&, int, const std::vector<uint32_t>&))
         .stubs()
         .will(returnValue(0));
     std::vector<pid_t> pidVec{3};
@@ -396,7 +396,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapAddProcessTrackingSucceed)
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapAddProcessTrackingFailed1)
 {
     MOCKER_CPP(mempooling::smap::MpSmapHelper::SmapAddProcessTrackingHelper,
-               MpResult (*)(const std::vector<pid_t>&, const std::vector<uint32_t>&, int, const std::vector<uint32_t>&))
+               MpResult(*)(const std::vector<pid_t>&, const std::vector<uint32_t>&, int, const std::vector<uint32_t>&))
         .stubs()
         .will(returnValue(0));
     std::vector<pid_t> pidVec;

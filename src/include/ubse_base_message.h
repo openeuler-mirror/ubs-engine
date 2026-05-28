@@ -20,8 +20,9 @@
 #include "ubse_common_def.h"
 
 namespace ubse::message {
-using namespace ubse::utils;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 
 class UbseBaseMessage : public Referable {
 public:

@@ -21,8 +21,9 @@
 #include "ubse_event_module.h"
 
 namespace ubse::election {
-using namespace ubse::com;
-using namespace ubse::event;
+using ubse::com::UbseComBase;
+using ubse::com::UbseComCallBackForHA;
+using ubse::com::UbseResult;
 
 struct NodeLinkInfo {
     std::string nodeId;

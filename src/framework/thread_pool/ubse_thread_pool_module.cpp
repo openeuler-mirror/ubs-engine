@@ -22,6 +22,9 @@
 #include "ubse_thread_pool.h"
 
 namespace ubse::task_executor {
+using namespace ubse::module;
+using namespace ubse::common::def;
+using namespace ubse::utils;
 using namespace ubse::log;
 
 BASE_DYNAMIC_CREATE(UbseTaskExecutorModule, ubse::log::UbseLoggerModule);

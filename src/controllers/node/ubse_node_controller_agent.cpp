@@ -26,14 +26,9 @@
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
 
-const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2; // 节点侧采集失败重试周期，单位/s
-const uint32_t UBSE_NODE_REPORT_INTERVAL = 2; // 节点侧主动向中心侧上报节点内存，拓扑周期；单位秒
-constexpr int UBSE_RPC_TIMEOUT_MS = 60000;    // 60秒超时
-constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001; // 超时错误码
-
-const std::string UBSE_NODE_AGENT_REPORT_TIMER = "UbseNodeReport";
-
-std::string UBSE_TOPOLOGY_CHANGE_EVENT = UBSE_EVENT_TOPOLOGY_CHANGE;
+const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;
+const uint32_t UBSE_NODE_REPORT_INTERVAL = 2;
+constexpr int UBSE_RPC_TIMEOUT_MS = 60000;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeController {
@@ -45,6 +40,11 @@ using namespace ubse::timer;
 using namespace ubse::common::def;
 using namespace ubse::com;
 using namespace ubse::serial;
+using namespace ubse::task_executor;
+
+constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
+const std::string UBSE_NODE_AGENT_REPORT_TIMER = "UbseNodeReport";
+std::string UBSE_TOPOLOGY_CHANGE_EVENT = UBSE_EVENT_TOPOLOGY_CHANGE;
 
 // Agent端消息处理注册
 UbseResult RegAgentMsgHandler()
@@ -385,7 +385,8 @@ static UbseResult CreateErrorResponse(UbseResult errorCode, UbseByteBuffer& resp
 {
     uint8_t* errorBuffer = new (std::nothrow) uint8_t[4];
     if (errorBuffer != nullptr) {
-        *reinterpret_cast<uint32_t*>(errorBuffer) = static_cast<uint32_t>(errorCode);
+        *reinterpret_cast<uint32_t*>(errorBuffer) =
+            static_cast<uint32_t>(errorCode); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         resp = {errorBuffer, 4, [](uint8_t* p) noexcept {
                     delete[] p;
                 }};

@@ -16,8 +16,9 @@
 #include "ubse_common_def.h"
 
 namespace ubse::node::api {
-using namespace ubse::common::def;
-using namespace ubse::ipc;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
+using ubse::common::def::UbseResult;
 
 class UbseNodeApi {
 public:

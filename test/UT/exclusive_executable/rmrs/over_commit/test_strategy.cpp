@@ -104,42 +104,41 @@ static uint32_t MockRmrsNumaMemInfoCollectSuccess(const turbo::rmrs::NumaMemInfo
 TEST_F(MockVMMemMigrateStrategy2, RebalanceTestSuccessWhenStepEmpty)
 {
     MOCKER_CPP(PageFileHelper::AllocateHugePages,
-               MpResult (*)(const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs))
+               MpResult(*)(const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     message::MempoolingMessage::rmrsNumaMemInfoCollect = &MockRmrsNumaMemInfoCollectSuccess;
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsOnlyBorrowIn,
-               MpResult (*)(BorrowRecordHelper* This, const std::string nodeId, const int& numaId,
-                            std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, const int& numaId,
+                           std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(TestCollectBorrowRecords));
     MOCKER_CPP(&VMMemMigrateStrategy::CollectProcessInformation,
-               MpResult (*)(const std::set<uint16_t>& remoteNuma, const std::vector<pid_t>& pids,
-                            std::map<pid_t, int16_t>& currentVmLocation, std::unordered_map<pid_t, VMInfo>& vmInfos,
-                            uint8_t ratio))
+               MpResult(*)(const std::set<uint16_t>& remoteNuma, const std::vector<pid_t>& pids,
+                           std::map<pid_t, int16_t>& currentVmLocation, std::unordered_map<pid_t, VMInfo>& vmInfos,
+                           uint8_t ratio))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(UpdateContainerInfoInnode,
-               MpResult (*)(const std::string&, const std::vector<pid_t>&, std::unordered_map<pid_t, VMInfo>&))
+               MpResult(*)(const std::string&, const std::vector<pid_t>&, std::unordered_map<pid_t, VMInfo>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(true));
-    MOCKER_CPP(&FillNumaInfo, MpResult (*)(mempooling::outinterface::NumaMetaData&, JSON_MAP))
+    MOCKER_CPP(&FillNumaInfo, MpResult(*)(mempooling::outinterface::NumaMetaData&, JSON_MAP))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper,
-               MpResult (*)(pid_t* pidArr, int len, int enable, int flags))
+               MpResult(*)(pid_t * pidArr, int len, int enable, int flags))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    MOCKER_CPP(&VMMemMigrateStrategy::processSteps,
-               MpResult (*)(int16_t srcNumaId, std::vector<MigrationStep>&, uint8_t, std::map<uint16_t, uint64_t>&,
-                            std::vector<pid_t>&))
+    MOCKER_CPP(&VMMemMigrateStrategy::processSteps, MpResult(*)(int16_t srcNumaId, std::vector<MigrationStep>&, uint8_t,
+                                                                std::map<uint16_t, uint64_t>&, std::vector<pid_t>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -186,16 +185,16 @@ TEST_F(MockVMMemMigrateStrategy2, TestProcessSteps)
     std::vector<pid_t> pidsAll;
     pidsAll.push_back(1);
     MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper,
-               MpResult (*)(pid_t* pidArr, int len, int enable, int flags))
+               MpResult(*)(pid_t * pidArr, int len, int enable, int flags))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(MpSmapHelper::SetSmapRemoteNumaInfo,
-               MpResult (*)(const uint16_t& srcNumaId,
-                            const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfosWithSrc))
+               MpResult(*)(const uint16_t& srcNumaId,
+                           const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfosWithSrc))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(MpSmapHelper::MigrateOutInOverCommit,
-               MpResult (*)(const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio))
+               MpResult(*)(const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto ret = strategy.processSteps(0, vec, 25, remoteMap2Size, pidsAll);
@@ -216,16 +215,16 @@ TEST_F(MockVMMemMigrateStrategy2, TestProcessStepsFailWHenSetFailed)
     std::vector<pid_t> pidsAll;
     pidsAll.push_back(1);
     MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper,
-               MpResult (*)(pid_t* pidArr, int len, int enable, int flags))
+               MpResult(*)(pid_t * pidArr, int len, int enable, int flags))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(MpSmapHelper::SetSmapRemoteNumaInfo,
-               MpResult (*)(const uint16_t& srcNumaId,
-                            const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfosWithSrc))
+               MpResult(*)(const uint16_t& srcNumaId,
+                           const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfosWithSrc))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MOCKER_CPP(MpSmapHelper::MigrateOutInOverCommit,
-               MpResult (*)(const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio))
+               MpResult(*)(const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto ret = strategy.processSteps(0, vec, 25, remoteMap2Size, pidsAll);
@@ -246,16 +245,16 @@ TEST_F(MockVMMemMigrateStrategy2, TestProcessStepsFailWHenMigrateOutFailed)
     std::vector<pid_t> pidsAll;
     pidsAll.push_back(1);
     MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper,
-               MpResult (*)(pid_t* pidArr, int len, int enable, int flags))
+               MpResult(*)(pid_t * pidArr, int len, int enable, int flags))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(MpSmapHelper::SetSmapRemoteNumaInfo,
-               MpResult (*)(const uint16_t& srcNumaId,
-                            const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfosWithSrc))
+               MpResult(*)(const uint16_t& srcNumaId,
+                           const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfosWithSrc))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(MpSmapHelper::MigrateOutInOverCommit,
-               MpResult (*)(const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio))
+               MpResult(*)(const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = strategy.processSteps(0, vec, 25, remoteMap2Size, pidsAll);

@@ -22,8 +22,7 @@
 
 namespace ubse::mem::strategy {
 #define MODULE_LOG_NAME "ubse_mem_strategy"
-using namespace ubse::log;
-using namespace ubse::nodeController;
+using ubse::nodeController::UbseAllocator;
 // mem
 constexpr auto UBSE_ADMISSION_CONFIG_SECTION_NAME = "ubse_plugin_admission";
 constexpr auto MEM_LOG_CONFIG_SECTION_NAME = "ubse.log";

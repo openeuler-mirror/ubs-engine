@@ -20,7 +20,7 @@
 
 const unsigned int HTTP_ENUM_BOTTOM = 0xFFFFFFF;
 namespace ubse::http {
-using namespace ubse::common::def;
+
 /**
  * http方法
  */

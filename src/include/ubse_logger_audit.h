@@ -32,23 +32,27 @@ namespace ubse::log {
  * @brief 创建单条审计操作日志，记入系统审计日志
  * @param interface [in] 接口名，执行该操作的接口名称
  */
-#define UBSE_AUDIT_OPERATE(interface) UbseAuditlog() == OperateLoggerEntry(interface, RecordType::AUDIT_OPERATE)
+#define UBSE_AUDIT_OPERATE(interface) \
+    ubse::log::UbseAuditlog() == ubse::log::OperateLoggerEntry(interface, ubse::log::RecordType::AUDIT_OPERATE)
 
 /**
  * @brief 创建单条审计运行日志（资源分配），记入系统审计日志
  */
-#define UBSE_AUDIT_RUNTIME_ALLOC UbseAuditlog() == RuntimeLoggerEntry(RecordType::AUDIT_RUNTIME_ALLOC)
+#define UBSE_AUDIT_RUNTIME_ALLOC \
+    ubse::log::UbseAuditlog() == ubse::log::RuntimeLoggerEntry(ubse::log::RecordType::AUDIT_RUNTIME_ALLOC)
 
 /**
  * @brief 创建单条审计运行日志（资源释放），记入系统审计日志
  */
-#define UBSE_AUDIT_RUNTIME_DEALLOC UbseAuditlog() == RuntimeLoggerEntry(RecordType::AUDIT_RUNTIME_DEALLOC)
+#define UBSE_AUDIT_RUNTIME_DEALLOC \
+    ubse::log::UbseAuditlog() == ubse::log::RuntimeLoggerEntry(ubse::log::RecordType::AUDIT_RUNTIME_DEALLOC)
 
 /**
  * @brief 创建单条审计安全日志，记入审计日志
  * @param interface [in] 接口名，执行该操作的接口名称
  */
-#define UBSE_AUDIT_SECURITY(interface) UbseAuditlog() == SecurityLoggerEntry(interface, RecordType::AUDIT_SECURITY)
+#define UBSE_AUDIT_SECURITY(interface) \
+    ubse::log::UbseAuditlog() == ubse::log::SecurityLoggerEntry(interface, ubse::log::RecordType::AUDIT_SECURITY)
 
 enum class RecordType : uint8_t {
     AUDIT_OPERATE = 0,     // 操作日志记录,0

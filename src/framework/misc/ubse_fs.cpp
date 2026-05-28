@@ -111,7 +111,7 @@ uint32_t UbseFs::ReadFile(const std::string& fileName, uint8_t*& data, uint32_t&
         UBSE_LOG_ERROR << "Read file=" << fileName << " fail, error=can't alloc mem";
         return UBSE_ERROR;
     }
-    if (!file.read(reinterpret_cast<char*>(valueArr), size)) {
+    if (!file.read(reinterpret_cast<char*>(valueArr), size)) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         SafeDeleteArray(valueArr);
         UBSE_LOG_ERROR << "Read file=" << fileName << " fail, error=" << std::strerror(errno);
         return UBSE_ERROR;

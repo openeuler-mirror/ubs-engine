@@ -21,9 +21,8 @@
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
 
 namespace ubse::urma {
-using namespace ubse::module;
-using namespace ubse::common::def;
-using namespace ubse::nodeController;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 using UvsSetTopoInfo = uint32_t (*)(void* topo, uint32_t topo_size, uint32_t topNum);
 using UvsGetDeviceNameByUrmaEid = uint32_t (*)(char* urmaEid, char* buf, size_t len);

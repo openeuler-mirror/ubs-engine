@@ -19,6 +19,7 @@
 #include "ubse_thread_pool_module.h"
 
 namespace ubse::ut::api::server {
+using namespace ubse::ipc;
 TestUbseApiServerModule::TestUbseApiServerModule() = default;
 void TestUbseApiServerModule::SetUp()
 {

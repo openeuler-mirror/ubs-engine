@@ -17,7 +17,12 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemFdPermissionReq;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
 /* *
  * Fd内存借用
  * @param req [IN] 请求参数

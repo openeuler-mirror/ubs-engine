@@ -22,6 +22,7 @@ namespace ubse::election {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
 using namespace ubse::nodeController;
+using namespace ::ubse::common::def;
 Initializer::Initializer() : lastTimeMs_(0)
 {
     auto ret = GetBootTime(startTimeMs_);

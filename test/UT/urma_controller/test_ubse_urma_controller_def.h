@@ -9,6 +9,9 @@
 #include "ubse_urma_uvs_module.h"
 
 namespace ubse::urmaController {
+using ubse::urma::EidGroup;
+using ubse::urma::UbseFeInfo;
+using ubse::urma::UbseUrmaUvsAggrDev;
 extern std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup& eidGroup);
 extern void SetUrmaInfoState(const std::string& urmaDevEid, bool isActive, const std::string& nodeId);
 extern std::string GetUrmaDevEidByUrmaName(const std::string& urmaName);

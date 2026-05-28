@@ -20,8 +20,7 @@
 
 namespace vm::libvirt {
 using VirConnectPtr = void*;
-enum class VirDomainAbortJobFlagsValues : uint8_t
-{
+enum class VirDomainAbortJobFlagsValues : uint8_t {
     VIR_DOMAIN_ABORT_JOB_POSTCOPY = 1 << 0, // Interrupt post-copy migration.
     VIR_DOMAIN_ABORT_JOB_HAM = 1 << 1,      // Interrupt ham migration.
 };

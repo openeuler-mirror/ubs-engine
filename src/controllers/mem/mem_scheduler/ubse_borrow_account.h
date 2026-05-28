@@ -14,7 +14,7 @@
 #include "ubse_mem_algo_account.h"
 #include "ubse_mem_constants.h"
 namespace ubse::mem::account {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 class BorrowAccount {
 public:
     BorrowAccount() = default;

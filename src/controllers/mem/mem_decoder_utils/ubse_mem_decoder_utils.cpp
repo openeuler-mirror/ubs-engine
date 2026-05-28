@@ -23,6 +23,9 @@
 namespace ubse::mem::decoder::utils {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
+using namespace ubse::adapter_plugins::mti::mami;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::nodeController;
 std::unordered_map<uint32_t, uint32_t> MemDecoderUtils::portToPortSet{{0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 1},
                                                                       {5, 1}, {6, 1}, {7, 1}, {8, 2}};
 

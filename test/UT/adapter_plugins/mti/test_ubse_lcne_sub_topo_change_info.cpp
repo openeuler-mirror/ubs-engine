@@ -21,6 +21,7 @@
 
 namespace ubse::lcne {
 using namespace ubse::context;
+using namespace ubse::http;
 
 void TestUbseLcneLinkInfo::SetUp()
 {

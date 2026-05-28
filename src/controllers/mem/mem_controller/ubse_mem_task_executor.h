@@ -23,7 +23,16 @@
 #include "ubse_str_util.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::mem::controller::agent;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemBaseBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemShareAttachReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShareDetachReq;
 
 // 内存操作接口定义
 class UbseMemOperation {

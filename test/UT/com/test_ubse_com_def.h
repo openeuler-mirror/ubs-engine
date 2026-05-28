@@ -18,6 +18,7 @@
 #include "mockcpp/mockcpp.hpp"
 
 using namespace ubse::com;
+using namespace ubse::message;
 
 namespace ubse::ut::com {
 class TestUbseComDef : public testing::Test {

@@ -18,7 +18,8 @@
 #include "ubse_module.h" // for UbseModule
 
 namespace ubse::log {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseLoggerModule : public UbseModule {
 public:

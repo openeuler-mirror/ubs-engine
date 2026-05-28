@@ -15,6 +15,7 @@
 namespace ubse::election {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController;
+using namespace ::ubse::common::def;
 Agent::Agent(RoleContext& ctx) : turnId_(0), lastHeartTime_()
 {
     Node myself;

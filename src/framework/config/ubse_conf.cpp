@@ -22,6 +22,8 @@
 #include "ubse_str_util.h"
 
 namespace ubse::config {
+using namespace ubse::module;
+using namespace ubse::common::def;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 template <typename T>

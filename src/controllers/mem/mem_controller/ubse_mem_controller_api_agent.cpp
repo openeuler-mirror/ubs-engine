@@ -55,7 +55,10 @@ using namespace ubse::task_executor;
 using namespace ubse::mem::util;
 using namespace ubse::context;
 using namespace ubse::serial;
-using namespace api::server;
+using namespace ::api::server;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::nodeController;
+using namespace ubse::utils;
 using namespace ubse::mem::strategy;
 static std::chrono::seconds WAIT_TIMEOUT(API_TIME_OUT); // seconds
 

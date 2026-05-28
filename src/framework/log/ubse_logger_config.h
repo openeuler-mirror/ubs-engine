@@ -21,8 +21,9 @@
 #include "ubse_common_def.h" // for UbseResult
 
 namespace ubse::log {
-using namespace ubse::utils;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 
 class UbseLoggerConfig : public Referable {
     using UbseLogConfigPtr = Ref<UbseLoggerConfig>;

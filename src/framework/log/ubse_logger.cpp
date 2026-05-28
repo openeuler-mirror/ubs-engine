@@ -347,7 +347,8 @@ void UbseLoggerEntry::EncodeString(const char* data, size_t length)
         return;
     }
     char* buffer = GetBuffer();
-    *reinterpret_cast<UbseLoggerTypeId*>(buffer++) = UbseLoggerTypeId::STRING;
+    *reinterpret_cast<UbseLoggerTypeId*>(buffer++) =
+        UbseLoggerTypeId::STRING; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (memcpy_s(buffer, length + 1, data, length + 1) != EOK) {
         return;
     }
@@ -363,41 +364,41 @@ void UbseLoggerEntry::EncodeData(const char* data)
 
 char* UbseLoggerEntry::DecodeChar(std::ostream& os, char* buffer)
 {
-    char data = *reinterpret_cast<char*>(buffer);
+    char data = *reinterpret_cast<char*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     os << data;
     return buffer + sizeof(char);
 }
 
 char* UbseLoggerEntry::DecodeUint(std::ostream& os, char* buffer)
 {
-    uint32_t data = *reinterpret_cast<uint32_t*>(buffer);
+    uint32_t data = *reinterpret_cast<uint32_t*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     os << data;
     return buffer + sizeof(uint32_t);
 }
 
 char* UbseLoggerEntry::DecodeUlong(std::ostream& os, char* buffer)
 {
-    uint64_t data = *reinterpret_cast<uint64_t*>(buffer);
+    uint64_t data = *reinterpret_cast<uint64_t*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     os << data;
     return buffer + sizeof(uint64_t);
 }
 
 char* UbseLoggerEntry::DecodeInt(std::ostream& os, char* buffer)
 {
-    int32_t data = *reinterpret_cast<int32_t*>(buffer);
+    int32_t data = *reinterpret_cast<int32_t*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     os << data;
     return buffer + sizeof(int32_t);
 }
 
 char* UbseLoggerEntry::DecodeLong(std::ostream& os, char* buffer)
 {
-    int64_t data = *reinterpret_cast<int64_t*>(buffer);
+    int64_t data = *reinterpret_cast<int64_t*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     os << data;
     return buffer + sizeof(int64_t);
 }
 char* UbseLoggerEntry::DecodeDouble(std::ostream& os, char* buffer)
 {
-    double data = *reinterpret_cast<double*>(buffer);
+    double data = *reinterpret_cast<double*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     os << data;
     return buffer + sizeof(double);
 }

@@ -20,6 +20,8 @@
 #include "ubse_logger_config.h" // for UBSE_LOG_CONFIG
 
 namespace ubse::log {
+using namespace ubse::common::def;
+using namespace ubse::utils;
 using namespace ubse::config;
 using namespace ubse::context;
 

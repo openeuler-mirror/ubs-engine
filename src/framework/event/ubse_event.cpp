@@ -21,6 +21,8 @@
 #include "ubse_logger.h"       // for FormatRetCode, UbseLoggerEntry, UBSE_...
 
 namespace ubse::event {
+using namespace ubse::common::def;
+using namespace ubse::module;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::context;

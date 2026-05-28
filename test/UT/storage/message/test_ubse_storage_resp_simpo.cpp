@@ -18,6 +18,7 @@
 namespace ubse::ut::storage {
 using namespace ubse::storage::message;
 using namespace ubse::storage;
+using namespace ubse::common::def;
 
 void TestUbseStorageRespSimpo::SetUp()
 {

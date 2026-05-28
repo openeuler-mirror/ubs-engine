@@ -21,7 +21,8 @@
 #include "ubse_module.h"     // for UbseModule
 
 namespace ubse::event {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseEventModule : public UbseModule {
 public:

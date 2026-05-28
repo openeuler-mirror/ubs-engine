@@ -18,6 +18,8 @@ namespace ubse::mem::mem_scheduler::ut {
 using namespace ubse::nodeController;
 using namespace ubse::mem::strategy;
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::election;
+using namespace ubse::context;
 
 constexpr uint64_t FOUR_GB = 4194304 * 1024L;
 constexpr uint64_t TWO_GB = 2097152 * 1024L;
@@ -578,8 +580,8 @@ void MakeMockWaterNumaObj(const uint32_t& mockNums, NumaParam param,
     }
 }
 
-ubse::common::def::UbseResult FAKE_GetUbseConfForRadius(const std::string &section, const std::string &configKey,
-                                                        std::string &configValue)
+ubse::common::def::UbseResult FAKE_GetUbseConfForRadius(const std::string& section, const std::string& configKey,
+                                                        std::string& configValue)
 {
     if (section == "ubse.memory" && configKey == "radius.borrow") {
         configValue = "4";
@@ -1814,8 +1816,8 @@ TEST_F(TestMemScheduler, TestLendWithRadius)
 }
 
 namespace {
-ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusZero(const std::string &section, const std::string &configKey,
-                                                             std::string &configValue)
+ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusZero(const std::string& section, const std::string& configKey,
+                                                            std::string& configValue)
 {
     if (section == "ubse.memory" && configKey == "radius.borrow") {
         configValue = "0";
@@ -1828,8 +1830,8 @@ ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusZero(const std::string &s
     return UBSE_ERROR;
 }
 
-ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusMax(const std::string &section, const std::string &configKey,
-                                                            std::string &configValue)
+ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusMax(const std::string& section, const std::string& configKey,
+                                                           std::string& configValue)
 {
     if (section == "ubse.memory" && configKey == "radius.borrow") {
         configValue = "7";

@@ -21,6 +21,7 @@ namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::nodeController;
 using namespace ubse::mem::util;
+using namespace ubse::adapter_plugins::mmi;
 
 void TestUbseMemControllerCleanShm::SetUp()
 {

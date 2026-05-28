@@ -13,6 +13,7 @@
 
 namespace ubse::mem::controller {
 using namespace ubse::nodeController;
+using namespace ubse::election;
 const uint32_t HA_SEQUENCE_ID = 101; // 需要确保在节点建链后触发，节点建链优先级100
 UBSE_DEFINE_THIS_MODULE("ubse");
 

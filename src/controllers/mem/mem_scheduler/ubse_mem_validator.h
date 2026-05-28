@@ -21,8 +21,9 @@
 #include "mem_pool_strategy.h"
 
 namespace ubse::mem::strategy {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemLenderInfo;
+using ubse::adapter_plugins::mmi::UbseMemLenderLinkInfo;
+using ubse::common::def::UbseResult;
 constexpr uint64_t CHECK_MEMORY_CONFIG_VALID = 1 << 0;
 constexpr uint64_t FILTER_LEND_NODE_HAS_BORROWED = 1 << 1;
 constexpr uint64_t FILTER_NODE_IS_LENDER = 1 << 2;
@@ -133,8 +134,7 @@ private:
         {FILTER_LEND_TIME_OUT, &UbseMemValidator::FilterInvalidSocketLendTimes},
         {FILTER_SHARE_BY_LENDER, &UbseMemValidator::FilterByLenderInfo},
         {FILTER_LINK_PORT_DOWN, &UbseMemValidator::FilterByLinkPortDown},
-        {FILTER_BY_MEMORY_RADIUS, &UbseMemValidator::FilterByMemoryRadius}
-    };
+        {FILTER_BY_MEMORY_RADIUS, &UbseMemValidator::FilterByMemoryRadius}};
 };
 } // namespace ubse::mem::strategy
 #endif

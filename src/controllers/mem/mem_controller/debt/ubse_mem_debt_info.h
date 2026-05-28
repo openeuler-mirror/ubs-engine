@@ -16,8 +16,8 @@
 #include "lock/ubse_lock.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::utils;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfo;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
 
 /**
 * 获取全量账本

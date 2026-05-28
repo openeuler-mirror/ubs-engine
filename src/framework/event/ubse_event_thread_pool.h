@@ -27,8 +27,9 @@ constexpr uint32_t DEFAULT_QUEUE_SIZE = 1024;
 constexpr uint32_t DEFAULT_HIGH_PRIORITY = 90;
 constexpr uint32_t DEFAULT_MEDIUM_PRIORITY = 10;
 constexpr uint32_t DEFAULT_LOW_PRIORITY = 1;
-using namespace ubse::utils;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 class UbseEventThreadPool : public Referable {
 public:
     UbseEventThreadPool(uint32_t numsHighThs, uint32_t numsMidThs, uint32_t numsLowThs,

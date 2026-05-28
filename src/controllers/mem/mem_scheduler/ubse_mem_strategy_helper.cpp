@@ -24,7 +24,8 @@
 namespace ubse::mem::strategy {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::nodeController;
-using namespace ubse::nodeController;
+using namespace ubse::log;
+using namespace ubse::adapter_plugins::mmi;
 
 static void PrintUbseStatus(tc::rs::mem::UbseStatus& ubseStatus)
 {

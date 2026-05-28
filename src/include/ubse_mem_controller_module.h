@@ -17,8 +17,9 @@
 #include "ubse_error.h"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::controller {
-using namespace ubse::context;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseMemControllerModule : public UbseModule {
 public:

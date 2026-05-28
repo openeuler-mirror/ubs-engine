@@ -17,8 +17,11 @@
 #include "ubse_mem_controller_def.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
-using namespace ubse::mem::def;
+using ubse::mem::def::FdHandleInfoVec;
+using ubse::mem::def::NumaHandleInfoVec;
+using ubse::mem::def::ShareHandleInfoVec;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 class UbseMemSingleImportMessage : public UbseBaseMessage {
 public:

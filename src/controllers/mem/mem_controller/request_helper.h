@@ -29,8 +29,7 @@
 
 namespace ubse::mem_controller {
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::log;
-using namespace ubse::common::def;
+
 using RequestID = std::string;
 
 class ObjPromiseBase {

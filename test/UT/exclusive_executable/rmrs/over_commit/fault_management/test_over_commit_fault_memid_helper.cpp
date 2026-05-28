@@ -36,7 +36,7 @@ public:
 
 TEST_F(TestOverCommitFaultMemIdHelper, FaultMemIdManageHelper_Succeed)
 {
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage, MpResult (*)(std::string, uint64_t))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage, MpResult(*)(std::string, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     std::string importNodeId = "Node1";
@@ -47,7 +47,7 @@ TEST_F(TestOverCommitFaultMemIdHelper, FaultMemIdManageHelper_Succeed)
 
 TEST_F(TestOverCommitFaultMemIdHelper, FaultMemIdManageHelper_MemIdFaultManage_Failed)
 {
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage, MpResult (*)(std::string, uint64_t))
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage, MpResult(*)(std::string, uint64_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::string importNodeId = "Node1";

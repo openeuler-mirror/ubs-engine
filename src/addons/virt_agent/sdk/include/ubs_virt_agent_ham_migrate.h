@@ -19,8 +19,7 @@
 extern "C" {
 #endif
 
-typedef enum
-{
+typedef enum {
     MULTICOPY_MIGRATE = 0, // multi-copy
     ONECOPY_MIGRATE = 1,   // one-copy
     HAM_MIGRATE = 2,       // ham-copy

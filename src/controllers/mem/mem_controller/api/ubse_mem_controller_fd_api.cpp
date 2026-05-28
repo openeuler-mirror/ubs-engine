@@ -49,6 +49,7 @@ using namespace ubse::mmi;
 using namespace ubse::mem::strategy;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
 
 UbseResult AgentSendFdExportObj(const std::shared_ptr<UbseComModule>& comModule, SendParam& sendParam,
                                 UbseMemFdBorrowExportobjSimpoPtr& ptr, UbseBaseMessagePtr& ubseResponsePtr,

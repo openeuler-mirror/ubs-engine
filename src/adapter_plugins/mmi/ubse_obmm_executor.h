@@ -32,10 +32,10 @@
 
 namespace ubse::mmi {
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::common::def;
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::context;
-using namespace ubse::security;
+using ubse::adapter_plugins::mmi::UbseMemImportStatus;
+using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
+using ubse::common::def::UbseResult;
+using ubse::security::UbseSecurityModule;
 
 constexpr int INVALID_MEM_ID = 0;
 constexpr auto OBMM_OFFLINE_TIMEOUT_CONFIG_KEY = "obmm.memory.offline.timeout";
@@ -108,7 +108,8 @@ public:
     template <typename T>
     UbseResult DlOpenFunName(T& funPtr, const std::string& funName)
     {
-        funPtr = reinterpret_cast<T>(dlsym(handle, funName.c_str()));
+        funPtr =
+            reinterpret_cast<T>(dlsym(handle, funName.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         if (funPtr == nullptr) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "Get obmmFunc from libobmm.so failed, fun name is " << funName
                            << ", error is " << dlerror();
@@ -180,7 +181,7 @@ private:
     static constexpr auto OBMM_PATH = "libobmm.so.1";
     bool preOnlineSwitch{false};
     void* handle{nullptr};
-    static uint64_t offlineTimeoutMs_; // 从配置文件obmm.memory.offline.timeout获取
+    static uint64_t offlineTimeoutMs_;     // 从配置文件obmm.memory.offline.timeout获取
     static bool offlineTimeoutConfigured_; // 是否显式配置了obmm.memory.offline.timeout
 
     void RegisterSigusr1Handler();

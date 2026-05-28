@@ -1105,7 +1105,6 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
 int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayload>& items, int pidType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry MigrateOut.";
-    
     MigrateOutMsg msg{};
     msg.count = static_cast<int>(items.size());
     for (size_t i = 0; i < items.size(); ++i) {

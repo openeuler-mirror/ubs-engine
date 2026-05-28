@@ -201,7 +201,8 @@ UbsePluginInitFunc UbsePluginManager::GetInitFunction(const std::string& pluginN
         return nullptr;
     }
 
-    auto func = reinterpret_cast<UbsePluginInitFunc>(dlsym(handle, funcName.c_str()));
+    auto func = reinterpret_cast<UbsePluginInitFunc>(
+        dlsym(handle, funcName.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (func == nullptr) {
         UBSE_LOG_WARN << "Failed to get UbsePluginInit for plugin: " << pluginName;
     }

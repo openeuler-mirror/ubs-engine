@@ -17,7 +17,7 @@
 #include "ubse_common_def.h"
 
 namespace ubse::utils {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 class UbseOsUtil {
 public:
     static UbseResult GetUserNameById(uid_t uid, std::string& userName);

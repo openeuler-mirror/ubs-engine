@@ -122,7 +122,8 @@ uint32_t ubs_urma_bandwidth_set(const char* name, uint32_t minBandWidth, uint32_
     uint8_t* ptr = request_buffer.buffer;
 
     // 1. 复制字符串（包含结尾的 '\0'）
-    int copy_ret = strcpy_s(reinterpret_cast<char*>(ptr), nameLen + 1, name);
+    int copy_ret = strcpy_s(reinterpret_cast<char*>(ptr), nameLen + 1,
+                            name); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (copy_ret != EOK) {
         ubse_api_buffer_free(&request_buffer);
         return UBS_ERR_OUT_OF_RANGE;

@@ -19,7 +19,14 @@
 #include "ubse_mem_debt_ledger.h"
 
 namespace ubse::mem::controller::debt {
-using namespace ubse::mem::def;
+using ubse::mem::def::FdHandleInfoVec;
+using ubse::mem::def::NumaHandleInfoVec;
+using ubse::mem::def::ShareHandleInfoVec;
+using ubse::mem::def::UbseMemDebtQueryRequest;
+using ubse::mem::def::UbseMemFdDesc;
+using ubse::mem::def::UbseMemShmDesc;
+using ubse::mem::def::UbseMemShmMemStatusDesc;
+using ubse::mem::def::UbseNodeBorrowInfo;
 uint32_t UbseMemFdGet(const UbseMemDebtQueryRequest& request, UbseMemFdDesc& fdDesc);
 
 uint32_t UbseMemFdList(const UbseMemDebtQueryRequest& request, std::vector<UbseMemFdDesc>& fdDescs);

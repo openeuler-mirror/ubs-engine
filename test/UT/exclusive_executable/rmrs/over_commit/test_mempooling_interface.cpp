@@ -143,11 +143,11 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemBorrowInvalidSocketIdFailed)
     const std::vector<uint64_t> borrowSizes{1073741824, 2147483648};
     constexpr outinterface::WaterMark waterMark{.highWaterMark = 85, .lowWaterMark = 80};
     outinterface::MemBorrowExecuteResult result;
-    MOCKER_CPP(&OverCommitStorage::UpdateBindTypeDB, MpResult (*)(const std::string&, const NumaBindType))
+    MOCKER_CPP(&OverCommitStorage::UpdateBindTypeDB, MpResult(*)(const std::string&, const NumaBindType))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    MOCKER_CPP(CollectUtil::GetNumaMemInfos, MpResult (*)(const std::string&, const std::vector<uint32_t>&,
-                                                          std::unordered_map<std::uint16_t, std::vector<pid_t>>&))
+    MOCKER_CPP(CollectUtil::GetNumaMemInfos, MpResult(*)(const std::string&, const std::vector<uint32_t>&,
+                                                         std::unordered_map<std::uint16_t, std::vector<pid_t>>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -171,7 +171,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed1)
     const outinterface::SrcMemoryBorrowParam srcParam{.srcNid = "Node0", .srcSocketId = 0, .srcNumaId = 0};
     const std::vector<outinterface::VMPresetParam> vmPresetParams{{.pid = 123, .ratio = 25}};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsOnlyBorrowIn,
-               MpResult (*)(BorrowRecordHelper*, const std::string, const int&, std::vector<BorrowRecord>&))
+               MpResult(*)(BorrowRecordHelper*, const std::string, const int&, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -184,7 +184,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed2)
     const outinterface::SrcMemoryBorrowParam srcParam{.srcNid = "Node0", .srcSocketId = 0, .srcNumaId = 0};
     const std::vector<outinterface::VMPresetParam> vmPresetParams{{.pid = 123, .ratio = 25}};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(invoke(CollectBorrowRecordsNode0));
     MOCKER(&outinterface::ProcessMemMigrateRemoteId).stubs().will(returnValue(MEM_POOLING_ERROR));
@@ -198,7 +198,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed4)
     const outinterface::SrcMemoryBorrowParam srcParam{.srcNid = "Node0", .srcSocketId = 0, .srcNumaId = 0};
     const std::vector<outinterface::VMPresetParam> vmPresetParams{{.pid = 123, .ratio = 25}};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(invoke(CollectBorrowRecordsNode0));
     MOCKER(&outinterface::ProcessMemMigrateRemoteId).stubs().will(invoke(ProcessMemMigrateRemoteIdSuccess));
@@ -212,11 +212,11 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed5)
     const outinterface::SrcMemoryBorrowParam srcParam{"Node0", 0, 0};
     const std::vector<outinterface::VMPresetParam> vmPresetParams{{.pid = 123, .ratio = 25}};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(invoke(CollectBorrowRecordsNode0));
     MOCKER(&outinterface::ProcessMemMigrateRemoteId).stubs().will(invoke(ProcessMemMigrateRemoteIdSuccess));
-    MOCKER_CPP(&mempooling::over_commit::SendUCacheMigrationStrategy, MpResult (*)())
+    MOCKER_CPP(&mempooling::over_commit::SendUCacheMigrationStrategy, MpResult(*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -238,7 +238,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemReturnFailed1)
     const std::vector<std::string> borrowIds{"aaaa", "bbbb"};
     const std::vector migratePids{999};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -253,7 +253,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemReturnFailed4)
     const std::vector migratePids{999};
     const std::vector numaInfos{mockNumaInfoNode0Numa0, mockNumaInfoNode0Numa4};
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult (*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(invoke(CollectBorrowRecordsNode0));
     MOCKER(outinterface::ReturnBorrowId).stubs().will(returnValue(MEM_POOLING_ERROR));
@@ -290,7 +290,7 @@ TEST_F(TestMempoolingInterface, ReturnBorrowIdFailed2)
                                   .borrowIdNuma2Size = {{4, 1048576}},
                                   .borrowNumaId2Pids = borrowNumaId2Pids,
                                   .borrowId2NumaId = {}};
-    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::SendMsg, MpResult (*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&SetSmapRemoteNumaInfoSend::SendMsg, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = ReturnBorrowId(srcParam, pids, borrowId, remoteNumaId, returnNeedMaps);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -309,8 +309,8 @@ TEST_F(TestMempoolingInterface, ProcessBorrowIdsFailed)
     MOCKER_CPP(HasPidInMigratePids, bool (*)(const std::vector<pid_t>&, const std::vector<pid_t>&))
         .stubs()
         .will(returnValue(false));
-    MOCKER_CPP(ReturnBorrowId, uint32_t (*)(const outinterface::SrcMemoryBorrowParam&, const std::vector<pid_t>&,
-                                            const std::string&, const uint16_t&, ReturnNeedMaps&))
+    MOCKER_CPP(ReturnBorrowId, uint32_t(*)(const outinterface::SrcMemoryBorrowParam&, const std::vector<pid_t>&,
+                                           const std::string&, const uint16_t&, ReturnNeedMaps&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -331,8 +331,8 @@ TEST_F(TestMempoolingInterface, ProcessBorrowIdsSuccess)
     MOCKER_CPP(HasPidInMigratePids, bool (*)(const std::vector<pid_t>&, const std::vector<pid_t>&))
         .stubs()
         .will(returnValue(false));
-    MOCKER_CPP(ReturnBorrowId, uint32_t (*)(const outinterface::SrcMemoryBorrowParam&, const std::vector<pid_t>&,
-                                            const std::string&, const uint16_t&, ReturnNeedMaps&))
+    MOCKER_CPP(ReturnBorrowId, uint32_t(*)(const outinterface::SrcMemoryBorrowParam&, const std::vector<pid_t>&,
+                                           const std::string&, const uint16_t&, ReturnNeedMaps&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -365,7 +365,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSSetWaterMarkFailed2)
     mark.highWaterMark = 90;
     mark.lowWaterMark = 60;
 
-    MOCKER_CPP(&OverCommitStorage::UpdateWaterMark, MpResult (*)(const uint16_t, const uint16_t))
+    MOCKER_CPP(&OverCommitStorage::UpdateWaterMark, MpResult(*)(const uint16_t, const uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = UBSRMRSSetWaterMark(mark);
@@ -378,7 +378,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSSetWaterMarkSuccess)
     mark.highWaterMark = 90;
     mark.lowWaterMark = 60;
 
-    MOCKER_CPP(&OverCommitStorage::UpdateWaterMark, MpResult (*)(const uint16_t, const uint16_t))
+    MOCKER_CPP(&OverCommitStorage::UpdateWaterMark, MpResult(*)(const uint16_t, const uint16_t))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto ret = UBSRMRSSetWaterMark(mark);
@@ -421,8 +421,8 @@ TEST_F(TestMempoolingInterface, GenpidsOnNumaSuccess)
 
 TEST_F(TestMempoolingInterface, PrepareSocketIdFail1)
 {
-    MOCKER_CPP(&CollectUtil::GetNumaMemInfos, uint32_t (*)(const std::string& nodeId, const std::set<int16_t>& numaIds,
-                                                           std::map<int, mempooling::NumaMetaData>& numaMemInfos))
+    MOCKER_CPP(&CollectUtil::GetNumaMemInfos, uint32_t(*)(const std::string& nodeId, const std::set<int16_t>& numaIds,
+                                                          std::map<int, mempooling::NumaMetaData>& numaMemInfos))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::map<int, mempooling::NumaMetaData> numaMemInfos;
@@ -437,8 +437,8 @@ TEST_F(TestMempoolingInterface, PrepareSocketIdFail2)
     mempooling::NumaMetaData data;
     numaMemInfos[1] = data;
     std::string srcNid = "0";
-    MOCKER_CPP(&CollectUtil::GetNumaMemInfos, uint32_t (*)(const std::string& nodeId, const std::set<int16_t>& numaIds,
-                                                           std::map<int, mempooling::NumaMetaData>& numaMemInfos))
+    MOCKER_CPP(&CollectUtil::GetNumaMemInfos, uint32_t(*)(const std::string& nodeId, const std::set<int16_t>& numaIds,
+                                                          std::map<int, mempooling::NumaMetaData>& numaMemInfos))
         .stubs()
         .with(outBound(srcNid), any(), outBound(numaMemInfos))
         .will(returnValue(MEM_POOLING_OK));
@@ -452,8 +452,8 @@ TEST_F(TestMempoolingInterface, PrepareSocketIdSuccess)
     mempooling::NumaMetaData data;
     numaMemInfos[0] = data;
     std::string srcNid = "0";
-    MOCKER_CPP(&CollectUtil::GetNumaMemInfos, uint32_t (*)(const std::string& nodeId, const std::set<int16_t>& numaIds,
-                                                           std::map<int, mempooling::NumaMetaData>& numaMemInfos))
+    MOCKER_CPP(&CollectUtil::GetNumaMemInfos, uint32_t(*)(const std::string& nodeId, const std::set<int16_t>& numaIds,
+                                                          std::map<int, mempooling::NumaMetaData>& numaMemInfos))
         .stubs()
         .with(outBound(srcNid), any(), outBound(numaMemInfos))
         .will(returnValue(MEM_POOLING_OK));

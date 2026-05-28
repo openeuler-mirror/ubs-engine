@@ -14,6 +14,7 @@
 
 namespace ubse::event::ut {
 using namespace ubse::event;
+using namespace ubse::common::def;
 
 uint32_t HandleEvent(std::string& eventId, std::string& eventMessage)
 {

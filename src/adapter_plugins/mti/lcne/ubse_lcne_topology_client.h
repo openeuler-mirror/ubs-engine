@@ -17,8 +17,7 @@
 #include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::lcne {
-using namespace ubse::http;
-using namespace ubse::mti;
+using ubse::mti::LcneNodeInfo;
 
 class UbseLcneTopologyClient {
 public:

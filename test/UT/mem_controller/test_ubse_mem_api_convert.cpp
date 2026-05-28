@@ -26,6 +26,7 @@ namespace ubse::mem_controller::ut {
 using namespace api::server;
 using namespace ubse::mem::controller;
 using namespace ubse::mem::def;
+using namespace ubse::adapter_plugins::mmi;
 
 void TestUbseMemApiConvert::SetUp()
 {
@@ -817,7 +818,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemFdPermissionReqUnpackSuccess)
 {
     // 模拟一个有效的请求缓冲区
     UbseIpcMessage buffer{};
-    ubse::mem::def::UbseMemFdPermissionReq memFdPermissionReq{};
+    ubse::adapter_plugins::mmi::UbseMemFdPermissionReq memFdPermissionReq{};
 
     // 模拟一个有效的 name
     buffer.length =
@@ -890,7 +891,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateReqUnpackSuccess)
 {
     // 模拟一个有效的请求缓冲区
     UbseIpcMessage buffer{};
-    ubse::mem::def::UbseMemNumaBorrowReq memNumaBorrowReq{};
+    ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq memNumaBorrowReq{};
 
     // 模拟一个有效的 name
     buffer.length = UBS_MEM_MAX_NAME_LENGTH + sizeof(uint64_t) + sizeof(uint32_t);
@@ -968,7 +969,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateLenderReqUnpackSuccess)
 {
     // 模拟一个有效的请求缓冲区
     UbseIpcMessage buffer{};
-    ubse::mem::def::UbseMemNumaBorrowReq memNumaBorrowReq{};
+    ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq memNumaBorrowReq{};
 
     // 模拟一个有效的 name
     buffer.length = UBS_MEM_MAX_NAME_LENGTH + sizeof(uint32_t) +
@@ -1073,7 +1074,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateWithCandidateReqUnpackSuccess)
 {
     // 模拟一个有效的请求缓冲区
     UbseIpcMessage buffer{};
-    ubse::mem::def::UbseMemNumaBorrowReq memNumaBorrowReq{};
+    ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq memNumaBorrowReq{};
 
     // 模拟一个有效的 name
     buffer.length =
@@ -1162,7 +1163,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmAttachReqUnpackSuccess)
 {
     // 模拟一个有效的请求缓冲区
     UbseIpcMessage buffer{};
-    ubse::mem::def::UbseMemShareAttachReq memShareAttachReq{};
+    ubse::adapter_plugins::mmi::UbseMemShareAttachReq memShareAttachReq{};
 
     // 模拟一个有效的 name
     buffer.length = UBS_MEM_MAX_NAME_LENGTH + sizeof(uid_t) + sizeof(gid_t) + sizeof(pid_t) + sizeof(mode_t);
@@ -1297,7 +1298,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmDetachReqUnpackSuccess)
 {
     // 模拟一个有效的请求缓冲区
     UbseIpcMessage buffer{};
-    ubse::mem::def::UbseMemShareDetachReq memShareDetachReq;
+    ubse::adapter_plugins::mmi::UbseMemShareDetachReq memShareDetachReq;
 
     // 模拟一个有效的 name
     buffer.length = UBS_MEM_MAX_NAME_LENGTH;
@@ -1323,7 +1324,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmDeleteReqUnpackSuccess)
 {
     // 模拟一个有效的请求缓冲区
     UbseIpcMessage buffer{};
-    ubse::mem::def::UbseMemReturnReq memReturnReq;
+    ubse::adapter_plugins::mmi::UbseMemReturnReq memReturnReq;
 
     // 模拟一个有效的 name
     buffer.length = UBS_MEM_MAX_NAME_LENGTH;

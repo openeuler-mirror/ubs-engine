@@ -10,7 +10,8 @@
 #include "ubse_node.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::election;
+using ubse::election::UBSE_ID_TYPE;
+using ubse::election::UbseElectionEventType;
 
 class UbseMemControllerMasterOnlineHandler {
 public:

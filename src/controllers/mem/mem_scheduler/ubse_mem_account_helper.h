@@ -19,8 +19,8 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::strategy {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemAlgoResult;
+using ubse::adapter_plugins::mmi::UbseMemState;
 
 class UbseMemAccountHelper {
 public:

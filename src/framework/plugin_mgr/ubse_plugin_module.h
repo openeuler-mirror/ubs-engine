@@ -20,7 +20,7 @@
 #include "ubse_plugin_manager.h"
 
 namespace ubse::plugin {
-using namespace ubse::module;
+using ubse::module::UbseModule;
 class UbsePluginModule : public UbseModule {
 public:
     UbseResult Initialize() override;

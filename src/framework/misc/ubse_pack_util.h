@@ -221,7 +221,7 @@ public:
         }
 
         // 直接构造字符串，避免额外的内存拷贝
-        str.assign(reinterpret_cast<const char*>(ptr_), len);
+        str.assign(reinterpret_cast<const char*>(ptr_), len); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 
         // 更新位置
         ptr_ += len;

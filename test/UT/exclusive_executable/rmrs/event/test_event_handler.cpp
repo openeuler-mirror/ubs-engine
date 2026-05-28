@@ -73,7 +73,7 @@ TEST_F(TestEventHandler, HandleAlarmUceEventFailed2)
 
 TEST_F(TestEventHandler, HandleAlarmRebootEventFailed)
 {
-    MOCKER_CPP(&FaultNodeModule::DetermineNodeType, MpResult (*)(const std::string nodeId, NodeType& nodeType))
+    MOCKER_CPP(&FaultNodeModule::DetermineNodeType, MpResult(*)(const std::string nodeId, NodeType& nodeType))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     ALARM_FAULT_TYPE eventId = 0;
@@ -84,7 +84,7 @@ TEST_F(TestEventHandler, HandleAlarmRebootEventFailed)
 
 TEST_F(TestEventHandler, HandleAlarmRebootEventFailed1)
 {
-    MOCKER_CPP(&FaultNodeModule::DetermineNodeType, MpResult (*)(const std::string nodeId, NodeType& nodeType))
+    MOCKER_CPP(&FaultNodeModule::DetermineNodeType, MpResult(*)(const std::string nodeId, NodeType& nodeType))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
@@ -126,9 +126,8 @@ TEST_F(TestEventHandler, HandleAlarmUceEventOverCommitBranchFaultMemIdManageFail
 {
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData,
-               uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                            ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
     MpResult ret = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
@@ -139,9 +138,8 @@ TEST_F(TestEventHandler, HandleAlarmUceEventMemFragmentBranchFaultMemIdManageFai
 {
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData,
-               uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                            ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnMemFragment));
     MpResult ret = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
@@ -166,12 +164,11 @@ TEST_F(TestEventHandler, HandleAlarmRebootEventBorrowOutOverCommitSuccess)
     std::string nodeId = "node1";
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
     MOCKER_CPP(&FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule& thisPtr, const std::string nodeId, NodeType& nodeType))
+               MpResult(*)(FaultNodeModule & thisPtr, const std::string nodeId, NodeType& nodeType))
         .stubs()
         .will(invoke(DetermineNodeTypeMockBorrowOut));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData,
-               uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                            ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
 
@@ -183,9 +180,8 @@ TEST_F(TestEventHandler, HandlePanicEventDetermineNodeTypeFailed)
 {
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData,
-               uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                            ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
@@ -198,12 +194,11 @@ TEST_F(TestEventHandler, HandlePanicEventBorrowOutOverCommitFailed)
     std::string nodeId = "node1";
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
     MOCKER_CPP(&FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule& thisPtr, const std::string nodeId, NodeType& nodeType))
+               MpResult(*)(FaultNodeModule & thisPtr, const std::string nodeId, NodeType& nodeType))
         .stubs()
         .will(invoke(DetermineNodeTypeMockBorrowOut));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData,
-               uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                            ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
@@ -224,12 +219,11 @@ TEST_F(TestEventHandler, HandleAlarmKernelRebootEventBorrowOutOverCommitFailed)
     std::string nodeId = "node1";
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
     MOCKER_CPP(&FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule& thisPtr, const std::string nodeId, NodeType& nodeType))
+               MpResult(*)(FaultNodeModule & thisPtr, const std::string nodeId, NodeType& nodeType))
         .stubs()
         .will(invoke(DetermineNodeTypeMockBorrowOut));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData,
-               uint32_t (*)(const std::string& keyPrefix, const std::string& key, void* ctx,
-                            ubse::storage::UbseStorageDealDataFunc func))
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
     MpResult ret = EventHandler::HandleAlarmKernelRebootEvent(eventId, eventMessage);
@@ -263,9 +257,9 @@ MpResult setNodeTypeOut(FaultNodeModule* obj, const std::string nodeId, NodeType
 
 TEST_F(TestEventHandler, CheckModeFailure)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     ALARM_FAULT_TYPE eventId = 0;
@@ -276,13 +270,13 @@ TEST_F(TestEventHandler, CheckModeFailure)
 
 TEST_F(TestEventHandler, PanicVirtualSceneBorrowInSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetVirtualScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::FragmentHandleFault,
-               MpResult (*)(FaultNodeModule* This, const std::string))
+               MpResult(*)(FaultNodeModule * This, const std::string))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
@@ -293,13 +287,13 @@ TEST_F(TestEventHandler, PanicVirtualSceneBorrowInSuccess)
 
 TEST_F(TestEventHandler, PanicVirtualSceneBorrowOutFailed)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetVirtualScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));
     ALARM_FAULT_TYPE eventId = 0;
@@ -310,13 +304,13 @@ TEST_F(TestEventHandler, PanicVirtualSceneBorrowOutFailed)
 
 TEST_F(TestEventHandler, PanicOverCommitSceneBorrowInSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeTypeOverCommit,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeIn));
     ALARM_FAULT_TYPE eventId = 0;
@@ -327,13 +321,13 @@ TEST_F(TestEventHandler, PanicOverCommitSceneBorrowInSuccess)
 
 TEST_F(TestEventHandler, PanicOverCommitSceneBorrowOutSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeTypeOverCommit,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));
     ALARM_FAULT_TYPE eventId = 0;
@@ -344,13 +338,13 @@ TEST_F(TestEventHandler, PanicOverCommitSceneBorrowOutSuccess)
 
 TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowInSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetVirtualScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::FragmentHandleFault,
-               MpResult (*)(FaultNodeModule* This, const std::string))
+               MpResult(*)(FaultNodeModule * This, const std::string))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
@@ -361,13 +355,13 @@ TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowInSuccess)
 
 TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowOutFailed)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetVirtualScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));
     ALARM_FAULT_TYPE eventId = 0;
@@ -378,13 +372,13 @@ TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowOutFailed)
 
 TEST_F(TestEventHandler, KernelRebootOverCommitSceneBorrowInSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeTypeOverCommit,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeIn));
     ALARM_FAULT_TYPE eventId = 0;
@@ -395,13 +389,13 @@ TEST_F(TestEventHandler, KernelRebootOverCommitSceneBorrowInSuccess)
 
 TEST_F(TestEventHandler, KernelRebootOverCommitSceneBorrowOutSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeTypeOverCommit,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));
     ALARM_FAULT_TYPE eventId = 0;
@@ -412,13 +406,13 @@ TEST_F(TestEventHandler, KernelRebootOverCommitSceneBorrowOutSuccess)
 
 TEST_F(TestEventHandler, RebootVirtualSceneBorrowInSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetVirtualScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::FragmentHandleFault,
-               MpResult (*)(FaultNodeModule* This, const std::string))
+               MpResult(*)(FaultNodeModule * This, const std::string))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
@@ -429,16 +423,16 @@ TEST_F(TestEventHandler, RebootVirtualSceneBorrowInSuccess)
 
 TEST_F(TestEventHandler, RebootVirtualSceneBorrowOutFailed)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetVirtualScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));
-    MOCKER_CPP(&mempooling::FaultNodeModule::ProcessBorrowOutNodeFault, MpResult (*)(const std::string&))
+    MOCKER_CPP(&mempooling::FaultNodeModule::ProcessBorrowOutNodeFault, MpResult(*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
@@ -449,13 +443,13 @@ TEST_F(TestEventHandler, RebootVirtualSceneBorrowOutFailed)
 
 TEST_F(TestEventHandler, RebootOverCommitSceneBorrowInSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeIn));
     ALARM_FAULT_TYPE eventId = 0;
@@ -466,16 +460,16 @@ TEST_F(TestEventHandler, RebootOverCommitSceneBorrowInSuccess)
 
 TEST_F(TestEventHandler, RebootOverCommitSceneBorrowOutSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType (*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
-    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t (*)(const std::string& keyPrefix, const std::string& key,
-                                                                 void* ctx, UbseStorageDealDataFunc func))
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+    MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
+                                                                void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
     MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
-               MpResult (*)(FaultNodeModule* This, const std::string, NodeType&))
+               MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));
-    MOCKER_CPP(&mempooling::OverCommitFaultNodeModule::ProcessBorrowOutNodeFault, MpResult (*)(const std::string&))
+    MOCKER_CPP(&mempooling::OverCommitFaultNodeModule::ProcessBorrowOutNodeFault, MpResult(*)(const std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;

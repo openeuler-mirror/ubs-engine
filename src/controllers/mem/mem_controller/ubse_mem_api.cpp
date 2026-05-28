@@ -18,9 +18,9 @@
 #include "ubse_api_server_module.h"
 #include "ubse_com_base.h"
 #include "ubse_com_module.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
-#include "ubse_conf.h"
 #include "ubse_logger.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_advice.h"
@@ -51,6 +51,9 @@ using namespace ubse::utils;
 using namespace ubse::mem::controller::message;
 using namespace ubse::com;
 using namespace ubse::mem::util;
+using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::mem::controller::agent;
 using UbseBorrowDetailsRequestPair = std::pair<UbseMemDebtInfoPartialFetchReqPtr, UbseMemDebtInfoPartialFetchResPtr>;
 UBSE_DEFINE_THIS_MODULE("ubse");
 

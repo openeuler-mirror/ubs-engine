@@ -15,7 +15,7 @@
 #include "ubse_election_def.h"
 #include "ubse_serial_util.h"
 namespace ubse::election::data::conversion {
-using namespace ubse::serial;
+
 inline void ElectionPktSerialize(ubse::serial::UbseSerialization& out, ubse::election::ElectionPkt& electionPkt)
 {
     out << electionPkt.type << electionPkt.masterId << electionPkt.standbyId << electionPkt.turnId

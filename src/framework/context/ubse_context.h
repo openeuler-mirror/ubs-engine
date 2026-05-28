@@ -33,7 +33,9 @@
         ubse::context::UbseContext::GetInstance().RegisterBaseModule<MODULE_NAME, ##__VA_ARGS__>( \
             UbseModule::CreateModule<MODULE_NAME>)
 namespace ubse::context {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
+
 using ModulerCreatorFunc = std::function<std::shared_ptr<UbseModule>()>;
 
 enum class ProcessMode {

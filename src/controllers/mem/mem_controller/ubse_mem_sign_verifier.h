@@ -18,8 +18,8 @@
 #include "ubse_mem_debt_info.h"
 
 namespace ubse::mem::controller {
-using namespace common::def;
-using namespace ubse::http;
+using common::def::UbseResult;
+using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
 
 struct UbseExportSignReq {
     std::string reqSignedData; // 请求签名信息, 用于验签

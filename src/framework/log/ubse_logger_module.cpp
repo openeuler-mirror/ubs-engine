@@ -25,6 +25,9 @@
 #include "trace_context.h"
 
 namespace ubse::log {
+using namespace ubse::common::def;
+using namespace ubse::log;
+using namespace ubse::module;
 BASE_DYNAMIC_CREATE(UbseLoggerModule, ubse::config::UbseConfModule);
 UbseLoggerWriter* g_writer = nullptr;
 

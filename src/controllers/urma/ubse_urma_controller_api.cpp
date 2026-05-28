@@ -128,7 +128,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthSet(const UbseIpcMessage& req, 
         return UBSE_ERROR_NULLPTR;
     }
     uint8_t* buffer = req.buffer;
-    const char* str = reinterpret_cast<const char*>(buffer);
+    const char* str = reinterpret_cast<const char*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -177,7 +177,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthGet(const UbseIpcMessage& req, 
         UBSE_LOG_ERROR << "UbseUrmaBandWidthGet request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char* str = reinterpret_cast<const char*>(buffer);
+    const char* str = reinterpret_cast<const char*>(buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -248,7 +248,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaBandWidthReset(const UbseIpcMessage& req
         UBSE_LOG_ERROR << "UbseUrmaBandWidthReset request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char* str = reinterpret_cast<const char*>(req.buffer);
+    const char* str = reinterpret_cast<const char*>(req.buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -480,7 +480,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage& req, cons
         UBSE_LOG_ERROR << "Ubse Urma Dev Alloc IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char* str = reinterpret_cast<const char*>(req.buffer);
+    const char* str = reinterpret_cast<const char*>(req.buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;
@@ -525,7 +525,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage& req, const
         UBSE_LOG_ERROR << "Ubse Urma Dev Free IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    const char* str = reinterpret_cast<const char*>(req.buffer);
+    const char* str = reinterpret_cast<const char*>(req.buffer); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
         return UBSE_ERROR;

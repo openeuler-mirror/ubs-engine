@@ -17,6 +17,7 @@
 
 #include "message/ubse_mem_controller_def_simpo.h"
 namespace ubse::mem::controller::message::ut {
+using namespace ubse::mem::def;
 void TestUbseMemControllerDefSimpo::SetUp()
 {
     Test::SetUp();

@@ -23,7 +23,7 @@
 namespace ubse::utils {
 using std::string;
 using std::vector;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 class UbseFileUtil {
 public:

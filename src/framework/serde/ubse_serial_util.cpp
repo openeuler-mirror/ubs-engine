@@ -27,14 +27,14 @@ constexpr common_len HEAD_BLOCK_NUMS = static_cast<common_len>(HeadBlockIndex::M
 void SetCode(base_ptr_type* buf, HeadBlockIndex idx, serial_head value)
 {
     auto offset = static_cast<serial_head>(idx) * sizeof(serial_head);
-    *reinterpret_cast<serial_head*>(buf + offset) = value;
+    *reinterpret_cast<serial_head*>(buf + offset) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 }
 
 // 由调用方控制安全性
 serial_head GetCode(base_ptr_type* buf, HeadBlockIndex idx)
 {
     auto offset = static_cast<serial_head>(idx) * sizeof(serial_head);
-    return *reinterpret_cast<serial_head*>(buf + offset);
+    return *reinterpret_cast<serial_head*>(buf + offset); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 }
 
 inline bool isValidAlign(ALIGN_BASE align)
@@ -175,13 +175,15 @@ UbseSerialization& UbseSerialization::operator<< <bool>(const std::vector<bool>&
     for (size_t i = 0; i < bytes.size(); i++) {
         bytes[i] = vec[i] ? 1 : 0;
     }
-    add(reinterpret_cast<const base_ptr_type*>(bytes.data()), bytes.size(), GetTypePointerId<std::_Bit_reference>());
+    add(reinterpret_cast<const base_ptr_type*>(bytes.data()), bytes.size(),
+        GetTypePointerId<std::_Bit_reference>()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 
 UbseSerialization& UbseSerialization::operator<<(const std::string& str)
 {
-    add(reinterpret_cast<const base_ptr_type*>(str.c_str()), str.size() + 1, GetTypePointerId<std::string>());
+    add(reinterpret_cast<const base_ptr_type*>(str.c_str()), str.size() + 1,
+        GetTypePointerId<std::string>()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 
@@ -196,7 +198,8 @@ UbseSerialization& UbseSerialization::operator<<(const char* str)
         mFlag_ = false;
         return *this;
     }
-    add(reinterpret_cast<const base_ptr_type*>(str), strlen(str) + 1, GetTypePointerId<std::string>());
+    add(reinterpret_cast<const base_ptr_type*>(str), strlen(str) + 1,
+        GetTypePointerId<std::string>()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 
@@ -410,7 +413,7 @@ UbseDeSerialization& UbseDeSerialization::operator>>(std::string& str)
         mFlag_ = false;
         return *this;
     }
-    str = std::string(reinterpret_cast<char*>(addr), len - 1);
+    str = std::string(reinterpret_cast<char*>(addr), len - 1); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 

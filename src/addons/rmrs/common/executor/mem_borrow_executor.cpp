@@ -21,6 +21,7 @@
 #include <sstream>
 #include <thread>
 
+#include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_election.h"
@@ -193,7 +194,7 @@ MpResult MemBorrowExecutor::RemoveBorrowIdRedirectionRecursively(const std::stri
 
 static __always_inline void GenerateSmapTaskId(uint64_t& taskId)
 {
-    struct timespec ts{};
+    struct timespec ts {};
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Failed to get time errno=" << errno;

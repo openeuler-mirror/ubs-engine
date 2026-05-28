@@ -43,6 +43,7 @@
 #include "message/ubse_mem_numa_borrow_importobj_simpo.h"
 #include "message/ubse_mem_numa_borrow_req_simpo.h"
 #include "src/adapter_plugins/mmi/ubse_mmi_module.h"
+
 namespace ubse::mem_controller::ut {
 using namespace ubse::task_executor;
 using namespace ubse::context;
@@ -58,6 +59,7 @@ using namespace ubse::mmi;
 using namespace ubse::mem::util;
 using namespace ubse::timer;
 using namespace ubse::utils;
+using namespace api::server;
 
 const int BORROW_SIZE = 128;
 void TestUbseMemControllerApi::SetUp()
@@ -1879,10 +1881,7 @@ TEST_F(TestUbseMemControllerApi, GetCnaInfoForNumaBorrow)
     cnaOutput.borrowSocketId = "0";
     cnaOutput.exportSocketId = "1";
     cnaOutput.portGroupId = "0";
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo)
-        .stubs()
-        .with(any(), outBound(cnaOutput))
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().with(any(), outBound(cnaOutput)).will(returnValue(UBSE_OK));
     EXPECT_EQ(GetCnaInfoForNumaBorrow(exportNodeId, importNodeId, importObj), UBSE_OK);
     UbseMemObmmInfo obmmInfo;
     importObj.exportObmmInfo.emplace_back(obmmInfo);
@@ -1917,7 +1916,7 @@ TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImport)
     MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true), UBSE_ERROR);
     MOCKER(UbseNodeMemGetTopologyCnaInfo).reset();
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true), UBSE_OK);
     // importObj.exportObmmInfo不为空，cnaInput信息无效
@@ -1930,11 +1929,8 @@ TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImport)
     cnaOutput.borrowSocketId = "0";
     cnaOutput.exportSocketId = "1";
     cnaOutput.portGroupId = "0";
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo).reset();
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo)
-        .stubs()
-        .with(any(), outBound(cnaOutput))
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).reset();
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().with(any(), outBound(cnaOutput)).will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::GetEid).reset();
     MOCKER(&UbseNodeController::GetEid).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true), UBSE_OK);

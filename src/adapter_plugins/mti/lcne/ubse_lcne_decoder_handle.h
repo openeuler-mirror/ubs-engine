@@ -18,9 +18,9 @@
 #include "adapter_plugins/mti/ubse_mti_mami_def.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace adapter_plugins::mti::mami;
+using adapter_plugins::mti::mami::UbseMamiMemHandleQueryInfo;
+using adapter_plugins::mti::mami::UbseMamiMemHandleValue;
+using common::def::UbseResult;
 
 class UbseLcneDecoderHandle {
 public:

@@ -24,6 +24,8 @@
 namespace ubse::mem::strategy {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::log;
 namespace {
 std::unordered_set<NodeId> GetIntersection(const std::vector<ubse::nodeController::UbseNodeInfo>& group,
                                            const std::vector<ubse::nodeController::UbseNodeInfo>& provider)
@@ -740,7 +742,7 @@ UbseResult UbseMemValidator::FilterByBorrowRadius()
                   << ", importDebt size=" << currentCount;
     std::set<int16_t> providerSet;
     if (borrowIt != borrowDebt.end()) {
-        for (const auto &[nodeId, _] : borrowIt->second) {
+        for (const auto& [nodeId, _] : borrowIt->second) {
             auto hostId = UbseMemTopologyInfoManager::GetInstance().NodeIdToIndex(nodeId);
             if (hostId == INVALID_META_ID) {
                 UBSE_LOG_WARN << "NodeIdToIndex failed for nodeId=" << nodeId;
@@ -750,7 +752,7 @@ UbseResult UbseMemValidator::FilterByBorrowRadius()
         }
     }
 
-    for (auto &status : ubseStatus_.numaStatus) {
+    for (auto& status : ubseStatus_.numaStatus) {
         if (providerSet.find(status.numa.hostId) == providerSet.end()) {
             status.memFree = INVALID_VALUE64;
             status.memTotal = INVALID_VALUE64;
@@ -765,7 +767,7 @@ UbseResult UbseMemValidator::FilterByLenderRadius()
     auto lenderRadius = UbseMemConfiguration::GetInstance().GetLenderRadius();
     if (lenderRadius == 0) {
         UBSE_LOG_ERROR << "All lender node has reached lender radius=" << lenderRadius
-                          << ", can't lend to borrower=" << importNodeId_;
+                       << ", can't lend to borrower=" << importNodeId_;
         return UBSE_ERROR;
     }
     auto& lenderDebt = UbseMemStrategyHelper::GetInstance().GetLenderDebt();
@@ -773,7 +775,7 @@ UbseResult UbseMemValidator::FilterByLenderRadius()
         return UBSE_OK;
     }
     std::set<std::string> filteredNodes;
-    for (const auto &[nodeId, exportDebt] : lenderDebt) {
+    for (const auto& [nodeId, exportDebt] : lenderDebt) {
         if (exportDebt.size() >= lenderRadius && exportDebt.find(importNodeId_) == exportDebt.end()) {
             UBSE_LOG_WARN << "Lender node=" << nodeId << " has reached lender radius=" << lenderRadius
                           << ", can't lend to borrower=" << importNodeId_;
@@ -784,7 +786,7 @@ UbseResult UbseMemValidator::FilterByLenderRadius()
         return UBSE_OK;
     }
     auto numaList = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo("");
-    for (const auto &numa : numaList) {
+    for (const auto& numa : numaList) {
         if (filteredNodes.find(numa->mUbseMemNumaLoc.nodeId) != filteredNodes.end()) {
             ubseStatus_.numaStatus[numa->mGlobalIndex].memFree = INVALID_VALUE64;
             ubseStatus_.numaStatus[numa->mGlobalIndex].memTotal = INVALID_VALUE64;
