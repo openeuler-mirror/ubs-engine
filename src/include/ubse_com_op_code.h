@@ -150,8 +150,7 @@ enum class UbseMemRespCtrlOpCode {
     UBSE_MEM_FD_BORROW_IMPORT_OBJ_FOR_PERMISSION_CALLBACK = 0x0015, // FD借用导入对象权限回调
     UBSE_MEM_GET_OPT_RES = 0x0016,            // 获取操作结果
     UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT = 0x0017, // 无效单个导入账本
-    UBSE_MEM_GLOBAL_LEDGER_SYNC_STATE = 0x0018, // 全局账本同步状态通知
-    UBSE_MEM_GLOBAL_LEDGER_SUMMARY_REPORT = 0x0019, // 全局账本摘要上报
+    UBSE_MEM_GLOBAL_LEDGER_SUMMARY_REPORT = 0x0018, // 全局账本摘要上报
 };
 
 // UBSE内存查询操作码

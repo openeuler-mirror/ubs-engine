@@ -21,6 +21,7 @@
 #include "debt/ubse_mem_debt_info.h"
 #include "message/ubse_mem_controller_serial.h"
 #include "ubse_election_module.h"
+#include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_global_ledger_summary_store.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
@@ -33,6 +34,7 @@ using namespace ubse::serial;
 using ubse::election::MasterInfo;
 using ubse::election::UbseElectionModule;
 using ubse::log::FormatRetCode;
+using namespace ubse::nodeController;
 
 namespace {
 constexpr size_t GLOBAL_LEDGER_MAX_SUMMARY_ITEMS = 4096;
@@ -145,7 +147,7 @@ bool DeserializeSummaryMap(UbseDeSerialization &in, UbseGlobalLedgerSummaryMap &
 
 void SerializeSummaryReportReq(UbseSerialization &out, const UbseGlobalLedgerSummaryReportReq &report)
 {
-    out << report.nodeId << report.sourceMasterNodeId << report.ledgerEpoch << report.reportTimestampMs;
+    out << report.nodeId << report.sourceMasterNodeId << report.reportTimestampMs;
     SerializeSummaryMap(out, report.shmSummary.importItems);
     SerializeSummaryMap(out, report.shmSummary.exportItems);
 }
@@ -194,58 +196,6 @@ private:
     UbseResult ret_{UBSE_OK};
 };
 
-class UbseGlobalLedgerSyncStateReportMessage final : public ubse::message::UbseBaseMessage {
-public:
-    void SetReport(UbseGlobalLedgerSyncStateReportReq report)
-    {
-        report_ = std::move(report);
-    }
-
-    const UbseGlobalLedgerSyncStateReportReq &GetReport() const
-    {
-        return report_;
-    }
-
-    UbseResult Serialize() override
-    {
-        UbseSerialization out;
-        const uint32_t state = static_cast<uint32_t>(report_.state);
-        out << report_.nodeId << state << report_.ledgerEpoch;
-        if (!out.Check()) {
-            UBSE_LOG_ERROR << "serialize global ledger sync state report req failed";
-            return UBSE_ERROR_SERIALIZE_FAILED;
-        }
-        mOutputRawDataSize = out.GetLength();
-        mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
-        return UBSE_OK;
-    }
-
-    UbseResult Deserialize() override
-    {
-        if (mInputRawData == nullptr || mInputRawDataSize == 0) {
-            UBSE_LOG_ERROR << "global ledger sync state report req is empty";
-            return UBSE_ERROR_DESERIALIZE_FAILED;
-        }
-
-        uint32_t state{};
-        UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-        in >> report_.nodeId >> state >> report_.ledgerEpoch;
-        if (!in.Check()) {
-            UBSE_LOG_ERROR << "deserialize global ledger sync state report req failed";
-            return UBSE_ERROR_DESERIALIZE_FAILED;
-        }
-        if (state != static_cast<uint32_t>(UbseGlobalLedgerSyncState::SMOOTHING)) {
-            UBSE_LOG_ERROR << "invalid global ledger sync state=" << state;
-            return UBSE_ERROR_INVAL;
-        }
-        report_.state = static_cast<UbseGlobalLedgerSyncState>(state);
-        return UBSE_OK;
-    }
-
-private:
-    UbseGlobalLedgerSyncStateReportReq report_{};
-};
-
 class UbseGlobalLedgerSummaryReportMessage final : public ubse::message::UbseBaseMessage {
 public:
     void SetReport(UbseGlobalLedgerSummaryReportReq report)
@@ -278,7 +228,7 @@ public:
             return UBSE_ERROR_DESERIALIZE_FAILED;
         }
         UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-        in >> report_.nodeId >> report_.sourceMasterNodeId >> report_.ledgerEpoch >> report_.reportTimestampMs;
+        in >> report_.nodeId >> report_.sourceMasterNodeId >> report_.reportTimestampMs;
         if (!DeserializeSummaryMap(in, report_.shmSummary.importItems) ||
             !DeserializeSummaryMap(in, report_.shmSummary.exportItems) || !in.Check()) {
             UBSE_LOG_ERROR << "deserialize global ledger summary report req failed";
@@ -289,34 +239,6 @@ public:
 
 private:
     UbseGlobalLedgerSummaryReportReq report_{};
-};
-
-class UbseGlobalLedgerSyncStateReportMessageHandler final : public UbseComBaseMessageHandler {
-public:
-    UbseResult Handle(const ubse::message::UbseBaseMessagePtr &req, const ubse::message::UbseBaseMessagePtr &rsp,
-                      UbseComBaseMessageHandlerCtxPtr ctx) override
-    {
-        (void)ctx;
-        auto request = ubse::message::UbseBaseMessage::DeConvert<UbseGlobalLedgerSyncStateReportMessage>(req);
-        auto response = ubse::message::UbseBaseMessage::DeConvert<UbseGlobalLedgerReportRespMessage>(rsp);
-        if (request == nullptr || response == nullptr) {
-            UBSE_LOG_ERROR << "convert global ledger sync state report message failed";
-            return UBSE_ERROR_NULLPTR;
-        }
-        const auto ret = StoreGlobalLedgerSyncState(request->GetReport());
-        response->SetRet(ret);
-        return UBSE_OK;
-    }
-
-    uint16_t GetOpCode() override
-    {
-        return static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_GLOBAL_LEDGER_SYNC_STATE);
-    }
-
-    uint16_t GetModuleCode() override
-    {
-        return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
-    }
 };
 
 class UbseGlobalLedgerSummaryReportMessageHandler final : public UbseComBaseMessageHandler {
@@ -425,56 +347,6 @@ UbseResult StartGlobalLedgerSync(const UbseGlobalLedgerSyncStartReq &req)
     return UBSE_OK;
 }
 
-UbseResult ReportGlobalLedgerSyncState(const std::string &nodeId, UbseGlobalLedgerSyncState state,
-                                       uint64_t ledgerEpoch)
-{
-    if (nodeId.empty()) {
-        UBSE_LOG_ERROR << "global ledger sync state report nodeId is empty";
-        return UBSE_ERROR_INVAL;
-    }
-    if (state != UbseGlobalLedgerSyncState::SMOOTHING) {
-        UBSE_LOG_ERROR << "global ledger sync state report only accepts SMOOTHING, nodeId=" << nodeId
-                       << ", state=" << static_cast<uint32_t>(state);
-        return UBSE_ERROR_INVAL;
-    }
-    const auto sourceMasterNodeId = nodeController::UbseNodeController::GetInstance().GetCurNode().nodeId;
-    if (sourceMasterNodeId.empty()) {
-        UBSE_LOG_ERROR << "current source master node id is empty";
-        return UBSE_ERR_NODE_NOT_EXIST;
-    }
-
-    UbseGlobalLedgerSyncStateReportReq report{
-        .nodeId = nodeId,
-        .state = state,
-        .ledgerEpoch = ledgerEpoch,
-    };
-    ubse::utils::Ref<UbseGlobalLedgerSyncStateReportMessage> request =
-        new (std::nothrow) UbseGlobalLedgerSyncStateReportMessage();
-    if (request == nullptr) {
-        UBSE_LOG_ERROR << "new global ledger sync state report message failed";
-        return UBSE_ERROR_NULLPTR;
-    }
-    request->SetReport(std::move(report));
-
-    UbseResult reportRet = UBSE_OK;
-    auto ret = SendGlobalLedgerReport(static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_GLOBAL_LEDGER_SYNC_STATE),
-                                      request, reportRet);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "send global ledger sync state report failed, " << FormatRetCode(ret)
-                       << ", state=" << static_cast<uint32_t>(state);
-        return ret;
-    }
-    if (reportRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "global ledger sync state report rejected, " << FormatRetCode(reportRet)
-                       << ", state=" << static_cast<uint32_t>(state);
-        return reportRet;
-    }
-    UBSE_LOG_INFO << "Report global ledger sync state success, sourceMasterNodeId=" << sourceMasterNodeId
-                  << ", nodeId=" << nodeId << ", state=" << static_cast<uint32_t>(state)
-                  << ", ledgerEpoch=" << ledgerEpoch;
-    return UBSE_OK;
-}
-
 UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
 {
     if (summary.nodeId.empty()) {
@@ -504,7 +376,6 @@ UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
         return reportRet;
     }
     UBSE_LOG_INFO << "Report global ledger summary success, nodeId=" << summary.nodeId
-                  << ", ledgerEpoch=" << summary.ledgerEpoch
                   << ", shmImportItems=" << summary.shmSummary.importItems.size()
                   << ", shmExportItems=" << summary.shmSummary.exportItems.size();
     return UBSE_OK;
@@ -518,25 +389,12 @@ UbseResult RegGlobalLedgerReportRpcHandlers()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
-    UbseComBaseMessageHandlerPtr syncStateHandler =
-        new (std::nothrow) UbseGlobalLedgerSyncStateReportMessageHandler();
-    if (syncStateHandler == nullptr) {
-        UBSE_LOG_ERROR << "new global ledger sync state report handler failed";
-        return UBSE_ERROR_NULLPTR;
-    }
-    auto ret = comModule->RegRpcService<UbseGlobalLedgerSyncStateReportMessage, UbseGlobalLedgerReportRespMessage>(
-        syncStateHandler);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "register global ledger sync state report handler failed, " << FormatRetCode(ret);
-        return ret;
-    }
-
     UbseComBaseMessageHandlerPtr summaryHandler = new (std::nothrow) UbseGlobalLedgerSummaryReportMessageHandler();
     if (summaryHandler == nullptr) {
         UBSE_LOG_ERROR << "new global ledger summary report handler failed";
         return UBSE_ERROR_NULLPTR;
     }
-    ret = comModule->RegRpcService<UbseGlobalLedgerSummaryReportMessage, UbseGlobalLedgerReportRespMessage>(
+    auto ret = comModule->RegRpcService<UbseGlobalLedgerSummaryReportMessage, UbseGlobalLedgerReportRespMessage>(
         summaryHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "register global ledger summary report handler failed, " << FormatRetCode(ret);
@@ -565,5 +423,34 @@ UbseResult QueryGlobalShmNodeLedgerSummary(const std::string &targetNodeId, Ubse
     AppendShmItems(debtInfo.shareImportObjMap, summary.shmSummary.importItems);
     AppendShmItems(debtInfo.shareExportObjMap, summary.shmSummary.exportItems);
     return UBSE_OK;
+}
+
+UbseResult SubmitNodeLedgerSummary(const std::string &nodeId)
+{
+    UbseGlobalNodeLedgerSummary summary{};
+    auto ret = QueryGlobalShmNodeLedgerSummary(nodeId, summary);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "query global ledger summary failed, nodeId=" << nodeId
+                       << ", " << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = ReportGlobalLedgerSummary(summary);
+    if (ret == UBSE_OK) {
+        UBSE_LOG_INFO << "submit global ledger summary success, nodeId=" << nodeId;
+    } else {
+        UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << nodeId
+                       << ", " << FormatRetCode(ret);
+    }
+    return ret;
+}
+
+UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId)
+{
+    if (nodeId.empty()) {
+        UBSE_LOG_ERROR << "nodeId is empty";
+        return UBSE_ERROR_INVAL;
+    }
+    return SubmitNodeLedgerSummary(nodeId);
 }
 } // namespace ubse::mem::controller

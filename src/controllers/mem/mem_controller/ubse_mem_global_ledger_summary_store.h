@@ -21,7 +21,6 @@
 #include "ubse_mem_global_ledger_summary.h"
 
 namespace ubse::mem::controller {
-struct UbseGlobalLedgerSyncStateReportReq;
 
 class UbseGlobalLedgerSummaryStore {
 public:
@@ -32,11 +31,9 @@ public:
     UbseGlobalLedgerSummaryStore(UbseGlobalLedgerSummaryStore &&) = delete;
     UbseGlobalLedgerSummaryStore &operator=(UbseGlobalLedgerSummaryStore &&) = delete;
 
-    UbseResult PutNodeSummaryAndMarkWorking(const UbseGlobalNodeLedgerSummary &summary);
+    UbseResult PutNodeSummary(const UbseGlobalNodeLedgerSummary &summary);
     UbseResult GetNodeSummary(const std::string &targetNodeId, UbseGlobalNodeLedgerSummary &summary) const;
     UbseResult GetAllNodeSummaries(UbseGlobalNodeLedgerSummaryTable &summaries) const;
-    UbseResult PutNodeSyncState(const UbseGlobalLedgerSyncStateReportReq &report);
-    UbseResult GetNodeSyncState(const std::string &nodeId, UbseGlobalLedgerSyncState &state) const;
     bool RemoveNodeSummary(const std::string &targetNodeId);
     bool ContainsNodeSummary(const std::string &targetNodeId) const;
     void Clear();
@@ -46,9 +43,6 @@ private:
 
     mutable std::shared_mutex mutex_{};
     UbseGlobalNodeLedgerSummaryTable summaries_{};
-    std::map<std::string, UbseGlobalLedgerSyncState> nodeSyncStates_{};
-    std::map<std::string, uint64_t> nodeEpochs_{};
-    std::map<std::string, uint64_t> summaryEpochs_{};
     std::map<std::string, uint64_t> lastUpdateTimes_{};
 };
 } // namespace ubse::mem::controller

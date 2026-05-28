@@ -32,14 +32,6 @@ struct UbseGlobalLedgerSyncStartResp {
     UbseResult ret{UBSE_OK};
 };
 
-struct UbseGlobalLedgerSyncStateReportReq {
-    std::string nodeId{}; // 进入对账的目标节点ID
-    UbseGlobalLedgerSyncState state{UbseGlobalLedgerSyncState::SMOOTHING};
-    uint64_t ledgerEpoch{0};
-};
-
-using UbseGlobalLedgerSyncStateReportResp = UbseGlobalLedgerSyncStartResp;
-
 using UbseGlobalLedgerSummaryReportReq = UbseGlobalNodeLedgerSummary;
 
 struct UbseGlobalLedgerSummaryReportResp {
@@ -47,14 +39,14 @@ struct UbseGlobalLedgerSummaryReportResp {
 };
 
 UbseResult StartGlobalLedgerSync(const UbseGlobalLedgerSyncStartReq &req);
-UbseResult ReportGlobalLedgerSyncState(const std::string &nodeId, UbseGlobalLedgerSyncState state,
-                                       uint64_t ledgerEpoch);
 UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary);
-UbseResult StoreGlobalLedgerSyncState(const UbseGlobalLedgerSyncStateReportReq &report);
 UbseResult StoreGlobalNodeLedgerSummary(const UbseGlobalLedgerSummaryReportReq &report);
-UbseResult QueryGlobalLedgerSyncState(const std::string &nodeId, UbseGlobalLedgerSyncState &state);
 UbseResult RegGlobalLedgerReportRpcHandlers();
 UbseResult QueryGlobalShmNodeLedgerSummary(const std::string &targetNodeId, UbseGlobalNodeLedgerSummary &summary);
+UbseResult SubmitNodeLedgerSummary(const std::string &nodeId);
+UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId);
+bool HasStoredGlobalNodeLedgerSummary(const std::string &targetNodeId);
+void ClearStoredGlobalNodeLedgerSummaries();
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_GLOBAL_LEDGER_REPORT_H

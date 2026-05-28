@@ -23,17 +23,12 @@
 namespace ubse::mem::controller {
 using namespace ubse::adapter_plugins::mmi;
 
-enum class UbseGlobalLedgerSyncState : uint32_t {
-    SMOOTHING = 0,
-    WORKING = 1
-};
-
 struct UbseGlobalLedgerSummaryItem {
-    std::string name{};                                 // 资源名称，对齐账本对象req.name
-    std::vector<UbseMemDebtNumaInfo> exportNumaInfos{}; // 导出侧关系摘要
-    std::vector<UbseMemDebtNumaInfo> importNumaInfos{}; // 导入侧关系摘要
-    uint32_t blockSize{128};                            // 芯片拆分粒度, 单位MB
-    UbseMemState state{UBSE_MEM_STATE_INIT};            // 账本对象状态
+    std::string name{};
+    std::vector<UbseMemDebtNumaInfo> exportNumaInfos{};
+    std::vector<UbseMemDebtNumaInfo> importNumaInfos{};
+    uint32_t blockSize{128};
+    UbseMemState state{UBSE_MEM_STATE_INIT};
 };
 
 using UbseGlobalLedgerSummaryMap = std::map<std::string, UbseGlobalLedgerSummaryItem>;
@@ -46,7 +41,6 @@ struct UbseGlobalLedgerSummary {
 struct UbseGlobalNodeLedgerSummary {
     std::string nodeId{};             // 当前上报的目标节点ID
     std::string sourceMasterNodeId{}; // 上报该摘要的机柜主节点ID
-    uint64_t ledgerEpoch{0};          // 该节点对账epoch
     uint64_t reportTimestampMs{0};    // 全局主落库时间戳
     UbseGlobalLedgerSummary shmSummary{}; // 共享内存账本摘要
 };

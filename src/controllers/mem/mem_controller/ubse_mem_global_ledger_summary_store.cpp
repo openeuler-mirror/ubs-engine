@@ -15,8 +15,8 @@
 #include <chrono>
 #include <mutex>
 
-#include "ubse_mem_global_ledger_report.h"
 #include "ubse_logger_module.h"
+#include "ubse_mem_global_ledger_report.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -35,25 +35,15 @@ UbseGlobalLedgerSummaryStore &UbseGlobalLedgerSummaryStore::GetInstance()
     return instance;
 }
 
-UbseResult UbseGlobalLedgerSummaryStore::PutNodeSummaryAndMarkWorking(const UbseGlobalNodeLedgerSummary &summary)
+UbseResult UbseGlobalLedgerSummaryStore::PutNodeSummary(const UbseGlobalNodeLedgerSummary &summary)
 {
     std::unique_lock<std::shared_mutex> lock(mutex_);
     const auto nodeId = summary.nodeId;
-    const auto epochIt = nodeEpochs_.find(nodeId);
-    if (epochIt != nodeEpochs_.end() && summary.ledgerEpoch < epochIt->second) {
-        UBSE_LOG_WARN << "Reject stale global ledger summary by epoch, nodeId=" << nodeId
-                      << ", reportEpoch=" << summary.ledgerEpoch << ", currentEpoch=" << epochIt->second;
-        return UBSE_ERROR_AGAIN;
-    }
-
     auto storedSummary = summary;
     const auto nowMs = GetNowMs();
     storedSummary.reportTimestampMs = nowMs;
     summaries_[nodeId] = std::move(storedSummary);
-    nodeEpochs_[nodeId] = summary.ledgerEpoch;
-    summaryEpochs_[nodeId] = summary.ledgerEpoch;
     lastUpdateTimes_[nodeId] = nowMs;
-    nodeSyncStates_[nodeId] = UbseGlobalLedgerSyncState::WORKING;
     return UBSE_OK;
 }
 
@@ -83,50 +73,6 @@ UbseResult UbseGlobalLedgerSummaryStore::GetAllNodeSummaries(UbseGlobalNodeLedge
     return UBSE_OK;
 }
 
-UbseResult UbseGlobalLedgerSummaryStore::PutNodeSyncState(const UbseGlobalLedgerSyncStateReportReq &report)
-{
-    std::unique_lock<std::shared_mutex> lock(mutex_);
-    const auto nodeId = report.nodeId;
-    const auto epochIt = nodeEpochs_.find(nodeId);
-    if (epochIt != nodeEpochs_.end() && report.ledgerEpoch < epochIt->second) {
-        UBSE_LOG_WARN << "Reject stale global ledger sync state by epoch, nodeId=" << nodeId
-                      << ", reportEpoch=" << report.ledgerEpoch << ", currentEpoch=" << epochIt->second;
-        return UBSE_ERROR_AGAIN;
-    }
-    const auto summaryEpochIt = summaryEpochs_.find(nodeId);
-    const auto stateIt = nodeSyncStates_.find(nodeId);
-    if (epochIt != nodeEpochs_.end() && report.ledgerEpoch == epochIt->second &&
-        summaryEpochIt != summaryEpochs_.end() && summaryEpochIt->second == report.ledgerEpoch &&
-        stateIt != nodeSyncStates_.end() && stateIt->second == UbseGlobalLedgerSyncState::WORKING) {
-        UBSE_LOG_INFO << "Ignore duplicate global ledger SMOOTHING after summary committed, nodeId=" << nodeId
-                      << ", ledgerEpoch=" << report.ledgerEpoch;
-        return UBSE_OK;
-    }
-
-    nodeEpochs_[nodeId] = report.ledgerEpoch;
-    lastUpdateTimes_[nodeId] = GetNowMs();
-    nodeSyncStates_[nodeId] = report.state;
-    return UBSE_OK;
-}
-
-UbseResult UbseGlobalLedgerSummaryStore::GetNodeSyncState(const std::string &nodeId,
-                                                          UbseGlobalLedgerSyncState &state) const
-{
-    if (nodeId.empty()) {
-        UBSE_LOG_ERROR << "nodeId is empty";
-        return UBSE_ERROR_INVAL;
-    }
-
-    std::shared_lock<std::shared_mutex> lock(mutex_);
-    const auto it = nodeSyncStates_.find(nodeId);
-    if (it == nodeSyncStates_.end()) {
-        UBSE_LOG_WARN << "Stored global ledger sync state not found, nodeId=" << nodeId;
-        return UBSE_ERR_NODE_NOT_EXIST;
-    }
-    state = it->second;
-    return UBSE_OK;
-}
-
 bool UbseGlobalLedgerSummaryStore::RemoveNodeSummary(const std::string &targetNodeId)
 {
     std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -143,9 +89,6 @@ void UbseGlobalLedgerSummaryStore::Clear()
 {
     std::unique_lock<std::shared_mutex> lock(mutex_);
     summaries_.clear();
-    nodeSyncStates_.clear();
-    nodeEpochs_.clear();
-    summaryEpochs_.clear();
     lastUpdateTimes_.clear();
 }
 
@@ -156,12 +99,11 @@ UbseResult StoreGlobalNodeLedgerSummary(const UbseGlobalLedgerSummaryReportReq &
         return UBSE_ERROR_INVAL;
     }
 
-    const auto ret = UbseGlobalLedgerSummaryStore::GetInstance().PutNodeSummaryAndMarkWorking(report);
+    const auto ret = UbseGlobalLedgerSummaryStore::GetInstance().PutNodeSummary(report);
     if (ret != UBSE_OK) {
         return ret;
     }
     UBSE_LOG_INFO << "Stored global node ledger summary, nodeId=" << report.nodeId
-                  << ", ledgerEpoch=" << report.ledgerEpoch
                   << ", shmImportItems=" << report.shmSummary.importItems.size()
                   << ", shmExportItems=" << report.shmSummary.exportItems.size();
     return UBSE_OK;
@@ -177,31 +119,12 @@ UbseResult QueryStoredGlobalNodeLedgerSummaries(UbseGlobalNodeLedgerSummaryTable
     return UbseGlobalLedgerSummaryStore::GetInstance().GetAllNodeSummaries(summaries);
 }
 
-UbseResult StoreGlobalLedgerSyncState(const UbseGlobalLedgerSyncStateReportReq &report)
+bool HasStoredGlobalNodeLedgerSummary(const std::string &targetNodeId)
 {
-    if (report.nodeId.empty()) {
-        UBSE_LOG_ERROR << "nodeId is empty";
-        return UBSE_ERROR_INVAL;
+    if (targetNodeId.empty()) {
+        return false;
     }
-    if (report.state != UbseGlobalLedgerSyncState::SMOOTHING) {
-        UBSE_LOG_ERROR << "global ledger sync state report only accepts SMOOTHING, nodeId=" << report.nodeId
-                       << ", state=" << static_cast<uint32_t>(report.state);
-        return UBSE_ERROR_INVAL;
-    }
-
-    const auto ret = UbseGlobalLedgerSummaryStore::GetInstance().PutNodeSyncState(report);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    UBSE_LOG_INFO << "Stored global ledger sync state, nodeId=" << report.nodeId
-                  << ", state=" << static_cast<uint32_t>(report.state)
-                  << ", ledgerEpoch=" << report.ledgerEpoch;
-    return UBSE_OK;
-}
-
-UbseResult QueryGlobalLedgerSyncState(const std::string &nodeId, UbseGlobalLedgerSyncState &state)
-{
-    return UbseGlobalLedgerSummaryStore::GetInstance().GetNodeSyncState(nodeId, state);
+    return UbseGlobalLedgerSummaryStore::GetInstance().ContainsNodeSummary(targetNodeId);
 }
 
 void ClearStoredGlobalNodeLedgerSummaries()

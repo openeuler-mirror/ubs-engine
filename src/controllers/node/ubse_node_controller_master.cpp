@@ -29,6 +29,7 @@
 #include "ubse_ras_handler.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
+#include "ubse_mem_global_ledger_report.h"
 
 const uint32_t HA_SEQUENCE_ID = 101; // todo 待链路合并后下线，需要确保在节点建链后触发，节点建链优先级100。
 
@@ -40,6 +41,7 @@ const std::string UBSE_NODE_MASTER_LEDGER_TIMER = "UbseNodeLedger";
 const std::string UBSE_NODE_MASTER_ONLINE = "UbseMasterOnLine";
 const std::string UBSE_NODE_NODE_UP = "UbseNodeUp";
 const std::string UBSE_NODE_NODE_DOWN = "UbseNodeDown";
+const std::string UBSE_NODE_GLOBAL_MASTER_ONLINE = "UbseGlobalMasterOnLine";
 constexpr int UBSE_RPC_TIMEOUT_MS = 60000; // 5秒超时
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 
@@ -203,6 +205,18 @@ UbseResult UbseNodeControllerMaster::Initialize()
     NodeDownBuilder.SetName(UBSE_NODE_NODE_DOWN);
     UbseElectionChangeAttachHandler(NodeDownBuilder.Build());
 
+    // 全局主上线通知：机柜主收到后重置 globalState + 触发全量对账
+    UbseElectionHandlerBuilder GlobalMasterOnlineBuilder;
+    GlobalMasterOnlineBuilder.SetHandler(
+        [this](UbseElectionEventType, UBSE_ID_TYPE globalMasterId) {
+            return UbseGlobalMasterOnlineHandler(globalMasterId);
+        });
+    GlobalMasterOnlineBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    GlobalMasterOnlineBuilder.SetSequenceId(HA_SEQUENCE_ID);
+    GlobalMasterOnlineBuilder.SetType(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION);
+    GlobalMasterOnlineBuilder.SetName(UBSE_NODE_GLOBAL_MASTER_ONLINE);
+    UbseElectionChangeAttachHandler(GlobalMasterOnlineBuilder.Build());
+
     // prebmc 故障回调；仅允许连通节点：smoothing，working状态节点进入prebmc状态
     UbseRasHandler::GetInstance().RegisterNodeHandler(
         NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE,
@@ -222,6 +236,30 @@ UbseResult UbseNodeControllerMaster::Initialize()
     UbseRasHandler::GetInstance().RegisterNodeHandler(
         NodeHandlerType::NODE_FAULT_STATE_CLEAR_HANDLER_TYPE,
         [this](const std::string &nodeId) -> UbseResult { return UbseNodeRasAfterFaultClearHandler(nodeId); });
+
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeControllerMaster::UbseGlobalMasterOnlineHandler(const std::string &globalMasterId)
+{
+    UBSE_LOG_INFO << "[CLOS_EVENT] global master online notification, globalMasterId=" << globalMasterId
+                  << ", currentNodeId=" << UbseNodeController::GetInstance().GetCurrentNodeId()
+                  << ", role=" << static_cast<uint32_t>(GetClosRole());
+
+    UbseNodeController::GetInstance().ResetAllGlobalStates();
+    UBSE_LOG_INFO << "[CLOS_STATE] all nodes globalState reset to GLOBAL_INIT on global master online";
+
+    std::string eventMessage = globalMasterId;
+    auto pubRet = UbsePubEvent(UBSE_EVENT_GLOBAL_MASTER_ONLINE, eventMessage);
+    if (pubRet != UBSE_OK) {
+        UBSE_LOG_WARN << "[CLOS_EVENT] publish global master online event failed, globalMasterId=" << globalMasterId
+                      << ", " << FormatRetCode(pubRet);
+    }
+
+    auto role = GetClosRole();
+    if (role == UbseClosNodeRole::PD_MASTER || role == UbseClosNodeRole::GLOBAL_MASTER) {
+        UbseMasterNotifyMountedGroupMastersAction(globalMasterId, UBSE_EVENT_GLOBAL_MASTER_ONLINE);
+    }
 
     return UBSE_OK;
 }
@@ -375,6 +413,13 @@ void UbseNodeControllerMaster::UbseNodeLedger(const std::string &nodeId)
     UBSE_LOG_INFO << "[CLOS_STATE] after set smoothing, nodeId=" << nodeId << ", ret=" << FormatRetCode(ret)
                   << ", clusterState=" << static_cast<uint32_t>(smoothingInfo.clusterState);
 
+    // 对账前同步 SMOOTHING 状态到全局主，确保对账期间全局主不调度跨柜任务到该节点
+    auto reportBeforeRet = ReportSingleNodeChangeToPrev(nodeId, "ledger before smoothing");
+    if (reportBeforeRet != UBSE_OK) {
+        UBSE_LOG_WARN << "[CLOS_REPORT] report before smoothing failed, nodeId=" << nodeId << ", "
+                      << FormatRetCode(reportBeforeRet);
+    }
+
     if (smoothingInfo.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
         // 若对账期间，节点故障或者断连，故障模块会将节点状态修改为fault，unknown；
         // 在部分不断链的故障场景下，例如BMC下电失败，reboot -f等，若对账完毕发现状态非smoothing，不刷新状态。
@@ -388,6 +433,13 @@ void UbseNodeControllerMaster::UbseNodeLedger(const std::string &nodeId)
     auto workingInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     UBSE_LOG_INFO << "[CLOS_STATE] after set working, nodeId=" << nodeId << ", ret=" << FormatRetCode(ret)
                   << ", clusterState=" << static_cast<uint32_t>(workingInfo.clusterState);
+
+    // 对账后同步 WORKING 状态到全局主
+    auto reportAfterRet = ReportSingleNodeChangeToPrev(nodeId, "ledger after working");
+    if (reportAfterRet != UBSE_OK) {
+        UBSE_LOG_WARN << "[CLOS_REPORT] report after working failed, nodeId=" << nodeId << ", "
+                      << FormatRetCode(reportAfterRet);
+    }
 
     UBSE_LOG_INFO << "nodeId=" << nodeId << " collect ledger success.";
 }
@@ -1016,6 +1068,17 @@ void UbseNodeControllerMaster::UnInitialize()
     NodeDownBuilder.SetType(UbseElectionEventType::NODE_DOWN);
     NodeDownBuilder.SetName(UBSE_NODE_NODE_DOWN);
     UbseElectionChangeDeAttachHandler(NodeDownBuilder.Build());
+
+    UbseElectionHandlerBuilder GlobalMasterOnlineBuilder;
+    GlobalMasterOnlineBuilder.SetHandler(
+        [this](UbseElectionEventType, UBSE_ID_TYPE globalMasterId) {
+            return UbseGlobalMasterOnlineHandler(globalMasterId);
+        });
+    GlobalMasterOnlineBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    GlobalMasterOnlineBuilder.SetSequenceId(HA_SEQUENCE_ID);
+    GlobalMasterOnlineBuilder.SetType(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION);
+    GlobalMasterOnlineBuilder.SetName(UBSE_NODE_GLOBAL_MASTER_ONLINE);
+    UbseElectionChangeDeAttachHandler(GlobalMasterOnlineBuilder.Build());
 }
 
 // 创建错误响应
@@ -1307,39 +1370,71 @@ UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info)
     return syncData->collectRet;
 }
 
+namespace {
+void NotifyNodeChangeAction(const std::string &destNodeId, const std::string &nodeId, const std::string &action)
+{
+    const ubse::com::UbseComEndpoint endpoint{
+        .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
+        .serviceId = static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_CHANGE),
+        .address = destNodeId,
+    };
+
+    UbseSerialization outStream;
+    outStream << nodeId << action;
+    if (!outStream.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize node ID: " << nodeId << " and action: " << action;
+        return;
+    }
+    size_t size = outStream.GetLength();
+    uint8_t *buffer = outStream.GetBuffer(true);
+    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
+                                 SafeDeleteArray(p, size);
+                             }};
+
+    auto dummyHandler = [](void *ctx, const UbseByteBuffer &buf, uint32_t ret) {
+        UBSE_LOG_INFO << "Received ack for notification agent";
+    };
+
+    UBSE_LOG_INFO << "master notify action " << action << " to node " << destNodeId;
+    auto ret = UbseRpcAsyncSend(endpoint, reqBuffer, nullptr, dummyHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to notify node " << destNodeId << ", error: " << FormatRetCode(ret);
+    }
+}
+} // namespace
+
 void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string action)
 {
     UBSE_LOG_INFO << "master notify action " << action << " to all nodes";
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     for (auto &node : nodeInfos) {
-        const ubse::com::UbseComEndpoint endpoint{
-            .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
-            .serviceId = static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_NODE_CHANGE),
-            .address = node.first,
-        };
+        NotifyNodeChangeAction(node.first, nodeId, action);
+    }
+}
 
-        UbseSerialization outStream;
-        outStream << nodeId << action;
-        if (!outStream.Check()) {
-            UBSE_LOG_ERROR << "Failed to serialize node ID: " << nodeId << " and action: " << action;
+void UbseNodeControllerMaster::UbseMasterNotifyMountedGroupMastersAction(const std::string &nodeId,
+                                                                         const std::string &action)
+{
+    auto module = UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "[CLOS_EVENT] election module not load, skip notifying mounted group masters";
+        return;
+    }
+
+    std::vector<ubse::election::UBSE_ID_TYPE> mountedGroupMasterIds{};
+    auto ret = module->GetPdMountedGroupMasters(mountedGroupMasterIds);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[CLOS_EVENT] get mounted group masters failed, skip action=" << action
+                      << ", " << FormatRetCode(ret);
+        return;
+    }
+
+    auto currentNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    for (const auto &mountedGroupMasterId : mountedGroupMasterIds) {
+        if (mountedGroupMasterId.empty() || mountedGroupMasterId == currentNodeId) {
             continue;
         }
-        size_t size = outStream.GetLength();
-        uint8_t *buffer = outStream.GetBuffer(true);
-        UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-                                     SafeDeleteArray(p, size);
-                                 }};
-
-        auto dummyHandler = [](void *ctx, const UbseByteBuffer &buf, uint32_t ret) {
-            UBSE_LOG_INFO << "Received ack for notification agent";
-        };
-
-        UBSE_LOG_INFO << "master notify action " << action << " to node " << node.first;
-        auto ret = UbseRpcAsyncSend(endpoint, reqBuffer, nullptr, dummyHandler);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to notify node " << node.first << ", error: " << FormatRetCode(ret);
-            continue;
-        }
+        NotifyNodeChangeAction(mountedGroupMasterId, nodeId, action);
     }
 }
 } // namespace ubse::nodeController

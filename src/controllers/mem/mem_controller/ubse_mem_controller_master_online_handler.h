@@ -20,6 +20,8 @@ public:
 
 private:
     static uint32_t MasterOnlineHandler(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
+    static uint32_t GlobalMasterOnlineEventHandler(std::string &eventId, std::string &eventMessage);
+    static uint32_t HandleGlobalMasterOnline(const std::string &nodeId);
 };
 
 } // namespace ubse::mem::controller

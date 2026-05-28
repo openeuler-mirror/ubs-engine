@@ -61,14 +61,6 @@ enum class RemoteNumaStatus {
 };
 
 std::mutex mtx_target_ledger_global;
-std::mutex g_globalLedgerEpochMutex;
-std::unordered_map<std::string, uint64_t> g_globalLedgerEpochs;
-
-uint64_t NextGlobalLedgerEpoch(const std::string &nodeId)
-{
-    std::lock_guard<std::mutex> lock(g_globalLedgerEpochMutex);
-    return ++g_globalLedgerEpochs[nodeId];
-}
 
 bool CheckNodeIsMaster()
 {
@@ -352,13 +344,6 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
         UBSE_LOG_INFO << "current node not master, skip ledger.";
         return UBSE_OK;
     }
-    const auto ledgerEpoch = NextGlobalLedgerEpoch(nodeId);
-    auto syncRet = ReportGlobalLedgerSyncState(nodeId, UbseGlobalLedgerSyncState::SMOOTHING, ledgerEpoch);
-    if (syncRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "report global ledger smoothing state failed, skip ledger, " << FormatRetCode(syncRet);
-        return syncRet;
-    }
-
     auto masterDebtInfo = GetMasterCtxLedger(nodeId);
     // 获取全量账本
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
@@ -392,14 +377,9 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
             UBSE_LOG_INFO << "Start async thread to notify smap numa status for nodeId=" << nodeId;
             MasterNotifyRemoteNumaStatus(nodeId, localMap);
         });
-        UbseGlobalNodeLedgerSummary summary{};
-        auto summaryRet = QueryGlobalShmNodeLedgerSummary(node.nodeId, summary);
-        if (summaryRet == UBSE_OK) {
-            summary.ledgerEpoch = ledgerEpoch;
-            summaryRet = ReportGlobalLedgerSummary(summary);
-        }
+        auto summaryRet = SubmitNodeLedgerSummary(nodeId);
         if (summaryRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << node.nodeId << ", "
+            UBSE_LOG_ERROR << "submit global ledger summary failed, nodeId=" << node.nodeId << ", "
                            << FormatRetCode(summaryRet);
             ret |= summaryRet;
         }

@@ -19,6 +19,7 @@
 #include "ubse_mem_validator.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node.h"
+#include "ubse_node_controller.h"
 
 namespace ubse::mem::scheduler {
 std::mutex schedulerMutex;
@@ -80,10 +81,12 @@ bool UpdateCacheNodeState(const std::unordered_map<std::string, ubse::nodeContro
         if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
             flag = true;
         }
-        bool status = (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING);
+        bool status = (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING &&
+                       nodeInfo.globalState == UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY);
         UbseMemTopologyInfoManager::GetInstance().ChangeNodeStatus(nodeId, status);
         UBSE_LOG_INFO << "when allocate begin, node id=" << nodeInfo.nodeId
-                      << ", state=" << static_cast<uint32_t>(nodeInfo.clusterState);
+                      << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                      << ", globalState=" << static_cast<uint8_t>(nodeInfo.globalState);
     }
     return flag;
 }

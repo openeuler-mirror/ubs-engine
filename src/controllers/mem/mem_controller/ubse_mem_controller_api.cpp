@@ -25,6 +25,7 @@
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_def.h"
+#include "ubse_mem_global_ledger_report.h"
 #include "ubse_mem_prehandle_manager.h"
 #include "ubse_mem_scheduler.h"
 #include "ubse_mem_util.h"
@@ -63,11 +64,25 @@ using namespace ubse::mem::controller::debt;
 const uint32_t UBSE_MEM_SHM_CLEAN_INTERVAL = 300; // 中心侧共享内存零引用清零周期；单位秒
 const std::string UBSE_MEM_SHM_CLEAN_TIMER = "UbseMemShmClean";
 
+uint32_t CheckGlobalLedgerSummaryReported(const ubse::nodeController::UbseNodeInfo &node)
+{
+    if (node.nodeId.empty()) {
+        UBSE_LOG_ERROR << "node id is empty when checking global ledger summary";
+        return UBSE_ERROR_INVAL;
+    }
+    if (!HasStoredGlobalNodeLedgerSummary(node.nodeId)) {
+        UBSE_LOG_WARN << "global ledger summary has not been reported, nodeId=" << node.nodeId;
+        return UBSE_ERR_NODE_NOT_EXIST;
+    }
+    return UBSE_OK;
+}
+
 void RegisterNodeCtlNotify()
 {
     UbseNodeController::GetInstance().RegLocalStateNotifyHandler(LoadLocalAllObjs);
     UbseNodeController::GetInstance().RegClusterStateNotifyHandler(PreOnlineHandler);
     UbseNodeController::GetInstance().RegClusterStateNotifyHandler(LedgerHandler);
+    UbseNodeController::GetInstance().RegGlobalStateNotifyHandler(CheckGlobalLedgerSummaryReported);
     std::string eventId = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
     UbseSubEvent(eventId, LcneTopologyChangeHandler, HIGH);
     auto taskExecutor = GetExecutor("ubseMemController");
