@@ -20,9 +20,6 @@
 #include "ubse_error.h"
 
 namespace ubse::urma {
-void FillSelfLinks(const std::string &currentSlotId, const std::vector<uint32_t> &usedPortIndices,
-                   std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
-bool ConvertTopoPortToIndex(const UbseUrmaTopoPort &port, uint32_t &index);
 UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig &topoConfig,
                                 std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 } // namespace ubse::urma
@@ -102,7 +99,7 @@ protected:
 
 /*
  * 用例描述：按 non-cross 静态拓扑配置填充 CLOS 拓扑矩阵。
- * 预期结果：非当前节点仅填充同 chip 同 port 链路，当前节点 entry 的 links 全部保持 false。
+ * 预期结果：当前节点仅 localPort 自连通为 true，非当前节点填充同 chip 同 port 链路。
  */
 TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigNonCrossSuccess)
 {
@@ -113,7 +110,11 @@ TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigNonCrossSuccess)
 
     EXPECT_EQ(FillClosTopoByConfig(MakeNonCrossTopoConfig(), nodeMap), UBSE_OK);
 
-    EXPECT_FALSE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
+    EXPECT_FALSE(nodeMap["1"].links[PortIndex(1, 3)][PortIndex(1, 3)]);
     EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
     EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
     EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
@@ -123,7 +124,7 @@ TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigNonCrossSuccess)
 
 /*
  * 用例描述：按 hccs-cross 静态拓扑配置填充 CLOS 拓扑矩阵。
- * 预期结果：非当前节点同时填充同 chip 同 port 链路和同平面的跨 chip 链路。
+ * 预期结果：当前节点仅 localPort 自连通为 true，非当前节点同时填充同 chip 同 port 和跨 chip 链路。
  */
 TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigHccsCrossSuccess)
 {
@@ -134,6 +135,11 @@ TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigHccsCrossSuccess)
 
     EXPECT_EQ(FillClosTopoByConfig(MakeHccsCrossTopoConfig(), nodeMap), UBSE_OK);
 
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
+    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
+    EXPECT_FALSE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(2, 1)]);
     EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
     EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(2, 1)]);
     EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 2)][PortIndex(2, 2)]);
@@ -155,70 +161,5 @@ TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigFailsWhenChipInvalid)
     };
 
     EXPECT_EQ(FillClosTopoByConfig(config, nodeMap), UBSE_ERROR);
-}
-
-/*
- * 用例描述：FillSelfLinks 仅为当前节点 entry 的指定 port 设置 links[i][i]=true。
- * 预期结果：当前节点的指定 port 自连通为 true，其他 port 和非当前节点不受影响。
- */
-TEST_F(TestUbseUrmaUvs, FillSelfLinksOnlySetsCurrentNodeUsedPorts)
-{
-    std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
-        {"1", MakeNode(1, true)},
-        {"2", MakeNode(2, false)},
-    };
-
-    std::vector<uint32_t> usedPortIndices{
-        PortIndex(1, 1),
-        PortIndex(1, 2),
-        PortIndex(2, 1),
-        PortIndex(2, 2),
-    };
-
-    FillSelfLinks("1", usedPortIndices, nodeMap);
-
-    for (uint32_t portIndex : usedPortIndices) {
-        EXPECT_TRUE(nodeMap["1"].links[portIndex][portIndex]);
-    }
-    for (uint32_t i = 0; i < UVS_PORT_NUM; i++) {
-        EXPECT_FALSE(nodeMap["2"].links[i][i]);
-    }
-    EXPECT_FALSE(nodeMap["1"].links[PortIndex(1, 3)][PortIndex(1, 3)]);
-    EXPECT_FALSE(nodeMap["1"].links[0][1]);
-}
-
-/*
- * 用例描述：CLOS topo + FillSelfLinks 组合，当前节点自连通仅对 nodePorts 中在用的 port 为 true。
- * 预期结果：当前节点的 nodePorts 自连通为 true，非在用 port 保持 false；非当前节点的链路由配置决定。
- */
-TEST_F(TestUbseUrmaUvs, FillClosTopoByConfigWithSelfLinksCurrentNodeOnlyUsedPorts)
-{
-    auto config = MakeNonCrossTopoConfig();
-    std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
-        {"1", MakeNode(1, true)},
-        {"2", MakeNode(2, false)},
-    };
-
-    EXPECT_EQ(FillClosTopoByConfig(config, nodeMap), UBSE_OK);
-
-    std::vector<uint32_t> usedPortIndices;
-    for (const auto &port : config.nodePorts) {
-        uint32_t idx;
-        if (ConvertTopoPortToIndex(port, idx)) {
-            usedPortIndices.push_back(idx);
-        }
-    }
-    FillSelfLinks("1", usedPortIndices, nodeMap);
-
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
-    EXPECT_FALSE(nodeMap["1"].links[PortIndex(1, 3)][PortIndex(1, 3)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
-    EXPECT_FALSE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(2, 1)]);
 }
 } // namespace ubse::ut::urma

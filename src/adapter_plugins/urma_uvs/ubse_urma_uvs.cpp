@@ -38,8 +38,6 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 utils::ReadWriteLock g_invokeUrmaMutex;
 
-void FillSelfLinks(const std::string &currentSlotId, const std::vector<uint32_t> &usedPortIndices,
-                   std::unordered_map<std::string, UbcoreTopoNode> &nodeMap);
 UbseResult FillNodeComInfo(const std::string &currentSlotId, const std::vector<PhysicalLink> &allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
@@ -248,6 +246,14 @@ UbseResult FillTopo(const std::string &currentSlotId, const std::vector<Physical
             return UBSE_ERROR;
         }
 
+        if (curSlotId == currentSlotId || peerSlotId == currentSlotId) {
+            auto currentIter = nodeMap.find(currentSlotId);
+            if (currentIter != nodeMap.end()) {
+                currentIter->second.links[localPortIndex][localPortIndex] = true;
+                currentIter->second.links[remotePortIndex][remotePortIndex] = true;
+            }
+        }
+
         if (curSlotId == currentSlotId) {
             auto iter = nodeMap.find(peerSlotId);
             if (iter == nodeMap.end()) {
@@ -275,16 +281,16 @@ UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig &topoConfig,
 {
     for (auto &pair : nodeMap) {
         auto &node = pair.second;
-        if (node.is_current == 1) {
-            continue;
-        }
-
         for (const auto &link : topoConfig.links) {
             uint32_t localPortIndex = 0;
             uint32_t remotePortIndex = 0;
             if (!ConvertTopoPortToIndex(link.localPort, localPortIndex) ||
                 !ConvertTopoPortToIndex(link.remotePort, remotePortIndex)) {
                 return UBSE_ERROR;
+            }
+            if (node.is_current == 1) {
+                node.links[localPortIndex][localPortIndex] = true;
+                continue;
             }
             node.links[localPortIndex][remotePortIndex] = true;
         }
@@ -406,18 +412,6 @@ void InitialNodes(const std::string &currentSlotId, const std::set<std::string> 
     }
 }
 
-void FillSelfLinks(const std::string &currentSlotId, const std::vector<uint32_t> &usedPortIndices,
-                   std::unordered_map<std::string, UbcoreTopoNode> &nodeMap)
-{
-    auto iter = nodeMap.find(currentSlotId);
-    if (iter == nodeMap.end()) {
-        return;
-    }
-    for (uint32_t portIndex : usedPortIndices) {
-        iter->second.links[portIndex][portIndex] = true;
-    }
-}
-
 UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode> &nodeMap, bool isClosType)
 {
     uint16_t superNodeId = 0;
@@ -450,49 +444,11 @@ UbseResult FillNodeComInfo(const std::string &currentSlotId, const std::vector<P
         UBSE_LOG_ERROR << "Failed to fill cluster info";
         return ret;
     }
-    std::vector<uint32_t> usedPortIndices;
-    if (isClosType) {
-        UbseUrmaTopoConfig topoConfig;
-        ret = LoadUrmaTopoConfig(GetUrmaTopoMode(), topoConfig);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to load URMA topo config, ret=" << FormatRetCode(ret);
-            return ret;
-        }
-        ret = FillClosTopoByConfig(topoConfig, nodeMap);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to fill CLOS topo by config, ret=" << FormatRetCode(ret);
-            return ret;
-        }
-        for (const auto &port : topoConfig.nodePorts) {
-            uint32_t idx;
-            if (ConvertTopoPortToIndex(port, idx)) {
-                usedPortIndices.push_back(idx);
-            }
-        }
-    } else {
-        ret = FillTopo(currentSlotId, allLinkInfo, nodeMap);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to fill topo";
-            return ret;
-        }
-        for (const auto &link : allLinkInfo) {
-            std::string curSlotId = std::to_string(link.slotId);
-            std::string peerSlotId = std::to_string(link.peerSlotId);
-            if (curSlotId == currentSlotId) {
-                uint32_t idx;
-                if (ConvertLinkPortToIndex(link.chipId, link.portId, idx)) {
-                    usedPortIndices.push_back(idx);
-                }
-            }
-            if (peerSlotId == currentSlotId) {
-                uint32_t idx;
-                if (ConvertLinkPortToIndex(link.peerChipId, link.peerPortId, idx)) {
-                    usedPortIndices.push_back(idx);
-                }
-            }
-        }
+    ret = isClosType ? FillClosTopo(nodeMap) : FillTopo(currentSlotId, allLinkInfo, nodeMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to fill topo";
+        return ret;
     }
-    FillSelfLinks(currentSlotId, usedPortIndices, nodeMap);
     ret = FillBondingInfo(bondingInfo, nodeMap);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill bondingInfo";
