@@ -235,11 +235,11 @@ MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string &name
 }
 
 // 将原来的 GenerateSmapParams 改为返回列表，并输出 enableMsg 和 importNodeId
-static MpResult GenerateSmapParams(const std::string& name,
-                                       std::vector<MigrateBackMsg>& migrateBackMsgList,
-                                       EnableNodeMsg& enableMsg,
-                                       std::string& importNodeId,
-                                       bool isFault)
+MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name,
+                                               std::vector<MigrateBackMsg>& migrateBackMsgList,
+                                               EnableNodeMsg& enableMsg,
+                                               std::string& importNodeId,
+                                               bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params list, borrow_id=" << name << ".";
@@ -288,8 +288,8 @@ static MpResult GenerateSmapParams(const std::string& name,
 
         // 打印日志
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] Chunk offset=" << offset
-            << ", srcNid=" << msg.payload[i].srcNid << ", dstNid=" << msg.payload[i].destNid
-            << ", first memid=" << msg.payload[i].memid << ", last memid=" << msg.payload[curCount - 1].memid;
+            << ", srcNid=" << msg.payload[0].srcNid << ", dstNid=" << msg.payload[0].destNid
+            << ", first memid=" << msg.payload[0].memid << ", last memid=" << msg.payload[curCount - 1].memid;
 
 
         migrateBackMsgList.push_back(std::move(msg));
@@ -390,7 +390,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
 
     retSmap = SmapEnableNumaProcess(enableMsg);
     // 归还成功并对远端numa进行了enable，把持久化数据删掉
-    DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
+    DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgList[0].payload[0].srcNid));
     if (retSmap != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
         return MEM_POOLING_ERROR;

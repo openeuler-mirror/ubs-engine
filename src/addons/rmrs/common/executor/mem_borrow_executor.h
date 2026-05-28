@@ -50,8 +50,8 @@ public:
 
     MpResult HandleTimeoutFree(const std::string& name, const std::vector<BorrowRecord>& borrowRecords);
 
-    MpResult GenerateSmapParams(const std::string &name, MigrateBackMsg &migrateBackMsg, EnableNodeMsg &enableMsg,
-                                std::string &importNodeId, bool isFault = false);
+    MpResult GenerateSmapParams(const std::string &name, std::vector<MigrateBackMsg> &migrateBackMsgList,
+                                EnableNodeMsg &enableMsg, std::string &importNodeId, bool isFault = false);
     MpResult SmapMigreatBackRpc(const std::string importNodeId, const MigrateBackMsg &migrateBackMsg);
 
     MpResult GenerateUniqueId(const std::string &nodeId, std::string &str, const bool isFault = false);
