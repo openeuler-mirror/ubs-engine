@@ -23,6 +23,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubs_engine.h"
+#include "ubse_smbios.h"
 
 namespace ubse::node::api {
 using namespace ubse::context;

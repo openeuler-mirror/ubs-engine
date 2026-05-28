@@ -176,36 +176,6 @@ UbseResult UbseMtiInterfaceDefault::UbseGetFeEid(UbseMtiIouInfo iouInfo, std::ve
     return lcne::UbseLcneFeEid::GetInstance().GetFeEid(iouInfo, allFeInfos);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile)
-{
-    return lcne::UbseLcneQos::GetInstance().CreateQosProfile(ubseLcneQosProfile);
-}
-
-UbseResult UbseMtiInterfaceDefault::UbseDeleteQosProfile(std::string profileName)
-{
-    return lcne::UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
-}
-
-UbseResult UbseMtiInterfaceDefault::UbseQueryQosProfile(std::string profileName, UbseMtiQosProfile& ubseLcneQosProfile)
-{
-    return lcne::UbseLcneQos::GetInstance().QueryQosProfile(profileName, ubseLcneQosProfile);
-}
-
-UbseResult UbseMtiInterfaceDefault::UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string profileName)
-{
-    return lcne::UbseLcneQos::GetInstance().ApplyVfeQos(ubseFeInfo, profileName);
-}
-
-UbseResult UbseMtiInterfaceDefault::UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
-{
-    return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
-}
-
-UbseResult UbseMtiInterfaceDefault::UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& profileName)
-{
-    return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
-}
-
 UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
 {
     return lcne::UbseLcneEts::GetInstance().CreateEtsProfile(etsProfile);

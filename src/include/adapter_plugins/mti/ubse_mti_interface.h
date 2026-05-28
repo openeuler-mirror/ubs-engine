@@ -137,53 +137,6 @@ public:
      */
     virtual common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)  = 0;
 
-    /**
-     * @brief 下发xml消息到Lcne上创建QosProfile
-     * @param [in] ubseLcneQosProfile：待创建profile信息
-     * @return 成功返回0, 失败返回非0
-     */
-    virtual common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile) = 0;
-
-    /**
-     * @brief 下发xml消息到Lcne上删除QosProfile
-     * @param [in] proflieName：待删除profile名称
-     * @return 成功返回0, 失败返回非0
-     */
-    virtual common::def::UbseResult UbseDeleteQosProfile(std::string proflieName) = 0;
-
-    /**
-     * @brief 下发xml消息到Lcne上查询QosProfile的具体参数
-     * @param [in] proflieName：待查询profile名称
-     * @param [out] ubseLcneQosProfile：查询到的profile信息
-     * @return 成功返回0, 失败返回非0
-     */
-    virtual common::def::UbseResult UbseQueryQosProfile(std::string proflieName,
-                                                        UbseMtiQosProfile& ubseLcneQosProfile) = 0;
-
-    /**
-     * @brief 下发xml消息到Lcne上使能应用QosProfile
-     * @param [in] ubseFeInfo：待生效的Vfe信息
-     * @param [in] proflieName：待生效profile名称
-     * @return 成功返回0, 失败返回非0
-     */
-    virtual common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName) = 0;
-
-    /**
-     * @brief 下发xml消息到Lcne上删除Vfe上的QosProfile应用
-     * @param [in] ubseFeInfo：待删除的Vfe
-     * @return 成功返回0, 失败返回非0
-     */
-    virtual common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo) = 0;
-
-    /**
-     * @brief 下发xml消息到Lcne上查询Vfe上的QosProfile应用
-     * @param [in] ubseFeInfo：待查询的Vfe
-     * @param [out] proflieName：查询到的profile名称
-     * @return 成功返回0, 失败返回非0
-     */
-    virtual common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& proflieName) = 0;
-    virtual common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName) = 0;
-
     /** @brief 创建ETS模板，支持携带VL和优先级组配置 */
     virtual common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile) = 0;
 
