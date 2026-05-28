@@ -46,7 +46,8 @@ struct ProcessMmap {
 };
 
 /* 命令类型 */
-enum TagTestCmdInfo {
+enum TagTestCmdInfo
+{
     CMD_INIT = 0,
     CMD_SERVER_START,
     CMD_CLI_START,

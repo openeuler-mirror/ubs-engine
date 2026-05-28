@@ -18,7 +18,8 @@
 #include "ubse_base_message.h"
 #include "ubse_serial_util.h"
 namespace ubse::mem::controller::message {
-enum class AccountType {
+enum class AccountType
+{
     INIT,
     NUMA,
     FD,

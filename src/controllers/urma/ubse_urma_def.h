@@ -41,20 +41,23 @@ struct UrmaQosProfile {
     }
 };
 
-enum class UrmaDevType {
+enum class UrmaDevType
+{
     UNIQUE = 0,
     SHARED = 1,
     BUTT
 };
 
-enum class UrmaDevState {
+enum class UrmaDevState
+{
     ACTIVED = 0,   // 激活
     INACTIVED = 1, // 未激活
     UNKNOWN = 2,   // 未知
     BUTT           // 未参考业界定义枚举类型最大值用BUTT表示
 };
 
-enum class FeType {
+enum class FeType
+{
     PHYSICAL_TYPE = 0, // pfe0, 物理类型FE用于集群通信
     VIRTUAL_TYPE = 1,  // vfe1, 虚拟类型VFE
     BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示

@@ -232,7 +232,8 @@ void SignalHandlerWithContext(int sig, siginfo_t* info, void* context)
 
 void SetupSignalHandlers()
 {
-    struct sigaction sa {};
+    struct sigaction sa {
+    };
     sa.sa_sigaction = SignalHandlerWithContext;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;

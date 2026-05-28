@@ -73,7 +73,8 @@ public:
                                UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList);
 
 private:
-    enum class SessionState {
+    enum class SessionState
+    {
         CONNECT,
         READING,
         PROCESSING,
@@ -82,7 +83,8 @@ private:
         CLOSING
     };
 
-    enum class SessionType {
+    enum class SessionType
+    {
         PENDING,   // 待定
         TRANSIENT, // 短链接
         PERSISTENT // 长连接

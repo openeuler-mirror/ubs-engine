@@ -20,14 +20,16 @@
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::strategy {
 
-enum class AccountState {
+enum class AccountState
+{
     IMPORT_EXPORT_EXIST,
     ONLY_EXPORT_EXIST,
     ONLY_IMPORT_EXIST,
     BOTH_NOT_EXIST,
 };
 
-enum class BorrowedType {
+enum class BorrowedType
+{
     FD,   // Fd借用
     NUMA, // Numa借用
     ADDR, // 指定地址借用

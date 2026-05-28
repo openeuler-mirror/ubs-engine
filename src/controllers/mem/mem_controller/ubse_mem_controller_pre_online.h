@@ -17,7 +17,8 @@ using ubse::adapter_plugins::mmi::SocketCnaInfo;
 using ubse::common::def::UbseResult;
 
 // 记录节点状态
-enum class PreOnLineState {
+enum class PreOnLineState
+{
     OFFLINE,
     ONLINE
 };

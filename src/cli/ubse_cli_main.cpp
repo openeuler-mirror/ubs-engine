@@ -83,7 +83,8 @@ int main(int argc, char* argv[])
         return UBSE_ERROR;
     }
     signal(SIGALRM, SignalHandler);
-    struct itimerval timer {};
+    struct itimerval timer {
+    };
     timer.it_value.tv_sec = TIMEOUT_SECONDS;
     if (setitimer(ITIMER_REAL, &timer, nullptr) != 0) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Set timer failed. " +

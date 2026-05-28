@@ -30,7 +30,8 @@ using ubse::utils::Ref;
 using ubse::utils::Referable;
 using ubse::utils::RingBufferBlockingQueue;
 
-enum class UbseRunnableType {
+enum class UbseRunnableType
+{
     NORMAL = 0,
     STOP = 1,
 };

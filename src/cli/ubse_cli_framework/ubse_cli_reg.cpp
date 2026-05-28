@@ -283,7 +283,8 @@ bool UbseCliModuleRegistry::UbseCliHelpInfoParse(const std::vector<std::string>&
 
 void UbseCliModuleRegistry::UbseCliDisplayHelpInfo()
 {
-    struct winsize win {};
+    struct winsize win {
+    };
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) < 0) {
         win.ws_col = UBSE_DEFAULT_SCREEN_WIDTH;
     }
@@ -302,7 +303,8 @@ void UbseCliModuleRegistry::UbseCliDisplayHelpInfo()
 
 void UbseCliModuleRegistry::UbseCliDisplayCommandOptionsHelpInfo(const std::string& command, const std::string& type)
 {
-    struct winsize win {};
+    struct winsize win {
+    };
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) < 0) {
         win.ws_col = UBSE_DEFAULT_SCREEN_WIDTH;
     }

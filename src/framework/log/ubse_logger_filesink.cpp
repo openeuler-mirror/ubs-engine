@@ -109,7 +109,8 @@ bool UbseLoggerFilesink::Write(UbseLoggerEntry& loggerEntry)
 
 bool UbseLoggerFilesink::IsFileStatusChanged(const std::string& fileName)
 {
-    struct stat fileStat {};
+    struct stat fileStat {
+    };
     if (stat(fileMap_[fileName].filePath.c_str(), &fileStat) != 0) {
         return true; // 文件不存在或无法访问
     }
@@ -135,7 +136,8 @@ std::string UbseLoggerFilesink::GenerateCompressedFilename(const std::string& fi
     std::ostringstream oss;
 
     // 获取当前时间信息
-    struct tm timeinfo {};
+    struct tm timeinfo {
+    };
     localtime_r(&timeStamp, &timeinfo);
     struct tm* ptimeinfo = &timeinfo;
 
@@ -163,7 +165,8 @@ bool UbseLoggerFilesink::OpenFile(const std::string& fileName)
     }
 
     if (fileMap_[fileName].logFile.is_open()) {
-        struct stat fileStat {};
+        struct stat fileStat {
+        };
         stat(fileMap_[fileName].filePath.c_str(), &fileStat);
         fileMap_[fileName].inode = fileStat.st_ino;
         try {

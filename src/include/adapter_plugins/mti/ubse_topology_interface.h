@@ -62,7 +62,8 @@ struct DevName {
 };
 
 // 查询节点信息
-enum class DevType {
+enum class DevType
+{
     SSU = 0,
     DPU = 1,
     CPU = 2,
@@ -70,7 +71,8 @@ enum class DevType {
     ALL
 };
 
-enum class DevStatus {
+enum class DevStatus
+{
     normal
 };
 
@@ -87,12 +89,14 @@ struct UbseLcneIODieInfo {
 };
 
 // 查询Host信息
-enum class LogicEntityType {
+enum class LogicEntityType
+{
     host,
     guest,
 };
 
-enum class LogicEntityStatus {
+enum class LogicEntityStatus
+{
     online,
     offline,
 };

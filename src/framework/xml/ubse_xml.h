@@ -22,7 +22,8 @@
 #include <libxml/xmlsave.h>
 
 namespace ubse::utils {
-enum class UbseXmlError {
+enum class UbseXmlError
+{
     OK = 0,
     NULLPTR,
     NOT_FOUND,

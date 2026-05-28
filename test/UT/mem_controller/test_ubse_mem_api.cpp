@@ -667,7 +667,7 @@ TEST_F(TestUbseMemApi, UbseCliShmAttachDispatch_WhenExecutorFailed)
     auto executor = UbseTaskExecutor::Create("ubseMemController", 1, 1);
     MOCKER(ubse::mem::util::GetExecutor).reset();
     MOCKER(ubse::mem::util::GetExecutor).stubs().will(returnValue(executor));
-    MOCKER_CPP(&UbseTaskExecutor::Execute, bool(UbseTaskExecutor::*)(const std::function<void()>&))
+    MOCKER_CPP(&UbseTaskExecutor::Execute, bool (UbseTaskExecutor::*)(const std::function<void()>&))
         .stubs()
         .will(returnValue(false));
     EXPECT_EQ(UbseMemApi::UbseCliShmAttachDispatch(req, context), UBSE_ERROR);
@@ -802,7 +802,7 @@ TEST_F(TestUbseMemApi, UbseCliShmCreateDispatch_WhenExecutorFailed)
     executor->Start();
     MOCKER(ubse::mem::util::GetExecutor).reset();
     MOCKER(ubse::mem::util::GetExecutor).stubs().will(returnValue(executor));
-    MOCKER_CPP(&UbseTaskExecutor::Execute, bool(UbseTaskExecutor::*)(const std::function<void()>&))
+    MOCKER_CPP(&UbseTaskExecutor::Execute, bool (UbseTaskExecutor::*)(const std::function<void()>&))
         .stubs()
         .will(returnValue(false));
     EXPECT_EQ(UbseMemApi::UbseCliShmCreateDispatch(req, context), UBSE_ERROR);
@@ -924,7 +924,7 @@ TEST_F(TestUbseMemApi, UbseCliShmDetachDispatch_WhenExecutorFailed)
     executor->Start();
     MOCKER(ubse::mem::util::GetExecutor).reset();
     MOCKER(ubse::mem::util::GetExecutor).stubs().will(returnValue(executor));
-    MOCKER_CPP(&UbseTaskExecutor::Execute, bool(UbseTaskExecutor::*)(const std::function<void()>&))
+    MOCKER_CPP(&UbseTaskExecutor::Execute, bool (UbseTaskExecutor::*)(const std::function<void()>&))
         .stubs()
         .will(returnValue(false));
     EXPECT_EQ(UbseMemApi::UbseCliShmDetachDispatch(req, context), UBSE_ERROR);

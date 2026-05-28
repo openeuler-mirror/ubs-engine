@@ -51,7 +51,8 @@ static bool CheckClientPermission(const UbseClientInfo& client, const UbseClient
 // 添加事件到epoll
 static bool AddEpollEvent(int epoll_fd, int fd, uint32_t events)
 {
-    struct epoll_event ev {};
+    struct epoll_event ev {
+    };
     ev.events = events;
     ev.data.fd = fd;
 
@@ -65,7 +66,8 @@ static bool AddEpollEvent(int epoll_fd, int fd, uint32_t events)
 // 修改epoll事件
 static bool ModifyEpollEvent(int epoll_fd, int fd, uint32_t events)
 {
-    struct epoll_event ev {};
+    struct epoll_event ev {
+    };
     ev.events = events;
     ev.data.fd = fd;
 
@@ -206,7 +208,8 @@ uint32_t UbseUDSServer::BindSocket() const
         }
         free(canonicalPath);
     }
-    struct sockaddr_un addr {};
+    struct sockaddr_un addr {
+    };
     auto ret = memset_s(&addr, sizeof(addr), 0, sizeof(addr));
     if (ret != EOK) {
         UBSE_LOG_ERROR << "memset_s failed=" << ret;
@@ -318,7 +321,8 @@ void UbseUDSServer::EventLoopThread()
 bool GetClientCredentials(int socketFd, UbseClientInfo& info)
 {
     // 适用于 Linux 系统的结构体
-    struct ucred cred {};
+    struct ucred cred {
+    };
     socklen_t len = sizeof(cred);
 
     if (getsockopt(socketFd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1) {
@@ -358,7 +362,8 @@ void UbseUDSServer::CheckAndCloseTimeoutSessions()
 void UbseUDSServer::HandleNewConnection()
 {
     while (true) { // 边缘触发需要处理所有等待的连接
-        struct sockaddr_un client_addr {};
+        struct sockaddr_un client_addr {
+        };
         socklen_t client_len = sizeof(client_addr);
         int clientFd = accept4(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len,
                                SOCK_NONBLOCK); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)

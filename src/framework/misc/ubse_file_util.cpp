@@ -113,7 +113,8 @@ std::vector<std::string> UbseFileUtil::ListFiles(const std::string& directory, c
 
 bool UbseFileUtil::IsDirectory(const string& dir)
 {
-    struct stat info {};
+    struct stat info {
+    };
     if (stat(dir.data(), &info) != 0) {
         return false; // 无法访问路径
     }
@@ -145,7 +146,8 @@ UbseResult UbseFileUtil::CreateAndChmodDirectory(const string& dir, mode_t permi
 
 bool UbseFileUtil::CheckFileExists(const string& path)
 {
-    struct stat buffer {};
+    struct stat buffer {
+    };
     return (stat(path.c_str(), &buffer) == 0);
 }
 
@@ -169,7 +171,8 @@ bool UbseFileUtil::SetFileOwnership(const std::string& path, uid_t uid, gid_t gi
     }
 
     // 获取当前文件的所有权信息
-    struct stat fileStat {};
+    struct stat fileStat {
+    };
     if (stat(path.c_str(), &fileStat) != 0) {
         return false;
     }

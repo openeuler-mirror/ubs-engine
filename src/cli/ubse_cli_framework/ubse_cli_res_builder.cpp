@@ -152,7 +152,8 @@ void UbseCliVariableCellsEcho::UbseCliDisplayResult()
 
 void UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(const std::string& input)
 {
-    struct winsize window {};
+    struct winsize window {
+    };
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &window) < 0) {
         window.ws_col = UBSE_DEFAULT_SCREEN_WIDTH;
     }

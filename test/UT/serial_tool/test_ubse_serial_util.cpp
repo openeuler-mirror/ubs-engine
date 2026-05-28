@@ -125,7 +125,8 @@ TEST_F(TestUbseSerialUtil, basic_type)
  */
 TEST_F(TestUbseSerialUtil, serial_right_val_type)
 {
-    enum class type {
+    enum class type
+    {
         AA,
         BB,
     };

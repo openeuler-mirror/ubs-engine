@@ -32,7 +32,8 @@ struct TmpResult {
     uint64_t maxNumaFreeSizeBytes = 0;
 };
 
-enum class DebugStep {
+enum class DebugStep
+{
     STEP1 = 1,
     STEP2 = 2,
 };

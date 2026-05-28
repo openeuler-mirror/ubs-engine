@@ -57,7 +57,7 @@ void TestRespHandler(void* ct, const UbseByteBuffer& respData, uint32_t resCode)
  */
 TEST_F(TestUbseCom, UbseRegRpcServicSuccess)
 {
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr& handlerPtr) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr & handlerPtr) =
         &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
@@ -76,7 +76,7 @@ TEST_F(TestUbseCom, UbseRegRpcServicSuccess)
  */
 TEST_F(TestUbseCom, UbseRegRpcServicFailWhenModelFail)
 {
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr& handlerPtr) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr & handlerPtr) =
         &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
     MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();

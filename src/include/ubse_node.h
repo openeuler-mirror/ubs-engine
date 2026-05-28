@@ -18,19 +18,22 @@
 namespace ubse::nodeController {
 using ubse::election::UbseRoleInfo;
 
-enum class JumpCount {
+enum class JumpCount
+{
     One = 0,
     Two = 1,
     All = 2
 };
 
-enum UbseNodeState {
+enum UbseNodeState
+{
     UP,
     DOWN,
     NONE
 };
 
-enum class NodeAttr {
+enum class NodeAttr
+{
     hostName,
     Ip,
     guid,

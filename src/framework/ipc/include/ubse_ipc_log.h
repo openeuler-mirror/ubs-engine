@@ -35,7 +35,8 @@
 namespace ubse::ipc {
 using UbseIpcLogFunc = void (*)(uint32_t, const char*);
 
-enum class UbseIpcLogLevel : uint32_t {
+enum class UbseIpcLogLevel : uint32_t
+{
     DEBUG = 0,
     INFO = 1,
     WARN = 2,

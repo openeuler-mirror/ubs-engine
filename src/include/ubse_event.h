@@ -18,7 +18,8 @@
 
 namespace ubse::event {
 
-enum UbseEventPriority {
+enum UbseEventPriority
+{
     HIGH,
     MEDIUM,
     LOW

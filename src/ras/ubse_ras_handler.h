@@ -45,7 +45,8 @@ inline bool hasInvalidChars(const std::string& str)
     // 数字、字母、白名单的特殊符号属于合法字符，其余为非法字符。函数检测是否包含非法字符，如果包含则返回false
     return std::any_of(str.begin(), str.end(), [](char ch) { return !(std::isalnum(ch) || IsAllowedSpecialChar(ch)); });
 }
-enum class NodeHandlerType {
+enum class NodeHandlerType
+{
     PRE_FAULT_STATE_HANDLER_TYPE = 0,
     PRE_FAULT_STATE_FAIL_HANDLER_TYPE = 1,
     NODE_FAULT_STATE_HANDLER_TYPE = 2,

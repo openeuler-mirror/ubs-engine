@@ -18,7 +18,8 @@
 #include "ubse_mem_debt_info_partial_fetch_res.h"
 #include "ubse_serial_util.h"
 namespace ubse::mem::controller::message {
-enum class DebtFetchType {
+enum class DebtFetchType
+{
     INIT = 1,
     EXPORT = 2,
     IMPORT = 3

@@ -109,8 +109,7 @@ int32_t UbseMemAddrGet(const std::string& name, const std::string& importNodeId,
 * @param importNodeId [IN] 导入节点ID
 * @param numaDesc [OUT] 借用形成的远端numa信息
 */
-int32_t UbseMemNumaGetWithImportNode(const std::string& name, const std::string& importNodeId,
-                                     UbseMemNumaDesc& desc);
+int32_t UbseMemNumaGetWithImportNode(const std::string& name, const std::string& importNodeId, UbseMemNumaDesc& desc);
 
 uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo>& nodeBorrowInfo);
 

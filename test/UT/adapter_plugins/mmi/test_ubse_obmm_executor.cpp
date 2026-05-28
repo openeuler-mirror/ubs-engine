@@ -36,7 +36,8 @@ class TestUbseObmmUnimport : public testing::Test {
             return 0;
         };
 
-        struct sigaction sa {};
+        struct sigaction sa {
+        };
         sa.sa_handler = [](int) {
         };
         sa.sa_flags = 0;
@@ -54,7 +55,8 @@ class TestUbseObmmUnimport : public testing::Test {
 
 private:
     ObmmUnimportPtr oldUnimportFunc_{nullptr};
-    struct sigaction oldSa_ {};
+    struct sigaction oldSa_ {
+    };
 };
 
 TEST_F(TestUbseObmmUnimport, UnImportWithTimeout_Success)

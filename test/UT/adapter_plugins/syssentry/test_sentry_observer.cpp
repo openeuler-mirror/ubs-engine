@@ -126,7 +126,8 @@ static int StubRegFail(struct alarm_register** regInfo, struct alarm_subscriptio
     return -1;
 }
 
-static struct alarm_register g_testSentryReg {};
+static struct alarm_register g_testSentryReg {
+};
 static int StubRegAlloc(struct alarm_register** regInfo, struct alarm_subscription_info info)
 {
     (void)info;
@@ -149,7 +150,8 @@ TEST_F(TestSentryObserver, RegisterSentryEvent_CapFail)
     auto& instance = UbseRasObserver::GetInstance();
     instance.xalarmUnRegisterFunc = StubUnreg;
     instance.xalarmRegisterFunc = StubRegNoAlloc;
-    struct alarm_register info {};
+    struct alarm_register info {
+    };
     struct alarm_register* pInfo = &info;
     EXPECT_NO_THROW(instance.RegisterSentryEvent(&pInfo));
 }
@@ -161,7 +163,8 @@ TEST_F(TestSentryObserver, RegisterSentryEvent_RegFail)
     instance.xalarmUnRegisterFunc = StubUnreg;
     instance.xalarmRegisterFunc = StubRegFail;
     instance.stopThread = true;
-    struct alarm_register info {};
+    struct alarm_register info {
+    };
     struct alarm_register* pInfo = &info;
     instance.RegisterSentryEvent(&pInfo);
     ASSERT_EQ(pInfo, nullptr);
@@ -173,7 +176,8 @@ TEST_F(TestSentryObserver, RegisterSentryEvent_Success)
     auto& instance = UbseRasObserver::GetInstance();
     instance.xalarmUnRegisterFunc = StubUnreg;
     instance.xalarmRegisterFunc = StubRegAlloc;
-    struct alarm_register info {};
+    struct alarm_register info {
+    };
     struct alarm_register* pInfo = &info;
     instance.RegisterSentryEvent(&pInfo);
     ASSERT_EQ(pInfo, &g_testSentryReg);
@@ -183,7 +187,8 @@ TEST_F(TestSentryObserver, RegisterSentryEvent_Success)
 
 TEST_F(TestSentryObserver, UnRegisterXalarm)
 {
-    struct alarm_register info {};
+    struct alarm_register info {
+    };
     struct alarm_register* pInfo = &info;
     auto& instance = UbseRasObserver::GetInstance();
     void (*unRegEvent)(alarm_register**) = [](struct alarm_register** reg) {
@@ -455,7 +460,8 @@ static int StubSentryRegNoAlloc(struct alarm_register** regInfo, struct alarm_su
     return 0;
 }
 
-static struct alarm_register g_sentryReg {};
+static struct alarm_register g_sentryReg {
+};
 static int StubSentryRegAlloc(struct alarm_register** regInfo, struct alarm_subscription_info info)
 {
     (void)info;

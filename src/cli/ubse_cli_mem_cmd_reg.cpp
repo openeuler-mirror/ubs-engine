@@ -440,8 +440,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DisplayProcessMemFunc(
             "ERROR: The request option -t or --type is required, and the supported param is as follows: config.");
     }
     if (it->second != "config") {
-        return UbseCliStringPromptReply(
-            "ERROR: Invalid type. The supported param is as follows: config.");
+        return UbseCliStringPromptReply("ERROR: Invalid type. The supported param is as follows: config.");
     }
     UbseCliMemPid memPid{};
     return memPid.UbseCliPrintPidInfo();

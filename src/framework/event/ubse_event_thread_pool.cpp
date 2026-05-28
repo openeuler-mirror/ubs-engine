@@ -50,7 +50,8 @@ static void SetThreadPriority(pthread_t& pthread, uint32_t priority) // 设置�
     if (priority == 0) {
         return;
     }
-    struct sched_param sParam {};
+    struct sched_param sParam {
+    };
     sParam.sched_priority = static_cast<int>(priority);
     auto ret = pthread_setschedparam(pthread, SCHED_FIFO, &sParam);
     if (ret != static_cast<int>(UBSE_OK)) {

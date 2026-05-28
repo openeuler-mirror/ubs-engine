@@ -64,7 +64,8 @@ struct UbseMtiNodeInfo {
     std::string nodeId;
     std::string eid;
 };
-enum class UbseMtiCpuTopoPortStatus {
+enum class UbseMtiCpuTopoPortStatus
+{
     UP = 0,
     DOWN = 1
 };
@@ -86,7 +87,8 @@ struct UbseMtiCpuTopoPortInfo {
     UbseDevName remoteDevName; // 对端设备名称
 };
 // 设备类型
-enum class UbseDevType {
+enum class UbseDevType
+{
     SSU = 0,
     DPU = 1,
     CPU = 2,
@@ -136,7 +138,8 @@ struct UbseMtiIouInfo {
     std::string iouId;
 };
 
-enum class UbseMtiFeType {
+enum class UbseMtiFeType
+{
     PHYSICAL_TYPE = 0, // pfe0, 物理类型FE用于集群通信
     VIRTUAL_TYPE = 1,  // vfe1, 虚拟类型VFE
     BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示

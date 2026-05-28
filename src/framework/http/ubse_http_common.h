@@ -24,7 +24,8 @@ namespace ubse::http {
 /**
  * http方法
  */
-enum class UbseHttpMethod {
+enum class UbseHttpMethod
+{
     UBSE_HTTP_METHOD_GET = 3, /* *< GET方法名. */
     UBSE_HTTP_METHOD_HEAD,    /* *< HEAD方法名. */
     UBSE_HTTP_METHOD_POST,    /* *< POST方法名. */
@@ -40,7 +41,8 @@ enum class UbseHttpMethod {
  * @ingroup http_header
  * 响应状态码定义
  */
-enum class UbseHttpStatusCode {
+enum class UbseHttpStatusCode
+{
     UBSE_HTTP_STATUS_CODE_INVALID = -1,
     UBSE_HTTP_STATUS_CODE_BEGIN = 0,
 

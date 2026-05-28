@@ -112,7 +112,8 @@ private:
     MemWaterMarkHolder() = default;
 };
 
-enum class WatermarkWarningType {
+enum class WatermarkWarningType
+{
     NO_WARN = 0,
     HIGH_WATERMARK,
     LOW_WATERMARK

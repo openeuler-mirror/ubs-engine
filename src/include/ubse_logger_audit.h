@@ -54,7 +54,8 @@ namespace ubse::log {
 #define UBSE_AUDIT_SECURITY(interface) \
     ubse::log::UbseAuditlog() == ubse::log::SecurityLoggerEntry(interface, ubse::log::RecordType::AUDIT_SECURITY)
 
-enum class RecordType : uint8_t {
+enum class RecordType : uint8_t
+{
     AUDIT_OPERATE = 0,     // 操作日志记录,0
     AUDIT_RUNTIME_ALLOC,   // 运行日志记录,1
     AUDIT_RUNTIME_DEALLOC, // 运行日志记录,2

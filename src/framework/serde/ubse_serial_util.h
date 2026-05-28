@@ -51,14 +51,16 @@ constexpr common_len MAX_CAPACITY = serial_head(1) << LEN_CTRL_OFFSET; // 容量
 constexpr common_len ONCE_LIMIT_LEN = MAX_CAPACITY >>
                                       8; // 单次添加序列化内容长度上限，超过会导致序列化失败【可变，尽量为2^n】
 
-enum class CTRL_TYPE { // 控制类型
+enum class CTRL_TYPE
+{ // 控制类型
     CTRL_CODE_START = MAX_BASE_TYPE_NUMS,
     ARRAY_CTRL_CODE,
     NEST_CTRL_CODE,
     HEAD_CTRL_CODE = std::numeric_limits<serial_type>::max()
 };
 
-enum class ALIGN_BASE : serial_head {
+enum class ALIGN_BASE : serial_head
+{
     OFFSET_BASE_1 = 0x1,
     OFFSET_BASE_2 = 0x2,
     OFFSET_BASE_4 = 0x4,
@@ -317,7 +319,7 @@ private:
 };
 
 template <>
-UbseSerialization& UbseSerialization::operator<< <bool>(const std::vector<bool>& vec);
+UbseSerialization& UbseSerialization::operator<<<bool>(const std::vector<bool>& vec);
 
 /**
  * @brief 获取数组长度的容器
@@ -613,7 +615,7 @@ private:
 };
 
 template <>
-UbseDeSerialization& UbseDeSerialization::operator>> <bool>(std::vector<bool>& vec);
+UbseDeSerialization& UbseDeSerialization::operator>><bool>(std::vector<bool>& vec);
 
 template <>
 serial_type GetTypeId<short>();

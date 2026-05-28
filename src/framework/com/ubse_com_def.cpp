@@ -745,7 +745,8 @@ struct UbseIpV6Addr {
     uint8_t addr[16]; // 16个字符存储ipv6地址
 };
 
-enum class UbseIpType {
+enum class UbseIpType
+{
     UBSE_IP_V4 = 0,
     UBSE_IP_V6
 };

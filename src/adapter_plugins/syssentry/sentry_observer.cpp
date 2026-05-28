@@ -242,7 +242,8 @@ void UbseRasObserver::RegisterSentryEvent(alarm_register** registerInfo)
         UBSE_LOG_ERROR << "register info ptr is nullptr. ";
         return;
     }
-    struct alarm_subscription_info idFilter {};
+    struct alarm_subscription_info idFilter {
+    };
     for (size_t i = 0; i < ALARM_EVENT_LIST.size(); i++) {
         idFilter.id_list[i] = ALARM_EVENT_LIST[i];
     }

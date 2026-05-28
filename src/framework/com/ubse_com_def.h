@@ -59,46 +59,54 @@ const uint32_t MAX_MAX_SENDRECEIVE_SIZE = 500;
 const uint32_t MIN_MAX_SENDRECEIVE_SIZE = 1;
 const uint32_t MIN_SEND_RECEIVE_SEG_COUNT = 4;
 
-enum class executorType {
+enum class executorType
+{
     HEARTBEAT = 0,
     COM = 1
 };
 
-enum class UbseEngineType {
+enum class UbseEngineType
+{
     CLIENT = 0,
     SERVER
 };
 
-enum class UbseProtocol {
+enum class UbseProtocol
+{
     TCP = 1,
     UDS,
     HCCS,
     UBC
 };
 
-enum class UbseWorkerMode {
+enum class UbseWorkerMode
+{
     NET_BUSY_POLLING = 0, // Worker保持空转，CPU占用高，性能高。
     NET_EVENT_POLLING     // Worker采用事件驱动，CPU占用低，性能相比略低。
 };
 
-enum class UbseLinkState {
+enum class UbseLinkState
+{
     LINK_UP = 0,
     LINK_DOWN,
     LINK_STATE_UNKNOWN
 };
 
-enum class UbseChannelType {
+enum class UbseChannelType
+{
     NORMAL, // 双向通道
 };
 
-enum class UbseComLogLevel {
+enum class UbseComLogLevel
+{
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
     ERROR = 3,
 };
 
-enum class UbseReplyResult {
+enum class UbseReplyResult
+{
     OK = 0,
     ERR = 1,
     ERR_NO_HANDLER = 2,

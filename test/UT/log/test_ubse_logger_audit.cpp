@@ -209,7 +209,8 @@ TEST_F(TestUbseLoggerAudit, sendAuditMessage5)
     EXPECT_NO_THROW(UBSE_AUDIT_SECURITY(interface) << "1111111111111111111111 test");
 }
 
-struct TestLibrary {};
+struct TestLibrary {
+};
 inline void MockFunc() {}
 bool CheckName1(const char* name)
 {

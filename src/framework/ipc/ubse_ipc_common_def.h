@@ -18,7 +18,8 @@
 
 namespace ubse::ipc {
 
-enum class UbseIpcMemFaultType {
+enum class UbseIpcMemFaultType
+{
     UB_MEM_ATOMIC_DATA_ERR = 0,
     UB_MEM_READ_DATA_ERR,
     UB_MEM_FLOW_POISON,

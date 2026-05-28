@@ -26,7 +26,8 @@ constexpr size_t SECOND_SMALLEST_INDEX = 1;
 
 UbseResult GetBootTime(uint64_t& bootTime)
 {
-    struct timespec ts {};
+    struct timespec ts {
+    };
     if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
         uint64_t seconds = ts.tv_sec;
         uint64_t milliseconds = ts.tv_nsec / 1000000; // 纳秒转换为毫秒

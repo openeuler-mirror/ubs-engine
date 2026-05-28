@@ -52,8 +52,10 @@ TEST_F(TestUbseMmiTimeoutGuard, DestructorCancelsTimer)
 
 TEST_F(TestUbseMmiTimeoutGuard, TimeoutWithSignal_CallbackInvoked)
 {
-    struct sigaction oldSa {};
-    struct sigaction newSa {};
+    struct sigaction oldSa {
+    };
+    struct sigaction newSa {
+    };
     newSa.sa_handler = [](int) {
     };
     newSa.sa_flags = 0;

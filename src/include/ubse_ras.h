@@ -36,7 +36,8 @@ constexpr ALARM_FAULT_TYPE ALARM_NET_FAULT = 110;             // 网络故障
  */
 using AlarmFaultHandler = std::function<uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)>;
 
-enum class AlarmHandlerPriority {
+enum class AlarmHandlerPriority
+{
     HIGH = 0,
     MEDIUM = 1,
     LOW = 2

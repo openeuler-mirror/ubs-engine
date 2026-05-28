@@ -159,7 +159,8 @@ public:
     }
     static inline bool DisableTimeoutTimer()
     {
-        struct itimerval timer {};
+        struct itimerval timer {
+        };
         return setitimer(ITIMER_REAL, &timer, nullptr) == 0;
     }
     void UbseCliRegisterCmd()
