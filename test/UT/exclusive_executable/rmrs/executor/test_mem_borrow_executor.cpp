@@ -302,7 +302,7 @@ TEST_F(TestMemBorrowExecutor, GenerateSmapParamsSuccess)
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock1));
     std::string name = "test";
-    MigrateBackMsg migrateBackMsg;
+    std::vector<MigrateBackMsg> migrateBackMsg;
     EnableNodeMsg enableMsg;
     std::string importNodeId;
     auto ret = MemBorrowExecutor::Instance().GenerateSmapParams(name, migrateBackMsg, enableMsg, importNodeId);
