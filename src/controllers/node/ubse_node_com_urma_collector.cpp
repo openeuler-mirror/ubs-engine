@@ -234,9 +234,9 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink> &
         return ret;
     }
     for (const auto &kv : devTopology) {
-        std::string slotId;
+        std::string nodeId;
         std::string ubpuId;
-        kv.first.GetNodeIdAndChipId(slotId, ubpuId);
+        kv.first.GetNodeIdAndChipId(nodeId, ubpuId);
         for (const auto &portKv : kv.second.second) {
             PhysicalLink link{};
             if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK || ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK
@@ -275,7 +275,6 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     auto ret = UbseMtiInterface::GetInstance().GetCurNodeTopo(devTopology);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "get topology info failed, " << FormatRetCode(ret);
-        UBSE_LOG_WARN << "[MTI] get devTopology not successful, " << FormatRetCode(ret);
         return ret;
     }
     iouList.clear();
@@ -284,9 +283,6 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     for (const auto &[devName, deviceInfo] : devTopology) {
         iouList.emplace_back(deviceInfo.first.slotId, deviceInfo.first.chipId, deviceInfo.first.cardId);
     }
-    return UBSE_OK;
-}
-
     return UBSE_OK;
 }
 } // namespace ubse::nodeController

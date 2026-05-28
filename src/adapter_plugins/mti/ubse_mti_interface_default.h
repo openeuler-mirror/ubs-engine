@@ -44,19 +44,6 @@ public:
 
     common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos) override;
 
-    common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile) override;
-
-    common::def::UbseResult UbseDeleteQosProfile(std::string proflieName) override;
-
-    common::def::UbseResult UbseQueryQosProfile(std::string proflieName,
-                                                UbseMtiQosProfile& ubseLcneQosProfile) override;
-
-    common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName) override;
-
-    common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo) override;
-
-    common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName) override;
-
     common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile) override;
 
     common::def::UbseResult UbseAddEtsVlsToProfile(const std::string &profileName,

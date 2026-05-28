@@ -19,10 +19,8 @@
 #include <fstream>
 #include <iostream>
 
-#include "crc/ubse_crc.h"
-#include "hcom/hcom_service_context.h"
-#include "trace_context.h"
 #include "ubse_com_def.h"
+#include "ubse_com_op_code.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_election.h"
@@ -31,9 +29,11 @@
 #include "ubse_pointer_process.h"
 #include "ubse_str_util.h"
 #include "ubse_security_module.h"
-#include "ubse_com_op_code.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_smbios.h"
+#include "crc/ubse_crc.h"
+#include "hcom/hcom_service_context.h"
+#include "trace_context.h"
 
 namespace ubse::com {
 using namespace ubse::log;
@@ -519,9 +519,10 @@ UbseResult UbseComEngine::Start()
     auto ret = hcomNetService_->Start();
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
-        UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, ret=" << ret << ",will retry";
+        UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, " << FormatRetCode(ret)
+                       << ", will retry";
         try {
-            std::thread([this]() { DoEngineStart(); }).detach();
+            startRetryThread_ = std::thread([this]() { DoEngineStart(); });
         } catch (const std::exception &e) {
             UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
