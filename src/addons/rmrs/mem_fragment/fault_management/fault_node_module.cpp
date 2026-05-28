@@ -1633,17 +1633,13 @@ MpResult FaultNodeModule::FaultHandleExecuteParallel(std::vector<BorrowGroupResu
         if (group.strategyType != BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY) {
             continue;
         }
-        // 注意需要按原顺序：先执行非直接归还，再直接归还（已由决策阶段排序，但这里仍可确保顺序）
-        // 由于决策阶段已经排好序（非直接归还在前），我们直接遍历 group.borrowIdDecisions
-        for (const auto& decision : group.borrowIdDecisions) {
-            futures.push_back(std::async(std::launch::async, [this, &group]() -> MpResult {
-                MpResult result;
-                MpResult sendRet = SendBorrowIdExecuteRpc(group.borrowNodeId, group, result);
-                if (sendRet != MEM_POOLING_OK)
-                    return MEM_POOLING_ERROR;
-                return result;
-            }));
-        }
+
+        futures.push_back(std::async(std::launch::async, [this, &group]() -> MpResult {
+            MpResult result;
+            MpResult sendRet = SendBorrowIdExecuteRpc(group.borrowNodeId, group, result);
+            if (sendRet != MEM_POOLING_OK) return MEM_POOLING_ERROR;
+            return result;
+        }));
     }
 
     // 3. 等待所有任务完成并统计失败数
