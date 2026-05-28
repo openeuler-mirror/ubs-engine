@@ -33,11 +33,13 @@
 #include "ubse_security_module.h"
 #include "ubse_com_op_code.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "ubse_smbios.h"
 
 namespace ubse::com {
 using namespace ubse::log;
 using namespace ubse::config;
 using namespace ubse::security;
+using namespace ubse::adapter_plugins::smbios;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 // 对于reply的接收端，通信框架截取该值用于判断是否为错误码（StringToUbseReplyResult成功表示数据为errcode，否则认为是数据）；
@@ -501,6 +503,10 @@ UbseResult UbseComEngine::Start()
     InitEngineOptions();
     std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type, skip start hcomservice";
+        return UBSE_OK;
+    }
     auto ret = hcomNetService_->Start();
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;

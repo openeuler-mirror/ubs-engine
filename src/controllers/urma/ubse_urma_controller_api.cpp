@@ -21,6 +21,7 @@
 #include "ubse_pack_util.h"
 #include "ubse_serial_util.h"
 #include "ubse_urma_controller.h"
+#include "ubse_urma_controller_qos.h"
 
 namespace ubse::urmaController {
 using namespace ubse::common::def;
@@ -31,6 +32,7 @@ using namespace ubse::utils;
 using namespace ubse::election;
 using namespace ubse::com;
 using namespace ubse::serial;
+using namespace ubse::urma;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -88,6 +90,40 @@ UbseResult LocalDevPack(std::vector<std::string> &nameInfos, std::vector<uint32_
     return UBSE_OK;
 }
 
+
+UbseResult QosGetPack(std::vector<EtsQosConfig> &configs, UbseIpcMessage &response)
+{
+    uint32_t itemCount = static_cast<uint32_t>(configs.size());
+    size_t rspSize = sizeof(uint32_t) + itemCount * (sizeof(uint32_t) + sizeof(uint32_t));
+
+    response.buffer = new (std::nothrow) uint8_t[rspSize];
+    response.length = rspSize;
+    if (response.buffer == nullptr) {
+        UBSE_LOG_ERROR << "Failed to allocate response buffer for size=" << rspSize;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
+    UbsePackUtil packUtil(response.buffer, response.length);
+    if (!packUtil.UbsePackUint32(itemCount)) {
+        UBSE_LOG_ERROR << "Failed to pack itemCount=" << itemCount;
+        delete[] response.buffer;
+        response.buffer = nullptr;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
+    for (const auto &config : configs) {
+        uint32_t priorityValue = static_cast<uint32_t>(config.priority);
+        uint32_t bandwidthGbps = config.bandwidth / NO_1000;
+        if (!packUtil.UbsePackUint32(priorityValue) || !packUtil.UbsePackUint32(bandwidthGbps)) {
+            UBSE_LOG_ERROR << "Failed to pack qos config";
+            delete[] response.buffer;
+            response.buffer = nullptr;
+            return UBSE_ERROR_SERIALIZE_FAILED;
+        }
+    }
+    return UBSE_OK;
+}
+
 UbseResult UbseUrmaControllerApi::Register()
 {
     auto ubse_api_server_module = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -95,10 +131,15 @@ UbseResult UbseUrmaControllerApi::Register()
         UBSE_LOG_ERROR << "Get api server module  failed";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGet);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, UbseUrmaCliDevGet);
+    auto ret = ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, UbseUrmaDevGetByFilter);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_ALLOC, UbseUrmaDevAlloc);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_FREE, UbseUrmaDevFree);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGetLocal);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_CREATE, UbseUrmaQosCreateNative);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_GET, UbseUrmaQosQueryNative);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_DELETE, UbseUrmaQosDelete);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_CREATE, UbseUrmaQosCreateStream);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, UbseUrmaQosQueryStream);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of Urma Controller-API failed," << FormatRetCode(ret);
         return ret;
@@ -106,35 +147,117 @@ UbseResult UbseUrmaControllerApi::Register()
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaSendQosRsp(const uint64_t requestId, const uint32_t minBandWidth,
-                                                   const uint32_t maxBandWidth)
+uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateStream(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
+    if (req.buffer == nullptr) {
+        UBSE_LOG_ERROR << "UbseUrmaQosCreateStream request info is null.";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    UbseDeSerialization deserializer(req.buffer, req.length);
+    uint32_t itemCount;
+    deserializer >> itemCount;
+
+    if (!deserializer.Check() || itemCount == NO_0 || itemCount > NO_2) {
+        UBSE_LOG_ERROR << "Failed to deserialize request parameters, itemCount=" << itemCount;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+
+    std::vector<EtsQosConfig> configs;
+    configs.reserve(itemCount);
+    for (uint32_t i = 0; i < itemCount; ++i) {
+        EtsQosConfig config;
+        uint32_t priorityValue;
+        deserializer >> priorityValue >> config.bandwidth;
+        config.bandwidth *= NO_1000;
+        if (!deserializer.Check()) {
+            UBSE_LOG_ERROR << "Failed to deserialize EtsQosConfig at index " << i;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        config.priority = static_cast<EtsPriority>(priorityValue);
+        configs.push_back(std::move(config));
+    }
+
+    uint32_t ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosCreate(configs);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaQosCreate failed," << FormatRetCode(ret);
+        return ret;
+    }
+
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
         UBSE_LOG_ERROR << "Get api server module failed";
         return UBSE_ERROR_NULLPTR;
     }
     UbseIpcMessage response = {nullptr, 0};
-    response.length = sizeof(minBandWidth) + sizeof(maxBandWidth);
-    uint8_t *buffer = (uint8_t *)malloc(response.length);
-    if (buffer == nullptr) {
-        return UBSE_ERROR;
-    }
-    response.buffer = buffer;
-    uint32_t ret = memcpy_s(response.buffer, sizeof(minBandWidth), &minBandWidth, sizeof(minBandWidth));
-    if (ret != EOK) {
-        free(buffer);
-        return UBSE_ERROR;
-    }
-    ret = memcpy_s(response.buffer + sizeof(minBandWidth), sizeof(maxBandWidth), &maxBandWidth, sizeof(maxBandWidth));
-    if (ret != EOK) {
-        free(buffer);
-        return UBSE_ERROR;
-    }
-    ret = apiServerModule->SendResponse(UBSE_OK, requestId, response);
-    free(response.buffer);
+    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " UbseUrmaSendQosRsp response send failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseUrmaQosCreateStream response send failed," << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryStream(const UbseIpcMessage &req, const UbseRequestContext &context)
+{
+    std::vector<EtsQosConfig> configs;
+    auto ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosQuery(configs);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaQosGet failed," << FormatRetCode(ret);
+        return ret;
+    }
+
+    UbseSerialization serializer;
+    uint32_t itemCount = static_cast<uint32_t>(configs.size());
+    serializer << itemCount;
+    for (const auto &config : configs) {
+        uint32_t priorityValue = static_cast<uint32_t>(config.priority);
+        uint32_t bandwidthGbps = config.bandwidth / NO_1000;
+        serializer << priorityValue << bandwidthGbps;
+    }
+
+    if (!serializer.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize response";
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "Get api server module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    UbseIpcMessage response = {serializer.GetBuffer(), static_cast<uint32_t>(serializer.GetLength())};
+    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaQosQueryStream response send failed," << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseUrmaControllerApi::UbseUrmaQosDelete(const UbseIpcMessage &req, const UbseRequestContext &context)
+{
+    if (req.buffer != nullptr || req.length != 0) {
+        UBSE_LOG_ERROR << "UbseUrmaQosDelete should not have request data.";
+        return UBSE_ERR_INVALID_ARG;
+    }
+
+    uint32_t ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosDelete();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaQosDelete failed," << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "Get api server module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseIpcMessage response = {nullptr, 0};
+    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaQosDelete response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -175,7 +298,7 @@ uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage &req, uint32_t &nodeId, std
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevGetByFilter(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     uint32_t nodeId{};
     std::vector<std::string> deviceNameList;
@@ -187,7 +310,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     std::vector<UbseUrmaDevBrief> urmaInfo;
     ret = UbseUrmaController::GetInstance().UbseGetUrmaDevsByNodeId(nodeId, urmaInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseUrmaControllerApi::UbseGetUrmaDevInfoByNodeId failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseGetUrmaDevsByNodeId failed," << FormatRetCode(ret);
         return ret;
     }
     // 根据 deviceNameList 进行过滤
@@ -218,7 +341,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaCliDevGet(const UbseIpcMessage &req, con
     UbseIpcMessage response = {ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " TopologyInfoQuery response send failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseUrmaDevGetByFilter response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -264,20 +387,20 @@ UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
 uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     if (req.buffer == nullptr) {
-        UBSE_LOG_ERROR << "Ubse Urma Dev Alloc IPC request info is null.";
+        UBSE_LOG_ERROR << "UbseUrmaDevAlloc IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
     const char *str = reinterpret_cast<const char *>(req.buffer);
     uint32_t strlen = strnlen(str, UBSE_URMA_NAME_MAX);
     if (strlen >= UBSE_URMA_NAME_MAX) {
-        return UBSE_ERROR;
+        return UBSE_URMACONTRL_ERROR_DEV_NAME_INVALID;
     }
     std::string name(str, strlen);
     UbseUrmaDevPath devInfos;
     uint32_t ret = UbseUrmaController::GetInstance().UbseAllocUrmaDev(name, devInfos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaDevAlloc failed," << FormatRetCode(ret);
-        return UBSE_ERR_NOT_EXIST;
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseAllocUrmaDev failed," << FormatRetCode(ret);
+        return ret;
     }
 
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -290,14 +413,14 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
     if (ret != UBSE_OK) {
         delete[] response.buffer;
         response.buffer = nullptr;
-        UBSE_LOG_ERROR << "Alloc RspPack failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "AllocRspPack failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
     delete[] response.buffer;
     response.buffer = nullptr;
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " TopologyInfoQuery response send failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseUrmaDevAlloc response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -306,7 +429,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
 uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     if (req.buffer == nullptr) {
-        UBSE_LOG_ERROR << "Ubse Urma Dev Free IPC request info is null.";
+        UBSE_LOG_ERROR << "UbseUrmaDevFree IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
     const char *str = reinterpret_cast<const char *>(req.buffer);
@@ -317,8 +440,8 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     std::string name(str, strlen);
     uint32_t ret = UbseUrmaController::GetInstance().UbseFreeUrmaDev(name);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaDevFree failed," << FormatRetCode(ret);
-        return UBSE_ERR_NOT_EXIST;
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseFreeUrmaDev failed," << FormatRetCode(ret);
+        return ret;
     }
 
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -329,16 +452,16 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     UbseIpcMessage response = {nullptr, 0};
     ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << " TopologyInfoQuery response send failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseUrmaDevFree response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevGetLocal(const UbseIpcMessage &req, const UbseRequestContext &context)
 {
     if (req.buffer == nullptr) {
-        UBSE_LOG_ERROR << "Ubse Urma LocalDevGet IPC request info is null.";
+        UBSE_LOG_ERROR << "UbseUrmaDevGetLocal IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
     std::vector<std::string> nameInfos;
@@ -346,8 +469,8 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
     std::vector<uint64_t> hwResIds;
     uint32_t ret = UbseUrmaController::GetInstance().UbseUrmaGetDevs(nameInfos, status, hwResIds);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseGetLocalUrmaDevInfo failed," << FormatRetCode(ret);
-        return UBSE_ERR_NOT_EXIST;
+        UBSE_LOG_ERROR << "UbseUrmaGetDevs failed," << FormatRetCode(ret);
+        return ret;
     }
 
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -367,7 +490,132 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGet(const UbseIpcMessage &req, const 
     delete[] response.buffer;
     response.buffer = nullptr;
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseUrmaDevGet response send failed." << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "UbseUrmaDevGetLocal response send failed." << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseUrmaQosCreateReqUnpack(const uint8_t *buffer, uint32_t len, std::vector<EtsQosConfig> &configs)
+{
+    if (buffer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    const uint8_t *ptr = buffer;
+    uint32_t remaining = len;
+    if (remaining < sizeof(uint32_t)) {
+        UBSE_LOG_ERROR << "Buffer too small for itemCount";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    uint32_t itemCount;
+    errno_t err = memcpy_s(&itemCount, sizeof(uint32_t), ptr, sizeof(uint32_t));
+    if (err != EOK) {
+        UBSE_LOG_ERROR << "Failed to copy itemCount";
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    ptr += sizeof(uint32_t);
+    remaining -= sizeof(uint32_t);
+    if (itemCount > NO_2) {
+        UBSE_LOG_ERROR << "Invalid itemCount=" << itemCount;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+    configs.reserve(itemCount);
+    for (uint32_t i = 0; i < itemCount; ++i) {
+        if (remaining < sizeof(uint32_t) * NO_2) {
+            UBSE_LOG_ERROR << "Buffer too small for EtsQosConfig[" << i << "]";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        EtsQosConfig config;
+        uint32_t priorityValue;
+        err = memcpy_s(&priorityValue, sizeof(uint32_t), ptr, sizeof(uint32_t));
+        if (err != EOK) {
+            UBSE_LOG_ERROR << "Failed to copy priority";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        ptr += sizeof(uint32_t);
+        uint32_t bandwidthValue;
+        err = memcpy_s(&bandwidthValue, sizeof(uint32_t), ptr, sizeof(uint32_t));
+        if (err != EOK) {
+            UBSE_LOG_ERROR << "Failed to copy bandwidth";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        config.bandwidth = bandwidthValue * NO_1000;
+        config.priority = static_cast<EtsPriority>(priorityValue);
+        ptr += sizeof(uint32_t);
+        remaining -= sizeof(uint32_t) * NO_2;
+        configs.push_back(std::move(config));
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateNative(const UbseIpcMessage &req, const UbseRequestContext &context)
+{
+    if (req.buffer == nullptr) {
+        UBSE_LOG_ERROR << "UbseUrmaQosCreateNative request info is null.";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    std::vector<EtsQosConfig> configs;
+    auto ret = UbseUrmaQosCreateReqUnpack(req.buffer, req.length, configs);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to unpack QosCreate request, ret=" << ret;
+        return ret;
+    }
+
+    ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosCreate(configs);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaQosCreate failed," << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "Get api server module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseIpcMessage response = {nullptr, 0};
+    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaQosCreateNative response send failed," << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+
+uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryNative(const UbseIpcMessage &req, const UbseRequestContext &context)
+{
+    if (req.buffer != nullptr || req.length != 0) {
+        UBSE_LOG_ERROR << "UbseUrmaQosQueryNative should not have request data.";
+        return UBSE_ERR_INVALID_ARG;
+    }
+
+    std::vector<EtsQosConfig> configs;
+    auto ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosQuery(configs);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaQosQuery failed," << FormatRetCode(ret);
+        return ret;
+    }
+
+    UbseIpcMessage response = {nullptr, 0};
+    ret = QosGetPack(configs, response);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "Get api server module failed";
+        delete[] response.buffer;
+        response.buffer = nullptr;
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
+    delete[] response.buffer;
+    response.buffer = nullptr;
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaQosQueryNative response send failed," << FormatRetCode(ret);
         return UBSE_ERROR;
     }
     return UBSE_OK;
