@@ -127,7 +127,7 @@ UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string& resBody, std::vector<LcneNo
         LcneNodeCnaInfo lcneNodeCnaInfo{};
         std::string slotId = ubseXml->Child("slot")->Text();
         std::string nodeId;
-        if (!ConvertSlotIdToNodeId(slotId, nodeId)) {
+        if (!GetCurNodeId(slotId, nodeId)) {
             UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
             return UBSE_ERROR;
         }

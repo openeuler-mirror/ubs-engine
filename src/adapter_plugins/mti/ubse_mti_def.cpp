@@ -68,40 +68,19 @@ std::size_t UbseDevNameHash::operator()(const UbseDevName& obj) const
     return hash;
 }
 
-bool ConvertSlotIdToNodeId(const std::string &slotId, std::string &nodeId)
+bool GetCurNodeId(const std::string &slotId, std::string &nodeId)
 {
     if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
         nodeId = slotId;
         return true;
     }
-    uint32_t slot;
-    if (utils::ConvertStrToUint32(slotId, slot) != UBSE_OK) {
-        UBSE_LOG_ERROR << "slotId is not a number: " << slotId;
-        return false;
-    }
-    uint16_t podId;
-    if (auto ret = adapter_plugins::smbios::UbseSmbios::GetInstance().GetPodId(podId); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get bios data pod_id failed, " << FormatRetCode(ret);
+    uint32_t serverId;
+    if (auto ret = adapter_plugins::smbios::UbseSmbios::GetInstance().GetServerIdx(serverId); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "get bios data serverId failed, " << FormatRetCode(ret);
         return false;
     }
 
-    nodeId = std::to_string(slot + (podId * NO_8));
-    return true;
-}
-
-bool ConvertNodeIdToSlotId(const std::string &nodeId, std::string &slotId)
-{
-    if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
-        slotId = nodeId;
-        return true;
-    }
-    uint32_t node;
-    if (utils::ConvertStrToUint32(nodeId, node) != UBSE_OK) {
-        UBSE_LOG_ERROR << "nodeId is not a number: " << nodeId;
-        return false;
-    }
-    uint16_t podId = (node - NO_1) / NO_8;
-    slotId = std::to_string(node - (podId * NO_8));
+    nodeId = std::to_string(serverId + 1);
     return true;
 }
 } // namespace ubse::adapter_plugins::mti

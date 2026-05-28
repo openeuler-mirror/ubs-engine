@@ -74,7 +74,8 @@ struct UbseLcneOSInfo {
 // 查询节点物理上bus instance信息
 struct UbseLcneBusInstanceInfo {
     std::string hostBusinstanceEid;
-    std::string localNodeId; // 当前节点的nodeid（slotid）
+    std::string localNodeId; // 当前节点的nodeid
+    std::string localSlotId; // 当前节点的slotid
 };
 
 /**

@@ -82,8 +82,8 @@ uint32_t UbseLcneTopologyClient::ParseData(std::string& resBody, std::vector<Lcn
         LcneNodeInfo lcneNodeInfo{};
         std::string slotId = ubseXml->Child("slot")->Text();
         std::string nodeId;
-        if (!ConvertSlotIdToNodeId(slotId, nodeId)) {
-            UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
+        if (!GetCurNodeId(slotId, nodeId)) {
+            UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId=" << slotId;
             return UBSE_ERROR;
         }
         lcneNodeInfo.slotId = nodeId;

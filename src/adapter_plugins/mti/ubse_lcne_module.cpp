@@ -204,6 +204,7 @@ UbseResult UbseLcneModule::GetComUrmaEid()
         }
         for (auto &dev : localBoardIOInfo) {
             UbseMtiIouInfo iou(dev.first.slotId, dev.first.ubpuId, dev.first.iouId);
+            iou.slotId = ubseLcneBusInstanceInfo.localSlotId;
             UbseMtiEidGroup fe;
             if (UbseLcneFeEid::GetInstance().GetComUrmaEidClos(iou, fe) != UBSE_OK) {
                 UBSE_LOG_ERROR << "[MTI] Failed to get UrmaEid from local board.";
@@ -306,5 +307,10 @@ std::vector<std::string> UbseLcneModule::GetClusterIpList()
 std::string UbseLcneModule::GetClusterLocalIp()
 {
     return localIp;
+}
+
+std::string UbseLcneModule::GetCurSlotId()
+{
+    return ubseLcneBusInstanceInfo.localSlotId;
 }
 } // namespace ubse::mti
