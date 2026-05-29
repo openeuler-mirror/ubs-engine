@@ -25,6 +25,9 @@ public:
     void UnInitialize() override;
     ubse::common::def::UbseResult Start() override;
     void Stop() override;
+
+private:
+    bool enabled_ = true;
 };
 } // namespace ubse::urmaController
 

@@ -548,12 +548,12 @@ int32_t ITestCmdServerStart(ProcessMmap *pMmap)
     UpdateMasterConfig(g_configFilePath);
     // 启动Master
     auto now = std::chrono::system_clock::now();
-    ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
+    ubse::adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
     MOCKER(&lcne::UbseLcneDev::UbseGetLcneLocalNodeInfo)
         .stubs()
         .with(outBound(ubseNodeInfo))
         .will(returnValue(UBSE_OK));
-    std::vector<ubse::mti::MtiNodeInfo> ubseNodeInfos{ubseNodeInfo};
+    std::vector<ubse::adapter_plugins::mti::UbseMtiNodeInfo> ubseNodeInfos{ubseNodeInfo};
     MOCKER(&lcne::UbseLcneDev::UbseGetLcneAllNodeInfos)
         .stubs()
         .with(outBound(ubseNodeInfos))
