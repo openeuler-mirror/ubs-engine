@@ -32,7 +32,7 @@ UbseResult CheckFeEid(std::vector<UbseMtiFeInfo> &allFeInfos)
 {
     for (auto &item : allFeInfos) {
         std::string nodeId;
-        if(GetCurNodeId(item.slotId, nodeId) != UBSE_OK) {
+        if (!GetCurNodeId(item.slotId, nodeId)) {
             UBSE_LOG_ERROR << "[MTI] Failed to convert slotId to nodeId, slotId=" << item.slotId;
             return UBSE_ERROR;
         }
