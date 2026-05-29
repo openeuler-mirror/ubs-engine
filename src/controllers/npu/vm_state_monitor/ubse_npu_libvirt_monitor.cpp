@@ -21,6 +21,7 @@ using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 static constexpr int VIR_DOMAIN_EVENT_ID_LIFECYCLE = 0;
+static constexpr int VIR_DOMAIN_EVENT_ID_REBOOT = 1;
 
 extern "C" {
     using VirConnectPtr = void *;
@@ -67,14 +68,28 @@ public:
             UBSE_LOG_ERROR << "Failed to connect to " << uri_;
             return false;
         }
-        callbackId_ = virConnectDomainEventRegisterAny_(connection_, nullptr, VIR_DOMAIN_EVENT_ID_LIFECYCLE,
-                                                        reinterpret_cast<void *>(EventCallbackThunk), this, nullptr);
-        if (callbackId_ < 0) {
-            UBSE_LOG_ERROR << "Failed to register domain event callback.";
+        lifecycleCallbackId_ = virConnectDomainEventRegisterAny_(connection_, nullptr, VIR_DOMAIN_EVENT_ID_LIFECYCLE,
+                                                                 reinterpret_cast<void *>(EventCallbackThunk), this,
+                                                                 nullptr);
+        if (lifecycleCallbackId_ < 0) {
+            UBSE_LOG_ERROR << "Failed to register domain lifecycle event callback.";
             virConnectClose_(connection_);
             connection_ = nullptr;
             return false;
         }
+
+        rebootCallbackId_ = virConnectDomainEventRegisterAny_(connection_, nullptr, VIR_DOMAIN_EVENT_ID_REBOOT,
+                                                              reinterpret_cast<void *>(GenericEventCallback), this,
+                                                              nullptr);
+        if (rebootCallbackId_ < 0) {
+            UBSE_LOG_ERROR << "Failed to register domain reboot event callback.";
+            virConnectDomainEventDeregisterAny_(connection_, lifecycleCallbackId_);
+            lifecycleCallbackId_ = -1;
+            virConnectClose_(connection_);
+            connection_ = nullptr;
+            return false;
+        }
+
         running_.store(true);
         eventThread_ = std::thread([this]() {
             while (running_.load()) {
@@ -95,9 +110,13 @@ public:
         if (eventThread_.joinable()) {
             eventThread_.join();
         }
-        if (connection_ && callbackId_ >= 0) {
-            virConnectDomainEventDeregisterAny_(connection_, callbackId_);
-            callbackId_ = -1;
+        if (connection_ && lifecycleCallbackId_ >= 0) {
+            virConnectDomainEventDeregisterAny_(connection_, lifecycleCallbackId_);
+            lifecycleCallbackId_ = -1;
+        }
+        if (connection_ && rebootCallbackId_ >= 0) {
+            virConnectDomainEventDeregisterAny_(connection_, rebootCallbackId_);
+            rebootCallbackId_ = -1;
         }
         if (connection_) {
             virConnectClose_(connection_);
@@ -118,7 +137,8 @@ private:
     std::string uri_;
     void *dlHandle_ = nullptr;
     VirConnectPtr connection_ = nullptr;
-    int callbackId_ = -1;
+    int lifecycleCallbackId_ = -1;
+    int rebootCallbackId_ = -1;
     EventCallback userCallback_;
 
     VirConnectOpen virConnectOpen_ = nullptr;
@@ -174,11 +194,11 @@ private:
         return true;
     }
 
-    static UbseResult EventCallbackThunk(VirConnectPtr conn, VirDomainPtr dom, int event, int detail,
+    static void EventCallbackThunk(VirConnectPtr conn, VirDomainPtr dom, int event, int detail,
                                                   void *opaque)
     {
         auto *self = static_cast<LibvirtMonitorImpl *>(opaque);
-        return self->HandleEvent(conn, dom, event, detail);
+        self->HandleEvent(conn, dom, event, detail);
     }
 
     UbseResult HandleEvent(VirConnectPtr conn, VirDomainPtr dom, int event, int detail)
@@ -211,6 +231,12 @@ private:
             }
         }
         return UBSE_OK;
+    }
+
+    static void GenericEventCallback(VirConnectPtr conn, VirDomainPtr dom, void *opaque)
+    {
+        auto *self = static_cast<LibvirtMonitorImpl *>(opaque);
+        self->HandleEvent(conn, dom, static_cast<int>(VirDomainEventType::VIR_DOMAIN_EVENT_REBOOT), 0);
     }
 };
 

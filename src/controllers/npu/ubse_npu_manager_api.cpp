@@ -1393,7 +1393,7 @@ UbseResult UbseNpuManagerApi::CreateVMBusi(uint16_t upi, CollectionGuid &busiGui
         if (res == UBSE_OK) {
             break;
         }
-        sleep(SLEEP_TIME);
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
 
     if (res != UBSE_OK) {
@@ -1432,7 +1432,7 @@ UbseResult UbseNpuManagerApi::DestroyVMBusi(const CollectionGuid &busiGuid)
         if (res == UBSE_OK) {
             break;
         }
-        sleep(SLEEP_TIME);
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "Request Destroy VM bus instance failed";
@@ -1759,7 +1759,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterNicRequest(
         res = UbseMti1825::GetInstance().UnReg1825FeFromVmBusInstance(mtiBusi, mti1825VfList, resList);
         if (res != UBSE_OK) {
             UBSE_LOG_DEBUG << "SendMsg failed";
-            sleep(SLEEP_TIME);
+            std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
         mti1825VfList = UpdateFailedNicList(mti1825VfList, resList);
@@ -1767,6 +1767,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterNicRequest(
             UBSE_LOG_DEBUG << "Unregister Nic from busi request success";
             break;
         }
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     needRollback = !mti1825VfList.empty() && mti1825VfList.size() != devList.size();
     UBSE_LOG_DEBUG << "Finish Send UnRegister Request, " << FormatRetCode(res);
@@ -1790,7 +1791,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterVfeRequest(std::vector<std::shared_p
         res = UbseMtiUrma::GetInstance().UnRegDavidFeFromVmBusInstance(mtiBusi, mtiVfeList, resList);
         if (res != UBSE_OK) {
             UBSE_LOG_DEBUG << "SendMsg failed";
-            sleep(SLEEP_TIME);
+            std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
         mtiVfeList = UpdateFailedVfeList(mtiVfeList, resList);
@@ -1798,6 +1799,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterVfeRequest(std::vector<std::shared_p
             UBSE_LOG_DEBUG << "Unregister Vfe from busi request success";
             break;
         }
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     needRollback = !mtiVfeList.empty() && mtiVfeList.size() != devList.size();
     UBSE_LOG_DEBUG << "Finish Send UnRegister Request, " << FormatRetCode(res);
@@ -1819,7 +1821,7 @@ UbseResult UbseNpuManagerApi::SendRegisterVfeRequest(
         res = UbseMtiUrma::GetInstance().RegDavidFeToVmBusInstance(mtiBusi, mtiVfeList, resList);
         if (res != UBSE_OK) {
             UBSE_LOG_DEBUG << "Send Register Request failed";
-            sleep(SLEEP_TIME);
+            std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
         mtiVfeList = UpdateFailedVfeList(mtiVfeList, resList);
@@ -1827,6 +1829,7 @@ UbseResult UbseNpuManagerApi::SendRegisterVfeRequest(
             UBSE_LOG_DEBUG << "Register Vfe to busi request success";
             break;
         }
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     needRollback = !mtiVfeList.empty() && mtiVfeList.size() != devList.size();
     UBSE_LOG_DEBUG << "Finish Send Register Request, " << FormatRetCode(res);
@@ -1850,14 +1853,15 @@ UbseResult UbseNpuManagerApi::SendRegisterNicRequest(const std::shared_ptr<Colle
         res = UbseMti1825::GetInstance().Reg1825FeToVmBusInstance(mtiBusi, mti1825VfList, resList);
         if (res != UBSE_OK) {
             UBSE_LOG_DEBUG << "Send Register Request failed";
-            sleep(SLEEP_TIME);
+            std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
         mti1825VfList = UpdateFailedNicList(mti1825VfList, resList);
         if (mti1825VfList.empty()) {
-            UBSE_LOG_DEBUG << "Unregister Vfe from busi request success";
+            UBSE_LOG_DEBUG << "Register Nic request success";
             break;
         }
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     needRollback = !mti1825VfList.empty() && mti1825VfList.size() != devList.size();
     UBSE_LOG_DEBUG << "Finish Send Register Request, " << FormatRetCode(res);
@@ -1876,12 +1880,13 @@ UbseResult UbseNpuManagerApi::SendUnbindRequest(uint16_t upi, const std::vector<
         res = UbseMtiUrma::GetInstance().UnBindDavid(upi, unbindList, resList);
         if (res != UBSE_OK) {
             UBSE_LOG_DEBUG << "Send Unbind Request failed";
-            sleep(SLEEP_TIME);
+            std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
         if (checkRes = CheckResList(resList)) {
             break;
         }
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     if (res != UBSE_OK || !checkRes) {
         UBSE_LOG_ERROR << "Failed to unbind VFE and David";
@@ -1902,12 +1907,13 @@ UbseResult UbseNpuManagerApi::SendBindRequest(uint16_t upi, const std::vector<Ub
         res = UbseMtiUrma::GetInstance().BindDavid(upi, bindList, resList);
         if (res != UBSE_OK) {
             UBSE_LOG_DEBUG << "Send bind Request failed";
-            sleep(SLEEP_TIME);
+            std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
             continue;
         }
         if (checkRes = CheckResList(resList)) {
             break;
         }
+        std::this_thread::sleep_for(std::chrono::seconds(SLEEP_TIME));
     }
     if (res != UBSE_OK || !checkRes) {
         UBSE_LOG_ERROR << "Failed to bind VFE and David";
