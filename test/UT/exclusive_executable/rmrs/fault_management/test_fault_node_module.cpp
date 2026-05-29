@@ -530,9 +530,9 @@ TEST_F(TestFaultNodeModule, NodeMayBorrowFromOtherNodeSuccess2)
     nodeMemInfoItem.canBorrowMem = 1024;
     ableNodeMemInfoList.push_back(nodeMemInfoItem);
     MOCKER_CPP(&FaultNodeModule::MayBorrowFromNuma,
-               bool (*)(NodeBorrowRecord nodeBorrowRecord, NodeMemoryInfoWithReservedMem& originNodeMemInfoItem,
+               bool (*)(NodeBorrowRecord nodeBorrowRecord, NodeMemoryInfoWithReservedMem & originNodeMemInfoItem,
                         NodeMemoryInfoWithReservedMem nodeMemInfoItem,
-                        std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList))
+                        std::vector<BorrowExecuteParam> & borrowExecuteParamCollectList))
         .stubs()
         .will(returnValue(false))
         .then(returnValue(true));
@@ -602,8 +602,8 @@ TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeSuccess3)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&FaultNodeModule::MergeBorrowRecords,
-               void (*)(FaultNodeModule* This, std::vector<BorrowRecord> borrowRecordList,
-                        std::vector<NodeBorrowRecord>& nodeBorrowRecordList))
+               void (*)(FaultNodeModule * This, std::vector<BorrowRecord> borrowRecordList,
+                        std::vector<NodeBorrowRecord> & nodeBorrowRecordList))
         .stubs()
         .will(invoke(TestMergeBorrowRecords1));
     MOCKER_CPP(
@@ -686,8 +686,8 @@ TEST_F(TestFaultNodeModule, DoExecuteBorrowSuccess1)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&FaultNodeModule::DealBorrowResult,
-               bool (*)(std::vector<BorrowExecuteParam>& borrowExecuteParamList,
-                        std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
+               bool (*)(std::vector<BorrowExecuteParam> & borrowExecuteParamList,
+                        std::vector<BorrowExecuteParam> & successExecuteParamCollectList,
                         std::vector<MemBorrowExecuteResult> resultList))
         .stubs()
         .will(returnValue(false));
@@ -715,8 +715,8 @@ TEST_F(TestFaultNodeModule, DoExecuteBorrowSuccess2)
         .stubs()
         .will(returnValue(1));
     MOCKER_CPP(&FaultNodeModule::DealBorrowResult,
-               bool (*)(std::vector<BorrowExecuteParam>& borrowExecuteParamList,
-                        std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
+               bool (*)(std::vector<BorrowExecuteParam> & borrowExecuteParamList,
+                        std::vector<BorrowExecuteParam> & successExecuteParamCollectList,
                         std::vector<MemBorrowExecuteResult> resultList))
         .stubs()
         .will(returnValue(false));
@@ -970,9 +970,9 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultFail7)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&FaultNodeModule::ExecuteBorrow,
-               void (*)(FaultNodeModule* This, std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList,
-                        std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
-                        std::vector<ForwardMemIdParam>& forwardMemIdParamList))
+               void (*)(FaultNodeModule * This, std::vector<BorrowExecuteParam> & borrowExecuteParamCollectList,
+                        std::vector<BorrowExecuteParam> & successExecuteParamCollectList,
+                        std::vector<ForwardMemIdParam> & forwardMemIdParamList))
         .stubs()
         .will(invoke(TestExecuteBorrow1));
     MOCKER_CPP(&FaultNodeModule::ExecuteNumaReplaceAndReturn,
@@ -1006,7 +1006,7 @@ TEST_F(TestFaultNodeModule, NodeNumaReplaceReturnHandlerSucceed)
     builder << param;
     req = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
 
-    MOCKER_CPP(&mempooling::FaultNodeModule::QueryNumaAllPid, bool (*)(uint16_t numaId, std::vector<pid_t>& pidList))
+    MOCKER_CPP(&mempooling::FaultNodeModule::QueryNumaAllPid, bool (*)(uint16_t numaId, std::vector<pid_t> & pidList))
         .stubs()
         .will(returnValue(true));
     MOCKER_CPP(&mempooling::FaultNodeModule::SwitchMigrateForNumaVm, bool (*)(std::vector<pid_t> pidList, int enable))
@@ -1042,7 +1042,7 @@ TEST_F(TestFaultNodeModule, NodeNumaReplaceReturnHandlerFailed1)
     builder << param;
     req = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
 
-    MOCKER_CPP(&mempooling::FaultNodeModule::QueryNumaAllPid, bool (*)(uint16_t numaId, std::vector<pid_t>& pidList))
+    MOCKER_CPP(&mempooling::FaultNodeModule::QueryNumaAllPid, bool (*)(uint16_t numaId, std::vector<pid_t> & pidList))
         .stubs()
         .will(returnValue(false));
     NodeNumaReplaceReturnHandler(req, resp);

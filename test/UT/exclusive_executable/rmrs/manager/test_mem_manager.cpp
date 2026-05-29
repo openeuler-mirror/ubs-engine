@@ -585,7 +585,7 @@ bool FromJsonMock(NodeMemoryInfoList* This, const std::string& jsonString)
 
 TEST_F(TestMemManager, InitBorrowableInfoSuccess)
 {
-    MOCKER_CPP(&NodeMemoryInfoList::FromJson, bool (*)(NodeMemoryInfoList* This, const std::string& jsonString))
+    MOCKER_CPP(&NodeMemoryInfoList::FromJson, bool (*)(NodeMemoryInfoList * This, const std::string& jsonString))
         .stubs()
         .will(invoke(FromJsonMock));
     mempooling::MemManager& obj = mempooling::MemManager::Instance();
@@ -613,7 +613,7 @@ TEST_F(TestMemManager, CollectBorrowableInfoFailed2)
 
 TEST_F(TestMemManager, CollectBorrowableInfoSuccess)
 {
-    MOCKER_CPP(&NodeMemoryInfoList::FromJson, bool (*)(NodeMemoryInfoList* This, const std::string& jsonString))
+    MOCKER_CPP(&NodeMemoryInfoList::FromJson, bool (*)(NodeMemoryInfoList * This, const std::string& jsonString))
         .stubs()
         .will(invoke(FromJsonMock));
     std::string nodeId = "Node0";

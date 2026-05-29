@@ -135,7 +135,10 @@ public:
 
     MpResult GetVmListByRemoteNumaId(uint16_t remoteNumaId,
                                      std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos);
-    std::unordered_map<pid_t, PendingMigrationState>& GetPendingMigrations() { return g_pendingMigrations; }
+    std::unordered_map<pid_t, PendingMigrationState>& GetPendingMigrations()
+    {
+        return g_pendingMigrations;
+    }
     std::unordered_map<pid_t, PendingMigrationState> g_pendingMigrations;
 };
 
@@ -156,8 +159,7 @@ struct PidBorrowContext {
     std::string username;
 };
 
-MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
-                                      uint64_t remoteTotalSizeKB,
+MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId, uint64_t remoteTotalSizeKB,
                                       const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap);
 MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const std::string& newBorrowId,
                           std::unordered_set<std::string>& freedOldBorrowIds);

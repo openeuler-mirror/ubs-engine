@@ -40,8 +40,8 @@ public:
                        std::string& borrowId, int16_t& presentNumaId, bool isBorrowIdPersistence = true);
     MpResult MemFree(const std::string& name);
 
-    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete,
-                                         bool smapBack, bool isFault = false);
+    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete, bool smapBack,
+                                         bool isFault = false);
 
     MpResult MemFreeWithOps(const std::string& name, bool isForceDelete, bool smapBack, bool isFault = false);
 
@@ -78,14 +78,13 @@ public:
 private:
     static MpResult FindCurrentDebtInfoAndSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
                                                   const std::string& name,
-                                                  const UbseNumaMemoryDebtInfo*& outCurrentDebtInfo,
-                                                  int& outSrcNuma);
+                                                  const UbseNumaMemoryDebtInfo*& outCurrentDebtInfo, int& outSrcNuma);
 
-    static uint64_t CalculateTotalSizeBytesForSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
-                                                      int srcNuma, int16_t remoteNumaId);
+    static uint64_t CalculateTotalSizeBytesForSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos, int srcNuma,
+                                                      int16_t remoteNumaId);
 
-    static MpResult ValidateAndExecuteSmapUpdate(const UbseNumaMemoryDebtInfo* currentDebtInfo,
-                                                 uint64_t totalSizeBytes, int srcNuma, const std::string& name);
+    static MpResult ValidateAndExecuteSmapUpdate(const UbseNumaMemoryDebtInfo* currentDebtInfo, uint64_t totalSizeBytes,
+                                                 int srcNuma, const std::string& name);
 
     MemBorrowExecutor() = default;
     ~MemBorrowExecutor() = default;

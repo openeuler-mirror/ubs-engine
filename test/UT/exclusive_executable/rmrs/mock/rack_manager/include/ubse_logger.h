@@ -97,7 +97,8 @@ namespace ubse::log {
     } else                                        \
         std::cout
 
-enum class UbseLogLevel : uint32_t {
+enum class UbseLogLevel : uint32_t
+{
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
@@ -120,7 +121,8 @@ void UbseLogOutput(const char* moduleName, UbseLogLevel level, const char* msg);
  */
 std::string FormatRetCode(uint32_t retCode);
 
-enum class UbseLoggerTypeId : uint8_t {
+enum class UbseLoggerTypeId : uint8_t
+{
     CHAR = 0,
     UINT32,
     UINT64,

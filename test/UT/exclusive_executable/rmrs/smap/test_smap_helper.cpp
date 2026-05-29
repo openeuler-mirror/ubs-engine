@@ -1393,7 +1393,7 @@ TEST_F(TestSmapHelper, ShouldReturnOk_WhenFileIsOpenedAndReadFails)
 {
     uint16_t ret;
 
-    MOCKER_CPP((bool(std::ifstream::*)())(&std::ifstream::is_open), bool (*)(std::ifstream*))
+    MOCKER_CPP((bool (std::ifstream::*)())(&std::ifstream::is_open), bool (*)(std::ifstream*))
         .stubs()
         .will(returnValue(false));
 

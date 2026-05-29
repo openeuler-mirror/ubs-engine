@@ -83,7 +83,8 @@ struct BatchSrcMemoryBorrowParam {
     }
 };
 
-enum class BorrowStrategy : uint8_t {
+enum class BorrowStrategy : uint8_t
+{
     AVERAGE = 0 // 平均分配策略
 };
 

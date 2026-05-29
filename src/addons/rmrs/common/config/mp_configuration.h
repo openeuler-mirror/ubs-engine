@@ -30,7 +30,8 @@ const uint32_t MEM_SYS_NUM = 1024;
 #define MP_MODULE_NAME (mempooling::MpConfiguration::GetInstance().GetModuleName())
 #define MP_MODULE_CODE (mempooling::MpConfiguration::GetInstance().GetModuleCode())
 
-enum class MpRequestState {
+enum class MpRequestState
+{
     SUCCESS,
     FAIL,
 };
@@ -40,17 +41,20 @@ struct MpRequestResult {
     std::string msg;
 };
 
-enum class MpSceneType {
+enum class MpSceneType
+{
     CONTAINER_SCENE,
     VIRTUAL_SCENE
 };
 
-enum class IsSamePlane {
+enum class IsSamePlane
+{
     NotSamePlane,
     SamePlane
 };
 
-enum class PageType {
+enum class PageType
+{
     PAGE_4K,
     PAGE_2M,
 };

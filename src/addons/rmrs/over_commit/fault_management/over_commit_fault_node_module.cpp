@@ -22,7 +22,6 @@
 #include "over_commit_storage.h"
 #include "process_mem_pid_manager_def.h"
 #include "rmrs_resource_query.h"
-#include "process_mem_pid_manager_def.h"
 #include "securec.h"
 
 namespace mempooling {
@@ -829,7 +828,6 @@ MpResult OverCommitFaultNodeModule::BorrowInNodeProcess(const FaultRecordsInNode
     return res;
 }
 
-
 BorrowRecord ConvertDebtInfoToBorrowRecord(const UbseNumaMemoryDebtInfo& debtInfo)
 {
     BorrowRecord record;
@@ -944,17 +942,14 @@ MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrow
 
     MemBorrowExecuteResult borrowExecuteResult;
     ProcessMemUsrInfo processMemUsrInfo = {
-        .pluginId = UsrInfoPluginType::PROCESS_MEM,
-        .pid = ctx.pid,
-        .startTime = ctx.startTime
-    };
+        .pluginId = UsrInfoPluginType::PROCESS_MEM, .pid = ctx.pid, .startTime = ctx.startTime};
     auto ret = MempoolBorrowModule::MemBorrowExecuteForFaultInOverCommit(
         srcParam, borrowSizes,
         mempooling::WaterMark({.highWaterMark = waterMark.highWaterMark, .lowWaterMark = waterMark.lowWaterMark}),
         borrowExecuteResult, processMemUsrInfo);
     if (ret != MEM_POOLING_OK || borrowExecuteResult.borrowIds.empty() || borrowExecuteResult.presentNumaId.empty()) {
-        LOG_ERROR << "[FaultManager][Simplified] MemBorrowExecuteForFaultInOverCommit failed for pid=" <<
-            ctx.pid << ".";
+        LOG_ERROR << "[FaultManager][Simplified] MemBorrowExecuteForFaultInOverCommit failed for pid=" << ctx.pid
+                  << ".";
         return MEM_POOLING_ERROR;
     }
 
@@ -965,16 +960,15 @@ MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrow
     return MEM_POOLING_OK;
 }
 
-MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
-                                      uint64_t remoteTotalSizeKB,
+MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId, uint64_t remoteTotalSizeKB,
                                       const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap)
 {
     MigrateEscapeMsg msg{};
     int idx = 0;
     for (const auto& [srcNumaId, _] : remoteNumaSizeMap) {
         if (idx >= MAX_NR_MIGOUT) {
-            LOG_WARN << "[FaultManager][Simplified] Too many remote NUMAs for pending pid=" << pid
-                     << ", truncating to " << MAX_NR_MIGOUT << ".";
+            LOG_WARN << "[FaultManager][Simplified] Too many remote NUMAs for pending pid=" << pid << ", truncating to "
+                     << MAX_NR_MIGOUT << ".";
             break;
         }
         msg.payload[idx].pid = pid;
@@ -992,8 +986,8 @@ MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
 
     MpResult ret = MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(msg);
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] SmapMigratePidMultiRemoteNumaHelperWithRetry" <<
-            " failed for pending pid=" << pid;
+        LOG_ERROR << "[FaultManager][Simplified] SmapMigratePidMultiRemoteNumaHelperWithRetry"
+                  << " failed for pending pid=" << pid;
         return MEM_POOLING_ERROR;
     }
     return MEM_POOLING_OK;
@@ -1017,7 +1011,7 @@ MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const st
             LOG_DEBUG << "[FaultManager][Simplified] Freed oldBorrowId=" << oldBorrowId << ".";
         }
     }
-    
+
     if (finalRet == MEM_POOLING_OK) {
         for (const auto& oldBorrowId : oldBorrowIds) {
             if (BorrowIdRedirection::Instance().Update(oldBorrowId, newBorrowId) != MEM_POOLING_OK) {
@@ -1035,8 +1029,8 @@ MpResult ExecuteMigrateForPid(const PidBorrowContext& ctx, uint16_t newRemoteNum
     int idx = 0;
     for (const auto& [srcNumaId, _] : ctx.remoteNumaSizeMap) {
         if (idx >= MAX_NR_MIGOUT) {
-            LOG_WARN << "[FaultManager][Simplified] Too many remote NUMAs for pid=" << ctx.pid
-                     << ", truncating to " << MAX_NR_MIGOUT << ".";
+            LOG_WARN << "[FaultManager][Simplified] Too many remote NUMAs for pid=" << ctx.pid << ", truncating to "
+                     << MAX_NR_MIGOUT << ".";
             break;
         }
         msg.payload[idx].pid = ctx.pid;
@@ -1054,8 +1048,8 @@ MpResult ExecuteMigrateForPid(const PidBorrowContext& ctx, uint16_t newRemoteNum
 
     MpResult ret = MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(msg);
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] SmapMigratePidMultiRemoteNumaHelperWithRetry " <<
-            "failed for pid=" << ctx.pid;
+        LOG_ERROR << "[FaultManager][Simplified] SmapMigratePidMultiRemoteNumaHelperWithRetry "
+                  << "failed for pid=" << ctx.pid;
         return MEM_POOLING_ERROR;
     }
     return MEM_POOLING_OK;
@@ -1096,34 +1090,34 @@ MpResult ProcessPendingMigration(pid_t pid, std::unordered_map<pid_t, PendingMig
 {
     auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
     auto& state = pendingIt->second;
-    
+
     if (state.migrated) {
         LOG_INFO << "[FaultManager][Simplified] Pending migration already done for pid=" << pid
                  << ", retry FreeOldBorrowIds only.";
     } else {
         LOG_INFO << "[FaultManager][Simplified] Found pending migration for pid=" << pid
                  << ", newBorrowId=" << state.newBorrowId << ", direct migrate.";
-        
+
         std::vector<pid_t> pids{pid};
         auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
         if (smapRet != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pending pid=" << pid << ".";
             return MEM_POOLING_ERROR;
         }
-        
-        MpResult ret = ExecuteMigrateForPidWithNuma(pid, state.newRemoteNumaId,
-                                                    state.remoteTotalSizeKB, state.remoteNumaSizeMap);
+
+        MpResult ret =
+            ExecuteMigrateForPidWithNuma(pid, state.newRemoteNumaId, state.remoteTotalSizeKB, state.remoteNumaSizeMap);
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][Simplified] Pending migrate failed for pid=" << pid
                       << ", borrowId=" << state.newBorrowId << " retained.";
             MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
             return MEM_POOLING_ERROR;
         }
-        
+
         MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
         state.migrated = true;
     }
-    
+
     MpResult ret = FreeOldBorrowIds(state.oldBorrowIds, state.newBorrowId, state.freedOldBorrowIds);
     if (ret == MEM_POOLING_OK) {
         pendingMigrations.erase(pendingIt);
@@ -1146,28 +1140,28 @@ void RecordPendingMigrationState(const PidBorrowContext& ctx, const std::string&
     pendingState.remoteNumaIds = ctx.remoteNumaIds;
     pendingState.remoteNumaSizeMap = ctx.remoteNumaSizeMap;
     pendingMigrations[ctx.pid] = pendingState;
-    LOG_INFO << "[FaultManager][Simplified] Borrow success for pid=" << ctx.pid
-             << ", newBorrowId=" << newBorrowId << ", pending state recorded.";
+    LOG_INFO << "[FaultManager][Simplified] Borrow success for pid=" << ctx.pid << ", newBorrowId=" << newBorrowId
+             << ", pending state recorded.";
 }
 
 MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<BorrowRecord>& records)
 {
     auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
-    
+
     PidBorrowContext ctx;
     ctx.pid = pid;
     ctx.startTime = startTime;
     if (!CollectPidBorrowInfo(records, ctx)) {
         return MEM_POOLING_ERROR;
     }
-    
+
     std::vector<pid_t> pids{pid};
     auto smapRet = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
     if (smapRet != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] Disable smap migrate failed for pid=" << pid << ".";
         return MEM_POOLING_ERROR;
     }
-    
+
     std::string newBorrowId;
     uint16_t newRemoteNumaId = 0;
     MpResult ret = ExecuteBorrowForPid(ctx, newBorrowId, newRemoteNumaId);
@@ -1175,21 +1169,21 @@ MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<Bo
         MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
         return MEM_POOLING_ERROR;
     }
-    
+
     RecordPendingMigrationState(ctx, newBorrowId, newRemoteNumaId);
-    
+
     ret = ExecuteMigrateForPid(ctx, newRemoteNumaId);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] ExecuteMigrateForPid failed for pid=" << ctx.pid
                   << ", borrowId=" << newBorrowId << " retained for retry.";
         return MEM_POOLING_ERROR;
     }
-    
+
     auto pendingIt = pendingMigrations.find(pid);
     if (pendingIt != pendingMigrations.end()) {
         pendingIt->second.migrated = true;
     }
-    
+
     ret = FinalizePidProcessing(ctx, newBorrowId);
     if (ret == MEM_POOLING_OK) {
         pendingMigrations.erase(pid);
@@ -1229,12 +1223,13 @@ MpResult SendSimplifiedFaultToBorrower(const std::string& nodeId, const std::str
     UbseByteBuffer reqData = {
         .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DefaultFreeFunc};
     uint32_t retHandler;
-    uint32_t ret = UbseRpcSend(endpoint, reqData, &retHandler,
-        mempooling::over_commit::OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessResHandler);
+    uint32_t ret =
+        UbseRpcSend(endpoint, reqData, &retHandler,
+                    mempooling::over_commit::OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessResHandler);
     if (ret != MEM_POOLING_OK || retHandler != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] Borrower node processing failed. "
-                  << "nodeId=" << nodeId << ", borrowNode=" << borrowNode
-                  << ", rpc_ret=" << ret << ", handler_ret=" << retHandler << ".";
+                  << "nodeId=" << nodeId << ", borrowNode=" << borrowNode << ", rpc_ret=" << ret
+                  << ", handler_ret=" << retHandler << ".";
         return MEM_POOLING_ERROR;
     }
     return MEM_POOLING_OK;

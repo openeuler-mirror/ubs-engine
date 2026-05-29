@@ -303,11 +303,11 @@ bool TestGetVmInfoMapFailed(std::map<pid_t, VmDomainInfo>& vmInfoMap)
 TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceFailed)
 {
     MOCKER_CPP(&MempoolMigrateModule::GetVmInfoMap,
-               bool (*)(std::map<pid_t, VmDomainInfo>& vmInfoMap, std::vector<pid_t> pidList))
+               bool (*)(std::map<pid_t, VmDomainInfo> & vmInfoMap, std::vector<pid_t> pidList))
         .stubs()
         .will(returnValue(true));
     MOCKER_CPP(&MempoolMigrateModule::FillDestNumaFreeHugePageMap,
-               bool (*)(std::map<uint16_t, uint64_t>& destNumaFreeHugePageMap,
+               bool (*)(std::map<uint16_t, uint64_t> & destNumaFreeHugePageMap,
                         std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap))
         .stubs()
         .will(returnValue(false));
@@ -320,12 +320,12 @@ TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceFailed)
 TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceFailed2)
 {
     MOCKER_CPP(&MempoolMigrateModule::FillDestNumaFreeHugePageMap,
-               bool (*)(std::map<uint16_t, uint64_t>& destNumaFreeHugePageMap,
+               bool (*)(std::map<uint16_t, uint64_t> & destNumaFreeHugePageMap,
                         std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap))
         .stubs()
         .will(invoke(TestFillDestNumaFreeHugePageMap));
     MOCKER_CPP(&MempoolMigrateModule::GetVmInfoMap,
-               bool (*)(std::map<pid_t, VmDomainInfo>& vmInfoMap, std::vector<pid_t> pidList))
+               bool (*)(std::map<pid_t, VmDomainInfo> & vmInfoMap, std::vector<pid_t> pidList))
         .stubs()
         .will(returnValue(false));
     VMMigrateOutParam param;
@@ -337,12 +337,12 @@ TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceFailed2)
 TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceFailed3)
 {
     MOCKER_CPP(&MempoolMigrateModule::FillDestNumaFreeHugePageMap,
-               bool (*)(std::map<uint16_t, uint64_t>& destNumaFreeHugePageMap,
+               bool (*)(std::map<uint16_t, uint64_t> & destNumaFreeHugePageMap,
                         std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap))
         .stubs()
         .will(invoke(TestFillDestNumaFreeHugePageMap));
     MOCKER_CPP(&MempoolMigrateModule::GetVmInfoMap,
-               bool (*)(std::map<pid_t, VmDomainInfo>& vmInfoMap, std::vector<pid_t> pidList))
+               bool (*)(std::map<pid_t, VmDomainInfo> & vmInfoMap, std::vector<pid_t> pidList))
         .stubs()
         .will(invoke(TestGetVmInfoMapFailed));
     VMMigrateOutParam param;
@@ -357,12 +357,12 @@ TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceFailed3)
 TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceSuccess)
 {
     MOCKER_CPP(&MempoolMigrateModule::FillDestNumaFreeHugePageMap,
-               bool (*)(std::map<uint16_t, uint64_t>& destNumaFreeHugePageMap,
+               bool (*)(std::map<uint16_t, uint64_t> & destNumaFreeHugePageMap,
                         std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap))
         .stubs()
         .will(invoke(TestFillDestNumaFreeHugePageMap));
     MOCKER_CPP(&MempoolMigrateModule::GetVmInfoMap,
-               bool (*)(std::map<pid_t, VmDomainInfo>& vmInfoMap, std::vector<pid_t> pidList))
+               bool (*)(std::map<pid_t, VmDomainInfo> & vmInfoMap, std::vector<pid_t> pidList))
         .stubs()
         .will(invoke(TestGetVmInfoMap));
     VMMigrateOutParam param;
@@ -377,7 +377,7 @@ TEST_F(TestMempoolMigrateModule, ValidateRemoteFreeSpaceSuccess)
 TEST_F(TestMempoolMigrateModule, TestValidateRemoteFreeSpaceFailed_NotValidPid)
 {
     MOCKER_CPP(&MempoolMigrateModule::GetVmInfoMap,
-               bool (*)(std::map<pid_t, VmDomainInfo>& vmInfoMap, std::vector<pid_t> pidList))
+               bool (*)(std::map<pid_t, VmDomainInfo> & vmInfoMap, std::vector<pid_t> pidList))
         .stubs()
         .will(invoke(TestGetVmInfoMapDoubleParam));
     VMMigrateOutParam param;
@@ -392,12 +392,12 @@ TEST_F(TestMempoolMigrateModule, TestValidateRemoteFreeSpaceFailed_NotValidPid)
 TEST_F(TestMempoolMigrateModule, TestValidateRemoteFreeSpaceFailed_FillNumaInfoError)
 {
     MOCKER_CPP(&MempoolMigrateModule::FillDestNumaFreeHugePageMap,
-               bool (*)(std::map<uint16_t, uint64_t>& destNumaFreeHugePageMap,
+               bool (*)(std::map<uint16_t, uint64_t> & destNumaFreeHugePageMap,
                         std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap))
         .stubs()
         .will(returnValue(false));
     MOCKER_CPP(&MempoolMigrateModule::GetVmInfoMap,
-               bool (*)(std::map<pid_t, VmDomainInfo>& vmInfoMap, std::vector<pid_t> pidList))
+               bool (*)(std::map<pid_t, VmDomainInfo> & vmInfoMap, std::vector<pid_t> pidList))
         .stubs()
         .will(invoke(TestGetVmInfoMap));
     VMMigrateOutParam param;
@@ -412,12 +412,12 @@ TEST_F(TestMempoolMigrateModule, TestValidateRemoteFreeSpaceFailed_FillNumaInfoE
 TEST_F(TestMempoolMigrateModule, TestValidateRemoteFreeSpaceFailed_NotEnoughFreeMem)
 {
     MOCKER_CPP(&MempoolMigrateModule::FillDestNumaFreeHugePageMap,
-               bool (*)(std::map<uint16_t, uint64_t>& destNumaFreeHugePageMap,
+               bool (*)(std::map<uint16_t, uint64_t> & destNumaFreeHugePageMap,
                         std::map<uint16_t, std::vector<VMMigrateOutParam>> vmMigrateOutParamGroupByNumaIdMap))
         .stubs()
         .will(invoke(TestFillDestNumaFreeHugePageMap));
     MOCKER_CPP(&MempoolMigrateModule::GetVmInfoMap,
-               bool (*)(std::map<pid_t, VmDomainInfo>& vmInfoMap, std::vector<pid_t> pidList))
+               bool (*)(std::map<pid_t, VmDomainInfo> & vmInfoMap, std::vector<pid_t> pidList))
         .stubs()
         .will(invoke(TestGetVmInfoMap));
     VMMigrateOutParam param;
@@ -1069,8 +1069,8 @@ TEST_F(TestMempoolMigrateModule, MemBorrowRollbackImplSuccess)
     MempoolingMessage::rmrsBorrowRollBack = &MockRmrsBorrowRollBackReturn0;
     MOCKER_CPP(
         &MempoolMigrateModule::FreeMemAndPersistent,
-        bool (*)(std::set<std::string>& validBorrowIdSet,
-                 std::map<std::string, std::set<BorrowIdInfo>>& curBorrowIdsPidsMap, RollBackBorrowIdPid& outEntry))
+        bool (*)(std::set<std::string> & validBorrowIdSet,
+                 std::map<std::string, std::set<BorrowIdInfo>> & curBorrowIdsPidsMap, RollBackBorrowIdPid & outEntry))
         .stubs()
         .will(returnValue(true));
 

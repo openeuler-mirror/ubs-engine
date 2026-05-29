@@ -24,15 +24,14 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_election.h"
 #include "ubse_mem_controller.h"
 #include "mem_manager.h"
 #include "mempooling_return_module.h"
 #include "mp_configuration.h"
 #include "mp_smap_controller.h"
 #include "mp_string_util.h"
-#include "process_mem_pid_manager_def.h"
 #include "over_commit_fault_memid_module.h"
+#include "process_mem_pid_manager_def.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -194,7 +193,8 @@ MpResult MemBorrowExecutor::RemoveBorrowIdRedirectionRecursively(const std::stri
 
 static __always_inline void GenerateSmapTaskId(uint64_t& taskId)
 {
-    struct timespec ts {};
+    struct timespec ts {
+    };
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] Failed to get time errno=" << errno;
@@ -288,9 +288,10 @@ MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name, MigrateB
     return MEM_POOLING_OK;
 }
 
-
 MpResult MemBorrowExecutor::GenerateSmapParamsForProcessMem(const std::string& name,
-    std::vector<MigrateBackMsg>& migrateBackMsgs, EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault)
+                                                            std::vector<MigrateBackMsg>& migrateBackMsgs,
+                                                            EnableNodeMsg& enableMsg, std::string& importNodeId,
+                                                            bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params, borrow_id=" << name << ".";
@@ -333,7 +334,7 @@ MpResult MemBorrowExecutor::GenerateSmapParamsForProcessMem(const std::string& n
         }
         migrateBackMsgs.push_back(migrateBackMsg);
     }
-    
+
     enableMsg.nid = record.borrowRemoteNuma;
     enableMsg.enable = SMAP_ENABLE_NUMA;
 
@@ -383,8 +384,8 @@ void DeletePersistenceSmapEnable(const int16_t& numaId)
     }
 }
 
-MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string& name,
-    const std::string& deleteName, bool isFault)
+MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string& name, const std::string& deleteName,
+                                                              bool isFault)
 {
     std::vector<MigrateBackMsg> migrateBackMsgs;
     EnableNodeMsg enableMsg;
@@ -401,7 +402,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
         return MEM_POOLING_ERROR;
     }
 
-    for (auto &migrateBackMsg: migrateBackMsgs) {
+    for (auto& migrateBackMsg : migrateBackMsgs) {
         // 持久化SmapEnable数据
         if (migrateBackMsg.count > 0) {
             PersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
@@ -624,8 +625,8 @@ MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForce
     return MEM_POOLING_OK;
 }
 
-MpResult MemBorrowExecutor::MemFreeWithOpsForProcessMem(const std::string& name,
-    bool isForceDelete, bool smapBack, bool isFault)
+MpResult MemBorrowExecutor::MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete, bool smapBack,
+                                                        bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] MemBorrowExecutor starts to free memory, borrowI_id=" << name << ".";

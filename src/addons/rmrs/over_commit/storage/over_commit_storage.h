@@ -19,7 +19,8 @@
 #include "mp_error.h"
 namespace mempooling {
 
-enum class NumaBindType {
+enum class NumaBindType
+{
     BIND_INVALID,
     BIND_SINGLE,
     BIND_MULTIPLE
