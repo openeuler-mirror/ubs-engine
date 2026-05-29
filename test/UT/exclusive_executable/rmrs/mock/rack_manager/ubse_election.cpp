@@ -48,7 +48,8 @@ struct UbseRoleInfo {
 
 using UBSE_ID_TYPE = std::string;
 
-enum class UbseElectionEventType {
+enum class UbseElectionEventType
+{
     CHANGE_TO_MASTER,           // 初始化为主(只在主节点)
     CHANGE_TO_STANDBY,          // 初始化为备(只在备节点)
     CHANGE_TO_AGENT,            // 初始化为从(只在从节点)
@@ -81,7 +82,8 @@ constexpr std::array<UbseElectionEventType, static_cast<std::size_t>(UbseElectio
 // 检查 UbseElectionEventType 是否存在于枚举中
 bool IsValidElectionEventType(UbseElectionEventType type);
 
-enum class UbseElectionHandlerPriority {
+enum class UbseElectionHandlerPriority
+{
     HIGH,
     MEDIUM,
     LOW

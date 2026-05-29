@@ -34,7 +34,6 @@
 #include "mp_vector_util.h"
 #include "process_mem_pid_manager_def.h"
 #include "turbo_rmrs_interface.h"
-#include "process_mem_pid_manager_def.h"
 
 namespace mempooling {
 using namespace ubse::log;

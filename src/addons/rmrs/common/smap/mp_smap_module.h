@@ -50,7 +50,8 @@ const int SMAP_BACK_ERROR_NOIPC = -16;
 const int SMAP_BACK_ERROR_INVAL = -22;
 const int SMAP_BACK_ERROR_AGAIN = -11;
 
-typedef enum {
+typedef enum
+{
     MIG_RATIO_MODE = 0, // 按照比例迁移
     MIG_MEMSIZE_MODE,   // 按照内存大小迁移
 } MigrateMode;
@@ -166,13 +167,15 @@ struct EnableNodeRes {
     uint32_t result;
 };
 
-enum NumaEnable : int32_t {
+enum NumaEnable : int32_t
+{
     SMAP_DISABLE_NUMA = 0,
     SMAP_ENABLE_NUMA = 1,
     SMAP_BUTT
 };
 
-enum SampTaskResult : uint16_t {
+enum SampTaskResult : uint16_t
+{
     MB_TASK_CREATED = 0,
     MB_TASK_WAITING = 1,
     MB_TASK_DONE = 2,

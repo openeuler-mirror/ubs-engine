@@ -14,10 +14,9 @@
 
 #include "mem_borrow_executor.h"
 
-
+#include "over_commit_fault_management_handler.h"
 #include "over_commit_fault_memid_module.h"
 #include "over_commit_fault_node_module.h"
-#include "over_commit_fault_management_handler.h"
 
 namespace mempooling::over_commit {
 
@@ -478,15 +477,14 @@ MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records)
         }
         pidSizeList.emplace_back(entry.first, totalSize);
     }
-    std::sort(pidSizeList.begin(), pidSizeList.end(),
-              [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::sort(pidSizeList.begin(), pidSizeList.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
 
     MpResult finalResult = MEM_POOLING_OK;
     for (const auto& pidSizePair : pidSizeList) {
-        int64_t startTime = records.pidStartTimeMap.count(pidSizePair.first) ?
-            records.pidStartTimeMap.at(pidSizePair.first) : 0;
-        MpResult pidResult = ProcessSinglePidFault(
-            pidSizePair.first, startTime, records.pidBorrowMap.at(pidSizePair.first));
+        int64_t startTime =
+            records.pidStartTimeMap.count(pidSizePair.first) ? records.pidStartTimeMap.at(pidSizePair.first) : 0;
+        MpResult pidResult =
+            ProcessSinglePidFault(pidSizePair.first, startTime, records.pidBorrowMap.at(pidSizePair.first));
         if (pidResult != MEM_POOLING_OK) {
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[OverCommit][FaultManagement] SimplifiedFaultNumaProcessRecvHandler ProcessSinglePidFault"

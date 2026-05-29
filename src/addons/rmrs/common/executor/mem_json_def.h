@@ -62,7 +62,8 @@ struct MemMallocAttr {
     std::vector<uint64_t> lenderSizes{}; // 内部单位，字节
 };
 
-enum PerfLevel {
+enum PerfLevel
+{
     L0, /* *L0对应直连节点 */
     L1, /* *L1对应通过1跳节点，暂不支持 */
     L2  /* *L2对应过超过1跳节点 ，暂不支持 */

@@ -351,7 +351,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy_TestWithBorrowFailed)
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&MempoolBorrowModule::UpdateNodeMemInfoWithNuma,
-               void (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               void (*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap))
         .stubs()
         .will(returnValue(nullptr));
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
@@ -388,7 +388,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy_TestWithBadBorrowSuccess)
     // 将 node1 添加到 nodeMemMap
     MemManager::Instance().nodeMemMap["Node1"] = node1;
     MOCKER_CPP(&MempoolBorrowModule::UpdateNodeMemInfoWithNuma,
-               void (*)(std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               void (*)(std::unordered_map<std::string, NodeMemInfo> & nodeMemMap))
         .stubs()
         .will(returnValue(nullptr));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortSockets,
@@ -1563,7 +1563,7 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo4)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::UpdateNodeMemInfoWithNuma,
-               void (*)(MempoolBorrowModule* This, std::unordered_map<std::string, NodeMemInfo>& nodeMemMap))
+               void (*)(MempoolBorrowModule * This, std::unordered_map<std::string, NodeMemInfo> & nodeMemMap))
         .stubs()
         .will(invoke(MempoolBorrowModuleUpdateNodeMemInfoWithNuma));
     MOCKER_CPP(&AntiNode::Query, MpResult(*)(const std::string& srcNid, std::vector<std::string>& antiNodeMemVec))
@@ -2188,7 +2188,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultiple3)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortNodes,
-               void (*)(MempoolBorrowModule* This, std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
+               void (*)(MempoolBorrowModule * This, std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
                         std::string srcNid, const std::vector<std::string>& antiNodeMemVec,
                         std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
         .stubs()
@@ -2213,7 +2213,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB3)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MempoolBorrowModule::FilterAndSortNodes,
-               void (*)(MempoolBorrowModule* This, std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
+               void (*)(MempoolBorrowModule * This, std::unordered_map<std::string, NodeMemInfo> & nodeMemMap,
                         std::string srcNid, const std::vector<std::string>& antiNodeMemVec,
                         std::vector<std::pair<std::string, NodeMemInfo>>& nodeVec))
         .stubs()
