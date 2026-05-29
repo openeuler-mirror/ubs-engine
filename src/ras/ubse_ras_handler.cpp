@@ -798,7 +798,7 @@ std::string QueryNodeIdByEid(const std::string& eid)
     }
     std::unordered_map<std::string, std::string> eids;
     for (const auto& info : comUrmaInfoMap) {
-        eids[info.second.primaryEid] = info.first.slotId;
+        eids[ToLowerEid(info.second.primaryEid)] = info.first.slotId;
     }
     if (eids.find(lowerEid) == eids.end()) {
         UBSE_LOG_INFO << "Query EID=" << lowerEid;
