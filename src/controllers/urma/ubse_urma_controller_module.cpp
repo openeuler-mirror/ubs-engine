@@ -33,6 +33,7 @@ using namespace ubse::com;
 using namespace ubse::common::def;
 using namespace ubse::nodeController;
 using namespace ubse::config;
+using namespace ubse::context;
 
 std::atomic<uint32_t> g_asyncHandlerCnt{0};
 std::set<std::string> g_RegTimerNames;

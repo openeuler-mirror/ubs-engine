@@ -23,6 +23,7 @@ using namespace ubse::ipc;
 using namespace api::server;
 using namespace ubse::config;
 using namespace ubse::node::api;
+using namespace ubse::context;
 
 CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseNodeControllerModule);
 
