@@ -391,6 +391,8 @@ function build_cmake() {
 
     # 生成覆盖率报告
     if [[ "$enable_coverage" == 'ON' ]]; then
+        export COVERAGE_MODULE="$build_target"
+        log_info "Coverage module: ${COVERAGE_MODULE}"
         # 检查是否存在 .gcda 文件
         if find "${build_dir}" -type f -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
             cmake --build "${build_dir}" --target coverage
