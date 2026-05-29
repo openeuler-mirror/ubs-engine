@@ -274,7 +274,7 @@ static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t& response_buffer, c
     errno_t result = memcpy_s(*task_id, response_str_len + 1, response_str, response_str_len);
     if (result != 0) {
         IPC_LOG_ERROR << "memcpy_s failed for task_id: " << result;
-        delete[] *task_id;
+        delete[] * task_id;
         *task_id = nullptr;
         return false;
     }

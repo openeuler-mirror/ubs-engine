@@ -33,7 +33,8 @@ constexpr uint16_t MOVE2_BIT = 2;
 constexpr uint16_t MIN_PERCENT = 0;
 constexpr uint16_t MAX_PERCENT = 100;
 
-enum class WatermarkWarningType {
+enum class WatermarkWarningType
+{
     NO_WARN = 0,
     HIGH_WATERMARK,
     LOW_WATERMARK,

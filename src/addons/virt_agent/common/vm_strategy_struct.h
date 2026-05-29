@@ -19,7 +19,8 @@
 #include <vector>
 
 namespace vm {
-enum VmMigrateStatus {
+enum VmMigrateStatus
+{
     MIGRATEABLE = 0,
     MIGRATING,
     MIGRATEUNABLE
@@ -33,7 +34,8 @@ enum VmMigrateStatus {
  * Memory Borrow Tip: Free remote memory > Expected borrowed memory for this session
  * Memory Borrow Tip: Borrowed memory has reached the memory borrowing limit of this node
  */
-enum class StrategyTip : int {
+enum class StrategyTip : int
+{
     NOPE = 0,
     RET_BORROW_LEGER_EMPTY,
     RET_BAN_RET_TOO_LARGE_MEM,
