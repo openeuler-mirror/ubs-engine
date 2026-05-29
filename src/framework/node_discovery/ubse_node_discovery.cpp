@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -11,71 +11,61 @@
  */
 
 #include "ubse_node_discovery.h"
-
-#include <mutex>
+#include "ubse_node_static_info_mgr.h"
 
 namespace ubse::nodeDiscovery {
-
-NodeMap UbseNodeDiscovery::GetAllNodes() const
+UbseNodeStaticInfo GetCurrentNode()
 {
-    std::shared_lock lock(nodeMutex_);
-    return nodes_;
+    return  UbseNodeStaticInfoMgr::GetInstance().GetCurrentNode();
 }
 
-std::unordered_map<std::string, UbseNodeStaticInfo> UbseNodeDiscovery::GetPodNodesByPodId(uint16_t podId)
+std::vector<UbseNodeStaticInfo> GetAllNodes()
 {
-    std::shared_lock lock(nodeMutex_);
-    auto it = nodes_.find(podId);
-    if (it != nodes_.end()) {
-        return it->second;
-    }
-    return {};
-}
-
-UbseNodeStaticInfo UbseNodeDiscovery::GetUbseNodeByAddr(const std::string &ip)
-{
-    std::shared_lock lock(nodeMutex_);
-    for (const auto &pod : nodes_) {
-        for (const auto &superNode : pod.second) {
-            if (superNode.second.addr == ip) {
-                return superNode.second;
-            }
+    std::vector<UbseNodeStaticInfo> nodes{};
+    auto nodesMap = UbseNodeStaticInfoMgr::GetInstance().GetAllNodes();
+    for (const auto &pod : nodesMap) {
+        for (const auto &node : pod.second) {
+            nodes.push_back(node.second);
         }
     }
-    return {};
+    return nodes;
 }
 
-UbseNodeStaticInfo UbseNodeDiscovery::GetUbseNodeById(const std::string &id)
+std::unordered_map<uint16_t, std::vector<UbseNodeStaticInfo>> GetAllNodesStoredByGroup()
 {
-    std::shared_lock lock(nodeMutex_);
-    for (const auto &pod : nodes_) {
-        auto it = pod.second.find(id);
-        if (it != pod.second.end()) {
-            return it->second; // 找到了直接返回对应的 value
+    std::unordered_map<uint16_t, std::vector<UbseNodeStaticInfo>> nodesMap{};
+    auto nodes = UbseNodeStaticInfoMgr::GetInstance().GetAllNodes();
+    for (const auto &pod : nodes) {
+        for (const auto &node : pod.second) {
+            nodesMap[pod.first].push_back(node.second);
         }
     }
-    return {};
+    return nodesMap;
 }
 
-UbseNodeStaticInfo UbseNodeDiscovery::GetCurrentNode()
+UbseNodeStaticInfo GetUbseNodeById(const std::string &nodeId)
 {
-    std::shared_lock lock(nodeMutex_);
-    return currentNode_;
+    return UbseNodeStaticInfoMgr::GetInstance().GetUbseNodeById(nodeId);
 }
 
-void UbseNodeDiscovery::SetNodes(const std::vector<UbseNodeStaticInfo> &nodes)
+bool IsUrma()
 {
-    std::unique_lock lock(nodeMutex_);
+    return UbseNodeStaticInfoMgr::GetInstance().IsUrma();
+}
+
+std::vector<std::string> GetRootIpList()
+{
+    return UbseNodeStaticInfoMgr::GetInstance().GetRootIpList();
+}
+
+std::vector<UbseNodeStaticInfo> GetNodesByGroupId(uint16_t groupId)
+{
+    auto nodes = UbseNodeStaticInfoMgr::GetInstance().GetNodesByGroupId(groupId);
+    std::vector<UbseNodeStaticInfo> nodesVec{};
+    nodesVec.reserve(nodes.size());
     for (const auto &node : nodes) {
-        nodes_[node.podId][node.nodeId] = node;
+        nodesVec.push_back(node.second);
     }
+    return nodesVec;
 }
-
-
-void UbseNodeDiscovery::SetCurrentNode(UbseNodeStaticInfo node)
-{
-    std::unique_lock lock(nodeMutex_);
-    currentNode_ = node;
-    nodes_[node.podId][node.nodeId] = node;
 }
-} // namespace ubse::nodeDiscovery

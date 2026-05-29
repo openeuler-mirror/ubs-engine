@@ -12,16 +12,12 @@
 
 #include "test_ubse_node_discovery_config_mode.h"
 
-#include "node_mode/ubse_node_discovery_config_mode.h"
-#include "ubse_conf_module.h"
-#include "ubse_context.h"
+#include "conf_mode/ubse_node_discovery_config_mode.h"
+#include "ubse_error.h"
 #include "ubse_net_util.h"
-#include "ubse_node_discovery.h"
-#include "ubse_smbios.h"
+#include "ubse_node_static_info_mgr.h"
 
 namespace ubse::nodeDiscovery {
-using namespace ubse::context;
-using namespace ubse::config;
 using namespace ubse::utils;
 
 void TestUbseNodeDiscoveryConfigMode::SetUp()
@@ -31,62 +27,55 @@ void TestUbseNodeDiscoveryConfigMode::SetUp()
 
 void TestUbseNodeDiscoveryConfigMode::TearDown()
 {
-    UbseNodeDiscovery::GetInstance().nodes_.clear();
+    UbseNodeStaticInfoMgr::GetInstance().nodes_.clear();
+    UbseNodeDiscoveryConfigMode::GetInstance().isClos_ = false;
+    UbseNodeDiscoveryConfigMode::GetInstance().podCapability_ = DEFAULT_POD_CAPABILITY;
     Test::TearDown();
     GlobalMockObject::verify();
 }
 
-uint32_t MockFindSameNetMaskNotInList(const std::string &ipStr, std::string &localIp)
-{
-    localIp = "192.168.100.108";
-    return UBSE_OK;
-}
-
-uint32_t MockFindSameNetMaskInList(const std::string &ipStr, std::string &localIp)
-{
-    localIp = "192.168.100.107";
-    return UBSE_OK;
-}
-
 TEST_F(TestUbseNodeDiscoveryConfigMode, TestInit)
 {
-    MOCKER(&adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(true));
-    std::shared_ptr<UbseConfModule> nullModule = nullptr;
-    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
-    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    MOCKER(&UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_ERROR));
-
-    EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseNodeDiscoveryConfigMode::GetInstance().Init());
-    EXPECT_EQ(UBSE_ERROR, UbseNodeDiscoveryConfigMode::GetInstance().Init());
-
-    std::vector<std::string> emptyList{};
     std::vector<std::string> ipList{"192.168.100.100", "192.168.100.107"};
-    MOCKER(UbseNetUtil::ParseIpList).stubs().will(returnValue(emptyList)).then(returnValue(ipList));
-    EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseNodeDiscoveryConfigMode::GetInstance().Init());
+    MOCKER(&UbseNodeStaticInfoMgr::IsClos).stubs().will(returnValue(true));
+    MOCKER(&UbseNodeStaticInfoMgr::GetPodCapability).stubs().will(returnValue(DEFAULT_POD_CAPABILITY));
+    MOCKER(&UbseNodeStaticInfoMgr::GetClusterIpList).stubs().will(returnValue(ipList));
 
-    MOCKER(&UbseNodeDiscoveryConfigMode::InitCurNodeInfo)
+    MOCKER(&UbseNodeStaticInfoMgr::InitCurNodeInfo)
         .stubs()
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_ERROR, UbseNodeDiscoveryConfigMode::GetInstance().Init());
-    MOCKER(UbseNetUtil::FindLocalIpByRemote)
+
+    MOCKER(UbseNetUtil::FindLocalIpInIpList)
         .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(invoke(MockFindSameNetMaskNotInList))
-        .then(invoke(MockFindSameNetMaskInList));
-    EXPECT_EQ(UBSE_ERROR, UbseNodeDiscoveryConfigMode::GetInstance().Init());
-    EXPECT_EQ(UBSE_ERROR_NULLPTR, UbseNodeDiscoveryConfigMode::GetInstance().Init());
+        .will(returnValue(UBSE_ERROR_EMPTY))
+        .then(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_ERROR_EMPTY, UbseNodeDiscoveryConfigMode::GetInstance().Init());
+
     MOCKER(&UbseNodeDiscoveryConfigMode::GenerateClusterTopo).stubs().will(ignoreReturnValue());
     EXPECT_EQ(UBSE_OK, UbseNodeDiscoveryConfigMode::GetInstance().Init());
 }
 
+TEST_F(TestUbseNodeDiscoveryConfigMode, TestInitWithEmptyIpList)
+{
+    std::vector<std::string> emptyIpList{};
+    MOCKER(&UbseNodeStaticInfoMgr::IsClos).stubs().will(returnValue(false));
+    MOCKER(&UbseNodeStaticInfoMgr::GetClusterIpList).stubs().will(returnValue(emptyIpList));
+    MOCKER(&UbseNodeStaticInfoMgr::InitCurNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseNetUtil::FindLocalIpInIpList).stubs().will(returnValue(UBSE_ERROR_EMPTY));
+    EXPECT_EQ(UBSE_ERROR_EMPTY, UbseNodeDiscoveryConfigMode::GetInstance().Init());
+}
+
 TEST_F(TestUbseNodeDiscoveryConfigMode, TestParseIpList)
 {
-    auto emptyList = UbseNetUtil::ParseIpList("192.168.100.107-192.168.100.104");
+    std::vector<std::string> emptyList{};
+    UbseNetUtil::ParseIpList("192.168.100.107-192.168.100.104", emptyList);
     EXPECT_EQ(emptyList.size(), 0);
-    auto nodeList =
-        UbseNetUtil::ParseIpList("192.168.100.100-192.168.100.104,192.168.100.106,192.168.100.108-192.168.100.110");
+
+    std::vector<std::string> nodeList{};
+    UbseNetUtil::ParseIpList(
+        "192.168.100.100-192.168.100.104,192.168.100.106,192.168.100.108-192.168.100.110", nodeList);
     EXPECT_EQ(nodeList.size(), 9);
     EXPECT_EQ(nodeList[0], "192.168.100.100");
     EXPECT_EQ(nodeList[1], "192.168.100.101");
@@ -101,14 +90,16 @@ TEST_F(TestUbseNodeDiscoveryConfigMode, TestParseIpList)
 
 TEST_F(TestUbseNodeDiscoveryConfigMode, GenerateClusterTopo)
 {
-    auto nodeList =
-        UbseNetUtil::ParseIpList("192.168.100.100-192.168.100.104,192.168.100.106,192.168.100.108-192.168.100.110");
+    std::vector<std::string> nodeList{};
+    UbseNetUtil::ParseIpList(
+        "192.168.100.100-192.168.100.104,192.168.100.106,192.168.100.108-192.168.100.110", nodeList);
     UbseNodeStaticInfo info{};
-    info.podId = 1;
+    info.groupId = 1;
     info.addr = "192.168.100.101";
-    UbseNodeDiscovery::GetInstance().SetCurrentNode(info);
+    UbseNodeStaticInfoMgr::GetInstance().SetCurrentNode(info);
     UbseNodeDiscoveryConfigMode::GetInstance().podCapability_ = 2;
+    UbseNodeDiscoveryConfigMode::GetInstance().isClos_ = true;
     UbseNodeDiscoveryConfigMode::GetInstance().GenerateClusterTopo(nodeList);
-    EXPECT_EQ(5, UbseNodeDiscovery::GetInstance().GetAllNodes().size());
+    EXPECT_EQ(5, UbseNodeStaticInfoMgr::GetInstance().GetAllNodes().size());
 }
 } // namespace ubse::nodeDiscovery

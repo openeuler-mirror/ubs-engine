@@ -26,7 +26,7 @@ constexpr uint32_t DEFAULT_POD_CAPABILITY = 8; // 默认逻辑机柜容量
 
 struct UbseNodeStaticInfo {
     uint16_t superPodId{0};  // 超节点集群ID
-    uint16_t podId{0};       // 逻辑机柜号; 1Dfullmesh场景下 全部为0, clos组网场景下按照机柜容量划分逻辑机柜号
+    uint16_t groupId{0};       // 逻辑机柜号; 1Dfullmesh场景下 全部为0, clos组网场景下按照机柜容量划分逻辑机柜号
     std::string nodeId;      // 节点ID; 1Dfullmesh场景下等于槽位号, clos组网场景下为集群下标+1
     std::string addr;        // 节点 IPV4地址, 用于 tcp场景下节点发现
     std::string bonding0Eid; // 节点 bonding0Eid, 用于 urma场景下节点发现
