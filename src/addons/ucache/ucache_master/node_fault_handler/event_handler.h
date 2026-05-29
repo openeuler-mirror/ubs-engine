@@ -22,7 +22,8 @@
 namespace ucache::fault_handler {
 using namespace ubse::ras;
 
-enum class EventCondition {
+enum class EventCondition
+{
     UCE_MEMID_FAILURE,
     OTHER_FAILURE
 };

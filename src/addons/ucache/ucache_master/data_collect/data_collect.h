@@ -26,7 +26,8 @@ namespace data_collect {
 
 using namespace ucache::deserialize;
 
-enum class PhyNodeStat {
+enum class PhyNodeStat
+{
     ACTIVE,  // 活跃
     FAULT,   // 故障
     RECOVER, // 恢复中

@@ -23,7 +23,8 @@ namespace ucache::master::bottleneck {
 
 using namespace ucache::data_collect;
 
-enum class PageCacheSensitiveTag {
+enum class PageCacheSensitiveTag
+{
     UNKNOWN,       //  未知状态，比如数据太少
     NOT_SENSITIVE, //  非PageCache紧缺型
     SENSITIVE      //  PageCache紧缺型

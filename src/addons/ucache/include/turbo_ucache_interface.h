@@ -86,8 +86,10 @@ struct CgroupPageCacheInfo {
 };
 
 struct CgroupInfos {
-    struct CgroupIoInfo ioInfo {};
-    struct CgroupPageCacheInfo pageCacheInfo {};
+    struct CgroupIoInfo ioInfo {
+    };
+    struct CgroupPageCacheInfo pageCacheInfo {
+    };
 
     std::string ToString() const
     {
@@ -186,7 +188,8 @@ struct MigrationStrategyParam {
     }
 };
 
-enum class TaskType : uint32_t {
+enum class TaskType : uint32_t
+{
     INVALID = 0xFFFFFFFF,
     COLLECT_RESOURCE = 0,
     MIGRATION_STRATEGY = 1,
@@ -217,7 +220,8 @@ inline bool IsValidTaskType(const TaskType t)
     return false;
 }
 
-enum class ResourceQueryType : uint32_t {
+enum class ResourceQueryType : uint32_t
+{
     NUMA_INFO = 0,
     CGROUP_INFO = 1,
     MEM_WATERMARK = 2,

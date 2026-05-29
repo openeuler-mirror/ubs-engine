@@ -21,7 +21,8 @@ namespace borrow_action {
 
 using namespace ucache::mem_borrow;
 
-enum class ActionType {
+enum class ActionType
+{
     BORROW,
     RETURN
 };
