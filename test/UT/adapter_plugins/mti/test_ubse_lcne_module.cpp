@@ -22,6 +22,7 @@
 #include "ubse_lcne_module.h"
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
+#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "lcne/ubse_lcne_busInstance.h"
 #include "lcne/ubse_lcne_host_info.h"
@@ -74,39 +75,6 @@ TEST_F(TestUbseLcneModule, UbseGetDevTopology)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUbseLcneModule, GetBondingEidByNodeId)
-{
-    UbseLcneModule module;
-    std::string bondingEid;
-    std::string nodeId = "1";
-    UbseResult ret = module.GetBondingEidByNodeId(bondingEid, nodeId);
-    EXPECT_EQ(ret, UBSE_ERROR);
-
-    UbseMtiNodeInfo ubseNodeInfo_{"1", "1234:5678:8765:4321:1234:5678:8765:4321"};
-    module.ubseNodeInfos_.push_back(ubseNodeInfo_);
-    ret = module.GetBondingEidByNodeId(bondingEid, nodeId);
-    EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(bondingEid, "1234:5678:8765:4321:1234:5678:8765:4321");
-}
-
-TEST_F(TestUbseLcneModule, GenerateBondingEid)
-{
-    UbseLcneModule module;
-    unsigned char bondingEid[40];
-    std::string nodeId = "1";
-    UbseResult ret = module.GenerateBondingEid(nodeId, bondingEid);
-    EXPECT_EQ(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseLcneModule, GenerateBondingEid_Failed)
-{
-    UbseLcneModule module;
-    unsigned char bondingEid[40];
-    std::string nodeId = "abc";
-    UbseResult ret = module.GenerateBondingEid(nodeId, bondingEid);
-    EXPECT_EQ(ret, UBSE_ERROR_PARSE_ARGS_FAILED);
-}
-
 TEST_F(TestUbseLcneModule, IsPrimaryEidExist)
 {
     UbseLcneModule module;
@@ -122,7 +90,7 @@ TEST_F(TestUbseLcneModule, IsPrimaryEidExist)
 TEST_F(TestUbseLcneModule, GetMtiComEid)
 {
     UbseLcneModule module;
-    UbseDevName devName("1", "1");
+    UbseMtiIouInfo devName{"1", "1", ""};
     adapter_plugins::mti::UbseMtiEidGroup info;
     info.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
@@ -131,25 +99,25 @@ TEST_F(TestUbseLcneModule, GetMtiComEid)
 
     auto ret = module.GetMtiComEid();
     EXPECT_EQ(ret.size(), 1);
-    EXPECT_EQ(ret[devName].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4321");
-    EXPECT_EQ(ret[devName].portEids["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
+    EXPECT_EQ(ret.at(devName).primaryEid, "1234:5678:8765:4321:1234:5678:8765:4321");
+    EXPECT_EQ(ret.at(devName).portEids.at("2"), "1234:5678:8765:4321:1234:5678:8765:4325");
 }
 
 TEST_F(TestUbseLcneModule, GetLocalBoardIOInfo)
 {
     UbseLcneModule module;
-    UbseDevName devName("1", "1");
+    UbseMtiIouInfo devName{"1", "1", ""};
     UbseLcneIODieInfo info;
     info.guid = "01-0101-0-1-0101-0101-010101-0101010101";
     info.primaryCna = "0x0085a7";
-    info.chipType = DevType::CPU;
+    info.chipType = UbseDevType::CPU;
     module.localBoardIOInfo.emplace(devName, info);
 
     auto ret = module.GetLocalBoardIOInfo();
     EXPECT_EQ(ret.size(), 1);
-    EXPECT_EQ(ret[devName].guid, "01-0101-0-1-0101-0101-010101-0101010101");
-    EXPECT_EQ(ret[devName].primaryCna, "0x0085a7");
-    EXPECT_EQ(ret[devName].chipType, DevType::CPU);
+    EXPECT_EQ(ret.at(devName).guid, "01-0101-0-1-0101-0101-010101-0101010101");
+    EXPECT_EQ(ret.at(devName).primaryCna, "0x0085a7");
+    EXPECT_EQ(ret.at(devName).chipType, UbseDevType::CPU);
 }
 
 TEST_F(TestUbseLcneModule, GetLcneData)
@@ -277,19 +245,17 @@ TEST_F(TestUbseLcneModule, FillNodeComInfo_Success)
     UbseLcneModule module;
     std::string localNodeId = "1";
     module.ubseLcneBusInstanceInfo.localNodeId = localNodeId;
-    module.allSocketComEid.emplace(UbseDevName("1", "2"), adapter_plugins::mti::UbseMtiEidGroup{});
+    module.allSocketComEid.emplace(UbseMtiIouInfo{"1", "2", ""}, adapter_plugins::mti::UbseMtiEidGroup{});
 
     MOCKER_CPP(&UbseLcneModule::IsPrimaryEidExist).stubs().will(returnValue(false));
-    MOCKER_CPP(&UbseLcneModule::GenerateBondingEid).stubs().will(returnValue(UBSE_OK));
-
-    std::string expectedBondingEidString = "4245:4944::";
-    MOCKER_CPP(&UbseLcneModule::BytesToIPv6String).stubs().will(returnValue(expectedBondingEidString));
+    std::string expectedEid = "0000:0001:0000:0000:0000:0000:0000:0000";
+    MOCKER(&utils::GenerateUrmaDevEid).stubs().with(any(), any(), any(), any()).will(returnValue(expectedEid));
 
     UbseResult ret = module.FillNodeComInfo();
     EXPECT_EQ(ret, UBSE_OK);
 
     EXPECT_EQ(module.ubseNodeInfos_.size(), 1);
     EXPECT_EQ(module.ubseNodeInfos_.front().nodeId, localNodeId);
-    EXPECT_EQ(module.ubseNodeInfos_.front().eid, expectedBondingEidString);
+    EXPECT_EQ(module.ubseNodeInfos_.front().eid, expectedEid);
 }
 } // namespace ubse::mti

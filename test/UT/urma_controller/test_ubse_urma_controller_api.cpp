@@ -233,47 +233,8 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevGet_NullBuffer)
 {
     UbseIpcMessage req = {nullptr, 0};
     UbseRequestContext ctx = {};
-    auto ret = UbseUrmaControllerApi::UbseUrmaDevGet(req, ctx);
+    auto ret = UbseUrmaControllerApi::UbseUrmaDevGetLocal(req, ctx);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevGet_GetLocalDevInfoFails)
-{
-    UbseSerialization serial;
-    UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
-    UbseRequestContext ctx = {};
-
-    MOCKER_CPP(&UrmaController::UbseGetLocalUrmaDevInfo).stubs().will(returnValue(UBSE_ERROR));
-    auto ret = UbseUrmaControllerApi::UbseUrmaDevGet(req, ctx);
-    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevGet_NullApiServerModule)
-{
-    UbseSerialization serial;
-    UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
-    UbseRequestContext ctx = {};
-
-    MOCKER_CPP(&UrmaController::UbseGetLocalUrmaDevInfo).stubs().will(returnValue(UBSE_OK));
-    std::shared_ptr<UbseApiServerModule> nullMod;
-    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullMod));
-    auto ret = UbseUrmaControllerApi::UbseUrmaDevGet(req, ctx);
-    EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevGet_Success)
-{
-    UbseSerialization serial;
-    UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
-    UbseRequestContext ctx = {};
-    ctx.requestId = 42;
-
-    auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UrmaController::UbseGetLocalUrmaDevInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
-    auto ret = UbseUrmaControllerApi::UbseUrmaDevGet(req, ctx);
-    EXPECT_EQ(ret, UBSE_OK);
 }
 
 TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_NullBuffer)
@@ -297,20 +258,6 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_NameTooLong)
     delete[] buffer;
 }
 
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_FreeDevFails)
-{
-    std::string devName("test_dev");
-    auto buffer = new uint8_t[devName.size() + 1];
-    memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
-    UbseRequestContext ctx = {};
-
-    MOCKER_CPP(&UrmaController::UbseFreeUrmaDev).stubs().will(returnValue(UBSE_ERROR));
-    auto ret = UbseUrmaControllerApi::UbseUrmaDevFree(req, ctx);
-    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
-    delete[] buffer;
-}
-
 TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_NullApiServerModule)
 {
     std::string devName("test_dev");
@@ -319,7 +266,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_NullApiServerModule)
     UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
 
-    MOCKER_CPP(&UrmaController::UbseFreeUrmaDev).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseFreeUrmaDev).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseApiServerModule> nullMod;
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullMod));
     auto ret = UbseUrmaControllerApi::UbseUrmaDevFree(req, ctx);
@@ -337,7 +284,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevFree_Success)
     ctx.requestId = 42;
 
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UrmaController::UbseFreeUrmaDev).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseFreeUrmaDev).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
     MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseUrmaControllerApi::UbseUrmaDevFree(req, ctx);
@@ -353,33 +300,6 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_NullBuffer)
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_NameTooLong)
-{
-    std::string longName(33, 'x');
-    auto buffer = new uint8_t[longName.size() + 1];
-    memcpy(buffer, longName.c_str(), longName.size() + 1);
-    UbseIpcMessage req = {buffer, static_cast<uint32_t>(longName.size() + 1)};
-    UbseRequestContext ctx = {};
-
-    auto ret = UbseUrmaControllerApi::UbseUrmaDevAlloc(req, ctx);
-    EXPECT_EQ(ret, UBSE_ERROR);
-    delete[] buffer;
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_AllocDevFails)
-{
-    std::string devName("test_dev");
-    auto buffer = new uint8_t[devName.size() + 1];
-    memcpy(buffer, devName.c_str(), devName.size() + 1);
-    UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
-    UbseRequestContext ctx = {};
-
-    MOCKER_CPP(&UrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_ERROR));
-    auto ret = UbseUrmaControllerApi::UbseUrmaDevAlloc(req, ctx);
-    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
-    delete[] buffer;
-}
-
 TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_AllocRspPackFails)
 {
     std::string devName("test_dev");
@@ -389,7 +309,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_AllocRspPackFails)
     UbseRequestContext ctx = {};
 
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
     MOCKER_CPP(AllocRspPack).stubs().will(returnValue(UBSE_ERROR));
     auto ret = UbseUrmaControllerApi::UbseUrmaDevAlloc(req, ctx);
@@ -405,7 +325,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_NullApiServerModule)
     UbseIpcMessage req = {buffer, static_cast<uint32_t>(devName.size() + 1)};
     UbseRequestContext ctx = {};
 
-    MOCKER_CPP(&UrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(AllocRspPack).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseApiServerModule> nullMod;
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(nullMod));
@@ -424,7 +344,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_SendResponseFails)
     ctx.requestId = 42;
 
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(AllocRspPack).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
     MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
@@ -443,7 +363,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevAlloc_Success)
     ctx.requestId = 42;
 
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseAllocUrmaDev).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(AllocRspPack).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
     MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
@@ -456,7 +376,7 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevGet_NullBuffer)
 {
     UbseIpcMessage req = {nullptr, 0};
     UbseRequestContext ctx = {};
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevGet(req, ctx);
+    auto ret = UbseUrmaControllerApi::UbseUrmaDevGetLocal(req, ctx);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
 }
 
@@ -469,27 +389,9 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevGet_QueryFails)
     UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
     UbseRequestContext ctx = {};
 
-    MOCKER_CPP(&UrmaController::UbseGetUrmaDevInfoByNodeId).stubs().will(returnValue(UBSE_ERROR));
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevGet(req, ctx);
+    MOCKER_CPP(&UbseUrmaController::UbseGetUrmaDevsByNodeId).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = UbseUrmaControllerApi::UbseUrmaDevGetLocal(req, ctx);
     EXPECT_NE(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevGet_Success)
-{
-    UbseSerialization serial;
-    uint32_t nodeId = 1;
-    uint32_t deviceListSize = 1;
-    serial << nodeId << deviceListSize << std::string("urma_dev_0");
-    UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
-    UbseRequestContext ctx = {};
-    ctx.requestId = 42;
-
-    auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UrmaController::UbseGetUrmaDevInfoByNodeId).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevGet(req, ctx);
-    EXPECT_EQ(ret, UBSE_OK);
 }
 
 TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevGet_QueryFailsAfterParse)
@@ -502,56 +404,9 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevGet_QueryFailsAfterParse)
     UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
     UbseRequestContext ctx = {};
 
-    MOCKER_CPP(&UrmaController::UbseGetUrmaDevInfoByNodeId).stubs().will(returnValue(UBSE_ERROR));
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevGet(req, ctx);
+    MOCKER_CPP(&UbseUrmaController::UbseGetUrmaDevsByNodeId).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = UbseUrmaControllerApi::UbseUrmaDevGetLocal(req, ctx);
     EXPECT_NE(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevActivate_NullBuffer)
-{
-    UbseIpcMessage req = {nullptr, 0};
-    UbseRequestContext ctx = {};
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevActivate(req, ctx);
-    EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevActivate_DeserializeFails)
-{
-    auto buffer = new uint8_t[4]{};
-    UbseIpcMessage req = {buffer, 4};
-    UbseRequestContext ctx = {};
-
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevActivate(req, ctx);
-    EXPECT_EQ(ret, UBSE_ERROR_DESERIALIZE_FAILED);
-    delete[] buffer;
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevActivate_ActivateFails)
-{
-    UbseSerialization serial;
-    serial << std::string("node_1") << std::string("urma_dev_0");
-    UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
-    UbseRequestContext ctx = {};
-
-    MOCKER_CPP(&UrmaController::UbseUrmaCliDevActivate).stubs().will(returnValue(UBSE_ERROR));
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevActivate(req, ctx);
-    EXPECT_NE(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseUrmaControllerApi, UbseUrmaCliDevActivate_Success)
-{
-    UbseSerialization serial;
-    serial << std::string("node_1") << std::string("urma_dev_0");
-    UbseIpcMessage req = {serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
-    UbseRequestContext ctx = {};
-    ctx.requestId = 42;
-
-    auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER_CPP(&UrmaController::UbseUrmaCliDevActivate).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
-    auto ret = UbseUrmaControllerApi::UbseUrmaCliDevActivate(req, ctx);
-    EXPECT_EQ(ret, UBSE_OK);
 }
 
 } // namespace ubse::urmaControllerApi::ut

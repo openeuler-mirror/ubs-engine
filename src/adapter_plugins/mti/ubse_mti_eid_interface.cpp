@@ -15,19 +15,19 @@
 #include <array>
 #include <bitset>
 #include <vector>
-#include "securec.h"
 #include "ubse_common_def.h"
 #include "ubse_logger_module.h"
 #include "ubse_str_util.h"
+#include "securec.h"
 
 namespace ubse::utils {
 using namespace common::def;
 std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe0Id, uint16_t fe1Id)
 {
     uint32_t id0 = BEID_PREFIX + superPodId;
-    uint32_t id1 = nodeId;
+    uint32_t id1 = 0;
     uint32_t id2 = (static_cast<uint32_t>(fe0Id) << 16) | fe1Id;
-    uint32_t id3 = 0;
+    uint32_t id3 = nodeId;
     std::array<unsigned char, IPV6_BYTE_COUNT> bondingEid{};
     uint32_t copyCnt = 0;
 
@@ -54,7 +54,7 @@ std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe
     return buffer.data();
 }
 
-UbseResult ParseBaseEid(const std::string &baseEid, std::string &bitStr)
+UbseResult ParseBaseEid(const std::string& baseEid, std::string& bitStr)
 {
     bitStr.clear();
     std::stringstream ss(baseEid);
@@ -65,10 +65,10 @@ UbseResult ParseBaseEid(const std::string &baseEid, std::string &bitStr)
     }
 
     std::vector<uint16_t> values;
-    for (const auto &seg : segments) {
+    for (const auto& seg : segments) {
         try {
             values.push_back(static_cast<uint16_t>(std::stoul(seg, nullptr, NO_16)));
-        } catch (const std::invalid_argument &e) {
+        } catch (const std::invalid_argument& e) {
             return UBSE_ERROR;
         }
     }
@@ -83,7 +83,7 @@ UbseResult ParseBaseEid(const std::string &baseEid, std::string &bitStr)
     return UBSE_OK;
 }
 
-void ConstructEid(const std::string &bitStr, std::string &eid)
+void ConstructEid(const std::string& bitStr, std::string& eid)
 {
     // eid 4245:4944:0000:0000:0000:0000:0100:0000 格式，bits字符长128位
     eid.clear();
@@ -103,8 +103,7 @@ void ConstructEid(const std::string &bitStr, std::string &eid)
     }
 }
 
-
-UbseResult OverwriteEid(uint32_t serverIdx, const std::string &baseEid, std::string &result)
+UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::string& result)
 {
     uint32_t podId = serverIdx / NO_8;
     uint32_t serverId = serverIdx % NO_8;
@@ -113,7 +112,7 @@ UbseResult OverwriteEid(uint32_t serverIdx, const std::string &baseEid, std::str
     /* 当前eid算法逻辑保持原有，待LCNE更新后替换 */
 }
 
-UbseResult OverwriteEid(uint32_t podId, uint32_t serverId, const std::string &baseEid, std::string &result)
+UbseResult OverwriteEid(uint32_t podId, uint32_t serverId, const std::string& baseEid, std::string& result)
 {
     uint32_t n = 116; // 从第117位开始，3位podId，3位serverId
     uint8_t podBitSize = NO_3;
@@ -135,8 +134,8 @@ UbseResult OverwriteEid(uint32_t podId, uint32_t serverId, const std::string &ba
     std::string podIdBitStr = podIdBits.to_string().substr(NO_32 - podBitSize);
     std::string serverIdBitStr = serverIdBits.to_string().substr(NO_32 - serverBitSize);
 
-    std::string eidBitStr = bitStr.substr(0, n) + podIdBitStr + serverIdBitStr +
-                            bitStr.substr(n + podBitSize + serverBitSize);
+    std::string eidBitStr =
+        bitStr.substr(0, n) + podIdBitStr + serverIdBitStr + bitStr.substr(n + podBitSize + serverBitSize);
     ConstructEid(eidBitStr, result);
     return UBSE_OK;
 }

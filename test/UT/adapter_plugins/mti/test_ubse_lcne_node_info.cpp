@@ -55,11 +55,11 @@ TEST_F(TestUbseLcneNodeInfo, ParseIODieInfoQueryAllResponseSuccess)
     UbseLcneIODieInfoMap ubseLcneIODieInfoMap;
     UbseResult ret =
         UbseLcneNodeInfo::GetGetInstance().ParseIODieInfoQueryAllResponse(responseXml, ubseLcneIODieInfoMap);
-    UbseDevName devName1("1", "1");
+    UbseMtiIouInfo devName1{"1", "1", "1"};
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ("01-0101-0-1-0101-0101-010101-0101010101", ubseLcneIODieInfoMap[devName1].guid);
     EXPECT_EQ("0x0085a7", ubseLcneIODieInfoMap[devName1].primaryCna);
-    EXPECT_EQ(DevType::CPU, ubseLcneIODieInfoMap[devName1].chipType);
+    EXPECT_EQ(UbseDevType::CPU, ubseLcneIODieInfoMap[devName1].chipType);
 }
 
 TEST_F(TestUbseLcneNodeInfo, ParseIODieInfoQueryAllResponseFailed)
@@ -85,11 +85,11 @@ TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfoSuccess)
 {
     UbseLcneIODieInfoMap ubseLcneIODieInfoMap;
     UbseLcneIODieInfoMap ubmap;
-    UbseDevName devName1("1", "1");
+    UbseMtiIouInfo devName1{"1", "1", "1"};
     UbseLcneIODieInfo info{};
     info.guid = "01-0101-0-1-0101-0101-010101-0101010101";
     info.primaryCna = "0x0085a7";
-    info.chipType = DevType::CPU;
+    info.chipType = UbseDevType::CPU;
     ubmap.emplace(devName1, info);
 
     UbseHttpRequest req;
@@ -107,7 +107,7 @@ TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfoSuccess)
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ("01-0101-0-1-0101-0101-010101-0101010101", ubseLcneIODieInfoMap[devName1].guid);
     EXPECT_EQ("0x0085a7", ubseLcneIODieInfoMap[devName1].primaryCna);
-    EXPECT_EQ(DevType::CPU, ubseLcneIODieInfoMap[devName1].chipType);
+    EXPECT_EQ(UbseDevType::CPU, ubseLcneIODieInfoMap[devName1].chipType);
 }
 
 TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfo_HttpSendFailed)

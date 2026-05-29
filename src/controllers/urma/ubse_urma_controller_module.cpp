@@ -13,6 +13,7 @@
 #include "ubse_urma_controller_module.h"
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
@@ -22,9 +23,9 @@
 #include "ubse_timer.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_api.h"
-#include "ubse_urma_controller_util.h"
-#include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_controller_qos.h"
+#include "ubse_urma_controller_rpc.h"
+#include "ubse_urma_controller_util.h"
 
 namespace ubse::urmaController {
 using namespace ubse::log;
@@ -33,6 +34,7 @@ using namespace ubse::task_executor;
 using namespace ubse::com;
 using namespace ubse::common::def;
 using namespace ubse::nodeController;
+using namespace ubse::config;
 
 DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -94,20 +96,25 @@ UbseResult RpcReg()
 
 UbseResult UbseUrmaControllerModule::Initialize()
 {
+    auto ret = UbseUrmaControllerApi::Register();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
+        return ret;
+    }
+    enabled_ = UbseIsUrmaSupported();
+    if (!enabled_) {
+        UBSE_LOG_INFO << "Urma is not supported in current environment, skip initialize UrmaControllerModule.";
+        return UBSE_OK;
+    }
     // 注册消息处理函数,监听 topo变化事件
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
+    ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
         return UBSE_ERROR_CONF_INVALID;
-    }
-    ret = UbseUrmaControllerApi::Register();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
-        return ret;
     }
     if (RpcReg() != UBSE_OK) {
         return UBSE_ERROR;
@@ -144,7 +151,7 @@ void DisconnectAllNormalLink()
         return;
     }
     auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &node : allNodes) {
+    for (const auto& node : allNodes) {
         comModule->RemoveChannel(node.second.nodeId, UbseChannelType::NORMAL);
     }
 }
@@ -156,6 +163,10 @@ UbseResult UbseUrmaControllerModule::Start()
 
 void UbseUrmaControllerModule::Stop()
 {
+    if (!enabled_) {
+        UBSE_LOG_INFO << "Urma is not supported in current environment, skip stop UrmaControllerModule.";
+        return;
+    }
     std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
     auto ret = ubse::event::UbseUnSubEvent(nodeJoinEventId,
                                            ubse::urmaController::UbseUrmaController::GetInstance().UbseNodeJoinHandler);

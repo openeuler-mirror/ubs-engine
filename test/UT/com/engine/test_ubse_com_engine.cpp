@@ -731,7 +731,7 @@ TEST_F(TestUbseComEngine, TestHandleGetLocalNodeId)
     EXPECT_NO_THROW(mockengine.HandleGetLocalNodeId(context));
 
     GlobalMockObject::verify();
-    MtiNodeInfo localNodeInfo{"MockNode", "testEid"};
+    UbseMtiNodeInfo localNodeInfo{"MockNode", "testEid"};
     MOCKER_CPP(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(localNodeInfo)).will(returnValue(UBSE_OK));
     EXPECT_NO_THROW(mockengine.HandleGetLocalNodeId(context));
 }

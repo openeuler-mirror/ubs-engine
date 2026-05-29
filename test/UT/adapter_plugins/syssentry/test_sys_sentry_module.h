@@ -39,8 +39,8 @@ extern UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas);
 extern UbseResult SetSysSentryFaultReporter();
 extern void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings);
 extern std::string ShellEscape(const std::string& str);
-extern UbseResult ProcessEids(const std::map<ubse::adapter_plugins::mti::UbseDevName,
-                                             ubse::adapter_plugins::mti::UbseUrmaEidInfo>& allSocketComEid,
+extern UbseResult ProcessEids(const std::map<ubse::adapter_plugins::mti::UbseMtiIouInfo,
+                                             ubse::adapter_plugins::mti::UbseMtiEidGroup>& allSocketComEid,
                               const std::string& nodeId,
                               std::unordered_map<std::string, std::vector<std::string>>& eids,
                               std::vector<std::string>& eidGroup);
