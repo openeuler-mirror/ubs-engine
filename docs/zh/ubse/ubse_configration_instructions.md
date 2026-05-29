@@ -281,6 +281,7 @@ virt.sceneType=1
 |5|rmrs.fragment.mustSamePlane|内存碎片场景，内存借用、迁出策略、迁出执行、故障处理，是否必须同平面(true:必须同平面，false:优先同平面)|默认值：true单位：bool配置范围：false/true|所有节点|通算虚拟化场景|
 |6|rmrs.fragment.enableBorrowSplit|内存碎片场景，借用是否切分为 4G 粒度（true: 切分，false: 不切分）|默认值：true单位：bool配置范围：false/true|所有节点|通算虚拟化场景|
 |7|overcommit.enableMultiNuma|容器超分场景，是否为虚机多numa场景（true: 虚机多numa场景, false: 单numa场景）|默认值：false单位： bool配置范围：false/true|所有节点|容器超分场景|
+
 **配置示例**
 
 示例如下：
